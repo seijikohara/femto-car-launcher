@@ -143,7 +143,7 @@ policy elsewhere.
 
 | Permission | Justification |
 | --- | --- |
-| _(none yet)_ | _(none)_ |
+| `ACCESS_FINE_LOCATION` | Detect vehicle motion via GPS speed for the driving-lockout policy (see `gate-driving-visible-feature` skill). Required at runtime; locked default holds until granted. |
 
 ### Dependencies <a id="dependencies"></a>
 

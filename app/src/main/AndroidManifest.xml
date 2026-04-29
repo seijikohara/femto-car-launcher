@@ -3,6 +3,15 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
+        ACCESS_FINE_LOCATION: needed to detect vehicle motion from GPS
+        speed for the driving-lockout policy. The single source of truth
+        for the lockout policy is the gate-driving-visible-feature skill
+        under .claude/skills/. Justification is mirrored in the audit
+        log at CLAUDE.md#permissions.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!--
         Package visibility: declare interest in every app that registers
         the LAUNCHER intent so LauncherApps.getActivityList() returns the
         full set on Android 11+. This is the privacy-respecting path
