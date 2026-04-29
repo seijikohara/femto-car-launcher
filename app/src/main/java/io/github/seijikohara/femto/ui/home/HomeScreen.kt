@@ -11,20 +11,21 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(modifier: Modifier = Modifier) {
     Surface(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(FemtoDimens.ScreenPadding),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(FemtoDimens.ScreenPadding),
             contentAlignment = Alignment.Center,
         ) {
             Column(
@@ -46,8 +47,7 @@ fun HomeScreen() {
     }
 }
 
-@Preview(name = "Light", showBackground = true)
-@Preview(name = "Dark", showBackground = true, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
+@PreviewLightDark
 @Composable
 private fun HomeScreenPreview() {
     FemtoTheme {

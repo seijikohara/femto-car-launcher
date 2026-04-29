@@ -11,7 +11,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import io.github.seijikohara.femto.R
 
-private fun variableFont(resId: Int, weight: FontWeight): Font =
+private fun variableFont(
+    resId: Int,
+    weight: FontWeight,
+): Font =
     Font(
         resId = resId,
         weight = weight,
@@ -19,33 +22,38 @@ private fun variableFont(resId: Int, weight: FontWeight): Font =
         variationSettings = FontVariation.Settings(FontVariation.weight(weight.weight)),
     )
 
-private val WeightAxis = listOf(
-    FontWeight.Thin,
-    FontWeight.ExtraLight,
-    FontWeight.Light,
-    FontWeight.Normal,
-    FontWeight.Medium,
-    FontWeight.SemiBold,
-    FontWeight.Bold,
-    FontWeight.ExtraBold,
-    FontWeight.Black,
-)
+private val WeightAxis =
+    listOf(
+        FontWeight.Thin,
+        FontWeight.ExtraLight,
+        FontWeight.Light,
+        FontWeight.Normal,
+        FontWeight.Medium,
+        FontWeight.SemiBold,
+        FontWeight.Bold,
+        FontWeight.ExtraBold,
+        FontWeight.Black,
+    )
 
-private fun mixedFamily(latinResId: Int, jpResId: Int): FontFamily =
+private fun mixedFamily(
+    latinResId: Int,
+    jpResId: Int,
+): FontFamily =
     FontFamily(
         WeightAxis.flatMap { weight ->
             listOf(
                 variableFont(latinResId, weight),
                 variableFont(jpResId, weight),
             )
-        }
+        },
     )
 
 internal object FemtoFonts {
     val Geist: FontFamily = mixedFamily(R.font.geist_variable, R.font.mplus2_variable)
-    val MPlus2: FontFamily = FontFamily(
-        WeightAxis.map { variableFont(R.font.mplus2_variable, it) }
-    )
+    val MPlus2: FontFamily =
+        FontFamily(
+            WeightAxis.map { variableFont(R.font.mplus2_variable, it) },
+        )
 }
 
 /**
@@ -57,50 +65,95 @@ internal object FemtoFonts {
 internal fun femtoTypography(latin: FontFamily): Typography {
     val baseline = Typography()
     return Typography(
-        displayLarge = baseline.displayLarge.copy(
-            fontFamily = latin, fontWeight = FontWeight.Black, fontSize = 96.sp,
-        ),
-        displayMedium = baseline.displayMedium.copy(
-            fontFamily = latin, fontWeight = FontWeight.ExtraBold, fontSize = 72.sp,
-        ),
-        displaySmall = baseline.displaySmall.copy(
-            fontFamily = latin, fontWeight = FontWeight.ExtraBold, fontSize = 56.sp,
-        ),
-        headlineLarge = baseline.headlineLarge.copy(
-            fontFamily = latin, fontWeight = FontWeight.Bold, fontSize = 40.sp,
-        ),
-        headlineMedium = baseline.headlineMedium.copy(
-            fontFamily = latin, fontWeight = FontWeight.Bold, fontSize = 32.sp,
-        ),
-        headlineSmall = baseline.headlineSmall.copy(
-            fontFamily = latin, fontWeight = FontWeight.SemiBold, fontSize = 26.sp,
-        ),
-        titleLarge = baseline.titleLarge.copy(
-            fontFamily = latin, fontWeight = FontWeight.SemiBold, fontSize = 24.sp,
-        ),
-        titleMedium = baseline.titleMedium.copy(
-            fontFamily = latin, fontWeight = FontWeight.Medium, fontSize = 20.sp,
-        ),
-        titleSmall = baseline.titleSmall.copy(
-            fontFamily = latin, fontWeight = FontWeight.Medium, fontSize = 18.sp,
-        ),
-        bodyLarge = baseline.bodyLarge.copy(
-            fontFamily = latin, fontWeight = FontWeight.Normal, fontSize = 20.sp,
-        ),
-        bodyMedium = baseline.bodyMedium.copy(
-            fontFamily = latin, fontWeight = FontWeight.Normal, fontSize = 18.sp,
-        ),
-        bodySmall = baseline.bodySmall.copy(
-            fontFamily = latin, fontWeight = FontWeight.Normal, fontSize = 16.sp,
-        ),
-        labelLarge = baseline.labelLarge.copy(
-            fontFamily = latin, fontWeight = FontWeight.Medium, fontSize = 18.sp,
-        ),
-        labelMedium = baseline.labelMedium.copy(
-            fontFamily = latin, fontWeight = FontWeight.Medium, fontSize = 16.sp,
-        ),
-        labelSmall = baseline.labelSmall.copy(
-            fontFamily = latin, fontWeight = FontWeight.Medium, fontSize = 14.sp,
-        ),
+        displayLarge =
+            baseline.displayLarge.copy(
+                fontFamily = latin,
+                fontWeight = FontWeight.Black,
+                fontSize = 96.sp,
+            ),
+        displayMedium =
+            baseline.displayMedium.copy(
+                fontFamily = latin,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 72.sp,
+            ),
+        displaySmall =
+            baseline.displaySmall.copy(
+                fontFamily = latin,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 56.sp,
+            ),
+        headlineLarge =
+            baseline.headlineLarge.copy(
+                fontFamily = latin,
+                fontWeight = FontWeight.Bold,
+                fontSize = 40.sp,
+            ),
+        headlineMedium =
+            baseline.headlineMedium.copy(
+                fontFamily = latin,
+                fontWeight = FontWeight.Bold,
+                fontSize = 32.sp,
+            ),
+        headlineSmall =
+            baseline.headlineSmall.copy(
+                fontFamily = latin,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 26.sp,
+            ),
+        titleLarge =
+            baseline.titleLarge.copy(
+                fontFamily = latin,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 24.sp,
+            ),
+        titleMedium =
+            baseline.titleMedium.copy(
+                fontFamily = latin,
+                fontWeight = FontWeight.Medium,
+                fontSize = 20.sp,
+            ),
+        titleSmall =
+            baseline.titleSmall.copy(
+                fontFamily = latin,
+                fontWeight = FontWeight.Medium,
+                fontSize = 18.sp,
+            ),
+        bodyLarge =
+            baseline.bodyLarge.copy(
+                fontFamily = latin,
+                fontWeight = FontWeight.Normal,
+                fontSize = 20.sp,
+            ),
+        bodyMedium =
+            baseline.bodyMedium.copy(
+                fontFamily = latin,
+                fontWeight = FontWeight.Normal,
+                fontSize = 18.sp,
+            ),
+        bodySmall =
+            baseline.bodySmall.copy(
+                fontFamily = latin,
+                fontWeight = FontWeight.Normal,
+                fontSize = 16.sp,
+            ),
+        labelLarge =
+            baseline.labelLarge.copy(
+                fontFamily = latin,
+                fontWeight = FontWeight.Medium,
+                fontSize = 18.sp,
+            ),
+        labelMedium =
+            baseline.labelMedium.copy(
+                fontFamily = latin,
+                fontWeight = FontWeight.Medium,
+                fontSize = 16.sp,
+            ),
+        labelSmall =
+            baseline.labelSmall.copy(
+                fontFamily = latin,
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
+            ),
     )
 }

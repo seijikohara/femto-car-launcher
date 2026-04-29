@@ -1,14 +1,29 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.spotless)
+}
+
+spotless {
+    val ktlintVersion = libs.versions.ktlint.get()
+    val composeRulesVersion = libs.versions.ktlintComposeRules.get()
+    kotlin {
+        target("src/**/*.kt")
+        targetExclude("**/build/**")
+        ktlint(ktlintVersion)
+            .customRuleSets(
+                listOf("io.nlopez.compose.rules:ktlint:$composeRulesVersion"),
+            )
+    }
 }
 
 android {
     namespace = "io.github.seijikohara.femto"
     compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
+        version =
+            release(36) {
+                minorApiLevel = 1
+            }
     }
 
     defaultConfig {
@@ -26,7 +41,7 @@ android {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
         }
     }

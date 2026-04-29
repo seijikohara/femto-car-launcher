@@ -17,6 +17,7 @@ internal data class FontPair(
     val jp: FontFamily,
 )
 
-internal fun fontPairOf(theme: FontTheme): FontPair = when (theme) {
-    FontTheme.GEIST -> FontPair(latin = FemtoFonts.Geist, jp = FemtoFonts.MPlus2)
-}
+internal fun fontPairOf(theme: FontTheme): FontPair =
+    when (theme) {
+        FontTheme.GEIST -> FontPair(latin = FemtoFonts.Geist, jp = FemtoFonts.MPlus2)
+    }

@@ -13,3 +13,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Claude Code per-machine settings (committed counterpart is .claude/settings.json)
+.claude/settings.local.json
