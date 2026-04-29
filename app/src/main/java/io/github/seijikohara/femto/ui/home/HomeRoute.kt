@@ -1,10 +1,16 @@
 package io.github.seijikohara.femto.ui.home
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.seijikohara.femto.data.hasFineLocationPermission
 
 @Composable
 fun HomeRoute(
@@ -12,9 +18,37 @@ fun HomeRoute(
     viewModel: HomeViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    LocationPermissionRequest()
     HomeScreen(
         uiState = uiState,
         onAction = viewModel::onAction,
         modifier = modifier,
     )
+}
+
+/**
+ * Request `ACCESS_FINE_LOCATION` once when the route first composes.
+ *
+ * The permission gates the driving-lockout signal (see
+ * `data/DrivingState.kt` and the `gate-driving-visible-feature`
+ * skill). On denial the launcher continues to function; the lockout
+ * stays in its safe default (`true`) until the user grants the
+ * permission via system Settings.
+ *
+ * A richer rationale UI is deferred; the current request relies on
+ * the system dialog alone.
+ */
+@Composable
+private fun LocationPermissionRequest() {
+    val context = LocalContext.current
+    val launcher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission(),
+        ) { /* Result reflects on next STARTED via repeatOnLifecycle. */ }
+
+    LaunchedEffect(Unit) {
+        if (!context.hasFineLocationPermission()) {
+            launcher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
 }

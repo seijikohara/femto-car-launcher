@@ -1,27 +1,61 @@
 package io.github.seijikohara.femto.data
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import io.github.seijikohara.femto.BuildConfig
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 
 /**
- * Driving-lockout signal stub.
+ * Compose-side accessor for the driving-lockout state.
  *
  * The single source of truth for the lockout policy is the
  * `gate-driving-visible-feature` skill under `.claude/skills/`.
- * Until the real signal lands (GPS speed, vehicle CAN, AI-Box
- * driving flag), this stub determines whether driver-distracting
- * UI is shown.
  *
- * Default behaviour:
- * - Release builds: locked. The user sees the safe placeholder
- *   surface until the real signal is wired.
- * - Debug builds: unlocked. This is the documented build-variant
- *   override that the lockout SSOT permits, so development and
- *   AVD smoke tests can exercise the full UI.
+ * Default behaviour (locked = the safe answer):
+ * - Compose previews: unlocked, so design review can see the full
+ *   surface.
+ * - `ACCESS_FINE_LOCATION` not granted: locked.
+ * - Permission granted, no GPS fix yet: locked.
+ * - Permission granted, GPS speed below the unlock threshold:
+ *   unlocked.
+ * - Permission granted, GPS speed at or above the unlock threshold:
+ *   locked.
  *
- * TODO(driving-lockout): replace with a real DrivingState source
- * (GPS speed >= 5 km/h, ACC line, OBD-II RPM > idle, etc.).
+ * The state is re-evaluated every time the host activity reaches
+ * the STARTED lifecycle, so a permission grant that arrives via a
+ * runtime dialog is reflected as soon as the dialog dismisses.
  */
 @Composable
-fun rememberDrivingLockState(): Boolean = remember { !BuildConfig.DEBUG }
+fun rememberDrivingLockState(): Boolean {
+    if (LocalInspectionMode.current) return false
+
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    val locked by produceState(initialValue = true, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            if (!context.hasFineLocationPermission()) {
+                value = true
+                return@repeatOnLifecycle
+            }
+            DrivingStateRepository(context).lockedFlow().collect { isLocked ->
+                value = isLocked
+            }
+        }
+    }
+    return locked
+}
+
+internal fun Context.hasFineLocationPermission(): Boolean =
+    ContextCompat.checkSelfPermission(
+        this,
+        Manifest.permission.ACCESS_FINE_LOCATION,
+    ) == PackageManager.PERMISSION_GRANTED
