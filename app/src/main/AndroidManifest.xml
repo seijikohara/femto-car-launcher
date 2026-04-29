@@ -2,6 +2,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!--
+        Package visibility: declare interest in every app that registers
+        the LAUNCHER intent so LauncherApps.getActivityList() returns the
+        full set on Android 11+. This is the privacy-respecting path
+        recommended by the add-launcher-permission skill (the alternative,
+        QUERY_ALL_PACKAGES, requires a Play Store justification).
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
