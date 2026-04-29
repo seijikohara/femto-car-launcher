@@ -18,6 +18,12 @@ ij_kotlin_allow_trailing_comma_on_call_site = true
 # Compose-specific naming check; disable the standard function-naming rule
 # so it does not flag @Composable functions.
 ktlint_standard_function-naming = disabled
+# CLAUDE.md#kotlin-style mandates expression-chain style. ktlint's
+# multiline-expression-wrapping rule otherwise re-wraps single-expression
+# `when` branches and `fun foo() = bar().run { ... }` chains into block
+# form, which is the opposite of the project's intent. Disable it so the
+# expression-chain style survives `./gradlew spotlessApply`.
+ktlint_standard_multiline-expression-wrapping = disabled
 
 [*.{xml,json,yml,yaml,toml}]
 indent_size = 2

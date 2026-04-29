@@ -47,14 +47,8 @@ class AppsRepository(
      * unused for the MVP grid; pass `null` to defer to system
      * defaults.
      */
-    fun launch(componentName: ComponentName) {
-        launcherApps.startMainActivity(
-            componentName,
-            Process.myUserHandle(),
-            null,
-            null,
-        )
-    }
+    fun launch(componentName: ComponentName): Unit =
+        launcherApps.startMainActivity(componentName, Process.myUserHandle(), null, null)
 
     private companion object {
         const val ICON_PIXELS = 192

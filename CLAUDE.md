@@ -183,6 +183,25 @@ convention differ, the project convention wins for this repo.
 ### Kotlin style <a id="kotlin-style"></a>
 
 - Authoritative reference: <https://kotlinlang.org/docs/coding-conventions.html>.
+- **Prefer expression chains over statement blocks.** Use
+  single-expression function bodies (`fun foo() = bar()`),
+  expression `when` and `if` (consume the result rather than
+  branching as a statement), and chained calls (`?.`, `?:`,
+  `let` / `run` / `also` / `apply`, `runCatching {}.onFailure {}`,
+  collection chains) in preference to intermediate `val`
+  declarations or imperative blocks. Reach for a block body only
+  when the function genuinely runs unrelated side effects in
+  sequence (`onCreate`, `init`, lifecycle callbacks).
+- When every branch of a `when` is a single expression, omit the
+  `{}`: `branch -> doIt()`. ktlint enforces a consistency rule that
+  wraps **every** branch of a `when` in `{}` as soon as one branch
+  spans multiple lines (e.g. a function call with named arguments
+  on separate lines). When that happens, accept the block form
+  rather than fighting the formatter — flatten the offending call
+  to a single line if the goal is the unwrapped style. The
+  `multiline-expression-wrapping` ktlint rule is **disabled** in
+  `.editorconfig` so single-line branches stay unwrapped where
+  ktlint's consistency rule does not interfere.
 - Trailing commas in multi-line argument and parameter lists, in
   `when` branches, and in collection literals.
 - `enum.entries` (Kotlin 1.9+) instead of the deprecated `.values()`.

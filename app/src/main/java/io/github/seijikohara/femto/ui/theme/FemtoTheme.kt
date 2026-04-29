@@ -26,17 +26,15 @@ fun FemtoTheme(
 ) {
     val context = LocalContext.current
     val inPreview = LocalInspectionMode.current
-    val colorScheme =
-        when {
-            inPreview && darkTheme -> DarkFallback
-            inPreview -> LightFallback
-            darkTheme -> dynamicDarkColorScheme(context)
-            else -> dynamicLightColorScheme(context)
-        }
-    val pair = fontPairOf(fontTheme)
     MaterialTheme(
-        colorScheme = colorScheme,
-        typography = femtoTypography(pair.latin),
+        colorScheme =
+            when {
+                inPreview && darkTheme -> DarkFallback
+                inPreview -> LightFallback
+                darkTheme -> dynamicDarkColorScheme(context)
+                else -> dynamicLightColorScheme(context)
+            },
+        typography = femtoTypography(fontPairOf(fontTheme).latin),
         content = content,
     )
 }

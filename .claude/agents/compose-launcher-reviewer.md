@@ -53,7 +53,11 @@ For each touched area, verify the diff against the named section of
   `enum.values()` instead of `.entries`, missing trailing commas in
   multi-line lists, module-level experimental opt-in, and unscoped
   `public` declarations where `internal` would suffice are
-  findings.
+  findings. Statement-style function bodies whose value is consumed
+  (`fun foo(): X { return bar() }`), `when` / `if` used as
+  statements when a chained expression would suffice, and
+  `{}`-wrapped single-expression `when` branches are also
+  findings — see the expression-chain rule in the same anchor.
 - Compose architecture → `CLAUDE.md#compose-architecture`. Stateful
   screens that skip the `Route` / `Screen` / `ViewModel` split,
   Composables that mutate `MutableState` instead of receiving

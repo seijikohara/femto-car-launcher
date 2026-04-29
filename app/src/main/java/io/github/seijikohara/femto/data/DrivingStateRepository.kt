@@ -53,30 +53,23 @@ class DrivingStateRepository(
             // Seed with the most recent cached fix so the gate has a value
             // before the first real update arrives.
             runCatching {
-                trySend(locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER))
-            }
+                locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            }.onSuccess { trySend(it) }
 
-            val subscribed =
-                runCatching {
-                    LocationManagerCompat.requestLocationUpdates(
-                        locationManager,
-                        LocationManager.GPS_PROVIDER,
-                        LocationRequestCompat.Builder(LOCATION_INTERVAL_MS).build(),
-                        listener,
-                        Looper.getMainLooper(),
-                    )
-                    true
-                }.getOrElse { false }
+            // Subscribe; if the provider is unavailable on this device,
+            // emit null so the lockedFlow consumer falls back to the safe
+            // default.
+            runCatching {
+                LocationManagerCompat.requestLocationUpdates(
+                    locationManager,
+                    LocationManager.GPS_PROVIDER,
+                    LocationRequestCompat.Builder(LOCATION_INTERVAL_MS).build(),
+                    listener,
+                    Looper.getMainLooper(),
+                )
+            }.onFailure { trySend(null) }
 
-            if (!subscribed) {
-                // GPS provider is unavailable on this device; emit null so
-                // the lockedFlow consumer falls back to the safe default.
-                trySend(null)
-            }
-
-            awaitClose {
-                locationManager.removeUpdates(listener)
-            }
+            awaitClose { locationManager.removeUpdates(listener) }
         }
 
     private companion object {

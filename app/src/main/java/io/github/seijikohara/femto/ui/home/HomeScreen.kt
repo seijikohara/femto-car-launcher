@@ -32,25 +32,25 @@ fun HomeScreen(
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val drivingLocked = rememberDrivingLockState()
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
+        val full = Modifier.fillMaxSize()
         when {
-            drivingLocked -> {
-                DrivingLockedPlaceholder(modifier = Modifier.fillMaxSize())
+            rememberDrivingLockState() -> {
+                DrivingLockedPlaceholder(modifier = full)
             }
 
             uiState.isLoading -> {
-                LoadingPlaceholder(modifier = Modifier.fillMaxSize())
+                LoadingPlaceholder(modifier = full)
             }
 
             else -> {
                 AppsGrid(
                     apps = uiState.apps,
                     onLaunch = { onAction(HomeAction.LaunchApp(it)) },
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = full,
                 )
             }
         }

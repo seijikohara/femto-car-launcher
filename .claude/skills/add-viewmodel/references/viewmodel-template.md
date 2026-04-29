@@ -52,16 +52,14 @@ class <Area>ViewModel(
     private val _uiState = MutableStateFlow(<Area>UiState.Initial)
     val uiState: StateFlow<<Area>UiState> = _uiState.asStateFlow()
 
-    fun onAction(action: <Area>Action) {
-        when (action) {
-            <Area>Action.Refresh -> refresh()
-            is <Area>Action.Select -> select(action.id)
-        }
+    fun onAction(action: <Area>Action) = when (action) {
+        <Area>Action.Refresh -> refresh()
+        is <Area>Action.Select -> select(action.id)
     }
 
     private fun refresh() {
+        _uiState.update { it.copy(isLoading = true) }
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
             // ... do the work, then:
             _uiState.update { it.copy(isLoading = false) }
         }
@@ -163,6 +161,10 @@ private fun <Area>ScreenPreview() {
 - `MutableStateFlow` is `private`. Only `StateFlow` leaves the
   class. This is enforced by the reviewer agent against
   `CLAUDE.md#compose-architecture`.
+- `onAction` is a `when` expression with `Unit` inferred return
+  type. Per the expression-chain rule in
+  `CLAUDE.md#kotlin-style`, prefer this shape over a statement
+  body that wraps the same `when`.
 - Use `_uiState.update { it.copy(...) }` for mutations — atomic,
   no read-modify-write race.
 - For events that should fire once (navigation, snackbars), use a
