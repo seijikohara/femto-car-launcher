@@ -19,11 +19,13 @@ private val Context.fontDataStore: DataStore<Preferences> by preferencesDataStor
  * default. The setter exists so future settings code can flip the choice
  * without introducing the persistence layer separately.
  */
-class FontPreferences(private val context: Context) {
-
-    val fontTheme: Flow<FontTheme> = context.fontDataStore.data.map { prefs ->
-        prefs[KEY]?.let { runCatching { FontTheme.valueOf(it) }.getOrNull() } ?: FontTheme.GEIST
-    }
+class FontPreferences(
+    private val context: Context,
+) {
+    val fontTheme: Flow<FontTheme> =
+        context.fontDataStore.data.map { prefs ->
+            FontTheme.entries.firstOrNull { it.name == prefs[KEY] } ?: FontTheme.GEIST
+        }
 
     suspend fun setFontTheme(theme: FontTheme) {
         context.fontDataStore.edit { prefs ->

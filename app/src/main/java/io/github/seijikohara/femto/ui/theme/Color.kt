@@ -17,20 +17,22 @@ private val Night = Color(0xFF050505)
 private val NightSurface = Color(0xFF0A0A0A)
 private val Bone = Color.White
 
-internal val LightFallback = lightColorScheme(
-    primary = Ink,
-    onPrimary = PaperPure,
-    background = Paper,
-    onBackground = Ink,
-    surface = PaperPure,
-    onSurface = Ink,
-)
+internal val LightFallback =
+    lightColorScheme(
+        primary = Ink,
+        onPrimary = PaperPure,
+        background = Paper,
+        onBackground = Ink,
+        surface = PaperPure,
+        onSurface = Ink,
+    )
 
-internal val DarkFallback = darkColorScheme(
-    primary = Bone,
-    onPrimary = Night,
-    background = Night,
-    onBackground = Bone,
-    surface = NightSurface,
-    onSurface = Bone,
-)
+internal val DarkFallback =
+    darkColorScheme(
+        primary = Bone,
+        onPrimary = Night,
+        background = Night,
+        onBackground = Bone,
+        surface = NightSurface,
+        onSurface = Bone,
+    )
