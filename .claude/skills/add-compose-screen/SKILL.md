@@ -57,12 +57,7 @@ prompt the caller for both values.
    under `values-<locale>/strings.xml` (e.g. `values-ja`, `values-zh`,
    `values-ko`, `values-de`) once each locale is wired up.
 
-6. **Driving-distracting content** (video, fine type, complex
-   animation, dense scroll) gets gated. Follow the
-   [`gate-driving-visible-feature`](../gate-driving-visible-feature/SKILL.md)
-   skill — it is the lockout-policy SSOT.
-
-7. **Verify** with the
+6. **Verify** with the
    [`verify-android-build`](../verify-android-build/SKILL.md) skill.
 
 ## Skill-specific anti-patterns

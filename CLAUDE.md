@@ -84,7 +84,7 @@ with automotive overrides on top.
 | Concern | M3 default | Femto rule | Symbol |
 | --- | --- | --- | --- |
 | Tap target | 48 dp | **≥ 64 dp** | `FemtoDimens.MinTouchTarget` |
-| Body text on driving-visible screens | flexible | **≥ 18 sp**, never `bodySmall` / `labelSmall` | `FemtoDimens.MinBodyTextSize` |
+| Body text on the head-unit dashboard | flexible | **≥ 18 sp**, never `bodySmall` / `labelSmall` | `FemtoDimens.MinBodyTextSize` |
 | Card / Surface elevation | tonal | **0 dp** (Bold Minimal: flat) | `FemtoDimens.CardElevation` |
 
 When the value lives in code, the symbol on the right is the SSOT —
@@ -118,17 +118,30 @@ filenames (`geist_variable.ttf`, `mplus2_variable.ttf`).
   is outside our control, but cold start inside the process is a key
   product metric — keep `MainActivity#onCreate` lean.
 
-### Driving lockout <a id="driving-lockout"></a>
+### Motion-state policy <a id="driving-lockout"></a>
 
-Driver-visible UI must respect a driving-lockout signal. Video,
-complex animation, fine typography, and dense scrollers are gated
-behind the lockout flag from day one.
+The launcher renders the same dashboard tree regardless of vehicle
+motion. There is **no project-wide driving-lockout gate**.
 
-The
-[`gate-driving-visible-feature`](.claude/skills/gate-driving-visible-feature/SKILL.md)
-skill is the **canonical procedure and policy reference** — when
-adding any driver-visible surface, follow it; do not re-derive the
-policy elsewhere.
+- Passengers commonly operate the head unit; gating the whole UI on
+  motion punishes the passenger for the driver being in motion.
+- The OEM cluster owns vehicle-state information (speed, RPM, fuel,
+  warnings). The launcher's role is the head-unit shell, not a
+  redundant driver display.
+- Comparable aftermarket launchers (LecoAuto, Car Launcher Pro,
+  AGAMA, CarWebGuru) ship the same posture today.
+
+If a future feature has a clear and specific distraction profile
+(e.g., embedded video playback inside the launcher itself, a chat
+composer with multi-line input), that feature gates itself locally
+on motion or behind a passenger toggle. There is no global gate to
+inherit from. The previous `gate-driving-visible-feature` skill,
+`DrivingStateRepository`, and `rememberDrivingLockState()`
+Composable have all been removed in line with this policy.
+
+`FemtoDimens.MinBodyTextSize` (18 sp) and `FemtoDimens.MinTouchTarget`
+(64 dp) stay — they express glance-readability and tap-accuracy
+targets that matter for any head-unit UI, regardless of motion.
 
 ### Permissions <a id="permissions"></a>
 
@@ -143,7 +156,7 @@ policy elsewhere.
 
 | Permission | Justification |
 | --- | --- |
-| `ACCESS_FINE_LOCATION` | Detect vehicle motion via GPS speed for the driving-lockout policy (see `gate-driving-visible-feature` skill). Required at runtime; locked default holds until granted. |
+| `ACCESS_FINE_LOCATION` | Centre the head-unit map on the user's position, derive the speed / altitude / address overlays, and locate the user for weather lookups. Required at runtime; the dependent panels render empty until the permission is granted. |
 
 ### Dependencies <a id="dependencies"></a>
 
@@ -366,7 +379,6 @@ manually invocable as `/<skill-name>`. Manual-only skills are marked
 | `add-bundled-font` | Add a new variable-font pair (`FontTheme`). |
 | `add-launcher-permission` | Discipline for new `<uses-permission>` entries. |
 | `update-gradle-dependency` | Version-catalog discipline. |
-| `gate-driving-visible-feature` | **SSOT for driving-lockout policy.** |
 | `verify-android-build` | Build + lint verification. |
 | `build` | **Manual.** `/build [task]` — runs `./gradlew <task>`. |
 | `lint` | **Manual.** `/lint [task]` — Android Lint with parsed summary. |

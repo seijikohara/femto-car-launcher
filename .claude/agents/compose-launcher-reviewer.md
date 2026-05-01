@@ -31,11 +31,9 @@ For each touched area, verify the diff against the named section of
 
 - Theme tokens, typography, color, sizing, preview annotations →
   `CLAUDE.md#design-system` and `CLAUDE.md#automotive-overrides`.
-- Tap target sizes and body text sizes on driver-visible screens →
-  `CLAUDE.md#automotive-overrides`. Violations on driver-visible
+- Tap target sizes and body text sizes on the head-unit dashboard →
+  `CLAUDE.md#automotive-overrides`. Violations on dashboard
   surfaces are **blocking**.
-- Driver-distracting UI (video, fine type, dense scrollers) without
-  the lockout gate → `CLAUDE.md#driving-lockout`. **Blocking.**
 - New `<uses-permission>` entries, manifest changes →
   `CLAUDE.md#launcher-behavior`, `CLAUDE.md#permissions`. Justification
   in commit body is required; the audit table in `CLAUDE.md` must be
