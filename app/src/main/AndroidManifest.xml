@@ -3,11 +3,11 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-        ACCESS_FINE_LOCATION: needed to detect vehicle motion from GPS
-        speed for the driving-lockout policy. The single source of truth
-        for the lockout policy is the gate-driving-visible-feature skill
-        under .claude/skills/. Justification is mirrored in the audit
-        log at CLAUDE.md#permissions.
+        ACCESS_FINE_LOCATION: powers the head-unit dashboard's
+        location-driven surfaces — map centring, speed / altitude /
+        address overlays, and current-location weather lookup.
+        Justification is mirrored in the audit log at
+        CLAUDE.md#permissions.
     -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 

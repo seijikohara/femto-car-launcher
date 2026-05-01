@@ -29,11 +29,11 @@ fun HomeRoute(
 /**
  * Request `ACCESS_FINE_LOCATION` once when the route first composes.
  *
- * The permission gates the driving-lockout signal (see
- * `data/DrivingState.kt` and the `gate-driving-visible-feature`
- * skill). On denial the launcher continues to function; the lockout
- * stays in its safe default (`true`) until the user grants the
- * permission via system Settings.
+ * The permission powers the head-unit dashboard's location-driven
+ * surfaces (map centre, speed / altitude / address overlays, weather
+ * lookup). On denial the launcher continues to function; the
+ * dependent panels render empty placeholders until the user grants
+ * the permission via system Settings.
  *
  * A richer rationale UI is deferred; the current request relies on
  * the system dialog alone.

@@ -18,7 +18,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.data.AppEntry
-import io.github.seijikohara.femto.data.rememberDrivingLockState
 import io.github.seijikohara.femto.ui.home.components.AppTile
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -36,22 +35,14 @@ fun HomeScreen(
     color = MaterialTheme.colorScheme.background,
 ) {
     val full = Modifier.fillMaxSize()
-    when {
-        rememberDrivingLockState() -> {
-            DrivingLockedPlaceholder(modifier = full)
-        }
-
-        uiState.isLoading -> {
-            LoadingPlaceholder(modifier = full)
-        }
-
-        else -> {
-            AppsGrid(
-                apps = uiState.apps,
-                onLaunch = { onAction(HomeAction.LaunchApp(it)) },
-                modifier = full,
-            )
-        }
+    if (uiState.isLoading) {
+        LoadingPlaceholder(modifier = full)
+    } else {
+        AppsGrid(
+            apps = uiState.apps,
+            onLaunch = { onAction(HomeAction.LaunchApp(it)) },
+            modifier = full,
+        )
     }
 }
 
@@ -85,16 +76,6 @@ private fun LoadingPlaceholder(modifier: Modifier = Modifier) =
             text = "Loading",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-
-@Composable
-private fun DrivingLockedPlaceholder(modifier: Modifier = Modifier) =
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        Text(
-            text = "Available when stopped",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onBackground,
         )
     }
 
