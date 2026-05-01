@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
@@ -38,20 +37,16 @@ fun rememberDrivingLockState(): Boolean {
     if (LocalInspectionMode.current) return false
 
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-
-    val locked by produceState(initialValue = true, lifecycleOwner) {
-        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+    val owner = LocalLifecycleOwner.current
+    return produceState(initialValue = true, owner) {
+        owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             if (!context.hasFineLocationPermission()) {
                 value = true
                 return@repeatOnLifecycle
             }
-            DrivingStateRepository(context).lockedFlow().collect { isLocked ->
-                value = isLocked
-            }
+            DrivingStateRepository(context).lockedFlow().collect { value = it }
         }
-    }
-    return locked
+    }.value
 }
 
 internal fun Context.hasFineLocationPermission(): Boolean =

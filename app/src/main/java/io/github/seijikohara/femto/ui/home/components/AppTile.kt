@@ -35,32 +35,28 @@ internal fun AppTile(
     entry: AppEntry,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+) = Column(
+    modifier =
+        modifier
+            .defaultMinSize(minWidth = FemtoDimens.MinTouchTarget, minHeight = FemtoDimens.MinTouchTarget)
+            .clickable(onClick = onClick)
+            .padding(TilePadding),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.Center,
 ) {
-    Column(
-        modifier =
-            modifier
-                .defaultMinSize(
-                    minWidth = FemtoDimens.MinTouchTarget,
-                    minHeight = FemtoDimens.MinTouchTarget,
-                ).clickable(onClick = onClick)
-                .padding(TilePadding),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Icon(
-            painter = BitmapPainter(entry.icon.asImageBitmap()),
-            contentDescription = entry.label,
-            tint = androidx.compose.ui.graphics.Color.Unspecified,
-            modifier = Modifier.size(IconSize),
-        )
-        Spacer(Modifier.height(IconLabelGap))
-        Text(
-            text = entry.label,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-        )
-    }
+    Icon(
+        painter = BitmapPainter(entry.icon.asImageBitmap()),
+        contentDescription = entry.label,
+        tint = androidx.compose.ui.graphics.Color.Unspecified,
+        modifier = Modifier.size(IconSize),
+    )
+    Spacer(Modifier.height(IconLabelGap))
+    Text(
+        text = entry.label,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onBackground,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = TextAlign.Center,
+    )
 }

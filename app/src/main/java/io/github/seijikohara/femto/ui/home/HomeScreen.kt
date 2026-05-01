@@ -31,28 +31,26 @@ fun HomeScreen(
     uiState: HomeUiState,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
+) = Surface(
+    modifier = modifier.fillMaxSize(),
+    color = MaterialTheme.colorScheme.background,
 ) {
-    val drivingLocked = rememberDrivingLockState()
-    Surface(
-        modifier = modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
-    ) {
-        when {
-            drivingLocked -> {
-                DrivingLockedPlaceholder(modifier = Modifier.fillMaxSize())
-            }
+    val full = Modifier.fillMaxSize()
+    when {
+        rememberDrivingLockState() -> {
+            DrivingLockedPlaceholder(modifier = full)
+        }
 
-            uiState.isLoading -> {
-                LoadingPlaceholder(modifier = Modifier.fillMaxSize())
-            }
+        uiState.isLoading -> {
+            LoadingPlaceholder(modifier = full)
+        }
 
-            else -> {
-                AppsGrid(
-                    apps = uiState.apps,
-                    onLaunch = { onAction(HomeAction.LaunchApp(it)) },
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
+        else -> {
+            AppsGrid(
+                apps = uiState.apps,
+                onLaunch = { onAction(HomeAction.LaunchApp(it)) },
+                modifier = full,
+            )
         }
     }
 }
@@ -62,28 +60,26 @@ private fun AppsGrid(
     apps: List<AppEntry>,
     onLaunch: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
+) = LazyVerticalGrid(
+    columns = GridCells.Adaptive(minSize = MinTileWidth),
+    modifier = modifier,
+    contentPadding = PaddingValues(FemtoDimens.ScreenPadding),
+    horizontalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
+    verticalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
 ) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = MinTileWidth),
-        modifier = modifier,
-        contentPadding = PaddingValues(FemtoDimens.ScreenPadding),
-        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
-        verticalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
-    ) {
-        items(
-            items = apps,
-            key = { entry -> entry.componentName.flattenToString() },
-        ) { entry ->
-            AppTile(
-                entry = entry,
-                onClick = { onLaunch(entry.componentName) },
-            )
-        }
+    items(
+        items = apps,
+        key = { it.componentName.flattenToString() },
+    ) { entry ->
+        AppTile(
+            entry = entry,
+            onClick = { onLaunch(entry.componentName) },
+        )
     }
 }
 
 @Composable
-private fun LoadingPlaceholder(modifier: Modifier = Modifier) {
+private fun LoadingPlaceholder(modifier: Modifier = Modifier) =
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Text(
             text = "Loading",
@@ -91,10 +87,9 @@ private fun LoadingPlaceholder(modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-}
 
 @Composable
-private fun DrivingLockedPlaceholder(modifier: Modifier = Modifier) {
+private fun DrivingLockedPlaceholder(modifier: Modifier = Modifier) =
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Text(
             text = "Available when stopped",
@@ -102,11 +97,10 @@ private fun DrivingLockedPlaceholder(modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.onBackground,
         )
     }
-}
 
 @PreviewLightDark
 @Composable
-private fun HomeScreenPreview() {
+private fun HomeScreenPreview() =
     FemtoTheme {
         HomeScreen(
             uiState =
@@ -124,20 +118,13 @@ private fun HomeScreenPreview() {
             onAction = {},
         )
     }
-}
 
 @PreviewLightDark
 @Composable
-private fun HomeScreenLoadingPreview() {
+private fun HomeScreenLoadingPreview() =
     FemtoTheme {
-        HomeScreen(
-            uiState = HomeUiState.Initial,
-            onAction = {},
-        )
+        HomeScreen(uiState = HomeUiState.Initial, onAction = {})
     }
-}
 
 private fun previewIcon(): Bitmap =
-    Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888).apply {
-        eraseColor(Color.LTGRAY)
-    }
+    Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.LTGRAY) }

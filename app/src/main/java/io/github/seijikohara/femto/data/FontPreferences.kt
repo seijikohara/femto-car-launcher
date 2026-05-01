@@ -28,9 +28,7 @@ class FontPreferences(
         }
 
     suspend fun setFontTheme(theme: FontTheme) {
-        context.fontDataStore.edit { prefs ->
-            prefs[KEY] = theme.name
-        }
+        context.fontDataStore.edit { it[KEY] = theme.name }
     }
 
     private companion object {

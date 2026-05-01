@@ -30,18 +30,16 @@ class HomeViewModel(
         refresh()
     }
 
-    fun onAction(action: HomeAction) {
+    fun onAction(action: HomeAction) =
         when (action) {
             HomeAction.Refresh -> refresh()
             is HomeAction.LaunchApp -> repository.launch(action.componentName)
         }
-    }
 
     private fun refresh() {
+        _uiState.update { it.copy(isLoading = true) }
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-            val apps = repository.queryApps()
-            _uiState.update { it.copy(isLoading = false, apps = apps) }
+            _uiState.update { it.copy(isLoading = false, apps = repository.queryApps()) }
         }
     }
 }

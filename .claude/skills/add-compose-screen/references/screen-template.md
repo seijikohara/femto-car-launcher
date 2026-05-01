@@ -77,3 +77,9 @@ private fun <Name>ScreenPreview() {
 - For driver-distracting content, follow the
   [`gate-driving-visible-feature`](../../gate-driving-visible-feature/SKILL.md)
   skill — the driving-lockout policy SSOT.
+- Per `CLAUDE.md#kotlin-style`, prefer expression chains: when a
+  Composable's body simply forwards parameters to a single emitter,
+  use an expression body
+  (`@Composable fun Foo() = Surface { ... }`); collapse
+  `when` / `if` branches to single expressions where the result
+  is the only output.
