@@ -9,15 +9,15 @@
 
 ## 1. Goal
 
-Replace the current single-purpose home screen (one full-screen `LazyVerticalGrid` of installed apps) with a LecoAuto-inspired multi-panel **dashboard**: a hero map on the left, a vertical stack of three ambient panels on the right (clock, weather, now-playing), and a fixed application bar at the bottom that opens a separate full-screen drawer for the complete grid.
+Replace the current single-purpose home screen (one full-screen `LazyVerticalGrid` of installed apps) with a LecoAuto-inspired multi-panel **dashboard**: a hero map on the left with speed / altitude / address overlays, a vertical stack of three ambient panels on the right (clock, weather, now-playing), and a fixed application bar at the bottom that opens a separate full-screen drawer for the complete grid.
 
-The dashboard surfaces five information classes that drivers actually consult on a stationary head unit, while keeping the launcher's "out of the driver's way during motion" promise from `gate-driving-visible-feature`.
+The dashboard surfaces information that head-unit users — driver and passenger alike — actually consult, and stays in the same shape regardless of vehicle motion. Distraction responsibility is delegated to the driver and to the OEM cluster, in line with comparable aftermarket launchers (LecoAuto, Car Launcher Pro, AGAMA, CarWebGuru).
 
 ## 2. Non-goals
 
 The following are **explicitly deferred** and must not creep into Plan B:
 
-- Speed, altitude, or any vehicle-state numeric display
+- Driving-lockout UI gating. The launcher renders the same dashboard whether the vehicle is moving or stopped. Driver-distraction responsibility lies with the driver and the OEM cluster, not the launcher. This reverses the previous project policy; see the updated CLAUDE.md and the removal of the `gate-driving-visible-feature` skill in the same change set
 - OBD-II / CAN integration
 - Interactive map (pan / zoom / search inside the launcher)
 - ETA / routing UI
@@ -31,23 +31,20 @@ The following are **explicitly deferred** and must not creep into Plan B:
 
 ## 3. Layout (C2)
 
-**Landscape orientation, two columns. Map column ~60% width, right column ~40%.**
+**Landscape orientation, two columns. Map column ~60% width, right column ~40%. Single layout — vehicle motion does not change the rendered tree.**
 
 ```
 +----------------------+--------------+
-|                      |  TIME        |
-|                      |  14:32       |
-|                      |  Tue May 1   |
-|                      +--------------+
-|        Map           |  WEATHER     |
-|        (Lite Mode)   |  ☀ 18°       |
-|                      |  Shibuya,    |
-|                      |  Tokyo       |
+|  35 km/h   ↑ 47 m    |  TIME        |
+|        [overlay]     |  14:32       |
+|                      |  Tue, May 1  |
+|        Map           +--------------+
+|        (Lite Mode)   |  WEATHER     |
+|                      |  ☀ 18°       |
 |                      +--------------+
 |                      |  NOW PLAYING |
-|                      |  ▶ Strobe    |
-|                      |  deadmau5    |
-|                      |  ◀◀  ⏯  ▶▶ |
+|  Shibuya, Tokyo      |  ▶ Strobe    |
+|        [overlay]     |  ◀◀  ⏯  ▶▶ |
 +----------------------+--------------+
 |  ≡   phone  music  maps  cam  nav   |  AppsBar
 +--------------------------------------+
@@ -55,28 +52,9 @@ The following are **explicitly deferred** and must not creep into Plan B:
 
 | Region | Composable | Notes |
 | --- | --- | --- |
-| Left hero | `MapPanel` | Google Maps SDK Lite Mode, ~60% of width, full inner column height |
-| Right column | `ClockPanel`, `WeatherPanel`, `MusicPanel` | Three M3-squircle surfaces, equal vertical share |
+| Left hero | `MapPanel` | Google Maps SDK Lite Mode, ~60% of width, full inner column height. Two text overlays on a translucent gradient: top-left = `speed` + `altitude`, bottom-left = `ShortAddress`. Tap fires `Intent.ACTION_VIEW geo:` and lets the OS pick the maps app |
+| Right column | `ClockPanel`, `WeatherPanel`, `MusicPanel` | Three M3-squircle surfaces, equal vertical share. `WeatherPanel` shows weather icon and temperature only — address lives on the map overlay (SSOT) |
 | Bottom bar | `AppsBar` | Fixed height, six tiles: ≡ (drawer), and five action shortcuts resolved by intent category, not by hard-coded package name |
-
-**Driving-locked subset (when `isDrivingLocked = true`)**:
-
-```
-+----------------------+--------------+
-|                      |  14:32       |
-|     Map hidden       |  Tue May 1   |
-|     (locked          +--------------+
-|      placeholder:    |  ☀ 18°       |
-|      "Available      |  Shibuya     |
-|       when stopped") +--------------+
-|                      |  ▶ Strobe    |
-|                      |  ◀◀  ⏯  ▶▶ |
-+----------------------+--------------+
-|        Available when stopped       |
-+--------------------------------------+
-```
-
-The clock, weather, address and music transport remain visible because they are read-only ambient surfaces with large tap targets. The map and the apps bar are replaced with a single `Available when stopped` placeholder. Rationale and policy live in `CLAUDE.md#driving-lockout` and the `gate-driving-visible-feature` skill, which is the SSOT.
 
 ## 4. File and component layout
 
@@ -84,21 +62,24 @@ The clock, weather, address and music transport remain visible because they are 
 app/src/main/java/io/github/seijikohara/femto/
 ├── data/
 │   ├── ClockRepository.kt              new
-│   ├── LocationRepository.kt           new (extracted from DrivingStateRepository)
-│   ├── DrivingStateRepository.kt       refactored to derive from LocationRepository
+│   ├── LocationRepository.kt           new (replaces deleted DrivingStateRepository)
 │   ├── ReverseGeocoderRepository.kt    new
 │   ├── WeatherRepository.kt            new (Open-Meteo)
 │   ├── MusicSessionRepository.kt       new (NotificationListenerService bridge)
 │   ├── MusicSessionListenerService.kt  new (NotificationListenerService impl)
 │   ├── GmsAvailability.kt              new
+│   ├── LocationPermissions.kt          new (file-private extension hosting hasFineLocationPermission)
 │   ├── AppEntry.kt                     unchanged
 │   ├── AppsRepository.kt               unchanged
-│   ├── DrivingState.kt                 unchanged surface (rememberDrivingLockState still works)
 │   └── FontPreferences.kt              unchanged
+│
+│  removed:
+│   - DrivingState.kt                   (rememberDrivingLockState no longer needed)
+│   - DrivingStateRepository.kt         (lockedFlow no longer needed)
 ├── ui/
 │   ├── home/
-│   │   ├── HomeRoute.kt                expanded VM wiring
-│   │   ├── HomeScreen.kt               rewritten as DashboardScaffold
+│   │   ├── HomeRoute.kt                expanded VM wiring (no lockout doc reference)
+│   │   ├── HomeScreen.kt               rewritten as DashboardScaffold (single layout)
 │   │   ├── HomeUiState.kt              expanded data class
 │   │   ├── HomeViewModel.kt            expanded with combine
 │   │   ├── HomeAction.kt               new (extracted sealed interface)
@@ -107,9 +88,9 @@ app/src/main/java/io/github/seijikohara/femto/
 │   │       ├── ClockPanel.kt           new
 │   │       ├── WeatherPanel.kt         new
 │   │       ├── MusicPanel.kt           new
-│   │       ├── MapPanel.kt             new (AndroidView wrapper around MapView Lite Mode)
+│   │       ├── MapPanel.kt             new (AndroidView wrapper around MapView Lite Mode plus overlays)
 │   │       ├── AppsBar.kt              new
-│   │       └── DashboardScaffold.kt    new (overall C2 frame, switches subset on lockout)
+│   │       └── DashboardScaffold.kt    new (overall C2 frame, no motion-state branching)
 │   └── drawer/
 │       ├── AppDrawerRoute.kt           new
 │       └── AppDrawerScreen.kt          new (the existing LazyVerticalGrid lifted into its own screen)
@@ -119,7 +100,7 @@ app/src/test/.../testfixtures/           new package: FakeLocation, FakeWeatherS
 app/src/androidTest/.../testfixtures/    new package: parallel fixtures for UI tests
 ```
 
-**Naming.** New repositories follow the existing `<Concept>Repository.kt` shape; new panels follow `<Concept>Panel.kt` to distinguish dashboard surfaces from generic widgets. The existing `DrivingState.kt` `rememberDrivingLockState()` Composable keeps its public surface so callers do not change.
+**Naming.** New repositories follow the existing `<Concept>Repository.kt` shape; new panels follow `<Concept>Panel.kt` to distinguish dashboard surfaces from generic widgets. The previous `DrivingState.kt` and `DrivingStateRepository.kt` are removed; the `hasFineLocationPermission()` extension that lived in the old `DrivingState.kt` is preserved by relocating it to `LocationPermissions.kt`.
 
 ## 5. Data flow
 
@@ -129,11 +110,12 @@ app/src/androidTest/.../testfixtures/    new package: parallel fixtures for UI t
 | --- | --- | --- | --- | --- |
 | `ClockRepository` | `Flow<ClockTick>` | `Intent.ACTION_TIME_TICK` system broadcast (1/min), plus immediate value on subscribe | Cannot fail (OS-supplied) | `Context.registerReceiver` |
 | `LocationRepository` | `Flow<Location?>` | `LocationManagerCompat.requestLocationUpdates` on `GPS_PROVIDER`, 1 Hz default interval | No `ACCESS_FINE_LOCATION` -> emits `null` | `androidx.core.location` |
-| `DrivingStateRepository` | `Flow<Boolean>` (locked) | Maps `LocationRepository` via `speed >= 5 km/h` | Unknown speed -> `true` (safe default) | derived |
 | `ReverseGeocoderRepository` | `Flow<ShortAddress?>` | `LocationRepository` debounced by 100 m / 30 s | `Geocoder.isPresent() == false`, exception, or empty result -> `null` | `Geocoder` async (API 33) |
 | `WeatherRepository` | `Flow<WeatherSnapshot?>` | `LocationRepository` gated to one fetch per 30 min or 5 km displacement | HTTP / parse failure -> last cached value (in-memory) -> `null` | Open-Meteo `/v1/forecast` |
 | `MusicSessionRepository` | `Flow<NowPlaying?>` | `MediaSessionManager` + `NotificationListener` callbacks | Listener access not granted -> `null` | `MediaSessionManager.OnActiveSessionsChangedListener` via `MusicSessionListenerService` |
 | `GmsAvailability` | `suspend fun check(): Boolean` | One-shot at `HomeViewModel` init | Not present -> `false` | `GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable` |
+
+`LocationRepository` exposes the raw `Location?` directly; consumers read `speed`, `altitude`, latitude, longitude as needed. Speed and altitude are smoothed by a 5-sample exponential moving average inside the panel that displays them, not inside the repository, so other consumers (map centering, weather, geocoder) see unsmoothed values.
 
 All repositories apply `flowOn(Dispatchers.IO)` internally so consumers do not manage dispatchers.
 
@@ -168,24 +150,26 @@ enum class TemperatureUnit { CELSIUS, FAHRENHEIT, KELVIN }
 ```kotlin
 val uiState: StateFlow<HomeUiState> = combine(
     clockRepo.tickFlow(),
+    locationRepo.locationFlow(),
     weatherRepo.snapshotFlow(),
     geocoderRepo.addressFlow(),
     musicRepo.nowPlayingFlow(),
-    drivingStateRepo.lockedFlow(),
     appsRepo.appsFlow(),
-) { clock, weather, address, music, locked, apps ->
+) { clock, location, weather, address, music, apps ->
     HomeUiState(
         clock = clock,
+        location = location,
         weather = weather,
         address = address,
         nowPlaying = music,
-        isDrivingLocked = locked,
         apps = apps,
         mapAvailable = gmsAvailable,
         isLoading = apps.isEmpty(),
     )
 }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState.Initial)
 ```
+
+`location` is forwarded so `MapPanel` can render the speed / altitude overlay and centre the map on the latest fix. The dashboard tree never branches on motion state.
 
 `HomeAction` covers `LaunchApp(ComponentName)`, `OpenAppDrawer`, `OpenMaps`, and `Music(MusicCommand)` where `MusicCommand` is a sealed interface over `Play`, `Pause`, `SkipNext`, `SkipPrevious`. Actions resolve in the ViewModel; UI emits them and never side-effects directly.
 
@@ -198,20 +182,26 @@ System locale and per-app locale preferences drive every user-facing format. No 
 | 12 h vs 24 h | `DateFormat.is24HourFormat(context)` | (the API itself falls back to locale) |
 | Date format | `DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(Locale.getDefault())` | locale default |
 | Temperature unit | `LocalePreferences.getTemperatureUnit()` from `androidx.core.i18n` | locale CLDR default |
+| Speed unit | derived from `Locale.getDefault().country`: `US`, `GB`, `MM` -> mph; otherwise km/h | km/h |
+| Distance / altitude unit | derived from the same country list as speed: `US`, `GB`, `MM` -> ft; otherwise m | m |
 | Address language | `Geocoder(context, Locale.getDefault())` | platform default |
+
+`LocalePreferences` does not expose a speed or distance unit, so the project defines its own `SpeedUnit` and `DistanceUnit` enums and a single `systemSpeedUnit()` / `systemDistanceUnit()` helper file with the `country` lookup above. The lookup is intentionally narrow — adding more countries flows through that file, never through the panels.
 
 The Open-Meteo request appends `temperature_unit=fahrenheit` or `celsius` based on `LocalePreferences.getTemperatureUnit()` so the API returns server-converted values; the client never converts.
 
-## 7. Driving lockout
+## 7. Motion-state policy (no UI gating)
 
-`DashboardScaffold` selects between two render trees on `uiState.isDrivingLocked`:
+The launcher renders the same dashboard tree regardless of vehicle motion. Two reasons:
 
-- **Stopped**: Map (if `mapAvailable`) + right stack + apps bar.
-- **Locked**: `Available when stopped` placeholder occupies the map region and replaces the apps bar; the right stack stays, with its inner typography promoted one M3 step (e.g., `headlineSmall` -> `headlineMedium`) to favour glance-readability.
+- **Passenger operation.** A passenger commonly operates the head unit; gating the whole UI on motion punishes the passenger for the driver being in motion.
+- **OEM cluster owns driving information.** Speed, RPM, fuel, warnings come from the vehicle cluster. The launcher's role is the head-unit shell, not a redundant driver display.
 
-Per `gate-driving-visible-feature`, all visible-while-locked text uses `MaterialTheme.typography.*` styles that meet `FemtoDimens.MinBodyTextSize` (18 sp). Music transport buttons enforce `FemtoDimens.MinTouchTarget` (64 dp). Map tiles, animated transitions, and arbitrary app launches are gated.
+Distraction responsibility is therefore delegated to the driver and to the OEM cluster, in line with how comparable aftermarket launchers (LecoAuto, Car Launcher Pro, AGAMA, CarWebGuru) ship today. Map tiles in Lite Mode do not animate, the apps bar does not scroll, and there are no inline videos in the launcher itself, so the always-on dashboard does not introduce a new distraction class beyond what those competitors already ship.
 
-The "phone exception" some markets allow at the OS dialer level is **out of scope**; the launcher does not surface phone shortcuts during motion. An incoming call surface comes from the dialer, not from the launcher.
+The `DrivingStateRepository`, `DrivingState.kt` `rememberDrivingLockState()`, and the `gate-driving-visible-feature` skill are removed in the same change set as this spec. The `FemtoDimens.MinBodyTextSize` (18 sp) and `FemtoDimens.MinTouchTarget` (64 dp) tokens stay — they continue to express glance-readability and tap accuracy targets that matter independently of motion.
+
+If a future feature has a clear and specific distraction profile (e.g., embedded video playback inside the launcher, a chat composer with a multi-line input), that feature gates itself locally on motion or on a passenger toggle. There is no global gate to inherit from.
 
 ## 8. Permissions
 
@@ -219,7 +209,7 @@ The "phone exception" some markets allow at the OS dialer level is **out of scop
 
 | Permission | New / existing | One-line justification |
 | --- | --- | --- |
-| `ACCESS_FINE_LOCATION` | existing | Driving-lockout via GPS speed (no change) |
+| `ACCESS_FINE_LOCATION` | existing — justification rewritten | Centre the map, derive speed / altitude / address overlays, and locate the user for weather lookups |
 | `ACCESS_NETWORK_STATE` | new | Maps SDK best-practice probe before tile fetch |
 | `INTERNET` | new | Open-Meteo weather API + Google Maps Lite tile fetch |
 
@@ -282,9 +272,9 @@ The project does **not** add `com.google.maps.android:maps-compose` in v1. `MapV
 | Layer | Style | Coverage |
 | --- | --- | --- |
 | `data/` repositories | JVM unit (`runTest` + `TestDispatcher`) | HTTP response parsing (mockwebserver), GMS-absent branch, debounce timing, in-memory cache validity, `Geocoder.isPresent()` false path (Robolectric) |
-| `HomeViewModel` | JVM unit (Turbine) | `combine` ordering on initial empty Flows, lockout transition flips the rendered subset, `HomeAction.OpenMaps` chooses the geo URI built from the latest location |
-| Compose UI | `createComposeRule` (`androidTest`) | C2 dashboard renders all four panels in stopped state; locked state hides map and apps bar; GMS-absent state hides map and shows fallback; music-null state shows `Connect a player` |
-| Manual smoke | TBox-Mock AVD + TBox Ambient real device | Cold start under one second, panel updates at expected cadences, `geo fix` driving simulation flips the lockout subset |
+| `HomeViewModel` | JVM unit (Turbine) | `combine` ordering on initial empty Flows, `HomeAction.OpenMaps` chooses the geo URI built from the latest location, `HomeAction.LaunchApp` resolves the right `ComponentName` |
+| Compose UI | `createComposeRule` (`androidTest`) | C2 dashboard renders all four panels under representative state; GMS-absent state hides map tiles and shows the static fallback; music-null state shows `Connect a player`; map overlays render speed, altitude, and address when the underlying flows emit values |
+| Manual smoke | TBox-Mock AVD + TBox Ambient real device | Cold start under one second, panel updates at expected cadences, `geo fix` injection updates the speed / altitude / address overlays without changing the layout shape |
 
 Test fixtures live in `testfixtures/` packages (one per source set). Builders for `Location`, `WeatherSnapshot`, `NowPlaying`, and `ShortAddress` are the SSOT for those values; tests must not declare their own `data class FakeFoo(...)` literals (CLAUDE.md#ssot-dry).
 
@@ -292,19 +282,19 @@ Test fixtures live in `testfixtures/` packages (one per source set). Builders fo
 
 | Risk | Mitigation |
 | --- | --- |
-| Carlinkit / OTTOCAST SKU without GMS reaches a real user | `mapAvailable = false` + `Geocoder.isPresent() = false` branches both kick in. Music, weather, clock keep working. Documented in CLAUDE.md as a graceful degradation, not a failure |
+| Carlinkit / OTTOCAST SKU without GMS reaches a real user | `mapAvailable = false` + `Geocoder.isPresent() = false` branches both kick in. Music, weather, clock, and the speed / altitude overlays keep working. Documented in CLAUDE.md as a graceful degradation, not a failure |
 | Open-Meteo outage | In-memory snapshot survives until the next successful fetch. `WeatherPanel` shows the stale value with no error UI; on cold start with no network the panel renders an icon-only placeholder |
 | Maps API key leak | App restriction (package + SHA-1) on the Cloud Console. Cost alarm at 80% of the free tier. The key is not committed to git |
 | Maps cost growth past the free tier | `MapPanel` deliberately uses Lite Mode and a stable key; one composition = one map load. Monitoring catches MAU growth before billing crosses zero |
-| User denies location permission | All location-driven panels (weather, address, map) collapse to their absent branches. Clock and music continue to work, the apps bar continues to function, the lockout stays at its safe `true` default |
-| Driver-distraction policy review (Play Store, EU UN-ECE R10, NHTSA, JP, CN, KR, AU) | The SSOT is `gate-driving-visible-feature`. The design routes every driver-visible surface through the lockout switch documented there |
+| User denies location permission | All location-driven surfaces (weather, address, map tiles, speed and altitude overlays) collapse to their absent branches. Clock and music continue to work, the apps bar continues to function |
+| Driver-distraction concerns from store review or end users | The launcher behaves like comparable aftermarket launchers (LecoAuto, Car Launcher Pro, AGAMA): no embedded video, no inline scrolling content larger than the apps bar, Lite-Mode static map. If a future feature is genuinely distraction-prone, it gates itself locally — there is no project-wide gate to maintain |
 
 ## 13. Acceptance checklist
 
 - [ ] `./gradlew assembleDebug` and `./gradlew lint` are green
 - [ ] `./gradlew test` covers each repository and the ViewModel combine
-- [ ] `./gradlew connectedAndroidTest` covers the four dashboard render states
+- [ ] `./gradlew connectedAndroidTest` covers the dashboard render under representative state combinations (loaded / loading, GMS present / absent, music null / playing, location null / fixed)
 - [ ] Cold start on TBox-Mock AVD remains under one second
-- [ ] Permission audit table in CLAUDE.md is updated to include INTERNET and ACCESS_NETWORK_STATE with their justifications
+- [ ] Permission audit table in CLAUDE.md is updated to include INTERNET and ACCESS_NETWORK_STATE with their justifications, and the ACCESS_FINE_LOCATION justification is rewritten to drop the lockout reference
 - [ ] `local.properties` key `MAPS_API_KEY=` is documented in the project README's developer setup section
-- [ ] `gate-driving-visible-feature` skill is cited in the new dashboard composables that gate on `isDrivingLocked`
+- [ ] CLAUDE.md `#driving-lockout` rule is rewritten to record the no-UI-gating policy, and the `gate-driving-visible-feature` skill plus its references in other skills and agents are removed
