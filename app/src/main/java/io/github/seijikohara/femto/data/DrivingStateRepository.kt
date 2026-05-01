@@ -5,6 +5,7 @@ import android.content.Context
 import android.location.Location
 import android.location.LocationManager
 import android.os.Looper
+import androidx.core.content.getSystemService
 import androidx.core.location.LocationListenerCompat
 import androidx.core.location.LocationManagerCompat
 import androidx.core.location.LocationRequestCompat
@@ -36,8 +37,7 @@ import kotlinx.coroutines.flow.map
 class DrivingStateRepository(
     private val context: Context,
 ) {
-    private val locationManager =
-        context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+    private val locationManager: LocationManager = checkNotNull(context.getSystemService())
 
     /** Emits `true` when the launcher should render the locked surface. */
     fun lockedFlow(): Flow<Boolean> =
