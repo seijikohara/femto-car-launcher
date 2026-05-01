@@ -31,26 +31,26 @@ The following are **explicitly deferred** and must not creep into Plan B:
 
 ## 3. Layout (C2)
 
-**Landscape orientation, all dimensions adapt to available width.**
+**Landscape orientation, two columns. Map column ~60% width, right column ~40%.**
 
 ```
-+----------+--------------+---------+
-|          |   TIME       |         |
-|          |   14:32      |         |
-|          |   Tue May 1  |         |
-|          +--------------+         |
-|  Map     |   WEATHER    |         |
-|  (Lite)  |   ☀ 18°      |         |
-|          |   Shibuya,   |         |
-|          |   Tokyo      |         |
-|          +--------------+         |
-|          |   NOW PLAYING|         |
-|          |   ▶ Strobe   |         |
-|          |   deadmau5   |         |
-|          |   ◀◀  ⏯  ▶▶ |         |
-+----------+--------------+---------+
-|  ≡  phone  music  maps  cam  nav  |  AppsBar
-+------------------------------------+
++----------------------+--------------+
+|                      |  TIME        |
+|                      |  14:32       |
+|                      |  Tue May 1   |
+|                      +--------------+
+|        Map           |  WEATHER     |
+|        (Lite Mode)   |  ☀ 18°       |
+|                      |  Shibuya,    |
+|                      |  Tokyo       |
+|                      +--------------+
+|                      |  NOW PLAYING |
+|                      |  ▶ Strobe    |
+|                      |  deadmau5    |
+|                      |  ◀◀  ⏯  ▶▶ |
++----------------------+--------------+
+|  ≡   phone  music  maps  cam  nav   |  AppsBar
++--------------------------------------+
 ```
 
 | Region | Composable | Notes |
@@ -62,18 +62,18 @@ The following are **explicitly deferred** and must not creep into Plan B:
 **Driving-locked subset (when `isDrivingLocked = true`)**:
 
 ```
-+----------+--------------+---------+
-|          |   14:32      |         |
-| Map      |   Tue May 1  |         |
-| hidden   +--------------+         |
-| (locked  |   ☀ 18°      |         |
-|  place-  |   Shibuya    |         |
-|  holder) +--------------+         |
-|          |   ▶ Strobe   |         |
-|          |   ◀◀  ⏯  ▶▶ |         |
-+----------+--------------+---------+
-|       Available when stopped       |
-+------------------------------------+
++----------------------+--------------+
+|                      |  14:32       |
+|     Map hidden       |  Tue May 1   |
+|     (locked          +--------------+
+|      placeholder:    |  ☀ 18°       |
+|      "Available      |  Shibuya     |
+|       when stopped") +--------------+
+|                      |  ▶ Strobe    |
+|                      |  ◀◀  ⏯  ▶▶ |
++----------------------+--------------+
+|        Available when stopped       |
++--------------------------------------+
 ```
 
 The clock, weather, address and music transport remain visible because they are read-only ambient surfaces with large tap targets. The map and the apps bar are replaced with a single `Available when stopped` placeholder. Rationale and policy live in `CLAUDE.md#driving-lockout` and the `gate-driving-visible-feature` skill, which is the SSOT.
