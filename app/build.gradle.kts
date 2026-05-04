@@ -1,3 +1,14 @@
+import java.util.Properties
+
+val mapsApiKey: String =
+    rootProject
+        .file("local.properties")
+        .takeIf { it.exists() }
+        ?.inputStream()
+        ?.use { Properties().apply { load(it) } }
+        ?.getProperty("MAPS_API_KEY")
+        ?: ""
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -35,6 +46,7 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     buildTypes {
