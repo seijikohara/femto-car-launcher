@@ -12,6 +12,18 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <!--
+        ACCESS_NETWORK_STATE: Maps SDK best-practice probe before
+        tile fetch. Justification mirrored in CLAUDE.md#permissions.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!--
+        INTERNET: Open-Meteo weather API + Google Maps Lite tile
+        fetch. Justification mirrored in CLAUDE.md#permissions.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
         Package visibility: declare interest in every app that registers
         the LAUNCHER intent so LauncherApps.getActivityList() returns the
         full set on Android 11+. This is the privacy-respecting path

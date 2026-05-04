@@ -157,6 +157,8 @@ targets that matter for any head-unit UI, regardless of motion.
 | Permission | Justification |
 | --- | --- |
 | `ACCESS_FINE_LOCATION` | Centre the head-unit map on the user's position, derive the speed / altitude / address overlays, and locate the user for weather lookups. Required at runtime; the dependent panels render empty until the permission is granted. |
+| `ACCESS_NETWORK_STATE` | Google Maps SDK best-practice network-availability probe before fetching map tiles. |
+| `INTERNET` | Open-Meteo weather API and Google Maps Lite tile fetch. |
 
 ### Dependencies <a id="dependencies"></a>
 
