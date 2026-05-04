@@ -13,7 +13,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.seijikohara.femto.data.hasFineLocationPermission
 
 @Composable
-fun HomeRoute(
+internal fun HomeRoute(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = viewModel(),
 ) {
