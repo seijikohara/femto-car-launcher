@@ -5,9 +5,12 @@ benManesVersions = "0.54.0"
 composeBom = "2026.03.00"
 coreKtx = "1.10.1"
 datastore = "1.1.7"
+androidxTestCore = "1.6.1"
 espressoCore = "3.5.1"
 junit = "4.13.2"
 junitVersion = "1.1.5"
+kotlinTest = "2.2.10"
+kotlinxCoroutinesTest = "1.10.2"
 kotlin = "2.2.10"
 kotlinxSerialization = "1.8.0"
 ktlint = "1.8.0"
@@ -35,6 +38,9 @@ androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
+androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
+kotlin-test = { group = "org.jetbrains.kotlin", name = "kotlin-test", version.ref = "kotlinTest" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesTest" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
