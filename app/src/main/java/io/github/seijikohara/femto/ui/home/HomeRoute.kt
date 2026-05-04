@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home
 
 import android.Manifest
+import android.app.Application
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -13,10 +14,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.seijikohara.femto.data.hasFineLocationPermission
 
 @Composable
-internal fun HomeRoute(
-    modifier: Modifier = Modifier,
-    viewModel: HomeViewModel = viewModel(),
-) {
+internal fun HomeRoute(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val viewModel: HomeViewModel =
+        viewModel(factory = HomeViewModelFactory(context.applicationContext as Application))
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     LocationPermissionRequest()
     HomeScreen(
