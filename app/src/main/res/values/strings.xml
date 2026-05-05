@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Femto Car Launcher</string>
+    <string name="music_listener_label">Femto music session listener</string>
 </resources>

@@ -67,7 +67,7 @@ procedural detail.
 | `POST_NOTIFICATIONS` | Driving-mode reminders, quick replies | API 33+; runtime grant required. |
 | `BIND_NOTIFICATION_LISTENER_SERVICE` | Read music MediaSession metadata | User must enable via Settings → Notifications → Notification access. |
 | `READ_PHONE_STATE` | Detect calls to mute media | Dangerous; consider whether `TelephonyCallback` without this permission suffices. |
-| `ACCESS_FINE_LOCATION` | Driving-state speed gating (see `CLAUDE.md#driving-lockout`) | Dangerous; needed for the lockout flag. Justify carefully. |
+| `ACCESS_FINE_LOCATION` | Map centring, speed / altitude / address overlays, current-location weather lookup | Dangerous; runtime grant required. Without it, the dependent dashboard panels render empty placeholders. |
 
 ## Skill-specific anti-patterns
 

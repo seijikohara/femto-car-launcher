@@ -72,11 +72,8 @@ private fun <Name>ScreenPreview() {
   minHeight = FemtoDimens.MinTouchTarget)`. Rule:
   `CLAUDE.md#automotive-overrides`.
 - For longer text passages prefer `bodyLarge`. Reserve `bodyMedium`
-  for secondary content. Never `bodySmall` / `labelSmall` on
-  driver-visible screens. Rule: `CLAUDE.md#automotive-overrides`.
-- For driver-distracting content, follow the
-  [`gate-driving-visible-feature`](../../gate-driving-visible-feature/SKILL.md)
-  skill — the driving-lockout policy SSOT.
+  for secondary content. Never `bodySmall` / `labelSmall` on the
+  head-unit dashboard. Rule: `CLAUDE.md#automotive-overrides`.
 - Per `CLAUDE.md#kotlin-style`, prefer expression chains: when a
   Composable's body simply forwards parameters to a single emitter,
   use an expression body

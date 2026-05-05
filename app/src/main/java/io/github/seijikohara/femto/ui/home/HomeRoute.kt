@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home
 
 import android.Manifest
+import android.app.Application
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -13,10 +14,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.seijikohara.femto.data.hasFineLocationPermission
 
 @Composable
-fun HomeRoute(
-    modifier: Modifier = Modifier,
-    viewModel: HomeViewModel = viewModel(),
-) {
+internal fun HomeRoute(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val viewModel: HomeViewModel =
+        viewModel(factory = HomeViewModelFactory(context.applicationContext as Application))
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     LocationPermissionRequest()
     HomeScreen(
@@ -29,11 +30,11 @@ fun HomeRoute(
 /**
  * Request `ACCESS_FINE_LOCATION` once when the route first composes.
  *
- * The permission gates the driving-lockout signal (see
- * `data/DrivingState.kt` and the `gate-driving-visible-feature`
- * skill). On denial the launcher continues to function; the lockout
- * stays in its safe default (`true`) until the user grants the
- * permission via system Settings.
+ * The permission powers the head-unit dashboard's location-driven
+ * surfaces (map centre, speed / altitude / address overlays, weather
+ * lookup). On denial the launcher continues to function; the
+ * dependent panels render empty placeholders until the user grants
+ * the permission via system Settings.
  *
  * A richer rationale UI is deferred; the current request relies on
  * the system dialog alone.

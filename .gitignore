@@ -16,3 +16,6 @@ local.properties
 
 # Claude Code per-machine settings (committed counterpart is .claude/settings.json)
 .claude/settings.local.json
+
+# Superpowers brainstorm scratch (mockups, server state)
+/.superpowers/

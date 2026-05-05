@@ -3,13 +3,33 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-        ACCESS_FINE_LOCATION: needed to detect vehicle motion from GPS
-        speed for the driving-lockout policy. The single source of truth
-        for the lockout policy is the gate-driving-visible-feature skill
-        under .claude/skills/. Justification is mirrored in the audit
-        log at CLAUDE.md#permissions.
+        ACCESS_COARSE_LOCATION: paired with ACCESS_FINE_LOCATION per
+        Android 12+ runtime model — users may grant only coarse;
+        the dashboard renders with degraded precision in that case.
+        Justification mirrored in CLAUDE.md#permissions.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!--
+        ACCESS_FINE_LOCATION: powers the head-unit dashboard's
+        location-driven surfaces — map centring, speed / altitude /
+        address overlays, and current-location weather lookup.
+        Justification is mirrored in the audit log at
+        CLAUDE.md#permissions.
     -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!--
+        ACCESS_NETWORK_STATE: Maps SDK best-practice probe before
+        tile fetch. Justification mirrored in CLAUDE.md#permissions.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!--
+        INTERNET: Open-Meteo weather API + Google Maps Lite tile
+        fetch. Justification mirrored in CLAUDE.md#permissions.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
         Package visibility: declare interest in every app that registers
@@ -48,6 +68,20 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".data.MusicSessionListenerService"
+            android:label="@string/music_listener_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
     </application>
 
 </manifest>
