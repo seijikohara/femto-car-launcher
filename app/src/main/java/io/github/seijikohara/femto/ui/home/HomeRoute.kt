@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -14,12 +15,23 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.seijikohara.femto.data.hasFineLocationPermission
 
 @Composable
-internal fun HomeRoute(modifier: Modifier = Modifier) {
+internal fun HomeRoute(
+    onOpenDrawer: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
     val viewModel: HomeViewModel =
         viewModel(factory = HomeViewModelFactory(context.applicationContext as Application))
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     LocationPermissionRequest()
+    val currentOnOpenDrawer by rememberUpdatedState(onOpenDrawer)
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { event ->
+            when (event) {
+                HomeEvent.OpenDrawer -> currentOnOpenDrawer()
+            }
+        }
+    }
     HomeScreen(
         uiState = uiState,
         onAction = viewModel::onAction,

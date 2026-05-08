@@ -10,6 +10,7 @@ import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -71,6 +72,26 @@ class HomeViewModelTest {
                 assertNotNull(state.weather)
                 assertNotNull(state.nowPlaying)
                 assertTrue(state.mapAvailable)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `onAction OpenAppDrawer emits OpenDrawer event`() =
+        runTest {
+            val viewModel =
+                HomeViewModel(
+                    clockFlow = emptyFlow(),
+                    locationFlow = emptyFlow(),
+                    addressFlow = emptyFlow(),
+                    weatherFlow = emptyFlow(),
+                    nowPlayingFlow = emptyFlow(),
+                    appsFlow = MutableStateFlow(emptyList()),
+                    isMapAvailable = { false },
+                )
+            viewModel.events.test {
+                viewModel.onAction(HomeAction.OpenAppDrawer)
+                assertEquals(HomeEvent.OpenDrawer, awaitItem())
                 cancelAndIgnoreRemainingEvents()
             }
         }

@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.drawer
 
 import android.content.ComponentName
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -15,6 +16,7 @@ import io.github.seijikohara.femto.data.AppsRepository
 @Composable
 internal fun AppDrawerRoute(
     onLaunch: (ComponentName) -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -22,5 +24,6 @@ internal fun AppDrawerRoute(
     LaunchedEffect(Unit) {
         apps = AppsRepository(context).queryApps()
     }
+    BackHandler(onBack = onBack)
     AppDrawerScreen(apps = apps, onLaunch = onLaunch, modifier = modifier)
 }
