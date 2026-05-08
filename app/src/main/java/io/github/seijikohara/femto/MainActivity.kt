@@ -28,9 +28,10 @@ class MainActivity : ComponentActivity() {
                             AppsRepository(this).launch(component)
                             showDrawer = false
                         },
+                        onBack = { showDrawer = false },
                     )
                 } else {
-                    HomeRoute()
+                    HomeRoute(onOpenDrawer = { showDrawer = true })
                 }
             }
         }

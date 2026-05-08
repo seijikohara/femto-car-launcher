@@ -20,9 +20,12 @@ import io.github.seijikohara.femto.data.ShortAddress
 import io.github.seijikohara.femto.data.WeatherRepository
 import io.github.seijikohara.femto.data.WeatherSnapshot
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -75,8 +78,23 @@ internal class HomeViewModel(
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState.Initial)
 
+    // extraBufferCapacity = 1 lets a single tryEmit succeed without a live collector,
+    // matching the semantics of a one-shot navigation request that is dropped if the
+    // host is already detached (e.g. during configuration change).
+    private val mutableEvents = MutableSharedFlow<HomeEvent>(extraBufferCapacity = 1)
+    val events: SharedFlow<HomeEvent> = mutableEvents.asSharedFlow()
+
     fun onAction(action: HomeAction) {
-        // Side-effect routing is wired by the host (MainActivity / HomeRoute) in Task 4.5+.
+        when (action) {
+            HomeAction.OpenAppDrawer -> mutableEvents.tryEmit(HomeEvent.OpenDrawer)
+
+            is HomeAction.LaunchApp,
+            HomeAction.OpenMaps,
+            HomeAction.ConnectMusicPlayer,
+            is HomeAction.Shortcut,
+            is HomeAction.Music,
+            -> Unit // Intent / MediaController routing is wired in a follow-up.
+        }
     }
 }
 
