@@ -1,5 +1,7 @@
 package io.github.seijikohara.femto.ui.home
 
+import android.content.ComponentName
+import android.content.Intent
 import android.graphics.Bitmap
 import app.cash.turbine.test
 import io.github.seijikohara.femto.data.AppEntry
@@ -7,6 +9,8 @@ import io.github.seijikohara.femto.data.ClockTick
 import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
+import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
+import io.github.seijikohara.femto.ui.home.components.MusicCommand
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -79,20 +83,84 @@ class HomeViewModelTest {
     @Test
     fun `onAction OpenAppDrawer emits OpenDrawer event`() =
         runTest {
-            val viewModel =
-                HomeViewModel(
-                    clockFlow = emptyFlow(),
-                    locationFlow = emptyFlow(),
-                    addressFlow = emptyFlow(),
-                    weatherFlow = emptyFlow(),
-                    nowPlayingFlow = emptyFlow(),
-                    appsFlow = MutableStateFlow(emptyList()),
-                    isMapAvailable = { false },
-                )
+            stubViewModel().assertEvent(HomeAction.OpenAppDrawer, HomeEvent.OpenDrawer)
+        }
+
+    @Test
+    fun `onAction LaunchApp emits LaunchComponent with the same component`() =
+        runTest {
+            val component = ComponentName("p", "c")
+            stubViewModel().assertEvent(
+                action = HomeAction.LaunchApp(component),
+                expected = HomeEvent.LaunchComponent(component),
+            )
+        }
+
+    @Test
+    fun `onAction OpenMaps emits LaunchAppCategory APP_MAPS`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.OpenMaps,
+                expected = HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_MAPS),
+            )
+        }
+
+    @Test
+    fun `onAction Shortcut emits LaunchAppCategory carrying the shortcut category`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.Shortcut(AppsBarShortcut.Music),
+                expected = HomeEvent.LaunchAppCategory(AppsBarShortcut.Music.intentCategory),
+            )
+        }
+
+    @Test
+    fun `onAction ConnectMusicPlayer emits OpenNotificationListenerSettings`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.ConnectMusicPlayer,
+                expected = HomeEvent.OpenNotificationListenerSettings,
+            )
+        }
+
+    @Test
+    fun `onAction Music forwards the command to sendMusicCommand and emits no event`() =
+        runTest {
+            val received = mutableListOf<MusicCommand>()
+            val viewModel = stubViewModel(sendMusicCommand = { received += it })
             viewModel.events.test {
-                viewModel.onAction(HomeAction.OpenAppDrawer)
-                assertEquals(HomeEvent.OpenDrawer, awaitItem())
+                viewModel.onAction(HomeAction.Music(MusicCommand.PlayPause))
+                viewModel.onAction(HomeAction.Music(MusicCommand.SkipNext))
+                viewModel.onAction(HomeAction.Music(MusicCommand.SkipPrevious))
+                expectNoEvents()
                 cancelAndIgnoreRemainingEvents()
             }
+            assertEquals(
+                listOf(MusicCommand.PlayPause, MusicCommand.SkipNext, MusicCommand.SkipPrevious),
+                received,
+            )
         }
+
+    private suspend fun HomeViewModel.assertEvent(
+        action: HomeAction,
+        expected: HomeEvent,
+    ) {
+        events.test {
+            onAction(action)
+            assertEquals(expected, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    private fun stubViewModel(sendMusicCommand: (MusicCommand) -> Unit = {}): HomeViewModel =
+        HomeViewModel(
+            clockFlow = emptyFlow(),
+            locationFlow = emptyFlow(),
+            addressFlow = emptyFlow(),
+            weatherFlow = emptyFlow(),
+            nowPlayingFlow = emptyFlow(),
+            appsFlow = MutableStateFlow(emptyList()),
+            isMapAvailable = { false },
+            sendMusicCommand = sendMusicCommand,
+        )
 }

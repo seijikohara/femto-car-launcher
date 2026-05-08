@@ -8,6 +8,7 @@ import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.content.getSystemService
+import io.github.seijikohara.femto.ui.home.components.MusicCommand
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -36,6 +37,40 @@ internal class MusicSessionRepository(
                 runCatching { sessionManager.removeOnActiveSessionsChangedListener(callback) }
             }
         }.flowOn(Dispatchers.Main.immediate)
+
+    /**
+     * Forward a transport command to the active media session. The
+     * call is a no-op when no session is reachable — typically because
+     * the user has not granted the notification-listener permission, in
+     * which case the dashboard surfaces a "Connect music player" CTA
+     * via [io.github.seijikohara.femto.ui.home.HomeAction.ConnectMusicPlayer].
+     */
+    fun send(command: MusicCommand) {
+        val controller =
+            runCatching {
+                sessionManager
+                    .getActiveSessions(componentName)
+                    .firstOrNull { it.playbackState?.isActive() == true }
+            }.getOrNull() ?: return
+        val transport = controller.transportControls
+        when (command) {
+            MusicCommand.PlayPause -> {
+                if (controller.playbackState?.state == PlaybackState.STATE_PLAYING) {
+                    transport.pause()
+                } else {
+                    transport.play()
+                }
+            }
+
+            MusicCommand.SkipNext -> {
+                transport.skipToNext()
+            }
+
+            MusicCommand.SkipPrevious -> {
+                transport.skipToPrevious()
+            }
+        }
+    }
 
     private fun List<MediaController>?.toNowPlaying(): NowPlaying? =
         this

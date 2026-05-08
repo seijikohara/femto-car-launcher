@@ -16,7 +16,7 @@ import io.github.seijikohara.femto.data.hasFineLocationPermission
 
 @Composable
 internal fun HomeRoute(
-    onOpenDrawer: () -> Unit,
+    onEvent: (HomeEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -24,13 +24,9 @@ internal fun HomeRoute(
         viewModel(factory = HomeViewModelFactory(context.applicationContext as Application))
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     LocationPermissionRequest()
-    val currentOnOpenDrawer by rememberUpdatedState(onOpenDrawer)
+    val currentOnEvent by rememberUpdatedState(onEvent)
     LaunchedEffect(viewModel) {
-        viewModel.events.collect { event ->
-            when (event) {
-                HomeEvent.OpenDrawer -> currentOnOpenDrawer()
-            }
-        }
+        viewModel.events.collect { event -> currentOnEvent(event) }
     }
     HomeScreen(
         uiState = uiState,
