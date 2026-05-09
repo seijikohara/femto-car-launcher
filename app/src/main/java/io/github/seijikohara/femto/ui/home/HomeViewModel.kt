@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home
 
 import android.app.Application
+import android.content.Intent
 import android.location.Location
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -19,6 +20,7 @@ import io.github.seijikohara.femto.data.ReverseGeocoderRepository
 import io.github.seijikohara.femto.data.ShortAddress
 import io.github.seijikohara.femto.data.WeatherRepository
 import io.github.seijikohara.femto.data.WeatherSnapshot
+import io.github.seijikohara.femto.ui.home.components.MusicCommand
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,6 +41,7 @@ internal class HomeViewModel(
     private val nowPlayingFlow: Flow<NowPlaying?>,
     private val appsFlow: MutableStateFlow<List<AppEntry>>,
     private val isMapAvailable: () -> Boolean,
+    private val sendMusicCommand: (MusicCommand) -> Unit = {},
 ) : ViewModel() {
     val uiState: StateFlow<HomeUiState> =
         combine(
@@ -86,14 +89,29 @@ internal class HomeViewModel(
 
     fun onAction(action: HomeAction) {
         when (action) {
-            HomeAction.OpenAppDrawer -> mutableEvents.tryEmit(HomeEvent.OpenDrawer)
+            HomeAction.OpenAppDrawer -> {
+                mutableEvents.tryEmit(HomeEvent.OpenDrawer)
+            }
 
-            is HomeAction.LaunchApp,
-            HomeAction.OpenMaps,
-            HomeAction.ConnectMusicPlayer,
-            is HomeAction.Shortcut,
-            is HomeAction.Music,
-            -> Unit // Intent / MediaController routing is wired in a follow-up.
+            is HomeAction.LaunchApp -> {
+                mutableEvents.tryEmit(HomeEvent.LaunchComponent(action.componentName))
+            }
+
+            HomeAction.OpenMaps -> {
+                mutableEvents.tryEmit(HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_MAPS))
+            }
+
+            is HomeAction.Shortcut -> {
+                mutableEvents.tryEmit(HomeEvent.LaunchAppCategory(action.target.intentCategory))
+            }
+
+            HomeAction.ConnectMusicPlayer -> {
+                mutableEvents.tryEmit(HomeEvent.OpenNotificationListenerSettings)
+            }
+
+            is HomeAction.Music -> {
+                sendMusicCommand(action.command)
+            }
         }
     }
 }
@@ -125,6 +143,7 @@ internal class HomeViewModelFactory(
             nowPlayingFlow = music.nowPlayingFlow(),
             appsFlow = apps,
             isMapAvailable = { gms.isPresent() },
+            sendMusicCommand = music::send,
         ).also { vm ->
             vm.viewModelScope.launch { apps.value = appsRepo.queryApps() }
         } as T
