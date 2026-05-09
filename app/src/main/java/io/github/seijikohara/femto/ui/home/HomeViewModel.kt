@@ -13,8 +13,8 @@ import io.github.seijikohara.femto.data.ClockRepository
 import io.github.seijikohara.femto.data.ClockTick
 import io.github.seijikohara.femto.data.GmsAvailability
 import io.github.seijikohara.femto.data.LocationRepository
+import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.data.MusicSessionRepository
-import io.github.seijikohara.femto.data.NowPlaying
 import io.github.seijikohara.femto.data.OpenMeteoApi
 import io.github.seijikohara.femto.data.ReverseGeocoderRepository
 import io.github.seijikohara.femto.data.ShortAddress
@@ -38,7 +38,7 @@ internal class HomeViewModel(
     private val locationFlow: Flow<Location?>,
     private val addressFlow: Flow<ShortAddress?>,
     private val weatherFlow: Flow<WeatherSnapshot?>,
-    private val nowPlayingFlow: Flow<NowPlaying?>,
+    private val musicStateFlow: Flow<MusicCardState>,
     private val appsFlow: MutableStateFlow<List<AppEntry>>,
     private val isMapAvailable: () -> Boolean,
     private val sendMusicCommand: (MusicCommand) -> Unit = {},
@@ -49,7 +49,7 @@ internal class HomeViewModel(
             locationFlow,
             addressFlow,
             weatherFlow,
-            nowPlayingFlow,
+            musicStateFlow,
             appsFlow,
         ) { values ->
             @Suppress("UNCHECKED_CAST")
@@ -65,7 +65,7 @@ internal class HomeViewModel(
             val weather = values[3] as WeatherSnapshot?
 
             @Suppress("UNCHECKED_CAST")
-            val music = values[4] as NowPlaying?
+            val music = values[4] as MusicCardState
 
             @Suppress("UNCHECKED_CAST")
             val apps = values[5] as List<AppEntry>
@@ -76,7 +76,7 @@ internal class HomeViewModel(
                 location = location,
                 address = address,
                 weather = weather,
-                nowPlaying = music,
+                musicState = music,
                 mapAvailable = isMapAvailable(),
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState.Initial)
@@ -140,7 +140,7 @@ internal class HomeViewModelFactory(
             locationFlow = locationFlow,
             addressFlow = geocoder.addressFlow(),
             weatherFlow = weather.snapshotFlow(),
-            nowPlayingFlow = music.nowPlayingFlow(),
+            musicStateFlow = music.stateFlow(),
             appsFlow = apps,
             isMapAvailable = { gms.isPresent() },
             sendMusicCommand = music::send,

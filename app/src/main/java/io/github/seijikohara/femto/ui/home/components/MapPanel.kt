@@ -136,23 +136,26 @@ private fun SpeedAltitudeOverlay(
 ) {
     val speed = location?.speed?.let { speedUnit.fromMetersPerSecond(it).roundToInt() } ?: 0
     val altitude = location?.altitude?.let { distanceUnit.fromMeters(it).roundToInt() }
+    // Speed is the panel's hero value at glance distance — same display weight
+    // and primary tint as the dashboard clock so the two read as the
+    // launcher's primary information surfaces.
     Text(
         text = "$speed",
-        style = MaterialTheme.typography.headlineLarge,
-        color = MaterialTheme.colorScheme.onSurface,
+        style = MaterialTheme.typography.displayMedium,
+        color = MaterialTheme.colorScheme.primary,
     )
     Text(
         text = " ${speedUnit.label()}",
-        style = MaterialTheme.typography.bodyMedium,
+        style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+        modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
     )
     if (altitude != null) {
         Text(
             text = "↑ $altitude ${distanceUnit.label()}",
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 16.dp),
+            modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
         )
     }
 }

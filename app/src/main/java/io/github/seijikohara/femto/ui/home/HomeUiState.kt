@@ -4,7 +4,7 @@ import android.location.Location
 import androidx.compose.runtime.Immutable
 import io.github.seijikohara.femto.data.AppEntry
 import io.github.seijikohara.femto.data.ClockTick
-import io.github.seijikohara.femto.data.NowPlaying
+import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.data.ShortAddress
 import io.github.seijikohara.femto.data.WeatherSnapshot
 import java.time.LocalDate
@@ -18,7 +18,7 @@ internal data class HomeUiState(
     val location: Location?,
     val address: ShortAddress?,
     val weather: WeatherSnapshot?,
-    val nowPlaying: NowPlaying?,
+    val musicState: MusicCardState,
     val mapAvailable: Boolean,
 ) {
     companion object {
@@ -30,7 +30,7 @@ internal data class HomeUiState(
                 location = null,
                 address = null,
                 weather = null,
-                nowPlaying = null,
+                musicState = MusicCardState.NeedsPermission,
                 mapAvailable = false,
             )
     }

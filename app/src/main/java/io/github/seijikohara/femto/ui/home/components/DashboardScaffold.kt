@@ -11,7 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.data.ClockTick
-import io.github.seijikohara.femto.data.NowPlaying
+import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.data.ShortAddress
 import io.github.seijikohara.femto.data.WeatherSnapshot
 import io.github.seijikohara.femto.ui.locale.DistanceUnit
@@ -29,7 +29,7 @@ internal fun DashboardScaffold(
     speedUnit: SpeedUnit,
     distanceUnit: DistanceUnit,
     mapAvailable: Boolean,
-    nowPlaying: NowPlaying?,
+    musicState: MusicCardState,
     onMapTap: () -> Unit,
     onMusicCommand: (MusicCommand) -> Unit,
     onConnectMusic: () -> Unit,
@@ -64,21 +64,25 @@ internal fun DashboardScaffold(
                 .fillMaxHeight(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // Asymmetric weights: clock content is small (time + date), weather is the
+            // densest panel (hero + hourly + astro), and music absorbs leftover space
+            // and grows naturally when an active session adds artwork and transport.
             ClockPanel(
                 tick = clock,
                 is24Hour = is24Hour,
-                modifier = Modifier.weight(1f),
             )
             WeatherPanel(
                 snapshot = weather,
                 unit = temperatureUnit,
-                modifier = Modifier.weight(1f),
+                speedUnit = speedUnit,
+                is24Hour = is24Hour,
+                modifier = Modifier.weight(1.6f),
             )
             MusicPanel(
-                nowPlaying = nowPlaying,
+                state = musicState,
                 onCommand = onMusicCommand,
                 onConnect = onConnectMusic,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1.2f),
             )
         }
     }

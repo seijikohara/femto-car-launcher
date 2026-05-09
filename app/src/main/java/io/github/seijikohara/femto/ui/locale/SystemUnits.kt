@@ -28,6 +28,12 @@ internal fun SpeedUnit.fromMetersPerSecond(mps: Float): Float =
         SpeedUnit.MILES_PER_HOUR -> mps * 2.2369363f
     }
 
+internal fun SpeedUnit.fromKilometersPerHour(kmh: Double): Double =
+    when (this) {
+        SpeedUnit.KILOMETERS_PER_HOUR -> kmh
+        SpeedUnit.MILES_PER_HOUR -> kmh * 0.6213712
+    }
+
 internal fun DistanceUnit.fromMeters(meters: Double): Double =
     when (this) {
         DistanceUnit.METERS -> meters
