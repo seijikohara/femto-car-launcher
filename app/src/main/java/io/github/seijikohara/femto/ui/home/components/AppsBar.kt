@@ -2,32 +2,40 @@ package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.Explore
+import androidx.compose.material.icons.outlined.Map
+import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.Phone
+import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 
 internal enum class AppsBarShortcut(
-    val label: String,
+    val icon: ImageVector,
     val intentCategory: String,
 ) {
-    Phone("📞", "android.intent.category.APP_CONTACTS"),
-    Music("🎵", "android.intent.category.APP_MUSIC"),
-    Maps("📍", "android.intent.category.APP_MAPS"),
-    Camera("📷", "android.intent.category.APP_GALLERY"),
-    Navigation("🧭", "android.intent.category.APP_MAPS"),
+    Phone(Icons.Outlined.Phone, "android.intent.category.APP_CONTACTS"),
+    Music(Icons.Outlined.MusicNote, "android.intent.category.APP_MUSIC"),
+    Maps(Icons.Outlined.Map, "android.intent.category.APP_MAPS"),
+    Camera(Icons.Outlined.PhotoCamera, "android.intent.category.APP_GALLERY"),
+    Navigation(Icons.Outlined.Explore, "android.intent.category.APP_MAPS"),
 }
 
 @Composable
@@ -46,10 +54,14 @@ internal fun AppsBar(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Tile(label = "≡", description = "Open all apps", onClick = onOpenDrawer)
+        Tile(
+            icon = Icons.Outlined.Apps,
+            description = "Open all apps",
+            onClick = onOpenDrawer,
+        )
         AppsBarShortcut.entries.forEach { shortcut ->
             Tile(
-                label = shortcut.label,
+                icon = shortcut.icon,
                 description = "Apps shortcut: ${shortcut.name}",
                 onClick = { onShortcut(shortcut) },
             )
@@ -59,7 +71,7 @@ internal fun AppsBar(
 
 @Composable
 private fun Tile(
-    label: String,
+    icon: ImageVector,
     description: String,
     onClick: () -> Unit,
 ) = Surface(
@@ -71,10 +83,12 @@ private fun Tile(
     shape = CircleShape,
     color = MaterialTheme.colorScheme.surfaceVariant,
 ) {
-    Text(
-        text = label,
-        style = MaterialTheme.typography.titleLarge,
-        color = MaterialTheme.colorScheme.onSurface,
-        textAlign = TextAlign.Center,
-    )
+    Box(contentAlignment = Alignment.Center) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(28.dp),
+            tint = MaterialTheme.colorScheme.onSurface,
+        )
+    }
 }

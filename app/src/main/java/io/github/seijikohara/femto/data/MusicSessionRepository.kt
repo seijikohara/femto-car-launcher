@@ -2,17 +2,23 @@ package io.github.seijikohara.femto.data
 
 import android.content.ComponentName
 import android.content.Context
+import android.database.ContentObserver
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.getSystemService
 import io.github.seijikohara.femto.ui.home.components.MusicCommand
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 
 internal class MusicSessionRepository(
@@ -21,20 +27,19 @@ internal class MusicSessionRepository(
     private val sessionManager: MediaSessionManager = checkNotNull(context.getSystemService())
     private val componentName = ComponentName(context, MusicSessionListenerService::class.java)
 
-    fun nowPlayingFlow(): Flow<NowPlaying?> =
-        callbackFlow {
-            val callback =
-                MediaSessionManager.OnActiveSessionsChangedListener { controllers ->
-                    trySend(controllers.toNowPlaying())
+    fun stateFlow(): Flow<MusicCardState> =
+        combine(permissionFlow(), activeControllersFlow()) { hasPermission, controllers ->
+            when {
+                !hasPermission -> {
+                    MusicCardState.NeedsPermission
                 }
 
-            runCatching {
-                trySend(sessionManager.getActiveSessions(componentName).toNowPlaying())
-                sessionManager.addOnActiveSessionsChangedListener(callback, componentName)
-            }.onFailure { trySend(null) }
-
-            awaitClose {
-                runCatching { sessionManager.removeOnActiveSessionsChangedListener(callback) }
+                else -> {
+                    controllers
+                        .toNowPlaying()
+                        ?.let(MusicCardState::Playing)
+                        ?: MusicCardState.NoActiveSession
+                }
             }
         }.flowOn(Dispatchers.Main.immediate)
 
@@ -72,9 +77,48 @@ internal class MusicSessionRepository(
         }
     }
 
-    private fun List<MediaController>?.toNowPlaying(): NowPlaying? =
-        this
-            ?.firstOrNull { it.playbackState?.isActive() == true }
+    /**
+     * Emit `true` while the user has enabled the launcher's notification-listener
+     * service in Settings, `false` otherwise. We watch the Secure setting via a
+     * ContentObserver so the dashboard reacts to a permission grant returning
+     * from `Settings → Notification Access` without an app restart.
+     */
+    private fun permissionFlow(): Flow<Boolean> =
+        callbackFlow {
+            val observer =
+                object : ContentObserver(Handler(Looper.getMainLooper())) {
+                    override fun onChange(selfChange: Boolean) {
+                        trySend(hasPermission())
+                    }
+                }
+            val uri = Settings.Secure.getUriFor(ENABLED_NOTIFICATION_LISTENERS)
+            context.contentResolver.registerContentObserver(uri, false, observer)
+            trySend(hasPermission())
+            awaitClose { context.contentResolver.unregisterContentObserver(observer) }
+        }
+
+    private fun activeControllersFlow(): Flow<List<MediaController>> =
+        callbackFlow {
+            val callback =
+                MediaSessionManager.OnActiveSessionsChangedListener { controllers ->
+                    trySend(controllers.orEmpty())
+                }
+
+            runCatching {
+                trySend(sessionManager.getActiveSessions(componentName))
+                sessionManager.addOnActiveSessionsChangedListener(callback, componentName)
+            }.onFailure { trySend(emptyList()) }
+
+            awaitClose {
+                runCatching { sessionManager.removeOnActiveSessionsChangedListener(callback) }
+            }
+        }
+
+    private fun hasPermission(): Boolean =
+        context.packageName in NotificationManagerCompat.getEnabledListenerPackages(context)
+
+    private fun List<MediaController>.toNowPlaying(): NowPlaying? =
+        firstOrNull { it.playbackState?.isActive() == true }
             ?.let { controller ->
                 val metadata = controller.metadata ?: return@let null
                 NowPlaying(
@@ -87,4 +131,8 @@ internal class MusicSessionRepository(
                     packageName = controller.packageName,
                 )
             }
+
+    private companion object {
+        const val ENABLED_NOTIFICATION_LISTENERS = "enabled_notification_listeners"
+    }
 }

@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import app.cash.turbine.test
 import io.github.seijikohara.femto.data.AppEntry
 import io.github.seijikohara.femto.data.ClockTick
+import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
@@ -56,7 +57,7 @@ class HomeViewModelTest {
                     locationFlow = flowOf(null),
                     addressFlow = flowOf(fakeAddress()),
                     weatherFlow = flowOf(fakeWeatherSnapshot()),
-                    nowPlayingFlow = flowOf(fakeNowPlaying()),
+                    musicStateFlow = flowOf(MusicCardState.Playing(fakeNowPlaying())),
                     appsFlow =
                         MutableStateFlow(
                             listOf(
@@ -74,7 +75,7 @@ class HomeViewModelTest {
                 assertEquals(LocalTime.of(14, 32), state.clock.time)
                 assertNotNull(state.address)
                 assertNotNull(state.weather)
-                assertNotNull(state.nowPlaying)
+                assertTrue(state.musicState is MusicCardState.Playing)
                 assertTrue(state.mapAvailable)
                 cancelAndIgnoreRemainingEvents()
             }
@@ -158,7 +159,7 @@ class HomeViewModelTest {
             locationFlow = emptyFlow(),
             addressFlow = emptyFlow(),
             weatherFlow = emptyFlow(),
-            nowPlayingFlow = emptyFlow(),
+            musicStateFlow = emptyFlow(),
             appsFlow = MutableStateFlow(emptyList()),
             isMapAvailable = { false },
             sendMusicCommand = sendMusicCommand,

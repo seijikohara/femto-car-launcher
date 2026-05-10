@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import io.github.seijikohara.femto.data.ClockTick
+import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
@@ -34,7 +35,7 @@ class DashboardScaffoldTest {
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     distanceUnit = DistanceUnit.METERS,
                     mapAvailable = false,
-                    nowPlaying = fakeNowPlaying(),
+                    musicState = MusicCardState.Playing(fakeNowPlaying()),
                     onMapTap = {},
                     onMusicCommand = {},
                     onConnectMusic = {},

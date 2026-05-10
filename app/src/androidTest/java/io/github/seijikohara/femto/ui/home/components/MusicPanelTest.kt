@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
@@ -15,11 +16,11 @@ class MusicPanelTest {
     val rule = createComposeRule()
 
     @Test
-    fun renders_track_artist_and_transport() {
+    fun renders_track_artist_and_transport_when_playing() {
         rule.setContent {
             FemtoTheme {
                 MusicPanel(
-                    nowPlaying = fakeNowPlaying(),
+                    state = MusicCardState.Playing(fakeNowPlaying()),
                     onCommand = {},
                     onConnect = {},
                 )
@@ -31,12 +32,12 @@ class MusicPanelTest {
     }
 
     @Test
-    fun renders_connect_placeholder_when_null_and_dispatches_on_tap() {
+    fun renders_connect_cta_and_dispatches_when_permission_missing() {
         var tapped = false
         rule.setContent {
             FemtoTheme {
                 MusicPanel(
-                    nowPlaying = null,
+                    state = MusicCardState.NeedsPermission,
                     onCommand = {},
                     onConnect = { tapped = true },
                 )
@@ -44,5 +45,19 @@ class MusicPanelTest {
         }
         rule.onNodeWithText("Connect a player").assertIsDisplayed().performClick()
         assert(tapped)
+    }
+
+    @Test
+    fun renders_nothing_playing_placeholder_when_no_active_session() {
+        rule.setContent {
+            FemtoTheme {
+                MusicPanel(
+                    state = MusicCardState.NoActiveSession,
+                    onCommand = {},
+                    onConnect = {},
+                )
+            }
+        }
+        rule.onNodeWithText("Nothing playing").assertIsDisplayed()
     }
 }

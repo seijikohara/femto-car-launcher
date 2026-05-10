@@ -40,7 +40,7 @@ internal fun HomeScreen(
             speedUnit = speedUnitFor(),
             distanceUnit = distanceUnitFor(),
             mapAvailable = uiState.mapAvailable,
-            nowPlaying = uiState.nowPlaying,
+            musicState = uiState.musicState,
             onMapTap = { onAction(HomeAction.OpenMaps) },
             onMusicCommand = { onAction(HomeAction.Music(it)) },
             onConnectMusic = { onAction(HomeAction.ConnectMusicPlayer) },

@@ -15,10 +15,12 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalTime
 import java.time.ZoneOffset
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -38,13 +40,9 @@ class WeatherRepositoryTest {
     }
 
     @Test
-    fun `parses Open-Meteo current_weather response`() =
+    fun `parses Open-Meteo forecast response with current, hourly, and daily blocks`() =
         runTest {
-            server.enqueue(
-                MockResponse().setBody(
-                    """{"current_weather":{"temperature":18.5,"weathercode":0,"time":"2026-05-01T05:32"}}""",
-                ),
-            )
+            server.enqueue(MockResponse().setBody(FORECAST_BODY))
 
             val repo =
                 WeatherRepository(
@@ -57,7 +55,60 @@ class WeatherRepositoryTest {
                 val snapshot = awaitItem()
                 assertNotNull(snapshot)
                 assertEquals(18.5, snapshot.tempC, 0.0)
+                assertEquals(17.0, snapshot.apparentTempC, 0.0)
                 assertEquals(WeatherCode.CLEAR, snapshot.code)
+                assertEquals(12.6, snapshot.windKmh, 0.0)
+                assertEquals(4.5, snapshot.uvIndex)
+                assertTrue(snapshot.isDay)
+                assertEquals(LocalTime.of(5, 42), snapshot.sunrise)
+                assertEquals(LocalTime.of(19, 14), snapshot.sunset)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `slices the next five hourly entries starting at the current hour`() =
+        runTest {
+            server.enqueue(MockResponse().setBody(FORECAST_BODY))
+
+            val repo =
+                WeatherRepository(
+                    api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
+                    locationFlow = flowOf(fakeLocation()),
+                    clock = Clock.fixed(Instant.parse("2026-05-01T05:32:00Z"), ZoneOffset.UTC),
+                )
+
+            repo.snapshotFlow().test {
+                val snapshot = assertNotNull(awaitItem())
+                assertEquals(5, snapshot.hourly.size)
+                assertEquals(LocalTime.of(11, 0), snapshot.hourly[0].time)
+                assertEquals(LocalTime.of(15, 0), snapshot.hourly[4].time)
+                assertEquals(20.0, snapshot.hourly[1].tempC, 0.0)
+                assertEquals(WeatherCode.PARTLY_CLOUDY, snapshot.hourly[2].code)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `parses daily max min and code into DailyForecast list`() =
+        runTest {
+            server.enqueue(MockResponse().setBody(FORECAST_BODY))
+
+            val repo =
+                WeatherRepository(
+                    api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
+                    locationFlow = flowOf(fakeLocation()),
+                    clock = Clock.fixed(Instant.parse("2026-05-01T05:32:00Z"), ZoneOffset.UTC),
+                )
+
+            repo.snapshotFlow().test {
+                val snapshot = assertNotNull(awaitItem())
+                assertEquals(3, snapshot.daily.size)
+                assertEquals(22.0, snapshot.daily[0].tempMaxC, 0.0)
+                assertEquals(14.0, snapshot.daily[0].tempMinC, 0.0)
+                assertEquals(WeatherCode.CLEAR, snapshot.daily[0].code)
+                assertEquals(WeatherCode.PARTLY_CLOUDY, snapshot.daily[1].code)
+                assertEquals(WeatherCode.RAIN, snapshot.daily[2].code)
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -95,4 +146,44 @@ class WeatherRepositoryTest {
                 cancelAndIgnoreRemainingEvents()
             }
         }
+
+    private companion object {
+        // current.time aligns with hourly.time[2] so the slice should start at index 2.
+        const val FORECAST_BODY = """
+            {
+              "timezone": "Asia/Tokyo",
+              "current": {
+                "time": "2026-05-01T11:00",
+                "temperature_2m": 18.5,
+                "apparent_temperature": 17.0,
+                "weathercode": 0,
+                "windspeed_10m": 12.6,
+                "uv_index": 4.5,
+                "is_day": 1
+              },
+              "hourly": {
+                "time": [
+                  "2026-05-01T09:00",
+                  "2026-05-01T10:00",
+                  "2026-05-01T11:00",
+                  "2026-05-01T12:00",
+                  "2026-05-01T13:00",
+                  "2026-05-01T14:00",
+                  "2026-05-01T15:00",
+                  "2026-05-01T16:00"
+                ],
+                "temperature_2m": [16.0, 17.5, 19.0, 20.0, 21.0, 21.5, 22.0, 22.5],
+                "weathercode": [0, 0, 0, 0, 2, 2, 2, 2]
+              },
+              "daily": {
+                "time": ["2026-05-01", "2026-05-02", "2026-05-03"],
+                "sunrise": ["2026-05-01T05:42", "2026-05-02T05:41", "2026-05-03T05:40"],
+                "sunset": ["2026-05-01T19:14", "2026-05-02T19:15", "2026-05-03T19:16"],
+                "weathercode": [0, 2, 61],
+                "temperature_2m_max": [22.0, 23.0, 21.0],
+                "temperature_2m_min": [14.0, 15.0, 14.0]
+              }
+            }
+        """
+    }
 }

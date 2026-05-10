@@ -23,4 +23,13 @@ object FemtoDimens {
 
     /** Default card elevation. Bold Minimal keeps surfaces flat. */
     val CardElevation = 0.dp
+
+    /** Hero-block icon size for dashboard cards (e.g., the weather summary). */
+    val HeroIconSize = 36.dp
+
+    /** Inline icon size beside short labels (sunrise, wind, transport). */
+    val InlineIconSize = 20.dp
+
+    /** Album art thumbnail size in the music panel's playing state. */
+    val AlbumArtSize = 72.dp
 }

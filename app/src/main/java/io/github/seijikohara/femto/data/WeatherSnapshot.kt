@@ -1,11 +1,34 @@
 package io.github.seijikohara.femto.data
 
 import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
 
 internal data class WeatherSnapshot(
     val tempC: Double,
+    val apparentTempC: Double,
     val code: WeatherCode,
+    val windKmh: Double,
+    val uvIndex: Double?,
+    val isDay: Boolean,
+    val sunrise: LocalTime?,
+    val sunset: LocalTime?,
+    val hourly: List<HourlyForecast>,
+    val daily: List<DailyForecast>,
     val fetchedAt: Instant,
+)
+
+internal data class HourlyForecast(
+    val time: LocalTime,
+    val tempC: Double,
+    val code: WeatherCode,
+)
+
+internal data class DailyForecast(
+    val date: LocalDate,
+    val tempMaxC: Double,
+    val tempMinC: Double,
+    val code: WeatherCode,
 )
 
 internal enum class WeatherCode {

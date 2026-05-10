@@ -11,7 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.data.ClockTick
-import io.github.seijikohara.femto.data.NowPlaying
+import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.data.ShortAddress
 import io.github.seijikohara.femto.data.WeatherSnapshot
 import io.github.seijikohara.femto.ui.locale.DistanceUnit
@@ -29,7 +29,7 @@ internal fun DashboardScaffold(
     speedUnit: SpeedUnit,
     distanceUnit: DistanceUnit,
     mapAvailable: Boolean,
-    nowPlaying: NowPlaying?,
+    musicState: MusicCardState,
     onMapTap: () -> Unit,
     onMusicCommand: (MusicCommand) -> Unit,
     onConnectMusic: () -> Unit,
@@ -64,18 +64,24 @@ internal fun DashboardScaffold(
                 .fillMaxHeight(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // Clock and weather both take their intrinsic heights — the cards
+            // contain a fixed number of rows and look unbalanced when stretched.
+            // Music absorbs the remaining space so the playing state's progress
+            // bar and centered transport row sit at a stable vertical position.
             ClockPanel(
                 tick = clock,
                 is24Hour = is24Hour,
-                modifier = Modifier.weight(1f),
+                sunrise = weather?.sunrise,
+                sunset = weather?.sunset,
             )
             WeatherPanel(
                 snapshot = weather,
                 unit = temperatureUnit,
-                modifier = Modifier.weight(1f),
+                speedUnit = speedUnit,
+                is24Hour = is24Hour,
             )
             MusicPanel(
-                nowPlaying = nowPlaying,
+                state = musicState,
                 onCommand = onMusicCommand,
                 onConnect = onConnectMusic,
                 modifier = Modifier.weight(1f),
