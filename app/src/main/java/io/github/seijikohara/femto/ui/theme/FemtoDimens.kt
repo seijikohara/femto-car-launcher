@@ -31,5 +31,5 @@ object FemtoDimens {
     val InlineIconSize = 20.dp
 
     /** Album art thumbnail size in the music panel's playing state. */
-    val AlbumArtSize = 56.dp
+    val AlbumArtSize = 72.dp
 }

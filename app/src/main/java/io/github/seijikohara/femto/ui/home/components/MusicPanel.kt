@@ -93,13 +93,14 @@ internal fun MusicPanel(
             is MusicCardState.Playing -> {
                 ActiveTrack(nowPlaying = state.nowPlaying)
                 Spacer(modifier = Modifier.weight(1f))
+                // Progress sits above the transport row so the visual order
+                // matches Spotify / Apple Music "Now Playing" widgets — read
+                // position first, then act on it.
+                PlaybackProgress(nowPlaying = state.nowPlaying)
+                Spacer(modifier = Modifier.height(12.dp))
                 TransportControls(
                     isPlaying = state.nowPlaying.isPlaying,
                     onCommand = onCommand,
-                )
-                PlaybackProgress(
-                    nowPlaying = state.nowPlaying,
-                    modifier = Modifier.padding(top = 12.dp),
                 )
             }
         }
@@ -256,8 +257,10 @@ private fun TransportControls(
     onCommand: (MusicCommand) -> Unit,
     modifier: Modifier = Modifier,
 ) = Row(
+    // Centered transport gives the music card a balanced silhouette and reads
+    // as a deliberate widget rather than a left-aligned list row.
     modifier = modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start),
+    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
     verticalAlignment = Alignment.CenterVertically,
 ) {
     TransportButton(

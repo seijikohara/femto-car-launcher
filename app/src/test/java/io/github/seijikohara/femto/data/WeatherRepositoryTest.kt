@@ -67,7 +67,7 @@ class WeatherRepositoryTest {
         }
 
     @Test
-    fun `slices the next four hourly entries starting at the current hour`() =
+    fun `slices the next five hourly entries starting at the current hour`() =
         runTest {
             server.enqueue(MockResponse().setBody(FORECAST_BODY))
 
@@ -80,9 +80,9 @@ class WeatherRepositoryTest {
 
             repo.snapshotFlow().test {
                 val snapshot = assertNotNull(awaitItem())
-                assertEquals(4, snapshot.hourly.size)
+                assertEquals(5, snapshot.hourly.size)
                 assertEquals(LocalTime.of(11, 0), snapshot.hourly[0].time)
-                assertEquals(LocalTime.of(14, 0), snapshot.hourly[3].time)
+                assertEquals(LocalTime.of(15, 0), snapshot.hourly[4].time)
                 assertEquals(20.0, snapshot.hourly[1].tempC, 0.0)
                 assertEquals(WeatherCode.PARTLY_CLOUDY, snapshot.hourly[2].code)
                 cancelAndIgnoreRemainingEvents()
@@ -168,10 +168,12 @@ class WeatherRepositoryTest {
                   "2026-05-01T11:00",
                   "2026-05-01T12:00",
                   "2026-05-01T13:00",
-                  "2026-05-01T14:00"
+                  "2026-05-01T14:00",
+                  "2026-05-01T15:00",
+                  "2026-05-01T16:00"
                 ],
-                "temperature_2m": [16.0, 17.5, 19.0, 20.0, 21.0, 21.5],
-                "weathercode": [0, 0, 0, 0, 2, 2]
+                "temperature_2m": [16.0, 17.5, 19.0, 20.0, 21.0, 21.5, 22.0, 22.5],
+                "weathercode": [0, 0, 0, 0, 2, 2, 2, 2]
               },
               "daily": {
                 "time": ["2026-05-01", "2026-05-02", "2026-05-03"],

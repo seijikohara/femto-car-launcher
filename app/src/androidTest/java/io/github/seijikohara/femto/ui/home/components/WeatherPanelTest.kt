@@ -2,10 +2,8 @@ package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.core.text.util.LocalePreferences
-import io.github.seijikohara.femto.data.DailyForecast
 import io.github.seijikohara.femto.data.HourlyForecast
 import io.github.seijikohara.femto.data.WeatherCode
 import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
@@ -13,7 +11,6 @@ import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
-import java.time.LocalDate
 import java.time.LocalTime
 
 class WeatherPanelTest {
@@ -66,37 +63,16 @@ class WeatherPanelTest {
     }
 
     @Test
-    fun renders_condition_apparent_temperature_and_uv_in_hero_secondary() {
+    fun renders_condition_and_secondary_line_with_feels_wind_and_uv() {
         rule.setContent {
             FemtoTheme {
                 WeatherPanel(
                     snapshot =
                         fakeWeatherSnapshot(
                             apparentTempC = 16.0,
+                            windKmh = 16.0,
                             uvIndex = 5.0,
                             code = WeatherCode.PARTLY_CLOUDY,
-                        ),
-                    unit = LocalePreferences.TemperatureUnit.CELSIUS,
-                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
-                    is24Hour = true,
-                )
-            }
-        }
-        rule.onNodeWithText("Partly cloudy", substring = true).assertIsDisplayed()
-        rule.onNodeWithText("Feels 16°C", substring = true).assertIsDisplayed()
-        rule.onNodeWithText("UV 5", substring = true).assertIsDisplayed()
-    }
-
-    @Test
-    fun renders_sunrise_sunset_and_wind_chips_with_icons() {
-        rule.setContent {
-            FemtoTheme {
-                WeatherPanel(
-                    snapshot =
-                        fakeWeatherSnapshot(
-                            windKmh = 16.0,
-                            sunrise = LocalTime.of(5, 42),
-                            sunset = LocalTime.of(19, 14),
                         ),
                     unit = LocalePreferences.TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.MILES_PER_HOUR,
@@ -104,41 +80,15 @@ class WeatherPanelTest {
                 )
             }
         }
-        rule.onNodeWithContentDescription("Sunrise").assertIsDisplayed()
-        rule.onNodeWithContentDescription("Sunset").assertIsDisplayed()
-        rule.onNodeWithContentDescription("Wind").assertIsDisplayed()
-        rule.onNodeWithText("05:42").assertIsDisplayed()
-        rule.onNodeWithText("19:14").assertIsDisplayed()
-        // 16 km/h ≈ 10 mph
-        rule.onNodeWithText("10 mph").assertIsDisplayed()
+        rule.onNodeWithText("Partly cloudy").assertIsDisplayed()
+        // 16 km/h ≈ 10 mph; all three secondary metrics share one bodyMedium line.
+        rule.onNodeWithText("Feels 16°C", substring = true).assertIsDisplayed()
+        rule.onNodeWithText("Wind 10 mph", substring = true).assertIsDisplayed()
+        rule.onNodeWithText("UV 5", substring = true).assertIsDisplayed()
     }
 
     @Test
-    fun renders_5_day_outlook_with_today_label_and_high_low_temperatures() {
-        rule.setContent {
-            FemtoTheme {
-                WeatherPanel(
-                    snapshot =
-                        fakeWeatherSnapshot(
-                            daily =
-                                listOf(
-                                    DailyForecast(LocalDate.of(2026, 5, 9), 22.0, 14.0, WeatherCode.CLEAR),
-                                    DailyForecast(LocalDate.of(2026, 5, 10), 25.0, 16.0, WeatherCode.CLEAR),
-                                ),
-                        ),
-                    unit = LocalePreferences.TemperatureUnit.CELSIUS,
-                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
-                    is24Hour = true,
-                )
-            }
-        }
-        rule.onNodeWithText("Today").assertIsDisplayed()
-        rule.onNodeWithText("22° / 14°").assertIsDisplayed()
-        rule.onNodeWithText("25° / 16°").assertIsDisplayed()
-    }
-
-    @Test
-    fun renders_hourly_strip_entries_with_hour_and_compact_temperature() {
+    fun renders_hourly_outlook_with_now_label_and_per_hour_temperatures() {
         rule.setContent {
             FemtoTheme {
                 WeatherPanel(
@@ -146,8 +96,8 @@ class WeatherPanelTest {
                         fakeWeatherSnapshot(
                             hourly =
                                 listOf(
-                                    HourlyForecast(LocalTime.of(9, 0), 12.0, WeatherCode.CLOUDY),
-                                    HourlyForecast(LocalTime.of(10, 0), 14.0, WeatherCode.CLOUDY),
+                                    HourlyForecast(LocalTime.of(9, 0), 21.0, WeatherCode.CLEAR),
+                                    HourlyForecast(LocalTime.of(10, 0), 22.0, WeatherCode.PARTLY_CLOUDY),
                                 ),
                         ),
                     unit = LocalePreferences.TemperatureUnit.CELSIUS,
@@ -156,9 +106,9 @@ class WeatherPanelTest {
                 )
             }
         }
-        rule.onNodeWithText("09").assertIsDisplayed()
+        rule.onNodeWithText("Now").assertIsDisplayed()
         rule.onNodeWithText("10").assertIsDisplayed()
-        rule.onNodeWithText("12°").assertIsDisplayed()
-        rule.onNodeWithText("14°").assertIsDisplayed()
+        rule.onNodeWithText("21°").assertIsDisplayed()
+        rule.onNodeWithText("22°").assertIsDisplayed()
     }
 }

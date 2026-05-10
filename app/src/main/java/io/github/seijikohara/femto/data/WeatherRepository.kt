@@ -101,7 +101,7 @@ internal class WeatherRepository(
     private companion object {
         val REFRESH_INTERVAL: Duration = Duration.ofMinutes(30)
         const val REFRESH_DISTANCE_M = 5_000f
-        const val HOURLY_SLICE_LENGTH = 4
+        const val HOURLY_SLICE_LENGTH = 5
 
         // Open-Meteo with timezone=auto returns naive local times (no offset suffix).
         val ISO_LOCAL: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME

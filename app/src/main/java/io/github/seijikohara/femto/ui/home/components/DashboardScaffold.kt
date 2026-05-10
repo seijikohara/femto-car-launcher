@@ -64,25 +64,27 @@ internal fun DashboardScaffold(
                 .fillMaxHeight(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // Asymmetric weights: clock content is small (time + date), weather is the
-            // densest panel (hero + hourly + astro), and music absorbs leftover space
-            // and grows naturally when an active session adds artwork and transport.
+            // Clock and weather both take their intrinsic heights — the cards
+            // contain a fixed number of rows and look unbalanced when stretched.
+            // Music absorbs the remaining space so the playing state's progress
+            // bar and centered transport row sit at a stable vertical position.
             ClockPanel(
                 tick = clock,
                 is24Hour = is24Hour,
+                sunrise = weather?.sunrise,
+                sunset = weather?.sunset,
             )
             WeatherPanel(
                 snapshot = weather,
                 unit = temperatureUnit,
                 speedUnit = speedUnit,
                 is24Hour = is24Hour,
-                modifier = Modifier.weight(1.6f),
             )
             MusicPanel(
                 state = musicState,
                 onCommand = onMusicCommand,
                 onConnect = onConnectMusic,
-                modifier = Modifier.weight(1.2f),
+                modifier = Modifier.weight(1f),
             )
         }
     }
