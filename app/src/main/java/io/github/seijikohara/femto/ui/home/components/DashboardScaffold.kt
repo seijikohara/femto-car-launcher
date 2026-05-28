@@ -4,11 +4,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +36,10 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
  * +-----------------------------+--------------+
  * ```
  *
+ * `enableEdgeToEdge()` lets the activity paint under the system bars; the
+ * scaffold itself reserves them back with [windowInsetsPadding] so nothing
+ * tap-able (the footer especially) hides behind the navigation bar.
+ *
  * The scaffold owns no state of its own; everything reads from
  * [uiState] and reports back through [onAction].
  */
@@ -44,7 +51,12 @@ internal fun DashboardScaffold(
     distanceUnit: DistanceUnit,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
-) = Column(modifier = modifier.fillMaxSize()) {
+) = Column(
+    modifier =
+        modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.systemBars),
+) {
     Row(
         modifier =
             Modifier

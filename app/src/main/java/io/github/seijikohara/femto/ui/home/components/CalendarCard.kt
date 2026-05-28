@@ -7,10 +7,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
@@ -26,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import io.github.seijikohara.femto.data.CalendarSnapshot
 import io.github.seijikohara.femto.data.DayCell
 import io.github.seijikohara.femto.data.EventItem
@@ -37,15 +36,16 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 /**
- * Calendar card. Three vertical sections:
+ * Calendar card. Three vertical sections distributed by [Arrangement.SpaceBetween]:
  *
- *  1. Head — large day number (primary tint) + weekday + month label
- *  2. Strip — 6 future days starting today, each cell carrying a "has event" dot
- *  3. Events — up to two upcoming events (border-separated)
+ *  1. Head — 56sp day number (primary tint) + weekday + month label.
+ *  2. Strip — 6 future days starting today, each cell carrying a "has event" dot.
+ *  3. Events — up to two upcoming events, separated from the strip by a 1dp divider.
  *
- * The card renders in the same dimensions whether or not [snapshot] is
- * loaded. A null snapshot ("permission denied / loading") shows the
- * calendar icon as a placeholder so the layout doesn't shift.
+ * Typography and spacing follow `docs/design/dashboard-v2-mockup.html`
+ * (`.calendar-card` rules) verbatim; the dashboard's wider 18sp body-size
+ * floor is intentionally relaxed here so the strip and event list match
+ * the design.
  */
 @Composable
 internal fun CalendarCard(
@@ -87,19 +87,35 @@ private fun Head(snapshot: CalendarSnapshot) =
                     fontSize = FemtoDimens.BigNumberFontSize,
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = (-0.045f).em,
+                    lineHeight = (FemtoDimens.BigNumberFontSize.value * 0.92f).sp,
                 ),
             color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
         )
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = snapshot.weekday,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                style =
+                    MaterialTheme.typography.titleLarge.copy(
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.01f).em,
+                        lineHeight = 20.sp,
+                    ),
                 color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = snapshot.monthLabel.uppercase(),
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                style =
+                    MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.14f.em,
+                    ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
             )
         }
     }
@@ -129,6 +145,8 @@ private fun DayCellView(
         if (isToday) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer
     val onBackground =
         if (isToday) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+    val numberColor =
+        if (isToday) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
     Column(
         modifier =
             modifier
@@ -140,13 +158,28 @@ private fun DayCellView(
     ) {
         Text(
             text = day.weekdayLetter.take(3).uppercase(),
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            style =
+                MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.08f.em,
+                    lineHeight = 10.sp,
+                ),
             color = onBackground,
+            maxLines = 1,
+            softWrap = false,
         )
         Text(
             text = "${day.date.dayOfMonth}",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = if (isToday) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+            style =
+                MaterialTheme.typography.titleSmall.copy(
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    lineHeight = 16.sp,
+                ),
+            color = numberColor,
+            maxLines = 1,
+            softWrap = false,
         )
         Box(
             modifier =
@@ -154,7 +187,7 @@ private fun DayCellView(
                     .size(4.dp)
                     .clip(CircleShape)
                     .background(
-                        if (day.hasEvent) onBackground else MaterialTheme.colorScheme.surfaceContainer,
+                        if (day.hasEvent) onBackground else background,
                     ),
         )
     }
@@ -163,16 +196,14 @@ private fun DayCellView(
 @Composable
 private fun Events(events: List<EventItem>) {
     if (events.isEmpty()) return
-    Column {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Box(modifier = Modifier.height(8.dp))
         events.forEachIndexed { index, event ->
             EventRow(
                 time = event.time.format(EventTimeFormatter),
                 title = event.title,
                 isPrimary = index == 0,
             )
-            if (index < events.lastIndex) Box(modifier = Modifier.height(6.dp))
         }
     }
 }
@@ -200,13 +231,22 @@ private fun EventRow(
         )
         Text(
             text = time,
-            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+            style =
+                MaterialTheme.typography.labelLarge.copy(
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    lineHeight = 17.sp,
+                ),
             color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
         )
-        Box(modifier = Modifier.width(2.dp))
         Text(
             text = title,
-            style = MaterialTheme.typography.bodyMedium,
+            style =
+                MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 13.sp,
+                    lineHeight = 17.sp,
+                ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

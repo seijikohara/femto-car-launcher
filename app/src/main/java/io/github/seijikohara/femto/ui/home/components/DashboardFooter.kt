@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.seijikohara.femto.data.SystemStatus
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -48,14 +49,17 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
 /**
- * Bottom dock for the dashboard.
+ * Bottom dock per `docs/design/dashboard-v2-mockup.html` `.footer`:
  *
- * Seven equally-spaced navigation buttons (Home / Phone / Apps / Music /
- * Navigation / Browser / Settings) on the left, then a vertical divider,
- * then a read-only status cluster (Wi-Fi / Bluetooth / Battery %) on the
- * right. The divider is the only visual cue separating "actionable" from
- * "informational" — kept deliberately quiet to avoid breaking the bar's
- * horizontal flow.
+ *  - 80 dp surface with a 1 dp top divider (`outlineVariant`).
+ *  - Seven 72 × 64 dp nav buttons (Home / Phone / Apps / Music /
+ *    Navigation / Browser / Settings) in a 3 + 1 + 3 grouping, evenly
+ *    distributed across the left flex region.
+ *  - The Home button is the only active state — primaryContainer
+ *    background with a 20 × 3 dp underline 4 dp from the bottom.
+ *  - A 1 dp vertical divider separates the actionable nav from a
+ *    read-only Wi-Fi / Bluetooth / battery cluster at 20 dp icon size,
+ *    with the battery percent rendered at 13sp / 700.
  */
 @Composable
 internal fun DashboardFooter(
@@ -247,8 +251,13 @@ private fun BatteryIndicator(
     )
     Text(
         text = if (charging) "$percent% ⚡" else "$percent%",
-        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+        style =
+            MaterialTheme.typography.labelLarge.copy(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+            ),
         color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
     )
 }
 

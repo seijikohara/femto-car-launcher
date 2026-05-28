@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -37,10 +38,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.data.NowPlaying
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -49,9 +52,6 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
 /**
  * Transport commands the dashboard can dispatch to the music session.
- *
- * Defined here (rather than in the deleted MusicPanel) because MusicCard is
- * now the only consumer.
  */
 internal sealed interface MusicCommand {
     data object PlayPause : MusicCommand
@@ -62,18 +62,17 @@ internal sealed interface MusicCommand {
 }
 
 /**
- * Music card. Vertical layout with four sections distributed by
- * `Arrangement.SpaceBetween`:
+ * Music card. Vertical layout per `docs/design/dashboard-v2-mockup.html`
+ * (`.music-card` rules):
  *
- *  1. Album art (140 dp, centred)
- *  2. Meta — source eyebrow, title, artist
- *  3. Progress bar with time labels
- *  4. Transport row (64 dp prev/next, 72 dp play centre)
+ *  1. Album art (140 dp, 14 dp corner)
+ *  2. Meta — uppercase source eyebrow (10sp / 0.16em), 20sp title, 14sp artist
+ *  3. Progress bar (4 dp) with 11sp position / duration labels
+ *  4. Transport row — 64 dp prev / next + 72 dp primary play / pause
  *
- * Two empty variants render in the same dimensions:
- *
- *  - `NeedsPermission` — CTA to grant notification listener access
- *  - `NoActiveSession` — "Nothing is playing" placeholder
+ * Empty variants render in the same outer dimensions: `NeedsPermission` is
+ * the connect CTA, `NoActiveSession` is the "nothing is playing" copy
+ * straight from the mockup (assistant hint included).
  */
 @Composable
 internal fun MusicCard(
@@ -170,17 +169,36 @@ private fun Meta(
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(2.dp),
 ) {
-    Text(
-        text = source.uppercase(),
-        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.MusicNote,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(12.dp),
+        )
+        Text(
+            text = source.uppercase(),
+            style =
+                MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.16f.em,
+                ),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+    }
     Text(
         text = title,
         style =
             MaterialTheme.typography.titleLarge.copy(
+                fontSize = 20.sp,
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = (-0.02f).em,
+                lineHeight = 23.sp,
             ),
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
@@ -189,7 +207,12 @@ private fun Meta(
     if (!artist.isNullOrBlank()) {
         Text(
             text = artist,
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+            style =
+                MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    lineHeight = 16.sp,
+                ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -208,11 +231,25 @@ private fun Progress(
         } else {
             0f
         }
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = formatMillis(positionMs),
+            style =
+                MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
         Box(
             modifier =
                 Modifier
-                    .fillMaxWidth()
+                    .weight(1f)
                     .height(4.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.outlineVariant),
@@ -226,21 +263,16 @@ private fun Progress(
                         .background(MaterialTheme.colorScheme.primary),
             )
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = formatMillis(positionMs),
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = formatMillis(durationMs),
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        Text(
+            text = formatMillis(durationMs),
+            style =
+                MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
     }
 }
 
@@ -280,6 +312,7 @@ private fun TransportButton(
     onClick: () -> Unit,
 ) {
     val width = if (primary) FemtoDimens.MusicPlayButton else FemtoDimens.MusicTransportButton
+    val corner = if (primary) 16.dp else 14.dp
     val container =
         if (primary) MaterialTheme.colorScheme.primary else Color.Transparent
     val content =
@@ -289,7 +322,7 @@ private fun TransportButton(
             Modifier
                 .height(FemtoDimens.MusicTransportButton)
                 .width(width)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(corner))
                 .background(container)
                 .clickable(onClick = onClick)
                 .semantics { contentDescription = description },
@@ -299,7 +332,7 @@ private fun TransportButton(
             imageVector = icon,
             contentDescription = null,
             tint = content,
-            modifier = Modifier.size(28.dp),
+            modifier = Modifier.size(32.dp),
         )
     }
 }
@@ -320,18 +353,30 @@ private fun ConnectState(onConnect: () -> Unit) =
                 imageVector = Icons.Outlined.MusicNote,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(40.dp),
+                modifier = Modifier.size(36.dp),
             )
-            Box(modifier = Modifier.height(8.dp))
+            Box(modifier = Modifier.height(12.dp))
             Text(
                 text = "Connect a player",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                style =
+                    MaterialTheme.typography.titleMedium.copy(
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
                 color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
             )
+            Box(modifier = Modifier.height(4.dp))
             Text(
                 text = "Allow notification access to control playback from the dashboard.",
-                style = MaterialTheme.typography.bodyMedium,
+                style =
+                    MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                    ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(max = 280.dp),
             )
         }
     }
@@ -347,18 +392,30 @@ private fun EmptyState() =
             imageVector = Icons.Outlined.MusicOff,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier.size(36.dp),
         )
-        Box(modifier = Modifier.height(8.dp))
+        Box(modifier = Modifier.height(12.dp))
         Text(
             text = "Nothing is playing",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            style =
+                MaterialTheme.typography.titleMedium.copy(
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
             color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
         )
+        Box(modifier = Modifier.height(4.dp))
         Text(
             text = "Open a music app to start, or say \"Hey Google, play something\".",
-            style = MaterialTheme.typography.bodyMedium,
+            style =
+                MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.widthIn(max = 280.dp),
         )
     }
 

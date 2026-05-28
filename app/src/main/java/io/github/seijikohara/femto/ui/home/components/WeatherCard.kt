@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import io.github.seijikohara.femto.data.HourlyForecast
 import io.github.seijikohara.femto.data.WeatherCode
 import io.github.seijikohara.femto.data.WeatherSnapshot
@@ -44,15 +44,15 @@ import java.time.LocalTime
 import kotlin.math.roundToInt
 
 /**
- * Weather card. Three vertical sections:
+ * Weather card. Three vertical sections distributed by [Arrangement.SpaceBetween]:
  *
- *  1. Head — large temperature + glyph (per-condition colour) + city + short conditions
- *  2. Metrics — Feels / Wind / UV row
- *  3. Forecast — three hourly chips (border-separated)
+ *  1. Head — 56sp temperature + glyph (per-condition colour) + city + short conditions.
+ *  2. Metrics — Feels / Wind / Humid row at 14sp / 700 weight.
+ *  3. Forecast — three hourly chips at 13sp temperatures.
  *
- * The glyph colour comes from [LocalWeatherGlyphs] (curated warm/cool
- * palette) rather than the dynamic colour scheme — sunny / cloudy / moon
- * need to read differently regardless of the user's accent.
+ * Typography and spacing follow `docs/design/dashboard-v2-mockup.html`
+ * (`.weather-card` rules) verbatim — the same intentional relaxation of
+ * the dashboard's 18sp body-size floor as [CalendarCard] applies here.
  */
 @Composable
 internal fun WeatherCard(
@@ -101,12 +101,19 @@ private fun Head(
                         fontSize = FemtoDimens.BigNumberFontSize,
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = (-0.045f).em,
+                        lineHeight = (FemtoDimens.BigNumberFontSize.value * 0.92f).sp,
                     ),
                 color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
             )
             Text(
                 text = "°C",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                style =
+                    MaterialTheme.typography.titleMedium.copy(
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        lineHeight = 20.sp,
+                    ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp, start = 2.dp),
             )
@@ -121,7 +128,13 @@ private fun Head(
                 )
                 Text(
                     text = city.orEmpty(),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    style =
+                        MaterialTheme.typography.titleMedium.copy(
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.01f).em,
+                            lineHeight = 18.sp,
+                        ),
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -129,8 +142,14 @@ private fun Head(
             }
             Text(
                 text = labelFor(snapshot.code).uppercase(),
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                style =
+                    MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.14f.em,
+                    ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
             )
         }
     }
@@ -143,7 +162,8 @@ private fun Metrics(snapshot: WeatherSnapshot) =
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Metric(label = "FEELS", value = "${snapshot.apparentTempC.roundToInt()}°")
-        Metric(label = "WIND", value = "${snapshot.windKmh.roundToInt()} km/h")
+        val windMs = (snapshot.windKmh / 3.6).roundToInt()
+        Metric(label = "WIND", value = "$windMs m/s")
         val humidityLabel = snapshot.humidityPercent?.let { "$it%" } ?: "—"
         Metric(label = "HUMID.", value = humidityLabel)
     }
@@ -155,13 +175,25 @@ private fun Metric(
 ) = Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
     Text(
         text = label,
-        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+        style =
+            MaterialTheme.typography.labelSmall.copy(
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.1f.em,
+            ),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
     )
     Text(
         text = value,
-        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+        style =
+            MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                lineHeight = 16.sp,
+            ),
         color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
     )
 }
 
@@ -169,9 +201,8 @@ private fun Metric(
 private fun Forecast(hourly: List<HourlyForecast>) {
     val next = hourly.take(3)
     if (next.isEmpty()) return
-    Column {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Box(modifier = Modifier.height(12.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -199,9 +230,15 @@ private fun ForecastChip(
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Text(
-            text = String.format("%02dh", forecast.time.hour),
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            text = "%02dh".format(forecast.time.hour),
+            style =
+                MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.08f.em,
+                ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
         )
         Icon(
             imageVector = glyphIconFor(forecast.code, isDay = forecast.time.hour in 6..18),
@@ -211,18 +248,23 @@ private fun ForecastChip(
         )
         Text(
             text = "${forecast.tempC.roundToInt()}°",
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+            style =
+                MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    lineHeight = 15.sp,
+                ),
             color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
         )
     }
 }
 
 @Composable
 private fun EmptyState() =
-    Column(
+    Box(
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = "Weather unavailable",
@@ -267,7 +309,7 @@ private fun glyphTintFor(
 
 private fun labelFor(code: WeatherCode): String =
     when (code) {
-        WeatherCode.CLEAR -> "Clear"
+        WeatherCode.CLEAR -> "Sunny"
         WeatherCode.PARTLY_CLOUDY -> "Partly cloudy"
         WeatherCode.CLOUDY -> "Cloudy"
         WeatherCode.FOG -> "Fog"
