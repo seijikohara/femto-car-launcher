@@ -26,7 +26,7 @@ internal class OpenMeteoApi(
                             baseUrl.trimEnd('/') +
                                 "/v1/forecast?latitude=$latitude&longitude=$longitude" +
                                 "&current=temperature_2m,apparent_temperature,weathercode," +
-                                "windspeed_10m,uv_index,is_day" +
+                                "windspeed_10m,relative_humidity_2m,uv_index,is_day" +
                                 "&hourly=temperature_2m,weathercode" +
                                 "&daily=sunrise,sunset,weathercode," +
                                 "temperature_2m_max,temperature_2m_min" +
@@ -56,6 +56,7 @@ internal class OpenMeteoApi(
         val apparent_temperature: Double,
         val weathercode: Int,
         val windspeed_10m: Double,
+        val relative_humidity_2m: Double? = null,
         val uv_index: Double? = null,
         val is_day: Int,
     )
