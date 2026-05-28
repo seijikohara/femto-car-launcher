@@ -22,4 +22,8 @@ internal sealed interface HomeAction {
     data class Music(
         val command: MusicCommand,
     ) : HomeAction
+
+    data object OpenBrowser : HomeAction
+
+    data object OpenSettings : HomeAction
 }

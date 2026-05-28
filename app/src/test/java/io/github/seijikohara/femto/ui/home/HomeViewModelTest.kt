@@ -8,7 +8,9 @@ import io.github.seijikohara.femto.data.AppEntry
 import io.github.seijikohara.femto.data.ClockTick
 import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.testfixtures.fakeAddress
+import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
+import io.github.seijikohara.femto.testfixtures.fakeSystemStatus
 import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
 import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
 import io.github.seijikohara.femto.ui.home.components.MusicCommand
@@ -51,6 +53,8 @@ class HomeViewModelTest {
     fun `combines all flows into one HomeUiState`() =
         runTest {
             val placeholderIcon = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+            val calendar = fakeCalendarSnapshot()
+            val systemStatus = fakeSystemStatus()
             val viewModel =
                 HomeViewModel(
                     clockFlow = flowOf(ClockTick(LocalTime.of(14, 32), LocalDate.of(2026, 5, 1))),
@@ -68,6 +72,8 @@ class HomeViewModelTest {
                                 ),
                             ),
                         ),
+                    calendarFlow = flowOf(calendar),
+                    systemStatusFlow = flowOf(systemStatus),
                     isMapAvailable = { true },
                 )
             viewModel.uiState.test {
@@ -77,6 +83,8 @@ class HomeViewModelTest {
                 assertNotNull(state.weather)
                 assertTrue(state.musicState is MusicCardState.Playing)
                 assertTrue(state.mapAvailable)
+                assertEquals(calendar, state.calendar)
+                assertEquals(systemStatus, state.systemStatus)
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -161,6 +169,8 @@ class HomeViewModelTest {
             weatherFlow = emptyFlow(),
             musicStateFlow = emptyFlow(),
             appsFlow = MutableStateFlow(emptyList()),
+            calendarFlow = emptyFlow(),
+            systemStatusFlow = emptyFlow(),
             isMapAvailable = { false },
             sendMusicCommand = sendMusicCommand,
         )

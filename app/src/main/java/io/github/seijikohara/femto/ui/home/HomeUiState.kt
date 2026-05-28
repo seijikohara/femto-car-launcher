@@ -3,9 +3,11 @@ package io.github.seijikohara.femto.ui.home
 import android.location.Location
 import androidx.compose.runtime.Immutable
 import io.github.seijikohara.femto.data.AppEntry
+import io.github.seijikohara.femto.data.CalendarSnapshot
 import io.github.seijikohara.femto.data.ClockTick
 import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.data.ShortAddress
+import io.github.seijikohara.femto.data.SystemStatus
 import io.github.seijikohara.femto.data.WeatherSnapshot
 import java.time.LocalDate
 import java.time.LocalTime
@@ -20,6 +22,8 @@ internal data class HomeUiState(
     val weather: WeatherSnapshot?,
     val musicState: MusicCardState,
     val mapAvailable: Boolean,
+    val calendar: CalendarSnapshot?,
+    val systemStatus: SystemStatus,
 ) {
     companion object {
         val Initial: HomeUiState =
@@ -32,6 +36,8 @@ internal data class HomeUiState(
                 weather = null,
                 musicState = MusicCardState.NeedsPermission,
                 mapAvailable = false,
+                calendar = null,
+                systemStatus = SystemStatus.Initial,
             )
     }
 }
