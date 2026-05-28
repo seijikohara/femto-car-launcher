@@ -32,4 +32,31 @@ object FemtoDimens {
 
     /** Album art thumbnail size in the music panel's playing state. */
     val AlbumArtSize = 72.dp
+
+    /** Footer dock height (64.dp tap target + 16.dp top/bottom breathing room). */
+    val FooterHeight = 80.dp
+
+    /** Top row of the info pane that houses the calendar and weather cards. */
+    val TopRowHeight = 224.dp
+
+    /** Album art size inside the music card's vertical playing layout. */
+    val MusicArtSize = 140.dp
+
+    /** Skip-previous / skip-next transport button hit area. */
+    val MusicTransportButton = 64.dp
+
+    /** Centre play / pause button — slightly wider so it reads as primary. */
+    val MusicPlayButton = 72.dp
+
+    /** Corner radius for glass overlays on the map pane. */
+    val OverlayCorner = 16.dp
+
+    /** Weather glyph beside the city name in the weather card head row. */
+    val WeatherGlyphLarge = 22.dp
+
+    /** Weather glyph inside the 3-hour forecast chips. */
+    val WeatherGlyphSmall = 18.dp
+
+    /** Large numeric anchor (big-day, big-temp) display size. */
+    val BigNumberFontSize = 56.sp
 }

@@ -17,6 +17,9 @@ import androidx.compose.ui.platform.LocalInspectionMode
  * Typography: Bold Minimal weights and automotive sizing on top of M3 roles.
  *
  * Shape: M3 default squircle tokens (no override).
+ *
+ * Weather glyph colours live in [weatherGlyphs] — read it directly from
+ * any Composable that renders weather icons.
  */
 @Composable
 fun FemtoTheme(
