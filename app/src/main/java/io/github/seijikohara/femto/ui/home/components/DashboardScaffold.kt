@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
-import io.github.seijikohara.femto.ui.locale.DistanceUnit
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 
@@ -48,7 +47,6 @@ internal fun DashboardScaffold(
     uiState: HomeUiState,
     is24Hour: Boolean,
     speedUnit: SpeedUnit,
-    distanceUnit: DistanceUnit,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(
@@ -69,7 +67,6 @@ internal fun DashboardScaffold(
             uiState = uiState,
             is24Hour = is24Hour,
             speedUnit = speedUnit,
-            distanceUnit = distanceUnit,
             onAction = onAction,
             modifier = Modifier.weight(1.5f).fillMaxHeight(),
         )
@@ -91,7 +88,6 @@ private fun MapPane(
     uiState: HomeUiState,
     is24Hour: Boolean,
     speedUnit: SpeedUnit,
-    distanceUnit: DistanceUnit,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Box(modifier = modifier) {
@@ -112,8 +108,8 @@ private fun MapPane(
     SpeedOverlay(
         location = uiState.location,
         address = uiState.address,
+        tripState = uiState.tripState,
         speedUnit = speedUnit,
-        distanceUnit = distanceUnit,
         modifier =
             Modifier
                 .align(Alignment.BottomCenter)

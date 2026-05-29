@@ -13,17 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.BatteryStd
-import androidx.compose.material.icons.outlined.Bluetooth
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.MusicNote
-import androidx.compose.material.icons.outlined.Navigation
-import androidx.compose.material.icons.outlined.Phone
-import androidx.compose.material.icons.outlined.Public
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +31,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.Battery
+import com.composables.icons.lucide.Bluetooth
+import com.composables.icons.lucide.Globe
+import com.composables.icons.lucide.House
+import com.composables.icons.lucide.LayoutGrid
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Music
+import com.composables.icons.lucide.Navigation
+import com.composables.icons.lucide.Phone
+import com.composables.icons.lucide.Settings
+import com.composables.icons.lucide.Wifi
 import io.github.seijikohara.femto.data.SystemStatus
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -60,6 +60,8 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
  *  - A 1 dp vertical divider separates the actionable nav from a
  *    read-only Wi-Fi / Bluetooth / battery cluster at 20 dp icon size,
  *    with the battery percent rendered at 13sp / 700.
+ *
+ * Iconography is Lucide stroke-1.75 for parity with the design SSOT.
  */
 @Composable
 internal fun DashboardFooter(
@@ -108,43 +110,43 @@ private fun NavRow(
     verticalAlignment = Alignment.CenterVertically,
 ) {
     NavButton(
-        icon = Icons.Outlined.Home,
+        icon = Lucide.House,
         description = "Home",
         active = true,
         onClick = { /* already on home */ },
     )
     NavButton(
-        icon = Icons.Outlined.Phone,
+        icon = Lucide.Phone,
         description = "Phone",
         active = false,
         onClick = { onAction(HomeAction.Shortcut(AppsBarShortcut.Phone)) },
     )
     NavButton(
-        icon = Icons.Outlined.Apps,
+        icon = Lucide.LayoutGrid,
         description = "Apps",
         active = false,
         onClick = { onAction(HomeAction.OpenAppDrawer) },
     )
     NavButton(
-        icon = Icons.Outlined.MusicNote,
+        icon = Lucide.Music,
         description = "Music",
         active = false,
         onClick = { onAction(HomeAction.Shortcut(AppsBarShortcut.Music)) },
     )
     NavButton(
-        icon = Icons.Outlined.Navigation,
+        icon = Lucide.Navigation,
         description = "Navigation",
         active = false,
         onClick = { onAction(HomeAction.OpenMaps) },
     )
     NavButton(
-        icon = Icons.Outlined.Public,
+        icon = Lucide.Globe,
         description = "Browser",
         active = false,
         onClick = { onAction(HomeAction.OpenBrowser) },
     )
     NavButton(
-        icon = Icons.Outlined.Settings,
+        icon = Lucide.Settings,
         description = "Settings",
         active = false,
         onClick = { onAction(HomeAction.OpenSettings) },
@@ -207,12 +209,12 @@ private fun StatusCluster(
     horizontalArrangement = Arrangement.spacedBy(18.dp),
 ) {
     StatusIcon(
-        icon = Icons.Outlined.Wifi,
+        icon = Lucide.Wifi,
         active = status.wifiConnected,
         description = if (status.wifiConnected) "Wi-Fi connected" else "Wi-Fi disconnected",
     )
     StatusIcon(
-        icon = Icons.Outlined.Bluetooth,
+        icon = Lucide.Bluetooth,
         active = status.bluetoothConnected,
         description = if (status.bluetoothConnected) "Bluetooth connected" else "Bluetooth disconnected",
     )
@@ -244,7 +246,7 @@ private fun BatteryIndicator(
     horizontalArrangement = Arrangement.spacedBy(6.dp),
 ) {
     Icon(
-        imageVector = Icons.Outlined.BatteryStd,
+        imageVector = Lucide.Battery,
         contentDescription = "Battery",
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.size(20.dp),

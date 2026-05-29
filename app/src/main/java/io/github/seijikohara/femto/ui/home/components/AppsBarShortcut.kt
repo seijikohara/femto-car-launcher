@@ -1,12 +1,12 @@
 package io.github.seijikohara.femto.ui.home.components
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Explore
-import androidx.compose.material.icons.outlined.Map
-import androidx.compose.material.icons.outlined.MusicNote
-import androidx.compose.material.icons.outlined.Phone
-import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.composables.icons.lucide.Camera
+import com.composables.icons.lucide.Compass
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Map
+import com.composables.icons.lucide.Music
+import com.composables.icons.lucide.Phone
 
 /**
  * Apps shortcut category referenced by [io.github.seijikohara.femto.ui.home.HomeAction.Shortcut].
@@ -21,9 +21,9 @@ internal enum class AppsBarShortcut(
     val icon: ImageVector,
     val intentCategory: String,
 ) {
-    Phone(Icons.Outlined.Phone, "android.intent.category.APP_CONTACTS"),
-    Music(Icons.Outlined.MusicNote, "android.intent.category.APP_MUSIC"),
-    Maps(Icons.Outlined.Map, "android.intent.category.APP_MAPS"),
-    Camera(Icons.Outlined.PhotoCamera, "android.intent.category.APP_GALLERY"),
-    Navigation(Icons.Outlined.Explore, "android.intent.category.APP_MAPS"),
+    Phone(Lucide.Phone, "android.intent.category.APP_CONTACTS"),
+    Music(Lucide.Music, "android.intent.category.APP_MUSIC"),
+    Maps(Lucide.Map, "android.intent.category.APP_MAPS"),
+    Camera(Lucide.Camera, "android.intent.category.APP_GALLERY"),
+    Navigation(Lucide.Compass, "android.intent.category.APP_MAPS"),
 }

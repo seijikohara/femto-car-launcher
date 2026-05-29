@@ -10,10 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Cloud
-import androidx.compose.material.icons.outlined.DarkMode
-import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +27,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.Cloud
+import com.composables.icons.lucide.CloudSun
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Moon
+import com.composables.icons.lucide.Sun
 import io.github.seijikohara.femto.data.HourlyForecast
 import io.github.seijikohara.femto.data.WeatherCode
 import io.github.seijikohara.femto.data.WeatherSnapshot
@@ -278,9 +279,9 @@ private fun glyphIconFor(
     isDay: Boolean,
 ): ImageVector =
     when (code) {
-        WeatherCode.CLEAR -> if (isDay) Icons.Outlined.WbSunny else Icons.Outlined.DarkMode
+        WeatherCode.CLEAR -> if (isDay) Lucide.Sun else Lucide.Moon
 
-        WeatherCode.PARTLY_CLOUDY -> Icons.Outlined.WbSunny
+        WeatherCode.PARTLY_CLOUDY -> Lucide.CloudSun
 
         WeatherCode.CLOUDY,
         WeatherCode.FOG,
@@ -293,7 +294,7 @@ private fun glyphIconFor(
         WeatherCode.SNOW_SHOWERS,
         WeatherCode.THUNDERSTORM,
         WeatherCode.UNKNOWN,
-        -> Icons.Outlined.Cloud
+        -> Lucide.Cloud
     }
 
 private fun glyphTintFor(

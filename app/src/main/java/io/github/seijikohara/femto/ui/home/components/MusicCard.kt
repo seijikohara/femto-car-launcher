@@ -16,13 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.MusicNote
-import androidx.compose.material.icons.outlined.MusicOff
-import androidx.compose.material.icons.outlined.Pause
-import androidx.compose.material.icons.outlined.PlayArrow
-import androidx.compose.material.icons.outlined.SkipNext
-import androidx.compose.material.icons.outlined.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -44,6 +37,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Music
+import com.composables.icons.lucide.Pause
+import com.composables.icons.lucide.Play
+import com.composables.icons.lucide.SkipBack
+import com.composables.icons.lucide.SkipForward
 import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.data.NowPlaying
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -149,7 +148,7 @@ private fun AlbumArt(nowPlaying: NowPlaying) {
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.MusicNote,
+                    imageVector = Lucide.Music,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(48.dp),
@@ -174,7 +173,7 @@ private fun Meta(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Icon(
-            imageVector = Icons.Outlined.MusicNote,
+            imageVector = Lucide.Music,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(12.dp),
@@ -285,19 +284,19 @@ private fun TransportRow(
     verticalAlignment = Alignment.CenterVertically,
 ) {
     TransportButton(
-        icon = Icons.Outlined.SkipPrevious,
+        icon = Lucide.SkipBack,
         description = "Skip previous",
         primary = false,
         onClick = { onCommand(MusicCommand.SkipPrevious) },
     )
     TransportButton(
-        icon = if (isPlaying) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
+        icon = if (isPlaying) Lucide.Pause else Lucide.Play,
         description = "Play / pause",
         primary = true,
         onClick = { onCommand(MusicCommand.PlayPause) },
     )
     TransportButton(
-        icon = Icons.Outlined.SkipNext,
+        icon = Lucide.SkipForward,
         description = "Skip next",
         primary = false,
         onClick = { onCommand(MusicCommand.SkipNext) },
@@ -350,7 +349,7 @@ private fun ConnectState(onConnect: () -> Unit) =
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(
-                imageVector = Icons.Outlined.MusicNote,
+                imageVector = Lucide.Music,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(36.dp),
@@ -389,7 +388,7 @@ private fun EmptyState() =
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
-            imageVector = Icons.Outlined.MusicOff,
+            imageVector = Lucide.Music,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(36.dp),

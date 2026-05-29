@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -28,10 +26,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.MapPin
 import io.github.seijikohara.femto.data.ShortAddress
-import io.github.seijikohara.femto.ui.locale.DistanceUnit
+import io.github.seijikohara.femto.data.TripState
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
-import io.github.seijikohara.femto.ui.locale.fromMeters
 import io.github.seijikohara.femto.ui.locale.fromMetersPerSecond
 import io.github.seijikohara.femto.ui.locale.label
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -43,24 +42,28 @@ import kotlin.math.roundToInt
  * Glass overlay anchored to the map pane's bottom-centre, per
  * `docs/design/dashboard-v2-mockup.html` `.speed-overlay`:
  *
- *  - hero current speed (40sp value + 12sp unit), divider, distance, divider, average
- *  - bottom address row separated by a 1dp top border
+ *  - Three-cell grid: hero current speed | 1 dp × 36 dp separator |
+ *    distance | separator | average speed.
+ *  - Below: a 1 dp top border, then a MapPin · short-address row.
  *  - 20 dp corner radius, 1 dp outline border, 460 dp minimum width
+ *    so the layout reads identically across head-units that may be
+ *    slightly wider than 1280 px.
  *
- * The 40sp speed numeral is the only saturated value here; everything
- * else is variants of onSurface / onSurfaceVariant so the hero number
- * reads as the "thing you glance at" on the move.
+ * The 40 sp speed numeral is the only saturated value here; the
+ * supporting metrics use `onSurface` / `onSurfaceVariant` so the hero
+ * number reads as the "thing you glance at" on the move.
  */
 @Composable
 internal fun SpeedOverlay(
     location: Location?,
     address: ShortAddress?,
+    tripState: TripState,
     speedUnit: SpeedUnit,
-    distanceUnit: DistanceUnit,
     modifier: Modifier = Modifier,
 ) {
-    val speed = location?.speed?.let { speedUnit.fromMetersPerSecond(it).roundToInt() } ?: 0
-    val altitude = location?.altitude?.let { distanceUnit.fromMeters(it).roundToInt() }
+    val currentSpeed = location?.speed?.let { speedUnit.fromMetersPerSecond(it).roundToInt() } ?: 0
+    val distanceKm = tripState.distanceMeters / 1000.0
+    val avgSpeed = speedUnit.fromMetersPerSecond(tripState.avgSpeedMs.toFloat()).roundToInt()
     val shortAddress = address?.displayString().orEmpty()
     Column(
         modifier =
@@ -74,11 +77,11 @@ internal fun SpeedOverlay(
                     shape = RoundedCornerShape(20.dp),
                 ).padding(horizontal = 24.dp, vertical = 16.dp),
     ) {
-        SpeedRow(
-            speed = speed,
-            unitLabel = speedUnit.label(),
-            altitudeLabel = altitude,
-            distanceLabel = distanceUnit.label(),
+        MetricRow(
+            currentSpeed = currentSpeed,
+            speedUnitLabel = speedUnit.label(),
+            distanceKm = distanceKm,
+            avgSpeed = avgSpeed,
         )
         if (shortAddress.isNotBlank()) {
             Box(modifier = Modifier.height(12.dp))
@@ -90,45 +93,54 @@ internal fun SpeedOverlay(
 }
 
 @Composable
-private fun SpeedRow(
-    speed: Int,
-    unitLabel: String,
-    altitudeLabel: Int?,
-    distanceLabel: String,
+private fun MetricRow(
+    currentSpeed: Int,
+    speedUnitLabel: String,
+    distanceKm: Double,
+    avgSpeed: Int,
 ) = Row(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(16.dp),
 ) {
-    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = "$speed",
-            style =
-                MaterialTheme.typography.displayMedium.copy(
-                    fontSize = 40.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-0.03f).em,
-                    lineHeight = 40.sp,
-                ),
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-        )
-        Text(
-            text = unitLabel,
-            style =
-                MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.12f.em,
-                ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-            modifier = Modifier.padding(bottom = 6.dp),
-            maxLines = 1,
-        )
-    }
-    if (altitudeLabel != null) {
-        Separator()
-        SecondaryMetric(key = "ALT.", value = "↑ $altitudeLabel $distanceLabel")
-    }
+    NowMetric(value = currentSpeed, unit = speedUnitLabel)
+    Separator()
+    SecondaryMetric(key = "DIST.", value = "%.1f km".format(distanceKm))
+    Separator()
+    SecondaryMetric(key = "AVG.", value = "$avgSpeed $speedUnitLabel")
+}
+
+@Composable
+private fun NowMetric(
+    value: Int,
+    unit: String,
+) = Row(
+    verticalAlignment = Alignment.Bottom,
+    horizontalArrangement = Arrangement.spacedBy(4.dp),
+) {
+    Text(
+        text = "$value",
+        style =
+            MaterialTheme.typography.displayMedium.copy(
+                fontSize = 40.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-0.03f).em,
+                lineHeight = 40.sp,
+            ),
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+    )
+    Text(
+        text = unit,
+        style =
+            MaterialTheme.typography.labelSmall.copy(
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.12f.em,
+            ),
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        modifier = Modifier.padding(bottom = 4.dp),
+        maxLines = 1,
+    )
 }
 
 @Composable
@@ -177,7 +189,7 @@ private fun AddressRow(text: String) =
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Icon(
-            imageVector = Icons.Outlined.LocationOn,
+            imageVector = Lucide.MapPin,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.86f),
             modifier = Modifier.size(FemtoDimens.WeatherGlyphSmall),
@@ -196,15 +208,15 @@ private fun AddressRow(text: String) =
     }
 
 @PreviewLightDark
-@Preview(name = "Speed overlay", widthDp = 480, heightDp = 140)
+@Preview(name = "Speed overlay", widthDp = 520, heightDp = 140)
 @Composable
 private fun SpeedOverlayPreview() {
     FemtoTheme {
         SpeedOverlay(
             location = null,
-            address = null,
+            address = ShortAddress(locality = "Minato-ku", region = "Tokyo"),
+            tripState = TripState(distanceMeters = 24_400.0, avgSpeedMs = 11.7),
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
-            distanceUnit = DistanceUnit.METERS,
         )
     }
 }
