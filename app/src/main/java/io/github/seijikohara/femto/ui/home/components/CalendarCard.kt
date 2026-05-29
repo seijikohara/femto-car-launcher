@@ -194,19 +194,30 @@ private fun DayCellView(
 }
 
 @Composable
-private fun Events(events: List<EventItem>) {
-    if (events.isEmpty()) return
+private fun Events(events: List<EventItem>) =
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        events.forEachIndexed { index, event ->
-            EventRow(
-                time = event.time.format(EventTimeFormatter),
-                title = event.title,
-                isPrimary = index == 0,
+        if (events.isEmpty()) {
+            Text(
+                text = "No upcoming events",
+                style =
+                    MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 13.sp,
+                        lineHeight = 17.sp,
+                    ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
             )
+        } else {
+            events.forEachIndexed { index, event ->
+                EventRow(
+                    time = event.time.format(EventTimeFormatter),
+                    title = event.title,
+                    isPrimary = index == 0,
+                )
+            }
         }
     }
-}
 
 private val EventTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 

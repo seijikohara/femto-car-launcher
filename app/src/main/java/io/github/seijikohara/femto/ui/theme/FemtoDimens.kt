@@ -52,7 +52,7 @@ object FemtoDimens {
     val OverlayCorner = 16.dp
 
     /** Weather glyph beside the city name in the weather card head row. */
-    val WeatherGlyphLarge = 22.dp
+    val WeatherGlyphLarge = 20.dp
 
     /** Weather glyph inside the 3-hour forecast chips. */
     val WeatherGlyphSmall = 18.dp

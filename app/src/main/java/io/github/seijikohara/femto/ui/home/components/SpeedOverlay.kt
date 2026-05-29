@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -99,14 +100,15 @@ private fun MetricRow(
     distanceKm: Double,
     avgSpeed: Int,
 ) = Row(
+    modifier = Modifier.fillMaxWidth(),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(16.dp),
 ) {
     NowMetric(value = currentSpeed, unit = speedUnitLabel)
     Separator()
-    SecondaryMetric(key = "DIST.", value = "%.1f km".format(distanceKm))
+    SecondaryMetric(key = "DISTANCE", value = "%.1f km".format(distanceKm), modifier = Modifier.weight(1f))
     Separator()
-    SecondaryMetric(key = "AVG.", value = "$avgSpeed $speedUnitLabel")
+    SecondaryMetric(key = "AVG.", value = "$avgSpeed $speedUnitLabel", modifier = Modifier.weight(1f))
 }
 
 @Composable
@@ -157,7 +159,8 @@ private fun Separator() =
 private fun SecondaryMetric(
     key: String,
     value: String,
-) = Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    modifier: Modifier = Modifier,
+) = Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
     Text(
         text = key,
         style =

@@ -119,8 +119,15 @@ private fun Head(
                 modifier = Modifier.padding(top = 4.dp, start = 2.dp),
             )
         }
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 Icon(
                     imageVector = glyphIconFor(snapshot.code, snapshot.isDay),
                     contentDescription = null,
@@ -129,12 +136,13 @@ private fun Head(
                 )
                 Text(
                     text = city.orEmpty(),
+                    modifier = Modifier.weight(1f),
                     style =
                         MaterialTheme.typography.titleMedium.copy(
-                            fontSize = 18.sp,
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = (-0.01f).em,
-                            lineHeight = 18.sp,
+                            lineHeight = 16.sp,
                         ),
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
