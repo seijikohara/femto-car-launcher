@@ -22,6 +22,8 @@ import io.github.seijikohara.femto.data.ReverseGeocoderRepository
 import io.github.seijikohara.femto.data.ShortAddress
 import io.github.seijikohara.femto.data.SystemStatus
 import io.github.seijikohara.femto.data.SystemStatusRepository
+import io.github.seijikohara.femto.data.TripRepository
+import io.github.seijikohara.femto.data.TripState
 import io.github.seijikohara.femto.data.WeatherRepository
 import io.github.seijikohara.femto.data.WeatherSnapshot
 import io.github.seijikohara.femto.ui.home.components.MusicCommand
@@ -46,6 +48,7 @@ internal class HomeViewModel(
     private val appsFlow: MutableStateFlow<List<AppEntry>>,
     private val calendarFlow: Flow<CalendarSnapshot?>,
     private val systemStatusFlow: Flow<SystemStatus>,
+    private val tripStateFlow: Flow<TripState>,
     private val isMapAvailable: () -> Boolean,
     private val sendMusicCommand: (MusicCommand) -> Unit = {},
 ) : ViewModel() {
@@ -59,6 +62,7 @@ internal class HomeViewModel(
             appsFlow,
             calendarFlow,
             systemStatusFlow,
+            tripStateFlow,
         ) { values ->
             @Suppress("UNCHECKED_CAST")
             val clock = values[0] as ClockTick
@@ -83,6 +87,9 @@ internal class HomeViewModel(
 
             @Suppress("UNCHECKED_CAST")
             val systemStatus = values[7] as SystemStatus
+
+            @Suppress("UNCHECKED_CAST")
+            val tripState = values[8] as TripState
             HomeUiState(
                 isLoading = apps.isEmpty(),
                 apps = apps,
@@ -94,6 +101,7 @@ internal class HomeViewModel(
                 mapAvailable = isMapAvailable(),
                 calendar = calendar,
                 systemStatus = systemStatus,
+                tripState = tripState,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState.Initial)
 
@@ -160,6 +168,7 @@ internal class HomeViewModelFactory(
         val appsRepo = AppsRepository(application)
         val calendar = CalendarRepository(application, clockFlow)
         val systemStatus = SystemStatusRepository(application)
+        val trip = TripRepository(locationFlow)
 
         @Suppress("UNCHECKED_CAST")
         return HomeViewModel(
@@ -171,6 +180,7 @@ internal class HomeViewModelFactory(
             appsFlow = apps,
             calendarFlow = calendar.snapshotFlow(),
             systemStatusFlow = systemStatus.statusFlow(),
+            tripStateFlow = trip.stateFlow(),
             isMapAvailable = { gms.isPresent() },
             sendMusicCommand = music::send,
         ).also { vm ->

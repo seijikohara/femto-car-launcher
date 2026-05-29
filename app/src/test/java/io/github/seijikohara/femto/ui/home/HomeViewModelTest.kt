@@ -11,6 +11,7 @@ import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.testfixtures.fakeSystemStatus
+import io.github.seijikohara.femto.testfixtures.fakeTripState
 import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
 import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
 import io.github.seijikohara.femto.ui.home.components.MusicCommand
@@ -55,6 +56,7 @@ class HomeViewModelTest {
             val placeholderIcon = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
             val calendar = fakeCalendarSnapshot()
             val systemStatus = fakeSystemStatus()
+            val tripState = fakeTripState()
             val viewModel =
                 HomeViewModel(
                     clockFlow = flowOf(ClockTick(LocalTime.of(14, 32), LocalDate.of(2026, 5, 1))),
@@ -74,6 +76,7 @@ class HomeViewModelTest {
                         ),
                     calendarFlow = flowOf(calendar),
                     systemStatusFlow = flowOf(systemStatus),
+                    tripStateFlow = flowOf(tripState),
                     isMapAvailable = { true },
                 )
             viewModel.uiState.test {
@@ -85,6 +88,7 @@ class HomeViewModelTest {
                 assertTrue(state.mapAvailable)
                 assertEquals(calendar, state.calendar)
                 assertEquals(systemStatus, state.systemStatus)
+                assertEquals(tripState, state.tripState)
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -171,6 +175,7 @@ class HomeViewModelTest {
             appsFlow = MutableStateFlow(emptyList()),
             calendarFlow = emptyFlow(),
             systemStatusFlow = emptyFlow(),
+            tripStateFlow = emptyFlow(),
             isMapAvailable = { false },
             sendMusicCommand = sendMusicCommand,
         )

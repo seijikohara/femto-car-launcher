@@ -8,6 +8,7 @@ import io.github.seijikohara.femto.data.ClockTick
 import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.data.ShortAddress
 import io.github.seijikohara.femto.data.SystemStatus
+import io.github.seijikohara.femto.data.TripState
 import io.github.seijikohara.femto.data.WeatherSnapshot
 import java.time.LocalDate
 import java.time.LocalTime
@@ -24,6 +25,7 @@ internal data class HomeUiState(
     val mapAvailable: Boolean,
     val calendar: CalendarSnapshot?,
     val systemStatus: SystemStatus,
+    val tripState: TripState,
 ) {
     companion object {
         val Initial: HomeUiState =
@@ -38,6 +40,7 @@ internal data class HomeUiState(
                 mapAvailable = false,
                 calendar = null,
                 systemStatus = SystemStatus.Initial,
+                tripState = TripState.Initial,
             )
     }
 }
