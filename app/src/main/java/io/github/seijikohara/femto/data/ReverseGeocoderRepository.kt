@@ -31,7 +31,7 @@ internal class ReverseGeocoderRepository(
             if (!Geocoder.isPresent()) return@runCatching null
             requestAddresses(location)
                 .firstOrNull()
-                ?.let { ShortAddress(locality = it.locality.orEmpty(), region = it.adminArea) }
+                ?.let { ShortAddress(locality = shortLocality(it.locality.orEmpty()), region = it.adminArea) }
                 ?.takeIf { it.locality.isNotEmpty() }
         }.getOrNull()
 
@@ -55,5 +55,24 @@ internal class ReverseGeocoderRepository(
 
     private companion object {
         const val BUCKET_M = 100f
+    }
+}
+
+// Administrative suffixes the platform geocoder appends to a locality
+// (e.g. "Chiyoda City", "Westminster District"). The dashboard's city
+// slots are narrow, so the trailing suffix is stripped to leave a
+// compact core name. The geocoder returns the locality in the device
+// locale; this list covers Latin-script suffixes, and a market adds its
+// own entries here when its locale needs them. The strictest match wins:
+// only an exact trailing word is removed, never a substring.
+private val AdminSuffixes = setOf("City", "Ward", "District", "Municipality", "Town", "Village", "Borough")
+
+internal fun shortLocality(raw: String): String {
+    val trimmed = raw.trim()
+    val lastWord = trimmed.substringAfterLast(' ', "")
+    return if (lastWord.isNotEmpty() && AdminSuffixes.any { it.equals(lastWord, ignoreCase = true) }) {
+        trimmed.substringBeforeLast(' ').trim().ifEmpty { trimmed }
+    } else {
+        trimmed
     }
 }
