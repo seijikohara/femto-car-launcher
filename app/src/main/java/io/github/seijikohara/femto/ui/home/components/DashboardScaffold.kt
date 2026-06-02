@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
+import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 
 /**
@@ -47,6 +48,7 @@ internal fun DashboardScaffold(
     uiState: HomeUiState,
     is24Hour: Boolean,
     speedUnit: SpeedUnit,
+    temperatureUnit: TemperatureUnit,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(
@@ -61,7 +63,7 @@ internal fun DashboardScaffold(
                 .weight(1f)
                 .fillMaxWidth()
                 .padding(FemtoDimens.ScreenPadding),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.PaneGap),
     ) {
         MapPane(
             uiState = uiState,
@@ -72,6 +74,7 @@ internal fun DashboardScaffold(
         )
         InfoPane(
             uiState = uiState,
+            temperatureUnit = temperatureUnit,
             onAction = onAction,
             modifier = Modifier.weight(1f).fillMaxHeight(),
         )
@@ -93,12 +96,10 @@ private fun MapPane(
 ) = Box(modifier = modifier) {
     MapPanel(
         location = uiState.location,
-        mapAvailable = uiState.mapAvailable,
         onTap = { onAction(HomeAction.OpenMaps) },
         modifier = Modifier.fillMaxSize(),
     )
     ClockOverlay(
-        clock = uiState.clock,
         is24Hour = is24Hour,
         modifier =
             Modifier
@@ -120,18 +121,19 @@ private fun MapPane(
 @Composable
 private fun InfoPane(
     uiState: HomeUiState,
+    temperatureUnit: TemperatureUnit,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(
     modifier = modifier,
-    verticalArrangement = Arrangement.spacedBy(16.dp),
+    verticalArrangement = Arrangement.spacedBy(FemtoDimens.PaneGap),
 ) {
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
                 .height(FemtoDimens.TopRowHeight),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.PaneGap),
     ) {
         CalendarCard(
             snapshot = uiState.calendar,
@@ -140,6 +142,7 @@ private fun InfoPane(
         WeatherCard(
             snapshot = uiState.weather,
             city = uiState.address?.locality,
+            temperatureUnit = temperatureUnit,
             modifier = Modifier.weight(1f).fillMaxHeight(),
         )
     }

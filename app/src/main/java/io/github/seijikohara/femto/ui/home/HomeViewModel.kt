@@ -13,7 +13,6 @@ import io.github.seijikohara.femto.data.CalendarRepository
 import io.github.seijikohara.femto.data.CalendarSnapshot
 import io.github.seijikohara.femto.data.ClockRepository
 import io.github.seijikohara.femto.data.ClockTick
-import io.github.seijikohara.femto.data.GmsAvailability
 import io.github.seijikohara.femto.data.LocationRepository
 import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.data.MusicSessionRepository
@@ -49,7 +48,6 @@ internal class HomeViewModel(
     private val calendarFlow: Flow<CalendarSnapshot?>,
     private val systemStatusFlow: Flow<SystemStatus>,
     private val tripStateFlow: Flow<TripState>,
-    private val isMapAvailable: () -> Boolean,
     private val sendMusicCommand: (MusicCommand) -> Unit = {},
 ) : ViewModel() {
     val uiState: StateFlow<HomeUiState> =
@@ -98,7 +96,6 @@ internal class HomeViewModel(
                 address = address,
                 weather = weather,
                 musicState = music,
-                mapAvailable = isMapAvailable(),
                 calendar = calendar,
                 systemStatus = systemStatus,
                 tripState = tripState,
@@ -163,7 +160,6 @@ internal class HomeViewModelFactory(
         val weatherApi = OpenMeteoApi(client = OkHttpClient())
         val weather = WeatherRepository(weatherApi, locationFlow)
         val music = MusicSessionRepository(application)
-        val gms = GmsAvailability(application)
         val apps = MutableStateFlow<List<AppEntry>>(emptyList())
         val appsRepo = AppsRepository(application)
         val calendar = CalendarRepository(application, clockFlow)
@@ -181,7 +177,6 @@ internal class HomeViewModelFactory(
             calendarFlow = calendar.snapshotFlow(),
             systemStatusFlow = systemStatus.statusFlow(),
             tripStateFlow = trip.stateFlow(),
-            isMapAvailable = { gms.isPresent() },
             sendMusicCommand = music::send,
         ).also { vm ->
             vm.viewModelScope.launch { apps.value = appsRepo.queryApps() }

@@ -35,6 +35,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        enableEmulatorMapRendering()
         enableEdgeToEdge()
         requestRuntimePermissions()
         setContent {
@@ -126,4 +127,34 @@ class MainActivity : ComponentActivity() {
             // Head-unit has no app for this category / settings target.
         }
     }
+
+    /**
+     * Nudge MapLibre's OpenGL `EGLConfigChooser` onto its emulator-safe config
+     * path when running on an emulator. The chooser only relaxes the EGL config
+     * (dropping `EGL_COLOR_BUFFER_TYPE`, which the software GL translator cannot
+     * present) when it detects an emulator, but its heuristics miss modern
+     * `sdk_gphone` AVDs. It reads the JVM property `ro.kernel.qemu`; setting it
+     * here — before any MapView builds its renderer — makes the map paint on the
+     * emulator. This is a no-op on real head units (the heuristic stays false),
+     * so production rendering is unchanged.
+     */
+    private fun enableEmulatorMapRendering() {
+        if (isProbablyEmulator() && System.getProperty(QEMU_PROPERTY) == null) {
+            System.setProperty(QEMU_PROPERTY, "1")
+        }
+    }
 }
+
+private fun isProbablyEmulator(): Boolean =
+    Build.FINGERPRINT.startsWith("generic") ||
+        Build.FINGERPRINT.contains("sdk_gphone") ||
+        Build.FINGERPRINT.contains("emulator", ignoreCase = true) ||
+        Build.MODEL.contains("sdk_gphone") ||
+        Build.MODEL.contains("Emulator") ||
+        Build.MODEL.contains("Android SDK built for") ||
+        Build.HARDWARE in setOf("ranchu", "ranchu64", "goldfish", "goldfish_arm64") ||
+        Build.PRODUCT.startsWith("sdk") ||
+        Build.PRODUCT.contains("sdk_gphone") ||
+        Build.BRAND.startsWith("generic")
+
+private const val QEMU_PROPERTY = "ro.kernel.qemu"

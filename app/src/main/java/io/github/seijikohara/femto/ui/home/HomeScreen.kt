@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
 import io.github.seijikohara.femto.ui.locale.speedUnitFor
+import io.github.seijikohara.femto.ui.locale.temperatureUnitFor
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
@@ -32,6 +33,7 @@ internal fun HomeScreen(
             uiState = uiState,
             is24Hour = is24Hour,
             speedUnit = speedUnitFor(),
+            temperatureUnit = temperatureUnitFor(),
             onAction = onAction,
             modifier = Modifier.fillMaxSize(),
         )

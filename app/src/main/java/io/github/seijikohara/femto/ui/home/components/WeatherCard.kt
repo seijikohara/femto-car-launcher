@@ -35,17 +35,27 @@ import com.composables.icons.lucide.Sun
 import io.github.seijikohara.femto.data.HourlyForecast
 import io.github.seijikohara.femto.data.WeatherCode
 import io.github.seijikohara.femto.data.WeatherSnapshot
+import io.github.seijikohara.femto.ui.locale.TemperatureUnit
+import io.github.seijikohara.femto.ui.locale.fromCelsius
+import io.github.seijikohara.femto.ui.locale.label
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.TabularFigures
 import io.github.seijikohara.femto.ui.theme.WeatherGlyphColors
+import io.github.seijikohara.femto.ui.theme.bigNumber
+import io.github.seijikohara.femto.ui.theme.sectionLabel
 import io.github.seijikohara.femto.ui.theme.weatherGlyphs
 import java.time.Instant
 import java.time.LocalTime
 import kotlin.math.roundToInt
 
 /**
- * Weather card. Three vertical sections distributed by [Arrangement.SpaceBetween]:
+ * Weather card. Three vertical sections stacked on a 12dp rhythm
+ * ([Arrangement.spacedBy], matching the mockup `.weather-card`
+ * `row-gap: 12px`); content stays top-aligned and any spare height in the
+ * fixed-height card falls to the bottom, so the forecast divider keeps even
+ * 12dp breathing room instead of being stretched apart:
  *
  *  1. Head — 56sp temperature + glyph (per-condition colour) + city + short conditions.
  *  2. Metrics — Feels / Wind / Humid row at 14sp / 700 weight.
@@ -59,10 +69,11 @@ import kotlin.math.roundToInt
 internal fun WeatherCard(
     snapshot: WeatherSnapshot?,
     city: String?,
+    temperatureUnit: TemperatureUnit,
     modifier: Modifier = Modifier,
 ) = Surface(
     modifier = modifier,
-    shape = RoundedCornerShape(FemtoDimens.OverlayCorner),
+    shape = RoundedCornerShape(FemtoDimens.CardCorner),
     color = MaterialTheme.colorScheme.surfaceContainer,
     tonalElevation = FemtoDimens.CardElevation,
 ) {
@@ -70,13 +81,13 @@ internal fun WeatherCard(
         modifier =
             Modifier
                 .fillMaxSize()
-                .padding(16.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
+                .padding(FemtoDimens.CardPadding),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (snapshot != null) {
-            Head(snapshot, city)
-            Metrics(snapshot)
-            Forecast(snapshot.hourly)
+            Head(snapshot, city, temperatureUnit)
+            Metrics(snapshot, temperatureUnit)
+            Forecast(snapshot.hourly, temperatureUnit)
         } else {
             EmptyState()
         }
@@ -87,8 +98,9 @@ internal fun WeatherCard(
 private fun Head(
     snapshot: WeatherSnapshot,
     city: String?,
+    temperatureUnit: TemperatureUnit,
 ) {
-    val tempLabel = "${snapshot.tempC.roundToInt()}"
+    val tempLabel = "${temperatureUnit.fromCelsius(snapshot.tempC).roundToInt()}"
     val glyphs = weatherGlyphs()
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -97,18 +109,12 @@ private fun Head(
         Row(verticalAlignment = Alignment.Top) {
             Text(
                 text = tempLabel,
-                style =
-                    MaterialTheme.typography.displayLarge.copy(
-                        fontSize = FemtoDimens.BigNumberFontSize,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = (-0.045f).em,
-                        lineHeight = (FemtoDimens.BigNumberFontSize.value * 0.92f).sp,
-                    ),
+                style = MaterialTheme.typography.bigNumber(),
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
             )
             Text(
-                text = "°C",
+                text = temperatureUnit.label(),
                 style =
                     MaterialTheme.typography.titleMedium.copy(
                         fontSize = 20.sp,
@@ -137,6 +143,11 @@ private fun Head(
                 Text(
                     text = city.orEmpty(),
                     modifier = Modifier.weight(1f),
+                    // The mockup specs 18px, sized for a short Latin city. The
+                    // weather head slot (narrowed by the wide big-temperature)
+                    // truncates 8+ char names like "Shinjuku" at 18sp, so the
+                    // city stays at 16sp — within the card-metadata relaxation of
+                    // the 18sp glance floor — to fit more multi-region city names.
                     style =
                         MaterialTheme.typography.titleMedium.copy(
                             fontSize = 16.sp,
@@ -151,12 +162,7 @@ private fun Head(
             }
             Text(
                 text = labelFor(snapshot.code).uppercase(),
-                style =
-                    MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.14f.em,
-                    ),
+                style = MaterialTheme.typography.sectionLabel(11, 0.14f),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
             )
@@ -165,17 +171,19 @@ private fun Head(
 }
 
 @Composable
-private fun Metrics(snapshot: WeatherSnapshot) =
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Metric(label = "FEELS", value = "${snapshot.apparentTempC.roundToInt()}°")
-        val windMs = (snapshot.windKmh / 3.6).roundToInt()
-        Metric(label = "WIND", value = "$windMs m/s")
-        val humidityLabel = snapshot.humidityPercent?.let { "$it%" } ?: "—"
-        Metric(label = "HUMID.", value = humidityLabel)
-    }
+private fun Metrics(
+    snapshot: WeatherSnapshot,
+    temperatureUnit: TemperatureUnit,
+) = Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.spacedBy(16.dp),
+) {
+    Metric(label = "FEELS", value = "${temperatureUnit.fromCelsius(snapshot.apparentTempC).roundToInt()}°")
+    val windMs = (snapshot.windKmh / 3.6).roundToInt()
+    Metric(label = "WIND", value = "$windMs m/s")
+    val humidityLabel = snapshot.humidityPercent?.let { "$it%" } ?: "—"
+    Metric(label = "HUMID.", value = humidityLabel)
+}
 
 @Composable
 private fun Metric(
@@ -184,12 +192,7 @@ private fun Metric(
 ) = Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
     Text(
         text = label,
-        style =
-            MaterialTheme.typography.labelSmall.copy(
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.1f.em,
-            ),
+        style = MaterialTheme.typography.sectionLabel(10, 0.1f),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
     )
@@ -200,6 +203,7 @@ private fun Metric(
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 lineHeight = 16.sp,
+                fontFeatureSettings = TabularFigures,
             ),
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
@@ -207,7 +211,10 @@ private fun Metric(
 }
 
 @Composable
-private fun Forecast(hourly: List<HourlyForecast>) {
+private fun Forecast(
+    hourly: List<HourlyForecast>,
+    temperatureUnit: TemperatureUnit,
+) {
     val next = hourly.take(3)
     if (next.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -217,7 +224,7 @@ private fun Forecast(hourly: List<HourlyForecast>) {
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             next.forEach { hour ->
-                ForecastChip(hour, modifier = Modifier.weight(1f))
+                ForecastChip(hour, temperatureUnit, modifier = Modifier.weight(1f))
             }
         }
     }
@@ -226,13 +233,14 @@ private fun Forecast(hourly: List<HourlyForecast>) {
 @Composable
 private fun ForecastChip(
     forecast: HourlyForecast,
+    temperatureUnit: TemperatureUnit,
     modifier: Modifier = Modifier,
 ) {
     val glyphs = weatherGlyphs()
     Column(
         modifier =
             modifier
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(FemtoDimens.ChipCorner))
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .padding(vertical = 8.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -240,12 +248,7 @@ private fun ForecastChip(
     ) {
         Text(
             text = "%02dh".format(forecast.time.hour),
-            style =
-                MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.08f.em,
-                ),
+            style = MaterialTheme.typography.sectionLabel(10, 0.08f),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
         )
@@ -256,12 +259,13 @@ private fun ForecastChip(
             modifier = Modifier.size(FemtoDimens.WeatherGlyphSmall),
         )
         Text(
-            text = "${forecast.tempC.roundToInt()}°",
+            text = "${temperatureUnit.fromCelsius(forecast.tempC).roundToInt()}°",
             style =
                 MaterialTheme.typography.bodyMedium.copy(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     lineHeight = 15.sp,
+                    fontFeatureSettings = TabularFigures,
                 ),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
@@ -360,6 +364,7 @@ private fun WeatherCardPreview() {
                     fetchedAt = Instant.now(),
                 ),
             city = "Košice",
+            temperatureUnit = TemperatureUnit.CELSIUS,
         )
     }
 }

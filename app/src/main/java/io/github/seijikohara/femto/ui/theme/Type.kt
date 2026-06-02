@@ -3,11 +3,13 @@
 package io.github.seijikohara.femto.ui.theme
 
 import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import io.github.seijikohara.femto.R
 
@@ -49,10 +51,13 @@ private fun mixedFamily(
     )
 
 internal object FemtoFonts {
-    val Geist: FontFamily = mixedFamily(R.font.geist_variable, R.font.mplus2_variable)
-    val MPlus2: FontFamily =
+    /** Inter for Latin with Noto Sans JP interleaved as the JP glyph fallback. */
+    val Inter: FontFamily = mixedFamily(R.font.inter_variable, R.font.noto_sans_jp_variable)
+
+    /** Noto Sans JP on its own, for JP-only contexts. */
+    val NotoSansJp: FontFamily =
         FontFamily(
-            WeightAxis.map { variableFont(R.font.mplus2_variable, it) },
+            WeightAxis.map { variableFont(R.font.noto_sans_jp_variable, it) },
         )
 }
 
@@ -82,3 +87,48 @@ internal fun femtoTypography(latin: FontFamily): Typography =
             labelSmall = labelSmall.copy(fontFamily = latin, fontWeight = FontWeight.Medium, fontSize = 14.sp),
         )
     }
+
+/**
+ * OpenType `tnum` feature tag. Tabular figures give every digit the same
+ * advance width so changing numbers (clock, speed, temperature, day) do not
+ * shift surrounding layout as their glyphs change.
+ *
+ * Keeps its PascalCase SSOT name across callers rather than ktlint's
+ * SCREAMING_SNAKE_CASE for `const val`.
+ */
+@Suppress("ktlint:standard:property-naming")
+internal const val TabularFigures = "tnum"
+
+/**
+ * Return the shared big-number display style used for the calendar big-day and
+ * the weather big-temperature anchors. Derived from [Typography.displayLarge]
+ * with the Bold Minimal tuning the cards apply verbatim, plus tabular figures
+ * so the large numeral never reflows the row beside it.
+ */
+internal fun Typography.bigNumber(): TextStyle =
+    displayLarge.copy(
+        fontSize = FemtoDimens.BigNumberFontSize,
+        fontWeight = FontWeight.ExtraBold,
+        letterSpacing = (-0.045f).em,
+        lineHeight = (FemtoDimens.BigNumberFontSize.value * 0.92f).sp,
+        fontFeatureSettings = TabularFigures,
+    )
+
+/**
+ * Return an uppercase eyebrow / section-label style derived from
+ * [Typography.labelSmall]. Callers pass the explicit size and tracking the
+ * design SSOT specifies for each strip, so the relaxed sub-18sp eyebrow sizes
+ * stay parameterised rather than hardcoded per card. Carries tabular figures so
+ * labels that embed a number (e.g. the "09h" forecast hour) keep a fixed digit
+ * advance; the feature is a no-op on letter-only labels.
+ */
+internal fun Typography.sectionLabel(
+    sizeSp: Int,
+    trackingEm: Float,
+): TextStyle =
+    labelSmall.copy(
+        fontSize = sizeSp.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = trackingEm.em,
+        fontFeatureSettings = TabularFigures,
+    )

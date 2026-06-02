@@ -28,24 +28,17 @@ See [`CLAUDE.md#tech-stack`](CLAUDE.md#tech-stack) for the full dependency list.
 ./gradlew spotlessCheck    # format / lint check
 ```
 
-### Maps API key
+### Map tiles
 
-The launcher renders a Lite Mode Google Map on the home dashboard.
-To see real tiles in your local debug build:
-
-1. Create a Maps SDK for Android key at
-   <https://console.cloud.google.com/google/maps-apis/credentials>.
-2. Restrict the key by Android app fingerprint (package name +
-   debug + release SHA-1).
-3. Add the key to `local.properties` (gitignored):
-
-   ```
-   MAPS_API_KEY=AIza...
-   ```
-
-4. Re-run `./gradlew assembleDebug`. The map appears once the
-   permission grant lands at runtime; without a key the panel
-   shows the static fallback.
+The launcher renders OpenStreetMap vector tiles on the home dashboard
+through [MapLibre](https://maplibre.org/), served by the free, keyless
+[OpenFreeMap](https://openfreemap.org/) service. There is **no API key
+to configure** — `./gradlew assembleDebug` produces a build with a
+working map out of the box. The pane shows a heading-up view (the map
+rotates so the travel direction points up) and falls back to a static
+placeholder until a location fix is available. Light mode uses the
+Positron style; dark mode uses a bundled style under
+`app/src/main/assets/map/`.
 
 ## Conventions
 

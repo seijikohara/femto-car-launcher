@@ -47,6 +47,7 @@ import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.TabularFigures
 
 /**
  * Bottom dock per `docs/design/dashboard-v2-mockup.html` `.footer`:
@@ -257,6 +258,7 @@ private fun BatteryIndicator(
             MaterialTheme.typography.labelLarge.copy(
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
+                fontFeatureSettings = TabularFigures,
             ),
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,

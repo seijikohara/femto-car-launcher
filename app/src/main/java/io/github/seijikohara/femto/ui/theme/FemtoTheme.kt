@@ -23,7 +23,7 @@ import androidx.compose.ui.platform.LocalInspectionMode
  */
 @Composable
 fun FemtoTheme(
-    fontTheme: FontTheme = FontTheme.GEIST,
+    fontTheme: FontTheme = FontTheme.INTER,
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {

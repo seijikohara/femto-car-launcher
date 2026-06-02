@@ -24,7 +24,7 @@ class FontPreferences(
 ) {
     val fontTheme: Flow<FontTheme> =
         context.fontDataStore.data.map { prefs ->
-            FontTheme.entries.firstOrNull { it.name == prefs[KEY] } ?: FontTheme.GEIST
+            FontTheme.entries.firstOrNull { it.name == prefs[KEY] } ?: FontTheme.INTER
         }
 
     suspend fun setFontTheme(theme: FontTheme) {

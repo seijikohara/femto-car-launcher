@@ -1,6 +1,10 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import android.annotation.SuppressLint
+import android.content.Context
 import android.location.Location
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,47 +16,61 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPinOff
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.GoogleMapOptions
-import com.google.android.gms.maps.MapView
-import com.google.android.gms.maps.model.LatLng
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import org.maplibre.android.MapLibre
+import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.location.LocationComponentActivationOptions
+import org.maplibre.android.location.modes.CameraMode
+import org.maplibre.android.location.modes.RenderMode
+import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.MapLibreMapOptions
+import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.Style
 
 /**
  * Map tile + permission fallback only.
  *
- * Clock and speed overlays live in their own composables (see
- * [ClockOverlay], [SpeedOverlay]) and are placed by the parent on top of
- * this surface inside a shared [Box]. Keeping the map pane focused makes
- * the overlay positions explicit at the call site and lets each piece be
- * previewed in isolation.
+ * Renders free OpenStreetMap vector tiles (OpenFreeMap) through MapLibre
+ * with a heading-up camera. Clock and speed overlays live in their own
+ * composables (see [ClockOverlay], [SpeedOverlay]) and are placed by the
+ * parent on top of this surface inside a shared [Box]. Keeping the map pane
+ * focused makes the overlay positions explicit at the call site and lets
+ * each piece be previewed in isolation.
  */
 @Composable
 internal fun MapPanel(
     location: Location?,
-    mapAvailable: Boolean,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Surface(
     modifier = modifier,
-    shape = RoundedCornerShape(FemtoDimens.OverlayCorner),
+    shape = RoundedCornerShape(FemtoDimens.CardCorner),
     color = MaterialTheme.colorScheme.surfaceContainer,
     tonalElevation = FemtoDimens.CardElevation,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
-        if (mapAvailable && location != null) {
-            LiteModeMap(
-                latLng = LatLng(location.latitude, location.longitude),
+        // A location fix is the only gate: with it we have permission and a
+        // centre point; without it the map has nothing to show, so fall back.
+        if (location != null) {
+            VectorMap(
+                location = location,
                 onTap = onTap,
                 modifier = Modifier.fillMaxSize(),
             )
@@ -63,37 +81,168 @@ internal fun MapPanel(
 }
 
 @Composable
-private fun LiteModeMap(
-    latLng: LatLng,
+private fun VectorMap(
+    location: Location,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val callback = rememberUpdatedState(onTap)
+    val isDark = isSystemInDarkTheme()
+    val onTapState = rememberUpdatedState(onTap)
+
+    // Heading-up needs a bearing on every pushed fix. GPS fixes only carry one
+    // while moving, so carry the last non-zero bearing forward; otherwise
+    // CameraMode.TRACKING_GPS would snap the map back to north when stopped.
+    val bearingHolder = remember { floatArrayOf(0f) }
+
     val mapView =
         remember {
-            MapView(context, GoogleMapOptions().liteMode(true).mapToolbarEnabled(false).compassEnabled(false)).apply {
-                onCreate(null)
-            }
+            MapLibre.getInstance(context)
+            // textureMode(true) renders the map into a TextureView (drawn inline
+            // in the view hierarchy), so it is clipped by the parent Surface's
+            // rounded corners and the Compose overlays (clock / speed) sit cleanly
+            // on top. translucentTextureSurface(false) forces the buffer opaque so
+            // the surfaceContainer behind it cannot bleed through, and saves a
+            // blend pass on real GPUs. (On software-GL emulators the emulator
+            // cannot composite this surface into a screencap, but it renders on
+            // real head-unit GPUs — see MainActivity.enableEmulatorMapRendering.)
+            val options =
+                MapLibreMapOptions
+                    .createFromAttributes(context)
+                    .textureMode(true)
+                    .translucentTextureSurface(false)
+            // onCreate(null) is mandatory before getMapAsync; without it the
+            // ready callback never fires and the map silently stays blank.
+            MapView(context, options).apply { onCreate(null) }
         }
-    LaunchedEffect(latLng) {
-        mapView.getMapAsync { map ->
-            map.uiSettings.setAllGesturesEnabled(false)
-            map.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, MAP_ZOOM))
-            map.setOnMapClickListener { callback.value() }
+
+    var map by remember { mutableStateOf<MapLibreMap?>(null) }
+    var loadFailed by remember { mutableStateOf(false) }
+
+    ForwardLifecycle(mapView)
+
+    LaunchedEffect(mapView) {
+        mapView.addOnDidFailLoadingMapListener { loadFailed = true }
+        mapView.getMapAsync { ready ->
+            ready.uiSettings.apply {
+                setAllGesturesEnabled(false)
+                isCompassEnabled = false
+                isLogoEnabled = false
+                // Keep the attribution control: OSM ODbL / OpenMapTiles CC-BY
+                // require the credit to stay reachable from the map.
+                isAttributionEnabled = true
+            }
+            ready.addOnMapClickListener {
+                onTapState.value()
+                true
+            }
+            map = ready
         }
     }
-    AndroidView(
-        modifier = modifier,
-        factory = { mapView },
-    )
+
+    // Re-apply the style (and re-activate the location layer it owns) whenever
+    // the map becomes ready or the system theme flips between light and dark.
+    LaunchedEffect(map, isDark) {
+        val ready = map ?: return@LaunchedEffect
+        loadFailed = false
+        ready.setStyle(styleFor(context, isDark)) { style ->
+            activateHeadingUp(context, ready, style)
+            ready.locationComponent.forceLocationUpdate(location.withCarriedBearing(bearingHolder))
+        }
+    }
+
+    // Push each new fix to the location component; TRACKING_GPS recentres and
+    // rotates the camera from the fix's position and (carried) bearing.
+    LaunchedEffect(map, location) {
+        val ready = map ?: return@LaunchedEffect
+        ready.locationComponent
+            .takeIf { it.isLocationComponentActivated }
+            ?.forceLocationUpdate(location.withCarriedBearing(bearingHolder))
+    }
+
+    Box(modifier = modifier) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { mapView },
+        )
+        // OpenFreeMap is a free, no-SLA service; a failed style/tile load shows
+        // the static fallback rather than a blank or black rectangle.
+        if (loadFailed) {
+            Fallback()
+        }
+    }
 }
+
+@Composable
+private fun ForwardLifecycle(mapView: MapView) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, mapView) {
+        val observer =
+            LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_START -> mapView.onStart()
+                    Lifecycle.Event.ON_RESUME -> mapView.onResume()
+                    Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                    Lifecycle.Event.ON_STOP -> mapView.onStop()
+                    else -> Unit
+                }
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            mapView.onStop()
+            mapView.onDestroy()
+        }
+    }
+}
+
+private fun styleFor(
+    context: Context,
+    isDark: Boolean,
+): Style.Builder =
+    if (isDark) {
+        Style.Builder().fromJson(
+            context.assets
+                .open(DARK_STYLE_ASSET)
+                .bufferedReader()
+                .use { it.readText() },
+        )
+    } else {
+        Style.Builder().fromUri(POSITRON_STYLE_URL)
+    }
+
+@SuppressLint("MissingPermission") // VectorMap renders only with a location fix, which implies the grant.
+private fun activateHeadingUp(
+    context: Context,
+    map: MapLibreMap,
+    style: Style,
+) = map.locationComponent.apply {
+    activateLocationComponent(
+        LocationComponentActivationOptions
+            .builder(context, style)
+            // The launcher owns a single GPS flow; do not start a second engine.
+            .useDefaultLocationEngine(false)
+            .build(),
+    )
+    isLocationComponentEnabled = true
+    renderMode = RenderMode.GPS
+    cameraMode = CameraMode.TRACKING_GPS
+    map.moveCamera(CameraUpdateFactory.zoomTo(MAP_ZOOM))
+}
+
+private fun Location.withCarriedBearing(holder: FloatArray): Location =
+    if (hasBearing() && bearing != 0f) {
+        holder[0] = bearing
+        this
+    } else {
+        Location(this).apply { bearing = holder[0] }
+    }
 
 @Composable
 private fun Fallback() =
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
-        verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+        verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
@@ -116,4 +265,6 @@ private fun Fallback() =
         )
     }
 
-private const val MAP_ZOOM = 15f
+private const val MAP_ZOOM = 15.0
+private const val POSITRON_STYLE_URL = "https://tiles.openfreemap.org/styles/positron"
+private const val DARK_STYLE_ASSET = "map/dark.json"

@@ -31,12 +31,18 @@ import io.github.seijikohara.femto.data.EventItem
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.TabularFigures
+import io.github.seijikohara.femto.ui.theme.bigNumber
+import io.github.seijikohara.femto.ui.theme.sectionLabel
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 /**
- * Calendar card. Three vertical sections distributed by [Arrangement.SpaceBetween]:
+ * Calendar card. Three vertical sections stacked on a 12dp rhythm
+ * ([Arrangement.spacedBy], matching the mockup `.calendar-card`
+ * `row-gap: 12px`); content stays top-aligned and any spare height in the
+ * fixed-height card falls to the bottom rather than stretching the gaps:
  *
  *  1. Head — 56sp day number (primary tint) + weekday + month label.
  *  2. Strip — 6 future days starting today, each cell carrying a "has event" dot.
@@ -53,7 +59,7 @@ internal fun CalendarCard(
     modifier: Modifier = Modifier,
 ) = Surface(
     modifier = modifier,
-    shape = RoundedCornerShape(FemtoDimens.OverlayCorner),
+    shape = RoundedCornerShape(FemtoDimens.CardCorner),
     color = MaterialTheme.colorScheme.surfaceContainer,
     tonalElevation = FemtoDimens.CardElevation,
 ) {
@@ -61,8 +67,8 @@ internal fun CalendarCard(
         modifier =
             Modifier
                 .fillMaxSize()
-                .padding(16.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
+                .padding(FemtoDimens.CardPadding),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (snapshot != null) {
             Head(snapshot)
@@ -82,13 +88,7 @@ private fun Head(snapshot: CalendarSnapshot) =
     ) {
         Text(
             text = "${snapshot.today.dayOfMonth}",
-            style =
-                MaterialTheme.typography.displayLarge.copy(
-                    fontSize = FemtoDimens.BigNumberFontSize,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-0.045f).em,
-                    lineHeight = (FemtoDimens.BigNumberFontSize.value * 0.92f).sp,
-                ),
+            style = MaterialTheme.typography.bigNumber(),
             color = MaterialTheme.colorScheme.primary,
             maxLines = 1,
         )
@@ -108,12 +108,7 @@ private fun Head(snapshot: CalendarSnapshot) =
             )
             Text(
                 text = snapshot.monthLabel.uppercase(),
-                style =
-                    MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.14f.em,
-                    ),
+                style = MaterialTheme.typography.sectionLabel(11, 0.14f),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
             )
@@ -150,7 +145,7 @@ private fun DayCellView(
     Column(
         modifier =
             modifier
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(FemtoDimens.DayCellCorner))
                 .background(background)
                 .padding(vertical = 8.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -158,13 +153,7 @@ private fun DayCellView(
     ) {
         Text(
             text = day.weekdayLetter.take(3).uppercase(),
-            style =
-                MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.08f.em,
-                    lineHeight = 10.sp,
-                ),
+            style = MaterialTheme.typography.sectionLabel(9, 0.08f),
             color = onBackground,
             maxLines = 1,
             softWrap = false,
@@ -176,6 +165,7 @@ private fun DayCellView(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     lineHeight = 16.sp,
+                    fontFeatureSettings = TabularFigures,
                 ),
             color = numberColor,
             maxLines = 1,
@@ -247,6 +237,7 @@ private fun EventRow(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     lineHeight = 17.sp,
+                    fontFeatureSettings = TabularFigures,
                 ),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,

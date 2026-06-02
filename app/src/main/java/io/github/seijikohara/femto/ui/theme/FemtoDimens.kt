@@ -59,4 +59,40 @@ object FemtoDimens {
 
     /** Large numeric anchor (big-day, big-temp) display size. */
     val BigNumberFontSize = 56.sp
+
+    /** Gap between the two top-level panes. Mockup legend: pane gap 16 dp. */
+    val PaneGap = 16.dp
+
+    /** Uniform inner padding for dashboard cards. Mockup legend: card padding 16 dp. */
+    val CardPadding = 16.dp
+
+    /** Corner radius for dashboard cards. Mockup legend: card radius 16 dp (Shapes.large). */
+    val CardCorner = 16.dp
+
+    /** Corner radius for the calendar day-strip cells. Mockup `.day-cell`: 10 px. */
+    val DayCellCorner = 10.dp
+
+    /** Corner radius for the weather forecast chips. Mockup `.chip`: 8 px. */
+    val ChipCorner = 8.dp
+
+    /** Corner radius for the music album-art block. Mockup `.music-card .art`: 14 px. */
+    val ArtCorner = 14.dp
+
+    /**
+     * Glass overlay background opacity in light theme.
+     *
+     * The glass alpha tokens keep the PascalCase token vocabulary of this object
+     * rather than ktlint's SCREAMING_SNAKE_CASE for `const val`, so they read as
+     * siblings of the dp tokens above.
+     */
+    @Suppress("ktlint:standard:property-naming")
+    const val GlassBgAlphaLight = 0.78f
+
+    /** Glass overlay background opacity in dark theme — more translucent so the darker map reads through. */
+    @Suppress("ktlint:standard:property-naming")
+    const val GlassBgAlphaDark = 0.55f
+
+    /** Glass overlay hairline border opacity, shared across light and dark themes. */
+    @Suppress("ktlint:standard:property-naming")
+    const val GlassBorderAlpha = 0.6f
 }

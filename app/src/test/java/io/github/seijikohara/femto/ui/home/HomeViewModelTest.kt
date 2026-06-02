@@ -77,7 +77,6 @@ class HomeViewModelTest {
                     calendarFlow = flowOf(calendar),
                     systemStatusFlow = flowOf(systemStatus),
                     tripStateFlow = flowOf(tripState),
-                    isMapAvailable = { true },
                 )
             viewModel.uiState.test {
                 val state = awaitItem()
@@ -85,7 +84,6 @@ class HomeViewModelTest {
                 assertNotNull(state.address)
                 assertNotNull(state.weather)
                 assertTrue(state.musicState is MusicCardState.Playing)
-                assertTrue(state.mapAvailable)
                 assertEquals(calendar, state.calendar)
                 assertEquals(systemStatus, state.systemStatus)
                 assertEquals(tripState, state.tripState)
@@ -176,7 +174,6 @@ class HomeViewModelTest {
             calendarFlow = emptyFlow(),
             systemStatusFlow = emptyFlow(),
             tripStateFlow = emptyFlow(),
-            isMapAvailable = { false },
             sendMusicCommand = sendMusicCommand,
         )
 }

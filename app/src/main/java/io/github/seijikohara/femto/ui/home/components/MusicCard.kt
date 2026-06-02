@@ -48,6 +48,8 @@ import io.github.seijikohara.femto.data.NowPlaying
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.TabularFigures
+import io.github.seijikohara.femto.ui.theme.sectionLabel
 
 /**
  * Transport commands the dashboard can dispatch to the music session.
@@ -81,7 +83,7 @@ internal fun MusicCard(
     modifier: Modifier = Modifier,
 ) = Surface(
     modifier = modifier,
-    shape = RoundedCornerShape(FemtoDimens.OverlayCorner),
+    shape = RoundedCornerShape(FemtoDimens.CardCorner),
     color = MaterialTheme.colorScheme.surfaceContainer,
     tonalElevation = FemtoDimens.CardElevation,
 ) {
@@ -100,7 +102,7 @@ private fun PlayingState(
     modifier =
         Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(FemtoDimens.CardPadding),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.SpaceBetween,
 ) {
@@ -121,7 +123,7 @@ private fun AlbumArt(nowPlaying: NowPlaying) {
         modifier =
             Modifier
                 .size(FemtoDimens.MusicArtSize)
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(FemtoDimens.ArtCorner))
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh),
         contentAlignment = Alignment.Center,
     ) {
@@ -180,12 +182,7 @@ private fun Meta(
         )
         Text(
             text = source.uppercase(),
-            style =
-                MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.16f.em,
-                ),
+            style = MaterialTheme.typography.sectionLabel(10, 0.16f),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
         )
@@ -241,6 +238,7 @@ private fun Progress(
                 MaterialTheme.typography.labelSmall.copy(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
+                    fontFeatureSettings = TabularFigures,
                 ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -268,6 +266,7 @@ private fun Progress(
                 MaterialTheme.typography.labelSmall.copy(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
+                    fontFeatureSettings = TabularFigures,
                 ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -344,7 +343,7 @@ private fun ConnectState(onConnect: () -> Unit) =
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(FemtoDimens.CardPadding),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -383,17 +382,23 @@ private fun ConnectState(onConnect: () -> Unit) =
 @Composable
 private fun EmptyState() =
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.Center,
+        modifier = Modifier.fillMaxSize().padding(FemtoDimens.CardPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // Mockup `.music-card.empty` = `grid-template-rows: 1fr auto auto 1fr`
+        // with `align-content: space-between` and `.empty-icon { align-self:
+        // end }`. The two flexible tracks seat the icon/title/description
+        // cluster at/slightly above the vertical centre, and the icon hugs the
+        // title (its row ends flush against the title row). The taller top
+        // weight nudges the cluster just above centre.
+        Box(modifier = Modifier.weight(1.1f))
         Icon(
             imageVector = Lucide.Music,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
             modifier = Modifier.size(36.dp),
         )
-        Box(modifier = Modifier.height(12.dp))
+        Box(modifier = Modifier.height(4.dp))
         Text(
             text = "Nothing is playing",
             style =
@@ -416,6 +421,7 @@ private fun EmptyState() =
             textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(max = 280.dp),
         )
+        Box(modifier = Modifier.weight(0.9f))
     }
 
 private fun sourceLabel(packageName: String): String =
