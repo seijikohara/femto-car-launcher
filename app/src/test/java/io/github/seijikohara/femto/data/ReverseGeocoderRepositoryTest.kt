@@ -2,18 +2,22 @@
 
 package io.github.seijikohara.femto.data
 
-import android.location.Address
-import android.location.Geocoder
-import androidx.test.core.app.ApplicationProvider
+import android.location.Location
 import app.cash.turbine.test
 import io.github.seijikohara.femto.testfixtures.fakeLocation
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import okhttp3.OkHttpClient
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -21,48 +25,94 @@ import kotlin.test.assertNull
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class ReverseGeocoderRepositoryTest {
-    private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+    private lateinit var server: MockWebServer
+    private lateinit var client: OkHttpClient
+
+    @Before
+    fun setUp() {
+        server = MockWebServer().apply { start() }
+        client = OkHttpClient()
+    }
+
+    @After
+    fun tearDown() {
+        server.shutdown()
+    }
 
     @Test
-    fun `emits short address when geocoder returns full result`() =
+    fun `emits the composed short address for a fix`() =
         runTest {
-            val geocoder = Geocoder(context)
-            val response =
-                Address(java.util.Locale.US).apply {
-                    locality = "Shibuya"
-                    adminArea = "Tokyo"
-                }
-            shadowOf(geocoder).setFromLocation(listOf(response))
+            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
 
-            val repo =
-                ReverseGeocoderRepository(
-                    context = context,
-                    locationFlow = flowOf(fakeLocation()),
-                    ioDispatcher = UnconfinedTestDispatcher(testScheduler),
-                    geocoder = geocoder,
-                )
-
-            repo.addressFlow().test {
-                assertEquals(ShortAddress("Shibuya", "Tokyo"), awaitItem())
+            newRepo(flowOf(fakeLocation())).addressFlow().test {
+                val address = awaitItem()
+                assertEquals("新宿区", address?.locality)
+                assertEquals("東京都新宿区新宿三丁目", address?.displayString())
                 cancelAndIgnoreRemainingEvents()
             }
         }
 
     @Test
-    fun `emits null when geocoder returns no result`() =
+    fun `dedupes consecutive near locations to a single network call`() =
         runTest {
-            val geocoder = Geocoder(context)
-            shadowOf(geocoder).setFromLocation(emptyList())
+            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
 
-            val repo =
-                ReverseGeocoderRepository(
-                    context = context,
-                    locationFlow = flowOf(fakeLocation()),
-                    ioDispatcher = UnconfinedTestDispatcher(testScheduler),
-                    geocoder = geocoder,
-                )
+            // Two fixes within the 100 m bucket collapse to one emission and
+            // one request.
+            val flow = flowOf(fakeLocation(), fakeLocation(latitude = 35.65805))
+            newRepo(flow).addressFlow().test {
+                assertEquals("新宿区", awaitItem()?.locality)
+                cancelAndIgnoreRemainingEvents()
+            }
 
-            repo.addressFlow().test {
+            assertEquals(1, server.requestCount)
+        }
+
+    @Test
+    fun `does not issue a second request when revisiting a cached bucket`() =
+        runTest {
+            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
+            // The far fix gets its own response so the near-bucket revisit is
+            // the only call that must hit the cache instead of the network.
+            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
+
+            val near = fakeLocation()
+            val far = fakeLocation(latitude = 35.7000)
+            // Drain all three fixes (near, far, near) so the cached revisit is
+            // exercised before the request count is asserted.
+            newRepo(flowOf(near, far, near)).addressFlow().test {
+                assertEquals("新宿区", awaitItem()?.locality)
+                awaitItem()
+                assertEquals("新宿区", awaitItem()?.locality)
+                awaitComplete()
+            }
+
+            // One request for the near bucket, one for the far bucket; the
+            // revisit of the near bucket is served from the cache.
+            assertEquals(2, server.requestCount)
+        }
+
+    @Test
+    fun `falls back to the last cached value on a rate-limit response`() =
+        runTest {
+            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
+            server.enqueue(MockResponse().setResponseCode(429))
+
+            val flow = flowOf(fakeLocation(), fakeLocation(latitude = 35.7000))
+            newRepo(flow).addressFlow().test {
+                assertEquals("新宿区", awaitItem()?.locality)
+                // The throttled second bucket returns the cached value, not null.
+                assertEquals("新宿区", awaitItem()?.locality)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `emits null when the first lookup fails with no cached value`() =
+        runTest {
+            server.enqueue(MockResponse().setResponseCode(429))
+
+            newRepo(flowOf(fakeLocation())).addressFlow().test {
                 assertNull(awaitItem())
                 cancelAndIgnoreRemainingEvents()
             }
@@ -71,51 +121,45 @@ class ReverseGeocoderRepositoryTest {
     @Test
     fun `emits null when location flow yields null`() =
         runTest {
-            val repo =
-                ReverseGeocoderRepository(
-                    context = context,
-                    locationFlow = flowOf(null),
-                    ioDispatcher = UnconfinedTestDispatcher(testScheduler),
-                )
-
-            repo.addressFlow().test {
+            newRepo(flowOf(null)).addressFlow().test {
                 assertNull(awaitItem())
                 cancelAndIgnoreRemainingEvents()
             }
         }
 
-    @Test
-    fun `strips administrative suffix from a long locality`() =
-        runTest {
-            val geocoder = Geocoder(context)
-            val response =
-                Address(java.util.Locale.US).apply {
-                    locality = "Chiyoda City"
-                    adminArea = "Tokyo"
-                }
-            shadowOf(geocoder).setFromLocation(listOf(response))
+    private fun TestScope.newRepo(locationFlow: Flow<Location?>): ReverseGeocoderRepository {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        return ReverseGeocoderRepository(
+            locationFlow = locationFlow,
+            api =
+                NominatimApi(
+                    client = client,
+                    baseUrl = server.url("/").toString(),
+                    userAgent = USER_AGENT,
+                    ioDispatcher = dispatcher,
+                ),
+            ioDispatcher = dispatcher,
+            // Tie the throttle clock to the scheduler so delay() advances it.
+            nowMs = { testScheduler.currentTime },
+        )
+    }
 
-            val repo =
-                ReverseGeocoderRepository(
-                    context = context,
-                    locationFlow = flowOf(fakeLocation()),
-                    ioDispatcher = UnconfinedTestDispatcher(testScheduler),
-                    geocoder = geocoder,
-                )
+    private companion object {
+        const val USER_AGENT = "femto-car-launcher/1.0 (test)"
 
-            repo.addressFlow().test {
-                assertEquals(ShortAddress("Chiyoda", "Tokyo"), awaitItem())
-                cancelAndIgnoreRemainingEvents()
+        const val SHINJUKU_BODY = """
+            {
+              "display_name": "..., 新宿三丁目, 新宿, 新宿区, 東京都, 160-0022, 日本",
+              "address": {
+                "neighbourhood": "新宿三丁目",
+                "quarter": "新宿",
+                "city": "新宿区",
+                "ISO3166-2-lvl4": "JP-13",
+                "postcode": "160-0022",
+                "country": "日本",
+                "country_code": "jp"
+              }
             }
-        }
-
-    @Test
-    fun `shortLocality drops a trailing admin word but keeps plain names`() {
-        assertEquals("Chiyoda", shortLocality("Chiyoda City"))
-        assertEquals("Westminster", shortLocality("Westminster District"))
-        assertEquals("Setagaya", shortLocality("Setagaya Ward"))
-        assertEquals("Tokyo", shortLocality("Tokyo"))
-        assertEquals("San Francisco", shortLocality("San Francisco"))
-        assertEquals("千代田区", shortLocality("千代田区"))
+        """
     }
 }

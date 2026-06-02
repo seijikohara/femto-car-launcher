@@ -47,7 +47,8 @@
 
     <!--
         INTERNET: Open-Meteo weather API + OpenFreeMap vector-tile
-        fetch (MapLibre). Justification mirrored in CLAUDE.md#permissions.
+        fetch (MapLibre) + Nominatim/OSM reverse geocoding.
+        Justification mirrored in CLAUDE.md#permissions.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
 
