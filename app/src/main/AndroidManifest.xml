@@ -20,16 +20,45 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <!--
-        ACCESS_NETWORK_STATE: Maps SDK best-practice probe before
-        tile fetch. Justification mirrored in CLAUDE.md#permissions.
+        ACCESS_NETWORK_STATE: MapLibre connectivity probe before
+        OpenFreeMap vector-tile fetch. Justification mirrored in
+        CLAUDE.md#permissions.
     -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!--
-        INTERNET: Open-Meteo weather API + Google Maps Lite tile
-        fetch. Justification mirrored in CLAUDE.md#permissions.
+        ACCESS_WIFI_STATE: read Wi-Fi transport / validation state so
+        the footer status cluster reports a live Wi-Fi indicator.
+        Normal protection; auto-granted at install.
+        Justification mirrored in CLAUDE.md#permissions.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!--
+        BLUETOOTH_CONNECT: read the set of currently-connected
+        Bluetooth devices (HEADSET / A2DP / GATT) so the footer status
+        cluster reflects whether the head unit is paired to a phone or
+        an audio device. Dangerous on Android 12+; runtime grant.
+        Without it the BT indicator stays dimmed but the rest of the
+        launcher remains functional. Justification mirrored in
+        CLAUDE.md#permissions.
+    -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!--
+        INTERNET: Open-Meteo weather API + OpenFreeMap vector-tile
+        fetch (MapLibre). Justification mirrored in CLAUDE.md#permissions.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+        READ_CALENDAR: query CalendarContract.Instances for the
+        Calendar card's 6-day strip and upcoming event list.
+        Dangerous; runtime grant required. Without it the card
+        still shows today's date and an empty event list.
+        Justification mirrored in CLAUDE.md#permissions.
+    -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
 
     <!--
         Package visibility: declare interest in every app that registers
@@ -78,10 +107,6 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
-
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="${MAPS_API_KEY}" />
     </application>
 
 </manifest>

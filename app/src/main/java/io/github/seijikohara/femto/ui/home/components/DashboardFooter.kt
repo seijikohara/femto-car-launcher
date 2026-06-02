@@ -1,0 +1,284 @@
+package io.github.seijikohara.femto.ui.home.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.Battery
+import com.composables.icons.lucide.Bluetooth
+import com.composables.icons.lucide.Globe
+import com.composables.icons.lucide.House
+import com.composables.icons.lucide.LayoutGrid
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Music
+import com.composables.icons.lucide.Navigation
+import com.composables.icons.lucide.Phone
+import com.composables.icons.lucide.Settings
+import com.composables.icons.lucide.Wifi
+import io.github.seijikohara.femto.data.SystemStatus
+import io.github.seijikohara.femto.ui.home.HomeAction
+import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.TabularFigures
+
+/**
+ * Bottom dock per `docs/design/dashboard-v2-mockup.html` `.footer`:
+ *
+ *  - 80 dp surface with a 1 dp top divider (`outlineVariant`).
+ *  - Seven 72 × 64 dp nav buttons (Home / Phone / Apps / Music /
+ *    Navigation / Browser / Settings) in a 3 + 1 + 3 grouping, evenly
+ *    distributed across the left flex region.
+ *  - The Home button is the only active state — primaryContainer
+ *    background with a 20 × 3 dp underline 4 dp from the bottom.
+ *  - A 1 dp vertical divider separates the actionable nav from a
+ *    read-only Wi-Fi / Bluetooth / battery cluster at 20 dp icon size,
+ *    with the battery percent rendered at 13sp / 700.
+ *
+ * Iconography is Lucide stroke-1.75 for parity with the design SSOT.
+ */
+@Composable
+internal fun DashboardFooter(
+    systemStatus: SystemStatus,
+    onAction: (HomeAction) -> Unit,
+    modifier: Modifier = Modifier,
+) = Surface(
+    modifier = modifier.height(FemtoDimens.FooterHeight),
+    color = MaterialTheme.colorScheme.surface,
+) {
+    Column {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            NavRow(
+                onAction = onAction,
+                modifier = Modifier.weight(1f),
+            )
+            VerticalDivider(
+                modifier =
+                    Modifier
+                        .padding(start = 4.dp)
+                        .height(48.dp),
+                color = MaterialTheme.colorScheme.outlineVariant,
+            )
+            StatusCluster(
+                status = systemStatus,
+                modifier = Modifier.padding(start = 20.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun NavRow(
+    onAction: (HomeAction) -> Unit,
+    modifier: Modifier = Modifier,
+) = Row(
+    modifier = modifier,
+    horizontalArrangement = Arrangement.SpaceBetween,
+    verticalAlignment = Alignment.CenterVertically,
+) {
+    NavButton(
+        icon = Lucide.House,
+        description = "Home",
+        active = true,
+        onClick = { /* already on home */ },
+    )
+    NavButton(
+        icon = Lucide.Phone,
+        description = "Phone",
+        active = false,
+        onClick = { onAction(HomeAction.Shortcut(AppsBarShortcut.Phone)) },
+    )
+    NavButton(
+        icon = Lucide.LayoutGrid,
+        description = "Apps",
+        active = false,
+        onClick = { onAction(HomeAction.OpenAppDrawer) },
+    )
+    NavButton(
+        icon = Lucide.Music,
+        description = "Music",
+        active = false,
+        onClick = { onAction(HomeAction.Shortcut(AppsBarShortcut.Music)) },
+    )
+    NavButton(
+        icon = Lucide.Navigation,
+        description = "Navigation",
+        active = false,
+        onClick = { onAction(HomeAction.OpenMaps) },
+    )
+    NavButton(
+        icon = Lucide.Globe,
+        description = "Browser",
+        active = false,
+        onClick = { onAction(HomeAction.OpenBrowser) },
+    )
+    NavButton(
+        icon = Lucide.Settings,
+        description = "Settings",
+        active = false,
+        onClick = { onAction(HomeAction.OpenSettings) },
+    )
+}
+
+@Composable
+private fun NavButton(
+    icon: ImageVector,
+    description: String,
+    active: Boolean,
+    onClick: () -> Unit,
+) {
+    val background =
+        if (active) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+    val tint =
+        if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+    Box(
+        modifier =
+            Modifier
+                .height(FemtoDimens.MinTouchTarget)
+                .width(72.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(background)
+                .clickable(onClick = onClick)
+                .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(26.dp),
+        )
+        if (active) {
+            ActiveIndicator(modifier = Modifier.align(Alignment.BottomCenter))
+        }
+    }
+}
+
+@Composable
+private fun ActiveIndicator(modifier: Modifier = Modifier) =
+    Box(
+        modifier =
+            modifier
+                .padding(bottom = 4.dp)
+                .height(3.dp)
+                .width(20.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.primary),
+    )
+
+@Composable
+private fun StatusCluster(
+    status: SystemStatus,
+    modifier: Modifier = Modifier,
+) = Row(
+    modifier = modifier.fillMaxHeight(),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(18.dp),
+) {
+    StatusIcon(
+        icon = Lucide.Wifi,
+        active = status.wifiConnected,
+        description = if (status.wifiConnected) "Wi-Fi connected" else "Wi-Fi disconnected",
+    )
+    StatusIcon(
+        icon = Lucide.Bluetooth,
+        active = status.bluetoothConnected,
+        description = if (status.bluetoothConnected) "Bluetooth connected" else "Bluetooth disconnected",
+    )
+    BatteryIndicator(percent = status.batteryPercent, charging = status.charging)
+}
+
+@Composable
+private fun StatusIcon(
+    icon: ImageVector,
+    active: Boolean,
+    description: String,
+) {
+    val tint =
+        if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
+    Icon(
+        imageVector = icon,
+        contentDescription = description,
+        tint = tint,
+        modifier = Modifier.size(20.dp),
+    )
+}
+
+@Composable
+private fun BatteryIndicator(
+    percent: Int,
+    charging: Boolean,
+) = Row(
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(6.dp),
+) {
+    Icon(
+        imageVector = Lucide.Battery,
+        contentDescription = "Battery",
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(20.dp),
+    )
+    Text(
+        text = if (charging) "$percent% ⚡" else "$percent%",
+        style =
+            MaterialTheme.typography.labelLarge.copy(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                fontFeatureSettings = TabularFigures,
+            ),
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+    )
+}
+
+@PreviewLightDark
+@Preview(name = "Dashboard footer", widthDp = 1280, heightDp = 80)
+@Composable
+private fun DashboardFooterPreview() {
+    FemtoTheme {
+        DashboardFooter(
+            systemStatus =
+                SystemStatus(
+                    wifiConnected = true,
+                    bluetoothConnected = true,
+                    batteryPercent = 78,
+                    charging = false,
+                ),
+            onAction = {},
+        )
+    }
+}

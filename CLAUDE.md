@@ -84,7 +84,7 @@ with automotive overrides on top.
 | Concern | M3 default | Femto rule | Symbol |
 | --- | --- | --- | --- |
 | Tap target | 48 dp | **≥ 64 dp** | `FemtoDimens.MinTouchTarget` |
-| Body text on the head-unit dashboard | flexible | **≥ 18 sp**, never `bodySmall` / `labelSmall` | `FemtoDimens.MinBodyTextSize` |
+| Body text on the head-unit dashboard | flexible | **≥ 18 sp**, never `bodySmall` / `labelSmall` (cards may relax this for glance-metadata strip / metrics / progress when the design SSOT specifies it — see `docs/design/dashboard-v2-mockup.html`) | `FemtoDimens.MinBodyTextSize` |
 | Card / Surface elevation | tonal | **0 dp** (Bold Minimal: flat) | `FemtoDimens.CardElevation` |
 
 When the value lives in code, the symbol on the right is the SSOT —
@@ -158,8 +158,11 @@ targets that matter for any head-unit UI, regardless of motion.
 | --- | --- |
 | `ACCESS_COARSE_LOCATION` | Paired with `ACCESS_FINE_LOCATION` per the Android 12+ runtime model — users may grant only coarse. The dashboard panels accept either precision and render with degraded precision when only coarse is granted. |
 | `ACCESS_FINE_LOCATION` | Centre the head-unit map on the user's position, derive the speed / altitude / address overlays, and locate the user for weather lookups. Required at runtime; the dependent panels render empty until the permission is granted. |
-| `ACCESS_NETWORK_STATE` | Google Maps SDK best-practice network-availability probe before fetching map tiles. |
-| `INTERNET` | Open-Meteo weather API and Google Maps Lite tile fetch. |
+| `ACCESS_NETWORK_STATE` | MapLibre connectivity probe before fetching OpenFreeMap vector map tiles. |
+| `ACCESS_WIFI_STATE` | Read Wi-Fi transport / validation state so the footer status cluster reports a live Wi-Fi indicator. Normal protection; auto-granted at install. |
+| `BLUETOOTH_CONNECT` | Read the set of currently-connected Bluetooth devices (HEADSET / A2DP / GATT) so the footer status cluster reflects head-unit pairing state. Dangerous on Android 12+; runtime grant. The BT indicator dims when denied, the rest of the launcher remains functional. |
+| `INTERNET` | Open-Meteo weather API and OpenFreeMap vector map tile fetch (MapLibre). |
+| `READ_CALENDAR` | Query `CalendarContract.Instances` for the dashboard's Calendar card — the 6-day strip dots and the upcoming-event list. Dangerous; runtime grant. The card falls back to "today's date only" when denied. |
 
 ### Dependencies <a id="dependencies"></a>
 

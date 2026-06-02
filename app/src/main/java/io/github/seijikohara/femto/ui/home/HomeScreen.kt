@@ -10,10 +10,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.core.text.util.LocalePreferences
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
-import io.github.seijikohara.femto.ui.locale.distanceUnitFor
 import io.github.seijikohara.femto.ui.locale.speedUnitFor
+import io.github.seijikohara.femto.ui.locale.temperatureUnitFor
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
@@ -31,21 +30,11 @@ internal fun HomeScreen(
     } else {
         val is24Hour = DateFormat.is24HourFormat(LocalContext.current)
         DashboardScaffold(
-            clock = uiState.clock,
+            uiState = uiState,
             is24Hour = is24Hour,
-            weather = uiState.weather,
-            temperatureUnit = LocalePreferences.getTemperatureUnit(),
-            address = uiState.address,
-            location = uiState.location,
             speedUnit = speedUnitFor(),
-            distanceUnit = distanceUnitFor(),
-            mapAvailable = uiState.mapAvailable,
-            musicState = uiState.musicState,
-            onMapTap = { onAction(HomeAction.OpenMaps) },
-            onMusicCommand = { onAction(HomeAction.Music(it)) },
-            onConnectMusic = { onAction(HomeAction.ConnectMusicPlayer) },
-            onOpenDrawer = { onAction(HomeAction.OpenAppDrawer) },
-            onShortcut = { onAction(HomeAction.Shortcut(it)) },
+            temperatureUnit = temperatureUnitFor(),
+            onAction = onAction,
             modifier = Modifier.fillMaxSize(),
         )
     }

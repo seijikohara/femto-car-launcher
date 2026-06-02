@@ -1,0 +1,1322 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Femto Car Launcher — Dashboard v2 Mockup</title>
+<meta name="viewport" content="width=1320, initial-scale=1">
+<style>
+  /* ============================================================
+     Tokens & reset
+     ============================================================ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: "Inter", -apple-system, "Segoe UI", "Helvetica Neue", "Geist", system-ui, sans-serif;
+    font-feature-settings: "tnum" 1, "cv11" 1;
+  }
+  button { font: inherit; color: inherit; background: transparent; border: 0; cursor: default; }
+  svg { display: block; }
+
+  body {
+    background: #0a0d10;
+    color: #d6d8db;
+    padding: 32px;
+    min-height: 100vh;
+  }
+  h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 6px; }
+  .subtitle { font-size: 14px; color: #8a8f95; margin-bottom: 24px; max-width: 1280px; }
+  .legend {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 8px 24px;
+    padding: 16px 20px;
+    border: 1px solid #1f242a; border-radius: 12px;
+    background: #11141a;
+    font-size: 13px; margin-bottom: 32px; max-width: 1280px;
+  }
+  .legend dt { color: #8a8f95; }
+  .legend dd { color: #d6d8db; }
+  .legend dl { display: contents; }
+
+  .variant { margin-bottom: 40px; max-width: 1280px; }
+  .variant-title {
+    font-size: 14px; text-transform: uppercase; letter-spacing: 0.12em;
+    color: #8a8f95; margin-bottom: 8px; font-weight: 700;
+  }
+  .variant-note { font-size: 13px; color: #6b7079; margin-top: 8px; line-height: 1.5; }
+
+  /* 1280x720 frame */
+  .frame {
+    width: 1280px; height: 720px;
+    position: relative; overflow: hidden;
+    border-radius: 12px;
+    box-shadow: 0 0 0 1px #1f242a;
+  }
+
+  /* ============================================================
+     Material You-ish palettes — only differ in colour, never sizes
+     ============================================================ */
+  .frame.dark {
+    --surface:              #0e1216;
+    --surface-container:    #161a1f;
+    --surface-container-hi: #1d2127;
+    --on-surface:           #e7e8ec;
+    --on-surface-variant:   #b9bec6;
+    --on-surface-dim:       #7a8089;
+    --outline:              #383d44;
+    --outline-variant:      #262a30;
+    --primary:              #84b3ff;
+    --on-primary:           #00204b;
+    --primary-container:    #1c3a6b;
+    --on-primary-container: #d3e3ff;
+    --accent-warm:          #ffb695;
+    --w-sun:                #ffd166;
+    --w-moon:               #9eb8da;
+    --w-cloud-sun:          #d6a06a;
+    --w-cloud:              #93a3b8;
+    --w-rain:               #5b8def;
+    --map-base:             #131c28;
+    --map-road:             #28344a;
+    --map-road-line:        #5b8def;
+    --map-water:            #0d182a;
+    --map-park:             #182a21;
+    --glass-bg:             rgba(14,18,22,0.55);
+    --glass-border:         rgba(255,255,255,0.06);
+  }
+  .frame.light {
+    --surface:              #f5f7fa;
+    --surface-container:    #ffffff;
+    --surface-container-hi: #eef1f5;
+    --on-surface:           #14171b;
+    --on-surface-variant:   #4d5560;
+    --on-surface-dim:       #8a909a;
+    --outline:              #c9ced6;
+    --outline-variant:      #e1e4ea;
+    --primary:              #2a6cf4;
+    --on-primary:           #ffffff;
+    --primary-container:    #d9e6ff;
+    --on-primary-container: #00224d;
+    --accent-warm:          #d76f1f;
+    --w-sun:                #e08a00;
+    --w-moon:               #5d7a9e;
+    --w-cloud-sun:          #b07a30;
+    --w-cloud:              #6f7e90;
+    --w-rain:               #2a6cf4;
+    --map-base:             #e6ecf2;
+    --map-road:             #ffffff;
+    --map-road-line:        #2a6cf4;
+    --map-water:            #b8d6ee;
+    --map-park:             #cee5c8;
+    --glass-bg:             rgba(255,255,255,0.78);
+    --glass-border:         rgba(20,28,40,0.06);
+  }
+
+  /* ============================================================
+     Dashboard grid — 8 dp rhythm enforced everywhere
+     ============================================================ */
+  .dashboard {
+    width: 100%; height: 100%;
+    background: var(--surface); color: var(--on-surface);
+    display: grid; grid-template-rows: 1fr 80px;
+  }
+  .content-region {
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 16px;
+    min-height: 0;
+  }
+
+  /* ============================================================
+     Lucide icon helper
+     stroke 1.75 reads better at 24 dp in a moving vehicle than the
+     default 2; same family used everywhere for visual coherence.
+     ============================================================ */
+  .icon { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  .icon-lg { width: 28px; height: 28px; stroke-width: 1.75; }
+  .icon-xl { width: 32px; height: 32px; stroke-width: 1.6; }
+  .icon-sm { width: 18px; height: 18px; stroke-width: 1.75; }
+
+  /* ============================================================
+     LEFT PANE — full-bleed map + glass overlays
+     ============================================================ */
+  .map-pane {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--map-base);
+  }
+  .map-pane > svg.basemap { width: 100%; height: 100%; }
+
+  /* Clock — top-right.
+     Date/year intentionally omitted — Calendar card right of the map
+     already shows the date hierarchy, so repeating it here would be
+     redundant. The overlay does one job: tell you the time. */
+  .clock-overlay {
+    position: absolute;
+    top: 16px; right: 16px;
+    padding: 12px 20px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    color: var(--on-surface);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border-radius: 16px;
+  }
+  .frame.dark .clock-overlay { color: #f5f7fa; }
+  .clock-overlay .time {
+    font-size: 40px; font-weight: 800;
+    letter-spacing: -0.04em; line-height: 1;
+    font-feature-settings: "tnum" 1;
+  }
+
+  /* Speed — bottom-centre (moved out of the bottom-right footer corridor) */
+  .speed-overlay {
+    position: absolute;
+    bottom: 16px; left: 50%;
+    transform: translateX(-50%);
+    padding: 16px 24px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    color: var(--on-surface);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border-radius: 20px;
+    display: grid;
+    grid-template-columns: auto 1px 1fr 1px 1fr;
+    column-gap: 16px;
+    align-items: center;
+    min-width: 460px;
+  }
+  .frame.dark .speed-overlay { color: #f5f7fa; }
+  .speed-overlay .sep {
+    width: 1px; height: 36px;
+    background: currentColor; opacity: 0.16;
+  }
+  .speed-overlay .now { display: flex; align-items: baseline; gap: 4px; }
+  .speed-overlay .now .v {
+    font-size: 40px; font-weight: 800; letter-spacing: -0.03em; line-height: 1;
+  }
+  .speed-overlay .now .u {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.12em; opacity: 0.7;
+  }
+  .speed-overlay .k {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.14em; opacity: 0.62;
+    text-transform: uppercase; margin-bottom: 2px;
+  }
+  .speed-overlay .v-secondary {
+    font-size: 16px; font-weight: 700; letter-spacing: -0.01em;
+  }
+  .speed-overlay .address-row {
+    grid-column: 1 / -1;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid currentColor;
+    border-top-color: rgba(255,255,255,0.16);
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 600; opacity: 0.86;
+  }
+  .frame.light .speed-overlay .address-row { border-top-color: rgba(0,0,0,0.10); }
+
+  /* Map fallback (V5) */
+  .map-fallback {
+    position: absolute; inset: 0;
+    background: var(--surface-container);
+    display: grid; place-items: center;
+    text-align: center; padding: 32px;
+    color: var(--on-surface-variant);
+  }
+  .map-fallback .icon { width: 48px; height: 48px; stroke-width: 1.5; margin: 0 auto 16px; color: var(--on-surface-dim); }
+  .map-fallback .title { font-size: 22px; font-weight: 700; color: var(--on-surface); margin-bottom: 8px; letter-spacing: -0.01em; }
+  .map-fallback .desc { font-size: 16px; line-height: 1.5; max-width: 360px; margin: 0 auto 24px; }
+  .map-fallback .cta {
+    height: 56px; padding: 0 28px;
+    border-radius: 28px;
+    background: var(--primary); color: var(--on-primary);
+    font-size: 16px; font-weight: 700;
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+
+  /* ============================================================
+     RIGHT PANE — top row (calendar + weather) + music
+     ============================================================ */
+  .info-pane {
+    display: grid;
+    grid-template-rows: 224px 1fr;
+    gap: 16px;
+    min-height: 0;
+  }
+  .top-row {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 16px; min-height: 0;
+  }
+  .card {
+    background: var(--surface-container);
+    border-radius: 16px;
+    padding: 16px;
+    overflow: hidden;
+    position: relative;
+    display: grid;
+  }
+  .eyebrow {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--on-surface-dim);
+  }
+  .eyebrow .icon { width: 14px; height: 14px; stroke-width: 2; }
+
+  /* ---- Calendar ---- */
+  .calendar-card {
+    align-content: space-between;
+    row-gap: 12px;
+  }
+  .calendar-card .head {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 16px;
+    align-items: center;
+  }
+  .calendar-card .big-day {
+    font-size: 56px; font-weight: 800;
+    line-height: 0.92; letter-spacing: -0.045em;
+    color: var(--primary);
+  }
+  .calendar-card .head .meta {
+    display: grid; row-gap: 4px; min-width: 0;
+  }
+  .calendar-card .head .weekday {
+    font-size: 20px; font-weight: 700;
+    color: var(--on-surface);
+    letter-spacing: -0.01em; line-height: 1;
+  }
+  .calendar-card .head .month {
+    font-size: 11px; font-weight: 700;
+    color: var(--on-surface-variant);
+    letter-spacing: 0.14em; text-transform: uppercase;
+  }
+  .calendar-card .strip {
+    display: grid; grid-template-columns: repeat(6, 1fr);
+    gap: 4px;
+  }
+  .calendar-card .day {
+    text-align: center;
+    padding: 8px 4px;
+    border-radius: 10px;
+    color: var(--on-surface-variant);
+    display: grid; row-gap: 2px;
+    justify-items: center;
+    align-content: center;
+  }
+  .calendar-card .day .w {
+    font-size: 9px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    opacity: 0.78;
+  }
+  .calendar-card .day .n {
+    font-size: 14px; font-weight: 700;
+    line-height: 1.1;
+  }
+  .calendar-card .day .marker {
+    width: 4px; height: 4px; border-radius: 999px;
+    background: var(--on-surface-dim);
+    margin-top: 1px;
+  }
+  .calendar-card .day .marker.placeholder { background: transparent; }
+  .calendar-card .day.today {
+    background: var(--primary-container);
+    color: var(--on-primary-container);
+  }
+  .calendar-card .day.today .w { opacity: 0.92; }
+  .calendar-card .day.today .marker { background: var(--on-primary-container); }
+  .calendar-card .events {
+    display: grid; row-gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--outline-variant);
+  }
+  .calendar-card .events .row {
+    display: grid; grid-template-columns: 6px auto 1fr;
+    align-items: center; column-gap: 10px;
+    font-size: 13px; color: var(--on-surface-variant);
+    line-height: 1.3;
+  }
+  .calendar-card .events .row .dot {
+    width: 6px; height: 6px; border-radius: 999px;
+    background: var(--primary);
+  }
+  .calendar-card .events .row.muted .dot {
+    background: var(--outline);
+  }
+  .calendar-card .events .row .time {
+    font-weight: 700; color: var(--on-surface);
+    font-size: 13px;
+  }
+  .calendar-card .events .row .label {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  /* ---- Weather ---- */
+  .weather-card {
+    align-content: space-between;
+    row-gap: 12px;
+  }
+  .weather-card .head {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 16px;
+    align-items: center;
+  }
+  .weather-card .big-temp {
+    font-size: 56px; font-weight: 800;
+    line-height: 0.92; letter-spacing: -0.045em;
+    color: var(--on-surface);
+  }
+  .weather-card .big-temp .deg {
+    font-size: 20px; font-weight: 700;
+    color: var(--on-surface-variant);
+    vertical-align: top; margin-left: 2px;
+  }
+  .weather-card .head .meta {
+    display: grid; row-gap: 4px; min-width: 0;
+  }
+  .weather-card .head .city-row {
+    display: flex; align-items: center; gap: 8px; min-width: 0;
+  }
+  .weather-card .head .city-row .glyph {
+    width: 22px; height: 22px;
+    stroke-width: 1.75;
+    flex-shrink: 0;
+  }
+  /* Per-weather colour, applied via :has() so HTML stays untouched.
+     Default is --accent-warm; overrides cascade by icon ref. */
+  .weather-card .glyph { color: var(--accent-warm); }
+  .weather-card .glyph:has(use[href="#i-sun"])       { color: var(--w-sun); }
+  .weather-card .glyph:has(use[href="#i-moon"])      { color: var(--w-moon); }
+  .weather-card .glyph:has(use[href="#i-cloud-sun"]) { color: var(--w-cloud-sun); }
+  .weather-card .glyph:has(use[href="#i-cloud"])     { color: var(--w-cloud); }
+  .weather-card .head .city {
+    font-size: 18px; font-weight: 700;
+    color: var(--on-surface);
+    letter-spacing: -0.01em; line-height: 1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .weather-card .head .conditions {
+    font-size: 11px; font-weight: 700;
+    color: var(--on-surface-variant);
+    letter-spacing: 0.14em; text-transform: uppercase;
+  }
+  .weather-card .metrics {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    align-items: baseline;
+  }
+  .weather-card .metrics .m {
+    display: inline-flex; align-items: baseline; gap: 8px;
+  }
+  .weather-card .metrics .m .k {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--on-surface-dim);
+  }
+  .weather-card .metrics .m .v {
+    font-size: 14px; font-weight: 700;
+    color: var(--on-surface);
+    font-feature-settings: "tnum" 1;
+  }
+  .weather-card .forecast {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+    padding-top: 12px;
+    border-top: 1px solid var(--outline-variant);
+  }
+  .weather-card .forecast .h {
+    text-align: center;
+    padding: 8px 4px;
+    background: var(--surface-container-hi);
+    border-radius: 8px;
+    display: grid; row-gap: 2px;
+    align-items: center;
+    justify-items: center;
+  }
+  .weather-card .forecast .h .hr { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--on-surface-dim); }
+  .weather-card .forecast .h .glyph { width: 18px; height: 18px; stroke-width: 1.75; }
+  .weather-card .forecast .h .tt { font-size: 13px; font-weight: 700; color: var(--on-surface); }
+
+  /* ---- Music ----
+     Sections (art / meta / progress / controls) distributed by
+     align-content: space-between so there is no slack 1fr row
+     soaking up vertical space. */
+  .music-card {
+    align-content: space-between;
+    row-gap: 12px;
+    padding: 16px;
+    align-items: center;
+    justify-items: center;
+    text-align: center;
+  }
+  .music-card.empty {
+    grid-template-rows: 1fr auto auto 1fr;
+    color: var(--on-surface-variant);
+  }
+  .music-card.empty .empty-icon { color: var(--on-surface-dim); }
+  .music-card.empty .empty-title { font-size: 18px; font-weight: 700; color: var(--on-surface); }
+  .music-card.empty .empty-desc { font-size: 13px; line-height: 1.4; max-width: 280px; }
+
+  .music-card .art {
+    width: 140px; height: 140px;
+    border-radius: 14px;
+    position: relative; overflow: hidden;
+    box-shadow: 0 1px 0 var(--outline-variant);
+  }
+  .music-card .art::after {
+    content: "";
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 28% 24%, rgba(255,255,255,0.25), transparent 55%),
+      radial-gradient(circle at 78% 78%, rgba(0,0,0,0.22), transparent 50%);
+  }
+  .music-card .meta {
+    display: grid; row-gap: 2px;
+    width: 100%;
+    align-self: start;
+  }
+  .music-card .meta .source {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--on-surface-dim);
+    display: inline-flex; align-items: center; gap: 6px; justify-content: center;
+  }
+  .music-card .meta .source .icon { width: 12px; height: 12px; stroke-width: 2; }
+  .music-card .meta .title {
+    font-size: 20px; font-weight: 800;
+    letter-spacing: -0.02em; color: var(--on-surface);
+    line-height: 1.15;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .music-card .meta .artist {
+    font-size: 14px; font-weight: 600;
+    color: var(--on-surface-variant);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .music-card .progress {
+    width: 100%;
+    display: grid; grid-template-columns: auto 1fr auto;
+    align-items: center; column-gap: 10px;
+    font-size: 11px; color: var(--on-surface-dim); font-weight: 600;
+  }
+  .music-card .bar {
+    height: 4px; background: var(--outline-variant);
+    border-radius: 999px; overflow: hidden; position: relative;
+  }
+  .music-card .bar .fill {
+    position: absolute; inset: 0 auto 0 0;
+    background: var(--primary); border-radius: 999px;
+  }
+  .music-card .controls {
+    display: grid; grid-template-columns: 64px 72px 64px;
+    column-gap: 16px; align-items: center;
+  }
+  .music-card .transport {
+    height: 64px; width: 64px;
+    display: grid; place-items: center;
+    border-radius: 14px;
+    color: var(--on-surface);
+  }
+  .music-card .transport.play {
+    width: 72px; height: 64px;
+    background: var(--primary); color: var(--on-primary);
+    border-radius: 16px;
+  }
+  .music-card .transport .icon-xl { stroke-width: 1.75; }
+  .music-card .transport.play .icon-xl { fill: currentColor; stroke: none; }
+
+  /* ============================================================
+     FOOTER — 7 icons, 3+1+3 grouping
+     ============================================================ */
+  .footer {
+    height: 80px;
+    background: var(--surface);
+    border-top: 1px solid var(--outline-variant);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+  }
+  .footer .nav-row {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .footer .status {
+    display: flex; align-items: center; gap: 18px;
+    padding-left: 20px;
+    margin-left: 4px;
+    border-left: 1px solid var(--outline-variant);
+    height: 48px;
+    color: var(--on-surface-variant);
+  }
+  .footer .status .indicator {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .footer .status .indicator .icon {
+    width: 20px; height: 20px;
+    stroke-width: 2;
+  }
+  .footer .status .pct {
+    font-size: 13px; font-weight: 700;
+    color: var(--on-surface);
+    font-feature-settings: "tnum" 1;
+  }
+  .footer .nav {
+    width: 72px; height: 64px;
+    display: grid; place-items: center;
+    border-radius: 14px;
+    color: var(--on-surface-variant);
+    position: relative;
+  }
+  .footer .nav .icon-lg { width: 26px; height: 26px; }
+  .footer .nav.active {
+    background: var(--primary-container);
+    color: var(--on-primary-container);
+  }
+  .footer .nav.active::after {
+    content: "";
+    position: absolute; left: 50%; bottom: 4px;
+    width: 20px; height: 3px; border-radius: 999px;
+    background: var(--primary);
+    transform: translateX(-50%);
+  }
+
+  footer.page {
+    margin-top: 32px;
+    font-size: 12px; color: #6b7079;
+    max-width: 1280px; line-height: 1.5;
+  }
+  code { font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; background: #1a1f25; padding: 1px 5px; border-radius: 4px; color: #d6d8db; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     Lucide icon library (https://lucide.dev — ISC licence)
+     Defined once as <symbol>s, referenced everywhere via <use>.
+     All paths from Lucide v0.x; stroke attributes inherit from .icon
+     ============================================================ -->
+<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+  <defs>
+    <!-- nav / general -->
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+    <symbol id="i-navigation" viewBox="0 0 24 24"><polygon points="3 11 22 2 13 21 11 13 3 11"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+
+    <!-- calendar -->
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+
+    <!-- weather -->
+    <symbol id="i-thermo" viewBox="0 0 24 24"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+    <symbol id="i-cloud-sun" viewBox="0 0 24 24"><path d="M12 2v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="M20 12h2"/><path d="m19.07 4.93-1.41 1.41"/><path d="M15.947 12.65a4 4 0 0 0-5.925-4.128"/><path d="M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6Z"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></symbol>
+
+    <!-- map / motion -->
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol>
+    <symbol id="i-pin-off" viewBox="0 0 24 24"><path d="M5.43 5.43A8.06 8.06 0 0 0 4 10c0 6 8 12 8 12a29.94 29.94 0 0 0 5-5"/><path d="M19.18 13.52A8.66 8.66 0 0 0 20 10a8 8 0 0 0-8-8 7.88 7.88 0 0 0-3.52.82"/><path d="M9.13 9.13A2.78 2.78 0 0 0 9 10a3 3 0 0 0 3 3 2.78 2.78 0 0 0 .87-.13"/><path d="M14.9 9.25a3 3 0 0 0-2.15-2.16"/><line x1="2" x2="22" y1="2" y2="22"/></symbol>
+    <symbol id="i-gauge" viewBox="0 0 24 24"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></symbol>
+    <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></symbol>
+
+    <!-- music transport -->
+    <symbol id="i-skip-back" viewBox="0 0 24 24"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" x2="5" y1="19" y2="5"/></symbol>
+    <symbol id="i-skip-forward" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></symbol>
+
+    <!-- status -->
+    <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M5 13a10 10 0 0 1 14 0"/><path d="M8.5 16.5a5 5 0 0 1 7 0"/><path d="M2 8.82a15 15 0 0 1 20 0"/><line x1="12" x2="12.01" y1="20" y2="20"/></symbol>
+    <symbol id="i-bluetooth" viewBox="0 0 24 24"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></symbol>
+    <symbol id="i-battery" viewBox="0 0 24 24"><rect width="16" height="10" x="2" y="7" rx="2" ry="2"/><line x1="22" x2="22" y1="11" y2="13"/><line x1="6" x2="6" y1="11" y2="13"/><line x1="10" x2="10" y1="11" y2="13"/><line x1="14" x2="14" y1="11" y2="13"/></symbol>
+
+    <!-- misc -->
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+  </defs>
+</svg>
+
+
+<h1>Femto Car Launcher — Dashboard v2 Mockup</h1>
+<p class="subtitle">
+  Left = full-bleed map with glass overlays · Right = Calendar / Weather (top) + Music player (bottom) · Footer = 7-icon strip in a 3+1+3 grouping · Lucide icons, Material You palette, Bold Minimal flat surfaces · 1280 × 720 head-unit reference.
+</p>
+
+<div class="legend">
+  <dl><dt>Grid rhythm</dt><dd>8 dp (4 / 8 / 16 / 24)</dd></dl>
+  <dl><dt>Outer padding</dt><dd>24 dp (ScreenPadding)</dd></dl>
+  <dl><dt>Pane gap</dt><dd>16 dp</dd></dl>
+  <dl><dt>Card padding</dt><dd>16 dp (uniform)</dd></dl>
+  <dl><dt>Card radius</dt><dd>16 dp (Shapes.large)</dd></dl>
+  <dl><dt>Card elevation</dt><dd>0 dp (flat)</dd></dl>
+  <dl><dt>Min tap target</dt><dd>64 dp</dd></dl>
+  <dl><dt>Min body text</dt><dd>18 sp (=18 px here)</dd></dl>
+  <dl><dt>Icon family</dt><dd>Lucide · stroke 1.75 · 24 dp default</dd></dl>
+  <dl><dt>Album art</dt><dd>160 dp square (vertical music layout)</dd></dl>
+  <dl><dt>Glass overlays</dt><dd>map pane only (clock / speed)</dd></dl>
+  <dl><dt>Footer grouping</dt><dd>3 + 1 (Music) + 3</dd></dl>
+</div>
+
+
+<!-- ============================================================
+     V1 — Light · Idle
+============================================================ -->
+<section class="variant">
+  <div class="variant-title">V1 — Light · Idle (no media)</div>
+  <div class="frame light">
+    <div class="dashboard">
+      <div class="content-region">
+
+        <div class="map-pane">
+          <svg class="basemap" viewBox="0 0 760 612" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <rect x="0" y="0" width="760" height="612" fill="var(--map-base)"/>
+            <rect x="60" y="380" width="180" height="170" fill="var(--map-park)" rx="8"/>
+            <rect x="540" y="80" width="180" height="130" fill="var(--map-park)" rx="8"/>
+            <path d="M 0 480 Q 200 460 380 510 T 760 500 L 760 612 L 0 612 Z" fill="var(--map-water)" opacity="0.75"/>
+            <g stroke="var(--map-road)" stroke-width="22" fill="none" stroke-linecap="round">
+              <path d="M -20 240 L 780 230"/>
+              <path d="M -20 380 L 780 370"/>
+              <path d="M 200 -20 L 220 632"/>
+              <path d="M 450 -20 L 470 632"/>
+            </g>
+            <g stroke="var(--map-road)" stroke-width="10" fill="none" stroke-linecap="round">
+              <path d="M -20 130 L 780 120"/>
+              <path d="M 90 -20 L 110 632"/>
+            </g>
+            <path d="M 40 580 Q 220 480 380 380 T 720 200" stroke="var(--map-road-line)" stroke-width="9" fill="none" stroke-linecap="round"/>
+            <circle cx="380" cy="380" r="14" fill="var(--map-road-line)"/>
+            <circle cx="380" cy="380" r="5" fill="#fff"/>
+          </svg>
+
+          <div class="clock-overlay">
+            <span class="time">08:24</span>
+          </div>
+
+          <div class="speed-overlay">
+            <div class="now">
+              <span class="v">52</span>
+              <span class="u">km/h</span>
+            </div>
+            <span class="sep"></span>
+            <div>
+              <div class="k">Distance</div>
+              <div class="v-secondary">24.4 km</div>
+            </div>
+            <span class="sep"></span>
+            <div>
+              <div class="k">Avg.</div>
+              <div class="v-secondary">42 km/h</div>
+            </div>
+            <div class="address-row">
+              <svg class="icon icon-sm" aria-hidden="true"><use href="#i-pin"/></svg>
+              <span>Aoyama-dori · Minato-ku, Tokyo</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-pane">
+          <div class="top-row">
+            <div class="card calendar-card">
+              <div class="head">
+                <div class="big-day">30</div>
+                <div class="meta">
+                  <div class="weekday">Monday</div>
+                  <div class="month">March 2026</div>
+                </div>
+              </div>
+              <div class="strip">
+                <div class="day today"><div class="w">Mon</div><div class="n">30</div><div class="marker"></div></div>
+                <div class="day"><div class="w">Tue</div><div class="n">31</div><div class="marker placeholder"></div></div>
+                <div class="day"><div class="w">Wed</div><div class="n">01</div><div class="marker"></div></div>
+                <div class="day"><div class="w">Thu</div><div class="n">02</div><div class="marker placeholder"></div></div>
+                <div class="day"><div class="w">Fri</div><div class="n">03</div><div class="marker"></div></div>
+                <div class="day"><div class="w">Sat</div><div class="n">04</div><div class="marker placeholder"></div></div>
+              </div>
+              <div class="events">
+                <div class="row"><span class="dot"></span><span class="time">10:30</span><span class="label">Team standup</span></div>
+                <div class="row muted"><span class="dot"></span><span class="time">14:00</span><span class="label">Pick up kids</span></div>
+              </div>
+            </div>
+
+            <div class="card weather-card">
+              <div class="head">
+                <div class="big-temp">13<span class="deg">°C</span></div>
+                <div class="meta">
+                  <div class="city-row">
+                    <svg class="icon glyph" aria-hidden="true"><use href="#i-sun"/></svg>
+                    <span class="city">Košice</span>
+                  </div>
+                  <div class="conditions">Sunny</div>
+                </div>
+              </div>
+              <div class="metrics">
+                <div class="m"><span class="k">Feels</span><span class="v">11°</span></div>
+                <div class="m"><span class="k">Wind</span><span class="v">3 m/s</span></div>
+                <div class="m"><span class="k">Humid.</span><span class="v">58%</span></div>
+              </div>
+              <div class="forecast">
+                <div class="h"><span class="hr">09h</span><svg class="icon glyph" aria-hidden="true"><use href="#i-sun"/></svg><span class="tt">14°</span></div>
+                <div class="h"><span class="hr">10h</span><svg class="icon glyph" aria-hidden="true"><use href="#i-sun"/></svg><span class="tt">16°</span></div>
+                <div class="h"><span class="hr">11h</span><svg class="icon glyph" aria-hidden="true"><use href="#i-cloud-sun"/></svg><span class="tt">17°</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card music-card empty">
+            <svg class="icon icon-xl empty-icon" aria-hidden="true" style="width:36px;height:36px;align-self:end;"><use href="#i-music"/></svg>
+            <div class="empty-title">Nothing is playing</div>
+            <div class="empty-desc">Open a music app to start, or say "Hey Google, play something".</div>
+            <span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="nav-row">
+          <div class="nav active" title="Home"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-home"/></svg></div>
+          <div class="nav" title="Phone"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-phone"/></svg></div>
+          <div class="nav" title="Apps"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-grid"/></svg></div>
+          <div class="nav" title="Music"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-music"/></svg></div>
+          <div class="nav" title="Navigation"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-navigation"/></svg></div>
+          <div class="nav" title="Browser"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-globe"/></svg></div>
+          <div class="nav" title="Settings"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-settings"/></svg></div>
+        </div>
+        <div class="status">
+          <div class="indicator" title="Wi-Fi"><svg class="icon" aria-hidden="true"><use href="#i-wifi"/></svg></div>
+          <div class="indicator" title="Bluetooth"><svg class="icon" aria-hidden="true"><use href="#i-bluetooth"/></svg></div>
+          <div class="indicator" title="Battery"><svg class="icon" aria-hidden="true"><use href="#i-battery"/></svg><span class="pct">78%</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="variant-note">Clock moved to the top-right corner to clear the SVG city blocks. Speed cluster is centred along the bottom so it never collides with the footer's active indicator. Calendar shows <em>today + the next five days</em>; today sits on the left. Music card sits in its empty state.</div>
+</section>
+
+
+<!-- ============================================================
+     V2 — Light · Music playing
+============================================================ -->
+<section class="variant">
+  <div class="variant-title">V2 — Light · Music playing</div>
+  <div class="frame light">
+    <div class="dashboard">
+      <div class="content-region">
+
+        <div class="map-pane">
+          <svg class="basemap" viewBox="0 0 760 612" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <rect x="0" y="0" width="760" height="612" fill="var(--map-base)"/>
+            <rect x="60" y="380" width="180" height="170" fill="var(--map-park)" rx="8"/>
+            <rect x="540" y="80" width="180" height="130" fill="var(--map-park)" rx="8"/>
+            <path d="M 0 480 Q 200 460 380 510 T 760 500 L 760 612 L 0 612 Z" fill="var(--map-water)" opacity="0.75"/>
+            <g stroke="var(--map-road)" stroke-width="22" fill="none" stroke-linecap="round">
+              <path d="M -20 240 L 780 230"/>
+              <path d="M -20 380 L 780 370"/>
+              <path d="M 200 -20 L 220 632"/>
+              <path d="M 450 -20 L 470 632"/>
+            </g>
+            <g stroke="var(--map-road)" stroke-width="10" fill="none" stroke-linecap="round">
+              <path d="M -20 130 L 780 120"/>
+              <path d="M 90 -20 L 110 632"/>
+            </g>
+            <path d="M 40 580 Q 220 480 380 380 T 720 200" stroke="var(--map-road-line)" stroke-width="9" fill="none" stroke-linecap="round"/>
+            <circle cx="380" cy="380" r="14" fill="var(--map-road-line)"/>
+            <circle cx="380" cy="380" r="5" fill="#fff"/>
+          </svg>
+
+          <div class="clock-overlay">
+            <span class="time">08:24</span>
+          </div>
+
+          <div class="speed-overlay">
+            <div class="now"><span class="v">52</span><span class="u">km/h</span></div>
+            <span class="sep"></span>
+            <div><div class="k">Distance</div><div class="v-secondary">24.4 km</div></div>
+            <span class="sep"></span>
+            <div><div class="k">Avg.</div><div class="v-secondary">42 km/h</div></div>
+            <div class="address-row">
+              <svg class="icon icon-sm" aria-hidden="true"><use href="#i-pin"/></svg>
+              <span>Aoyama-dori · Minato-ku, Tokyo</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-pane">
+          <div class="top-row">
+            <div class="card calendar-card">
+              <div class="head">
+                <div class="big-day">30</div>
+                <div class="meta">
+                  <div class="weekday">Monday</div>
+                  <div class="month">March 2026</div>
+                </div>
+              </div>
+              <div class="strip">
+                <div class="day today"><div class="w">Mon</div><div class="n">30</div><div class="marker"></div></div>
+                <div class="day"><div class="w">Tue</div><div class="n">31</div><div class="marker placeholder"></div></div>
+                <div class="day"><div class="w">Wed</div><div class="n">01</div><div class="marker"></div></div>
+                <div class="day"><div class="w">Thu</div><div class="n">02</div><div class="marker placeholder"></div></div>
+                <div class="day"><div class="w">Fri</div><div class="n">03</div><div class="marker"></div></div>
+                <div class="day"><div class="w">Sat</div><div class="n">04</div><div class="marker placeholder"></div></div>
+              </div>
+              <div class="events">
+                <div class="row"><span class="dot"></span><span class="time">10:30</span><span class="label">Team standup</span></div>
+                <div class="row muted"><span class="dot"></span><span class="time">14:00</span><span class="label">Pick up kids</span></div>
+              </div>
+            </div>
+
+            <div class="card weather-card">
+              <div class="head">
+                <div class="big-temp">13<span class="deg">°C</span></div>
+                <div class="meta">
+                  <div class="city-row">
+                    <svg class="icon glyph" aria-hidden="true"><use href="#i-sun"/></svg>
+                    <span class="city">Košice</span>
+                  </div>
+                  <div class="conditions">Sunny</div>
+                </div>
+              </div>
+              <div class="metrics">
+                <div class="m"><span class="k">Feels</span><span class="v">11°</span></div>
+                <div class="m"><span class="k">Wind</span><span class="v">3 m/s</span></div>
+                <div class="m"><span class="k">Humid.</span><span class="v">58%</span></div>
+              </div>
+              <div class="forecast">
+                <div class="h"><span class="hr">09h</span><svg class="icon glyph" aria-hidden="true"><use href="#i-sun"/></svg><span class="tt">14°</span></div>
+                <div class="h"><span class="hr">10h</span><svg class="icon glyph" aria-hidden="true"><use href="#i-sun"/></svg><span class="tt">16°</span></div>
+                <div class="h"><span class="hr">11h</span><svg class="icon glyph" aria-hidden="true"><use href="#i-cloud-sun"/></svg><span class="tt">17°</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card music-card">
+            <div class="art" style="background: linear-gradient(140deg, #ff8a5b 0%, #ff3d7f 60%, #6a3aff 100%);"></div>
+            <div class="meta">
+              <div class="source">
+                <svg class="icon" aria-hidden="true"><use href="#i-music"/></svg>
+                Spotify · Car mix
+              </div>
+              <div class="title">Sunset Lover</div>
+              <div class="artist">Petit Biscuit</div>
+            </div>
+            <div class="progress">
+              <span>1:38</span>
+              <div class="bar"><div class="fill" style="width:58%"></div></div>
+              <span>2:48</span>
+            </div>
+            <div class="controls">
+              <button class="transport" aria-label="Previous"><svg class="icon icon-xl" aria-hidden="true"><use href="#i-skip-back"/></svg></button>
+              <button class="transport play" aria-label="Pause"><svg class="icon icon-xl" aria-hidden="true"><use href="#i-pause"/></svg></button>
+              <button class="transport" aria-label="Next"><svg class="icon icon-xl" aria-hidden="true"><use href="#i-skip-forward"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="nav-row">
+          <div class="nav active" title="Home"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-home"/></svg></div>
+          <div class="nav" title="Phone"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-phone"/></svg></div>
+          <div class="nav" title="Apps"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-grid"/></svg></div>
+          <div class="nav" title="Music"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-music"/></svg></div>
+          <div class="nav" title="Navigation"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-navigation"/></svg></div>
+          <div class="nav" title="Browser"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-globe"/></svg></div>
+          <div class="nav" title="Settings"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-settings"/></svg></div>
+        </div>
+        <div class="status">
+          <div class="indicator" title="Wi-Fi"><svg class="icon" aria-hidden="true"><use href="#i-wifi"/></svg></div>
+          <div class="indicator" title="Bluetooth"><svg class="icon" aria-hidden="true"><use href="#i-bluetooth"/></svg></div>
+          <div class="indicator" title="Battery"><svg class="icon" aria-hidden="true"><use href="#i-battery"/></svg><span class="pct">78%</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="variant-note">Music layout is vertical: 160 dp art on top, source eyebrow, title, artist, thin 4 dp progress bar, and a 3-button transport row at 64 dp tap targets (play is 72 dp, primary-coloured, the only saturated button on the screen).</div>
+</section>
+
+
+<!-- ============================================================
+     V3 — Dark · Idle
+============================================================ -->
+<section class="variant">
+  <div class="variant-title">V3 — Dark · Idle (no media)</div>
+  <div class="frame dark">
+    <div class="dashboard">
+      <div class="content-region">
+
+        <div class="map-pane">
+          <svg class="basemap" viewBox="0 0 760 612" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <rect x="0" y="0" width="760" height="612" fill="var(--map-base)"/>
+            <rect x="60" y="380" width="180" height="170" fill="var(--map-park)" rx="8"/>
+            <rect x="540" y="80" width="180" height="130" fill="var(--map-park)" rx="8"/>
+            <path d="M 0 480 Q 200 460 380 510 T 760 500 L 760 612 L 0 612 Z" fill="var(--map-water)" opacity="0.85"/>
+            <g stroke="var(--map-road)" stroke-width="22" fill="none" stroke-linecap="round">
+              <path d="M -20 240 L 780 230"/>
+              <path d="M -20 380 L 780 370"/>
+              <path d="M 200 -20 L 220 632"/>
+              <path d="M 450 -20 L 470 632"/>
+            </g>
+            <g stroke="var(--map-road)" stroke-width="10" fill="none" stroke-linecap="round">
+              <path d="M -20 130 L 780 120"/>
+              <path d="M 90 -20 L 110 632"/>
+            </g>
+            <path d="M 40 580 Q 220 480 380 380 T 720 200" stroke="var(--map-road-line)" stroke-width="9" fill="none" stroke-linecap="round"/>
+            <circle cx="380" cy="380" r="14" fill="var(--map-road-line)"/>
+            <circle cx="380" cy="380" r="5" fill="var(--map-base)"/>
+          </svg>
+
+          <div class="clock-overlay">
+            <span class="time">20:42</span>
+          </div>
+
+          <div class="speed-overlay">
+            <div class="now"><span class="v">58</span><span class="u">km/h</span></div>
+            <span class="sep"></span>
+            <div><div class="k">Distance</div><div class="v-secondary">24.4 km</div></div>
+            <span class="sep"></span>
+            <div><div class="k">Avg.</div><div class="v-secondary">42 km/h</div></div>
+            <div class="address-row">
+              <svg class="icon icon-sm" aria-hidden="true"><use href="#i-pin"/></svg>
+              <span>Aoyama-dori · Minato-ku, Tokyo</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-pane">
+          <div class="top-row">
+            <div class="card calendar-card">
+              <div class="head">
+                <div class="big-day">28</div>
+                <div class="meta">
+                  <div class="weekday">Tuesday</div>
+                  <div class="month">May 2026</div>
+                </div>
+              </div>
+              <div class="strip">
+                <div class="day today"><div class="w">Tue</div><div class="n">28</div><div class="marker"></div></div>
+                <div class="day"><div class="w">Wed</div><div class="n">29</div><div class="marker placeholder"></div></div>
+                <div class="day"><div class="w">Thu</div><div class="n">30</div><div class="marker"></div></div>
+                <div class="day"><div class="w">Fri</div><div class="n">31</div><div class="marker placeholder"></div></div>
+                <div class="day"><div class="w">Sat</div><div class="n">01</div><div class="marker"></div></div>
+                <div class="day"><div class="w">Sun</div><div class="n">02</div><div class="marker placeholder"></div></div>
+              </div>
+              <div class="events">
+                <div class="row"><span class="dot"></span><span class="time">21:00</span><span class="label">Dinner with Mika</span></div>
+                <div class="row muted"><span class="dot"></span><span class="time">22:30</span><span class="label">Drive home</span></div>
+              </div>
+            </div>
+
+            <div class="card weather-card">
+              <div class="head">
+                <div class="big-temp">19<span class="deg">°C</span></div>
+                <div class="meta">
+                  <div class="city-row">
+                    <svg class="icon glyph" aria-hidden="true"><use href="#i-moon"/></svg>
+                    <span class="city">Tokyo</span>
+                  </div>
+                  <div class="conditions">Clear</div>
+                </div>
+              </div>
+              <div class="metrics">
+                <div class="m"><span class="k">Feels</span><span class="v">18°</span></div>
+                <div class="m"><span class="k">Wind</span><span class="v">2 m/s</span></div>
+                <div class="m"><span class="k">Humid.</span><span class="v">64%</span></div>
+              </div>
+              <div class="forecast">
+                <div class="h"><span class="hr">21h</span><svg class="icon glyph" aria-hidden="true"><use href="#i-moon"/></svg><span class="tt">18°</span></div>
+                <div class="h"><span class="hr">22h</span><svg class="icon glyph" aria-hidden="true"><use href="#i-moon"/></svg><span class="tt">17°</span></div>
+                <div class="h"><span class="hr">23h</span><svg class="icon glyph" aria-hidden="true"><use href="#i-cloud"/></svg><span class="tt">17°</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card music-card empty">
+            <svg class="icon icon-xl empty-icon" aria-hidden="true" style="width:36px;height:36px;align-self:end;"><use href="#i-music"/></svg>
+            <div class="empty-title">Nothing is playing</div>
+            <div class="empty-desc">Open a music app to start, or say "Hey Google, play something".</div>
+            <span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="nav-row">
+          <div class="nav active" title="Home"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-home"/></svg></div>
+          <div class="nav" title="Phone"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-phone"/></svg></div>
+          <div class="nav" title="Apps"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-grid"/></svg></div>
+          <div class="nav" title="Music"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-music"/></svg></div>
+          <div class="nav" title="Navigation"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-navigation"/></svg></div>
+          <div class="nav" title="Browser"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-globe"/></svg></div>
+          <div class="nav" title="Settings"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-settings"/></svg></div>
+        </div>
+        <div class="status">
+          <div class="indicator" title="Wi-Fi"><svg class="icon" aria-hidden="true"><use href="#i-wifi"/></svg></div>
+          <div class="indicator" title="Bluetooth"><svg class="icon" aria-hidden="true"><use href="#i-bluetooth"/></svg></div>
+          <div class="indicator" title="Battery"><svg class="icon" aria-hidden="true"><use href="#i-battery"/></svg><span class="pct">78%</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="variant-note">Dark parity. Glass overlays keep their blur but lift their tint inside (<code>rgba(14,18,22,.55)</code>) so they read against the near-black canvas.</div>
+</section>
+
+
+<!-- ============================================================
+     V4 — Dark · Music playing
+============================================================ -->
+<section class="variant">
+  <div class="variant-title">V4 — Dark · Music playing</div>
+  <div class="frame dark">
+    <div class="dashboard">
+      <div class="content-region">
+
+        <div class="map-pane">
+          <svg class="basemap" viewBox="0 0 760 612" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <rect x="0" y="0" width="760" height="612" fill="var(--map-base)"/>
+            <rect x="60" y="380" width="180" height="170" fill="var(--map-park)" rx="8"/>
+            <rect x="540" y="80" width="180" height="130" fill="var(--map-park)" rx="8"/>
+            <path d="M 0 480 Q 200 460 380 510 T 760 500 L 760 612 L 0 612 Z" fill="var(--map-water)" opacity="0.85"/>
+            <g stroke="var(--map-road)" stroke-width="22" fill="none" stroke-linecap="round">
+              <path d="M -20 240 L 780 230"/>
+              <path d="M -20 380 L 780 370"/>
+              <path d="M 200 -20 L 220 632"/>
+              <path d="M 450 -20 L 470 632"/>
+            </g>
+            <g stroke="var(--map-road)" stroke-width="10" fill="none" stroke-linecap="round">
+              <path d="M -20 130 L 780 120"/>
+              <path d="M 90 -20 L 110 632"/>
+            </g>
+            <path d="M 40 580 Q 220 480 380 380 T 720 200" stroke="var(--map-road-line)" stroke-width="9" fill="none" stroke-linecap="round"/>
+            <circle cx="380" cy="380" r="14" fill="var(--map-road-line)"/>
+            <circle cx="380" cy="380" r="5" fill="var(--map-base)"/>
+          </svg>
+
+          <div class="clock-overlay">
+            <span class="time">20:42</span>
+          </div>
+
+          <div class="speed-overlay">
+            <div class="now"><span class="v">58</span><span class="u">km/h</span></div>
+            <span class="sep"></span>
+            <div><div class="k">Distance</div><div class="v-secondary">24.4 km</div></div>
+            <span class="sep"></span>
+            <div><div class="k">Avg.</div><div class="v-secondary">42 km/h</div></div>
+            <div class="address-row">
+              <svg class="icon icon-sm" aria-hidden="true"><use href="#i-pin"/></svg>
+              <span>Aoyama-dori · Minato-ku, Tokyo</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-pane">
+          <div class="top-row">
+            <div class="card calendar-card">
+              <div class="head">
+                <div class="big-day">28</div>
+                <div class="meta">
+                  <div class="weekday">Tuesday</div>
+                  <div class="month">May 2026</div>
+                </div>
+              </div>
+              <div class="strip">
+                <div class="day today"><div class="w">Tue</div><div class="n">28</div><div class="marker"></div></div>
+                <div class="day"><div class="w">Wed</div><div class="n">29</div><div class="marker placeholder"></div></div>
+                <div class="day"><div class="w">Thu</div><div class="n">30</div><div class="marker"></div></div>
+                <div class="day"><div class="w">Fri</div><div class="n">31</div><div class="marker placeholder"></div></div>
+                <div class="day"><div class="w">Sat</div><div class="n">01</div><div class="marker"></div></div>
+                <div class="day"><div class="w">Sun</div><div class="n">02</div><div class="marker placeholder"></div></div>
+              </div>
+              <div class="events">
+                <div class="row"><span class="dot"></span><span class="time">21:00</span><span class="label">Dinner with Mika</span></div>
+                <div class="row muted"><span class="dot"></span><span class="time">22:30</span><span class="label">Drive home</span></div>
+              </div>
+            </div>
+
+            <div class="card weather-card">
+              <div class="head">
+                <div class="big-temp">19<span class="deg">°C</span></div>
+                <div class="meta">
+                  <div class="city-row">
+                    <svg class="icon glyph" aria-hidden="true"><use href="#i-moon"/></svg>
+                    <span class="city">Tokyo</span>
+                  </div>
+                  <div class="conditions">Clear</div>
+                </div>
+              </div>
+              <div class="metrics">
+                <div class="m"><span class="k">Feels</span><span class="v">18°</span></div>
+                <div class="m"><span class="k">Wind</span><span class="v">2 m/s</span></div>
+                <div class="m"><span class="k">Humid.</span><span class="v">64%</span></div>
+              </div>
+              <div class="forecast">
+                <div class="h"><span class="hr">21h</span><svg class="icon glyph" aria-hidden="true"><use href="#i-moon"/></svg><span class="tt">18°</span></div>
+                <div class="h"><span class="hr">22h</span><svg class="icon glyph" aria-hidden="true"><use href="#i-moon"/></svg><span class="tt">17°</span></div>
+                <div class="h"><span class="hr">23h</span><svg class="icon glyph" aria-hidden="true"><use href="#i-cloud"/></svg><span class="tt">17°</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card music-card">
+            <div class="art" style="background: linear-gradient(140deg, #1e3a8a 0%, #5b21b6 60%, #be185d 100%);"></div>
+            <div class="meta">
+              <div class="source">
+                <svg class="icon" aria-hidden="true"><use href="#i-music"/></svg>
+                Spotify · Late drive
+              </div>
+              <div class="title">Midnight Avenue</div>
+              <div class="artist">Tycho</div>
+            </div>
+            <div class="progress">
+              <span>1:38</span>
+              <div class="bar"><div class="fill" style="width:58%"></div></div>
+              <span>2:48</span>
+            </div>
+            <div class="controls">
+              <button class="transport" aria-label="Previous"><svg class="icon icon-xl" aria-hidden="true"><use href="#i-skip-back"/></svg></button>
+              <button class="transport play" aria-label="Pause"><svg class="icon icon-xl" aria-hidden="true"><use href="#i-pause"/></svg></button>
+              <button class="transport" aria-label="Next"><svg class="icon icon-xl" aria-hidden="true"><use href="#i-skip-forward"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="nav-row">
+          <div class="nav active" title="Home"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-home"/></svg></div>
+          <div class="nav" title="Phone"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-phone"/></svg></div>
+          <div class="nav" title="Apps"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-grid"/></svg></div>
+          <div class="nav" title="Music"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-music"/></svg></div>
+          <div class="nav" title="Navigation"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-navigation"/></svg></div>
+          <div class="nav" title="Browser"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-globe"/></svg></div>
+          <div class="nav" title="Settings"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-settings"/></svg></div>
+        </div>
+        <div class="status">
+          <div class="indicator" title="Wi-Fi"><svg class="icon" aria-hidden="true"><use href="#i-wifi"/></svg></div>
+          <div class="indicator" title="Bluetooth"><svg class="icon" aria-hidden="true"><use href="#i-bluetooth"/></svg></div>
+          <div class="indicator" title="Battery"><svg class="icon" aria-hidden="true"><use href="#i-battery"/></svg><span class="pct">78%</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="variant-note">Saturated colour is restricted to three places only: the album-art gradient, the play button (primary container), and the active footer item (primary container background + 3 dp underline). Everything else stays neutral.</div>
+</section>
+
+
+<!-- ============================================================
+     V5 — Light · Map unavailable
+============================================================ -->
+<section class="variant">
+  <div class="variant-title">V5 — Light · Map unavailable (location denied)</div>
+  <div class="frame light">
+    <div class="dashboard">
+      <div class="content-region">
+
+        <div class="map-pane">
+          <div class="map-fallback">
+            <svg class="icon" aria-hidden="true"><use href="#i-pin-off"/></svg>
+            <div class="title">Map unavailable</div>
+            <div class="desc">Allow location access to centre the map on your position and enable speed, address, and turn-by-turn overlays.</div>
+            <button class="cta">
+              <svg class="icon icon-sm" aria-hidden="true" style="stroke:currentColor"><use href="#i-pin"/></svg>
+              Grant location access
+            </button>
+          </div>
+        </div>
+
+        <div class="info-pane">
+          <div class="top-row">
+            <div class="card calendar-card">
+              <div class="head">
+                <div class="big-day">30</div>
+                <div class="meta">
+                  <div class="weekday">Monday</div>
+                  <div class="month">March 2026</div>
+                </div>
+              </div>
+              <div class="strip">
+                <div class="day today"><div class="w">Mon</div><div class="n">30</div><div class="marker"></div></div>
+                <div class="day"><div class="w">Tue</div><div class="n">31</div><div class="marker placeholder"></div></div>
+                <div class="day"><div class="w">Wed</div><div class="n">01</div><div class="marker"></div></div>
+                <div class="day"><div class="w">Thu</div><div class="n">02</div><div class="marker placeholder"></div></div>
+                <div class="day"><div class="w">Fri</div><div class="n">03</div><div class="marker"></div></div>
+                <div class="day"><div class="w">Sat</div><div class="n">04</div><div class="marker placeholder"></div></div>
+              </div>
+              <div class="events">
+                <div class="row"><span class="dot"></span><span class="time">10:30</span><span class="label">Team standup</span></div>
+                <div class="row muted"><span class="dot"></span><span class="time">14:00</span><span class="label">Pick up kids</span></div>
+              </div>
+            </div>
+
+            <div class="card weather-card">
+              <div class="head">
+                <div class="big-temp">13<span class="deg">°C</span></div>
+                <div class="meta">
+                  <div class="city-row">
+                    <svg class="icon glyph" aria-hidden="true"><use href="#i-sun"/></svg>
+                    <span class="city">Košice</span>
+                  </div>
+                  <div class="conditions">Sunny</div>
+                </div>
+              </div>
+              <div class="metrics">
+                <div class="m"><span class="k">Feels</span><span class="v">11°</span></div>
+                <div class="m"><span class="k">Wind</span><span class="v">3 m/s</span></div>
+                <div class="m"><span class="k">Humid.</span><span class="v">58%</span></div>
+              </div>
+              <div class="forecast">
+                <div class="h"><span class="hr">09h</span><svg class="icon glyph" aria-hidden="true"><use href="#i-sun"/></svg><span class="tt">14°</span></div>
+                <div class="h"><span class="hr">10h</span><svg class="icon glyph" aria-hidden="true"><use href="#i-sun"/></svg><span class="tt">16°</span></div>
+                <div class="h"><span class="hr">11h</span><svg class="icon glyph" aria-hidden="true"><use href="#i-cloud-sun"/></svg><span class="tt">17°</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card music-card empty">
+            <svg class="icon icon-xl empty-icon" aria-hidden="true" style="width:36px;height:36px;align-self:end;"><use href="#i-music"/></svg>
+            <div class="empty-title">Nothing is playing</div>
+            <div class="empty-desc">Open a music app to start, or say "Hey Google, play something".</div>
+            <span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="nav-row">
+          <div class="nav active" title="Home"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-home"/></svg></div>
+          <div class="nav" title="Phone"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-phone"/></svg></div>
+          <div class="nav" title="Apps"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-grid"/></svg></div>
+          <div class="nav" title="Music"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-music"/></svg></div>
+          <div class="nav" title="Navigation"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-navigation"/></svg></div>
+          <div class="nav" title="Browser"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-globe"/></svg></div>
+          <div class="nav" title="Settings"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-settings"/></svg></div>
+        </div>
+        <div class="status">
+          <div class="indicator" title="Wi-Fi"><svg class="icon" aria-hidden="true"><use href="#i-wifi"/></svg></div>
+          <div class="indicator" title="Bluetooth"><svg class="icon" aria-hidden="true"><use href="#i-bluetooth"/></svg></div>
+          <div class="indicator" title="Battery"><svg class="icon" aria-hidden="true"><use href="#i-battery"/></svg><span class="pct">78%</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="variant-note">Location-denied fallback. Map pane swaps to a centred empty state with a single 56 dp pill CTA. Right pane and footer stay identical so the launcher remains useful before permission is granted.</div>
+</section>
+
+
+<footer class="page">
+  <p>
+    Mockup is a visual specification — buttons are inert. Lucide icon paths (ISC licence) inlined as
+    <code>&lt;symbol&gt;</code>s once and referenced via <code>&lt;use&gt;</code>.
+    Glass overlays (<code>backdrop-filter: blur</code>) are scoped to the map pane only; all other
+    surfaces stay flat per Bold Minimal. Tokens mirror <code>FemtoDimens</code>; the palette is an
+    illustrative Material You stand-in (production reads <code>MaterialTheme.colorScheme</code> dynamically).
+  </p>
+</footer>
+
+</body>
+</html>

@@ -9,6 +9,7 @@ internal data class WeatherSnapshot(
     val apparentTempC: Double,
     val code: WeatherCode,
     val windKmh: Double,
+    val humidityPercent: Int?,
     val uvIndex: Double?,
     val isDay: Boolean,
     val sunrise: LocalTime?,

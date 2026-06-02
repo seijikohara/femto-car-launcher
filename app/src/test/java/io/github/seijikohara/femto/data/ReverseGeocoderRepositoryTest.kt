@@ -83,4 +83,39 @@ class ReverseGeocoderRepositoryTest {
                 cancelAndIgnoreRemainingEvents()
             }
         }
+
+    @Test
+    fun `strips administrative suffix from a long locality`() =
+        runTest {
+            val geocoder = Geocoder(context)
+            val response =
+                Address(java.util.Locale.US).apply {
+                    locality = "Chiyoda City"
+                    adminArea = "Tokyo"
+                }
+            shadowOf(geocoder).setFromLocation(listOf(response))
+
+            val repo =
+                ReverseGeocoderRepository(
+                    context = context,
+                    locationFlow = flowOf(fakeLocation()),
+                    ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+                    geocoder = geocoder,
+                )
+
+            repo.addressFlow().test {
+                assertEquals(ShortAddress("Chiyoda", "Tokyo"), awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `shortLocality drops a trailing admin word but keeps plain names`() {
+        assertEquals("Chiyoda", shortLocality("Chiyoda City"))
+        assertEquals("Westminster", shortLocality("Westminster District"))
+        assertEquals("Setagaya", shortLocality("Setagaya Ward"))
+        assertEquals("Tokyo", shortLocality("Tokyo"))
+        assertEquals("San Francisco", shortLocality("San Francisco"))
+        assertEquals("千代田区", shortLocality("千代田区"))
+    }
 }

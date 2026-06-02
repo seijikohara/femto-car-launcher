@@ -4,12 +4,12 @@ import androidx.compose.ui.text.font.FontFamily
 
 /**
  * Curated typography pairs. Each entry combines a Latin family with a
- * Japanese family that shares the same geometric tone. Future entries
+ * Japanese family that shares the same neutral, modern tone. Future entries
  * (e.g. Outfit + Zen Kaku Gothic New) plug in by adding an enum value
  * and a branch in [fontPairOf].
  */
 enum class FontTheme {
-    GEIST,
+    INTER,
 }
 
 internal data class FontPair(
@@ -19,5 +19,5 @@ internal data class FontPair(
 
 internal fun fontPairOf(theme: FontTheme): FontPair =
     when (theme) {
-        FontTheme.GEIST -> FontPair(latin = FemtoFonts.Geist, jp = FemtoFonts.MPlus2)
+        FontTheme.INTER -> FontPair(latin = FemtoFonts.Inter, jp = FemtoFonts.NotoSansJp)
     }

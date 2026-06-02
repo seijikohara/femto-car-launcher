@@ -1,14 +1,3 @@
-import java.util.Properties
-
-val mapsApiKey: String =
-    rootProject
-        .file("local.properties")
-        .takeIf { it.exists() }
-        ?.inputStream()
-        ?.use { Properties().apply { load(it) } }
-        ?.getProperty("MAPS_API_KEY")
-        ?: ""
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -46,7 +35,6 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     buildTypes {
@@ -82,11 +70,12 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
-    implementation(libs.play.services.maps)
+    implementation(libs.maplibre.android)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.composables.icons.lucide)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)

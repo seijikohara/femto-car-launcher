@@ -11,6 +11,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import kotlin.math.roundToInt
 
 internal class WeatherRepository(
     private val api: OpenMeteoApi,
@@ -38,6 +39,7 @@ internal class WeatherRepository(
                 apparentTempC = current.apparent_temperature,
                 code = WeatherCode.fromWmo(current.weathercode),
                 windKmh = current.windspeed_10m,
+                humidityPercent = current.relative_humidity_2m?.roundToInt(),
                 uvIndex = current.uv_index,
                 isDay = current.is_day == 1,
                 sunrise = response.daily

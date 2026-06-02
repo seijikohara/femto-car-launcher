@@ -9,15 +9,20 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.seijikohara.femto.data.AppEntry
 import io.github.seijikohara.femto.data.AppsRepository
+import io.github.seijikohara.femto.data.CalendarRepository
+import io.github.seijikohara.femto.data.CalendarSnapshot
 import io.github.seijikohara.femto.data.ClockRepository
 import io.github.seijikohara.femto.data.ClockTick
-import io.github.seijikohara.femto.data.GmsAvailability
 import io.github.seijikohara.femto.data.LocationRepository
 import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.data.MusicSessionRepository
 import io.github.seijikohara.femto.data.OpenMeteoApi
 import io.github.seijikohara.femto.data.ReverseGeocoderRepository
 import io.github.seijikohara.femto.data.ShortAddress
+import io.github.seijikohara.femto.data.SystemStatus
+import io.github.seijikohara.femto.data.SystemStatusRepository
+import io.github.seijikohara.femto.data.TripRepository
+import io.github.seijikohara.femto.data.TripState
 import io.github.seijikohara.femto.data.WeatherRepository
 import io.github.seijikohara.femto.data.WeatherSnapshot
 import io.github.seijikohara.femto.ui.home.components.MusicCommand
@@ -40,7 +45,9 @@ internal class HomeViewModel(
     private val weatherFlow: Flow<WeatherSnapshot?>,
     private val musicStateFlow: Flow<MusicCardState>,
     private val appsFlow: MutableStateFlow<List<AppEntry>>,
-    private val isMapAvailable: () -> Boolean,
+    private val calendarFlow: Flow<CalendarSnapshot?>,
+    private val systemStatusFlow: Flow<SystemStatus>,
+    private val tripStateFlow: Flow<TripState>,
     private val sendMusicCommand: (MusicCommand) -> Unit = {},
 ) : ViewModel() {
     val uiState: StateFlow<HomeUiState> =
@@ -51,6 +58,9 @@ internal class HomeViewModel(
             weatherFlow,
             musicStateFlow,
             appsFlow,
+            calendarFlow,
+            systemStatusFlow,
+            tripStateFlow,
         ) { values ->
             @Suppress("UNCHECKED_CAST")
             val clock = values[0] as ClockTick
@@ -69,6 +79,15 @@ internal class HomeViewModel(
 
             @Suppress("UNCHECKED_CAST")
             val apps = values[5] as List<AppEntry>
+
+            @Suppress("UNCHECKED_CAST")
+            val calendar = values[6] as CalendarSnapshot?
+
+            @Suppress("UNCHECKED_CAST")
+            val systemStatus = values[7] as SystemStatus
+
+            @Suppress("UNCHECKED_CAST")
+            val tripState = values[8] as TripState
             HomeUiState(
                 isLoading = apps.isEmpty(),
                 apps = apps,
@@ -77,7 +96,9 @@ internal class HomeViewModel(
                 address = address,
                 weather = weather,
                 musicState = music,
-                mapAvailable = isMapAvailable(),
+                calendar = calendar,
+                systemStatus = systemStatus,
+                tripState = tripState,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState.Initial)
 
@@ -112,6 +133,14 @@ internal class HomeViewModel(
             is HomeAction.Music -> {
                 sendMusicCommand(action.command)
             }
+
+            HomeAction.OpenBrowser -> {
+                mutableEvents.tryEmit(HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_BROWSER))
+            }
+
+            HomeAction.OpenSettings -> {
+                mutableEvents.tryEmit(HomeEvent.OpenSystemSettings)
+            }
         }
     }
 }
@@ -126,23 +155,28 @@ internal class HomeViewModelFactory(
         val location = LocationRepository(application)
         val locationFlow = location.locationFlow()
         val clock = ClockRepository(application)
+        val clockFlow = clock.tickFlow()
         val geocoder = ReverseGeocoderRepository(application, locationFlow)
         val weatherApi = OpenMeteoApi(client = OkHttpClient())
         val weather = WeatherRepository(weatherApi, locationFlow)
         val music = MusicSessionRepository(application)
-        val gms = GmsAvailability(application)
         val apps = MutableStateFlow<List<AppEntry>>(emptyList())
         val appsRepo = AppsRepository(application)
+        val calendar = CalendarRepository(application, clockFlow)
+        val systemStatus = SystemStatusRepository(application)
+        val trip = TripRepository(locationFlow)
 
         @Suppress("UNCHECKED_CAST")
         return HomeViewModel(
-            clockFlow = clock.tickFlow(),
+            clockFlow = clockFlow,
             locationFlow = locationFlow,
             addressFlow = geocoder.addressFlow(),
             weatherFlow = weather.snapshotFlow(),
             musicStateFlow = music.stateFlow(),
             appsFlow = apps,
-            isMapAvailable = { gms.isPresent() },
+            calendarFlow = calendar.snapshotFlow(),
+            systemStatusFlow = systemStatus.statusFlow(),
+            tripStateFlow = trip.stateFlow(),
             sendMusicCommand = music::send,
         ).also { vm ->
             vm.viewModelScope.launch { apps.value = appsRepo.queryApps() }
