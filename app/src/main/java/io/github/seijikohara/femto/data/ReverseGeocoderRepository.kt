@@ -1,51 +1,75 @@
 package io.github.seijikohara.femto.data
 
-import android.content.Context
-import android.location.Geocoder
 import android.location.Location
-import android.os.Build
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.suspendCancellableCoroutine
-import java.util.Locale
-import kotlin.coroutines.resume
+import kotlin.math.roundToLong
 
+/**
+ * Reverse-geocode the current location through OSM Nominatim and expose a
+ * readable [ShortAddress].
+ *
+ * The OSM geocoding data is licensed under "© OpenStreetMap contributors";
+ * the map surface already renders the OSM/MapLibre attribution that covers
+ * this data, so no extra attribution UI is required here.
+ */
 internal class ReverseGeocoderRepository(
-    context: Context,
     private val locationFlow: Flow<Location?>,
+    private val api: NominatimApi,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val geocoder: Geocoder = Geocoder(context, Locale.getDefault()),
+    // Injectable clock so the request throttle is deterministic under a test
+    // dispatcher's virtual time. Production reads the wall clock.
+    private val nowMs: () -> Long = System::currentTimeMillis,
 ) {
+    // Per-bucket cache keyed by the 100 m bucket (lat/lon rounded to 3
+    // decimals). A revisited bucket returns the cached address without a
+    // network call, and a failed lookup falls back to the most recent value.
+    private val cache = mutableMapOf<String, ShortAddress>()
+    private var lastResult: ShortAddress? = null
+    private var lastRequestAtMs = 0L
+
     fun addressFlow(): Flow<ShortAddress?> =
         locationFlow
             .distinctUntilChangedByBucket()
             .map { location -> location?.let { resolve(it) } }
             .flowOn(ioDispatcher)
 
-    private suspend fun resolve(location: Location): ShortAddress? =
-        runCatching {
-            if (!Geocoder.isPresent()) return@runCatching null
-            requestAddresses(location)
-                .firstOrNull()
-                ?.let { ShortAddress(locality = shortLocality(it.locality.orEmpty()), region = it.adminArea) }
-                ?.takeIf { it.locality.isNotEmpty() }
-        }.getOrNull()
+    private suspend fun resolve(location: Location): ShortAddress? {
+        val key = bucketKey(location.latitude, location.longitude)
+        cache[key]?.let { return it }
 
-    @Suppress("DEPRECATION")
-    private suspend fun requestAddresses(location: Location): List<android.location.Address> =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            suspendCancellableCoroutine { cont ->
-                geocoder.getFromLocation(location.latitude, location.longitude, 1) { addresses ->
-                    cont.resume(addresses)
-                }
+        // Nominatim's usage policy caps callers at 1 request per second; the
+        // 100 m bucket already collapses most calls, and this spacing guards
+        // the remaining boundary crossings.
+        throttle()
+
+        return runCatching {
+            api.reverse(location.latitude, location.longitude)?.address?.let {
+                AddressComposer.composeAddress(it)
             }
-        } else {
-            geocoder.getFromLocation(location.latitude, location.longitude, 1) ?: emptyList()
-        }
+        }.getOrNull()
+            ?.also {
+                cache[key] = it
+                lastResult = it
+            }
+            ?: lastResult
+    }
+
+    private suspend fun throttle() {
+        val elapsed = nowMs() - lastRequestAtMs
+        if (elapsed < MIN_REQUEST_SPACING_MS) delay(MIN_REQUEST_SPACING_MS - elapsed)
+        lastRequestAtMs = nowMs()
+    }
+
+    private fun bucketKey(
+        lat: Double,
+        lon: Double,
+    ): String = "${(lat * 1000).roundToLong()}:${(lon * 1000).roundToLong()}"
 
     private fun Flow<Location?>.distinctUntilChangedByBucket(): Flow<Location?> =
         distinctUntilChanged { old, new ->
@@ -55,24 +79,6 @@ internal class ReverseGeocoderRepository(
 
     private companion object {
         const val BUCKET_M = 100f
-    }
-}
-
-// Administrative suffixes the platform geocoder appends to a locality
-// (e.g. "Chiyoda City", "Westminster District"). The dashboard's city
-// slots are narrow, so the trailing suffix is stripped to leave a
-// compact core name. The geocoder returns the locality in the device
-// locale; this list covers Latin-script suffixes, and a market adds its
-// own entries here when its locale needs them. The strictest match wins:
-// only an exact trailing word is removed, never a substring.
-private val AdminSuffixes = setOf("City", "Ward", "District", "Municipality", "Town", "Village", "Borough")
-
-internal fun shortLocality(raw: String): String {
-    val trimmed = raw.trim()
-    val lastWord = trimmed.substringAfterLast(' ', "")
-    return if (lastWord.isNotEmpty() && AdminSuffixes.any { it.equals(lastWord, ignoreCase = true) }) {
-        trimmed.substringBeforeLast(' ').trim().ifEmpty { trimmed }
-    } else {
-        trimmed
+        const val MIN_REQUEST_SPACING_MS = 1_000L
     }
 }

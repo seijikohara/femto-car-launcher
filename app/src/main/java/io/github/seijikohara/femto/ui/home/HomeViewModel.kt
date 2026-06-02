@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.data.AppEntry
 import io.github.seijikohara.femto.data.AppsRepository
 import io.github.seijikohara.femto.data.CalendarRepository
@@ -16,6 +17,7 @@ import io.github.seijikohara.femto.data.ClockTick
 import io.github.seijikohara.femto.data.LocationRepository
 import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.data.MusicSessionRepository
+import io.github.seijikohara.femto.data.NominatimApi
 import io.github.seijikohara.femto.data.OpenMeteoApi
 import io.github.seijikohara.femto.data.ReverseGeocoderRepository
 import io.github.seijikohara.femto.data.ShortAddress
@@ -37,6 +39,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
+import java.util.Locale
 
 internal class HomeViewModel(
     private val clockFlow: Flow<ClockTick>,
@@ -156,8 +159,22 @@ internal class HomeViewModelFactory(
         val locationFlow = location.locationFlow()
         val clock = ClockRepository(application)
         val clockFlow = clock.tickFlow()
-        val geocoder = ReverseGeocoderRepository(application, locationFlow)
-        val weatherApi = OpenMeteoApi(client = OkHttpClient())
+        // Share one OkHttpClient across the weather and geocoding APIs so the
+        // connection pool and dispatcher are reused instead of duplicated.
+        val httpClient = OkHttpClient()
+        // Nominatim blocks stock HTTP User-Agents; identify the launcher with a
+        // contact URL per the OSM usage policy.
+        val userAgent =
+            "FemtoCarLauncher/" + BuildConfig.VERSION_NAME +
+                " (+https://github.com/seijikohara/femto-car-launcher)"
+        val nominatimApi =
+            NominatimApi(
+                client = httpClient,
+                userAgent = userAgent,
+                language = Locale.getDefault().language,
+            )
+        val geocoder = ReverseGeocoderRepository(locationFlow, nominatimApi)
+        val weatherApi = OpenMeteoApi(client = httpClient)
         val weather = WeatherRepository(weatherApi, locationFlow)
         val music = MusicSessionRepository(application)
         val apps = MutableStateFlow<List<AppEntry>>(emptyList())
