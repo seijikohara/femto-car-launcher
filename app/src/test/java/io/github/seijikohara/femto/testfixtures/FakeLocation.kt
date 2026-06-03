@@ -7,12 +7,20 @@ internal fun fakeLocation(
     longitude: Double = 139.7016,
     speedMps: Float = 0f,
     altitudeM: Double = 47.0,
+    timeMs: Long = 0L,
+    elapsedRealtimeNanos: Long = 0L,
+    // When false, the fix carries no speed (Location.hasSpeed() == false),
+    // mirroring cheap GPS chips and raw GPS_PROVIDER HALs.
+    hasSpeed: Boolean = true,
 ): Location =
     Location("test").apply {
         this.latitude = latitude
         this.longitude = longitude
-        this.speed = speedMps
         this.altitude = altitudeM
-        this.time = 0L
-        this.elapsedRealtimeNanos = 0L
+        this.time = timeMs
+        this.elapsedRealtimeNanos = elapsedRealtimeNanos
+        // setSpeed flips hasSpeed() to true; removeSpeed() clears it. Only
+        // set a speed when the caller asks for one so the speed-less path
+        // stays exercisable.
+        if (hasSpeed) this.speed = speedMps else removeSpeed()
     }

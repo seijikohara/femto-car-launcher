@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -21,6 +22,11 @@ internal class WeatherRepository(
     private var cached: WeatherSnapshot? = null
     private var lastFetchLocation: Location? = null
 
+    // Tracks the most recent refresh attempt regardless of outcome so a sustained
+    // outage (cached == null) cannot retry faster than MIN_RETRY_INTERVAL against
+    // the public Open-Meteo endpoint, which would risk a ban.
+    private var lastAttemptAt: Instant? = null
+
     fun snapshotFlow(): Flow<WeatherSnapshot?> =
         flow {
             locationFlow.collect { location ->
@@ -31,6 +37,9 @@ internal class WeatherRepository(
     private suspend fun refresh(location: Location?): WeatherSnapshot? {
         location ?: return null
         if (!shouldRefetch(location)) return cached
+        // Record the attempt before the network call so a failing call still throttles
+        // subsequent outage retries via MIN_RETRY_INTERVAL.
+        lastAttemptAt = clock.instant()
         val response = api.forecast(location.latitude, location.longitude) ?: return cached
         val current = response.current ?: return cached
         cached =
@@ -59,7 +68,12 @@ internal class WeatherRepository(
     }
 
     private fun shouldRefetch(location: Location): Boolean {
-        val snapshot = cached ?: return true
+        val snapshot =
+            cached ?: return lastAttemptAt?.let { attempt ->
+                // No successful cache yet: throttle outage retries so a sustained
+                // failure does not fire once per GPS tick.
+                Duration.between(attempt, clock.instant()).abs() >= MIN_RETRY_INTERVAL
+            } ?: true
         val anchor = lastFetchLocation ?: return true
         val ageOk = Duration.between(snapshot.fetchedAt, clock.instant()).abs() < REFRESH_INTERVAL
         val nearOk = anchor.distanceTo(location) < REFRESH_DISTANCE_M
@@ -102,6 +116,9 @@ internal class WeatherRepository(
 
     private companion object {
         val REFRESH_INTERVAL: Duration = Duration.ofMinutes(30)
+
+        // Floor between outage retries when no successful snapshot exists yet.
+        val MIN_RETRY_INTERVAL: Duration = Duration.ofMinutes(1)
         const val REFRESH_DISTANCE_M = 5_000f
         const val HOURLY_SLICE_LENGTH = 5
 
