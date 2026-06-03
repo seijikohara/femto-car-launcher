@@ -2,9 +2,7 @@ package io.github.seijikohara.femto.ui.home
 
 import android.content.ComponentName
 import android.content.Intent
-import android.graphics.Bitmap
 import app.cash.turbine.test
-import io.github.seijikohara.femto.data.AppEntry
 import io.github.seijikohara.femto.data.ClockTick
 import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.testfixtures.fakeAddress
@@ -17,7 +15,6 @@ import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
 import io.github.seijikohara.femto.ui.home.components.MusicCommand
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -53,7 +50,6 @@ class HomeViewModelTest {
     @Test
     fun `combines all flows into one HomeUiState`() =
         runTest {
-            val placeholderIcon = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
             val calendar = fakeCalendarSnapshot()
             val systemStatus = fakeSystemStatus()
             val tripState = fakeTripState()
@@ -64,16 +60,6 @@ class HomeViewModelTest {
                     addressFlow = flowOf(fakeAddress()),
                     weatherFlow = flowOf(fakeWeatherSnapshot()),
                     musicStateFlow = flowOf(MusicCardState.Playing(fakeNowPlaying())),
-                    appsFlow =
-                        MutableStateFlow(
-                            listOf(
-                                AppEntry(
-                                    componentName = android.content.ComponentName("p", "c"),
-                                    label = "X",
-                                    icon = placeholderIcon,
-                                ),
-                            ),
-                        ),
                     calendarFlow = flowOf(calendar),
                     systemStatusFlow = flowOf(systemStatus),
                     tripStateFlow = flowOf(tripState),
@@ -170,7 +156,6 @@ class HomeViewModelTest {
             addressFlow = emptyFlow(),
             weatherFlow = emptyFlow(),
             musicStateFlow = emptyFlow(),
-            appsFlow = MutableStateFlow(emptyList()),
             calendarFlow = emptyFlow(),
             systemStatusFlow = emptyFlow(),
             tripStateFlow = emptyFlow(),

@@ -31,7 +31,6 @@ class DashboardScaffoldTest {
         // music, and footer panels carry the stable assertions instead.
         val uiState =
             HomeUiState.Initial.copy(
-                isLoading = false,
                 clock = ClockTick(LocalTime.of(14, 32), LocalDate.of(2026, 5, 1)),
                 location = null,
                 address = fakeAddress(),
