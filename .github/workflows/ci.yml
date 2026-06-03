@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel superseded PR runs; never cancel an in-flight main/nightly publish.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          # setup-gradle writes the cache only on the default branch; make the
+          # read-only fallback explicit so feature branches never pollute it.
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Run checks
+        run: ./gradlew spotlessCheck test lint assembleDebug --stacktrace
+
+  nightly:
+    name: Publish nightly
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event_name != 'pull_request'
+    permissions:
+      # gh release create/delete + tag manipulation require write access to repo
+      # contents. The default GITHUB_TOKEN satisfies this for the same repo.
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # Full history so the rolling "nightly" tag can be deleted and re-pointed.
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Verify signing secrets are present
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          # Fail fast (and clearly) if any signing secret is missing, so the job
+          # never reaches Gradle half-configured and never publishes an unsigned APK.
+          missing=""
+          [ -z "$RELEASE_KEYSTORE_BASE64" ] && missing="$missing RELEASE_KEYSTORE_BASE64"
+          [ -z "$RELEASE_KEYSTORE_PASSWORD" ] && missing="$missing RELEASE_KEYSTORE_PASSWORD"
+          [ -z "$RELEASE_KEY_ALIAS" ] && missing="$missing RELEASE_KEY_ALIAS"
+          [ -z "$RELEASE_KEY_PASSWORD" ] && missing="$missing RELEASE_KEY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing signing secret(s):$missing. Add all four (RELEASE_KEYSTORE_BASE64, RELEASE_KEYSTORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD) so the nightly APK can be release-signed. Refusing to publish an unsigned APK."
+            exit 1
+          fi
+
+      - name: Decode keystore
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          # Write outside the checked-out tree; $RUNNER_TEMP is auto-cleaned.
+          echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+
+      - name: Build signed release APK
+        env:
+          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          NIGHTLY_VERSION_CODE: ${{ github.run_number }}
+          NIGHTLY_VERSION_NAME: nightly-${{ github.run_number }}-${{ github.sha }}
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Stage APK with a meaningful asset name
+        run: cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/femto-car-launcher-nightly.apk"
+
+      - name: Publish rolling nightly prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # `gh release edit --target` cannot move an existing tag (cli/cli#8669),
+          # so delete the old rolling release and tag, then recreate against the
+          # exact built commit. `|| true` keeps the first-ever run idempotent.
+          gh release delete nightly --yes --cleanup-tag || true
+          gh release create nightly \
+            "$RUNNER_TEMP/femto-car-launcher-nightly.apk" \
+            --target "$GITHUB_SHA" \
+            --title "Nightly ${{ github.run_number }}" \
+            --notes "Automated nightly build from ${GITHUB_SHA:0:7} (run #${{ github.run_number }}) on $(date -u +%Y-%m-%d)." \
+            --prerelease \
+            --latest=false
