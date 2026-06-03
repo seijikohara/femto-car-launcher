@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +43,7 @@ import com.composables.icons.lucide.Navigation
 import com.composables.icons.lucide.Phone
 import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Wifi
+import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.SystemStatus
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -112,43 +114,43 @@ private fun NavRow(
 ) {
     NavButton(
         icon = Lucide.House,
-        description = "Home",
+        description = stringResource(R.string.nav_home),
         active = true,
         onClick = { /* already on home */ },
     )
     NavButton(
         icon = Lucide.Phone,
-        description = "Phone",
+        description = stringResource(R.string.nav_phone),
         active = false,
         onClick = { onAction(HomeAction.Shortcut(AppsBarShortcut.Phone)) },
     )
     NavButton(
         icon = Lucide.LayoutGrid,
-        description = "Apps",
+        description = stringResource(R.string.nav_apps),
         active = false,
         onClick = { onAction(HomeAction.OpenAppDrawer) },
     )
     NavButton(
         icon = Lucide.Music,
-        description = "Music",
+        description = stringResource(R.string.nav_music),
         active = false,
         onClick = { onAction(HomeAction.Shortcut(AppsBarShortcut.Music)) },
     )
     NavButton(
         icon = Lucide.Navigation,
-        description = "Navigation",
+        description = stringResource(R.string.nav_navigation),
         active = false,
         onClick = { onAction(HomeAction.OpenMaps) },
     )
     NavButton(
         icon = Lucide.Globe,
-        description = "Browser",
+        description = stringResource(R.string.nav_browser),
         active = false,
         onClick = { onAction(HomeAction.OpenBrowser) },
     )
     NavButton(
         icon = Lucide.Settings,
-        description = "Settings",
+        description = stringResource(R.string.nav_settings),
         active = false,
         onClick = { onAction(HomeAction.OpenSettings) },
     )
@@ -212,12 +214,22 @@ private fun StatusCluster(
     StatusIcon(
         icon = Lucide.Wifi,
         active = status.wifiConnected,
-        description = if (status.wifiConnected) "Wi-Fi connected" else "Wi-Fi disconnected",
+        description =
+            stringResource(
+                if (status.wifiConnected) R.string.status_wifi_connected else R.string.status_wifi_disconnected,
+            ),
     )
     StatusIcon(
         icon = Lucide.Bluetooth,
         active = status.bluetoothConnected,
-        description = if (status.bluetoothConnected) "Bluetooth connected" else "Bluetooth disconnected",
+        description =
+            stringResource(
+                if (status.bluetoothConnected) {
+                    R.string.status_bluetooth_connected
+                } else {
+                    R.string.status_bluetooth_disconnected
+                },
+            ),
     )
     BatteryIndicator(percent = status.batteryPercent, charging = status.charging)
 }
@@ -248,12 +260,16 @@ private fun BatteryIndicator(
 ) {
     Icon(
         imageVector = Lucide.Battery,
-        contentDescription = "Battery",
+        contentDescription = stringResource(R.string.status_battery),
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.size(20.dp),
     )
     Text(
-        text = if (charging) "$percent% ⚡" else "$percent%",
+        text =
+            stringResource(
+                if (charging) R.string.battery_percent_charging else R.string.battery_percent,
+                percent,
+            ),
         style =
             MaterialTheme.typography.labelLarge.copy(
                 fontSize = 13.sp,

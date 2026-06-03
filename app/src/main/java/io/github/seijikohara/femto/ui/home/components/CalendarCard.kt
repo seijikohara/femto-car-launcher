@@ -19,12 +19,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.CalendarSnapshot
 import io.github.seijikohara.femto.data.DayCell
 import io.github.seijikohara.femto.data.EventItem
@@ -189,7 +191,7 @@ private fun Events(events: List<EventItem>) =
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         if (events.isEmpty()) {
             Text(
-                text = "No upcoming events",
+                text = stringResource(R.string.calendar_no_events),
                 style =
                     MaterialTheme.typography.bodyMedium.copy(
                         fontSize = 13.sp,
@@ -201,10 +203,8 @@ private fun Events(events: List<EventItem>) =
         } else {
             events.forEachIndexed { index, event ->
                 EventRow(
-                    // A null time marks an all-day event. The plain string is a
-                    // placeholder; a later task sweeps UI copy to string
-                    // resources.
-                    time = event.time?.format(EventTimeFormatter) ?: "All day",
+                    // A null time marks an all-day event.
+                    time = event.time?.format(EventTimeFormatter) ?: stringResource(R.string.calendar_all_day),
                     title = event.title,
                     isPrimary = index == 0,
                 )
@@ -267,7 +267,7 @@ private fun EmptyState() =
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "Calendar access not granted",
+            text = stringResource(R.string.calendar_permission_denied),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

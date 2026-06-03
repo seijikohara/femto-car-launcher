@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -32,6 +34,7 @@ import com.composables.icons.lucide.CloudSun
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Moon
 import com.composables.icons.lucide.Sun
+import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.HourlyForecast
 import io.github.seijikohara.femto.data.WeatherCode
 import io.github.seijikohara.femto.data.WeatherSnapshot
@@ -164,7 +167,7 @@ private fun Head(
                 )
             }
             Text(
-                text = labelFor(snapshot.code).uppercase(),
+                text = stringResource(labelResFor(snapshot.code)).uppercase(),
                 style = MaterialTheme.typography.sectionLabel(11, 0.14f),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -182,10 +185,13 @@ private fun Metrics(
     modifier = Modifier.fillMaxWidth(),
     horizontalArrangement = Arrangement.spacedBy(16.dp),
 ) {
-    Metric(label = "FEELS", value = "${temperatureUnit.fromCelsius(snapshot.apparentTempC).roundToInt()}°")
-    Metric(label = "WIND", value = windLabel(snapshot.windKmh, speedUnit))
+    Metric(
+        label = stringResource(R.string.weather_metric_feels),
+        value = "${temperatureUnit.fromCelsius(snapshot.apparentTempC).roundToInt()}°",
+    )
+    Metric(label = stringResource(R.string.weather_metric_wind), value = windLabel(snapshot.windKmh, speedUnit))
     val humidityLabel = snapshot.humidityPercent?.let { "$it%" } ?: "—"
-    Metric(label = "HUMID.", value = humidityLabel)
+    Metric(label = stringResource(R.string.weather_metric_humidity), value = humidityLabel)
 }
 
 @Composable
@@ -283,7 +289,7 @@ private fun EmptyState() =
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = "Weather unavailable",
+            text = stringResource(R.string.weather_unavailable),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -323,21 +329,22 @@ private fun glyphTintFor(
         else -> glyphs.cloud
     }
 
-private fun labelFor(code: WeatherCode): String =
+@StringRes
+private fun labelResFor(code: WeatherCode): Int =
     when (code) {
-        WeatherCode.CLEAR -> "Sunny"
-        WeatherCode.PARTLY_CLOUDY -> "Partly cloudy"
-        WeatherCode.CLOUDY -> "Cloudy"
-        WeatherCode.FOG -> "Fog"
-        WeatherCode.DRIZZLE -> "Drizzle"
-        WeatherCode.RAIN -> "Rain"
-        WeatherCode.FREEZING_RAIN -> "Freezing rain"
-        WeatherCode.SNOW -> "Snow"
-        WeatherCode.SNOW_GRAINS -> "Snow grains"
-        WeatherCode.RAIN_SHOWERS -> "Rain showers"
-        WeatherCode.SNOW_SHOWERS -> "Snow showers"
-        WeatherCode.THUNDERSTORM -> "Thunderstorm"
-        WeatherCode.UNKNOWN -> ""
+        WeatherCode.CLEAR -> R.string.weather_cond_sunny
+        WeatherCode.PARTLY_CLOUDY -> R.string.weather_cond_partly_cloudy
+        WeatherCode.CLOUDY -> R.string.weather_cond_cloudy
+        WeatherCode.FOG -> R.string.weather_cond_fog
+        WeatherCode.DRIZZLE -> R.string.weather_cond_drizzle
+        WeatherCode.RAIN -> R.string.weather_cond_rain
+        WeatherCode.FREEZING_RAIN -> R.string.weather_cond_freezing_rain
+        WeatherCode.SNOW -> R.string.weather_cond_snow
+        WeatherCode.SNOW_GRAINS -> R.string.weather_cond_snow_grains
+        WeatherCode.RAIN_SHOWERS -> R.string.weather_cond_rain_showers
+        WeatherCode.SNOW_SHOWERS -> R.string.weather_cond_snow_showers
+        WeatherCode.THUNDERSTORM -> R.string.weather_cond_thunderstorm
+        WeatherCode.UNKNOWN -> R.string.weather_cond_unknown
     }
 
 @PreviewLightDark

@@ -21,8 +21,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.AppEntry
 import io.github.seijikohara.femto.ui.home.components.AppTile
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -62,7 +64,7 @@ private fun ContentState(
     onLaunch: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
 ) = if (apps.isEmpty()) {
-    CenteredMessage(text = "No apps installed", modifier = modifier)
+    CenteredMessage(text = stringResource(R.string.drawer_no_apps), modifier = modifier)
 } else {
     LazyVerticalGrid(
         modifier = modifier,
@@ -87,7 +89,7 @@ private fun ErrorState(
     verticalArrangement = Arrangement.Center,
 ) {
     Text(
-        text = "Couldn't load apps",
+        text = stringResource(R.string.drawer_load_error),
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onBackground,
         textAlign = TextAlign.Center,
@@ -103,7 +105,7 @@ private fun ErrorState(
                     minHeight = FemtoDimens.MinTouchTarget,
                 ),
     ) {
-        Text(text = "Retry", fontSize = FemtoDimens.MinBodyTextSize)
+        Text(text = stringResource(R.string.drawer_retry), fontSize = FemtoDimens.MinBodyTextSize)
     }
 }
 

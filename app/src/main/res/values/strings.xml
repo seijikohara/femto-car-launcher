@@ -1,4 +1,64 @@
 <resources>
     <string name="app_name">Femto Car Launcher</string>
     <string name="music_listener_label">Femto music session listener</string>
+
+    <!-- Map panel -->
+    <string name="map_unavailable">Map unavailable</string>
+    <string name="map_permission_cta">Grant location access to enable the map and overlays.</string>
+
+    <!-- Calendar card -->
+    <string name="calendar_no_events">No upcoming events</string>
+    <string name="calendar_permission_denied">Calendar access not granted</string>
+    <string name="calendar_all_day">All day</string>
+
+    <!-- Weather card -->
+    <string name="weather_unavailable">Weather unavailable</string>
+    <string name="weather_metric_feels">FEELS</string>
+    <string name="weather_metric_wind">WIND</string>
+    <string name="weather_metric_humidity">HUMID.</string>
+    <string name="weather_cond_sunny">Sunny</string>
+    <string name="weather_cond_partly_cloudy">Partly cloudy</string>
+    <string name="weather_cond_cloudy">Cloudy</string>
+    <string name="weather_cond_fog">Fog</string>
+    <string name="weather_cond_drizzle">Drizzle</string>
+    <string name="weather_cond_rain">Rain</string>
+    <string name="weather_cond_freezing_rain">Freezing rain</string>
+    <string name="weather_cond_snow">Snow</string>
+    <string name="weather_cond_snow_grains">Snow grains</string>
+    <string name="weather_cond_rain_showers">Rain showers</string>
+    <string name="weather_cond_snow_showers">Snow showers</string>
+    <string name="weather_cond_thunderstorm">Thunderstorm</string>
+    <string name="weather_cond_unknown"></string>
+
+    <!-- Music card -->
+    <string name="music_connect_cta">Connect a player</string>
+    <string name="music_connect_hint">Allow notification access to control playback from the dashboard.</string>
+    <string name="music_nothing_playing">Nothing is playing</string>
+    <string name="music_nothing_hint">Open a music app to start, or say \"Hey Google, play something\".</string>
+    <string name="music_skip_previous">Skip previous</string>
+    <string name="music_play_pause">Play / pause</string>
+    <string name="music_skip_next">Skip next</string>
+
+    <!-- Dashboard footer: navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_phone">Phone</string>
+    <string name="nav_apps">Apps</string>
+    <string name="nav_music">Music</string>
+    <string name="nav_navigation">Navigation</string>
+    <string name="nav_browser">Browser</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Dashboard footer: status cluster -->
+    <string name="status_wifi_connected">Wi-Fi connected</string>
+    <string name="status_wifi_disconnected">Wi-Fi disconnected</string>
+    <string name="status_bluetooth_connected">Bluetooth connected</string>
+    <string name="status_bluetooth_disconnected">Bluetooth disconnected</string>
+    <string name="status_battery">Battery</string>
+    <string name="battery_percent">%1$d%%</string>
+    <string name="battery_percent_charging">%1$d%% ⚡</string>
+
+    <!-- App drawer -->
+    <string name="drawer_no_apps">No apps installed</string>
+    <string name="drawer_load_error">Couldn\'t load apps</string>
+    <string name="drawer_retry">Retry</string>
 </resources>
