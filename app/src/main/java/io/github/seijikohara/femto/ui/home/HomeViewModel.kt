@@ -171,7 +171,7 @@ internal class HomeViewModelFactory(
             )
         val geocoder = ReverseGeocoderRepository(locationFlow, nominatimApi)
         val weatherApi = OpenMeteoApi(client = httpClient)
-        val weather = WeatherRepository(weatherApi, locationFlow)
+        val weather = WeatherRepository(weatherApi, locationFlow, clockFlow)
         val music = MusicSessionRepository(application)
         val calendar = CalendarRepository(application, clockFlow)
         val systemStatus = SystemStatusRepository(application)

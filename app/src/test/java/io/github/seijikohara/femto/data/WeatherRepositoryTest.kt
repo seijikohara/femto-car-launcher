@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.data
 
 import app.cash.turbine.test
 import io.github.seijikohara.femto.testfixtures.fakeLocation
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -51,6 +52,7 @@ class WeatherRepositoryTest {
                 WeatherRepository(
                     api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
                     locationFlow = flowOf(fakeLocation()),
+                    clockFlow = emptyFlow(),
                     clock = Clock.fixed(Instant.parse("2026-05-01T05:32:00Z"), ZoneOffset.UTC),
                 )
 
@@ -78,6 +80,7 @@ class WeatherRepositoryTest {
                 WeatherRepository(
                     api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
                     locationFlow = flowOf(fakeLocation()),
+                    clockFlow = emptyFlow(),
                     clock = Clock.fixed(Instant.parse("2026-05-01T05:32:00Z"), ZoneOffset.UTC),
                 )
 
@@ -101,6 +104,7 @@ class WeatherRepositoryTest {
                 WeatherRepository(
                     api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
                     locationFlow = flowOf(fakeLocation()),
+                    clockFlow = emptyFlow(),
                     clock = Clock.fixed(Instant.parse("2026-05-01T05:32:00Z"), ZoneOffset.UTC),
                 )
 
@@ -125,6 +129,7 @@ class WeatherRepositoryTest {
                 WeatherRepository(
                     api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
                     locationFlow = flowOf(fakeLocation()),
+                    clockFlow = emptyFlow(),
                     clock = Clock.systemUTC(),
                 )
 
@@ -141,6 +146,7 @@ class WeatherRepositoryTest {
                 WeatherRepository(
                     api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
                     locationFlow = flowOf(null),
+                    clockFlow = emptyFlow(),
                     clock = Clock.systemUTC(),
                 )
 
@@ -167,6 +173,7 @@ class WeatherRepositoryTest {
                         clock.advanceBy(Duration.ofSeconds(10))
                         emit(fakeLocation())
                     },
+                    clockFlow = emptyFlow(),
                     clock = clock,
                 )
 
@@ -197,6 +204,7 @@ class WeatherRepositoryTest {
                         clock.advanceBy(Duration.ofSeconds(61))
                         emit(fakeLocation())
                     },
+                    clockFlow = emptyFlow(),
                     clock = clock,
                 )
 
@@ -207,6 +215,33 @@ class WeatherRepositoryTest {
             }
 
             assertEquals(2, server.requestCount)
+        }
+
+    @Test
+    fun `yields a snapshot from temperature and code when secondary current fields are missing`() =
+        runTest {
+            // A current block lacking apparent_temperature, windspeed_10m, and is_day
+            // must still decode (no MissingFieldException) and fall back to the air
+            // temperature and sensible defaults instead of discarding the reading.
+            server.enqueue(MockResponse().setBody(CURRENT_MINIMAL_BODY))
+
+            val repo =
+                WeatherRepository(
+                    api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
+                    locationFlow = flowOf(fakeLocation()),
+                    clockFlow = emptyFlow(),
+                    clock = Clock.fixed(Instant.parse("2026-05-01T05:32:00Z"), ZoneOffset.UTC),
+                )
+
+            repo.snapshotFlow().test {
+                val snapshot = assertNotNull(awaitItem())
+                assertEquals(18.5, snapshot.tempC, 0.0)
+                assertEquals(18.5, snapshot.apparentTempC, 0.0)
+                assertEquals(WeatherCode.CLEAR, snapshot.code)
+                assertEquals(0.0, snapshot.windKmh, 0.0)
+                assertTrue(snapshot.isDay)
+                cancelAndIgnoreRemainingEvents()
+            }
         }
 
     // Mutable clock whose instant the test advances explicitly to exercise the
@@ -261,6 +296,19 @@ class WeatherRepositoryTest {
                 "weathercode": [0, 2, 61],
                 "temperature_2m_max": [22.0, 23.0, 21.0],
                 "temperature_2m_min": [14.0, 15.0, 14.0]
+              }
+            }
+        """
+
+        // A current block carrying only the required temperature_2m + weathercode,
+        // with all secondary fields absent.
+        const val CURRENT_MINIMAL_BODY = """
+            {
+              "timezone": "Asia/Tokyo",
+              "current": {
+                "time": "2026-05-01T11:00",
+                "temperature_2m": 18.5,
+                "weathercode": 0
               }
             }
         """

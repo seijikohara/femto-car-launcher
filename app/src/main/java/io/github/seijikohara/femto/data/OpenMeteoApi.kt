@@ -53,12 +53,15 @@ internal class OpenMeteoApi(
     data class Current(
         val time: String,
         val temperature_2m: Double,
-        val apparent_temperature: Double,
         val weathercode: Int,
-        val windspeed_10m: Double,
+        // Secondary fields are nullable: a payload that drops them must still
+        // yield a usable temperature + code reading instead of failing decoding
+        // with MissingFieldException and discarding the whole snapshot.
+        val apparent_temperature: Double? = null,
+        val windspeed_10m: Double? = null,
         val relative_humidity_2m: Double? = null,
         val uv_index: Double? = null,
-        val is_day: Int,
+        val is_day: Int? = null,
     )
 
     @Serializable

@@ -1,8 +1,11 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import android.annotation.SuppressLint
+import android.content.ComponentCallbacks2
 import android.content.Context
+import android.content.res.Configuration
 import android.location.Location
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -36,6 +40,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPinOff
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import kotlinx.coroutines.delay
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.location.LocationComponentActivationOptions
@@ -120,8 +125,15 @@ private fun VectorMap(
 
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var loadFailed by remember { mutableStateOf(false) }
+    // OpenFreeMap is a no-SLA host: a single transient style/tile failure must
+    // not strand the fallback forever. retryTick re-keys the style effect to
+    // re-run setStyle; retryAttempt bounds the automatic retries so a hard
+    // outage settles on the fallback instead of looping indefinitely.
+    var retryTick by remember { mutableIntStateOf(0) }
+    var retryAttempt by remember { mutableIntStateOf(0) }
 
     ForwardLifecycle(mapView)
+    ForwardLowMemory(mapView)
 
     LaunchedEffect(mapView) {
         mapView.addOnDidFailLoadingMapListener { loadFailed = true }
@@ -143,13 +155,28 @@ private fun VectorMap(
     }
 
     // Re-apply the style (and re-activate the location layer it owns) whenever
-    // the map becomes ready or the system theme flips between light and dark.
-    LaunchedEffect(map, isDark) {
+    // the map becomes ready, the system theme flips, or a retry is scheduled.
+    // retryTick is in the key so a bumped tick re-runs setStyle.
+    LaunchedEffect(map, isDark, retryTick) {
         val ready = map ?: return@LaunchedEffect
         loadFailed = false
         ready.setStyle(styleFor(context, isDark)) { style ->
+            // A completed style load means the host answered: clear the attempt
+            // budget so a later, unrelated failure starts its backoff fresh.
+            retryAttempt = 0
             activateHeadingUp(context, ready, style)
             ready.locationComponent.forceLocationUpdate(location.withCarriedBearing(bearingHolder))
+        }
+    }
+
+    // When a load fails, schedule a bounded, exponentially backed-off retry by
+    // bumping retryTick. The delay grows 2s, 4s, 8s so a flapping host is given
+    // room to recover without hammering it; after MAX_RETRIES the fallback stays.
+    LaunchedEffect(loadFailed) {
+        if (loadFailed && retryAttempt < MAX_RETRIES) {
+            delay(RETRY_BASE_DELAY_MS shl retryAttempt)
+            retryAttempt += 1
+            retryTick += 1
         }
     }
 
@@ -168,9 +195,17 @@ private fun VectorMap(
             factory = { mapView },
         )
         // OpenFreeMap is a free, no-SLA service; a failed style/tile load shows
-        // the static fallback rather than a blank or black rectangle.
+        // the static fallback rather than a blank or black rectangle. A tap
+        // forces an immediate retry: reset the budget so the user gets a fresh
+        // round of backed-off attempts even after the automatic ones are spent.
         if (loadFailed) {
-            Fallback()
+            Fallback(
+                modifier =
+                    Modifier.clickable {
+                        retryAttempt = 0
+                        retryTick += 1
+                    },
+            )
         }
     }
 }
@@ -195,6 +230,31 @@ private fun ForwardLifecycle(mapView: MapView) {
             mapView.onStop()
             mapView.onDestroy()
         }
+    }
+}
+
+// MapView needs onLowMemory() to release its GL tile / glyph caches under
+// pressure; lifecycle events alone never deliver it. Head units are RAM-tight,
+// so forward both the explicit onLowMemory callback and onTrimMemory once the
+// system reaches RUNNING_LOW, before the OS starts killing background apps.
+@Composable
+private fun ForwardLowMemory(mapView: MapView) {
+    val context = LocalContext.current
+    DisposableEffect(context, mapView) {
+        val callbacks =
+            object : ComponentCallbacks2 {
+                override fun onLowMemory() = mapView.onLowMemory()
+
+                override fun onTrimMemory(level: Int) {
+                    if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+                        mapView.onLowMemory()
+                    }
+                }
+
+                override fun onConfigurationChanged(newConfig: Configuration) = Unit
+            }
+        context.registerComponentCallbacks(callbacks)
+        onDispose { context.unregisterComponentCallbacks(callbacks) }
     }
 }
 
@@ -241,9 +301,9 @@ private fun Location.withCarriedBearing(holder: FloatArray): Location =
     }
 
 @Composable
-private fun Fallback() =
+private fun Fallback(modifier: Modifier = Modifier) =
     Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
+        modifier = modifier.fillMaxSize().padding(32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -270,3 +330,8 @@ private fun Fallback() =
 private const val MAP_ZOOM = 15.0
 private const val POSITRON_STYLE_URL = "https://tiles.openfreemap.org/styles/positron"
 private const val DARK_STYLE_ASSET = "map/dark.json"
+
+// Automatic style-reload budget after a load failure. The delay is
+// RETRY_BASE_DELAY_MS shifted left by the attempt index, yielding 2s, 4s, 8s.
+private const val MAX_RETRIES = 3
+private const val RETRY_BASE_DELAY_MS = 2_000L
