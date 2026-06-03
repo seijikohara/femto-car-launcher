@@ -26,6 +26,9 @@ class DashboardScaffoldTest {
     fun renders_all_panels_when_data_is_present() {
         // location = null keeps the map pane on its static fallback, so the test
         // exercises the scaffold layout without standing up a MapLibre GL surface.
+        // The clock overlay self-times from the wall clock, so the dashboard has
+        // no deterministic time string to assert; the map fallback, weather,
+        // music, and footer panels carry the stable assertions instead.
         val uiState =
             HomeUiState.Initial.copy(
                 isLoading = false,
@@ -46,7 +49,7 @@ class DashboardScaffoldTest {
                 )
             }
         }
-        rule.onNodeWithText("14:32").assertIsDisplayed()
+        rule.onNodeWithText("Map unavailable").assertIsDisplayed()
         rule.onNodeWithText("Strobe").assertIsDisplayed()
         rule.onNodeWithContentDescription("Apps").assertIsDisplayed()
     }
