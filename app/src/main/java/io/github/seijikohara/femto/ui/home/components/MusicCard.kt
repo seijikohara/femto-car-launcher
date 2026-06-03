@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import android.os.SystemClock
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,6 +22,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,11 +48,13 @@ import com.composables.icons.lucide.SkipBack
 import com.composables.icons.lucide.SkipForward
 import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.data.NowPlaying
+import io.github.seijikohara.femto.data.sourceLabel
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.TabularFigures
 import io.github.seijikohara.femto.ui.theme.sectionLabel
+import kotlinx.coroutines.delay
 
 /**
  * Transport commands the dashboard can dispatch to the music session.
@@ -112,7 +117,13 @@ private fun PlayingState(
         title = nowPlaying.title,
         artist = nowPlaying.artist,
     )
-    Progress(positionMs = nowPlaying.positionMs, durationMs = nowPlaying.durationMs)
+    Progress(
+        positionMs = nowPlaying.positionMs,
+        durationMs = nowPlaying.durationMs,
+        positionUpdateTimeMs = nowPlaying.positionUpdateTimeMs,
+        isPlaying = nowPlaying.isPlaying,
+        playbackSpeed = nowPlaying.playbackSpeed,
+    )
     TransportRow(isPlaying = nowPlaying.isPlaying, onCommand = onCommand)
 }
 
@@ -220,10 +231,39 @@ private fun Meta(
 private fun Progress(
     positionMs: Long,
     durationMs: Long,
+    positionUpdateTimeMs: Long,
+    isPlaying: Boolean,
+    playbackSpeed: Float,
 ) {
+    // Interpolate the displayed position from the PlaybackState basis while
+    // playing, so the bar and elapsed label advance smoothly without waiting for
+    // the next session callback. Held at positionMs when paused.
+    val livePosition by
+        produceState(
+            initialValue = positionMs.coerceIn(0L, durationMs.coerceAtLeast(0L)),
+            positionMs,
+            positionUpdateTimeMs,
+            isPlaying,
+            playbackSpeed,
+            durationMs,
+        ) {
+            val maxMs = durationMs.coerceAtLeast(0L)
+            // Hold the reported position when paused, or when the session gives no
+            // valid update-time basis (a 0 basis would interpolate from boot and
+            // snap the bar to the end).
+            if (!isPlaying || positionUpdateTimeMs <= 0L) {
+                value = positionMs.coerceIn(0L, maxMs)
+                return@produceState
+            }
+            while (true) {
+                val elapsed = SystemClock.elapsedRealtime() - positionUpdateTimeMs
+                value = (positionMs + (elapsed * playbackSpeed)).toLong().coerceIn(0L, maxMs)
+                delay(500L)
+            }
+        }
     val fraction =
         if (durationMs > 0L) {
-            (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
+            (livePosition.toFloat() / durationMs).coerceIn(0f, 1f)
         } else {
             0f
         }
@@ -233,7 +273,7 @@ private fun Progress(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(
-            text = formatMillis(positionMs),
+            text = formatMillis(livePosition),
             style =
                 MaterialTheme.typography.labelSmall.copy(
                     fontSize = 11.sp,
@@ -422,15 +462,6 @@ private fun EmptyState() =
             modifier = Modifier.widthIn(max = 280.dp),
         )
         Box(modifier = Modifier.weight(0.9f))
-    }
-
-private fun sourceLabel(packageName: String): String =
-    when {
-        packageName.contains("spotify", ignoreCase = true) -> "Spotify"
-        packageName.contains("apple", ignoreCase = true) -> "Apple Music"
-        packageName.contains("youtube", ignoreCase = true) -> "YouTube Music"
-        packageName.contains("amazon", ignoreCase = true) -> "Amazon Music"
-        else -> "Now playing"
     }
 
 private fun formatMillis(ms: Long): String {
