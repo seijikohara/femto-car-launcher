@@ -5,7 +5,7 @@ import io.github.seijikohara.femto.data.SystemStatus
 internal fun fakeSystemStatus(
     wifiConnected: Boolean = true,
     bluetoothConnected: Boolean = true,
-    batteryPercent: Int = 78,
+    batteryPercent: Int? = 78,
     charging: Boolean = false,
 ): SystemStatus =
     SystemStatus(

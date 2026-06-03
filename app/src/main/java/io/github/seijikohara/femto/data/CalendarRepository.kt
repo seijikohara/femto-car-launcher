@@ -40,10 +40,11 @@ import java.util.Locale
  * event). The events query window is `today + 5 days` to match the 6-cell
  * strip on the calendar card.
  *
- * When `READ_CALENDAR` is denied the events list is empty; the day strip
- * and head still render from the clock alone. The calling UI treats a
- * null snapshot as "loading"; an empty events list with non-null snapshot
- * means "granted but nothing scheduled".
+ * When `READ_CALENDAR` is denied the snapshot still emits from the clock
+ * alone, but with `hasCalendarAccess = false` so the card renders the denial
+ * message rather than a hollow strip. The calling UI treats a null snapshot
+ * as "loading"; a non-null snapshot with `hasCalendarAccess = true` and an
+ * empty events list means "granted but nothing scheduled".
  */
 internal class CalendarRepository(
     private val context: Context,
@@ -82,6 +83,7 @@ internal class CalendarRepository(
             monthLabel = monthLabelOf(today),
             dayStrip = stripWithDots,
             events = events.take(EVENT_LIST_LIMIT),
+            hasCalendarAccess = granted,
         )
     }
 

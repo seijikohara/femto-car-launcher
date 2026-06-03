@@ -288,10 +288,15 @@ private fun EmptyState() =
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = stringResource(R.string.weather_unavailable),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        // The cold-start window reads as an error when shown as text. Per the
+        // spec the empty state is an icon-only placeholder with no error copy;
+        // the unavailable string moves to contentDescription so TalkBack still
+        // announces the state.
+        Icon(
+            imageVector = Lucide.Cloud,
+            contentDescription = stringResource(R.string.weather_unavailable),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(48.dp),
         )
     }
 

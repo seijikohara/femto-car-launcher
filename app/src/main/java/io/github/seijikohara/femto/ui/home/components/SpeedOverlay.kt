@@ -19,6 +19,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,6 +65,13 @@ import kotlin.math.roundToInt
  * The 40 sp speed numeral is the only saturated value here; the
  * supporting metrics use `onSurface` / `onSurfaceVariant` so the hero
  * number reads as the "thing you glance at" on the move.
+ *
+ * Live speed honours the permissions contract: with no fix
+ * (`location == null`) the hero cell shows an em-dash rather than "0",
+ * so a missing/denied location reads as "unknown", not "standstill". A
+ * 5-sample exponential moving average ([SPEED_OVERLAY_EMA_ALPHA])
+ * smooths the raw 1 Hz speed so the numeral stops flickering between
+ * adjacent integers on a steady cruise.
  */
 @Composable
 internal fun SpeedOverlay(
@@ -74,7 +85,20 @@ internal fun SpeedOverlay(
     // location.speed: cheap GPS chips leave Location.speed at 0.0
     // (hasSpeed() == false) while moving, which would pin the numeral to
     // zero. currentSpeedMs falls back to the position-derived speed.
-    val currentSpeed = speedUnit.fromMetersPerSecond(tripState.currentSpeedMs.toFloat()).roundToInt()
+    //
+    // The EMA accumulator is keyed off the latest fix so a new sample
+    // advances the average and a null fix (no location) resets it; the
+    // first non-null sample seeds the accumulator with itself.
+    val smoothedSpeedMs = remember { mutableStateOf<Float?>(null) }
+    smoothedSpeedMs.value =
+        location?.let { emaStep(smoothedSpeedMs.value, tripState.currentSpeedMs.toFloat(), SPEED_OVERLAY_EMA_ALPHA) }
+    val currentSpeedText by remember(speedUnit) {
+        derivedStateOf {
+            smoothedSpeedMs.value
+                ?.let { "${speedUnit.fromMetersPerSecond(it).roundToInt()}" }
+                ?: NO_SPEED_PLACEHOLDER
+        }
+    }
     val distance = speedUnit.tripDistanceFromMeters(tripState.distanceMeters)
     val avgSpeed = speedUnit.fromMetersPerSecond(tripState.avgSpeedMs.toFloat()).roundToInt()
     val shortAddress = address?.displayString().orEmpty()
@@ -96,7 +120,7 @@ internal fun SpeedOverlay(
                 ).padding(horizontal = 24.dp, vertical = 16.dp),
     ) {
         MetricRow(
-            currentSpeed = currentSpeed,
+            currentSpeed = currentSpeedText,
             speedUnitLabel = speedUnit.label(),
             distance = distance,
             distanceUnitLabel = speedUnit.distanceLabel(),
@@ -113,7 +137,7 @@ internal fun SpeedOverlay(
 
 @Composable
 private fun MetricRow(
-    currentSpeed: Int,
+    currentSpeed: String,
     speedUnitLabel: String,
     distance: Double,
     distanceUnitLabel: String,
@@ -134,14 +158,14 @@ private fun MetricRow(
 
 @Composable
 private fun NowMetric(
-    value: Int,
+    value: String,
     unit: String,
 ) = Row(
     verticalAlignment = Alignment.Bottom,
     horizontalArrangement = Arrangement.spacedBy(4.dp),
 ) {
     Text(
-        text = "$value",
+        text = value,
         style =
             MaterialTheme.typography.displayMedium.copy(
                 fontSize = 40.sp,
@@ -227,15 +251,61 @@ private fun AddressRow(text: String) =
         )
     }
 
+/**
+ * Advance an exponential moving average (EMA) by one sample.
+ *
+ * Return [sample] when [previous] is null so the first reading seeds the
+ * accumulator with itself; otherwise return the standard EMA update
+ * `previous + alpha * (sample - previous)`. A larger [alpha] weights the
+ * newest sample more heavily (faster response, less smoothing). The
+ * function is pure so the smoothing math is JVM-unit-testable in
+ * isolation from Compose.
+ */
+internal fun emaStep(
+    previous: Float?,
+    sample: Float,
+    alpha: Float,
+): Float = previous?.let { it + alpha * (sample - it) } ?: sample
+
+/**
+ * Roughly a 5-sample window: each sample retains `(1 - alpha)` of the
+ * prior estimate, so 0.33 settles a steady reading within ~5 ticks of
+ * the 1 Hz speed stream.
+ */
+private const val SPEED_OVERLAY_EMA_ALPHA = 0.33f
+
+// Em-dash stands in for the live speed when there is no fix, mirroring
+// the WeatherCard convention and the permissions contract (location
+// panels read empty until granted). It avoids the ambiguous "0".
+private const val NO_SPEED_PLACEHOLDER = "—"
+
 @PreviewLightDark
 @Preview(name = "Speed overlay", widthDp = 520, heightDp = 140)
 @Composable
 private fun SpeedOverlayPreview() {
     FemtoTheme {
+        // A non-null fix exercises the live-speed path so the hero numeral
+        // renders the smoothed value rather than the no-fix em-dash.
+        SpeedOverlay(
+            location = Location("preview").apply { speed = 13.2f },
+            address = ShortAddress(locality = "Minato-ku", region = "Tokyo"),
+            tripState = TripState(distanceMeters = 24_400.0, avgSpeedMs = 11.7, currentSpeedMs = 13.2),
+            speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+        )
+    }
+}
+
+@PreviewLightDark
+@Preview(name = "Speed overlay (no fix)", widthDp = 520, heightDp = 140)
+@Composable
+private fun SpeedOverlayNoFixPreview() {
+    FemtoTheme {
+        // No fix: the hero cell shows the em-dash placeholder while the
+        // distance stays "0.0" for a fresh trip.
         SpeedOverlay(
             location = null,
             address = ShortAddress(locality = "Minato-ku", region = "Tokyo"),
-            tripState = TripState(distanceMeters = 24_400.0, avgSpeedMs = 11.7, currentSpeedMs = 13.2),
+            tripState = TripState.Initial,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
         )
     }

@@ -24,6 +24,7 @@ internal fun fakeCalendarSnapshot(
             EventItem(LocalTime.of(10, 30), "Team standup"),
             EventItem(LocalTime.of(14, 0), "Pick up kids"),
         ),
+    hasCalendarAccess: Boolean = true,
 ): CalendarSnapshot =
     CalendarSnapshot(
         today = today,
@@ -31,4 +32,5 @@ internal fun fakeCalendarSnapshot(
         monthLabel = monthLabel,
         dayStrip = dayStrip,
         events = events,
+        hasCalendarAccess = hasCalendarAccess,
     )

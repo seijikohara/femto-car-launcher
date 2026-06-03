@@ -48,7 +48,7 @@ internal class SystemStatusRepository(
         combine(
             wifiFlow().onStart { emit(false) },
             bluetoothFlow().onStart { emit(false) },
-            batteryFlow().onStart { emit(BatteryReading(0, false)) },
+            batteryFlow().onStart { emit(BatteryReading(percent = null, charging = false)) },
         ) { wifi, bt, battery ->
             SystemStatus(
                 wifiConnected = wifi,
@@ -137,7 +137,9 @@ internal class SystemStatusRepository(
                 if (intent != null) {
                     val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
                     val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
-                    val percent = if (level >= 0 && scale > 0) level * 100 / scale else 0
+                    // Null when the reading is unavailable; clamp the valid value here
+                    // so this SSOT is the only place the 0..100 range is enforced.
+                    val percent = if (level >= 0 && scale > 0) (level * 100 / scale).coerceIn(0, 100) else null
                     val plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
                     trySend(BatteryReading(percent = percent, charging = plugged != 0))
                 }
@@ -159,7 +161,7 @@ internal class SystemStatusRepository(
         }
 
     private data class BatteryReading(
-        val percent: Int,
+        val percent: Int?,
         val charging: Boolean,
     )
 }
