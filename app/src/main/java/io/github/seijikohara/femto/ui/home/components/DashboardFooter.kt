@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -30,6 +32,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Battery
@@ -50,6 +53,11 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.TabularFigures
+
+// Below this footer width the read-only status cluster is dropped so the seven
+// nav buttons keep room to render at >= FemtoDimens.MinTouchTarget without
+// clipping on portrait / narrow head units.
+private val CompactFooterWidth: Dp = 640.dp
 
 /**
  * Bottom dock per `docs/design/dashboard-v2-mockup.html` `.footer`:
@@ -77,28 +85,38 @@ internal fun DashboardFooter(
 ) {
     Column {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Row(
+        BoxWithConstraints(
             modifier =
                 Modifier
                     .fillMaxSize()
                     .padding(horizontal = 24.dp),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            NavRow(
-                onAction = onAction,
-                modifier = Modifier.weight(1f),
-            )
-            VerticalDivider(
-                modifier =
-                    Modifier
-                        .padding(start = 4.dp)
-                        .height(48.dp),
-                color = MaterialTheme.colorScheme.outlineVariant,
-            )
-            StatusCluster(
-                status = systemStatus,
-                modifier = Modifier.padding(start = 20.dp),
-            )
+            // Seven 64 dp buttons plus the cluster need ~707 dp with zero slack;
+            // narrow portrait head units cannot fit both. Below the threshold the
+            // read-only status cluster yields so the actionable nav stays uncut.
+            val showStatusCluster = maxWidth >= CompactFooterWidth
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                NavRow(
+                    onAction = onAction,
+                    modifier = Modifier.weight(1f),
+                )
+                if (showStatusCluster) {
+                    VerticalDivider(
+                        modifier =
+                            Modifier
+                                .padding(start = 4.dp)
+                                .height(48.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                    )
+                    StatusCluster(
+                        status = systemStatus,
+                        modifier = Modifier.padding(start = 20.dp),
+                    )
+                }
+            }
         }
     }
 }
@@ -112,47 +130,57 @@ private fun NavRow(
     horizontalArrangement = Arrangement.SpaceBetween,
     verticalAlignment = Alignment.CenterVertically,
 ) {
+    // Each button takes an equal weight so seven buttons share the width and
+    // shrink toward FemtoDimens.MinTouchTarget instead of clipping when the row
+    // is narrow. The widthIn floor in NavButton keeps every tap target legal.
     NavButton(
         icon = Lucide.House,
         description = stringResource(R.string.nav_home),
         active = true,
         onClick = { /* already on home */ },
+        modifier = Modifier.weight(1f),
     )
     NavButton(
         icon = Lucide.Phone,
         description = stringResource(R.string.nav_phone),
         active = false,
         onClick = { onAction(HomeAction.Shortcut(AppsBarShortcut.Phone)) },
+        modifier = Modifier.weight(1f),
     )
     NavButton(
         icon = Lucide.LayoutGrid,
         description = stringResource(R.string.nav_apps),
         active = false,
         onClick = { onAction(HomeAction.OpenAppDrawer) },
+        modifier = Modifier.weight(1f),
     )
     NavButton(
         icon = Lucide.Music,
         description = stringResource(R.string.nav_music),
         active = false,
         onClick = { onAction(HomeAction.Shortcut(AppsBarShortcut.Music)) },
+        modifier = Modifier.weight(1f),
     )
     NavButton(
         icon = Lucide.Navigation,
         description = stringResource(R.string.nav_navigation),
         active = false,
         onClick = { onAction(HomeAction.OpenMaps) },
+        modifier = Modifier.weight(1f),
     )
     NavButton(
         icon = Lucide.Globe,
         description = stringResource(R.string.nav_browser),
         active = false,
         onClick = { onAction(HomeAction.OpenBrowser) },
+        modifier = Modifier.weight(1f),
     )
     NavButton(
         icon = Lucide.Settings,
         description = stringResource(R.string.nav_settings),
         active = false,
         onClick = { onAction(HomeAction.OpenSettings) },
+        modifier = Modifier.weight(1f),
     )
 }
 
@@ -162,6 +190,7 @@ private fun NavButton(
     description: String,
     active: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val background =
         if (active) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
@@ -169,12 +198,14 @@ private fun NavButton(
         if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
     Box(
         modifier =
-            Modifier
+            modifier
                 .height(FemtoDimens.MinTouchTarget)
-                .width(72.dp)
+                .widthIn(min = FemtoDimens.MinTouchTarget)
                 .clip(RoundedCornerShape(14.dp))
                 .background(background)
-                .clickable(onClick = onClick)
+                // The active Home button is the current surface — skip clickable so
+                // it shows no dead-tap ripple.
+                .then(if (active) Modifier else Modifier.clickable(onClick = onClick))
                 .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {
@@ -239,6 +270,7 @@ private fun StatusIcon(
     icon: ImageVector,
     active: Boolean,
     description: String,
+    modifier: Modifier = Modifier,
 ) {
     val tint =
         if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
@@ -246,15 +278,17 @@ private fun StatusIcon(
         imageVector = icon,
         contentDescription = description,
         tint = tint,
-        modifier = Modifier.size(20.dp),
+        modifier = modifier.size(20.dp),
     )
 }
 
 @Composable
 private fun BatteryIndicator(
-    percent: Int,
+    percent: Int?,
     charging: Boolean,
+    modifier: Modifier = Modifier,
 ) = Row(
+    modifier = modifier,
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(6.dp),
 ) {
@@ -265,11 +299,17 @@ private fun BatteryIndicator(
         modifier = Modifier.size(20.dp),
     )
     Text(
+        // Render an em-dash while the percent is unknown (cold start / battery-less
+        // unit) so the cluster never reads as a dead 0% battery.
         text =
-            stringResource(
-                if (charging) R.string.battery_percent_charging else R.string.battery_percent,
-                percent,
-            ),
+            if (percent == null) {
+                "—"
+            } else {
+                stringResource(
+                    if (charging) R.string.battery_percent_charging else R.string.battery_percent,
+                    percent,
+                )
+            },
         style =
             MaterialTheme.typography.labelLarge.copy(
                 fontSize = 13.sp,
@@ -292,6 +332,25 @@ private fun DashboardFooterPreview() {
                     wifiConnected = true,
                     bluetoothConnected = true,
                     batteryPercent = 78,
+                    charging = false,
+                ),
+            onAction = {},
+        )
+    }
+}
+
+// Narrow portrait head unit: the status cluster drops and the nav buttons share
+// the width down toward FemtoDimens.MinTouchTarget rather than clipping.
+@Preview(name = "Dashboard footer (narrow)", widthDp = 520, heightDp = 80)
+@Composable
+private fun DashboardFooterNarrowPreview() {
+    FemtoTheme {
+        DashboardFooter(
+            systemStatus =
+                SystemStatus(
+                    wifiConnected = true,
+                    bluetoothConnected = false,
+                    batteryPercent = null,
                     charging = false,
                 ),
             onAction = {},

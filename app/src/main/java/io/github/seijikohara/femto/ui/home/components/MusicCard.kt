@@ -408,11 +408,14 @@ private fun ConnectState(onConnect: () -> Unit) =
             )
             Box(modifier = Modifier.height(4.dp))
             Text(
+                // Actionable copy the user must read to unlock the card: clear
+                // the head-unit glance floor (CLAUDE.md#automotive-overrides),
+                // unlike the sanctioned 13sp NoActiveSession EmptyState hint.
                 text = stringResource(R.string.music_connect_hint),
                 style =
-                    MaterialTheme.typography.bodySmall.copy(
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp,
+                    MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = FemtoDimens.MinBodyTextSize,
+                        lineHeight = FemtoDimens.MinBodyTextSize * 1.33f,
                     ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

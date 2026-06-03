@@ -13,7 +13,10 @@ import androidx.compose.runtime.Immutable
 data class SystemStatus(
     val wifiConnected: Boolean,
     val bluetoothConnected: Boolean,
-    val batteryPercent: Int,
+    // Null until the first battery reading arrives, or on battery-less units —
+    // distinguishes "unknown" from a genuine 0% so the footer never reads as a
+    // dead battery during cold start.
+    val batteryPercent: Int?,
     val charging: Boolean,
 ) {
     companion object {
@@ -21,7 +24,7 @@ data class SystemStatus(
             SystemStatus(
                 wifiConnected = false,
                 bluetoothConnected = false,
-                batteryPercent = 0,
+                batteryPercent = null,
                 charging = false,
             )
     }

@@ -12,8 +12,10 @@ import java.time.LocalTime
  * the next few events. The strip is always six entries starting at [today]
  * so the card can iterate without size guards.
  *
- * `null` is used at the [HomeUiState] level to denote "not loaded yet or
- * permission denied"; the card renders an empty state in that case.
+ * `null` denotes "not loaded yet" only. Permission denial is carried
+ * in-band by [hasCalendarAccess]: a non-null snapshot with
+ * [hasCalendarAccess] == false tells the card to render the denial message
+ * instead of an empty strip plus a misleading "no upcoming events".
  */
 @Immutable
 data class CalendarSnapshot(
@@ -22,6 +24,9 @@ data class CalendarSnapshot(
     val monthLabel: String,
     val dayStrip: List<DayCell>,
     val events: List<EventItem>,
+    // false means READ_CALENDAR is denied, so the strip / event sections carry
+    // no real data and the card shows the denial message instead.
+    val hasCalendarAccess: Boolean,
 )
 
 @Immutable

@@ -72,12 +72,25 @@ internal fun CalendarCard(
                 .padding(FemtoDimens.CardPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (snapshot != null) {
-            Head(snapshot)
-            Strip(snapshot.dayStrip)
-            Events(snapshot.events)
-        } else {
-            EmptyState()
+        when {
+            // null is the loading frame: render nothing rather than a denial
+            // message the user has not earned yet.
+            snapshot == null -> {
+                Unit
+            }
+
+            // A non-null snapshot with access denied carries no real strip /
+            // event data, so show the denial message instead of a hollow strip
+            // plus a misleading "no upcoming events".
+            !snapshot.hasCalendarAccess -> {
+                PermissionDenied()
+            }
+
+            else -> {
+                Head(snapshot)
+                Strip(snapshot.dayStrip)
+                Events(snapshot.events)
+            }
         }
     }
 }
@@ -260,7 +273,7 @@ private fun EventRow(
 }
 
 @Composable
-private fun EmptyState() =
+private fun PermissionDenied() =
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
@@ -298,6 +311,7 @@ private fun CalendarCardPreview() {
                             EventItem(LocalTime.of(10, 30), "Team standup"),
                             EventItem(LocalTime.of(14, 0), "Pick up kids"),
                         ),
+                    hasCalendarAccess = true,
                 ),
         )
     }

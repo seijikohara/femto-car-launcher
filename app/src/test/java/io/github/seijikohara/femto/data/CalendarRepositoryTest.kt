@@ -26,6 +26,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -49,6 +50,9 @@ class CalendarRepositoryTest {
             val snapshot = repository.snapshotFlow().first()
 
             assertNotNull(snapshot)
+            // The snapshot must mark access denied in-band so the card can
+            // render the denial message rather than a hollow strip.
+            assertFalse(snapshot.hasCalendarAccess)
             assertTrue(snapshot.events.isEmpty())
             assertEquals(6, snapshot.dayStrip.size)
         }
@@ -101,6 +105,9 @@ class CalendarRepositoryTest {
 
             val snapshot = repository.snapshotFlow().first()
             assertNotNull(snapshot)
+            // The permission is granted here, so the snapshot must report
+            // access true (the mirror of the denied-path assertion above).
+            assertTrue(snapshot.hasCalendarAccess)
 
             // The event day is one day after today, so a correct read dots the
             // second strip cell and leaves today (cell 0) undotted; a system-zone
