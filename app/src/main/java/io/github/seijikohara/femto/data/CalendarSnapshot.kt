@@ -33,6 +33,8 @@ data class DayCell(
 
 @Immutable
 data class EventItem(
-    val time: LocalTime,
+    // null marks an all-day event: it has no clock time, so the card renders
+    // an "all day" label instead of a formatted time.
+    val time: LocalTime?,
     val title: String,
 )

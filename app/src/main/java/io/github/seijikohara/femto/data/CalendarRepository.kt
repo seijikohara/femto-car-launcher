@@ -11,6 +11,7 @@ import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
 import android.provider.CalendarContract
+import android.text.format.DateFormat
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
@@ -21,9 +22,12 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.onStart
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -75,11 +79,26 @@ internal class CalendarRepository(
         return CalendarSnapshot(
             today = today,
             weekday = today.dayOfWeek.getDisplayName(TextStyle.FULL, locale),
-            monthLabel = "${today.month.getDisplayName(TextStyle.FULL, locale)} ${today.year}",
+            monthLabel = monthLabelOf(today),
             dayStrip = stripWithDots,
             events = events.take(EVENT_LIST_LIMIT),
         )
     }
+
+    /**
+     * Format the "month year" head label using the locale's preferred field
+     * order. `getBestDateTimePattern` resolves the skeleton "yMMMM" to e.g.
+     * "MMMM y" for en (March 2026) but a year-first pattern for ja / ko
+     * (2026年3月). A hand-joined "Month Year" string would force English
+     * ordering on every locale.
+     */
+    private fun monthLabelOf(today: LocalDate): String =
+        today.format(
+            DateTimeFormatter.ofPattern(
+                DateFormat.getBestDateTimePattern(locale, "yMMMM"),
+                locale,
+            ),
+        )
 
     private fun hasPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR) ==
@@ -110,17 +129,18 @@ internal class CalendarRepository(
             context.contentResolver
                 .query(
                     uri,
-                    arrayOf(CalendarContract.Instances.BEGIN),
+                    arrayOf(
+                        CalendarContract.Instances.BEGIN,
+                        CalendarContract.Instances.ALL_DAY,
+                    ),
                     null,
                     null,
                     "${CalendarContract.Instances.BEGIN} ASC",
                 )?.use { cursor ->
                     while (cursor.moveToNext()) {
                         val startMs = cursor.getLong(0)
-                        dates += java.time.Instant
-                            .ofEpochMilli(startMs)
-                            .atZone(zone)
-                            .toLocalDate()
+                        val allDay = cursor.getInt(1) != 0
+                        dates += localDateOf(startMs, allDay)
                     }
                 }
             dates.toSet()
@@ -140,7 +160,7 @@ internal class CalendarRepository(
             .let { ContentUris.appendId(it, begin) }
             .let { ContentUris.appendId(it, end) }
             .build()
-        val now = java.time.Instant
+        val now = Instant
             .now()
             .toEpochMilli()
         // A mid-stream permission revoke (SecurityException) or an OEM provider
@@ -153,6 +173,7 @@ internal class CalendarRepository(
                     arrayOf(
                         CalendarContract.Instances.BEGIN,
                         CalendarContract.Instances.TITLE,
+                        CalendarContract.Instances.ALL_DAY,
                     ),
                     "${CalendarContract.Instances.BEGIN} >= ?",
                     arrayOf(now.toString()),
@@ -161,8 +182,12 @@ internal class CalendarRepository(
                     while (cursor.moveToNext() && items.size < EVENT_LIST_LIMIT) {
                         val startMs = cursor.getLong(0)
                         val title = cursor.getString(1) ?: continue
+                        val allDay = cursor.getInt(2) != 0
                         items += EventItem(
-                            time = LocalTime.ofInstant(java.time.Instant.ofEpochMilli(startMs), zone),
+                            // All-day rows carry no clock time; surface null so
+                            // the card renders an "all day" label instead of a
+                            // spurious 00:00 derived from the system zone.
+                            time = if (allDay) null else LocalTime.ofInstant(Instant.ofEpochMilli(startMs), zone),
                             title = title,
                         )
                     }
@@ -170,6 +195,23 @@ internal class CalendarRepository(
             items.toList()
         }.getOrDefault(emptyList())
     }
+
+    /**
+     * Resolve an Instances.BEGIN epoch-millis to the local calendar day.
+     *
+     * All-day instances store BEGIN as UTC midnight of the event day, so they
+     * must be read with [ZoneOffset.UTC]; applying the system zone west of UTC
+     * shifts the day one earlier. Timed instances are absolute instants and
+     * resolve in the system [zone].
+     */
+    private fun localDateOf(
+        startMs: Long,
+        allDay: Boolean,
+    ): LocalDate =
+        Instant
+            .ofEpochMilli(startMs)
+            .atZone(if (allDay) ZoneOffset.UTC else zone)
+            .toLocalDate()
 
     /**
      * Re-emit whenever the calendar provider notifies a change. Debounced

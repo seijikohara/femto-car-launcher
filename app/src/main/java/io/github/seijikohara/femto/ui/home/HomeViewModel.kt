@@ -111,7 +111,14 @@ internal class HomeViewModel(
             }
 
             HomeAction.OpenMaps -> {
-                mutableEvents.tryEmit(HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_MAPS))
+                // Carry the latest fix so the maps app opens at the user's
+                // position; fall back to the category launcher (maps home) when
+                // no location has arrived yet.
+                mutableEvents.tryEmit(
+                    uiState.value.location
+                        ?.let { HomeEvent.LaunchGeo(it.latitude, it.longitude) }
+                        ?: HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_MAPS),
+                )
             }
 
             is HomeAction.Shortcut -> {
