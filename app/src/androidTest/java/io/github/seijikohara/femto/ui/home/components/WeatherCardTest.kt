@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import io.github.seijikohara.femto.data.WeatherCode
 import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
+import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
@@ -22,6 +23,7 @@ class WeatherCardTest {
                     snapshot = fakeWeatherSnapshot(tempC = 18.0),
                     city = "Shibuya",
                     temperatureUnit = TemperatureUnit.CELSIUS,
+                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                 )
             }
         }
@@ -37,6 +39,7 @@ class WeatherCardTest {
                     snapshot = null,
                     city = "Shibuya",
                     temperatureUnit = TemperatureUnit.CELSIUS,
+                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                 )
             }
         }
@@ -51,6 +54,7 @@ class WeatherCardTest {
                     snapshot = fakeWeatherSnapshot(code = WeatherCode.PARTLY_CLOUDY),
                     city = "Shibuya",
                     temperatureUnit = TemperatureUnit.CELSIUS,
+                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                 )
             }
         }
@@ -66,6 +70,7 @@ class WeatherCardTest {
                     snapshot = fakeWeatherSnapshot(),
                     city = "Shibuya",
                     temperatureUnit = TemperatureUnit.CELSIUS,
+                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                 )
             }
         }
@@ -82,6 +87,7 @@ class WeatherCardTest {
                     snapshot = fakeWeatherSnapshot(),
                     city = "Shibuya",
                     temperatureUnit = TemperatureUnit.CELSIUS,
+                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                 )
             }
         }

@@ -75,6 +75,7 @@ internal fun DashboardScaffold(
         InfoPane(
             uiState = uiState,
             temperatureUnit = temperatureUnit,
+            speedUnit = speedUnit,
             onAction = onAction,
             modifier = Modifier.weight(1f).fillMaxHeight(),
         )
@@ -122,6 +123,7 @@ private fun MapPane(
 private fun InfoPane(
     uiState: HomeUiState,
     temperatureUnit: TemperatureUnit,
+    speedUnit: SpeedUnit,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(
@@ -143,6 +145,7 @@ private fun InfoPane(
             snapshot = uiState.weather,
             city = uiState.address?.locality,
             temperatureUnit = temperatureUnit,
+            speedUnit = speedUnit,
             modifier = Modifier.weight(1f).fillMaxHeight(),
         )
     }

@@ -7,6 +7,7 @@ import io.github.seijikohara.femto.data.ClockTick
 import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
+import io.github.seijikohara.femto.testfixtures.fakeLocation
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.testfixtures.fakeSystemStatus
 import io.github.seijikohara.femto.testfixtures.fakeTripState
@@ -100,6 +101,37 @@ class HomeViewModelTest {
                 action = HomeAction.OpenMaps,
                 expected = HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_MAPS),
             )
+        }
+
+    @Test
+    fun `onAction OpenMaps emits LaunchGeo at the latest location when present`() =
+        runTest {
+            val location = fakeLocation()
+            val viewModel =
+                HomeViewModel(
+                    clockFlow = flowOf(ClockTick(LocalTime.of(14, 32), LocalDate.of(2026, 5, 1))),
+                    locationFlow = flowOf(location),
+                    addressFlow = flowOf(fakeAddress()),
+                    weatherFlow = flowOf(fakeWeatherSnapshot()),
+                    musicStateFlow = flowOf(MusicCardState.Playing(fakeNowPlaying())),
+                    calendarFlow = flowOf(fakeCalendarSnapshot()),
+                    systemStatusFlow = flowOf(fakeSystemStatus()),
+                    tripStateFlow = flowOf(fakeTripState()),
+                )
+            // uiState uses WhileSubscribed, so collect it first to make the
+            // StateFlow value live before onAction reads uiState.value.location.
+            viewModel.uiState.test {
+                assertNotNull(awaitItem().location)
+                viewModel.events.test {
+                    viewModel.onAction(HomeAction.OpenMaps)
+                    assertEquals(
+                        HomeEvent.LaunchGeo(location.latitude, location.longitude),
+                        awaitItem(),
+                    )
+                    cancelAndIgnoreRemainingEvents()
+                }
+                cancelAndIgnoreRemainingEvents()
+            }
         }
 
     @Test

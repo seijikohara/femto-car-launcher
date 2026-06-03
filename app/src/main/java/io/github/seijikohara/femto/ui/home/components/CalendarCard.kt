@@ -201,7 +201,10 @@ private fun Events(events: List<EventItem>) =
         } else {
             events.forEachIndexed { index, event ->
                 EventRow(
-                    time = event.time.format(EventTimeFormatter),
+                    // A null time marks an all-day event. The plain string is a
+                    // placeholder; a later task sweeps UI copy to string
+                    // resources.
+                    time = event.time?.format(EventTimeFormatter) ?: "All day",
                     title = event.title,
                     isPrimary = index == 0,
                 )

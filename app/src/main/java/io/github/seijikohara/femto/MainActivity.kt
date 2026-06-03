@@ -3,6 +3,7 @@ package io.github.seijikohara.femto
 import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -68,6 +69,7 @@ class MainActivity : ComponentActivity() {
             HomeEvent.OpenDrawer -> setShowDrawer(true)
             is HomeEvent.LaunchComponent -> appsRepository.launch(event.component)
             is HomeEvent.LaunchAppCategory -> launchAppCategory(event.intentCategory)
+            is HomeEvent.LaunchGeo -> launchGeo(event.latitude, event.longitude)
             HomeEvent.OpenNotificationListenerSettings -> openNotificationListenerSettings()
             HomeEvent.OpenSystemSettings -> openSystemSettings()
         }
@@ -87,6 +89,18 @@ class MainActivity : ComponentActivity() {
         val intent =
             Intent
                 .makeMainSelectorActivity(Intent.ACTION_MAIN, category)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivityIfResolved(intent)
+    }
+
+    private fun launchGeo(
+        latitude: Double,
+        longitude: Double,
+    ) {
+        // A bare geo: URI lets whichever maps app the user has elected resolve
+        // the position — no provider or package is hard-coded.
+        val intent =
+            Intent(Intent.ACTION_VIEW, Uri.parse("geo:$latitude,$longitude?z=$MAPS_ZOOM_LEVEL"))
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivityIfResolved(intent)
     }
@@ -158,3 +172,7 @@ private fun isProbablyEmulator(): Boolean =
         Build.BRAND.startsWith("generic")
 
 private const val QEMU_PROPERTY = "ro.kernel.qemu"
+
+// Street-level zoom for the geo: handoff — close enough to read nearby roads
+// without dropping below neighbourhood context.
+private const val MAPS_ZOOM_LEVEL = 15

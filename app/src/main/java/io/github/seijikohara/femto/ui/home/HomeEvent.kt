@@ -28,6 +28,17 @@ internal sealed interface HomeEvent {
         val intentCategory: String,
     ) : HomeEvent
 
+    /**
+     * Open whichever maps app handles a `geo:` URI, centred on the given
+     * coordinates. The event carries only the position; the host builds the
+     * package-agnostic `geo:` intent so the user's elected maps app resolves it,
+     * rather than hard-coding a provider or scheme.
+     */
+    data class LaunchGeo(
+        val latitude: Double,
+        val longitude: Double,
+    ) : HomeEvent
+
     /** Open the system "Notification listener access" settings so the user can grant our NLS. */
     data object OpenNotificationListenerSettings : HomeEvent
 

@@ -35,9 +35,11 @@ import com.composables.icons.lucide.Sun
 import io.github.seijikohara.femto.data.HourlyForecast
 import io.github.seijikohara.femto.data.WeatherCode
 import io.github.seijikohara.femto.data.WeatherSnapshot
+import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.locale.fromCelsius
 import io.github.seijikohara.femto.ui.locale.label
+import io.github.seijikohara.femto.ui.locale.windLabel
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
@@ -70,6 +72,7 @@ internal fun WeatherCard(
     snapshot: WeatherSnapshot?,
     city: String?,
     temperatureUnit: TemperatureUnit,
+    speedUnit: SpeedUnit,
     modifier: Modifier = Modifier,
 ) = Surface(
     modifier = modifier,
@@ -86,7 +89,7 @@ internal fun WeatherCard(
     ) {
         if (snapshot != null) {
             Head(snapshot, city, temperatureUnit)
-            Metrics(snapshot, temperatureUnit)
+            Metrics(snapshot, temperatureUnit, speedUnit)
             Forecast(snapshot.hourly, temperatureUnit)
         } else {
             EmptyState()
@@ -174,13 +177,13 @@ private fun Head(
 private fun Metrics(
     snapshot: WeatherSnapshot,
     temperatureUnit: TemperatureUnit,
+    speedUnit: SpeedUnit,
 ) = Row(
     modifier = Modifier.fillMaxWidth(),
     horizontalArrangement = Arrangement.spacedBy(16.dp),
 ) {
     Metric(label = "FEELS", value = "${temperatureUnit.fromCelsius(snapshot.apparentTempC).roundToInt()}°")
-    val windMs = (snapshot.windKmh / 3.6).roundToInt()
-    Metric(label = "WIND", value = "$windMs m/s")
+    Metric(label = "WIND", value = windLabel(snapshot.windKmh, speedUnit))
     val humidityLabel = snapshot.humidityPercent?.let { "$it%" } ?: "—"
     Metric(label = "HUMID.", value = humidityLabel)
 }
@@ -365,6 +368,7 @@ private fun WeatherCardPreview() {
                 ),
             city = "Košice",
             temperatureUnit = TemperatureUnit.CELSIUS,
+            speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
         )
     }
 }
