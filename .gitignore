@@ -29,3 +29,10 @@ local.properties
 
 # Playwright MCP run artifacts (screenshots, traces)
 /.playwright-mcp/
+
+# Signing keystores and secret material — never commit (rotate if leaked)
+*.jks
+*.keystore
+*.p12
+*.b64
+keystore.properties
