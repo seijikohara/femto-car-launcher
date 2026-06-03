@@ -51,6 +51,15 @@ object FemtoDimens {
     /** Corner radius for glass overlays on the map pane. */
     val OverlayCorner = 16.dp
 
+    /**
+     * Corner radius for the speed overlay on the map pane. Deliberately
+     * distinct from [OverlayCorner] (16 dp): the speed overlay carries a
+     * larger 20 dp corner per `docs/design/dashboard-v2-mockup.html`
+     * `.speed-overlay`, so the two tokens stay separate rather than reusing
+     * [OverlayCorner].
+     */
+    val SpeedOverlayCorner = 20.dp
+
     /** Weather glyph beside the city name in the weather card head row. */
     val WeatherGlyphLarge = 20.dp
 

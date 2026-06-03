@@ -1,3 +1,7 @@
+> **SUPERSEDED (2026-06-03).** This document is historical. The shipped architecture
+> replaced Google Maps with MapLibre + OpenFreeMap and the AOSP Geocoder with OSM
+> Nominatim; CLAUDE.md is the authoritative SSOT. Do not implement from this doc.
+
 # Home Dashboard (Plan B) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

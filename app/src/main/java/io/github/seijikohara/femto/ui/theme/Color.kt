@@ -17,22 +17,58 @@ private val Night = Color(0xFF050505)
 private val NightSurface = Color(0xFF0A0A0A)
 private val Bone = Color.White
 
+// Muted monochrome roles derived from the Ink/Paper and Bone/Night anchors.
+// The dashboard reads onSurfaceVariant, outlineVariant, surfaceContainer,
+// surfaceContainerHigh, primaryContainer, onPrimaryContainer, outline, and
+// tertiary; left unset they fall back to the M3 baseline purple/teal, which
+// contradicts the Bold Minimal monochrome aesthetic in previews. Deriving
+// them here as greys keeps the preview fallback in the same palette family as
+// the production dynamic-color path.
+
+// Light: greys stepping from Ink towards Paper.
+private val InkMuted = Color(0xFF5A5A5A) // secondary ink for variant text
+private val InkHairline = Color(0xFFD9D9D9) // hairline outlines on paper
+private val PaperRaised = Color(0xFFF0F0F0) // first container tier above surface
+private val PaperRaisedHigh = Color(0xFFE8E8E8) // second container tier
+
+// Dark: greys stepping from Bone towards Night.
+private val BoneMuted = Color(0xFFB0B0B0) // secondary bone text for variant roles
+private val BoneHairline = Color(0xFF2E2E2E) // hairline outlines on night
+private val NightRaised = Color(0xFF161616) // first container tier above surface
+private val NightRaisedHigh = Color(0xFF1F1F1F) // second container tier
+
 internal val LightFallback =
     lightColorScheme(
         primary = Ink,
         onPrimary = PaperPure,
+        primaryContainer = PaperRaisedHigh,
+        onPrimaryContainer = Ink,
+        tertiary = Ink,
         background = Paper,
         onBackground = Ink,
         surface = PaperPure,
         onSurface = Ink,
+        onSurfaceVariant = InkMuted,
+        surfaceContainer = PaperRaised,
+        surfaceContainerHigh = PaperRaisedHigh,
+        outline = InkMuted,
+        outlineVariant = InkHairline,
     )
 
 internal val DarkFallback =
     darkColorScheme(
         primary = Bone,
         onPrimary = Night,
+        primaryContainer = NightRaisedHigh,
+        onPrimaryContainer = Bone,
+        tertiary = Bone,
         background = Night,
         onBackground = Bone,
         surface = NightSurface,
         onSurface = Bone,
+        onSurfaceVariant = BoneMuted,
+        surfaceContainer = NightRaised,
+        surfaceContainerHigh = NightRaisedHigh,
+        outline = BoneMuted,
+        outlineVariant = BoneHairline,
     )

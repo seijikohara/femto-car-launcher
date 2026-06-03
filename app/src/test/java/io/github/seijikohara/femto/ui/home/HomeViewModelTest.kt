@@ -32,7 +32,6 @@ import java.time.LocalDate
 import java.time.LocalTime
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -51,26 +50,36 @@ class HomeViewModelTest {
     @Test
     fun `combines all flows into one HomeUiState`() =
         runTest {
+            // Each source carries a distinct, identity-checkable value so the
+            // assertions below pin every field to its own flow. A future reorder
+            // of the two-stage combine (or its CoreSignals holder) that swaps two
+            // same-typed slots is caught here rather than slipping through.
+            val clock = ClockTick(LocalTime.of(14, 32), LocalDate.of(2026, 5, 1))
+            val location = fakeLocation()
+            val address = fakeAddress()
+            val weather = fakeWeatherSnapshot()
+            val musicState = MusicCardState.Playing(fakeNowPlaying())
             val calendar = fakeCalendarSnapshot()
             val systemStatus = fakeSystemStatus()
             val tripState = fakeTripState()
             val viewModel =
                 HomeViewModel(
-                    clockFlow = flowOf(ClockTick(LocalTime.of(14, 32), LocalDate.of(2026, 5, 1))),
-                    locationFlow = flowOf(null),
-                    addressFlow = flowOf(fakeAddress()),
-                    weatherFlow = flowOf(fakeWeatherSnapshot()),
-                    musicStateFlow = flowOf(MusicCardState.Playing(fakeNowPlaying())),
+                    clockFlow = flowOf(clock),
+                    locationFlow = flowOf(location),
+                    addressFlow = flowOf(address),
+                    weatherFlow = flowOf(weather),
+                    musicStateFlow = flowOf(musicState),
                     calendarFlow = flowOf(calendar),
                     systemStatusFlow = flowOf(systemStatus),
                     tripStateFlow = flowOf(tripState),
                 )
             viewModel.uiState.test {
                 val state = awaitItem()
-                assertEquals(LocalTime.of(14, 32), state.clock.time)
-                assertNotNull(state.address)
-                assertNotNull(state.weather)
-                assertTrue(state.musicState is MusicCardState.Playing)
+                assertEquals(clock, state.clock)
+                assertEquals(location, state.location)
+                assertEquals(address, state.address)
+                assertEquals(weather, state.weather)
+                assertEquals(musicState, state.musicState)
                 assertEquals(calendar, state.calendar)
                 assertEquals(systemStatus, state.systemStatus)
                 assertEquals(tripState, state.tripState)

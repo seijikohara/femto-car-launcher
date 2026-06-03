@@ -1,3 +1,7 @@
+> **SUPERSEDED (2026-06-03).** This document is historical. The shipped architecture
+> replaced Google Maps with MapLibre + OpenFreeMap and the AOSP Geocoder with OSM
+> Nominatim; CLAUDE.md is the authoritative SSOT. Do not implement from this doc.
+
 # Pull request: home dashboard (Plan B)
 
 ## Title (≤70 chars)

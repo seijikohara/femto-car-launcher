@@ -111,12 +111,12 @@ internal fun SpeedOverlay(
                 // defaults to fillMaxWidth) would stretch the card to the full
                 // map pane. The address-row divider then spans the same width.
                 .width(IntrinsicSize.Max)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(FemtoDimens.SpeedOverlayCorner))
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = glassAlpha))
                 .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.GlassBorderAlpha),
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(FemtoDimens.SpeedOverlayCorner),
                 ).padding(horizontal = 24.dp, vertical = 16.dp),
     ) {
         MetricRow(
