@@ -1,9 +1,26 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.spotless)
 }
+
+// Production geocoder host is threaded in via gitignored local.properties so the
+// public PoC endpoint is never the implicit production default. Production builds
+// should set GEOCODER_BASE_URL (and GEOCODER_API_KEY when the host requires one)
+// to a non-public host; absent keys fall back to the public Nominatim PoC endpoint.
+val localProperties =
+    Properties().apply {
+        rootProject
+            .file("local.properties")
+            .takeIf { it.exists() }
+            ?.inputStream()
+            ?.use { load(it) }
+    }
+val geocoderBaseUrl = localProperties.getProperty("GEOCODER_BASE_URL", "https://nominatim.openstreetmap.org/")
+val geocoderApiKey = localProperties.getProperty("GEOCODER_API_KEY", "")
 
 spotless {
     val ktlintVersion = libs.versions.ktlint.get()
@@ -35,10 +52,17 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "GEOCODER_BASE_URL", "\"${geocoderBaseUrl}\"")
+        buildConfigField("String", "GEOCODER_API_KEY", "\"${geocoderApiKey}\"")
     }
 
     buildTypes {
         release {
+            // Intentionally unminified: the launcher is a small, reflection-light app
+            // and keeping R8 off removes a class of release-only stripping bugs. The
+            // keep rules in proguard-rules.pro stay R8-ready so this flag can flip to
+            // true later without a separate audit.
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -57,6 +81,10 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
+            // Plain JVM unit tests (NominatimApiTest) reach android.util.Log on
+            // the failure path; without this the stub throws "not mocked".
+            // Returning defaults lets the void Log calls no-op instead.
+            isReturnDefaultValues = true
         }
     }
 }
@@ -75,7 +103,6 @@ dependencies {
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.composables.icons.lucide)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
@@ -87,8 +114,6 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlin.test)
     testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.mockito.core)
-    testImplementation(libs.mockito.kotlin)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.robolectric)
     testImplementation(libs.turbine)

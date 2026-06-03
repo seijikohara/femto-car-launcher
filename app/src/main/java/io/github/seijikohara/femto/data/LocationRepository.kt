@@ -28,26 +28,37 @@ internal class LocationRepository(
 ) {
     private val locationManager: LocationManager = checkNotNull(context.getSystemService())
 
-    // Cold per-collector flow: each terminal collection registers its own GPS updates and
+    // Cold per-collector flow: each terminal collection registers updates and seeds
     // getLastKnownLocation. Never expose this directly; it is the upstream for the shared flow.
-    @SuppressLint("MissingPermission") // Caller checks ACCESS_FINE_LOCATION before subscribing.
+    //
+    // Both GPS_PROVIDER and NETWORK_PROVIDER are registered so the launcher honors the
+    // ACCESS_COARSE_LOCATION manifest contract: a coarse-only ("Approximate") grant makes
+    // GPS_PROVIDER throw SecurityException while NETWORK_PROVIDER still delivers fixes at
+    // degraded precision, and a device without network location still gets GPS. Each provider
+    // is guarded by its own runCatching so a SecurityException or a missing provider on one
+    // never disturbs the other. A per-provider failure is dropped (no null emission) so a
+    // working provider is never blanked by the other's absence.
+    @SuppressLint("MissingPermission") // Caller checks fine or coarse location before subscribing.
     private fun rawLocationFlow(): Flow<Location?> =
         callbackFlow {
+            // One listener shared across both registrations; each fix is forwarded verbatim.
             val listener = LocationListenerCompat { location -> trySend(location) }
 
-            runCatching {
-                locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-            }.onSuccess { trySend(it) }
+            listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).forEach { provider ->
+                runCatching {
+                    locationManager.getLastKnownLocation(provider)
+                }.onSuccess { trySend(it) }
 
-            runCatching {
-                LocationManagerCompat.requestLocationUpdates(
-                    locationManager,
-                    LocationManager.GPS_PROVIDER,
-                    LocationRequestCompat.Builder(LOCATION_INTERVAL_MS).build(),
-                    listener,
-                    Looper.getMainLooper(),
-                )
-            }.onFailure { trySend(null) }
+                runCatching {
+                    LocationManagerCompat.requestLocationUpdates(
+                        locationManager,
+                        provider,
+                        LocationRequestCompat.Builder(LOCATION_INTERVAL_MS).build(),
+                        listener,
+                        Looper.getMainLooper(),
+                    )
+                }
+            }
 
             awaitClose { locationManager.removeUpdates(listener) }
         }.flowOn(Dispatchers.Main.immediate)

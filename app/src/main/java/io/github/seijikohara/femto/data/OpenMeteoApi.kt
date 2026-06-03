@@ -1,11 +1,14 @@
 package io.github.seijikohara.femto.data
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
+
+private const val TAG = "OpenMeteoApi"
 
 internal class OpenMeteoApi(
     private val client: OkHttpClient,
@@ -38,7 +41,8 @@ internal class OpenMeteoApi(
                         json.decodeFromString<ForecastResponse>(body)
                     }
                 }
-            }.getOrNull()
+            }.onFailure { Log.w(TAG, "forecast failed", it) }
+                .getOrNull()
         }
 
     @Serializable

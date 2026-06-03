@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.data
 
+import android.util.Log
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -9,6 +10,8 @@ import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+
+private const val TAG = "NominatimApi"
 
 /**
  * Reverse-geocode a coordinate through an OSM Nominatim-compatible endpoint.
@@ -59,7 +62,8 @@ internal class NominatimApi(
                         json.decodeFromString<NominatimResponse>(body)
                     }
                 }
-            }.getOrNull()
+            }.onFailure { Log.w(TAG, "reverse geocode failed", it) }
+                .getOrNull()
         }
 
     @Serializable

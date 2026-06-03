@@ -21,6 +21,17 @@ internal fun Context.hasFineLocationPermission(): Boolean =
         Manifest.permission.ACCESS_FINE_LOCATION,
     ) == PackageManager.PERMISSION_GRANTED
 
+/**
+ * A coarse-only grant (the system "Approximate" toggle) lets the launcher
+ * serve location at degraded precision via the network provider, honoring the
+ * manifest's `ACCESS_COARSE_LOCATION` contract when the user withholds fine.
+ */
+internal fun Context.hasCoarseLocationPermission(): Boolean =
+    ContextCompat.checkSelfPermission(
+        this,
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+    ) == PackageManager.PERMISSION_GRANTED
+
 internal fun Context.hasReadCalendarPermission(): Boolean =
     ContextCompat.checkSelfPermission(
         this,
