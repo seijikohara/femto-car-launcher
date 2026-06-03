@@ -11,7 +11,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
 
-class MusicPanelTest {
+class MusicCardTest {
     @get:Rule
     val rule = createComposeRule()
 
@@ -19,7 +19,7 @@ class MusicPanelTest {
     fun renders_track_artist_and_transport_when_playing() {
         rule.setContent {
             FemtoTheme {
-                MusicPanel(
+                MusicCard(
                     state = MusicCardState.Playing(fakeNowPlaying()),
                     onCommand = {},
                     onConnect = {},
@@ -36,7 +36,7 @@ class MusicPanelTest {
         var tapped = false
         rule.setContent {
             FemtoTheme {
-                MusicPanel(
+                MusicCard(
                     state = MusicCardState.NeedsPermission,
                     onCommand = {},
                     onConnect = { tapped = true },
@@ -51,13 +51,13 @@ class MusicPanelTest {
     fun renders_nothing_playing_placeholder_when_no_active_session() {
         rule.setContent {
             FemtoTheme {
-                MusicPanel(
+                MusicCard(
                     state = MusicCardState.NoActiveSession,
                     onCommand = {},
                     onConnect = {},
                 )
             }
         }
-        rule.onNodeWithText("Nothing playing").assertIsDisplayed()
+        rule.onNodeWithText("Nothing is playing").assertIsDisplayed()
     }
 }
