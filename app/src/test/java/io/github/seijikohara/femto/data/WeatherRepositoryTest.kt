@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.data
 
 import app.cash.turbine.test
 import io.github.seijikohara.femto.testfixtures.fakeLocation
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
@@ -14,8 +15,10 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -146,6 +149,82 @@ class WeatherRepositoryTest {
                 cancelAndIgnoreRemainingEvents()
             }
         }
+
+    @Test
+    fun `throttles outage retries within the minimum retry interval to a single request`() =
+        runTest {
+            // Sustained outage: every forecast call fails.
+            server.enqueue(MockResponse().setResponseCode(500))
+            server.enqueue(MockResponse().setResponseCode(500))
+
+            val clock = MutableClock(Instant.parse("2026-05-01T05:32:00Z"))
+            val repo =
+                WeatherRepository(
+                    api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
+                    // Second emit lands well inside MIN_RETRY_INTERVAL (one minute).
+                    locationFlow = flow {
+                        emit(fakeLocation())
+                        clock.advanceBy(Duration.ofSeconds(10))
+                        emit(fakeLocation())
+                    },
+                    clock = clock,
+                )
+
+            repo.snapshotFlow().test {
+                assertNull(awaitItem())
+                // The throttled second emit re-emits the still-null snapshot.
+                assertNull(awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            // Only the first attempt hit the network; the second was throttled.
+            assertEquals(1, server.requestCount)
+        }
+
+    @Test
+    fun `retries after the minimum retry interval elapses during an outage`() =
+        runTest {
+            server.enqueue(MockResponse().setResponseCode(500))
+            server.enqueue(MockResponse().setResponseCode(500))
+
+            val clock = MutableClock(Instant.parse("2026-05-01T05:32:00Z"))
+            val repo =
+                WeatherRepository(
+                    api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
+                    // Second emit lands just past MIN_RETRY_INTERVAL, so the retry fires.
+                    locationFlow = flow {
+                        emit(fakeLocation())
+                        clock.advanceBy(Duration.ofSeconds(61))
+                        emit(fakeLocation())
+                    },
+                    clock = clock,
+                )
+
+            repo.snapshotFlow().test {
+                assertNull(awaitItem())
+                assertNull(awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            assertEquals(2, server.requestCount)
+        }
+
+    // Mutable clock whose instant the test advances explicitly to exercise the
+    // outage-retry throttle without real-time waits.
+    private class MutableClock(
+        private var now: Instant,
+        private val zone: ZoneId = ZoneOffset.UTC,
+    ) : Clock() {
+        fun advanceBy(amount: Duration) {
+            now = now.plus(amount)
+        }
+
+        override fun getZone(): ZoneId = zone
+
+        override fun withZone(zone: ZoneId): Clock = MutableClock(now, zone)
+
+        override fun instant(): Instant = now
+    }
 
     private companion object {
         // current.time aligns with hourly.time[2] so the slice should start at index 2.

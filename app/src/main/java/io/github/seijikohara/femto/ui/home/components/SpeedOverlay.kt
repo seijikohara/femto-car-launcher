@@ -70,7 +70,11 @@ internal fun SpeedOverlay(
     speedUnit: SpeedUnit,
     modifier: Modifier = Modifier,
 ) {
-    val currentSpeed = location?.speed?.let { speedUnit.fromMetersPerSecond(it).roundToInt() } ?: 0
+    // Source the hero numeral from the trip's effective speed, not
+    // location.speed: cheap GPS chips leave Location.speed at 0.0
+    // (hasSpeed() == false) while moving, which would pin the numeral to
+    // zero. currentSpeedMs falls back to the position-derived speed.
+    val currentSpeed = speedUnit.fromMetersPerSecond(tripState.currentSpeedMs.toFloat()).roundToInt()
     val distance = speedUnit.tripDistanceFromMeters(tripState.distanceMeters)
     val avgSpeed = speedUnit.fromMetersPerSecond(tripState.avgSpeedMs.toFloat()).roundToInt()
     val shortAddress = address?.displayString().orEmpty()
@@ -231,7 +235,7 @@ private fun SpeedOverlayPreview() {
         SpeedOverlay(
             location = null,
             address = ShortAddress(locality = "Minato-ku", region = "Tokyo"),
-            tripState = TripState(distanceMeters = 24_400.0, avgSpeedMs = 11.7),
+            tripState = TripState(distanceMeters = 24_400.0, avgSpeedMs = 11.7, currentSpeedMs = 13.2),
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
         )
     }
