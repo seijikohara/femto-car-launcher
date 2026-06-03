@@ -32,6 +32,21 @@ class MusicCardTest {
     }
 
     @Test
+    fun keeps_paused_session_on_screen_instead_of_collapsing_to_empty() {
+        rule.setContent {
+            FemtoTheme {
+                MusicCard(
+                    state = MusicCardState.Playing(fakeNowPlaying(isPlaying = false)),
+                    onCommand = {},
+                    onConnect = {},
+                )
+            }
+        }
+        rule.onNodeWithText("Strobe").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Play / pause").assertIsDisplayed()
+    }
+
+    @Test
     fun renders_connect_cta_and_dispatches_when_permission_missing() {
         var tapped = false
         rule.setContent {

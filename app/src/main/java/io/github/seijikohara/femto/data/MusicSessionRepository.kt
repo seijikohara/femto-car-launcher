@@ -53,9 +53,7 @@ internal class MusicSessionRepository(
     fun send(command: MusicCommand) {
         val controller =
             runCatching {
-                sessionManager
-                    .getActiveSessions(componentName)
-                    .firstOrNull { it.playbackState?.isActive() == true }
+                selectPrimaryController(sessionManager.getActiveSessions(componentName))
             }.getOrNull() ?: return
         val transport = controller.transportControls
         when (command) {
@@ -99,18 +97,56 @@ internal class MusicSessionRepository(
 
     private fun activeControllersFlow(): Flow<List<MediaController>> =
         callbackFlow {
-            val callback =
+            // The OnActiveSessionsChangedListener only fires when the SET of
+            // sessions changes, so on its own the flow is a one-shot snapshot:
+            // progress, play/pause, and in-session metadata never update. We
+            // additionally register a MediaController.Callback on the primary
+            // controller and re-send the latest controller list on every live
+            // change, so the downstream combine recomputes toNowPlaying.
+            var current: List<MediaController> = emptyList()
+            var watched: MediaController? = null
+            val watcher =
+                object : MediaController.Callback() {
+                    override fun onPlaybackStateChanged(state: PlaybackState?) {
+                        trySend(current)
+                    }
+
+                    override fun onMetadataChanged(metadata: MediaMetadata?) {
+                        trySend(current)
+                    }
+
+                    override fun onSessionDestroyed() {
+                        trySend(current)
+                    }
+                }
+
+            fun rewatch(controllers: List<MediaController>) {
+                current = controllers
+                val next = selectPrimaryController(controllers)
+                // Re-register only when the active controller changes; unregister
+                // the previous one first so we never leak a stale callback.
+                if (next !== watched) {
+                    runCatching { watched?.unregisterCallback(watcher) }
+                    watched = next
+                    runCatching { watched?.registerCallback(watcher) }
+                }
+            }
+
+            val sessionsListener =
                 MediaSessionManager.OnActiveSessionsChangedListener { controllers ->
-                    trySend(controllers.orEmpty())
+                    rewatch(controllers.orEmpty())
+                    trySend(current)
                 }
 
             runCatching {
-                trySend(sessionManager.getActiveSessions(componentName))
-                sessionManager.addOnActiveSessionsChangedListener(callback, componentName)
+                rewatch(sessionManager.getActiveSessions(componentName))
+                trySend(current)
+                sessionManager.addOnActiveSessionsChangedListener(sessionsListener, componentName)
             }.onFailure { trySend(emptyList()) }
 
             awaitClose {
-                runCatching { sessionManager.removeOnActiveSessionsChangedListener(callback) }
+                runCatching { watched?.unregisterCallback(watcher) }
+                runCatching { sessionManager.removeOnActiveSessionsChangedListener(sessionsListener) }
             }
         }
 
@@ -118,21 +154,48 @@ internal class MusicSessionRepository(
         context.packageName in NotificationManagerCompat.getEnabledListenerPackages(context)
 
     private fun List<MediaController>.toNowPlaying(): NowPlaying? =
-        firstOrNull { it.playbackState?.isActive() == true }
+        selectPrimaryController(this)
             ?.let { controller ->
                 val metadata = controller.metadata ?: return@let null
+                val playbackState = controller.playbackState
                 NowPlaying(
-                    title = metadata.getString(MediaMetadata.METADATA_KEY_TITLE).orEmpty(),
+                    // METADATA_KEY_TITLE is empty for many podcast / radio / stream
+                    // sessions; fall back to the display title and finally the source
+                    // label so the 23sp title line is never blank.
+                    title =
+                        metadata.getString(MediaMetadata.METADATA_KEY_TITLE)?.takeIf { it.isNotBlank() }
+                            ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)?.takeIf { it.isNotBlank() }
+                            ?: sourceLabel(controller.packageName),
                     artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST),
                     albumArt = metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)?.asImageBitmap(),
-                    isPlaying = controller.playbackState?.state == PlaybackState.STATE_PLAYING,
-                    positionMs = controller.playbackState?.position ?: 0L,
+                    // A paused controller renders with isPlaying=false (Play icon,
+                    // resumable), but stays on screen via selectPrimaryController.
+                    isPlaying = playbackState?.state == PlaybackState.STATE_PLAYING,
+                    positionMs = playbackState?.position ?: 0L,
                     durationMs = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION),
                     packageName = controller.packageName,
+                    playbackSpeed = playbackState?.playbackSpeed ?: 1f,
+                    positionUpdateTimeMs = playbackState?.lastPositionUpdateTime ?: 0L,
                 )
             }
 
     private companion object {
         const val ENABLED_NOTIFICATION_LISTENERS = "enabled_notification_listeners"
+
+        /**
+         * Return `true` when the state is PLAYING or PAUSED. A paused session is
+         * still resumable and must stay on the card, so the plain [isActive] check
+         * (which excludes STATE_PAUSED) is not enough here.
+         */
+        private fun PlaybackState?.isPlayingOrPaused(): Boolean =
+            this != null && (isActive() || state == PlaybackState.STATE_PAUSED)
+
+        /**
+         * Pick the highest-priority controller that is playing or paused.
+         * [MediaSessionManager.getActiveSessions] is priority-ordered, so the
+         * first match is the session the user is most likely interacting with.
+         */
+        private fun selectPrimaryController(controllers: List<MediaController>): MediaController? =
+            controllers.firstOrNull { it.playbackState.isPlayingOrPaused() }
     }
 }
