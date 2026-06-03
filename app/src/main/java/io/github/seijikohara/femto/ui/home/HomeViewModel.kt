@@ -196,7 +196,9 @@ internal class HomeViewModelFactory(
             tripStateFlow = trip.stateFlow(),
             sendMusicCommand = music::send,
         ).also { vm ->
-            vm.viewModelScope.launch { apps.value = appsRepo.queryApps() }
+            vm.viewModelScope.launch {
+                apps.value = runCatching { appsRepo.queryApps() }.getOrDefault(emptyList())
+            }
         } as T
     }
 }
