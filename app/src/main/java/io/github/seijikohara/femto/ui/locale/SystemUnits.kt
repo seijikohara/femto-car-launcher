@@ -10,8 +10,6 @@ private const val SECONDS_PER_HOUR = 3.6
 
 internal enum class SpeedUnit { KILOMETERS_PER_HOUR, MILES_PER_HOUR }
 
-internal enum class DistanceUnit { METERS, FEET }
-
 internal enum class TemperatureUnit { CELSIUS, FAHRENHEIT }
 
 private val ImperialCountries = setOf("US", "GB", "MM")
@@ -38,13 +36,6 @@ internal fun speedUnitFor(locale: Locale = Locale.getDefault()): SpeedUnit =
         SpeedUnit.MILES_PER_HOUR
     } else {
         SpeedUnit.KILOMETERS_PER_HOUR
-    }
-
-internal fun distanceUnitFor(locale: Locale = Locale.getDefault()): DistanceUnit =
-    if (locale.country in ImperialCountries) {
-        DistanceUnit.FEET
-    } else {
-        DistanceUnit.METERS
     }
 
 /**
@@ -108,12 +99,6 @@ internal fun SpeedUnit.distanceLabel(): String =
         SpeedUnit.MILES_PER_HOUR -> "mi"
     }
 
-internal fun DistanceUnit.fromMeters(meters: Double): Double =
-    when (this) {
-        DistanceUnit.METERS -> meters
-        DistanceUnit.FEET -> meters * 3.2808399
-    }
-
 internal fun SpeedUnit.label(): String =
     when (this) {
         SpeedUnit.KILOMETERS_PER_HOUR -> "km/h"
@@ -134,12 +119,6 @@ internal fun windLabel(
     when (speedUnit) {
         SpeedUnit.MILES_PER_HOUR -> "${speedUnit.fromKilometersPerHour(windKmh).roundToInt()} mph"
         SpeedUnit.KILOMETERS_PER_HOUR -> "${(windKmh / SECONDS_PER_HOUR).roundToInt()} m/s"
-    }
-
-internal fun DistanceUnit.label(): String =
-    when (this) {
-        DistanceUnit.METERS -> "m"
-        DistanceUnit.FEET -> "ft"
     }
 
 internal fun TemperatureUnit.fromCelsius(celsius: Double): Double =

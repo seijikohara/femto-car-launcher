@@ -48,46 +48,34 @@ internal class HomeViewModel(
     private val tripStateFlow: Flow<TripState>,
     private val sendMusicCommand: (MusicCommand) -> Unit = {},
 ) : ViewModel() {
-    val uiState: StateFlow<HomeUiState> =
+    // Kotlin's typed combine overloads cover at most 5 flows. Stage the eight
+    // sources through a typed intermediate (CoreSignals) so the compiler enforces
+    // arity and per-slot types end-to-end: a future reorder fails to compile
+    // instead of silently mismapping a positional values[i] cast.
+    private val coreSignals: Flow<CoreSignals> =
         combine(
             clockFlow,
             locationFlow,
             addressFlow,
             weatherFlow,
             musicStateFlow,
+        ) { clock, location, address, weather, music ->
+            CoreSignals(clock, location, address, weather, music)
+        }
+
+    val uiState: StateFlow<HomeUiState> =
+        combine(
+            coreSignals,
             calendarFlow,
             systemStatusFlow,
             tripStateFlow,
-        ) { values ->
-            @Suppress("UNCHECKED_CAST")
-            val clock = values[0] as ClockTick
-
-            @Suppress("UNCHECKED_CAST")
-            val location = values[1] as Location?
-
-            @Suppress("UNCHECKED_CAST")
-            val address = values[2] as ShortAddress?
-
-            @Suppress("UNCHECKED_CAST")
-            val weather = values[3] as WeatherSnapshot?
-
-            @Suppress("UNCHECKED_CAST")
-            val music = values[4] as MusicCardState
-
-            @Suppress("UNCHECKED_CAST")
-            val calendar = values[5] as CalendarSnapshot?
-
-            @Suppress("UNCHECKED_CAST")
-            val systemStatus = values[6] as SystemStatus
-
-            @Suppress("UNCHECKED_CAST")
-            val tripState = values[7] as TripState
+        ) { core, calendar, systemStatus, tripState ->
             HomeUiState(
-                clock = clock,
-                location = location,
-                address = address,
-                weather = weather,
-                musicState = music,
+                clock = core.clock,
+                location = core.location,
+                address = core.address,
+                weather = core.weather,
+                musicState = core.music,
                 calendar = calendar,
                 systemStatus = systemStatus,
                 tripState = tripState,
@@ -143,6 +131,16 @@ internal class HomeViewModel(
         }
     }
 }
+
+// File-private holder that groups the first five sources so the two-stage
+// combine stays within Kotlin's typed (max-arity-5) combine overloads.
+private data class CoreSignals(
+    val clock: ClockTick,
+    val location: Location?,
+    val address: ShortAddress?,
+    val weather: WeatherSnapshot?,
+    val music: MusicCardState,
+)
 
 internal class HomeViewModelFactory(
     private val application: Application,

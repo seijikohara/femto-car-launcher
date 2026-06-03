@@ -93,7 +93,7 @@ internal fun WeatherCard(
         if (snapshot != null) {
             Head(snapshot, city, temperatureUnit)
             Metrics(snapshot, temperatureUnit, speedUnit)
-            Forecast(snapshot.hourly, temperatureUnit)
+            Forecast(snapshot.hourly, snapshot.sunrise, snapshot.sunset, temperatureUnit)
         } else {
             EmptyState()
         }
@@ -222,6 +222,8 @@ private fun Metric(
 @Composable
 private fun Forecast(
     hourly: List<HourlyForecast>,
+    sunrise: LocalTime?,
+    sunset: LocalTime?,
     temperatureUnit: TemperatureUnit,
 ) {
     val next = hourly.take(3)
@@ -233,7 +235,7 @@ private fun Forecast(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             next.forEach { hour ->
-                ForecastChip(hour, temperatureUnit, modifier = Modifier.weight(1f))
+                ForecastChip(hour, sunrise, sunset, temperatureUnit, modifier = Modifier.weight(1f))
             }
         }
     }
@@ -242,10 +244,13 @@ private fun Forecast(
 @Composable
 private fun ForecastChip(
     forecast: HourlyForecast,
+    sunrise: LocalTime?,
+    sunset: LocalTime?,
     temperatureUnit: TemperatureUnit,
     modifier: Modifier = Modifier,
 ) {
     val glyphs = weatherGlyphs()
+    val isDay = isDaylight(forecast.time, sunrise, sunset)
     Column(
         modifier =
             modifier
@@ -262,9 +267,9 @@ private fun ForecastChip(
             maxLines = 1,
         )
         Icon(
-            imageVector = glyphIconFor(forecast.code, isDay = forecast.time.hour in 6..18),
+            imageVector = glyphIconFor(forecast.code, isDay),
             contentDescription = null,
-            tint = glyphTintFor(forecast.code, isDay = forecast.time.hour in 6..18, glyphs),
+            tint = glyphTintFor(forecast.code, isDay, glyphs),
             modifier = Modifier.size(FemtoDimens.WeatherGlyphSmall),
         )
         Text(
@@ -298,6 +303,20 @@ private fun EmptyState() =
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(48.dp),
         )
+    }
+
+// Day/night drives the sun-vs-moon glyph for CLEAR. Use the snapshot's real
+// sunrise/sunset when present; fall back to a fixed 6..18 window only when either
+// bound is missing, so a forecast hour past sunset reads as night.
+private fun isDaylight(
+    time: LocalTime,
+    sunrise: LocalTime?,
+    sunset: LocalTime?,
+): Boolean =
+    if (sunrise != null && sunset != null) {
+        time >= sunrise && time < sunset
+    } else {
+        time.hour in 6..18
     }
 
 private fun glyphIconFor(

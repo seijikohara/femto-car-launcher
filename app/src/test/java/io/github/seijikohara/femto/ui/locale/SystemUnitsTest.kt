@@ -6,43 +6,38 @@ import java.util.Locale
 
 class SystemUnitsTest {
     @Test
-    fun `us country defaults to imperial speed and distance`() {
+    fun `us country defaults to imperial speed`() {
         assertEquals(SpeedUnit.MILES_PER_HOUR, speedUnitFor(Locale.US))
-        assertEquals(DistanceUnit.FEET, distanceUnitFor(Locale.US))
     }
 
     @Test
-    fun `gb country defaults to imperial speed and distance`() {
+    fun `gb country defaults to imperial speed`() {
         val gb = Locale
             .Builder()
             .setLanguage("en")
             .setRegion("GB")
             .build()
         assertEquals(SpeedUnit.MILES_PER_HOUR, speedUnitFor(gb))
-        assertEquals(DistanceUnit.FEET, distanceUnitFor(gb))
     }
 
     @Test
-    fun `mm country defaults to imperial speed and distance`() {
+    fun `mm country defaults to imperial speed`() {
         val mm = Locale
             .Builder()
             .setLanguage("my")
             .setRegion("MM")
             .build()
         assertEquals(SpeedUnit.MILES_PER_HOUR, speedUnitFor(mm))
-        assertEquals(DistanceUnit.FEET, distanceUnitFor(mm))
     }
 
     @Test
-    fun `jp country defaults to metric speed and distance`() {
+    fun `jp country defaults to metric speed`() {
         assertEquals(SpeedUnit.KILOMETERS_PER_HOUR, speedUnitFor(Locale.JAPAN))
-        assertEquals(DistanceUnit.METERS, distanceUnitFor(Locale.JAPAN))
     }
 
     @Test
-    fun `de country defaults to metric speed and distance`() {
+    fun `de country defaults to metric speed`() {
         assertEquals(SpeedUnit.KILOMETERS_PER_HOUR, speedUnitFor(Locale.GERMANY))
-        assertEquals(DistanceUnit.METERS, distanceUnitFor(Locale.GERMANY))
     }
 
     @Test
@@ -53,7 +48,6 @@ class SystemUnitsTest {
             .setRegion("XX")
             .build()
         assertEquals(SpeedUnit.KILOMETERS_PER_HOUR, speedUnitFor(xx))
-        assertEquals(DistanceUnit.METERS, distanceUnitFor(xx))
     }
 
     @Test

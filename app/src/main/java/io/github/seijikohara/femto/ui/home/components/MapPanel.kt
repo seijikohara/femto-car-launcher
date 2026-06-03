@@ -30,12 +30,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPinOff
 import io.github.seijikohara.femto.R
@@ -245,6 +245,10 @@ private fun ForwardLowMemory(mapView: MapView) {
             object : ComponentCallbacks2 {
                 override fun onLowMemory() = mapView.onLowMemory()
 
+                // onTrimMemory(level) is the live callback; only the TRIM_MEMORY_RUNNING_LOW
+                // level constant is deprecated on API 34+. Suppress narrowly here so the
+                // low-memory forwarding keeps firing across API levels without warnings.
+                @Suppress("DEPRECATION")
                 override fun onTrimMemory(level: Int) {
                     if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
                         mapView.onLowMemory()

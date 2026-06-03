@@ -70,19 +70,17 @@ internal class CalendarRepository(
             )
         }
         val granted = hasPermission()
-        val events = if (granted) readEvents(today) else emptyList()
-        // readEventDates runs its own full-window query (earlier-today events
-        // dot days the future-only readEvents window misses), so it must run
-        // whenever the permission is granted — not only when readEvents found
-        // future events.
-        val datesWithEvents = if (granted) readEventDates(today) else emptySet()
-        val stripWithDots = strip.map { it.copy(hasEvent = it.date in datesWithEvents) }
+        // One window scan yields both signals: the full set of dotted days
+        // (every event in the window, including earlier-today) and the next
+        // up-to-EVENT_LIST_LIMIT future events.
+        val window = if (granted) readWindow(today) else CalendarWindow.EMPTY
+        val stripWithDots = strip.map { it.copy(hasEvent = it.date in window.datesWithEvents) }
         return CalendarSnapshot(
             today = today,
             weekday = today.dayOfWeek.getDisplayName(TextStyle.FULL, locale),
             monthLabel = monthLabelOf(today),
             dayStrip = stripWithDots,
-            events = events.take(EVENT_LIST_LIMIT),
+            events = window.events,
             hasCalendarAccess = granted,
         )
     }
@@ -107,32 +105,50 @@ internal class CalendarRepository(
             PackageManager.PERMISSION_GRANTED
 
     /**
-     * Map each event to its start date so the day-strip can render a dot.
-     * Kept separate from [readEvents] so the events list itself only carries
-     * the time-of-day for display.
+     * Build the `Instances` content URI for the `today .. today + DAY_STRIP_LENGTH`
+     * window. `Instances` requires the begin / end millis embedded as path ids
+     * rather than passed as a selection.
+     */
+    private fun windowUri(today: LocalDate) =
+        CalendarContract.Instances.CONTENT_URI
+            .buildUpon()
+            .let {
+                ContentUris.appendId(it, today.atStartOfDay(zone).toInstant().toEpochMilli())
+            }.let {
+                ContentUris.appendId(
+                    it,
+                    today
+                        .plusDays(DAY_STRIP_LENGTH.toLong())
+                        .atStartOfDay(zone)
+                        .toInstant()
+                        .toEpochMilli(),
+                )
+            }.build()
+
+    /**
+     * Scan the strip window once and accumulate both card signals in a single
+     * pass: every event's local day (for the strip dots, including
+     * earlier-today rows) and the next up-to-[EVENT_LIST_LIMIT] future events
+     * (`BEGIN >= now`). A single query replaces the former two byte-identical
+     * window queries. The loop keeps scanning after the event list fills so the
+     * dot set still covers the full window.
+     *
+     * A mid-stream permission revoke (SecurityException) or an OEM provider
+     * fault (SQLiteException) must not tear down the dashboard StateFlow, so the
+     * whole scan is guarded.
      */
     @SuppressLint("MissingPermission") // Caller checks READ_CALENDAR before subscribing.
-    private fun readEventDates(today: LocalDate): Set<LocalDate> {
-        val begin = today.atStartOfDay(zone).toInstant().toEpochMilli()
-        val end = today
-            .plusDays(DAY_STRIP_LENGTH.toLong())
-            .atStartOfDay(zone)
-            .toInstant()
-            .toEpochMilli()
-        val uri = CalendarContract.Instances.CONTENT_URI
-            .buildUpon()
-            .let { ContentUris.appendId(it, begin) }
-            .let { ContentUris.appendId(it, end) }
-            .build()
-        // A mid-stream permission revoke (SecurityException) or an OEM provider
-        // fault (SQLiteException) must not tear down the dashboard StateFlow.
+    private fun readWindow(today: LocalDate): CalendarWindow {
+        val now = Instant.now().toEpochMilli()
         return runCatching {
             val dates = mutableSetOf<LocalDate>()
+            val events = mutableListOf<EventItem>()
             context.contentResolver
                 .query(
-                    uri,
+                    windowUri(today),
                     arrayOf(
                         CalendarContract.Instances.BEGIN,
+                        CalendarContract.Instances.TITLE,
                         CalendarContract.Instances.ALL_DAY,
                     ),
                     null,
@@ -141,61 +157,25 @@ internal class CalendarRepository(
                 )?.use { cursor ->
                     while (cursor.moveToNext()) {
                         val startMs = cursor.getLong(0)
-                        val allDay = cursor.getInt(1) != 0
-                        dates += localDateOf(startMs, allDay)
-                    }
-                }
-            dates.toSet()
-        }.getOrDefault(emptySet())
-    }
-
-    @SuppressLint("MissingPermission") // Caller checks READ_CALENDAR before subscribing.
-    private fun readEvents(today: LocalDate): List<EventItem> {
-        val begin = today.atStartOfDay(zone).toInstant().toEpochMilli()
-        val end = today
-            .plusDays(DAY_STRIP_LENGTH.toLong())
-            .atStartOfDay(zone)
-            .toInstant()
-            .toEpochMilli()
-        val uri = CalendarContract.Instances.CONTENT_URI
-            .buildUpon()
-            .let { ContentUris.appendId(it, begin) }
-            .let { ContentUris.appendId(it, end) }
-            .build()
-        val now = Instant
-            .now()
-            .toEpochMilli()
-        // A mid-stream permission revoke (SecurityException) or an OEM provider
-        // fault (SQLiteException) must not tear down the dashboard StateFlow.
-        return runCatching {
-            val items = mutableListOf<EventItem>()
-            context.contentResolver
-                .query(
-                    uri,
-                    arrayOf(
-                        CalendarContract.Instances.BEGIN,
-                        CalendarContract.Instances.TITLE,
-                        CalendarContract.Instances.ALL_DAY,
-                    ),
-                    "${CalendarContract.Instances.BEGIN} >= ?",
-                    arrayOf(now.toString()),
-                    "${CalendarContract.Instances.BEGIN} ASC",
-                )?.use { cursor ->
-                    while (cursor.moveToNext() && items.size < EVENT_LIST_LIMIT) {
-                        val startMs = cursor.getLong(0)
-                        val title = cursor.getString(1) ?: continue
+                        val title = cursor.getString(1)
                         val allDay = cursor.getInt(2) != 0
-                        items += EventItem(
-                            // All-day rows carry no clock time; surface null so
-                            // the card renders an "all day" label instead of a
-                            // spurious 00:00 derived from the system zone.
-                            time = if (allDay) null else LocalTime.ofInstant(Instant.ofEpochMilli(startMs), zone),
-                            title = title,
-                        )
+                        dates += localDateOf(startMs, allDay)
+                        // Future top-N list mirrors the former `BEGIN >= now`
+                        // selection and the null-title skip; a null-title row
+                        // still dots its day above but never enters the list.
+                        if (title != null && startMs >= now && events.size < EVENT_LIST_LIMIT) {
+                            events += EventItem(
+                                // All-day rows carry no clock time; surface null
+                                // so the card renders an "all day" label instead
+                                // of a spurious 00:00 derived from the system zone.
+                                time = if (allDay) null else LocalTime.ofInstant(Instant.ofEpochMilli(startMs), zone),
+                                title = title,
+                            )
+                        }
                     }
                 }
-            items.toList()
-        }.getOrDefault(emptyList())
+            CalendarWindow(datesWithEvents = dates.toSet(), events = events.toList())
+        }.getOrDefault(CalendarWindow.EMPTY)
     }
 
     /**
@@ -235,6 +215,19 @@ internal class CalendarRepository(
             )
             awaitClose { context.contentResolver.unregisterContentObserver(observer) }
         }.debounce(CHANGE_DEBOUNCE_MS)
+
+    /**
+     * Result of a single window scan: the days carrying any event (strip dots)
+     * and the next few future events (the card's event list).
+     */
+    private data class CalendarWindow(
+        val datesWithEvents: Set<LocalDate>,
+        val events: List<EventItem>,
+    ) {
+        companion object {
+            val EMPTY = CalendarWindow(datesWithEvents = emptySet(), events = emptyList())
+        }
+    }
 
     private companion object {
         const val DAY_STRIP_LENGTH = 6

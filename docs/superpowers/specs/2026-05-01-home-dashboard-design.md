@@ -1,10 +1,14 @@
+> **SUPERSEDED (2026-06-03).** This document is historical. The shipped architecture
+> replaced Google Maps with MapLibre + OpenFreeMap and the AOSP Geocoder with OSM
+> Nominatim; CLAUDE.md is the authoritative SSOT. Do not implement from this doc.
+
 # Home Dashboard (Plan B) — Design Spec
 
 | | |
 | --- | --- |
 | Date | 2026-05-01 |
 | Owner | Seiji Kohara |
-| Status | Draft, awaiting review |
+| Status | Superseded |
 | Targets | `app/src/main/java/io/github/seijikohara/femto/ui/home/`, new `ui/drawer/`, expanded `data/` |
 
 ## 1. Goal
