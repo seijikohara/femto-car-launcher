@@ -62,6 +62,22 @@ class NominatimApiTest {
         }
 
     @Test
+    fun `reflects a non-default language in the accept-language parameter`() =
+        runTest {
+            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
+
+            NominatimApi(
+                client = client,
+                baseUrl = server.url("/").toString(),
+                userAgent = USER_AGENT,
+                language = "en",
+            ).reverse(LAT, LON)
+            val requestUrl = server.takeRequest().requestUrl
+
+            assertEquals("en", requestUrl?.queryParameter("accept-language"))
+        }
+
+    @Test
     fun `sends the configured user-agent header`() =
         runTest {
             server.enqueue(MockResponse().setBody(SHINJUKU_BODY))

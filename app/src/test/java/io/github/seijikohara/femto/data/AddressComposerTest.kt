@@ -152,6 +152,57 @@ class AddressComposerTest {
     }
 
     @Test
+    fun `composes non-japanese east-asian line large-to-small with no separator for seoul`() {
+        val address =
+            NominatimAddress(
+                suburb = "Myeong-dong",
+                city = "Jung-gu",
+                province = "Seoul",
+                countryCode = "kr",
+            )
+
+        val result = assertNotNull(AddressComposer.composeAddress(address))
+
+        assertEquals("SeoulJung-guMyeong-dong", result.line)
+        assertEquals("Jung-gu", result.locality)
+        assertEquals("Seoul", result.region)
+    }
+
+    @Test
+    fun `derives western region from the state fallback when no iso suffix is present`() {
+        val address =
+            NominatimAddress(
+                houseNumber = "221B",
+                road = "Baker Street",
+                city = "London",
+                state = "England",
+                countryCode = "gb",
+            )
+
+        val result = assertNotNull(AddressComposer.composeAddress(address))
+
+        assertEquals("221B Baker Street, London, England", result.line)
+        assertEquals("London", result.locality)
+        assertEquals("England", result.region)
+    }
+
+    @Test
+    fun `falls back to the western branch when the country is null`() {
+        val address =
+            NominatimAddress(
+                city = "Toronto",
+                province = "Ontario",
+                countryCode = null,
+            )
+
+        val result = assertNotNull(AddressComposer.composeAddress(address))
+
+        assertEquals("Toronto, Ontario", result.line)
+        assertEquals("Toronto", result.locality)
+        assertEquals("Ontario", result.region)
+    }
+
+    @Test
     fun `returns null when neither municipality nor prefecture resolves`() {
         val address =
             NominatimAddress(
