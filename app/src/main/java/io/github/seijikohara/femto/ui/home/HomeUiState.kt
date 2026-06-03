@@ -2,7 +2,6 @@ package io.github.seijikohara.femto.ui.home
 
 import android.location.Location
 import androidx.compose.runtime.Immutable
-import io.github.seijikohara.femto.data.AppEntry
 import io.github.seijikohara.femto.data.CalendarSnapshot
 import io.github.seijikohara.femto.data.ClockTick
 import io.github.seijikohara.femto.data.MusicCardState
@@ -15,8 +14,6 @@ import java.time.LocalTime
 
 @Immutable
 internal data class HomeUiState(
-    val isLoading: Boolean,
-    val apps: List<AppEntry>,
     val clock: ClockTick,
     val location: Location?,
     val address: ShortAddress?,
@@ -29,8 +26,6 @@ internal data class HomeUiState(
     companion object {
         val Initial: HomeUiState =
             HomeUiState(
-                isLoading = true,
-                apps = emptyList(),
                 clock = ClockTick(LocalTime.of(0, 0), LocalDate.now()),
                 location = null,
                 address = null,

@@ -8,8 +8,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.seijikohara.femto.BuildConfig
-import io.github.seijikohara.femto.data.AppEntry
-import io.github.seijikohara.femto.data.AppsRepository
 import io.github.seijikohara.femto.data.CalendarRepository
 import io.github.seijikohara.femto.data.CalendarSnapshot
 import io.github.seijikohara.femto.data.ClockRepository
@@ -30,14 +28,12 @@ import io.github.seijikohara.femto.data.WeatherSnapshot
 import io.github.seijikohara.femto.ui.home.components.MusicCommand
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.util.Locale
 
@@ -47,7 +43,6 @@ internal class HomeViewModel(
     private val addressFlow: Flow<ShortAddress?>,
     private val weatherFlow: Flow<WeatherSnapshot?>,
     private val musicStateFlow: Flow<MusicCardState>,
-    private val appsFlow: MutableStateFlow<List<AppEntry>>,
     private val calendarFlow: Flow<CalendarSnapshot?>,
     private val systemStatusFlow: Flow<SystemStatus>,
     private val tripStateFlow: Flow<TripState>,
@@ -60,7 +55,6 @@ internal class HomeViewModel(
             addressFlow,
             weatherFlow,
             musicStateFlow,
-            appsFlow,
             calendarFlow,
             systemStatusFlow,
             tripStateFlow,
@@ -81,19 +75,14 @@ internal class HomeViewModel(
             val music = values[4] as MusicCardState
 
             @Suppress("UNCHECKED_CAST")
-            val apps = values[5] as List<AppEntry>
+            val calendar = values[5] as CalendarSnapshot?
 
             @Suppress("UNCHECKED_CAST")
-            val calendar = values[6] as CalendarSnapshot?
+            val systemStatus = values[6] as SystemStatus
 
             @Suppress("UNCHECKED_CAST")
-            val systemStatus = values[7] as SystemStatus
-
-            @Suppress("UNCHECKED_CAST")
-            val tripState = values[8] as TripState
+            val tripState = values[7] as TripState
             HomeUiState(
-                isLoading = apps.isEmpty(),
-                apps = apps,
                 clock = clock,
                 location = location,
                 address = address,
@@ -177,8 +166,6 @@ internal class HomeViewModelFactory(
         val weatherApi = OpenMeteoApi(client = httpClient)
         val weather = WeatherRepository(weatherApi, locationFlow)
         val music = MusicSessionRepository(application)
-        val apps = MutableStateFlow<List<AppEntry>>(emptyList())
-        val appsRepo = AppsRepository(application)
         val calendar = CalendarRepository(application, clockFlow)
         val systemStatus = SystemStatusRepository(application)
         val trip = TripRepository(locationFlow)
@@ -190,15 +177,10 @@ internal class HomeViewModelFactory(
             addressFlow = geocoder.addressFlow(),
             weatherFlow = weather.snapshotFlow(),
             musicStateFlow = music.stateFlow(),
-            appsFlow = apps,
             calendarFlow = calendar.snapshotFlow(),
             systemStatusFlow = systemStatus.statusFlow(),
             tripStateFlow = trip.stateFlow(),
             sendMusicCommand = music::send,
-        ).also { vm ->
-            vm.viewModelScope.launch {
-                apps.value = runCatching { appsRepo.queryApps() }.getOrDefault(emptyList())
-            }
-        } as T
+        ) as T
     }
 }
