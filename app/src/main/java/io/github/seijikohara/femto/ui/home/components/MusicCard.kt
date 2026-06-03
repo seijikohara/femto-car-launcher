@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -46,6 +47,7 @@ import com.composables.icons.lucide.Pause
 import com.composables.icons.lucide.Play
 import com.composables.icons.lucide.SkipBack
 import com.composables.icons.lucide.SkipForward
+import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.data.NowPlaying
 import io.github.seijikohara.femto.data.sourceLabel
@@ -324,19 +326,19 @@ private fun TransportRow(
 ) {
     TransportButton(
         icon = Lucide.SkipBack,
-        description = "Skip previous",
+        description = stringResource(R.string.music_skip_previous),
         primary = false,
         onClick = { onCommand(MusicCommand.SkipPrevious) },
     )
     TransportButton(
         icon = if (isPlaying) Lucide.Pause else Lucide.Play,
-        description = "Play / pause",
+        description = stringResource(R.string.music_play_pause),
         primary = true,
         onClick = { onCommand(MusicCommand.PlayPause) },
     )
     TransportButton(
         icon = Lucide.SkipForward,
-        description = "Skip next",
+        description = stringResource(R.string.music_skip_next),
         primary = false,
         onClick = { onCommand(MusicCommand.SkipNext) },
     )
@@ -395,7 +397,7 @@ private fun ConnectState(onConnect: () -> Unit) =
             )
             Box(modifier = Modifier.height(12.dp))
             Text(
-                text = "Connect a player",
+                text = stringResource(R.string.music_connect_cta),
                 style =
                     MaterialTheme.typography.titleMedium.copy(
                         fontSize = 18.sp,
@@ -406,7 +408,7 @@ private fun ConnectState(onConnect: () -> Unit) =
             )
             Box(modifier = Modifier.height(4.dp))
             Text(
-                text = "Allow notification access to control playback from the dashboard.",
+                text = stringResource(R.string.music_connect_hint),
                 style =
                     MaterialTheme.typography.bodySmall.copy(
                         fontSize = 13.sp,
@@ -440,7 +442,7 @@ private fun EmptyState() =
         )
         Box(modifier = Modifier.height(4.dp))
         Text(
-            text = "Nothing is playing",
+            text = stringResource(R.string.music_nothing_playing),
             style =
                 MaterialTheme.typography.titleMedium.copy(
                     fontSize = 18.sp,
@@ -451,7 +453,7 @@ private fun EmptyState() =
         )
         Box(modifier = Modifier.height(4.dp))
         Text(
-            text = "Open a music app to start, or say \"Hey Google, play something\".",
+            text = stringResource(R.string.music_nothing_hint),
             style =
                 MaterialTheme.typography.bodySmall.copy(
                     fontSize = 13.sp,

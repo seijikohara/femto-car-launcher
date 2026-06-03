@@ -27,12 +27,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPinOff
+import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -252,13 +254,13 @@ private fun Fallback() =
             modifier = Modifier.size(40.dp),
         )
         Text(
-            text = "Map unavailable",
+            text = stringResource(R.string.map_unavailable),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
-            text = "Grant location access to enable the map and overlays.",
+            text = stringResource(R.string.map_permission_cta),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
