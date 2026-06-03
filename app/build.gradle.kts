@@ -22,6 +22,11 @@ val localProperties =
 val geocoderBaseUrl = localProperties.getProperty("GEOCODER_BASE_URL", "https://nominatim.openstreetmap.org/")
 val geocoderApiKey = localProperties.getProperty("GEOCODER_API_KEY", "")
 
+// Release signing is driven entirely by environment variables so CI can sign the
+// nightly APK without committing a keystore, while local `assembleRelease` stays
+// unsigned (no signing config attached) when the variables are absent.
+val releaseKeystorePath: String? = System.getenv("RELEASE_KEYSTORE_PATH")
+
 spotless {
     val ktlintVersion = libs.versions.ktlint.get()
     val composeRulesVersion = libs.versions.ktlintComposeRules.get()
@@ -48,8 +53,10 @@ android {
         applicationId = "io.github.seijikohara.femto"
         minSdk = 33
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        // CI injects a monotonically increasing versionCode/versionName for the
+        // nightly channel; local builds fall back to the committed 1 / "1.0".
+        versionCode = System.getenv("NIGHTLY_VERSION_CODE")?.toIntOrNull() ?: 1
+        versionName = System.getenv("NIGHTLY_VERSION_NAME") ?: "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -57,8 +64,25 @@ android {
         buildConfigField("String", "GEOCODER_API_KEY", "\"${geocoderApiKey}\"")
     }
 
+    signingConfigs {
+        // Only register the release signing config when CI supplies a keystore path
+        // via env; absent it, `signingConfigs.findByName("release")` returns null and
+        // the release build stays unsigned so local `assembleRelease` still works.
+        releaseKeystorePath?.let { keystorePath ->
+            create("release") {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Null when no env-driven keystore is present, leaving the release build
+            // unsigned for local contributors; CI attaches the "release" config above.
+            signingConfig = signingConfigs.findByName("release")
             // Intentionally unminified: the launcher is a small, reflection-light app
             // and keeping R8 off removes a class of release-only stripping bugs. The
             // keep rules in proguard-rules.pro stay R8-ready so this flag can flip to
