@@ -64,8 +64,13 @@ internal class CalendarRepository(
                 hasEvent = false,
             )
         }
-        val events = if (hasPermission()) readEvents(today) else emptyList()
-        val datesWithEvents = readEventDates(today, events)
+        val granted = hasPermission()
+        val events = if (granted) readEvents(today) else emptyList()
+        // readEventDates runs its own full-window query (earlier-today events
+        // dot days the future-only readEvents window misses), so it must run
+        // whenever the permission is granted — not only when readEvents found
+        // future events.
+        val datesWithEvents = if (granted) readEventDates(today) else emptySet()
         val stripWithDots = strip.map { it.copy(hasEvent = it.date in datesWithEvents) }
         return CalendarSnapshot(
             today = today,
@@ -86,8 +91,7 @@ internal class CalendarRepository(
      * the time-of-day for display.
      */
     @SuppressLint("MissingPermission") // Caller checks READ_CALENDAR before subscribing.
-    private fun readEventDates(today: LocalDate, events: List<EventItem>): Set<LocalDate> {
-        if (events.isEmpty()) return emptySet()
+    private fun readEventDates(today: LocalDate): Set<LocalDate> {
         val begin = today.atStartOfDay(zone).toInstant().toEpochMilli()
         val end = today
             .plusDays(DAY_STRIP_LENGTH.toLong())
@@ -99,24 +103,28 @@ internal class CalendarRepository(
             .let { ContentUris.appendId(it, begin) }
             .let { ContentUris.appendId(it, end) }
             .build()
-        val dates = mutableSetOf<LocalDate>()
-        context.contentResolver
-            .query(
-                uri,
-                arrayOf(CalendarContract.Instances.BEGIN),
-                null,
-                null,
-                "${CalendarContract.Instances.BEGIN} ASC",
-            )?.use { cursor ->
-                while (cursor.moveToNext()) {
-                    val startMs = cursor.getLong(0)
-                    dates += java.time.Instant
-                        .ofEpochMilli(startMs)
-                        .atZone(zone)
-                        .toLocalDate()
+        // A mid-stream permission revoke (SecurityException) or an OEM provider
+        // fault (SQLiteException) must not tear down the dashboard StateFlow.
+        return runCatching {
+            val dates = mutableSetOf<LocalDate>()
+            context.contentResolver
+                .query(
+                    uri,
+                    arrayOf(CalendarContract.Instances.BEGIN),
+                    null,
+                    null,
+                    "${CalendarContract.Instances.BEGIN} ASC",
+                )?.use { cursor ->
+                    while (cursor.moveToNext()) {
+                        val startMs = cursor.getLong(0)
+                        dates += java.time.Instant
+                            .ofEpochMilli(startMs)
+                            .atZone(zone)
+                            .toLocalDate()
+                    }
                 }
-            }
-        return dates
+            dates.toSet()
+        }.getOrDefault(emptySet())
     }
 
     @SuppressLint("MissingPermission") // Caller checks READ_CALENDAR before subscribing.
@@ -135,28 +143,32 @@ internal class CalendarRepository(
         val now = java.time.Instant
             .now()
             .toEpochMilli()
-        val items = mutableListOf<EventItem>()
-        context.contentResolver
-            .query(
-                uri,
-                arrayOf(
-                    CalendarContract.Instances.BEGIN,
-                    CalendarContract.Instances.TITLE,
-                ),
-                "${CalendarContract.Instances.BEGIN} >= ?",
-                arrayOf(now.toString()),
-                "${CalendarContract.Instances.BEGIN} ASC",
-            )?.use { cursor ->
-                while (cursor.moveToNext() && items.size < EVENT_LIST_LIMIT) {
-                    val startMs = cursor.getLong(0)
-                    val title = cursor.getString(1) ?: continue
-                    items += EventItem(
-                        time = LocalTime.ofInstant(java.time.Instant.ofEpochMilli(startMs), zone),
-                        title = title,
-                    )
+        // A mid-stream permission revoke (SecurityException) or an OEM provider
+        // fault (SQLiteException) must not tear down the dashboard StateFlow.
+        return runCatching {
+            val items = mutableListOf<EventItem>()
+            context.contentResolver
+                .query(
+                    uri,
+                    arrayOf(
+                        CalendarContract.Instances.BEGIN,
+                        CalendarContract.Instances.TITLE,
+                    ),
+                    "${CalendarContract.Instances.BEGIN} >= ?",
+                    arrayOf(now.toString()),
+                    "${CalendarContract.Instances.BEGIN} ASC",
+                )?.use { cursor ->
+                    while (cursor.moveToNext() && items.size < EVENT_LIST_LIMIT) {
+                        val startMs = cursor.getLong(0)
+                        val title = cursor.getString(1) ?: continue
+                        items += EventItem(
+                            time = LocalTime.ofInstant(java.time.Instant.ofEpochMilli(startMs), zone),
+                            title = title,
+                        )
+                    }
                 }
-            }
-        return items
+            items.toList()
+        }.getOrDefault(emptyList())
     }
 
     /**

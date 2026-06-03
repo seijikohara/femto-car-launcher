@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.data
 
+import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.LauncherActivityInfo
@@ -21,8 +22,15 @@ import kotlinx.coroutines.withContext
  */
 class AppsRepository(
     private val context: Context,
+    launcher: ((ComponentName) -> Unit)? = null,
 ) {
     private val launcherApps: LauncherApps = checkNotNull(context.getSystemService())
+
+    // Seam: production launches via LauncherApps; tests inject a stub launcher.
+    private val startActivity: (ComponentName) -> Unit =
+        launcher ?: { componentName ->
+            launcherApps.startMainActivity(componentName, Process.myUserHandle(), null, null)
+        }
 
     /**
      * Return all main-launchable activities for the current user,
@@ -34,16 +42,28 @@ class AppsRepository(
         withContext(Dispatchers.IO) {
             launcherApps
                 .getActivityList(null, Process.myUserHandle())
-                .map(LauncherActivityInfo::toAppEntry)
+                // Isolate per-app resolution: getIcon() can throw
+                // Resources.NotFoundException or OOM on a pathological adaptive
+                // icon. One bad package must not blank the whole grid.
+                .mapNotNull { runCatching { it.toAppEntry() }.getOrNull() }
                 .sortedBy { it.label.lowercase() }
         }
 
     /**
-     * Launch the given activity. The bounds and options are unused
-     * for the MVP grid; pass `null` to defer to system defaults.
+     * Launch the given activity and report whether it resolved.
+     *
+     * Return `false` for [ActivityNotFoundException] — a stale shortcut
+     * after an uninstall must not crash the HOME launcher. Other errors
+     * still propagate (matches `MainActivity#startActivityIfResolved`).
      */
-    fun launch(componentName: ComponentName): Unit =
-        launcherApps.startMainActivity(componentName, Process.myUserHandle(), null, null)
+    fun launch(componentName: ComponentName): Boolean =
+        runCatching { startActivity(componentName) }
+            .fold(
+                onSuccess = { true },
+                onFailure = { error ->
+                    if (error is ActivityNotFoundException) false else throw error
+                },
+            )
 }
 
 private const val ICON_PIXELS = 192

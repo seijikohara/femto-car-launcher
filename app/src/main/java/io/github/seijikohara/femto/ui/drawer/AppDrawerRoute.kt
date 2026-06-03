@@ -22,7 +22,7 @@ internal fun AppDrawerRoute(
     val context = LocalContext.current
     var apps by remember { mutableStateOf<List<AppEntry>>(emptyList()) }
     LaunchedEffect(Unit) {
-        apps = AppsRepository(context).queryApps()
+        apps = runCatching { AppsRepository(context).queryApps() }.getOrDefault(emptyList())
     }
     BackHandler(onBack = onBack)
     AppDrawerScreen(apps = apps, onLaunch = onLaunch, modifier = modifier)
