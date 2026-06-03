@@ -163,16 +163,19 @@ class WeatherRepositoryTest {
             server.enqueue(MockResponse().setResponseCode(500))
             server.enqueue(MockResponse().setResponseCode(500))
 
-            val clock = MutableClock(Instant.parse("2026-05-01T05:32:00Z"))
+            // The clock advances off the server request count, not wall time, so the
+            // second emit is seen as +10s (inside MIN_RETRY_INTERVAL) only once the
+            // first attempt has actually hit the server — immune to the flowOn(IO) /
+            // merge scheduling that made a manually-advanced clock flaky on CI.
+            val clock = RequestCountClock(Instant.parse("2026-05-01T05:32:00Z"), server, Duration.ofSeconds(10))
             val repo =
                 WeatherRepository(
                     api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
-                    // Second emit lands well inside MIN_RETRY_INTERVAL (one minute).
-                    locationFlow = flow {
-                        emit(fakeLocation())
-                        clock.advanceBy(Duration.ofSeconds(10))
-                        emit(fakeLocation())
-                    },
+                    locationFlow =
+                        flow {
+                            emit(fakeLocation())
+                            emit(fakeLocation())
+                        },
                     clockFlow = emptyFlow(),
                     clock = clock,
                 )
@@ -194,16 +197,18 @@ class WeatherRepositoryTest {
             server.enqueue(MockResponse().setResponseCode(500))
             server.enqueue(MockResponse().setResponseCode(500))
 
-            val clock = MutableClock(Instant.parse("2026-05-01T05:32:00Z"))
+            // +61s once the first attempt has landed (just past MIN_RETRY_INTERVAL), so
+            // the second emit triggers a real retry. Driven off the request count, not
+            // wall time, to stay deterministic under flowOn(IO) / merge.
+            val clock = RequestCountClock(Instant.parse("2026-05-01T05:32:00Z"), server, Duration.ofSeconds(61))
             val repo =
                 WeatherRepository(
                     api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
-                    // Second emit lands just past MIN_RETRY_INTERVAL, so the retry fires.
-                    locationFlow = flow {
-                        emit(fakeLocation())
-                        clock.advanceBy(Duration.ofSeconds(61))
-                        emit(fakeLocation())
-                    },
+                    locationFlow =
+                        flow {
+                            emit(fakeLocation())
+                            emit(fakeLocation())
+                        },
                     clockFlow = emptyFlow(),
                     clock = clock,
                 )
@@ -244,21 +249,22 @@ class WeatherRepositoryTest {
             }
         }
 
-    // Mutable clock whose instant the test advances explicitly to exercise the
-    // outage-retry throttle without real-time waits.
-    private class MutableClock(
-        private var now: Instant,
+    // Clock that advances off the MockWebServer request count rather than wall time:
+    // it returns [base] until the first request has landed, then base + [offsetAfterFirst].
+    // Driving the clock off observable progress (not emission timing) makes the
+    // outage-retry throttle tests immune to the flowOn(IO) / merge scheduling race that
+    // a manually-advanced clock suffered on slow CI runners.
+    private class RequestCountClock(
+        private val base: Instant,
+        private val server: MockWebServer,
+        private val offsetAfterFirst: Duration,
         private val zone: ZoneId = ZoneOffset.UTC,
     ) : Clock() {
-        fun advanceBy(amount: Duration) {
-            now = now.plus(amount)
-        }
-
         override fun getZone(): ZoneId = zone
 
-        override fun withZone(zone: ZoneId): Clock = MutableClock(now, zone)
+        override fun withZone(zone: ZoneId): Clock = RequestCountClock(base, server, offsetAfterFirst, zone)
 
-        override fun instant(): Instant = now
+        override fun instant(): Instant = if (server.requestCount >= 1) base.plus(offsetAfterFirst) else base
     }
 
     private companion object {
