@@ -3,8 +3,11 @@ package io.github.seijikohara.femto.data
 import android.location.Location
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.onEach
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -17,6 +20,7 @@ import kotlin.math.roundToInt
 internal class WeatherRepository(
     private val api: OpenMeteoApi,
     private val locationFlow: Flow<Location?>,
+    private val clockFlow: Flow<ClockTick>,
     private val clock: Clock = Clock.systemUTC(),
 ) {
     private var cached: WeatherSnapshot? = null
@@ -27,12 +31,19 @@ internal class WeatherRepository(
     // the public Open-Meteo endpoint, which would risk a ban.
     private var lastAttemptAt: Instant? = null
 
+    // Last-seen fix, updated by the location path and re-read on every clock tick.
+    // The clock heartbeat lets weather re-evaluate refresh while parked indoors or
+    // underground, where GPS stops emitting but the network is still reachable.
+    private val latest = MutableStateFlow<Location?>(null)
+
     fun snapshotFlow(): Flow<WeatherSnapshot?> =
-        flow {
-            locationFlow.collect { location ->
-                emit(refresh(location) ?: cached)
-            }
-        }.flowOn(Dispatchers.IO)
+        merge(
+            locationFlow.onEach { latest.value = it },
+            // merge (not combine) keeps the location path working when clockFlow
+            // is empty; combine would stall until the clock emitted at least once.
+            clockFlow.map { latest.value },
+        ).map { location -> refresh(location) ?: cached }
+            .flowOn(Dispatchers.IO)
 
     private suspend fun refresh(location: Location?): WeatherSnapshot? {
         location ?: return null
@@ -45,12 +56,14 @@ internal class WeatherRepository(
         cached =
             WeatherSnapshot(
                 tempC = current.temperature_2m,
-                apparentTempC = current.apparent_temperature,
+                // Fall back to the air temperature when "feels like" is absent so a
+                // dropped secondary field never discards the usable reading.
+                apparentTempC = current.apparent_temperature ?: current.temperature_2m,
                 code = WeatherCode.fromWmo(current.weathercode),
-                windKmh = current.windspeed_10m,
+                windKmh = current.windspeed_10m ?: 0.0,
                 humidityPercent = current.relative_humidity_2m?.roundToInt(),
                 uvIndex = current.uv_index,
-                isDay = current.is_day == 1,
+                isDay = (current.is_day ?: 1) == 1,
                 sunrise = response.daily
                     ?.sunrise
                     ?.firstOrNull()

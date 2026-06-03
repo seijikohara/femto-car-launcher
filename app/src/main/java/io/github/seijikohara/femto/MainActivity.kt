@@ -17,6 +17,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import io.github.seijikohara.femto.data.AppsRepository
+import io.github.seijikohara.femto.data.SystemPermissionSignals
 import io.github.seijikohara.femto.data.hasBluetoothConnectPermission
 import io.github.seijikohara.femto.data.hasFineLocationPermission
 import io.github.seijikohara.femto.data.hasReadCalendarPermission
@@ -28,10 +29,12 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 class MainActivity : ComponentActivity() {
     private val appsRepository by lazy { AppsRepository(this) }
 
-    // Permission results are not consumed here — each repository self-checks
-    // on every emit, so a late grant flows through naturally.
+    // Emit on the process-wide refresh signal so permission-gated flows (e.g.
+    // the Bluetooth footer indicator) re-read after a late runtime grant.
     private val permissionsLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { /* no-op */ }
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            SystemPermissionSignals.refreshes.tryEmit(Unit)
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()

@@ -26,6 +26,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onStart
 
 /**
@@ -85,7 +87,23 @@ internal class SystemStatusRepository(
         }
     }
 
+    /**
+     * Connected-state stream merging two re-read triggers:
+     * - [bluetoothBroadcastFlow] fires on BT adapter / connection broadcasts.
+     * - [SystemPermissionSignals.refreshes] fires when a runtime permission
+     *   result lands. A `BLUETOOTH_CONNECT` grant from the in-app dialog leaves
+     *   the activity PAUSED (not STOPPED), so without this nudge the indicator
+     *   would stay dimmed until the next BT broadcast. The outer
+     *   [statusFlow] keeps its `distinctUntilChanged`, so an unchanged value is
+     *   suppressed.
+     */
     private fun bluetoothFlow(): Flow<Boolean> =
+        merge(
+            bluetoothBroadcastFlow(),
+            SystemPermissionSignals.refreshes.map { readBluetoothConnected(bluetoothManager?.adapter) },
+        )
+
+    private fun bluetoothBroadcastFlow(): Flow<Boolean> =
         callbackFlow {
             val adapter: BluetoothAdapter? = bluetoothManager?.adapter
             trySend(readBluetoothConnected(adapter))
