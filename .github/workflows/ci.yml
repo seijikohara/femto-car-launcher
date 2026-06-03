@@ -40,6 +40,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: validate
     if: github.event_name != 'pull_request'
+    # Serialize publishes so two concurrent main pushes never race on the rolling
+    # "nightly" tag (delete-then-create); queue them rather than cancel an
+    # in-flight publish midway.
+    concurrency:
+      group: nightly-release
+      cancel-in-progress: false
     permissions:
       # gh release create/delete + tag manipulation require write access to repo
       # contents. The default GITHUB_TOKEN satisfies this for the same repo.
