@@ -144,6 +144,24 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun `onAction OpenBrowser emits LaunchAppCategory APP_BROWSER`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.OpenBrowser,
+                expected = HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_BROWSER),
+            )
+        }
+
+    @Test
+    fun `onAction OpenSettings emits OpenSystemSettings`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.OpenSettings,
+                expected = HomeEvent.OpenSystemSettings,
+            )
+        }
+
+    @Test
     fun `onAction ConnectMusicPlayer emits OpenNotificationListenerSettings`() =
         runTest {
             stubViewModel().assertEvent(
