@@ -166,8 +166,10 @@ internal class HomeViewModelFactory(
         val nominatimApi =
             NominatimApi(
                 client = httpClient,
+                baseUrl = BuildConfig.GEOCODER_BASE_URL,
                 userAgent = userAgent,
                 language = Locale.getDefault().language,
+                apiKey = BuildConfig.GEOCODER_API_KEY.takeIf { it.isNotBlank() },
             )
         val geocoder = ReverseGeocoderRepository(locationFlow, nominatimApi)
         val weatherApi = OpenMeteoApi(client = httpClient)

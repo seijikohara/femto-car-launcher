@@ -29,7 +29,17 @@ internal class ReverseGeocoderRepository(
     // Per-bucket cache keyed by the 100 m bucket (lat/lon rounded to 3
     // decimals). A revisited bucket returns the cached address without a
     // network call, and a failed lookup falls back to the most recent value.
-    private val cache = mutableMapOf<String, ShortAddress>()
+    //
+    // Access-order LinkedHashMap so the map doubles as a bounded LRU: the
+    // eldest (least-recently-read-or-written) bucket is evicted once the map
+    // exceeds MAX_ENTRIES. This caps the cache at a few hundred buckets so a
+    // long drive cannot grow it without bound. A pure-JVM LinkedHashMap is
+    // preferred over android.util.LruCache so the cache needs no Robolectric
+    // shadow to exercise.
+    private val cache =
+        object : LinkedHashMap<String, CacheEntry>(MAX_ENTRIES, LOAD_FACTOR, true) {
+            override fun removeEldestEntry(eldest: Map.Entry<String, CacheEntry>): Boolean = size > MAX_ENTRIES
+        }
     private var lastResult: ShortAddress? = null
     private var lastRequestAtMs = 0L
 
@@ -41,7 +51,7 @@ internal class ReverseGeocoderRepository(
 
     private suspend fun resolve(location: Location): ShortAddress? {
         val key = bucketKey(location.latitude, location.longitude)
-        cache[key]?.let { return it }
+        cachedAddress(key)?.let { return it }
 
         // Nominatim's usage policy caps callers at 1 request per second; the
         // 100 m bucket already collapses most calls, and this spacing guards
@@ -54,11 +64,24 @@ internal class ReverseGeocoderRepository(
             }
         }.getOrNull()
             ?.also {
-                cache[key] = it
+                cache[key] = CacheEntry(it, nowMs())
                 lastResult = it
             }
             ?: lastResult
     }
+
+    // Return the cached address only while it is within the TTL window. A
+    // stale entry is dropped so the next visit re-queries and can recover from
+    // a low-quality first geocode.
+    private fun cachedAddress(key: String): ShortAddress? =
+        cache[key]?.let { entry ->
+            if (nowMs() - entry.resolvedAtMs < TTL_MS) {
+                entry.address
+            } else {
+                cache.remove(key)
+                null
+            }
+        }
 
     private suspend fun throttle() {
         val elapsed = nowMs() - lastRequestAtMs
@@ -77,8 +100,25 @@ internal class ReverseGeocoderRepository(
                 (old != null && new != null && old.distanceTo(new) < BUCKET_M)
         }
 
+    // Cached address paired with the wall-clock time it was resolved, so the
+    // TTL check can age out a stale or low-quality bucket.
+    private data class CacheEntry(
+        val address: ShortAddress,
+        val resolvedAtMs: Long,
+    )
+
     private companion object {
         const val BUCKET_M = 100f
         const val MIN_REQUEST_SPACING_MS = 1_000L
+
+        // Cap the per-bucket cache so a long drive cannot grow it without
+        // bound; ~256 buckets covers a large daily travel envelope while
+        // bounding the worst-case memory footprint.
+        const val MAX_ENTRIES = 256
+        const val LOAD_FACTOR = 0.75f
+
+        // Re-resolve a bucket after a day so a stale or low-quality first
+        // geocode recovers without restarting the process.
+        const val TTL_MS = 24L * 60L * 60L * 1_000L
     }
 }
