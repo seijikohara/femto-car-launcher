@@ -47,6 +47,7 @@ internal class HomeViewModel(
     private val systemStatusFlow: Flow<SystemStatus>,
     private val tripStateFlow: Flow<TripState>,
     private val sendMusicCommand: (MusicCommand) -> Unit = {},
+    private val resetTrip: () -> Unit = {},
 ) : ViewModel() {
     // Kotlin's typed combine overloads cover at most 5 flows. Stage the eight
     // sources through a typed intermediate (CoreSignals) so the compiler enforces
@@ -128,6 +129,10 @@ internal class HomeViewModel(
             HomeAction.OpenSettings -> {
                 mutableEvents.tryEmit(HomeEvent.OpenSystemSettings)
             }
+
+            HomeAction.ResetTrip -> {
+                resetTrip()
+            }
         }
     }
 }
@@ -188,6 +193,7 @@ internal class HomeViewModelFactory(
             systemStatusFlow = systemStatus.statusFlow(),
             tripStateFlow = trip.stateFlow(),
             sendMusicCommand = music::send,
+            resetTrip = trip::reset,
         ) as T
     }
 }

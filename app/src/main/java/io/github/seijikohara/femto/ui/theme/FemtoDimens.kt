@@ -60,6 +60,21 @@ object FemtoDimens {
      */
     val SpeedOverlayCorner = 20.dp
 
+    /**
+     * Minimum width reserved for the speed overlay's hero numeral so the card
+     * does not reflow as the speed's digit count changes (e.g. 9 -> 120 km/h).
+     * Sized for the 3-digit range left after [TripRepository]'s plausibility
+     * clamp; the value is right-aligned within it.
+     */
+    val SpeedHeroValueMinWidth = 72.dp
+
+    /**
+     * Minimum width reserved for each secondary speed-metric cell (distance,
+     * average) so digit-count changes do not reflow the overlay across the
+     * common driving range.
+     */
+    val SpeedMetricMinWidth = 76.dp
+
     /** Weather glyph beside the city name in the weather card head row. */
     val WeatherGlyphLarge = 20.dp
 

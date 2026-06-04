@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.ui.home.components
 import android.location.Location
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -26,13 +29,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPin
+import com.composables.icons.lucide.RotateCcw
+import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.ShortAddress
 import io.github.seijikohara.femto.data.TripState
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
@@ -51,16 +58,18 @@ import kotlin.math.roundToInt
  * Glass overlay anchored to the map pane's bottom-centre, per
  * `docs/design/dashboard-v2-mockup.html` `.speed-overlay`:
  *
- *  - Three-cell grid: hero current speed | 1 dp × 36 dp separator |
- *    distance | separator | average speed.
+ *  - Metric row: hero current speed | separator | distance | separator |
+ *    average speed | separator | reset-trip button (top-right).
  *  - Below: a 1 dp top border, then a MapPin · short-address row.
  *  - 20 dp corner radius and a 1 dp outline border. The Column wraps its
  *    content rather than claiming a fixed width, so the metric cells sit
  *    tight with a consistent 16 dp gap and the overlay never stretches to
  *    fill the map pane. The call site centres it via
  *    `Alignment.BottomCenter`, so a content-width Column stays compact and
- *    centred. Tabular figures keep digit widths stable, so the overlay
- *    barely changes width as the values tick.
+ *    centred. Tabular figures plus reserved per-cell widths
+ *    ([FemtoDimens.SpeedHeroValueMinWidth] / [FemtoDimens.SpeedMetricMinWidth])
+ *    keep the overlay's width stable as the values tick, so it no longer grows
+ *    and shrinks with the digit count.
  *
  * The 40 sp speed numeral is the only saturated value here; the
  * supporting metrics use `onSurface` / `onSurfaceVariant` so the hero
@@ -79,6 +88,7 @@ internal fun SpeedOverlay(
     address: ShortAddress?,
     tripState: TripState,
     speedUnit: SpeedUnit,
+    onReset: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Source the hero numeral from the trip's effective speed, not
@@ -125,6 +135,7 @@ internal fun SpeedOverlay(
             distance = distance,
             distanceUnitLabel = speedUnit.distanceLabel(),
             avgSpeed = avgSpeed,
+            onReset = onReset,
         )
         if (shortAddress.isNotBlank()) {
             Box(modifier = Modifier.height(12.dp))
@@ -142,6 +153,7 @@ private fun MetricRow(
     distance: Double,
     distanceUnitLabel: String,
     avgSpeed: Int,
+    onReset: () -> Unit,
 ) = Row(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -151,9 +163,16 @@ private fun MetricRow(
     SecondaryMetric(
         key = "DISTANCE",
         value = "%.1f %s".format(distance, distanceUnitLabel),
+        modifier = Modifier.widthIn(min = FemtoDimens.SpeedMetricMinWidth),
     )
     Separator()
-    SecondaryMetric(key = "AVG.", value = "$avgSpeed $speedUnitLabel")
+    SecondaryMetric(
+        key = "AVG.",
+        value = "$avgSpeed $speedUnitLabel",
+        modifier = Modifier.widthIn(min = FemtoDimens.SpeedMetricMinWidth),
+    )
+    Separator()
+    ResetButton(onReset = onReset)
 }
 
 @Composable
@@ -176,6 +195,11 @@ private fun NowMetric(
             ),
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
+        // Reserve a stable width sized for the clamped 3-digit range and
+        // right-align within it, so the hero numeral does not reflow the
+        // overlay as the speed's digit count changes.
+        textAlign = TextAlign.End,
+        modifier = Modifier.widthIn(min = FemtoDimens.SpeedHeroValueMinWidth),
     )
     Text(
         text = unit,
@@ -251,6 +275,30 @@ private fun AddressRow(text: String) =
         )
     }
 
+// Trailing reset control for the trip metrics, anchored to the overlay's
+// top-right (the end of the metric row). A 64 dp hit area
+// (CLAUDE.md#automotive-overrides) wraps a small glyph; the box also sets the
+// metric row height, so the tap target is met without a separate overlay.
+@Composable
+private fun ResetButton(
+    onReset: () -> Unit,
+    modifier: Modifier = Modifier,
+) = Box(
+    modifier =
+        modifier
+            .size(FemtoDimens.MinTouchTarget)
+            .clip(CircleShape)
+            .clickable(onClick = onReset),
+    contentAlignment = Alignment.Center,
+) {
+    Icon(
+        imageVector = Lucide.RotateCcw,
+        contentDescription = stringResource(R.string.speed_reset_trip),
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(FemtoDimens.InlineIconSize),
+    )
+}
+
 /**
  * Advance an exponential moving average (EMA) by one sample.
  *
@@ -280,7 +328,7 @@ private const val SPEED_OVERLAY_EMA_ALPHA = 0.33f
 private const val NO_SPEED_PLACEHOLDER = "—"
 
 @PreviewLightDark
-@Preview(name = "Speed overlay", widthDp = 520, heightDp = 140)
+@Preview(name = "Speed overlay", widthDp = 560, heightDp = 160)
 @Composable
 private fun SpeedOverlayPreview() {
     FemtoTheme {
@@ -291,12 +339,30 @@ private fun SpeedOverlayPreview() {
             address = ShortAddress(locality = "Minato-ku", region = "Tokyo"),
             tripState = TripState(distanceMeters = 24_400.0, avgSpeedMs = 11.7, currentSpeedMs = 13.2),
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+            onReset = {},
         )
     }
 }
 
 @PreviewLightDark
-@Preview(name = "Speed overlay (no fix)", widthDp = 520, heightDp = 140)
+@Preview(name = "Speed overlay (wide values)", widthDp = 560, heightDp = 160)
+@Composable
+private fun SpeedOverlayWideValuesPreview() {
+    FemtoTheme {
+        // Large 3-digit speed and a long distance verify the reserved metric
+        // widths hold the overlay's width stable instead of reflowing.
+        SpeedOverlay(
+            location = Location("preview").apply { speed = 30.5f },
+            address = ShortAddress(locality = "Minato-ku", region = "Tokyo"),
+            tripState = TripState(distanceMeters = 188_400.0, avgSpeedMs = 30.5, currentSpeedMs = 30.5),
+            speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+            onReset = {},
+        )
+    }
+}
+
+@PreviewLightDark
+@Preview(name = "Speed overlay (no fix)", widthDp = 560, heightDp = 160)
 @Composable
 private fun SpeedOverlayNoFixPreview() {
     FemtoTheme {
@@ -307,6 +373,7 @@ private fun SpeedOverlayNoFixPreview() {
             address = ShortAddress(locality = "Minato-ku", region = "Tokyo"),
             tripState = TripState.Initial,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+            onReset = {},
         )
     }
 }
