@@ -48,6 +48,7 @@
     <string name="nav_music">Music</string>
     <string name="nav_navigation">Navigation</string>
     <string name="nav_browser">Browser</string>
+    <string name="nav_assistant">Assistant</string>
     <string name="nav_settings">Settings</string>
 
     <!-- Dashboard footer: status cluster -->

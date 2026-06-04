@@ -171,6 +171,15 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun `onAction OpenAssistant emits OpenAssistant`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.OpenAssistant,
+                expected = HomeEvent.OpenAssistant,
+            )
+        }
+
+    @Test
     fun `onAction ConnectMusicPlayer emits OpenNotificationListenerSettings`() =
         runTest {
             stubViewModel().assertEvent(

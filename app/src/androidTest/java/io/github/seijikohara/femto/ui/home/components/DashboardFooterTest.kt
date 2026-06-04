@@ -49,6 +49,21 @@ class DashboardFooterTest {
     }
 
     @Test
+    fun tapping_assistant_dispatches_open_assistant() {
+        var lastAction: HomeAction? = null
+        rule.setContent {
+            FemtoTheme {
+                DashboardFooter(
+                    systemStatus = fakeSystemStatus(),
+                    onAction = { lastAction = it },
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("Assistant").performClick()
+        assertEquals(HomeAction.OpenAssistant, lastAction)
+    }
+
+    @Test
     fun shows_wifi_connected_description_when_wifi_connected() {
         rule.setContent {
             FemtoTheme {
