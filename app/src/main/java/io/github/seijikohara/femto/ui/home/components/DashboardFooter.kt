@@ -41,6 +41,7 @@ import com.composables.icons.lucide.Mic
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Navigation
 import com.composables.icons.lucide.Phone
+import com.composables.icons.lucide.Satellite
 import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Signal
 import com.composables.icons.lucide.SignalHigh
@@ -77,8 +78,8 @@ private val CompactFooterWidth: Dp = 700.dp
  *    Browser / Assistant / Settings). This app IS the launcher, so no Home button.
  *  - A 1 dp vertical divider separates the actionable nav from a read-only
  *    status cluster: cellular (hidden on telephony-less units), Wi-Fi,
- *    Bluetooth, and a battery indicator (icon over percent, with a "Charging"
- *    caption while plugged in).
+ *    Bluetooth, GPS reception, and a battery indicator (icon over percent, with
+ *    a "Charging" caption while plugged in).
  *
  * Iconography is Lucide stroke-1.75 for parity with the design SSOT.
  */
@@ -254,6 +255,14 @@ private fun StatusCluster(
                 },
             ),
     )
+    StatusIcon(
+        icon = Lucide.Satellite,
+        active = status.gpsFixed,
+        description =
+            stringResource(
+                if (status.gpsFixed) R.string.status_gps_fixed else R.string.status_gps_searching,
+            ),
+    )
     BatteryIndicator(percent = status.batteryPercent, charging = status.charging)
 }
 
@@ -354,6 +363,7 @@ private fun DashboardFooterPreview() {
                     bluetoothConnected = true,
                     batteryPercent = 78,
                     charging = true,
+                    gpsFixed = true,
                 ),
             onAction = {},
         )
@@ -377,6 +387,7 @@ private fun DashboardFooterNarrowPreview() {
                     bluetoothConnected = false,
                     batteryPercent = null,
                     charging = false,
+                    gpsFixed = false,
                 ),
             onAction = {},
         )

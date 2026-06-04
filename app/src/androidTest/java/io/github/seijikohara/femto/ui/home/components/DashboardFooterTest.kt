@@ -160,6 +160,32 @@ class DashboardFooterTest {
     }
 
     @Test
+    fun shows_gps_fixed_description_when_gps_is_fixed() {
+        rule.setContent {
+            FemtoTheme {
+                DashboardFooter(
+                    systemStatus = fakeSystemStatus(gpsFixed = true),
+                    onAction = {},
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("GPS fixed").assertIsDisplayed()
+    }
+
+    @Test
+    fun shows_gps_searching_description_when_gps_is_not_fixed() {
+        rule.setContent {
+            FemtoTheme {
+                DashboardFooter(
+                    systemStatus = fakeSystemStatus(gpsFixed = false),
+                    onAction = {},
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("GPS searching").assertIsDisplayed()
+    }
+
+    @Test
     fun renders_battery_percent_text() {
         rule.setContent {
             FemtoTheme {

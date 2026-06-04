@@ -1,8 +1,12 @@
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package io.github.seijikohara.femto.data
 
 import android.app.Application
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -10,8 +14,14 @@ import android.os.BatteryManager
 import androidx.core.content.getSystemService
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
+import io.github.seijikohara.femto.testfixtures.fakeLocation
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import org.junit.Before
@@ -173,6 +183,68 @@ class SystemStatusRepositoryTest {
 
             assertNull(status.cellularSignalLevel)
         }
+
+    @Test
+    fun `gpsFixed becomes true on a GPS provider fix`() =
+        runTest {
+            val locations = MutableSharedFlow<Location?>(extraBufferCapacity = 1)
+
+            gpsRepository(locations).statusFlow().test {
+                // gpsFlow seeds false via onStart before any fix arrives.
+                assertFalse(awaitItem().gpsFixed)
+
+                locations.emit(fakeLocation(provider = LocationManager.GPS_PROVIDER))
+
+                assertTrue(awaitItem().gpsFixed)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `gpsFixed flips back to false after the freshness window`() =
+        runTest {
+            val locations = MutableSharedFlow<Location?>(extraBufferCapacity = 1)
+
+            gpsRepository(locations).statusFlow().test {
+                assertFalse(awaitItem().gpsFixed)
+
+                locations.emit(fakeLocation(provider = LocationManager.GPS_PROVIDER))
+                assertTrue(awaitItem().gpsFixed)
+
+                // No follow-up fix: once the 30 s freshness window elapses the
+                // indicator returns to searching.
+                advanceTimeBy(SystemStatusRepository.GPS_FIX_FRESHNESS_MS + 1L)
+                assertFalse(awaitItem().gpsFixed)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `gpsFixed stays false for a NETWORK provider fix`() =
+        runTest {
+            val locations = MutableSharedFlow<Location?>(extraBufferCapacity = 1)
+
+            gpsRepository(locations).statusFlow().test {
+                assertFalse(awaitItem().gpsFixed)
+
+                // A cell-tower / Wi-Fi fix centres the map but is not a GPS lock, so
+                // gpsFlow's provider gate drops it and the indicator stays searching.
+                locations.emit(fakeLocation(provider = LocationManager.NETWORK_PROVIDER))
+                advanceTimeBy(SystemStatusRepository.GPS_FIX_FRESHNESS_MS + 1L)
+
+                expectNoEvents()
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    // statusFlow runs its combine on the injected dispatcher; an UnconfinedTestDispatcher
+    // backed by runTest's scheduler lets advanceTimeBy drive gpsFlow's freshness delay.
+    private fun TestScope.gpsRepository(locationFlow: MutableSharedFlow<Location?>): SystemStatusRepository =
+        SystemStatusRepository(
+            context = application,
+            locationFlow = locationFlow,
+            dispatcher = UnconfinedTestDispatcher(testScheduler),
+        )
 
     /**
      * Collect the first [SystemStatus] satisfying [predicate]. statusFlow runs its
