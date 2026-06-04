@@ -29,6 +29,7 @@ import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Lucide
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.ClockSetting
+import io.github.seijikohara.femto.data.FullscreenSetting
 import io.github.seijikohara.femto.data.SpeedUnitSetting
 import io.github.seijikohara.femto.data.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.ThemeMode
@@ -111,6 +112,17 @@ internal fun SettingsScreen(
                 ),
             selected = uiState.clock,
             onSelect = { onAction(SettingsAction.SetClock(it)) },
+        )
+
+        SettingGroup(
+            title = stringResource(R.string.settings_group_fullscreen),
+            options =
+                listOf(
+                    FullscreenSetting.OFF to stringResource(R.string.settings_fullscreen_off),
+                    FullscreenSetting.ON to stringResource(R.string.settings_fullscreen_on),
+                ),
+            selected = uiState.fullscreen,
+            onSelect = { onAction(SettingsAction.SetFullscreen(it)) },
         )
 
         SettingGroup(

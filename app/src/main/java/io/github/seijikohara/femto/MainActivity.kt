@@ -13,17 +13,23 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import io.github.seijikohara.femto.data.AppsRepository
 import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.DisplayPreferences
 import io.github.seijikohara.femto.data.DisplaySettings
 import io.github.seijikohara.femto.data.FontPreferences
+import io.github.seijikohara.femto.data.FullscreenSetting
 import io.github.seijikohara.femto.data.SystemPermissionSignals
 import io.github.seijikohara.femto.data.ThemeMode
 import io.github.seijikohara.femto.data.hasBluetoothConnectPermission
@@ -39,11 +45,20 @@ import io.github.seijikohara.femto.ui.locale.resolved
 import io.github.seijikohara.femto.ui.settings.SettingsRoute
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.FontTheme
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val appsRepository by lazy { AppsRepository(this) }
     private val displayPreferences by lazy { DisplayPreferences(this) }
     private val fontPreferences by lazy { FontPreferences(this) }
+
+    // Cache the latest fullscreen choice so [onWindowFocusChanged] can re-hide the
+    // system bars when focus returns from another Activity. The Compose
+    // LaunchedEffect only fires on a setting change, not on a focus regain, so the
+    // bars would otherwise stay visible after returning from an external app.
+    private var fullscreenSetting = FullscreenSetting.OFF
 
     // Emit on the process-wide refresh signal so permission-gated flows (e.g.
     // the Bluetooth footer indicator) re-read after a late runtime grant.
@@ -58,6 +73,14 @@ class MainActivity : ComponentActivity() {
         enableEmulatorMapRendering()
         enableEdgeToEdge()
         requestRuntimePermissions()
+        // Keep the cached fullscreen choice in sync so onWindowFocusChanged can
+        // re-hide the bars after focus returns from another Activity.
+        lifecycleScope.launch {
+            displayPreferences.settings
+                .map { it.fullscreen }
+                .distinctUntilChanged()
+                .collect { fullscreenSetting = it }
+        }
         setContent {
             // User display settings override the locale/system defaults; the
             // theme + font feed FemtoTheme, the units + clock feed the dashboard.
@@ -71,6 +94,12 @@ class MainActivity : ComponentActivity() {
                     ThemeMode.LIGHT -> false
                     ThemeMode.DARK -> true
                 }
+            // Drive the system bars from the persisted fullscreen choice. This
+            // fires only on a setting change; onWindowFocusChanged handles the
+            // focus-regain case.
+            LaunchedEffect(display.fullscreen) {
+                applyFullscreen(display.fullscreen)
+            }
             FemtoTheme(fontTheme = fontTheme, darkTheme = darkTheme) {
                 // The dashboard stays composed; the app drawer and assistant are
                 // bottom-sheet overlays and settings is a full destination over it.
@@ -116,6 +145,33 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 }
+            }
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // Returning from another Activity (e.g. an external app) restores the
+        // system bars even when fullscreen is on. Re-hide them once focus returns.
+        if (hasFocus && fullscreenSetting == FullscreenSetting.ON) {
+            applyFullscreen(FullscreenSetting.ON)
+        }
+    }
+
+    // Hide or show both the status and navigation bars per the fullscreen choice.
+    // ON uses the transient-swipe behaviour so the bars reappear on a swipe and
+    // auto-hide again, matching an immersive-sticky launcher experience.
+    private fun applyFullscreen(setting: FullscreenSetting) {
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        when (setting) {
+            FullscreenSetting.ON -> {
+                controller.systemBarsBehavior =
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                controller.hide(WindowInsetsCompat.Type.systemBars())
+            }
+
+            FullscreenSetting.OFF -> {
+                controller.show(WindowInsetsCompat.Type.systemBars())
             }
         }
     }

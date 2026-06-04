@@ -24,6 +24,7 @@ internal class SettingsViewModel(
                 speedUnit = display.speedUnit,
                 temperatureUnit = display.temperatureUnit,
                 clock = display.clock,
+                fullscreen = display.fullscreen,
                 fontTheme = font,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState.Initial)
@@ -36,6 +37,7 @@ internal class SettingsViewModel(
                 is SettingsAction.SetSpeedUnit -> displayPreferences.setSpeedUnit(action.value)
                 is SettingsAction.SetTemperatureUnit -> displayPreferences.setTemperatureUnit(action.value)
                 is SettingsAction.SetClock -> displayPreferences.setClock(action.value)
+                is SettingsAction.SetFullscreen -> displayPreferences.setFullscreen(action.value)
                 is SettingsAction.SetFontTheme -> fontPreferences.setFontTheme(action.value)
             }
         }
