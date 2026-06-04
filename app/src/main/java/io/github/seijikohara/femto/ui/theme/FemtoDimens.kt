@@ -119,4 +119,12 @@ object FemtoDimens {
     /** Glass overlay hairline border opacity, shared across light and dark themes. */
     @Suppress("ktlint:standard:property-naming")
     const val GlassBorderAlpha = 0.6f
+
+    /**
+     * App-drawer bottom-sheet height as a fraction of the viewport, so the
+     * dashboard stays visible behind the scrim. Keyed off screen height, never a
+     * specific device.
+     */
+    @Suppress("ktlint:standard:property-naming")
+    const val DrawerSheetHeightFraction = 0.72f
 }
