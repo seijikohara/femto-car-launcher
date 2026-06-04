@@ -21,7 +21,7 @@ import io.github.seijikohara.femto.data.SystemPermissionSignals
 import io.github.seijikohara.femto.data.hasBluetoothConnectPermission
 import io.github.seijikohara.femto.data.hasFineLocationPermission
 import io.github.seijikohara.femto.data.hasReadCalendarPermission
-import io.github.seijikohara.femto.ui.drawer.AppDrawerRoute
+import io.github.seijikohara.femto.ui.drawer.AppDrawerSheet
 import io.github.seijikohara.femto.ui.home.HomeEvent
 import io.github.seijikohara.femto.ui.home.HomeRoute
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -44,20 +44,21 @@ class MainActivity : ComponentActivity() {
         requestRuntimePermissions()
         setContent {
             FemtoTheme {
+                // The dashboard stays composed; the app drawer is a bottom-sheet
+                // overlay on top of it rather than a full-screen swap.
                 var showDrawer by rememberSaveable { mutableStateOf(false) }
+                HomeRoute(
+                    onEvent = { event ->
+                        handleHomeEvent(event) { showDrawer = it }
+                    },
+                )
                 if (showDrawer) {
-                    AppDrawerRoute(
+                    AppDrawerSheet(
                         onLaunch = { component ->
                             appsRepository.launch(component)
                             showDrawer = false
                         },
-                        onBack = { showDrawer = false },
-                    )
-                } else {
-                    HomeRoute(
-                        onEvent = { event ->
-                            handleHomeEvent(event) { showDrawer = it }
-                        },
+                        onDismiss = { showDrawer = false },
                     )
                 }
             }
