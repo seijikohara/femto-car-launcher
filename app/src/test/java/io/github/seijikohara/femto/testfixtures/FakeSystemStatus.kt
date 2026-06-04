@@ -10,6 +10,7 @@ internal fun fakeSystemStatus(
     bluetoothConnected: Boolean = true,
     batteryPercent: Int? = 78,
     charging: Boolean = false,
+    gpsFixed: Boolean = false,
 ): SystemStatus =
     SystemStatus(
         cellularConnected = cellularConnected,
@@ -19,4 +20,5 @@ internal fun fakeSystemStatus(
         bluetoothConnected = bluetoothConnected,
         batteryPercent = batteryPercent,
         charging = charging,
+        gpsFixed = gpsFixed,
     )

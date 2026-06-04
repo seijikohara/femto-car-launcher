@@ -194,7 +194,7 @@ internal class HomeViewModelFactory(
         val weather = WeatherRepository(weatherApi, locationFlow, clockFlow)
         val music = MusicSessionRepository(application)
         val calendar = CalendarRepository(application, clockFlow)
-        val systemStatus = SystemStatusRepository(application)
+        val systemStatus = SystemStatusRepository(application, locationFlow)
         val trip = TripRepository(locationFlow)
         val apps = AppsRepository(application)
 

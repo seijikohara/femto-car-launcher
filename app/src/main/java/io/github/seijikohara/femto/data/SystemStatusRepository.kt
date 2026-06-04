@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalCoroutinesApi::class) // flatMapLatest in cellularLevelFlow().
+@file:OptIn(ExperimentalCoroutinesApi::class) // flatMapLatest / transformLatest below.
 
 package io.github.seijikohara.femto.data
 
@@ -12,6 +12,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -24,19 +26,25 @@ import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.transformLatest
 
 /**
  * Footer status cluster — Wi-Fi connectivity / signal strength, cellular
@@ -50,9 +58,20 @@ import kotlinx.coroutines.flow.onStart
  * a dimmed icon. Cellular signal strength requires `READ_PHONE_STATE`; when
  * denied the level flow emits null and the footer degrades to the binary
  * connected/disconnected icon.
+ *
+ * GPS reception is derived from the shared [locationFlow]: a fresh GPS_PROVIDER
+ * fix sets `gpsFixed` true, and it flips back to false once the last fix ages
+ * past [GPS_FIX_FRESHNESS_MS]. The default [emptyFlow] keeps callers that do
+ * not wire location (e.g. unit tests for the connectivity signals) compiling
+ * with `gpsFixed` permanently false.
  */
 internal class SystemStatusRepository(
     private val context: Context,
+    private val locationFlow: Flow<Location?> = emptyFlow(),
+    // The combined flow (including gpsFlow's freshness delay) runs here. Production
+    // uses the default compute pool; tests inject a TestDispatcher so the GPS
+    // freshness window is observable under runTest's virtual clock.
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     private val connectivity: ConnectivityManager? = context.getSystemService()
     private val bluetoothManager: BluetoothManager? = context.getSystemService()
@@ -64,7 +83,8 @@ internal class SystemStatusRepository(
             bluetoothFlow().onStart { emit(false) },
             batteryFlow().onStart { emit(BatteryReading(percent = null, charging = false)) },
             cellularLevelFlow().onStart { emit(null) },
-        ) { connectivitySignals, bt, battery, cellularLevel ->
+            gpsFlow(),
+        ) { connectivitySignals, bt, battery, cellularLevel, gpsFixed ->
             SystemStatus(
                 cellularConnected = connectivitySignals.cellularConnected,
                 cellularSignalLevel = cellularLevel,
@@ -73,8 +93,9 @@ internal class SystemStatusRepository(
                 bluetoothConnected = bt,
                 batteryPercent = battery.percent,
                 charging = battery.charging,
+                gpsFixed = gpsFixed,
             )
-        }.distinctUntilChanged().flowOn(Dispatchers.Default)
+        }.distinctUntilChanged().flowOn(dispatcher)
 
     // Kotlin's typed combine overloads cover at most 5 flows; the cluster has
     // six sources once cellular signal strength joins. Stage the two reactive
@@ -222,6 +243,28 @@ internal class SystemStatusRepository(
         }
 
     /**
+     * GPS reception state. Emits true on each fresh GPS_PROVIDER fix, then false
+     * once that fix ages past [GPS_FIX_FRESHNESS_MS] with no follow-up — so the
+     * footer reads "searching" when reception drops (tunnel, parked cold start).
+     *
+     * The provider predicate mirrors [TripRepository]'s GPS-only gate; NETWORK
+     * fixes (cell-tower / Wi-Fi) centre the map but do not represent a GPS lock,
+     * so they never set this true. [transformLatest] cancels the pending false
+     * timer whenever a newer fix lands, keeping the indicator lit while fixes
+     * keep coming. [onStart] seeds false so combine has an initial value before
+     * the first fix (and the [emptyFlow] default leaves it false forever).
+     */
+    private fun gpsFlow(): Flow<Boolean> =
+        locationFlow
+            .filterNotNull()
+            .filter { it.provider == LocationManager.GPS_PROVIDER }
+            .transformLatest {
+                emit(true)
+                delay(GPS_FIX_FRESHNESS_MS)
+                emit(false)
+            }.onStart { emit(false) }
+
+    /**
      * Connected-state stream merging two re-read triggers:
      * - [bluetoothBroadcastFlow] fires on BT adapter / connection broadcasts.
      * - [SystemPermissionSignals.refreshes] fires when a runtime permission
@@ -329,16 +372,24 @@ internal class SystemStatusRepository(
         val wifi: WifiReading,
     )
 
-    private companion object {
+    internal companion object {
         // Top index of the shared 0..4 graduated signal range used by both the
         // Wi-Fi level and the cellular SignalStrength.level (which already reports
         // 0 (NONE) .. 4 (GREAT)). The DashboardFooter icon ramp keys off the same
         // range.
-        const val MAX_SIGNAL_LEVEL = 4
+        private const val MAX_SIGNAL_LEVEL = 4
 
         // Number of buckets WifiManager.calculateSignalLevel(rssi, numLevels) maps
         // the RSSI onto; numLevels - 1 is the top index, so this pins the Wi-Fi
         // output to the same 0..MAX_SIGNAL_LEVEL range as cellular.
-        const val SIGNAL_LEVEL_COUNT = MAX_SIGNAL_LEVEL + 1
+        private const val SIGNAL_LEVEL_COUNT = MAX_SIGNAL_LEVEL + 1
+
+        // How long a GPS fix counts as "fresh" before gpsFlow flips back to
+        // searching. A live LocationRepository fix arrives roughly every second,
+        // so 30 s tolerates short reception gaps without flickering the indicator
+        // while still reporting a genuine loss of lock promptly. Exposed as
+        // internal so the test source set asserts against this single value
+        // instead of mirroring the window.
+        internal const val GPS_FIX_FRESHNESS_MS = 30_000L
     }
 }

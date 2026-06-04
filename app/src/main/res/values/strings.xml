@@ -59,6 +59,8 @@
     <string name="status_wifi_disconnected">Wi-Fi disconnected</string>
     <string name="status_bluetooth_connected">Bluetooth connected</string>
     <string name="status_bluetooth_disconnected">Bluetooth disconnected</string>
+    <string name="status_gps_fixed">GPS fixed</string>
+    <string name="status_gps_searching">GPS searching</string>
     <string name="status_battery">Battery</string>
     <string name="status_charging">Charging</string>
     <string name="battery_percent">%1$d%%</string>

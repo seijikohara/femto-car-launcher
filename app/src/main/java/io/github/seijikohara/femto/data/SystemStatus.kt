@@ -29,6 +29,10 @@ data class SystemStatus(
     // dead battery during cold start.
     val batteryPercent: Int?,
     val charging: Boolean,
+    // True while a recent GPS_PROVIDER fix is fresh; flips back to false once the
+    // last fix ages past the freshness window so the footer reads "searching"
+    // when GPS reception drops (e.g. a tunnel or a parked cold start).
+    val gpsFixed: Boolean,
 ) {
     companion object {
         val Initial: SystemStatus =
@@ -40,6 +44,7 @@ data class SystemStatus(
                 bluetoothConnected = false,
                 batteryPercent = null,
                 charging = false,
+                gpsFixed = false,
             )
     }
 }
