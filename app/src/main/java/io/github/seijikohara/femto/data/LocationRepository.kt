@@ -31,6 +31,12 @@ internal class LocationRepository(
     // Cold per-collector flow: each terminal collection registers updates and seeds
     // getLastKnownLocation. Never expose this directly; it is the upstream for the shared flow.
     //
+    // Seeding intent: the cached last-known fix is forwarded on subscribe even when it is
+    // stale. A head unit may sit cold for hours, and the first live fix can lag the host's
+    // ~30 s boot delay; emitting the stale fix first lets the map/weather/address panels show
+    // the last position immediately rather than an empty screen, and the next live update
+    // overwrites it. A stale fix is strictly better than no fix for an at-a-glance dashboard.
+    //
     // Both GPS_PROVIDER and NETWORK_PROVIDER are registered so the launcher honors the
     // ACCESS_COARSE_LOCATION manifest contract: a coarse-only ("Approximate") grant makes
     // GPS_PROVIDER throw SecurityException while NETWORK_PROVIDER still delivers fixes at
