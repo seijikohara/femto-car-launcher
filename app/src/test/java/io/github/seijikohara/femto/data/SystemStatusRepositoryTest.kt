@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.data
 
 import android.app.Application
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -13,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -30,6 +32,15 @@ import kotlin.test.assertTrue
 @Config(sdk = [33])
 class SystemStatusRepositoryTest {
     private val application: Application = ApplicationProvider.getApplicationContext()
+
+    @Before
+    fun setUp() {
+        // statusFlow's cellularFlow registers no NetworkCallback when the device
+        // reports no telephony feature, so forcing it off keeps these tests
+        // deterministic — the only registered callback is the Wi-Fi one, and
+        // [awaitRegisteredNetworkCallback]'s single() invariant holds.
+        shadowOf(application.packageManager).setSystemFeature(PackageManager.FEATURE_TELEPHONY, false)
+    }
 
     @Test
     fun `bluetoothConnected is false when BLUETOOTH_CONNECT is not granted`() =

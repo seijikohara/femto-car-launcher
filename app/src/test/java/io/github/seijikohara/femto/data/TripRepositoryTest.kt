@@ -149,7 +149,10 @@ class TripRepositoryTest {
     fun `persists distance across re-subscription`() =
         runTest {
             val source = MutableSharedFlow<Location?>(replay = 0)
-            val repository = TripRepository(source)
+            // Test dispatcher so the MutableSharedFlow emit/awaitItem handshake runs
+            // on the virtual clock instead of racing Dispatchers.Default under load
+            // (the source of an intermittent Turbine timeout).
+            val repository = TripRepository(source, UnconfinedTestDispatcher(testScheduler))
 
             // First subscription: feed two moving fixes, capture the running total,
             // then cancel the collection (simulating a WhileSubscribed stop).
