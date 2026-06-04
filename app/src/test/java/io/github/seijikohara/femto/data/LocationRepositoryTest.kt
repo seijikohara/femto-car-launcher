@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package io.github.seijikohara.femto.data
 
 import android.app.Application
@@ -24,12 +26,11 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 
-// rawLocationFlow runs on Dispatchers.Main.immediate (the listener registers on
-// getMainLooper), so Dispatchers.Main is redirected to the test scheduler and the
-// repository scope is injected with the same dispatcher. That makes the shareIn
-// fan-out and the on-subscribe getLastKnownLocation seed run deterministically on
-// the virtual clock instead of racing Dispatchers.Default.
-@OptIn(ExperimentalCoroutinesApi::class)
+// rawLocationFlow registers its listener on getMainLooper, so it runs on
+// Dispatchers.Main.immediate. setUp redirects Main to an UnconfinedTestDispatcher;
+// its eager execution runs the shareIn fan-out and the on-subscribe
+// getLastKnownLocation seed synchronously, so the seeded fix is observable without
+// advancing a clock and no explicit scheduler linkage is required.
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class LocationRepositoryTest {
@@ -50,7 +51,8 @@ class LocationRepositoryTest {
         runTest {
             // Seed only the cached fix; no simulateLocation call, so the only fix the
             // flow can ever surface is the on-subscribe getLastKnownLocation seed.
-            seedLastKnown(LocationManager.GPS_PROVIDER, fakeLocation(latitude = SEED_LAT, longitude = SEED_LON))
+            val seedFix = fakeLocation()
+            seedLastKnown(LocationManager.GPS_PROVIDER, seedFix)
 
             val repository = LocationRepository(application, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
 
@@ -60,8 +62,8 @@ class LocationRepositoryTest {
             // consumers treat as "no fix"; filterNotNull mirrors that contract.)
             val emitted = repository.locationFlow().filterNotNull().first()
 
-            assertEquals(SEED_LAT, emitted.latitude, 0.0)
-            assertEquals(SEED_LON, emitted.longitude, 0.0)
+            assertEquals(seedFix.latitude, emitted.latitude, 0.0)
+            assertEquals(seedFix.longitude, emitted.longitude, 0.0)
         }
 
     @Test
@@ -69,13 +71,14 @@ class LocationRepositoryTest {
         runTest {
             // A coarse-only ("Approximate") grant feeds the launcher through
             // NETWORK_PROVIDER; the seed path must honor it the same as GPS.
-            seedLastKnown(LocationManager.NETWORK_PROVIDER, fakeLocation(latitude = SEED_LAT, longitude = SEED_LON))
+            val seedFix = fakeLocation()
+            seedLastKnown(LocationManager.NETWORK_PROVIDER, seedFix)
 
             val repository = LocationRepository(application, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
 
             val emitted = repository.locationFlow().filterNotNull().first()
 
-            assertEquals(SEED_LAT, emitted.latitude, 0.0)
+            assertEquals(seedFix.latitude, emitted.latitude, 0.0)
         }
 
     @Test
@@ -83,12 +86,13 @@ class LocationRepositoryTest {
         runTest {
             // replay = 1 on the shared flow must hand the most recent (here, the
             // seeded) fix to a subscriber that arrives after the first one.
-            seedLastKnown(LocationManager.GPS_PROVIDER, fakeLocation(latitude = SEED_LAT, longitude = SEED_LON))
+            val seedFix = fakeLocation()
+            seedLastKnown(LocationManager.GPS_PROVIDER, seedFix)
 
             val repository = LocationRepository(application, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
 
             repository.locationFlow().filterNotNull().test {
-                assertEquals(SEED_LAT, awaitItem().latitude, 0.0)
+                assertEquals(seedFix.latitude, awaitItem().latitude, 0.0)
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -103,10 +107,5 @@ class LocationRepositoryTest {
     ) {
         val locationManager = checkNotNull(application.getSystemService<LocationManager>())
         shadowOf(locationManager).setLastKnownLocation(provider, location)
-    }
-
-    private companion object {
-        const val SEED_LAT = 35.6580
-        const val SEED_LON = 139.7016
     }
 }

@@ -82,10 +82,7 @@ internal class DisplayPreferences(
     suspend fun setClock(value: ClockSetting) = context.displayDataStore.edit { it[CLOCK_KEY] = value.name }
 
     suspend fun setFullscreen(value: FullscreenSetting) =
-        context.displayDataStore.edit {
-            it[FULLSCREEN_KEY] =
-                value.name
-        }
+        context.displayDataStore.edit { it[FULLSCREEN_KEY] = value.name }
 
     private companion object {
         val THEME_KEY = stringPreferencesKey("theme_mode")

@@ -12,8 +12,11 @@ internal fun fakeLocation(
     // When false, the fix carries no speed (Location.hasSpeed() == false),
     // mirroring cheap GPS chips and raw GPS_PROVIDER HALs.
     hasSpeed: Boolean = true,
+    // Defaults to a neutral test provider; pass LocationManager.NETWORK_PROVIDER
+    // to exercise the GPS-only trip-accrual path.
+    provider: String = "test",
 ): Location =
-    Location("test").apply {
+    Location(provider).apply {
         this.latitude = latitude
         this.longitude = longitude
         this.altitude = altitudeM
