@@ -190,7 +190,12 @@ internal class HomeViewModelFactory(
                 apiKey = BuildConfig.GEOCODER_API_KEY.takeIf { it.isNotBlank() },
             )
         val geocoder = ReverseGeocoderRepository(locationFlow, nominatimApi)
-        val weatherApi = OpenMeteoApi(client = httpClient)
+        val weatherApi =
+            OpenMeteoApi(
+                client = httpClient,
+                baseUrl = BuildConfig.WEATHER_BASE_URL,
+                apiKey = BuildConfig.WEATHER_API_KEY.takeIf { it.isNotBlank() },
+            )
         val weather = WeatherRepository(weatherApi, locationFlow, clockFlow)
         val music = MusicSessionRepository(application)
         val calendar = CalendarRepository(application, clockFlow)

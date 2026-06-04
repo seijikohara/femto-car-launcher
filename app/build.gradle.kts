@@ -7,10 +7,12 @@ plugins {
     alias(libs.plugins.spotless)
 }
 
-// Production geocoder host is threaded in via gitignored local.properties so the
-// public PoC endpoint is never the implicit production default. Production builds
-// should set GEOCODER_BASE_URL (and GEOCODER_API_KEY when the host requires one)
-// to a non-public host; absent keys fall back to the public Nominatim PoC endpoint.
+// Production geocoder and weather hosts are threaded in via gitignored
+// local.properties so the public PoC endpoints are never the implicit production
+// default. Production builds should set GEOCODER_BASE_URL / WEATHER_BASE_URL (and
+// the matching *_API_KEY when the host requires one) to a non-public host; absent
+// values fall back to the public Nominatim / Open-Meteo PoC endpoints, which are
+// rate-limited and unsuitable for production traffic.
 val localProperties =
     Properties().apply {
         rootProject
@@ -21,6 +23,8 @@ val localProperties =
     }
 val geocoderBaseUrl = localProperties.getProperty("GEOCODER_BASE_URL", "https://nominatim.openstreetmap.org/")
 val geocoderApiKey = localProperties.getProperty("GEOCODER_API_KEY", "")
+val weatherBaseUrl = localProperties.getProperty("WEATHER_BASE_URL", "https://api.open-meteo.com/")
+val weatherApiKey = localProperties.getProperty("WEATHER_API_KEY", "")
 
 // Release signing is driven entirely by environment variables so CI can sign the
 // nightly APK without committing a keystore, while local `assembleRelease` stays
@@ -62,6 +66,8 @@ android {
 
         buildConfigField("String", "GEOCODER_BASE_URL", "\"${geocoderBaseUrl}\"")
         buildConfigField("String", "GEOCODER_API_KEY", "\"${geocoderApiKey}\"")
+        buildConfigField("String", "WEATHER_BASE_URL", "\"${weatherBaseUrl}\"")
+        buildConfigField("String", "WEATHER_API_KEY", "\"${weatherApiKey}\"")
     }
 
     signingConfigs {
