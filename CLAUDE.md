@@ -168,6 +168,7 @@ targets that matter for any head-unit UI, regardless of motion.
 | `BLUETOOTH_CONNECT` | Read the set of currently-connected Bluetooth devices (HEADSET / A2DP / GATT) so the footer status cluster reflects head-unit pairing state. Dangerous on Android 12+; runtime grant. The BT indicator dims when denied, the rest of the launcher remains functional. |
 | `INTERNET` | Open-Meteo weather API, OpenFreeMap vector map tile fetch (MapLibre), and Nominatim/OSM reverse geocoding. |
 | `READ_CALENDAR` | Query `CalendarContract.Instances` for the dashboard's Calendar card — the 6-day strip dots and the upcoming-event list. Dangerous; runtime grant. The card falls back to "today's date only" when denied. |
+| `READ_PHONE_STATE` | Read the cellular `SignalStrength.level` via `TelephonyCallback` so the footer status cluster shows graduated cellular signal bars. Dangerous; runtime grant. The cellular indicator degrades to the binary connected/disconnected icon when denied. |
 
 ### Dependencies <a id="dependencies"></a>
 
