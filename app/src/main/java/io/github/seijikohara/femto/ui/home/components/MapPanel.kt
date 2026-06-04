@@ -108,16 +108,24 @@ private fun VectorMap(
             // textureMode(true) renders the map into a TextureView (drawn inline
             // in the view hierarchy), so it is clipped by the parent Surface's
             // rounded corners and the Compose overlays (clock / speed) sit cleanly
-            // on top. translucentTextureSurface(false) forces the buffer opaque so
-            // the surfaceContainer behind it cannot bleed through, and saves a
-            // blend pass on real GPUs. (On software-GL emulators the emulator
-            // cannot composite this surface into a screencap, but it renders on
-            // real head-unit GPUs — see MainActivity.enableEmulatorMapRendering.)
+            // on top. This is why we cannot use a SurfaceView (the MapLibre
+            // default): a SurfaceView is a separate window layer that ignores the
+            // rounded-corner clip and would hide the Compose overlays.
+            //
+            // translucentTextureSurface(true) requests an RGBA EGL config. The
+            // earlier opaque-RGB config (false) was rejected by the head-unit GL
+            // driver, so the GL surface was created but never produced frames —
+            // the map showed as a blank grey/black rectangle on-device while the
+            // location gate and style load both succeeded. RGBA is the widely
+            // supported config; the tiles are fully opaque so the surfaceContainer
+            // behind does not visibly bleed through, and the extra blend pass is a
+            // negligible cost for broad GPU compatibility. (Verify on-device:
+            // local/emulator software GL cannot reproduce the driver's rejection.)
             val options =
                 MapLibreMapOptions
                     .createFromAttributes(context)
                     .textureMode(true)
-                    .translucentTextureSurface(false)
+                    .translucentTextureSurface(true)
             // onCreate(null) is mandatory before getMapAsync; without it the
             // ready callback never fires and the map silently stays blank.
             MapView(context, options).apply { onCreate(null) }
