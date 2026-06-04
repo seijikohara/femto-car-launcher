@@ -7,27 +7,40 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.text.format.DateFormat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.seijikohara.femto.data.AppsRepository
+import io.github.seijikohara.femto.data.ClockSetting
+import io.github.seijikohara.femto.data.DisplayPreferences
+import io.github.seijikohara.femto.data.DisplaySettings
+import io.github.seijikohara.femto.data.FontPreferences
 import io.github.seijikohara.femto.data.SystemPermissionSignals
+import io.github.seijikohara.femto.data.ThemeMode
 import io.github.seijikohara.femto.data.hasBluetoothConnectPermission
 import io.github.seijikohara.femto.data.hasFineLocationPermission
 import io.github.seijikohara.femto.data.hasReadCalendarPermission
 import io.github.seijikohara.femto.ui.drawer.AppDrawerSheet
 import io.github.seijikohara.femto.ui.home.HomeEvent
 import io.github.seijikohara.femto.ui.home.HomeRoute
+import io.github.seijikohara.femto.ui.locale.resolved
+import io.github.seijikohara.femto.ui.settings.SettingsRoute
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.FontTheme
 
 class MainActivity : ComponentActivity() {
     private val appsRepository by lazy { AppsRepository(this) }
+    private val displayPreferences by lazy { DisplayPreferences(this) }
+    private val fontPreferences by lazy { FontPreferences(this) }
 
     // Emit on the process-wide refresh signal so permission-gated flows (e.g.
     // the Bluetooth footer indicator) re-read after a late runtime grant.
@@ -43,23 +56,51 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         requestRuntimePermissions()
         setContent {
-            FemtoTheme {
+            // User display settings override the locale/system defaults; the
+            // theme + font feed FemtoTheme, the units + clock feed the dashboard.
+            val display by displayPreferences.settings.collectAsStateWithLifecycle(
+                initialValue = DisplaySettings.Default,
+            )
+            val fontTheme by fontPreferences.fontTheme.collectAsStateWithLifecycle(initialValue = FontTheme.INTER)
+            val darkTheme =
+                when (display.themeMode) {
+                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                    ThemeMode.LIGHT -> false
+                    ThemeMode.DARK -> true
+                }
+            FemtoTheme(fontTheme = fontTheme, darkTheme = darkTheme) {
                 // The dashboard stays composed; the app drawer is a bottom-sheet
-                // overlay on top of it rather than a full-screen swap.
+                // overlay and settings is a full destination over it.
                 var showDrawer by rememberSaveable { mutableStateOf(false) }
-                HomeRoute(
-                    onEvent = { event ->
-                        handleHomeEvent(event) { showDrawer = it }
-                    },
-                )
-                if (showDrawer) {
-                    AppDrawerSheet(
-                        onLaunch = { component ->
-                            appsRepository.launch(component)
-                            showDrawer = false
-                        },
-                        onDismiss = { showDrawer = false },
+                var showSettings by rememberSaveable { mutableStateOf(false) }
+                if (showSettings) {
+                    SettingsRoute(
+                        onBack = { showSettings = false },
+                        onOpenNotificationAccess = ::openNotificationListenerSettings,
+                        onOpenSystemSettings = ::openSystemSettings,
                     )
+                } else {
+                    HomeRoute(
+                        is24Hour = resolveIs24Hour(display.clock),
+                        speedUnit = display.speedUnit.resolved(),
+                        temperatureUnit = display.temperatureUnit.resolved(),
+                        onEvent = { event ->
+                            handleHomeEvent(
+                                event = event,
+                                setShowDrawer = { showDrawer = it },
+                                setShowSettings = { showSettings = it },
+                            )
+                        },
+                    )
+                    if (showDrawer) {
+                        AppDrawerSheet(
+                            onLaunch = { component ->
+                                appsRepository.launch(component)
+                                showDrawer = false
+                            },
+                            onDismiss = { showDrawer = false },
+                        )
+                    }
                 }
             }
         }
@@ -68,16 +109,44 @@ class MainActivity : ComponentActivity() {
     private fun handleHomeEvent(
         event: HomeEvent,
         setShowDrawer: (Boolean) -> Unit,
+        setShowSettings: (Boolean) -> Unit,
     ) {
         when (event) {
-            HomeEvent.OpenDrawer -> setShowDrawer(true)
-            is HomeEvent.LaunchComponent -> appsRepository.launch(event.component)
-            is HomeEvent.LaunchAppCategory -> launchAppCategory(event.intentCategory)
-            is HomeEvent.LaunchGeo -> launchGeo(event.latitude, event.longitude)
-            HomeEvent.OpenNotificationListenerSettings -> openNotificationListenerSettings()
-            HomeEvent.OpenSystemSettings -> openSystemSettings()
+            HomeEvent.OpenDrawer -> {
+                setShowDrawer(true)
+            }
+
+            is HomeEvent.LaunchComponent -> {
+                appsRepository.launch(event.component)
+            }
+
+            is HomeEvent.LaunchAppCategory -> {
+                launchAppCategory(event.intentCategory)
+            }
+
+            is HomeEvent.LaunchGeo -> {
+                launchGeo(event.latitude, event.longitude)
+            }
+
+            HomeEvent.OpenNotificationListenerSettings -> {
+                openNotificationListenerSettings()
+            }
+
+            HomeEvent.OpenInAppSettings -> {
+                // Close the drawer overlay so it does not re-appear behind settings
+                // when the user navigates back.
+                setShowDrawer(false)
+                setShowSettings(true)
+            }
         }
     }
+
+    private fun resolveIs24Hour(clock: ClockSetting): Boolean =
+        when (clock) {
+            ClockSetting.AUTO -> DateFormat.is24HourFormat(this)
+            ClockSetting.TWELVE_HOUR -> false
+            ClockSetting.TWENTY_FOUR_HOUR -> true
+        }
 
     private fun openSystemSettings() {
         val intent =

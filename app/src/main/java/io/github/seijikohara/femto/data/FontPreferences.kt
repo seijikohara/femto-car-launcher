@@ -19,7 +19,7 @@ private val Context.fontDataStore: DataStore<Preferences> by preferencesDataStor
  * default. The setter exists so future settings code can flip the choice
  * without introducing the persistence layer separately.
  */
-class FontPreferences(
+internal class FontPreferences(
     private val context: Context,
 ) {
     val fontTheme: Flow<FontTheme> =

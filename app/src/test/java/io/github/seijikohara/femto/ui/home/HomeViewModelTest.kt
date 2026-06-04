@@ -162,11 +162,11 @@ class HomeViewModelTest {
         }
 
     @Test
-    fun `onAction OpenSettings emits OpenSystemSettings`() =
+    fun `onAction OpenSettings emits OpenInAppSettings`() =
         runTest {
             stubViewModel().assertEvent(
                 action = HomeAction.OpenSettings,
-                expected = HomeEvent.OpenSystemSettings,
+                expected = HomeEvent.OpenInAppSettings,
             )
         }
 

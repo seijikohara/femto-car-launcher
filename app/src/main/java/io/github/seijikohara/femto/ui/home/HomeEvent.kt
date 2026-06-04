@@ -42,6 +42,6 @@ internal sealed interface HomeEvent {
     /** Open the system "Notification listener access" settings so the user can grant our NLS. */
     data object OpenNotificationListenerSettings : HomeEvent
 
-    /** Open the system Settings root (`Settings.ACTION_SETTINGS`). */
-    data object OpenSystemSettings : HomeEvent
+    /** Open the in-app settings screen (units, theme, font, system links). */
+    data object OpenInAppSettings : HomeEvent
 }
