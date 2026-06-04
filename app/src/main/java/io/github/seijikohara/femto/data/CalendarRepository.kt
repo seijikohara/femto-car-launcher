@@ -36,9 +36,10 @@ import java.util.Locale
  *
  * Combines two upstream signals — the wall clock (so today / weekday /
  * month follow real time without an extra timer) and the events provider
- * (so the strip dots and event list refresh when the user edits a calendar
- * event). The events query window is `today + 5 days` to match the 6-cell
- * strip on the calendar card.
+ * (so the per-day events refresh when the user edits a calendar event). The
+ * events query window is `today + 5 days` to match the 6-cell strip on the
+ * calendar card; each day's events are attached to its strip cell so the card
+ * can switch the shown day from card-local selection without a re-query.
  *
  * When `READ_CALENDAR` is denied the snapshot still emits from the clock
  * alone, but with `hasCalendarAccess = false` so the card renders the denial
@@ -61,26 +62,21 @@ internal class CalendarRepository(
         }.distinctUntilChanged().flowOn(Dispatchers.Default)
 
     private fun buildSnapshot(today: LocalDate): CalendarSnapshot {
+        val granted = hasPermission()
+        val eventsByDay = if (granted) readWindow(today) else emptyMap()
         val strip = (0 until DAY_STRIP_LENGTH).map { offset ->
             val date = today.plusDays(offset.toLong())
             DayCell(
                 date = date,
                 weekdayLetter = date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale),
-                hasEvent = false,
+                events = eventsByDay[date].orEmpty(),
             )
         }
-        val granted = hasPermission()
-        // One window scan yields both signals: the full set of dotted days
-        // (every event in the window, including earlier-today) and the next
-        // up-to-EVENT_LIST_LIMIT future events.
-        val window = if (granted) readWindow(today) else CalendarWindow.EMPTY
-        val stripWithDots = strip.map { it.copy(hasEvent = it.date in window.datesWithEvents) }
         return CalendarSnapshot(
             today = today,
             weekday = today.dayOfWeek.getDisplayName(TextStyle.FULL, locale),
             monthLabel = monthLabelOf(today),
-            dayStrip = stripWithDots,
-            events = window.events,
+            dayStrip = strip,
             hasCalendarAccess = granted,
         )
     }
@@ -126,23 +122,20 @@ internal class CalendarRepository(
             }.build()
 
     /**
-     * Scan the strip window once and accumulate both card signals in a single
-     * pass: every event's local day (for the strip dots, including
-     * earlier-today rows) and the next up-to-[EVENT_LIST_LIMIT] future events
-     * (`BEGIN >= now`). A single query replaces the former two byte-identical
-     * window queries. The loop keeps scanning after the event list fills so the
-     * dot set still covers the full window.
+     * Scan the strip window once and group every event by its local day. The
+     * card shows whichever day the user selects, so the window holds the whole
+     * day (no `BEGIN >= now` future-only filter) capped at [EVENTS_PER_DAY_LIMIT]
+     * per day to bound the card height. Rows arrive `BEGIN ASC`, so each day's
+     * list stays time-ordered and the cap keeps the earliest events.
      *
      * A mid-stream permission revoke (SecurityException) or an OEM provider
      * fault (SQLiteException) must not tear down the dashboard StateFlow, so the
      * whole scan is guarded.
      */
     @SuppressLint("MissingPermission") // Caller checks READ_CALENDAR before subscribing.
-    private fun readWindow(today: LocalDate): CalendarWindow {
-        val now = Instant.now().toEpochMilli()
-        return runCatching {
-            val dates = mutableSetOf<LocalDate>()
-            val events = mutableListOf<EventItem>()
+    private fun readWindow(today: LocalDate): Map<LocalDate, List<EventItem>> =
+        runCatching {
+            val byDay = linkedMapOf<LocalDate, MutableList<EventItem>>()
             context.contentResolver
                 .query(
                     windowUri(today),
@@ -157,14 +150,14 @@ internal class CalendarRepository(
                 )?.use { cursor ->
                     while (cursor.moveToNext()) {
                         val startMs = cursor.getLong(0)
-                        val title = cursor.getString(1)
+                        // Skip null-title rows entirely: with the dot derived from
+                        // the listed events, a row that cannot be shown must not
+                        // dot its day either.
+                        val title = cursor.getString(1) ?: continue
                         val allDay = cursor.getInt(2) != 0
-                        dates += localDateOf(startMs, allDay)
-                        // Future top-N list mirrors the former `BEGIN >= now`
-                        // selection and the null-title skip; a null-title row
-                        // still dots its day above but never enters the list.
-                        if (title != null && startMs >= now && events.size < EVENT_LIST_LIMIT) {
-                            events += EventItem(
+                        val dayEvents = byDay.getOrPut(localDateOf(startMs, allDay)) { mutableListOf() }
+                        if (dayEvents.size < EVENTS_PER_DAY_LIMIT) {
+                            dayEvents += EventItem(
                                 // All-day rows carry no clock time; surface null
                                 // so the card renders an "all day" label instead
                                 // of a spurious 00:00 derived from the system zone.
@@ -174,9 +167,8 @@ internal class CalendarRepository(
                         }
                     }
                 }
-            CalendarWindow(datesWithEvents = dates.toSet(), events = events.toList())
-        }.getOrDefault(CalendarWindow.EMPTY)
-    }
+            byDay.mapValues { (_, events) -> events.toList() }
+        }.getOrDefault(emptyMap())
 
     /**
      * Resolve an Instances.BEGIN epoch-millis to the local calendar day.
@@ -216,22 +208,9 @@ internal class CalendarRepository(
             awaitClose { context.contentResolver.unregisterContentObserver(observer) }
         }.debounce(CHANGE_DEBOUNCE_MS)
 
-    /**
-     * Result of a single window scan: the days carrying any event (strip dots)
-     * and the next few future events (the card's event list).
-     */
-    private data class CalendarWindow(
-        val datesWithEvents: Set<LocalDate>,
-        val events: List<EventItem>,
-    ) {
-        companion object {
-            val EMPTY = CalendarWindow(datesWithEvents = emptySet(), events = emptyList())
-        }
-    }
-
     private companion object {
         const val DAY_STRIP_LENGTH = 6
-        const val EVENT_LIST_LIMIT = 2
+        const val EVENTS_PER_DAY_LIMIT = 3
         const val CHANGE_DEBOUNCE_MS = 500L
     }
 }
