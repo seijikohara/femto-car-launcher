@@ -42,7 +42,6 @@
       "Bash(./gradlew spotlessApply)",
       "Bash(./gradlew :app:spotlessCheck)",
       "Bash(./gradlew :app:spotlessApply)",
-      "Bash(./gradlew dependencyUpdates *)",
       "Bash(./gradlew versionCatalogUpdate *)",
       "Bash(mv *)",
       "WebFetch(domain:developer.android.com)",
