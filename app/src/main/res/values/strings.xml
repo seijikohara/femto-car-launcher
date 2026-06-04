@@ -94,6 +94,9 @@
     <string name="settings_temp_fahrenheit">°F</string>
     <string name="settings_clock_12">12-hour</string>
     <string name="settings_clock_24">24-hour</string>
+    <string name="settings_group_fullscreen">Fullscreen</string>
+    <string name="settings_fullscreen_off">Off</string>
+    <string name="settings_fullscreen_on">On</string>
     <string name="settings_open_notification_access">Notification access</string>
     <string name="settings_open_system_settings">System settings</string>
 </resources>

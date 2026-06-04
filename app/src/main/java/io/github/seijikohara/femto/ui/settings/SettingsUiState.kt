@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.ui.settings
 
 import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.DisplaySettings
+import io.github.seijikohara.femto.data.FullscreenSetting
 import io.github.seijikohara.femto.data.SpeedUnitSetting
 import io.github.seijikohara.femto.data.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.ThemeMode
@@ -13,6 +14,7 @@ internal data class SettingsUiState(
     val speedUnit: SpeedUnitSetting,
     val temperatureUnit: TemperatureUnitSetting,
     val clock: ClockSetting,
+    val fullscreen: FullscreenSetting,
     val fontTheme: FontTheme,
 ) {
     companion object {
@@ -24,6 +26,7 @@ internal data class SettingsUiState(
                 speedUnit = DisplaySettings.Default.speedUnit,
                 temperatureUnit = DisplaySettings.Default.temperatureUnit,
                 clock = DisplaySettings.Default.clock,
+                fullscreen = DisplaySettings.Default.fullscreen,
                 fontTheme = FontTheme.INTER,
             )
     }
@@ -45,6 +48,10 @@ internal sealed interface SettingsAction {
 
     data class SetClock(
         val value: ClockSetting,
+    ) : SettingsAction
+
+    data class SetFullscreen(
+        val value: FullscreenSetting,
     ) : SettingsAction
 
     data class SetFontTheme(

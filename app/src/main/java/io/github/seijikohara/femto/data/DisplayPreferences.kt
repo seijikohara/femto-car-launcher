@@ -22,6 +22,9 @@ internal enum class TemperatureUnitSetting { AUTO, CELSIUS, FAHRENHEIT }
 /** Clock: follow the system 12/24h setting, or force 12h / 24h. */
 internal enum class ClockSetting { AUTO, TWELVE_HOUR, TWENTY_FOUR_HOUR }
 
+/** Fullscreen: keep the system bars, or hide both status and navigation bars. */
+internal enum class FullscreenSetting { OFF, ON }
+
 /**
  * User display settings that override the locale / system defaults. Every value
  * defaults to the auto / system choice so a fresh install behaves exactly as
@@ -32,6 +35,7 @@ internal data class DisplaySettings(
     val speedUnit: SpeedUnitSetting,
     val temperatureUnit: TemperatureUnitSetting,
     val clock: ClockSetting,
+    val fullscreen: FullscreenSetting,
 ) {
     companion object {
         val Default =
@@ -40,6 +44,7 @@ internal data class DisplaySettings(
                 speedUnit = SpeedUnitSetting.AUTO,
                 temperatureUnit = TemperatureUnitSetting.AUTO,
                 clock = ClockSetting.AUTO,
+                fullscreen = FullscreenSetting.OFF,
             )
     }
 }
@@ -63,6 +68,7 @@ internal class DisplayPreferences(
                 speedUnit = prefs[SPEED_KEY].toEnumOr(SpeedUnitSetting.AUTO),
                 temperatureUnit = prefs[TEMPERATURE_KEY].toEnumOr(TemperatureUnitSetting.AUTO),
                 clock = prefs[CLOCK_KEY].toEnumOr(ClockSetting.AUTO),
+                fullscreen = prefs[FULLSCREEN_KEY].toEnumOr(FullscreenSetting.OFF),
             )
         }
 
@@ -75,11 +81,18 @@ internal class DisplayPreferences(
 
     suspend fun setClock(value: ClockSetting) = context.displayDataStore.edit { it[CLOCK_KEY] = value.name }
 
+    suspend fun setFullscreen(value: FullscreenSetting) =
+        context.displayDataStore.edit {
+            it[FULLSCREEN_KEY] =
+                value.name
+        }
+
     private companion object {
         val THEME_KEY = stringPreferencesKey("theme_mode")
         val SPEED_KEY = stringPreferencesKey("speed_unit")
         val TEMPERATURE_KEY = stringPreferencesKey("temperature_unit")
         val CLOCK_KEY = stringPreferencesKey("clock")
+        val FULLSCREEN_KEY = stringPreferencesKey("fullscreen")
     }
 }
 
