@@ -6,6 +6,9 @@
     <string name="map_unavailable">Map unavailable</string>
     <string name="map_permission_cta">Grant location access to enable the map and overlays.</string>
 
+    <!-- Speed overlay -->
+    <string name="speed_reset_trip">Reset trip</string>
+
     <!-- Calendar card -->
     <string name="calendar_no_events">No upcoming events</string>
     <string name="calendar_permission_denied">Calendar access not granted</string>

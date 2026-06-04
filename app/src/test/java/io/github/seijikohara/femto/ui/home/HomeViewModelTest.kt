@@ -180,6 +180,19 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun `onAction ResetTrip invokes resetTrip and emits no event`() =
+        runTest {
+            var resetCount = 0
+            val viewModel = stubViewModel(resetTrip = { resetCount++ })
+            viewModel.events.test {
+                viewModel.onAction(HomeAction.ResetTrip)
+                expectNoEvents()
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertEquals(1, resetCount)
+        }
+
+    @Test
     fun `onAction Music forwards the command to sendMusicCommand and emits no event`() =
         runTest {
             val received = mutableListOf<MusicCommand>()
@@ -208,7 +221,10 @@ class HomeViewModelTest {
         }
     }
 
-    private fun stubViewModel(sendMusicCommand: (MusicCommand) -> Unit = {}): HomeViewModel =
+    private fun stubViewModel(
+        sendMusicCommand: (MusicCommand) -> Unit = {},
+        resetTrip: () -> Unit = {},
+    ): HomeViewModel =
         HomeViewModel(
             clockFlow = emptyFlow(),
             locationFlow = emptyFlow(),
@@ -219,5 +235,6 @@ class HomeViewModelTest {
             systemStatusFlow = emptyFlow(),
             tripStateFlow = emptyFlow(),
             sendMusicCommand = sendMusicCommand,
+            resetTrip = resetTrip,
         )
 }

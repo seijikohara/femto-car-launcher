@@ -112,6 +112,7 @@ private fun MapPane(
         address = uiState.address,
         tripState = uiState.tripState,
         speedUnit = speedUnit,
+        onReset = { onAction(HomeAction.ResetTrip) },
         modifier =
             Modifier
                 .align(Alignment.BottomCenter)
