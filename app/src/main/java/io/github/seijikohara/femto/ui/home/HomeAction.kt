@@ -27,5 +27,7 @@ internal sealed interface HomeAction {
 
     data object OpenSettings : HomeAction
 
+    data object OpenAssistant : HomeAction
+
     data object ResetTrip : HomeAction
 }

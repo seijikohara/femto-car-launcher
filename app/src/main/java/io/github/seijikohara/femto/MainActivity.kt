@@ -138,8 +138,20 @@ class MainActivity : ComponentActivity() {
                 setShowDrawer(false)
                 setShowSettings(true)
             }
+
+            HomeEvent.OpenAssistant -> {
+                openAssistant()
+            }
         }
     }
+
+    // Defer to whichever assistant the user has elected (ACTION_ASSIST),
+    // falling back to the generic voice-command intent. No package is
+    // hard-coded, so it works across markets and OEM assistants. `||`
+    // short-circuits: the fallback fires only when no assistant resolves.
+    private fun openAssistant() =
+        tryStartActivity(Intent(Intent.ACTION_ASSIST).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) ||
+            tryStartActivity(Intent(Intent.ACTION_VOICE_COMMAND).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 
     private fun resolveIs24Hour(clock: ClockSetting): Boolean =
         when (clock) {
@@ -152,7 +164,7 @@ class MainActivity : ComponentActivity() {
         val intent =
             Intent(Settings.ACTION_SETTINGS)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivityIfResolved(intent)
+        tryStartActivity(intent)
     }
 
     private fun launchAppCategory(category: String) {
@@ -163,7 +175,7 @@ class MainActivity : ComponentActivity() {
             Intent
                 .makeMainSelectorActivity(Intent.ACTION_MAIN, category)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivityIfResolved(intent)
+        tryStartActivity(intent)
     }
 
     private fun launchGeo(
@@ -175,14 +187,14 @@ class MainActivity : ComponentActivity() {
         val intent =
             Intent(Intent.ACTION_VIEW, Uri.parse("geo:$latitude,$longitude?z=$MAPS_ZOOM_LEVEL"))
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivityIfResolved(intent)
+        tryStartActivity(intent)
     }
 
     private fun openNotificationListenerSettings() {
         val intent =
             Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivityIfResolved(intent)
+        tryStartActivity(intent)
     }
 
     /**
@@ -203,17 +215,19 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Start [intent] but no-op if no activity resolves. Other failures (e.g.
-     * `SecurityException`) propagate so they surface as crashes rather than
-     * silent dead clicks during development.
+     * Start [intent], returning whether an activity handled it. Callers that
+     * chain alternatives consume the result (the assistant fallback); fire-and-
+     * forget callers ignore it. [ActivityNotFoundException] means the head unit
+     * has no app for the target — a silent no-op rather than a dead-click crash;
+     * any other failure (e.g. `SecurityException`) propagates.
      */
-    private fun startActivityIfResolved(intent: Intent) {
+    private fun tryStartActivity(intent: Intent): Boolean =
         try {
             startActivity(intent)
+            true
         } catch (_: ActivityNotFoundException) {
-            // Head-unit has no app for this category / settings target.
+            false
         }
-    }
 
     /**
      * Nudge MapLibre's OpenGL `EGLConfigChooser` onto its emulator-safe config

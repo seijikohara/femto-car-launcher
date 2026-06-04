@@ -130,6 +130,10 @@ internal class HomeViewModel(
                 mutableEvents.tryEmit(HomeEvent.OpenInAppSettings)
             }
 
+            HomeAction.OpenAssistant -> {
+                mutableEvents.tryEmit(HomeEvent.OpenAssistant)
+            }
+
             HomeAction.ResetTrip -> {
                 resetTrip()
             }

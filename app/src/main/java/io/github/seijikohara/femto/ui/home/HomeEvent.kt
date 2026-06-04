@@ -44,4 +44,7 @@ internal sealed interface HomeEvent {
 
     /** Open the in-app settings screen (units, theme, font, system links). */
     data object OpenInAppSettings : HomeEvent
+
+    /** Invoke the device's voice assistant (ACTION_ASSIST, falling back to voice command). */
+    data object OpenAssistant : HomeEvent
 }

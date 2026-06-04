@@ -37,6 +37,7 @@ import com.composables.icons.lucide.Bluetooth
 import com.composables.icons.lucide.Globe
 import com.composables.icons.lucide.LayoutGrid
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Mic
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Navigation
 import com.composables.icons.lucide.Phone
@@ -51,10 +52,13 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.TabularFigures
 
-// Below this footer width the read-only status cluster is dropped so the six
+// Below this footer width the read-only status cluster is dropped so the seven
 // nav buttons keep room to render at >= FemtoDimens.MinTouchTarget without
-// clipping on portrait / narrow head units.
-private val CompactFooterWidth: Dp = 640.dp
+// clipping on portrait / narrow head units. Derived from the layout, not tuned
+// to a device: 7 buttons * 64 dp floor (448 dp) + the status cluster (~140 dp)
+// + dividers and horizontal padding (~70 dp) ~= 660 dp, rounded up for headroom.
+// Adding an eighth button raises the button term by one MinTouchTarget.
+private val CompactFooterWidth: Dp = 700.dp
 
 /**
  * Bottom dock. Originally derived from `docs/design/dashboard-v2-mockup.html`
@@ -63,8 +67,8 @@ private val CompactFooterWidth: Dp = 640.dp
  * the mockup, is now the authoritative footer spec.
  *
  *  - [FemtoDimens.FooterHeight] surface with a 1 dp top divider (`outlineVariant`).
- *  - Six equal-weight nav buttons (Phone / Apps / Music / Navigation / Browser /
- *    Settings). This app IS the launcher, so there is no Home button.
+ *  - Seven equal-weight nav buttons (Phone / Apps / Music / Navigation /
+ *    Browser / Assistant / Settings). This app IS the launcher, so no Home button.
  *  - A 1 dp vertical divider separates the actionable nav from a read-only
  *    status cluster: cellular (hidden on telephony-less units), Wi-Fi,
  *    Bluetooth, and a battery indicator (icon over percent, with a "Charging"
@@ -89,7 +93,7 @@ internal fun DashboardFooter(
                     .fillMaxSize()
                     .padding(horizontal = 24.dp),
         ) {
-            // The six nav buttons plus the cluster cannot both fit on a narrow
+            // The seven nav buttons plus the cluster cannot both fit on a narrow
             // portrait head unit; below the threshold the read-only status
             // cluster yields so the actionable nav stays uncut.
             val showStatusCluster = maxWidth >= CompactFooterWidth
@@ -128,7 +132,7 @@ private fun NavRow(
     horizontalArrangement = Arrangement.SpaceBetween,
     verticalAlignment = Alignment.CenterVertically,
 ) {
-    // Each button takes an equal weight so the six buttons share the width and
+    // Each button takes an equal weight so the seven buttons share the width and
     // shrink toward FemtoDimens.MinTouchTarget instead of clipping when the row
     // is narrow. The widthIn floor in NavButton keeps every tap target legal.
     NavButton(
@@ -159,6 +163,12 @@ private fun NavRow(
         icon = Lucide.Globe,
         description = stringResource(R.string.nav_browser),
         onClick = { onAction(HomeAction.OpenBrowser) },
+        modifier = Modifier.weight(1f),
+    )
+    NavButton(
+        icon = Lucide.Mic,
+        description = stringResource(R.string.nav_assistant),
+        onClick = { onAction(HomeAction.OpenAssistant) },
         modifier = Modifier.weight(1f),
     )
     NavButton(
