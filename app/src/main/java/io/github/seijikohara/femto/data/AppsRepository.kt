@@ -20,7 +20,7 @@ import kotlinx.coroutines.withContext
  * model. Adding new permissions for this feature is therefore not
  * required.
  */
-class AppsRepository(
+internal class AppsRepository(
     private val context: Context,
     launcher: ((ComponentName) -> Unit)? = null,
 ) {
@@ -64,6 +64,20 @@ class AppsRepository(
                     if (error is ActivityNotFoundException) false else throw error
                 },
             )
+
+    /**
+     * Resolve a package to its primary launcher activity, or null when the
+     * package exposes no launchable activity (e.g. a background-only media
+     * service). Used to open the app behind the current media session, reusing
+     * the same [LauncherApps] launch path as the home grid.
+     */
+    fun launcherComponentFor(packageName: String): ComponentName? =
+        runCatching {
+            launcherApps
+                .getActivityList(packageName, Process.myUserHandle())
+                .firstOrNull()
+                ?.componentName
+        }.getOrNull()
 }
 
 private const val ICON_PIXELS = 192

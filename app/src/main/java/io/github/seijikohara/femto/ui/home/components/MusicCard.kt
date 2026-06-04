@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
@@ -41,6 +42,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Pause
@@ -87,6 +89,7 @@ internal fun MusicCard(
     state: MusicCardState,
     onCommand: (MusicCommand) -> Unit,
     onConnect: () -> Unit,
+    onLaunchSource: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) = Surface(
     modifier = modifier,
@@ -97,7 +100,7 @@ internal fun MusicCard(
     when (state) {
         MusicCardState.NeedsPermission -> ConnectState(onConnect = onConnect)
         MusicCardState.NoActiveSession -> EmptyState()
-        is MusicCardState.Playing -> PlayingState(state.nowPlaying, onCommand)
+        is MusicCardState.Playing -> PlayingState(state.nowPlaying, onCommand, onLaunchSource)
     }
 }
 
@@ -105,28 +108,76 @@ internal fun MusicCard(
 private fun PlayingState(
     nowPlaying: NowPlaying,
     onCommand: (MusicCommand) -> Unit,
-) = Column(
-    modifier =
-        Modifier
-            .fillMaxSize()
-            .padding(FemtoDimens.CardPadding),
-    horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.SpaceBetween,
+    onLaunchSource: (String) -> Unit,
+) = Box(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(FemtoDimens.CardPadding),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween,
+    ) {
+        AlbumArt(nowPlaying = nowPlaying)
+        Meta(
+            source = sourceLabel(nowPlaying.packageName),
+            title = nowPlaying.title,
+            artist = nowPlaying.artist,
+        )
+        Progress(
+            positionMs = nowPlaying.positionMs,
+            durationMs = nowPlaying.durationMs,
+            positionUpdateTimeMs = nowPlaying.positionUpdateTimeMs,
+            isPlaying = nowPlaying.isPlaying,
+            playbackSpeed = nowPlaying.playbackSpeed,
+        )
+        TransportRow(isPlaying = nowPlaying.isPlaying, onCommand = onCommand)
+    }
+    SourceAppButton(
+        sourceIcon = nowPlaying.sourceIcon,
+        sourceLabel = sourceLabel(nowPlaying.packageName),
+        onClick = { onLaunchSource(nowPlaying.packageName) },
+        modifier = Modifier.align(Alignment.TopEnd),
+    )
+}
+
+@Composable
+private fun SourceAppButton(
+    sourceIcon: ImageBitmap?,
+    sourceLabel: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    AlbumArt(nowPlaying = nowPlaying)
-    Meta(
-        source = sourceLabel(nowPlaying.packageName),
-        title = nowPlaying.title,
-        artist = nowPlaying.artist,
-    )
-    Progress(
-        positionMs = nowPlaying.positionMs,
-        durationMs = nowPlaying.durationMs,
-        positionUpdateTimeMs = nowPlaying.positionUpdateTimeMs,
-        isPlaying = nowPlaying.isPlaying,
-        playbackSpeed = nowPlaying.playbackSpeed,
-    )
-    TransportRow(isPlaying = nowPlaying.isPlaying, onCommand = onCommand)
+    val description = stringResource(R.string.music_open_source, sourceLabel)
+    Box(
+        modifier =
+            modifier
+                .size(FemtoDimens.MinTouchTarget)
+                .clip(RoundedCornerShape(14.dp))
+                .clickable(onClick = onClick)
+                .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (sourceIcon != null) {
+            Image(
+                bitmap = sourceIcon,
+                contentDescription = null,
+                modifier =
+                    Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+            )
+        } else {
+            // Fallback when the source icon could not be resolved: a generic
+            // launch glyph keeps the open-app affordance tappable.
+            Icon(
+                imageVector = Lucide.ExternalLink,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+    }
 }
 
 @Composable
@@ -502,6 +553,7 @@ private fun MusicCardPlayingPreview() {
                 ),
             onCommand = {},
             onConnect = {},
+            onLaunchSource = {},
         )
     }
 }
@@ -515,6 +567,7 @@ private fun MusicCardEmptyPreview() {
             state = MusicCardState.NoActiveSession,
             onCommand = {},
             onConnect = {},
+            onLaunchSource = {},
         )
     }
 }

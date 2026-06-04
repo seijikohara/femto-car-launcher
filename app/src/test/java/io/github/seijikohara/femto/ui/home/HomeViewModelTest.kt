@@ -189,6 +189,28 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun `onAction LaunchMusicSource emits LaunchComponent for the resolved package`() =
+        runTest {
+            val component = ComponentName("com.spotify.music", "com.spotify.music.MainActivity")
+            stubViewModel(resolveMusicSourceComponent = { pkg -> component.takeIf { pkg == "com.spotify.music" } })
+                .assertEvent(
+                    action = HomeAction.LaunchMusicSource("com.spotify.music"),
+                    expected = HomeEvent.LaunchComponent(component),
+                )
+        }
+
+    @Test
+    fun `onAction LaunchMusicSource emits no event when the package has no launcher activity`() =
+        runTest {
+            val viewModel = stubViewModel(resolveMusicSourceComponent = { null })
+            viewModel.events.test {
+                viewModel.onAction(HomeAction.LaunchMusicSource("com.example.headless"))
+                expectNoEvents()
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
     fun `onAction ResetTrip invokes resetTrip and emits no event`() =
         runTest {
             var resetCount = 0
@@ -233,6 +255,7 @@ class HomeViewModelTest {
     private fun stubViewModel(
         sendMusicCommand: (MusicCommand) -> Unit = {},
         resetTrip: () -> Unit = {},
+        resolveMusicSourceComponent: (String) -> ComponentName? = { null },
     ): HomeViewModel =
         HomeViewModel(
             clockFlow = emptyFlow(),
@@ -245,5 +268,6 @@ class HomeViewModelTest {
             tripStateFlow = emptyFlow(),
             sendMusicCommand = sendMusicCommand,
             resetTrip = resetTrip,
+            resolveMusicSourceComponent = resolveMusicSourceComponent,
         )
 }

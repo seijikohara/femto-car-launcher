@@ -34,13 +34,14 @@
     <string name="weather_cond_unknown"></string>
 
     <!-- Music card -->
-    <string name="music_connect_cta">Connect a player</string>
-    <string name="music_connect_hint">Allow notification access to control playback from the dashboard.</string>
+    <string name="music_connect_cta">Tap to connect a player</string>
+    <string name="music_connect_hint">Grant notification access and your music appears here, controllable from the dashboard.</string>
     <string name="music_nothing_playing">Nothing is playing</string>
     <string name="music_nothing_hint">Open a music app to start, or say \"Hey Google, play something\".</string>
     <string name="music_skip_previous">Skip previous</string>
     <string name="music_play_pause">Play / pause</string>
     <string name="music_skip_next">Skip next</string>
+    <string name="music_open_source">Open %1$s</string>
 
     <!-- Dashboard footer: navigation -->
     <string name="nav_phone">Phone</string>

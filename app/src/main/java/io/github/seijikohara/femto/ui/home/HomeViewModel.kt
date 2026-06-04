@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home
 
 import android.app.Application
+import android.content.ComponentName
 import android.content.Intent
 import android.location.Location
 import androidx.lifecycle.ViewModel
@@ -8,6 +9,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.seijikohara.femto.BuildConfig
+import io.github.seijikohara.femto.data.AppsRepository
 import io.github.seijikohara.femto.data.CalendarRepository
 import io.github.seijikohara.femto.data.CalendarSnapshot
 import io.github.seijikohara.femto.data.ClockRepository
@@ -48,6 +50,7 @@ internal class HomeViewModel(
     private val tripStateFlow: Flow<TripState>,
     private val sendMusicCommand: (MusicCommand) -> Unit = {},
     private val resetTrip: () -> Unit = {},
+    private val resolveMusicSourceComponent: (String) -> ComponentName? = { null },
 ) : ViewModel() {
     // Kotlin's typed combine overloads cover at most 5 flows. Stage the eight
     // sources through a typed intermediate (CoreSignals) so the compiler enforces
@@ -118,6 +121,14 @@ internal class HomeViewModel(
                 mutableEvents.tryEmit(HomeEvent.OpenNotificationListenerSettings)
             }
 
+            is HomeAction.LaunchMusicSource -> {
+                // Resolve to the source app's launcher activity and reuse the app
+                // grid's launch path. A package with no launchable activity (a
+                // background-only media service) resolves to null and no-ops.
+                resolveMusicSourceComponent(action.packageName)
+                    ?.let { mutableEvents.tryEmit(HomeEvent.LaunchComponent(it)) }
+            }
+
             is HomeAction.Music -> {
                 sendMusicCommand(action.command)
             }
@@ -185,6 +196,7 @@ internal class HomeViewModelFactory(
         val calendar = CalendarRepository(application, clockFlow)
         val systemStatus = SystemStatusRepository(application)
         val trip = TripRepository(locationFlow)
+        val apps = AppsRepository(application)
 
         @Suppress("UNCHECKED_CAST")
         return HomeViewModel(
@@ -198,6 +210,7 @@ internal class HomeViewModelFactory(
             tripStateFlow = trip.stateFlow(),
             sendMusicCommand = music::send,
             resetTrip = trip::reset,
+            resolveMusicSourceComponent = apps::launcherComponentFor,
         ) as T
     }
 }
