@@ -6,7 +6,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the single-purpose apps grid with a LecoAuto-inspired multi-panel dashboard: hero map (Lite Mode + speed/altitude/address overlays), three right-stack panels (clock, weather, now-playing), and a bottom apps bar. The full apps grid moves into a separate drawer screen.
+**Goal:** Replace the single-purpose apps grid with a multi-panel dashboard: hero map (Lite Mode + speed/altitude/address overlays), three right-stack panels (clock, weather, now-playing), and a bottom apps bar. The full apps grid moves into a separate drawer screen.
 
 **Architecture:** Unidirectional data flow — six independent `data/` repositories produce Kotlin Flows; `HomeViewModel` combines them into a single `HomeUiState`; ten focused Composables render the C2 layout. Maps integration uses Google Maps SDK Lite Mode with a runtime GMS-availability check that gracefully degrades to a static fallback. Address comes from the AOSP `Geocoder` (also GMS-backed). Weather comes from Open-Meteo (no API key, multi-region). Music comes from `MediaSession` via a `NotificationListenerService`.
 
@@ -1387,7 +1387,7 @@ Wraps GoogleApiAvailability so the rest of the codebase doesn't
 import com.google.android.gms.common directly. The dashboard reads
 this once at ViewModel init; MapPanel collapses to its static
 fallback when the call returns false, which is the expected case
-on AOSP-only Carlinkit / OTTOCAST SKUs."
+on AOSP-only AI-box SKUs."
 ```
 
 ### Task 2.6: MusicSession plumbing
@@ -3181,12 +3181,12 @@ Expected: All four commands report BUILD SUCCESSFUL.
 
 - [ ] **Step 2: If any step fails, fix in a follow-up commit.** Do not bypass spotless or lint.
 
-### Task 5.2: Smoke test on TBox-Mock AVD
+### Task 5.2: Smoke test on the head-unit AVD
 
 - [ ] **Step 1: Boot the AVD.**
 
 ```bash
-emulator @TBox-Mock -no-snapshot &
+emulator @<head-unit-avd> -no-snapshot &
 adb wait-for-device
 ```
 
@@ -3239,7 +3239,7 @@ adb exec-out screencap -p > docs/superpowers/specs/img/2026-05-01-dashboard-stat
 
 ### Task 5.3: Real-device smoke (optional, when hardware is available)
 
-- [ ] **Step 1: Connect the TBox Ambient via USB-C / OTG-host adapter.**
+- [ ] **Step 1: Connect the AI box via USB-C / OTG-host adapter.**
 
 - [ ] **Step 2: Confirm GMS is present on the device.**
 

@@ -36,6 +36,14 @@ question, not the most numerous.
 - Car Launcher Pro / Free
 - CarWebGuru
 - Fcc Car Launcher (Chinese-language)
+- Car Launcher (CarLab) — https://car-lab.app — Google Navigation SDK
+  integration, radio streaming (50k+ stations), media / phone / app-grid
+  widgets and a speed/weather/clock dashboard; Lite (one-time purchase)
+  vs Pro (subscription with integrated navigation) tiers
+- AutoZen — https://autozenapp.com — positions itself as an "Android Auto
+  alternative": turn-by-turn navigation with live traffic, speed-camera
+  alerts, an AI voice assistant, messaging (WhatsApp / Signal / Messenger),
+  split-screen, and themeable widget dashboards
 
 **iOS / cross-platform reference:**
 - CarBridge (iOS jailbreak tweak) — for UX patterns transferable

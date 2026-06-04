@@ -85,8 +85,8 @@
     <!--
         Declare telephony hardware as optional so Play does not implicitly
         hard-require it (requesting READ_PHONE_STATE above otherwise implies
-        required=true). Wi-Fi-only AI boxes (Carlinkit / OTTOCAST) have no
-        telephony hardware; the cellular indicator degrades — cellularFlow()
+        required=true). Wi-Fi-only AI boxes have no telephony
+        hardware; the cellular indicator degrades — cellularFlow()
         and cellularLevelFlow() guard FEATURE_TELEPHONY and emit null — so
         such units must still see and install the launcher (multi-region
         distribution). See CLAUDE.md#launcher-behavior.
