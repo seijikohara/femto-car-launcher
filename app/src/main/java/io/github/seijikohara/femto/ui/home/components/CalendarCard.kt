@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -41,12 +43,11 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 /**
- * Calendar card. Three vertical sections stacked on a 12dp rhythm
- * ([Arrangement.spacedBy], matching the mockup `.calendar-card`
- * `row-gap: 12px`); content stays top-aligned and any spare height in the
- * fixed-height card falls to the bottom rather than stretching the gaps:
+ * Calendar card. Three vertical sections stacked on the
+ * [FemtoDimens.CardSectionGap] rhythm ([Arrangement.spacedBy]); the content is
+ * top-aligned and scrolls if the card is too short to fit all three:
  *
- *  1. Head — 56sp day number (primary tint) + weekday + month label.
+ *  1. Head — big day number (primary tint) + weekday + month label.
  *  2. Strip — 6 future days starting today, each cell carrying a "has event" dot.
  *  3. Events — up to two upcoming events, separated from the strip by a 1dp divider.
  *
@@ -65,28 +66,33 @@ internal fun CalendarCard(
     color = MaterialTheme.colorScheme.surfaceContainer,
     tonalElevation = FemtoDimens.CardElevation,
 ) {
-    Column(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(FemtoDimens.CardPadding),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        when {
-            // null is the loading frame: render nothing rather than a denial
-            // message the user has not earned yet.
-            snapshot == null -> {
-                Unit
-            }
+    when {
+        // null is the loading frame: render nothing rather than a denial
+        // message the user has not earned yet.
+        snapshot == null -> {
+            Unit
+        }
 
-            // A non-null snapshot with access denied carries no real strip /
-            // event data, so show the denial message instead of a hollow strip
-            // plus a misleading "no upcoming events".
-            !snapshot.hasCalendarAccess -> {
-                PermissionDenied()
-            }
+        // A non-null snapshot with access denied carries no real strip /
+        // event data, so show the denial message instead of a hollow strip
+        // plus a misleading "no upcoming events".
+        !snapshot.hasCalendarAccess -> {
+            PermissionDenied()
+        }
 
-            else -> {
+        else -> {
+            // verticalScroll is a safety net: fillMaxWidth (not fillMaxSize) lets
+            // the content keep its intrinsic height, so on a card too short for
+            // the head + strip + events it scrolls instead of clipping; on a tall
+            // enough card it simply sits top-aligned.
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(FemtoDimens.CardPadding),
+                verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
+            ) {
                 Head(snapshot)
                 Strip(snapshot.dayStrip)
                 Events(snapshot.events)

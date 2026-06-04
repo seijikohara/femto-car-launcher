@@ -419,6 +419,8 @@ private fun ConnectState(onConnect: () -> Unit) =
                     ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.widthIn(max = 280.dp),
             )
         }
@@ -464,6 +466,8 @@ private fun EmptyState() =
                 ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.widthIn(max = 280.dp),
         )
         Box(modifier = Modifier.weight(0.9f))

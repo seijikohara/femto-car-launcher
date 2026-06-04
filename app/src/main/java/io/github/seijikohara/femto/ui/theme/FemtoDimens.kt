@@ -36,9 +36,6 @@ object FemtoDimens {
     /** Footer dock height (64.dp tap target + 16.dp top/bottom breathing room). */
     val FooterHeight = 80.dp
 
-    /** Top row of the info pane that houses the calendar and weather cards. */
-    val TopRowHeight = 224.dp
-
     /** Album art size inside the music card's vertical playing layout. */
     val MusicArtSize = 140.dp
 
@@ -87,8 +84,11 @@ object FemtoDimens {
     /** Gap between the two top-level panes. Mockup legend: pane gap 16 dp. */
     val PaneGap = 16.dp
 
-    /** Uniform inner padding for dashboard cards. Mockup legend: card padding 16 dp. */
-    val CardPadding = 16.dp
+    /** Uniform inner padding for dashboard cards. Tightened from the mockup's 16 dp. */
+    val CardPadding = 14.dp
+
+    /** Vertical rhythm between the sections stacked inside a card. */
+    val CardSectionGap = 10.dp
 
     /** Corner radius for dashboard cards. Mockup legend: card radius 16 dp (Shapes.large). */
     val CardCorner = 16.dp
