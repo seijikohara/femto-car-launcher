@@ -122,6 +122,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
+    implementation(platform(libs.okhttp.bom))
     implementation(libs.okhttp)
     implementation(libs.maplibre.android)
 
@@ -134,6 +135,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
+    testImplementation(platform(libs.okhttp.bom))
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.junit)
     testImplementation(libs.kotlin.test)
