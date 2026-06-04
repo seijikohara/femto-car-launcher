@@ -48,11 +48,16 @@ internal class SystemStatusRepository(
 
     fun statusFlow(): Flow<SystemStatus> =
         combine(
+            // cellularFlow seeds its own initial value (false, or null on a
+            // telephony-less unit), so it needs no onStart — adding one would
+            // emit a spurious false->null transition before the seed.
+            cellularFlow(),
             wifiFlow().onStart { emit(false) },
             bluetoothFlow().onStart { emit(false) },
             batteryFlow().onStart { emit(BatteryReading(percent = null, charging = false)) },
-        ) { wifi, bt, battery ->
+        ) { cellular, wifi, bt, battery ->
             SystemStatus(
+                cellularConnected = cellular,
                 wifiConnected = wifi,
                 bluetoothConnected = bt,
                 batteryPercent = battery.percent,
@@ -81,6 +86,45 @@ internal class SystemStatusRepository(
             val request = NetworkRequest
                 .Builder()
                 .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .build()
+            cm.registerNetworkCallback(request, callback)
+            awaitClose { cm.unregisterNetworkCallback(callback) }
+        }
+    }
+
+    /**
+     * Mobile-data connectivity, connectivity-only (no SIM / signal-strength
+     * read, so no READ_PHONE_STATE). Emits null on a device with no telephony
+     * feature so the footer hides the indicator rather than showing a
+     * permanently-disconnected one. Mirrors [wifiFlow] for the validated check.
+     */
+    private fun cellularFlow(): Flow<Boolean?> {
+        val cm = connectivity ?: return flowOf(null)
+        if (!context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return flowOf(null)
+        }
+        return callbackFlow {
+            // Seed disconnected so combine has an initial cellular value even when
+            // no cellular network is currently present to fire the callback.
+            trySend(false)
+            val callback = object : ConnectivityManager.NetworkCallback() {
+                override fun onCapabilitiesChanged(
+                    network: Network,
+                    caps: NetworkCapabilities,
+                ) {
+                    trySend(
+                        caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) &&
+                            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
+                    )
+                }
+
+                override fun onLost(network: Network) {
+                    trySend(false)
+                }
+            }
+            val request = NetworkRequest
+                .Builder()
+                .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
                 .build()
             cm.registerNetworkCallback(request, callback)
             awaitClose { cm.unregisterNetworkCallback(callback) }

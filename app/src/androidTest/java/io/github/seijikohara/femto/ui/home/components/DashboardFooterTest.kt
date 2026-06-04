@@ -1,7 +1,9 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -17,7 +19,7 @@ class DashboardFooterTest {
     val rule = createComposeRule()
 
     @Test
-    fun renders_home_and_apps_nav_buttons() {
+    fun renders_apps_and_settings_nav_buttons() {
         rule.setContent {
             FemtoTheme {
                 DashboardFooter(
@@ -26,8 +28,9 @@ class DashboardFooterTest {
                 )
             }
         }
-        rule.onNodeWithContentDescription("Home").assertIsDisplayed()
+        // The launcher dashboard IS home, so there is no Home button.
         rule.onNodeWithContentDescription("Apps").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Settings").assertIsDisplayed()
     }
 
     @Test
@@ -72,6 +75,33 @@ class DashboardFooterTest {
     }
 
     @Test
+    fun shows_cellular_connected_description_when_connected() {
+        rule.setContent {
+            FemtoTheme {
+                DashboardFooter(
+                    systemStatus = fakeSystemStatus(cellularConnected = true),
+                    onAction = {},
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("Mobile data connected").assertIsDisplayed()
+    }
+
+    @Test
+    fun hides_cellular_icon_on_telephony_less_unit() {
+        rule.setContent {
+            FemtoTheme {
+                DashboardFooter(
+                    systemStatus = fakeSystemStatus(cellularConnected = null),
+                    onAction = {},
+                )
+            }
+        }
+        rule.onAllNodesWithContentDescription("Mobile data connected").assertCountEquals(0)
+        rule.onAllNodesWithContentDescription("Mobile data disconnected").assertCountEquals(0)
+    }
+
+    @Test
     fun renders_battery_percent_text() {
         rule.setContent {
             FemtoTheme {
@@ -82,5 +112,18 @@ class DashboardFooterTest {
             }
         }
         rule.onNodeWithText("78%").assertIsDisplayed()
+    }
+
+    @Test
+    fun shows_charging_caption_when_charging() {
+        rule.setContent {
+            FemtoTheme {
+                DashboardFooter(
+                    systemStatus = fakeSystemStatus(charging = true),
+                    onAction = {},
+                )
+            }
+        }
+        rule.onNodeWithText("Charging").assertIsDisplayed()
     }
 }

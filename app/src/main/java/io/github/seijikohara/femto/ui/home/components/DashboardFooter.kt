@@ -1,6 +1,5 @@
 package io.github.seijikohara.femto.ui.home.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
@@ -25,7 +23,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -38,13 +35,13 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Battery
 import com.composables.icons.lucide.Bluetooth
 import com.composables.icons.lucide.Globe
-import com.composables.icons.lucide.House
 import com.composables.icons.lucide.LayoutGrid
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Navigation
 import com.composables.icons.lucide.Phone
 import com.composables.icons.lucide.Settings
+import com.composables.icons.lucide.Signal
 import com.composables.icons.lucide.Wifi
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.SystemStatus
@@ -54,23 +51,24 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.TabularFigures
 
-// Below this footer width the read-only status cluster is dropped so the seven
+// Below this footer width the read-only status cluster is dropped so the six
 // nav buttons keep room to render at >= FemtoDimens.MinTouchTarget without
 // clipping on portrait / narrow head units.
 private val CompactFooterWidth: Dp = 640.dp
 
 /**
- * Bottom dock per `docs/design/dashboard-v2-mockup.html` `.footer`:
+ * Bottom dock. Originally derived from `docs/design/dashboard-v2-mockup.html`
+ * `.footer`, since evolved from on-device feedback (shorter height, no Home
+ * button, added cellular indicator and charging caption); this composable, not
+ * the mockup, is now the authoritative footer spec.
  *
- *  - 80 dp surface with a 1 dp top divider (`outlineVariant`).
- *  - Seven 72 × 64 dp nav buttons (Home / Phone / Apps / Music /
- *    Navigation / Browser / Settings) in a 3 + 1 + 3 grouping, evenly
- *    distributed across the left flex region.
- *  - The Home button is the only active state — primaryContainer
- *    background with a 20 × 3 dp underline 4 dp from the bottom.
- *  - A 1 dp vertical divider separates the actionable nav from a
- *    read-only Wi-Fi / Bluetooth / battery cluster at 20 dp icon size,
- *    with the battery percent rendered at 13sp / 700.
+ *  - [FemtoDimens.FooterHeight] surface with a 1 dp top divider (`outlineVariant`).
+ *  - Six equal-weight nav buttons (Phone / Apps / Music / Navigation / Browser /
+ *    Settings). This app IS the launcher, so there is no Home button.
+ *  - A 1 dp vertical divider separates the actionable nav from a read-only
+ *    status cluster: cellular (hidden on telephony-less units), Wi-Fi,
+ *    Bluetooth, and a battery indicator (icon over percent, with a "Charging"
+ *    caption while plugged in).
  *
  * Iconography is Lucide stroke-1.75 for parity with the design SSOT.
  */
@@ -91,9 +89,9 @@ internal fun DashboardFooter(
                     .fillMaxSize()
                     .padding(horizontal = 24.dp),
         ) {
-            // Seven 64 dp buttons plus the cluster need ~707 dp with zero slack;
-            // narrow portrait head units cannot fit both. Below the threshold the
-            // read-only status cluster yields so the actionable nav stays uncut.
+            // The six nav buttons plus the cluster cannot both fit on a narrow
+            // portrait head unit; below the threshold the read-only status
+            // cluster yields so the actionable nav stays uncut.
             val showStatusCluster = maxWidth >= CompactFooterWidth
             Row(
                 modifier = Modifier.fillMaxSize(),
@@ -130,55 +128,42 @@ private fun NavRow(
     horizontalArrangement = Arrangement.SpaceBetween,
     verticalAlignment = Alignment.CenterVertically,
 ) {
-    // Each button takes an equal weight so seven buttons share the width and
+    // Each button takes an equal weight so the six buttons share the width and
     // shrink toward FemtoDimens.MinTouchTarget instead of clipping when the row
     // is narrow. The widthIn floor in NavButton keeps every tap target legal.
     NavButton(
-        icon = Lucide.House,
-        description = stringResource(R.string.nav_home),
-        active = true,
-        onClick = { /* already on home */ },
-        modifier = Modifier.weight(1f),
-    )
-    NavButton(
         icon = Lucide.Phone,
         description = stringResource(R.string.nav_phone),
-        active = false,
         onClick = { onAction(HomeAction.Shortcut(AppsBarShortcut.Phone)) },
         modifier = Modifier.weight(1f),
     )
     NavButton(
         icon = Lucide.LayoutGrid,
         description = stringResource(R.string.nav_apps),
-        active = false,
         onClick = { onAction(HomeAction.OpenAppDrawer) },
         modifier = Modifier.weight(1f),
     )
     NavButton(
         icon = Lucide.Music,
         description = stringResource(R.string.nav_music),
-        active = false,
         onClick = { onAction(HomeAction.Shortcut(AppsBarShortcut.Music)) },
         modifier = Modifier.weight(1f),
     )
     NavButton(
         icon = Lucide.Navigation,
         description = stringResource(R.string.nav_navigation),
-        active = false,
         onClick = { onAction(HomeAction.OpenMaps) },
         modifier = Modifier.weight(1f),
     )
     NavButton(
         icon = Lucide.Globe,
         description = stringResource(R.string.nav_browser),
-        active = false,
         onClick = { onAction(HomeAction.OpenBrowser) },
         modifier = Modifier.weight(1f),
     )
     NavButton(
         icon = Lucide.Settings,
         description = stringResource(R.string.nav_settings),
-        active = false,
         onClick = { onAction(HomeAction.OpenSettings) },
         modifier = Modifier.weight(1f),
     )
@@ -188,50 +173,25 @@ private fun NavRow(
 private fun NavButton(
     icon: ImageVector,
     description: String,
-    active: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+) = Box(
+    modifier =
+        modifier
+            .height(FemtoDimens.MinTouchTarget)
+            .widthIn(min = FemtoDimens.MinTouchTarget)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = description },
+    contentAlignment = Alignment.Center,
 ) {
-    val background =
-        if (active) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-    val tint =
-        if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-    Box(
-        modifier =
-            modifier
-                .height(FemtoDimens.MinTouchTarget)
-                .widthIn(min = FemtoDimens.MinTouchTarget)
-                .clip(RoundedCornerShape(14.dp))
-                .background(background)
-                // The active Home button is the current surface — skip clickable so
-                // it shows no dead-tap ripple.
-                .then(if (active) Modifier else Modifier.clickable(onClick = onClick))
-                .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(26.dp),
-        )
-        if (active) {
-            ActiveIndicator(modifier = Modifier.align(Alignment.BottomCenter))
-        }
-    }
-}
-
-@Composable
-private fun ActiveIndicator(modifier: Modifier = Modifier) =
-    Box(
-        modifier =
-            modifier
-                .padding(bottom = 4.dp)
-                .height(3.dp)
-                .width(20.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(MaterialTheme.colorScheme.primary),
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(26.dp),
     )
+}
 
 @Composable
 private fun StatusCluster(
@@ -242,6 +202,18 @@ private fun StatusCluster(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(18.dp),
 ) {
+    // Cellular is hidden entirely on telephony-less units (null), rather than
+    // shown permanently disconnected.
+    status.cellularConnected?.let { connected ->
+        StatusIcon(
+            icon = Lucide.Signal,
+            active = connected,
+            description =
+                stringResource(
+                    if (connected) R.string.status_cellular_connected else R.string.status_cellular_disconnected,
+                ),
+        )
+    }
     StatusIcon(
         icon = Lucide.Wifi,
         active = status.wifiConnected,
@@ -282,34 +254,30 @@ private fun StatusIcon(
     )
 }
 
+// Battery icon stacked over its percent, with a "Charging" caption beneath while
+// plugged in. The 13sp percent and 10sp caption sit below the dashboard's 18sp
+// body floor under the same footer glance-metadata allowance the cluster already
+// uses (CLAUDE.md#automotive-overrides).
 @Composable
 private fun BatteryIndicator(
     percent: Int?,
     charging: Boolean,
     modifier: Modifier = Modifier,
-) = Row(
+) = Column(
     modifier = modifier,
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(6.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(1.dp),
 ) {
     Icon(
         imageVector = Lucide.Battery,
         contentDescription = stringResource(R.string.status_battery),
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        tint = if (charging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.size(20.dp),
     )
     Text(
         // Render an em-dash while the percent is unknown (cold start / battery-less
         // unit) so the cluster never reads as a dead 0% battery.
-        text =
-            if (percent == null) {
-                "—"
-            } else {
-                stringResource(
-                    if (charging) R.string.battery_percent_charging else R.string.battery_percent,
-                    percent,
-                )
-            },
+        text = if (percent == null) "—" else stringResource(R.string.battery_percent, percent),
         style =
             MaterialTheme.typography.labelLarge.copy(
                 fontSize = 13.sp,
@@ -319,20 +287,29 @@ private fun BatteryIndicator(
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
     )
+    if (charging) {
+        Text(
+            text = stringResource(R.string.status_charging),
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+        )
+    }
 }
 
 @PreviewLightDark
-@Preview(name = "Dashboard footer", widthDp = 1280, heightDp = 80)
+@Preview(name = "Dashboard footer", widthDp = 1280, heightDp = 72)
 @Composable
 private fun DashboardFooterPreview() {
     FemtoTheme {
         DashboardFooter(
             systemStatus =
                 SystemStatus(
+                    cellularConnected = true,
                     wifiConnected = true,
                     bluetoothConnected = true,
                     batteryPercent = 78,
-                    charging = false,
+                    charging = true,
                 ),
             onAction = {},
         )
@@ -341,13 +318,15 @@ private fun DashboardFooterPreview() {
 
 // Narrow portrait head unit: the status cluster drops and the nav buttons share
 // the width down toward FemtoDimens.MinTouchTarget rather than clipping.
-@Preview(name = "Dashboard footer (narrow)", widthDp = 520, heightDp = 80)
+@PreviewLightDark
+@Preview(name = "Dashboard footer (narrow)", widthDp = 520, heightDp = 72)
 @Composable
 private fun DashboardFooterNarrowPreview() {
     FemtoTheme {
         DashboardFooter(
             systemStatus =
                 SystemStatus(
+                    cellularConnected = null,
                     wifiConnected = true,
                     bluetoothConnected = false,
                     batteryPercent = null,

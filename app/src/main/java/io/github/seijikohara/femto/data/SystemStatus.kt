@@ -11,6 +11,10 @@ import androidx.compose.runtime.Immutable
  */
 @Immutable
 data class SystemStatus(
+    // Null on a device with no telephony feature (e.g. a Wi-Fi-only AI box), so
+    // the footer hides the cellular indicator entirely rather than showing a
+    // permanently-disconnected one; true/false once telephony is present.
+    val cellularConnected: Boolean?,
     val wifiConnected: Boolean,
     val bluetoothConnected: Boolean,
     // Null until the first battery reading arrives, or on battery-less units —
@@ -22,6 +26,7 @@ data class SystemStatus(
     companion object {
         val Initial: SystemStatus =
             SystemStatus(
+                cellularConnected = null,
                 wifiConnected = false,
                 bluetoothConnected = false,
                 batteryPercent = null,

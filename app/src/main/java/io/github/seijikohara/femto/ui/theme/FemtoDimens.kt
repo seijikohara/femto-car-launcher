@@ -33,8 +33,8 @@ object FemtoDimens {
     /** Album art thumbnail size in the music panel's playing state. */
     val AlbumArtSize = 72.dp
 
-    /** Footer dock height (64.dp tap target + 16.dp top/bottom breathing room). */
-    val FooterHeight = 80.dp
+    /** Footer dock height (64.dp tap target + 8.dp top/bottom breathing room). */
+    val FooterHeight = 72.dp
 
     /** Album art size inside the music card's vertical playing layout. */
     val MusicArtSize = 140.dp
