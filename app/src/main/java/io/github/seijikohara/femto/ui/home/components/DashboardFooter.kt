@@ -313,7 +313,7 @@ private fun BatteryIndicator(
         style =
             MaterialTheme.typography.labelLarge.copy(
                 fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 fontFeatureSettings = TabularFigures,
             ),
         color = MaterialTheme.colorScheme.onSurface,

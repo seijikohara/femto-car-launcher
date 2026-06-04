@@ -22,7 +22,7 @@
     padding: 32px;
     min-height: 100vh;
   }
-  h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 6px; }
+  h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
   .subtitle { font-size: 14px; color: #8a8f95; margin-bottom: 24px; max-width: 1280px; }
   .legend {
     display: grid; grid-template-columns: repeat(4, 1fr);
@@ -39,7 +39,7 @@
   .variant { margin-bottom: 40px; max-width: 1280px; }
   .variant-title {
     font-size: 14px; text-transform: uppercase; letter-spacing: 0.12em;
-    color: #8a8f95; margin-bottom: 8px; font-weight: 700;
+    color: #8a8f95; margin-bottom: 8px; font-weight: 600;
   }
   .variant-note { font-size: 13px; color: #6b7079; margin-top: 8px; line-height: 1.5; }
 
@@ -163,7 +163,7 @@
   }
   .frame.dark .clock-overlay { color: #f5f7fa; }
   .clock-overlay .time {
-    font-size: 40px; font-weight: 800;
+    font-size: 40px; font-weight: 700;
     letter-spacing: -0.04em; line-height: 1;
     font-feature-settings: "tnum" 1;
   }
@@ -193,17 +193,17 @@
   }
   .speed-overlay .now { display: flex; align-items: baseline; gap: 4px; }
   .speed-overlay .now .v {
-    font-size: 40px; font-weight: 800; letter-spacing: -0.03em; line-height: 1;
+    font-size: 40px; font-weight: 700; letter-spacing: -0.03em; line-height: 1;
   }
   .speed-overlay .now .u {
-    font-size: 12px; font-weight: 700; letter-spacing: 0.12em; opacity: 0.7;
+    font-size: 12px; font-weight: 600; letter-spacing: 0.12em; opacity: 0.7;
   }
   .speed-overlay .k {
-    font-size: 10px; font-weight: 700; letter-spacing: 0.14em; opacity: 0.62;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.14em; opacity: 0.62;
     text-transform: uppercase; margin-bottom: 2px;
   }
   .speed-overlay .v-secondary {
-    font-size: 16px; font-weight: 700; letter-spacing: -0.01em;
+    font-size: 16px; font-weight: 600; letter-spacing: -0.01em;
   }
   .speed-overlay .address-row {
     grid-column: 1 / -1;
@@ -212,7 +212,7 @@
     border-top: 1px solid currentColor;
     border-top-color: rgba(255,255,255,0.16);
     display: flex; align-items: center; gap: 8px;
-    font-size: 13px; font-weight: 600; opacity: 0.86;
+    font-size: 13px; font-weight: 500; opacity: 0.86;
   }
   .frame.light .speed-overlay .address-row { border-top-color: rgba(0,0,0,0.10); }
 
@@ -225,13 +225,13 @@
     color: var(--on-surface-variant);
   }
   .map-fallback .icon { width: 48px; height: 48px; stroke-width: 1.5; margin: 0 auto 16px; color: var(--on-surface-dim); }
-  .map-fallback .title { font-size: 22px; font-weight: 700; color: var(--on-surface); margin-bottom: 8px; letter-spacing: -0.01em; }
+  .map-fallback .title { font-size: 22px; font-weight: 600; color: var(--on-surface); margin-bottom: 8px; letter-spacing: -0.01em; }
   .map-fallback .desc { font-size: 16px; line-height: 1.5; max-width: 360px; margin: 0 auto 24px; }
   .map-fallback .cta {
     height: 56px; padding: 0 28px;
     border-radius: 28px;
     background: var(--primary); color: var(--on-primary);
-    font-size: 16px; font-weight: 700;
+    font-size: 16px; font-weight: 600;
     display: inline-flex; align-items: center; gap: 10px;
   }
 
@@ -258,7 +258,7 @@
   }
   .eyebrow {
     display: flex; align-items: center; gap: 6px;
-    font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.14em;
     text-transform: uppercase; color: var(--on-surface-dim);
   }
   .eyebrow .icon { width: 14px; height: 14px; stroke-width: 2; }
@@ -275,7 +275,7 @@
     align-items: center;
   }
   .calendar-card .big-day {
-    font-size: 56px; font-weight: 800;
+    font-size: 56px; font-weight: 700;
     line-height: 0.92; letter-spacing: -0.045em;
     color: var(--primary);
   }
@@ -283,12 +283,12 @@
     display: grid; row-gap: 4px; min-width: 0;
   }
   .calendar-card .head .weekday {
-    font-size: 20px; font-weight: 700;
+    font-size: 20px; font-weight: 600;
     color: var(--on-surface);
     letter-spacing: -0.01em; line-height: 1;
   }
   .calendar-card .head .month {
-    font-size: 11px; font-weight: 700;
+    font-size: 11px; font-weight: 600;
     color: var(--on-surface-variant);
     letter-spacing: 0.14em; text-transform: uppercase;
   }
@@ -306,12 +306,12 @@
     align-content: center;
   }
   .calendar-card .day .w {
-    font-size: 9px; font-weight: 700;
+    font-size: 9px; font-weight: 600;
     letter-spacing: 0.08em; text-transform: uppercase;
     opacity: 0.78;
   }
   .calendar-card .day .n {
-    font-size: 14px; font-weight: 700;
+    font-size: 14px; font-weight: 600;
     line-height: 1.1;
   }
   .calendar-card .day .marker {
@@ -345,7 +345,7 @@
     background: var(--outline);
   }
   .calendar-card .events .row .time {
-    font-weight: 700; color: var(--on-surface);
+    font-weight: 600; color: var(--on-surface);
     font-size: 13px;
   }
   .calendar-card .events .row .label {
@@ -364,12 +364,12 @@
     align-items: center;
   }
   .weather-card .big-temp {
-    font-size: 56px; font-weight: 800;
+    font-size: 56px; font-weight: 700;
     line-height: 0.92; letter-spacing: -0.045em;
     color: var(--on-surface);
   }
   .weather-card .big-temp .deg {
-    font-size: 20px; font-weight: 700;
+    font-size: 20px; font-weight: 600;
     color: var(--on-surface-variant);
     vertical-align: top; margin-left: 2px;
   }
@@ -392,13 +392,13 @@
   .weather-card .glyph:has(use[href="#i-cloud-sun"]) { color: var(--w-cloud-sun); }
   .weather-card .glyph:has(use[href="#i-cloud"])     { color: var(--w-cloud); }
   .weather-card .head .city {
-    font-size: 18px; font-weight: 700;
+    font-size: 18px; font-weight: 600;
     color: var(--on-surface);
     letter-spacing: -0.01em; line-height: 1;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .weather-card .head .conditions {
-    font-size: 11px; font-weight: 700;
+    font-size: 11px; font-weight: 600;
     color: var(--on-surface-variant);
     letter-spacing: 0.14em; text-transform: uppercase;
   }
@@ -410,12 +410,12 @@
     display: inline-flex; align-items: baseline; gap: 8px;
   }
   .weather-card .metrics .m .k {
-    font-size: 10px; font-weight: 700;
+    font-size: 10px; font-weight: 600;
     letter-spacing: 0.1em; text-transform: uppercase;
     color: var(--on-surface-dim);
   }
   .weather-card .metrics .m .v {
-    font-size: 14px; font-weight: 700;
+    font-size: 14px; font-weight: 600;
     color: var(--on-surface);
     font-feature-settings: "tnum" 1;
   }
@@ -433,9 +433,9 @@
     align-items: center;
     justify-items: center;
   }
-  .weather-card .forecast .h .hr { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--on-surface-dim); }
+  .weather-card .forecast .h .hr { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; color: var(--on-surface-dim); }
   .weather-card .forecast .h .glyph { width: 18px; height: 18px; stroke-width: 1.75; }
-  .weather-card .forecast .h .tt { font-size: 13px; font-weight: 700; color: var(--on-surface); }
+  .weather-card .forecast .h .tt { font-size: 13px; font-weight: 600; color: var(--on-surface); }
 
   /* ---- Music ----
      Sections (art / meta / progress / controls) distributed by
@@ -454,7 +454,7 @@
     color: var(--on-surface-variant);
   }
   .music-card.empty .empty-icon { color: var(--on-surface-dim); }
-  .music-card.empty .empty-title { font-size: 18px; font-weight: 700; color: var(--on-surface); }
+  .music-card.empty .empty-title { font-size: 18px; font-weight: 600; color: var(--on-surface); }
   .music-card.empty .empty-desc { font-size: 13px; line-height: 1.4; max-width: 280px; }
 
   .music-card .art {
@@ -476,20 +476,20 @@
     align-self: start;
   }
   .music-card .meta .source {
-    font-size: 10px; font-weight: 700; letter-spacing: 0.16em;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.16em;
     text-transform: uppercase; color: var(--on-surface-dim);
     display: inline-flex; align-items: center; gap: 6px; justify-content: center;
   }
   .music-card .meta .source .icon { width: 12px; height: 12px; stroke-width: 2; }
   .music-card .meta .title {
-    font-size: 20px; font-weight: 800;
+    font-size: 20px; font-weight: 700;
     letter-spacing: -0.02em; color: var(--on-surface);
     line-height: 1.15;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     max-width: 100%;
   }
   .music-card .meta .artist {
-    font-size: 14px; font-weight: 600;
+    font-size: 14px; font-weight: 500;
     color: var(--on-surface-variant);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     max-width: 100%;
@@ -498,7 +498,7 @@
     width: 100%;
     display: grid; grid-template-columns: auto 1fr auto;
     align-items: center; column-gap: 10px;
-    font-size: 11px; color: var(--on-surface-dim); font-weight: 600;
+    font-size: 11px; color: var(--on-surface-dim); font-weight: 500;
   }
   .music-card .bar {
     height: 4px; background: var(--outline-variant);
@@ -560,7 +560,7 @@
     stroke-width: 2;
   }
   .footer .status .pct {
-    font-size: 13px; font-weight: 700;
+    font-size: 13px; font-weight: 600;
     color: var(--on-surface);
     font-feature-settings: "tnum" 1;
   }

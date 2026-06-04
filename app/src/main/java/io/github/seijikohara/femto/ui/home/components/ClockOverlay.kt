@@ -62,7 +62,7 @@ internal fun ClockOverlay(
         style =
             MaterialTheme.typography.displayMedium.copy(
                 fontSize = 40.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontWeight = FontWeight.Bold,
                 letterSpacing = (-0.04f).em,
                 lineHeight = 40.sp,
                 fontFeatureSettings = TabularFigures,

@@ -205,7 +205,7 @@ private fun Meta(
         style =
             MaterialTheme.typography.titleLarge.copy(
                 fontSize = 20.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontWeight = FontWeight.Bold,
                 letterSpacing = (-0.02f).em,
                 lineHeight = 23.sp,
             ),
@@ -219,7 +219,7 @@ private fun Meta(
             style =
                 MaterialTheme.typography.bodyMedium.copy(
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                     lineHeight = 16.sp,
                 ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -279,7 +279,7 @@ private fun Progress(
             style =
                 MaterialTheme.typography.labelSmall.copy(
                     fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                     fontFeatureSettings = TabularFigures,
                 ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -307,7 +307,7 @@ private fun Progress(
             style =
                 MaterialTheme.typography.labelSmall.copy(
                     fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                     fontFeatureSettings = TabularFigures,
                 ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -401,7 +401,7 @@ private fun ConnectState(onConnect: () -> Unit) =
                 style =
                     MaterialTheme.typography.titleMedium.copy(
                         fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                     ),
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
@@ -449,7 +449,7 @@ private fun EmptyState() =
             style =
                 MaterialTheme.typography.titleMedium.copy(
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                 ),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,

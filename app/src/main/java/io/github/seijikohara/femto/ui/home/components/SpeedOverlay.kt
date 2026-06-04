@@ -188,7 +188,7 @@ private fun NowMetric(
         style =
             MaterialTheme.typography.displayMedium.copy(
                 fontSize = 40.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontWeight = FontWeight.Bold,
                 letterSpacing = (-0.03f).em,
                 lineHeight = 40.sp,
                 fontFeatureSettings = TabularFigures,
@@ -241,7 +241,7 @@ private fun SecondaryMetric(
         style =
             MaterialTheme.typography.titleSmall.copy(
                 fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 letterSpacing = (-0.01f).em,
                 fontFeatureSettings = TabularFigures,
             ),
@@ -267,7 +267,7 @@ private fun AddressRow(text: String) =
             style =
                 MaterialTheme.typography.bodyMedium.copy(
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                     lineHeight = 16.sp,
                 ),
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.86f),
