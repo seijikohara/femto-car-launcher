@@ -30,6 +30,8 @@ import io.github.seijikohara.femto.data.hasBluetoothConnectPermission
 import io.github.seijikohara.femto.data.hasFineLocationPermission
 import io.github.seijikohara.femto.data.hasReadCalendarPermission
 import io.github.seijikohara.femto.data.hasReadPhoneStatePermission
+import io.github.seijikohara.femto.ui.assistant.AssistantOption
+import io.github.seijikohara.femto.ui.assistant.AssistantSheet
 import io.github.seijikohara.femto.ui.drawer.AppDrawerSheet
 import io.github.seijikohara.femto.ui.home.HomeEvent
 import io.github.seijikohara.femto.ui.home.HomeRoute
@@ -70,9 +72,10 @@ class MainActivity : ComponentActivity() {
                     ThemeMode.DARK -> true
                 }
             FemtoTheme(fontTheme = fontTheme, darkTheme = darkTheme) {
-                // The dashboard stays composed; the app drawer is a bottom-sheet
-                // overlay and settings is a full destination over it.
+                // The dashboard stays composed; the app drawer and assistant are
+                // bottom-sheet overlays and settings is a full destination over it.
                 var showDrawer by rememberSaveable { mutableStateOf(false) }
+                var showAssistant by rememberSaveable { mutableStateOf(false) }
                 var showSettings by rememberSaveable { mutableStateOf(false) }
                 if (showSettings) {
                     SettingsRoute(
@@ -89,6 +92,7 @@ class MainActivity : ComponentActivity() {
                             handleHomeEvent(
                                 event = event,
                                 setShowDrawer = { showDrawer = it },
+                                setShowAssistant = { showAssistant = it },
                                 setShowSettings = { showSettings = it },
                             )
                         },
@@ -102,6 +106,15 @@ class MainActivity : ComponentActivity() {
                             onDismiss = { showDrawer = false },
                         )
                     }
+                    if (showAssistant) {
+                        AssistantSheet(
+                            onLaunchOption = { option ->
+                                launchAssistantOption(option)
+                                showAssistant = false
+                            },
+                            onDismiss = { showAssistant = false },
+                        )
+                    }
                 }
             }
         }
@@ -110,6 +123,7 @@ class MainActivity : ComponentActivity() {
     private fun handleHomeEvent(
         event: HomeEvent,
         setShowDrawer: (Boolean) -> Unit,
+        setShowAssistant: (Boolean) -> Unit,
         setShowSettings: (Boolean) -> Unit,
     ) {
         when (event) {
@@ -140,19 +154,27 @@ class MainActivity : ComponentActivity() {
                 setShowSettings(true)
             }
 
-            HomeEvent.OpenAssistant -> {
-                openAssistant()
+            HomeEvent.OpenAssistantSheet -> {
+                // Close the drawer overlay so the two bottom sheets never stack.
+                setShowDrawer(false)
+                setShowAssistant(true)
             }
         }
     }
 
-    // Defer to whichever assistant the user has elected (ACTION_ASSIST),
-    // falling back to the generic voice-command intent. No package is
-    // hard-coded, so it works across markets and OEM assistants. `||`
-    // short-circuits: the fallback fires only when no assistant resolves.
-    private fun openAssistant() =
-        tryStartActivity(Intent(Intent.ACTION_ASSIST).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) ||
-            tryStartActivity(Intent(Intent.ACTION_VOICE_COMMAND).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    // Fire the intent matching the user's elected assistant option. No package is
+    // hard-coded, so each action defers to whichever app the user has elected and
+    // works across markets and OEM assistants. A missing handler is a silent
+    // no-op (tryStartActivity swallows ActivityNotFoundException).
+    private fun launchAssistantOption(option: AssistantOption) {
+        val action =
+            when (option) {
+                AssistantOption.ASSISTANT -> Intent.ACTION_ASSIST
+                AssistantOption.VOICE_COMMAND -> Intent.ACTION_VOICE_COMMAND
+                AssistantOption.VOICE_SEARCH -> Intent.ACTION_WEB_SEARCH
+            }
+        tryStartActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
 
     private fun resolveIs24Hour(clock: ClockSetting): Boolean =
         when (clock) {
@@ -217,9 +239,8 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Start [intent], returning whether an activity handled it. Callers that
-     * chain alternatives consume the result (the assistant fallback); fire-and-
-     * forget callers ignore it. [ActivityNotFoundException] means the head unit
+     * Start [intent], returning whether an activity handled it. Fire-and-forget
+     * callers ignore the result. [ActivityNotFoundException] means the head unit
      * has no app for the target — a silent no-op rather than a dead-click crash;
      * any other failure (e.g. `SecurityException`) propagates.
      */

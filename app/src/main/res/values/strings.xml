@@ -70,6 +70,12 @@
     <string name="drawer_load_error">Couldn\'t load apps</string>
     <string name="drawer_retry">Retry</string>
 
+    <!-- Assistant sheet -->
+    <string name="assistant_sheet_title">Voice assistant</string>
+    <string name="assistant_option_assistant">Assistant</string>
+    <string name="assistant_option_voice_command">Voice command</string>
+    <string name="assistant_option_voice_search">Voice search</string>
+
     <!-- Settings -->
     <string name="settings_title">Settings</string>
     <string name="settings_back">Back</string>

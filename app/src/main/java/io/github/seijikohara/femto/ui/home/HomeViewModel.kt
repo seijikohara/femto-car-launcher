@@ -142,7 +142,7 @@ internal class HomeViewModel(
             }
 
             HomeAction.OpenAssistant -> {
-                mutableEvents.tryEmit(HomeEvent.OpenAssistant)
+                mutableEvents.tryEmit(HomeEvent.OpenAssistantSheet)
             }
 
             HomeAction.ResetTrip -> {
