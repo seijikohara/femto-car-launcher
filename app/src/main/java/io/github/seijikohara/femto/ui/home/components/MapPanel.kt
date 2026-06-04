@@ -339,8 +339,11 @@ private fun Fallback(modifier: Modifier = Modifier) =
         )
     }
 
-private const val MAP_ZOOM = 15.0
-private const val POSITRON_STYLE_URL = "https://tiles.openfreemap.org/styles/positron"
+// internal (not private) so the instrumented map-render verification
+// (MapSnapshotRenderTest) renders the SAME style/zoom the panel uses, keeping the
+// OpenFreeMap style URL a single source rather than a literal duplicated in tests.
+internal const val MAP_ZOOM = 15.0
+internal const val POSITRON_STYLE_URL = "https://tiles.openfreemap.org/styles/positron"
 private const val DARK_STYLE_ASSET = "map/dark.json"
 
 // Automatic style-reload budget after a load failure. The delay is
