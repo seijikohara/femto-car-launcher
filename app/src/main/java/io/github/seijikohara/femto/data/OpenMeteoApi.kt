@@ -13,6 +13,11 @@ private const val TAG = "OpenMeteoApi"
 internal class OpenMeteoApi(
     private val client: OkHttpClient,
     private val baseUrl: String = "https://api.open-meteo.com/",
+    // Optional Open-Meteo API key. When set, baseUrl points at the keyed customer
+    // host and the request appends &apikey=; the public PoC endpoint needs none.
+    // Request-only secret — never logged (the failure log records the status code,
+    // not the key-bearing URL).
+    private val apiKey: String? = null,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -22,6 +27,7 @@ internal class OpenMeteoApi(
     ): ForecastResponse? =
         withContext(Dispatchers.IO) {
             runCatching {
+                val apiKeyParam = apiKey?.let { "&apikey=$it" }.orEmpty()
                 val request =
                     Request
                         .Builder()
@@ -33,10 +39,17 @@ internal class OpenMeteoApi(
                                 "&hourly=temperature_2m,weathercode" +
                                 "&daily=sunrise,sunset,weathercode," +
                                 "temperature_2m_max,temperature_2m_min" +
-                                "&forecast_days=5&timezone=auto",
+                                "&forecast_days=5&timezone=auto" +
+                                apiKeyParam,
                         ).build()
                 client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) return@use null
+                    if (!response.isSuccessful) {
+                        // Log the status only (the URL carries the apiKey) so a
+                        // sustained non-2xx outage — e.g. a 429 rate-limit on the
+                        // public endpoint — is diagnosable instead of silently empty.
+                        Log.w(TAG, "forecast HTTP ${response.code}")
+                        return@use null
+                    }
                     response.body?.string()?.let { body ->
                         json.decodeFromString<ForecastResponse>(body)
                     }
