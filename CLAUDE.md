@@ -20,8 +20,9 @@ when markets diverge.
 - Kotlin (auto-applied by AGP 9), Jetpack Compose (BOM `2026.03.00`),
   Material 3.
 - AGP 9.1.1, Gradle 9.3.1, JDK 21 toolchain, Java 11 source/target.
-- `minSdk = 33`, `targetSdk = 36` with
-  `compileSdk { release(36) { minorApiLevel = 1 } }`.
+- `minSdk = 33`, `targetSdk = 36` with `compileSdk { release(37) }`
+  (compile against API 37 as `androidx.core` 1.19+ requires; the
+  supported-device floor stays Android 13 / API 33).
 - AndroidX: `core-ktx`, `core-splashscreen`, `activity-compose`,
   `lifecycle-runtime-compose`, `lifecycle-viewmodel-compose`,
   `datastore-preferences`.
@@ -351,8 +352,7 @@ cite the SSOT — they do not restate it.
 | `./gradlew connectedAndroidTest` | Instrumented tests on device/emulator |
 | `./gradlew spotlessCheck` | Format / lint check (Kotlin via ktlint, Gradle DSL, Markdown EOL) |
 | `./gradlew spotlessApply` | Auto-fix format violations in place |
-| `./gradlew dependencyUpdates` | Report outdated dependencies (ben-manes-versions plugin) |
-| `./gradlew versionCatalogUpdate` | Update `gradle/libs.versions.toml` to the latest stable versions |
+| `./gradlew versionCatalogUpdate` | Update `gradle/libs.versions.toml` to the latest stable versions (`nl.littlerobots.version-catalog-update`) |
 
 The
 [`verify-android-build`](.claude/skills/verify-android-build/SKILL.md)

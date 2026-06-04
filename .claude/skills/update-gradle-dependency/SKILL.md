@@ -52,19 +52,16 @@ Rules: see `CLAUDE.md#dependencies`.
 ## Bulk-updating to latest versions
 
 For routine version maintenance across the whole catalog, the
-project ships two cooperating plugins:
+project ships `nl.littlerobots.version-catalog-update`:
 
-- `com.github.ben-manes.versions` exposes `./gradlew dependencyUpdates`
-  to report outdated artefacts.
-- `nl.littlerobots.version-catalog-update` exposes
-  `./gradlew versionCatalogUpdate` to rewrite
-  `gradle/libs.versions.toml` in place using the report from
-  the ben-manes plugin.
+- `./gradlew versionCatalogUpdate` rewrites
+  `gradle/libs.versions.toml` in place, resolving each entry to its
+  latest **stable** version (the plugin's default `versionSelector`,
+  so no separate reporter plugin is needed).
 
 Workflow:
 
 ```bash
-./gradlew dependencyUpdates       # inspect what would change
 ./gradlew versionCatalogUpdate    # apply the update to libs.versions.toml
 ./gradlew spotlessApply           # tidy formatting
 ./gradlew assembleDebug           # verify
@@ -72,7 +69,20 @@ Workflow:
 
 Review every diff before committing. Major-version bumps still
 need the per-bump justification rule from
-`CLAUDE.md#dependencies`.
+`CLAUDE.md#dependencies`. Two project-specific gotchas:
+
+- **Toolchain coupling.** Bumping AGP can raise the required Gradle
+  version (e.g. AGP 9.2 needs Gradle >= 9.4.1). Update the Wrapper to
+  match first: `./gradlew wrapper --gradle-version <v>
+  --gradle-distribution-sha256-sum <sha> --distribution-type bin`.
+  Kotlin and the `kotlin.plugin.compose` / `kotlin.plugin.serialization`
+  plugins move in lock-step automatically (shared `version.ref =
+  "kotlin"`).
+- **MapLibre renders but cannot be seen on the emulator** (the emulator
+  GLES translator never presents the live map surface). After any
+  MapLibre bump, run `MapSnapshotRenderTest` (`./gradlew
+  connectedAndroidTest`) — its off-screen `MapSnapshotter` is the guard
+  that the map still rasterises real tiles; a grey screenshot is not.
 
 6. **Document in the commit body** when:
    - Bumping a major version of any library.
