@@ -2,8 +2,8 @@
 
 - Date: 2026-06-04
 - Status: Approved (design + PR plan approved by the maintainer on 2026-06-04)
-- Source: real-device testing on a **Carlinkit TBox Ambient** AI box driving a
-  **ZWE211W 9-inch** head-unit display. The maintainer reported 19 feedback
+- Source: real-device testing on an aftermarket AI box driving a
+  **factory 9-inch** head-unit display. The maintainer reported 19 feedback
   items (16 in the first message + 3 follow-ups) covering visual design, layout
   responsiveness, two data bugs, and several new features.
 - Investigation: a multi-agent read-only audit mapped every item to its code and
@@ -48,9 +48,8 @@ are designed to need none).
    notification-listener access is simply **not granted**. The wiring is correct;
    improve discoverability (clearer CTA + first-run guidance) and add a
    metadata-edge safety net.
-9. **Target hardware** — "ZWE211W" is the Toyota Corolla Touring **chassis code**,
-   not a display model; the real surface is the car's **factory 9-inch Toyota
-   Display Audio**, into which the TBox Ambient injects Android over wired
+9. **Target hardware** — the real surface is the car's **factory 9-inch
+   display**, into which an aftermarket AI box injects Android over wired
    CarPlay/AA at the **factory projection resolution (adaptive)**. Most likely
    **1280×720 (16:9) ≈ 640×360 dp at ~xhdpi**, with **1280×480 (8:3 ultra-wide)
    ≈ 640×240 dp** as a real alternative; the box's `Minimum Width` dp is
@@ -327,7 +326,7 @@ grows too large to review.
 
 ## 7. Open / confirm-on-device
 
-- Exact native projection resolution on this car's factory 9-inch Toyota Display
-  Audio (research narrowed it to 1280×720 / 16:9 most-likely, or 1280×480 / 8:3
+- Exact native projection resolution on this car's factory 9-inch display
+  (research narrowed it to 1280×720 / 16:9 most-likely, or 1280×480 / 8:3
   ultra-wide; responsive design handles any value in the ~480–720 dp range).
 - PR2 map fix outcome (grey-rectangle resolved?) — confirm by installing the APK.

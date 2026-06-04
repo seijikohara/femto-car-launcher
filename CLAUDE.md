@@ -1,8 +1,8 @@
 # Femto Car Launcher
 
-Android home launcher for car head units (OTTOCAST / Carlinkit /
-built-in Android units). MVP targets Android 13 (API 33). Reference
-product: [LecoAuto](https://lecoauto.com/?lang=ja).
+Android home launcher for car head units (aftermarket CarPlay /
+Android Auto AI boxes and built-in Android units). MVP targets
+Android 13 (API 33).
 
 The launcher is designed for **multi-region distribution**. No
 single market is privileged in design, code, or documentation;
@@ -118,8 +118,8 @@ filenames (`geist_variable.ttf`, `mplus2_variable.ttf`).
   `stateNotNeeded="true"`.
 - Orientation is **not** locked — both portrait and landscape head
   units must work.
-- Carlinkit / OTTOCAST AI Boxes lock the default-launcher slot; the
-  app launches via "BOOT UP APP" with a ~30 s host-side delay. That
+- Aftermarket AI boxes lock the default-launcher slot; the app
+  launches via a host-side "boot-up app" hook with a ~30 s delay. That
   is outside our control, but cold start inside the process is a key
   product metric — keep `MainActivity#onCreate` lean.
 
@@ -133,8 +133,7 @@ motion. There is **no project-wide driving-lockout gate**.
 - The OEM cluster owns vehicle-state information (speed, RPM, fuel,
   warnings). The launcher's role is the head-unit shell, not a
   redundant driver display.
-- Comparable aftermarket launchers (LecoAuto, Car Launcher Pro,
-  AGAMA, CarWebGuru) ship the same posture today.
+- Comparable aftermarket car launchers ship the same posture today.
 
 If a future feature has a clear and specific distraction profile
 (e.g., embedded video playback inside the launcher itself, a chat
@@ -375,7 +374,7 @@ file before working in its area.
 | Agent | When to use |
 | --- | --- |
 | `compose-launcher-reviewer` | After touching `ui/theme`, `ui/home`, `MainActivity`, manifest, build files, or fonts; before opening a PR. Pass the diff explicitly. |
-| `similar-app-researcher` | Before scoping any feature, to study how comparable apps (LecoAuto, CarCar Launcher, AGAMA, BricksOpenLauncher, AAOS, etc.) solve the same problem. |
+| `similar-app-researcher` | Before scoping any feature, to study how comparable car launchers and prior-art projects solve the same problem. |
 
 ### Skills (`.claude/skills/`)
 
@@ -405,7 +404,7 @@ manually invocable as `/<skill-name>`. Manual-only skills are marked
 
 ## Memory
 
-Persisted decisions (design direction, LecoAuto reference, etc.)
+Persisted decisions (design direction, competitive research, etc.)
 live at
 `~/.claude/projects/-Users-seiji-git-GitHub-seijikohara-femto-car-launcher/memory/`.
 Read it before re-litigating settled choices. Update it when a

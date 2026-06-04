@@ -1,71 +1,170 @@
 # Femto Car Launcher
 
-Android home launcher for car head units (OTTOCAST / Carlinkit / built-in Android units).
-MVP targets Android 13 (API 33). Reference product: [LecoAuto](https://lecoauto.com/?lang=ja).
+Femto Car Launcher is an Android home-screen replacement (launcher) for
+in-car head units. It targets two hardware classes: aftermarket CarPlay /
+Android Auto AI boxes that inject Android into a factory display, and
+built-in Android head units. The launcher replaces the stock home screen
+with a single glanceable dashboard tuned for automotive viewing distances
+and touch accuracy.
 
-## Overview
+The minimum supported platform is Android 13 (Application Programming
+Interface (API) level 33). The launcher is built for multi-region
+distribution: no single market is privileged, locale-specific behaviour
+(language, units, font fallback, regulation) is parameterised, and the
+strictest applicable rule wins when markets diverge.
 
-Femto Car Launcher is a home-screen replacement designed for aftermarket head units.
-It targets multi-region distribution: no single market is privileged in design, code, or
-documentation — locale-specific behaviour is parameterised and the strictest applicable rule wins
-when markets diverge. Project rules and conventions live in [`CLAUDE.md`](CLAUDE.md).
+## Features
+
+The home screen is a fixed dashboard rather than a scrolling grid of apps.
+
+- **Map panel** — renders OpenStreetMap vector tiles through MapLibre,
+  served by the keyless OpenFreeMap service. The view is heading-up (the
+  map rotates so the travel direction points up) and shows a static
+  placeholder until a location fix arrives. No API key is required.
+- **Trip overlay** — current speed, trip distance, and average speed
+  derived from the Global Positioning System (GPS), plus the
+  reverse-geocoded address of the current position.
+- **Weather card** — current conditions, apparent ("feels-like")
+  temperature, wind, humidity, and an hourly forecast from the Open-Meteo
+  service.
+- **Calendar card** — a six-day strip and the upcoming events read from the
+  device calendar.
+- **Now-playing card** — the active media session (title, artist, source
+  app, and transport controls), read through a notification-listener
+  service.
+- **Clock overlay** — a self-updating clock that honours the system
+  12/24-hour setting.
+- **Status cluster** — graduated Wi-Fi and cellular signal strength,
+  Bluetooth connection state, GPS reception, and battery level and charging
+  state.
+- **App access** — a bottom application bar with shortcuts and a full app
+  drawer.
+- **Voice assistant** — a microphone button opens a bottom sheet that
+  launches the system voice assistant, voice command, or voice search.
+- **Settings** — in-app preferences for theme (follow-system / light /
+  dark), speed and temperature units, clock format, a fullscreen toggle
+  that hides the system bars, and the font pairing, plus shortcuts to the
+  system notification-access and Android settings screens.
+
+Each panel degrades gracefully. A panel whose runtime permission is denied,
+or whose data source is unavailable, renders an empty or reduced state
+instead of failing. The dashboard renders the same tree regardless of
+vehicle motion; distraction responsibility stays with the driver and the
+vehicle's own cluster.
+
+## Architecture
+
+- **UI:** Jetpack Compose with Material 3 and Material You dynamic colour.
+- **Pattern:** unidirectional data flow (UDF). State flows down through an
+  immutable `UiState`; events flow up through an `(Action) -> Unit` lambda.
+  Stateful screens follow the `Route` + `Screen` + `ViewModel` shape.
+- **Entry point:** a single `ComponentActivity` (`MainActivity`) registered
+  as a `HOME` launcher with `launchMode="singleTask"`.
+- **Data:** one repository per dashboard source, each exposing a Kotlin
+  `Flow`. User preferences persist through Jetpack DataStore.
+- **Network:** the map is keyless. Weather (Open-Meteo) and reverse
+  geocoding (OpenStreetMap Nominatim) default to public endpoints and
+  accept configurable production hosts (see [Configuration](#configuration)).
+
+Project rules, the design system, and coding conventions live in
+[`CLAUDE.md`](CLAUDE.md).
 
 ## Tech stack
 
-- Kotlin, Jetpack Compose (Material 3), AGP 9
-- Gradle 9, JDK 21 toolchain, Java 11 source/target
-- `minSdk = 33`, `targetSdk = 36`
+- Kotlin and Jetpack Compose (Material 3), built with the Android Gradle
+  Plugin (AGP) 9.
+- Gradle 9, a Java Development Kit (JDK) 21 toolchain, and Java 11
+  source/target compatibility.
+- `minSdk = 33` (Android 13), `targetSdk = 36`.
 
-See [`CLAUDE.md#tech-stack`](CLAUDE.md#tech-stack) for the full dependency list.
+[`gradle/libs.versions.toml`](gradle/libs.versions.toml) is the single
+source of truth for dependency versions; see
+[`CLAUDE.md#tech-stack`](CLAUDE.md#tech-stack) for the resolved list.
 
-## Developer setup
+## Project layout
 
-**Prerequisites:** JDK 21, Android Studio (latest stable), an Android 13+ device or AVD.
-
-```bash
-./gradlew assembleDebug    # build debug APK
-./gradlew test             # JVM unit tests
-./gradlew spotlessCheck    # format / lint check
+```text
+app/src/main/
+├── java/io/github/seijikohara/femto/
+│   ├── MainActivity.kt   # single launcher entry (HOME activity)
+│   ├── data/             # repositories, DataStore wrappers, network APIs
+│   └── ui/
+│       ├── home/         # the dashboard: panels, overlays, footer cluster
+│       ├── drawer/       # full app drawer (bottom sheet)
+│       ├── assistant/    # voice-assistant bottom sheet
+│       ├── settings/     # in-app settings
+│       ├── locale/       # unit and locale formatting
+│       └── theme/        # FemtoTheme, design tokens, previews
+└── res/                  # themes, bundled fonts, strings
 ```
 
-### Map tiles
+## Build and run
 
-The launcher renders OpenStreetMap vector tiles on the home dashboard
-through [MapLibre](https://maplibre.org/), served by the free, keyless
-[OpenFreeMap](https://openfreemap.org/) service. There is **no API key
-to configure** — `./gradlew assembleDebug` produces a build with a
-working map out of the box. The pane shows a heading-up view (the map
-rotates so the travel direction points up) and falls back to a static
-placeholder until a location fix is available. Light mode uses the
-Positron style; dark mode uses a bundled style under
-`app/src/main/assets/map/`.
+**Prerequisites:** JDK 21, Android Studio (latest stable), and an Android
+13+ device or Android Virtual Device (AVD).
+
+```bash
+./gradlew assembleDebug      # build the debug APK
+./gradlew test               # JVM unit tests
+./gradlew lint               # Android Lint
+./gradlew connectedAndroidTest  # instrumented tests (device / emulator)
+./gradlew spotlessCheck      # format / lint check
+./gradlew spotlessApply      # auto-fix format violations
+```
+
+The debug Android Package (APK) is written to
+`app/build/outputs/apk/debug/app-debug.apk`. Install it with
+`adb install -r <apk>` or run the app from Android Studio. To smoke-test on
+an emulator, create an AVD that approximates a head-unit display (a wide
+landscape profile) and launch the app as the home activity.
+
+## Configuration
+
+The launcher runs with no configuration: `./gradlew assembleDebug`
+produces a working build, and the map needs no API key.
+
+Two network services default to shared public endpoints that are suitable
+for a proof of concept but are rate-limited and unsuitable for production
+traffic. Override them for a release build through the git-ignored
+`local.properties` file, which feeds `BuildConfig` at build time:
+
+| Property | Purpose | Default |
+| --- | --- | --- |
+| `WEATHER_BASE_URL` | Open-Meteo host | public Open-Meteo endpoint |
+| `WEATHER_API_KEY` | Open-Meteo key (keyed/self-hosted) | empty |
+| `GEOCODER_BASE_URL` | Nominatim reverse-geocoding host | public Nominatim endpoint |
+| `GEOCODER_API_KEY` | Geocoder key (when the host requires one) | empty |
+
+When a key is absent, the corresponding service falls back to its public
+endpoint.
 
 ## Continuous integration
 
-The [`CI`](.github/workflows/ci.yml) workflow runs on every pull request and on
-pushes to `main`:
+The [`CI`](.github/workflows/ci.yml) workflow runs on every pull request
+and on pushes to `main`:
 
 - **Validate** (all triggers): runs
-  `./gradlew spotlessCheck test lint assembleDebug` on a Temurin JDK 21 runner.
-- **Publish nightly** (`main` pushes and manual `workflow_dispatch` only): builds a
-  release-signed APK and republishes a rolling prerelease.
+  `./gradlew spotlessCheck test lint assembleDebug` on a Temurin JDK 21
+  runner.
+- **Publish nightly** (`main` pushes and manual `workflow_dispatch` only):
+  builds a release-signed APK and republishes a rolling prerelease.
 
 ### Nightly build
 
-On every merge to `main`, CI builds a release-signed APK and republishes it as a
-rolling prerelease tagged `nightly`. The tag is re-pointed to the built commit each
-run, so the release always reflects the latest `main`. Download the latest APK from
-the [`nightly` release](../../releases/tag/nightly).
+On every merge to `main`, CI builds a release-signed APK and republishes it
+as a rolling prerelease tagged `nightly`. The tag is re-pointed to the built
+commit each run, so the release always reflects the latest `main`. Download
+the latest APK from the [`nightly` release](../../releases/tag/nightly).
 
-The nightly APK is **release-signed**; local and contributor `./gradlew
-assembleRelease` builds stay **unsigned** because no keystore environment variables
-are present. The signing config is registered only when `RELEASE_KEYSTORE_PATH` is
-set, so local release builds keep working.
+The nightly APK is **release-signed**. Local and contributor
+`./gradlew assembleRelease` builds stay **unsigned**, because no keystore
+environment variables are present. The signing config is registered only
+when `RELEASE_KEYSTORE_PATH` is set, so local release builds keep working.
 
 ### Signing secrets
 
-A maintainer must add four repository secrets (Settings -> Secrets and variables ->
-Actions) before the nightly job can sign:
+A maintainer must add four repository secrets (Settings -> Secrets and
+variables -> Actions) before the nightly job can sign:
 
 | Secret | Contents |
 | --- | --- |
@@ -92,12 +191,14 @@ base64 -i release.jks | pbcopy
 base64 -w0 release.jks
 ```
 
-Keep `release.jks` out of version control. If `RELEASE_KEYSTORE_BASE64` is missing,
-the nightly job fails with an explicit message instead of publishing an unsigned APK.
+Keep `release.jks` out of version control. If `RELEASE_KEYSTORE_BASE64` is
+missing, the nightly job fails with an explicit message instead of
+publishing an unsigned APK.
 
-## Conventions
+## Contributing
 
-Project rules, code style, and design system policies live in
-[`CLAUDE.md`](CLAUDE.md). Read it before contributing. Key sections:
-[design system](CLAUDE.md#design-system), [Kotlin style](CLAUDE.md#kotlin-style),
-[testing](CLAUDE.md#testing).
+Project rules, code style, and design-system policies live in
+[`CLAUDE.md`](CLAUDE.md); read it before contributing. Key sections:
+[design system](CLAUDE.md#design-system),
+[Compose architecture](CLAUDE.md#compose-architecture),
+[Kotlin style](CLAUDE.md#kotlin-style), and [testing](CLAUDE.md#testing).

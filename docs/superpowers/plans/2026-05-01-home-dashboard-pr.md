@@ -12,8 +12,8 @@
 
 ### Summary
 
-- Replace the single-purpose apps grid with a LecoAuto-inspired
-  multi-panel dashboard. Layout C2 — map hero on the left, vertical
+- Replace the single-purpose apps grid with a multi-panel
+  dashboard. Layout C2 — map hero on the left, vertical
   stack of three panels (clock, weather, now-playing) on the right,
   apps bar pinned at the bottom. The full apps grid moves into a
   separate AppDrawer route.
@@ -24,7 +24,7 @@
   them into a single `HomeUiState`.
 - Maps integration uses Google Maps SDK Lite Mode with a runtime
   GMS-availability check that gracefully degrades to a static
-  fallback on AOSP-only Carlinkit / OTTOCAST builds.
+  fallback on AOSP-only AI-box builds.
 - Weather temperature reads
   `androidx.core.text.util.LocalePreferences.getTemperatureUnit()`;
   speed/altitude unit derives from the imperial-country set
@@ -51,11 +51,11 @@ Local verification (already green on this branch):
 
 Smoke verification (deferred until reviewer has hardware):
 
-- [ ] `./gradlew connectedDebugAndroidTest` on a TBox-Mock AVD
+- [ ] `./gradlew connectedDebugAndroidTest` on the head-unit AVD
   (the 5 Compose UI tests cover ClockPanel, WeatherPanel,
   MusicPanel, AppsBar, DashboardScaffold)
-- [ ] Real-device install on a TBox Ambient or equivalent
-  Carlinkit / OTTOCAST head unit — confirm:
+- [ ] Real-device install on an aftermarket AI-box head unit —
+  confirm:
   - Map tiles render when a `MAPS_API_KEY` is configured in
     `local.properties`
   - The static-fallback branch renders cleanly when no key is set

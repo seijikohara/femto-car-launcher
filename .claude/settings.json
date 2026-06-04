@@ -48,6 +48,8 @@
       "WebFetch(domain:docs.anthropic.com)",
       "WebFetch(domain:code.claude.com)",
       "WebFetch(domain:lecoauto.com)",
+      "WebFetch(domain:car-lab.app)",
+      "WebFetch(domain:autozenapp.com)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:api.github.com)"

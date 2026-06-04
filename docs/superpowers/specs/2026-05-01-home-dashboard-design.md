@@ -13,9 +13,9 @@
 
 ## 1. Goal
 
-Replace the current single-purpose home screen (one full-screen `LazyVerticalGrid` of installed apps) with a LecoAuto-inspired multi-panel **dashboard**: a hero map on the left with speed / altitude / address overlays, a vertical stack of three ambient panels on the right (clock, weather, now-playing), and a fixed application bar at the bottom that opens a separate full-screen drawer for the complete grid.
+Replace the current single-purpose home screen (one full-screen `LazyVerticalGrid` of installed apps) with a multi-panel **dashboard**: a hero map on the left with speed / altitude / address overlays, a vertical stack of three ambient panels on the right (clock, weather, now-playing), and a fixed application bar at the bottom that opens a separate full-screen drawer for the complete grid.
 
-The dashboard surfaces information that head-unit users — driver and passenger alike — actually consult, and stays in the same shape regardless of vehicle motion. Distraction responsibility is delegated to the driver and to the OEM cluster, in line with comparable aftermarket launchers (LecoAuto, Car Launcher Pro, AGAMA, CarWebGuru).
+The dashboard surfaces information that head-unit users — driver and passenger alike — actually consult, and stays in the same shape regardless of vehicle motion. Distraction responsibility is delegated to the driver and to the OEM cluster, in line with comparable aftermarket car launchers.
 
 ## 2. Non-goals
 
@@ -201,7 +201,7 @@ The launcher renders the same dashboard tree regardless of vehicle motion. Two r
 - **Passenger operation.** A passenger commonly operates the head unit; gating the whole UI on motion punishes the passenger for the driver being in motion.
 - **OEM cluster owns driving information.** Speed, RPM, fuel, warnings come from the vehicle cluster. The launcher's role is the head-unit shell, not a redundant driver display.
 
-Distraction responsibility is therefore delegated to the driver and to the OEM cluster, in line with how comparable aftermarket launchers (LecoAuto, Car Launcher Pro, AGAMA, CarWebGuru) ship today. Map tiles in Lite Mode do not animate, the apps bar does not scroll, and there are no inline videos in the launcher itself, so the always-on dashboard does not introduce a new distraction class beyond what those competitors already ship.
+Distraction responsibility is therefore delegated to the driver and to the OEM cluster, in line with how comparable aftermarket car launchers ship today. Map tiles in Lite Mode do not animate, the apps bar does not scroll, and there are no inline videos in the launcher itself, so the always-on dashboard does not introduce a new distraction class beyond what those competitors already ship.
 
 The `DrivingStateRepository`, `DrivingState.kt` `rememberDrivingLockState()`, and the `gate-driving-visible-feature` skill are removed in the same change set as this spec. The `FemtoDimens.MinBodyTextSize` (18 sp) and `FemtoDimens.MinTouchTarget` (64 dp) tokens stay — they continue to express glance-readability and tap accuracy targets that matter independently of motion.
 
@@ -278,7 +278,7 @@ The project does **not** add `com.google.maps.android:maps-compose` in v1. `MapV
 | `data/` repositories | JVM unit (`runTest` + `TestDispatcher`) | HTTP response parsing (mockwebserver), GMS-absent branch, debounce timing, in-memory cache validity, `Geocoder.isPresent()` false path (Robolectric) |
 | `HomeViewModel` | JVM unit (Turbine) | `combine` ordering on initial empty Flows, `HomeAction.OpenMaps` chooses the geo URI built from the latest location, `HomeAction.LaunchApp` resolves the right `ComponentName` |
 | Compose UI | `createComposeRule` (`androidTest`) | C2 dashboard renders all four panels under representative state; GMS-absent state hides map tiles and shows the static fallback; music-null state shows `Connect a player`; map overlays render speed, altitude, and address when the underlying flows emit values |
-| Manual smoke | TBox-Mock AVD + TBox Ambient real device | Cold start under one second, panel updates at expected cadences, `geo fix` injection updates the speed / altitude / address overlays without changing the layout shape |
+| Manual smoke | the head-unit AVD + a real AI-box device | Cold start under one second, panel updates at expected cadences, `geo fix` injection updates the speed / altitude / address overlays without changing the layout shape |
 
 Test fixtures live in `testfixtures/` packages (one per source set). Builders for `Location`, `WeatherSnapshot`, `NowPlaying`, and `ShortAddress` are the SSOT for those values; tests must not declare their own `data class FakeFoo(...)` literals (CLAUDE.md#ssot-dry).
 
@@ -286,19 +286,19 @@ Test fixtures live in `testfixtures/` packages (one per source set). Builders fo
 
 | Risk | Mitigation |
 | --- | --- |
-| Carlinkit / OTTOCAST SKU without GMS reaches a real user | `mapAvailable = false` + `Geocoder.isPresent() = false` branches both kick in. Music, weather, clock, and the speed / altitude overlays keep working. Documented in CLAUDE.md as a graceful degradation, not a failure |
+| An AI-box SKU without GMS reaches a real user | `mapAvailable = false` + `Geocoder.isPresent() = false` branches both kick in. Music, weather, clock, and the speed / altitude overlays keep working. Documented in CLAUDE.md as a graceful degradation, not a failure |
 | Open-Meteo outage | In-memory snapshot survives until the next successful fetch. `WeatherPanel` shows the stale value with no error UI; on cold start with no network the panel renders an icon-only placeholder |
 | Maps API key leak | App restriction (package + SHA-1) on the Cloud Console. Cost alarm at 80% of the free tier. The key is not committed to git |
 | Maps cost growth past the free tier | `MapPanel` deliberately uses Lite Mode and a stable key; one composition = one map load. Monitoring catches MAU growth before billing crosses zero |
 | User denies location permission | All location-driven surfaces (weather, address, map tiles, speed and altitude overlays) collapse to their absent branches. Clock and music continue to work, the apps bar continues to function |
-| Driver-distraction concerns from store review or end users | The launcher behaves like comparable aftermarket launchers (LecoAuto, Car Launcher Pro, AGAMA): no embedded video, no inline scrolling content larger than the apps bar, Lite-Mode static map. If a future feature is genuinely distraction-prone, it gates itself locally — there is no project-wide gate to maintain |
+| Driver-distraction concerns from store review or end users | The launcher behaves like comparable aftermarket car launchers: no embedded video, no inline scrolling content larger than the apps bar, Lite-Mode static map. If a future feature is genuinely distraction-prone, it gates itself locally — there is no project-wide gate to maintain |
 
 ## 13. Acceptance checklist
 
 - [ ] `./gradlew assembleDebug` and `./gradlew lint` are green
 - [ ] `./gradlew test` covers each repository and the ViewModel combine
 - [ ] `./gradlew connectedAndroidTest` covers the dashboard render under representative state combinations (loaded / loading, GMS present / absent, music null / playing, location null / fixed)
-- [ ] Cold start on TBox-Mock AVD remains under one second
+- [ ] Cold start on the head-unit AVD remains under one second
 - [ ] Permission audit table in CLAUDE.md is updated to include INTERNET and ACCESS_NETWORK_STATE with their justifications, and the ACCESS_FINE_LOCATION justification is rewritten to drop the lockout reference
 - [ ] `local.properties` key `MAPS_API_KEY=` is documented in the project README's developer setup section
 - [ ] CLAUDE.md `#driving-lockout` rule is rewritten to record the no-UI-gating policy, and the `gate-driving-visible-feature` skill plus its references in other skills and agents are removed
