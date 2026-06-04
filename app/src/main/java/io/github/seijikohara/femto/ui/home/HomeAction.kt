@@ -15,6 +15,11 @@ internal sealed interface HomeAction {
 
     data object ConnectMusicPlayer : HomeAction
 
+    /** Open the app behind the current media session (the music card's source icon). */
+    data class LaunchMusicSource(
+        val packageName: String,
+    ) : HomeAction
+
     data class Shortcut(
         val target: AppsBarShortcut,
     ) : HomeAction

@@ -10,6 +10,8 @@ import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class MusicCardTest {
     @get:Rule
@@ -23,6 +25,7 @@ class MusicCardTest {
                     state = MusicCardState.Playing(fakeNowPlaying()),
                     onCommand = {},
                     onConnect = {},
+                    onLaunchSource = {},
                 )
             }
         }
@@ -39,11 +42,31 @@ class MusicCardTest {
                     state = MusicCardState.Playing(fakeNowPlaying(isPlaying = false)),
                     onCommand = {},
                     onConnect = {},
+                    onLaunchSource = {},
                 )
             }
         }
         rule.onNodeWithText("Strobe").assertIsDisplayed()
         rule.onNodeWithContentDescription("Play / pause").assertIsDisplayed()
+    }
+
+    @Test
+    fun tapping_source_icon_dispatches_launch_with_the_source_package() {
+        var launched: String? = null
+        rule.setContent {
+            FemtoTheme {
+                MusicCard(
+                    state = MusicCardState.Playing(fakeNowPlaying()),
+                    onCommand = {},
+                    onConnect = {},
+                    onLaunchSource = { launched = it },
+                )
+            }
+        }
+        // The fixture's package (com.spotify.music) resolves to the "Spotify"
+        // source label, so the open-app button is described "Open Spotify".
+        rule.onNodeWithContentDescription("Open Spotify").assertIsDisplayed().performClick()
+        assertEquals("com.spotify.music", launched)
     }
 
     @Test
@@ -55,11 +78,12 @@ class MusicCardTest {
                     state = MusicCardState.NeedsPermission,
                     onCommand = {},
                     onConnect = { tapped = true },
+                    onLaunchSource = {},
                 )
             }
         }
-        rule.onNodeWithText("Connect a player").assertIsDisplayed().performClick()
-        assert(tapped)
+        rule.onNodeWithText("Tap to connect a player").assertIsDisplayed().performClick()
+        assertTrue(tapped)
     }
 
     @Test
@@ -70,6 +94,7 @@ class MusicCardTest {
                     state = MusicCardState.NoActiveSession,
                     onCommand = {},
                     onConnect = {},
+                    onLaunchSource = {},
                 )
             }
         }

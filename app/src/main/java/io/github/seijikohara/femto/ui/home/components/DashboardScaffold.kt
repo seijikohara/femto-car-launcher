@@ -208,6 +208,7 @@ private fun InfoPane(
         state = uiState.musicState,
         onCommand = { command -> onAction(HomeAction.Music(command)) },
         onConnect = { onAction(HomeAction.ConnectMusicPlayer) },
+        onLaunchSource = { packageName -> onAction(HomeAction.LaunchMusicSource(packageName)) },
         modifier = Modifier.weight(MUSIC_CARD_WEIGHT).fillMaxWidth(),
     )
 }

@@ -18,6 +18,12 @@ internal data class NowPlaying(
      * this basis (scaled by [playbackSpeed]) to [positionMs] while playing.
      */
     val positionUpdateTimeMs: Long = 0L,
+    /**
+     * The source app's launcher icon, resolved from [packageName]; null when it
+     * cannot be resolved (uninstalled / restricted). The card shows it top-right
+     * as a tap-to-open affordance.
+     */
+    val sourceIcon: ImageBitmap? = null,
 )
 
 /**
