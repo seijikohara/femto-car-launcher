@@ -62,21 +62,29 @@ internal object FemtoFonts {
 }
 
 /**
- * Bold Minimal typography on top of M3 roles.
+ * Bold Minimal typography on top of M3 roles, tuned one weight notch lighter
+ * than the original scale after on-device review found the heavy display/headline
+ * weights too dense on the head unit.
  *
- * Display sizes lean heavier (Black/ExtraBold) for editorial impact;
- * body sizes are bumped up to clear the 18sp automotive minimum.
+ * Display anchors stay confident (ExtraBold/Bold) for editorial impact but no
+ * longer reach Black; headlines drop to SemiBold and titles to Medium. Body and
+ * label roles are unchanged (already Normal/Medium) and body sizes still clear
+ * the 18sp automotive minimum. See `CLAUDE.md#design-system`.
  */
 internal fun femtoTypography(latin: FontFamily): Typography =
     Typography().run {
         copy(
-            displayLarge = displayLarge.copy(fontFamily = latin, fontWeight = FontWeight.Black, fontSize = 96.sp),
-            displayMedium = displayMedium.copy(fontFamily = latin, fontWeight = FontWeight.ExtraBold, fontSize = 72.sp),
-            displaySmall = displaySmall.copy(fontFamily = latin, fontWeight = FontWeight.ExtraBold, fontSize = 56.sp),
-            headlineLarge = headlineLarge.copy(fontFamily = latin, fontWeight = FontWeight.Bold, fontSize = 40.sp),
-            headlineMedium = headlineMedium.copy(fontFamily = latin, fontWeight = FontWeight.Bold, fontSize = 32.sp),
-            headlineSmall = headlineSmall.copy(fontFamily = latin, fontWeight = FontWeight.SemiBold, fontSize = 26.sp),
-            titleLarge = titleLarge.copy(fontFamily = latin, fontWeight = FontWeight.SemiBold, fontSize = 24.sp),
+            displayLarge = displayLarge.copy(fontFamily = latin, fontWeight = FontWeight.ExtraBold, fontSize = 96.sp),
+            displayMedium = displayMedium.copy(fontFamily = latin, fontWeight = FontWeight.Bold, fontSize = 72.sp),
+            displaySmall = displaySmall.copy(fontFamily = latin, fontWeight = FontWeight.Bold, fontSize = 56.sp),
+            headlineLarge = headlineLarge.copy(fontFamily = latin, fontWeight = FontWeight.SemiBold, fontSize = 40.sp),
+            headlineMedium = headlineMedium.copy(
+                fontFamily = latin,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 32.sp,
+            ),
+            headlineSmall = headlineSmall.copy(fontFamily = latin, fontWeight = FontWeight.Medium, fontSize = 26.sp),
+            titleLarge = titleLarge.copy(fontFamily = latin, fontWeight = FontWeight.Medium, fontSize = 24.sp),
             titleMedium = titleMedium.copy(fontFamily = latin, fontWeight = FontWeight.Medium, fontSize = 20.sp),
             titleSmall = titleSmall.copy(fontFamily = latin, fontWeight = FontWeight.Medium, fontSize = 18.sp),
             bodyLarge = bodyLarge.copy(fontFamily = latin, fontWeight = FontWeight.Normal, fontSize = 20.sp),
@@ -108,7 +116,7 @@ internal const val TabularFigures = "tnum"
 internal fun Typography.bigNumber(): TextStyle =
     displayLarge.copy(
         fontSize = FemtoDimens.BigNumberFontSize,
-        fontWeight = FontWeight.ExtraBold,
+        fontWeight = FontWeight.Bold,
         letterSpacing = (-0.045f).em,
         lineHeight = (FemtoDimens.BigNumberFontSize.value * 0.92f).sp,
         fontFeatureSettings = TabularFigures,
@@ -128,7 +136,7 @@ internal fun Typography.sectionLabel(
 ): TextStyle =
     labelSmall.copy(
         fontSize = sizeSp.sp,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.SemiBold,
         letterSpacing = trackingEm.em,
         fontFeatureSettings = TabularFigures,
     )

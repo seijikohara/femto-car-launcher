@@ -113,7 +113,7 @@ private fun Head(snapshot: CalendarSnapshot) =
                 style =
                     MaterialTheme.typography.titleLarge.copy(
                         fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         letterSpacing = (-0.01f).em,
                         lineHeight = 20.sp,
                     ),
@@ -178,7 +178,7 @@ private fun DayCellView(
             style =
                 MaterialTheme.typography.titleSmall.copy(
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     lineHeight = 16.sp,
                     fontFeatureSettings = TabularFigures,
                 ),
@@ -251,7 +251,7 @@ private fun EventRow(
             style =
                 MaterialTheme.typography.labelLarge.copy(
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     lineHeight = 17.sp,
                     fontFeatureSettings = TabularFigures,
                 ),

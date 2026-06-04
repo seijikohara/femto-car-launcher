@@ -124,7 +124,7 @@ private fun Head(
                 style =
                     MaterialTheme.typography.titleMedium.copy(
                         fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         lineHeight = 20.sp,
                     ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -157,7 +157,7 @@ private fun Head(
                     style =
                         MaterialTheme.typography.titleMedium.copy(
                             fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.SemiBold,
                             letterSpacing = (-0.01f).em,
                             lineHeight = 16.sp,
                         ),
@@ -210,7 +210,7 @@ private fun Metric(
         style =
             MaterialTheme.typography.bodyMedium.copy(
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 lineHeight = 16.sp,
                 fontFeatureSettings = TabularFigures,
             ),
@@ -277,7 +277,7 @@ private fun ForecastChip(
             style =
                 MaterialTheme.typography.bodyMedium.copy(
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     lineHeight = 15.sp,
                     fontFeatureSettings = TabularFigures,
                 ),

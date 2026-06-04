@@ -72,7 +72,11 @@ with automotive overrides on top.
   `MaterialTheme.colorScheme.*`; never hardcode hex outside
   `Color.kt`.
 - Shape: M3 default `Shapes` (squircles). Do not customise.
-- Typography: Bold Minimal weights on M3 roles. Use
+- Typography: Bold Minimal on M3 roles, tuned **one weight notch
+  lighter** than the original scale after on-device review found the
+  heavy display/headline weights too dense on the head unit (display
+  ExtraBold/Bold, headline SemiBold, title Medium; body Normal, label
+  Medium — `ui/theme/Type.kt` is the SSOT). Use
   `MaterialTheme.typography.*` styles; never construct ad-hoc
   `TextStyle` literals.
 - Sizing: read from `FemtoDimens` (e.g. `FemtoDimens.MinTouchTarget`).
