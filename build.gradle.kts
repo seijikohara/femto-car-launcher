@@ -2,7 +2,6 @@ plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.spotless)
-    alias(libs.plugins.ben.manes.versions)
     alias(libs.plugins.version.catalog.update)
 }
 
