@@ -1,6 +1,8 @@
 package io.github.seijikohara.femto.ui.locale
 
 import androidx.core.text.util.LocalePreferences
+import io.github.seijikohara.femto.data.SpeedUnitSetting
+import io.github.seijikohara.femto.data.TemperatureUnitSetting
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -71,6 +73,22 @@ internal fun temperatureUnitFor(locale: Locale = Locale.getDefault()): Temperatu
         else -> {
             TemperatureUnit.CELSIUS
         }
+    }
+
+/** Resolve a user speed-unit setting to a concrete unit; AUTO follows [locale]. */
+internal fun SpeedUnitSetting.resolved(locale: Locale = Locale.getDefault()): SpeedUnit =
+    when (this) {
+        SpeedUnitSetting.AUTO -> speedUnitFor(locale)
+        SpeedUnitSetting.KILOMETERS -> SpeedUnit.KILOMETERS_PER_HOUR
+        SpeedUnitSetting.MILES -> SpeedUnit.MILES_PER_HOUR
+    }
+
+/** Resolve a user temperature-unit setting to a concrete unit; AUTO follows [locale]. */
+internal fun TemperatureUnitSetting.resolved(locale: Locale = Locale.getDefault()): TemperatureUnit =
+    when (this) {
+        TemperatureUnitSetting.AUTO -> temperatureUnitFor(locale)
+        TemperatureUnitSetting.CELSIUS -> TemperatureUnit.CELSIUS
+        TemperatureUnitSetting.FAHRENHEIT -> TemperatureUnit.FAHRENHEIT
     }
 
 internal fun SpeedUnit.fromMetersPerSecond(mps: Float): Float =

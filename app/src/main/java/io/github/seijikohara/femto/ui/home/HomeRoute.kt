@@ -13,9 +13,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.seijikohara.femto.data.hasFineLocationPermission
+import io.github.seijikohara.femto.ui.locale.SpeedUnit
+import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 
 @Composable
 internal fun HomeRoute(
+    is24Hour: Boolean,
+    speedUnit: SpeedUnit,
+    temperatureUnit: TemperatureUnit,
     onEvent: (HomeEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -30,6 +35,9 @@ internal fun HomeRoute(
     }
     HomeScreen(
         uiState = uiState,
+        is24Hour = is24Hour,
+        speedUnit = speedUnit,
+        temperatureUnit = temperatureUnit,
         onAction = viewModel::onAction,
         modifier = modifier,
     )
