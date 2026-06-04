@@ -1,27 +1,35 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -43,18 +51,21 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 /**
- * Calendar card. Three vertical sections stacked on the
- * [FemtoDimens.CardSectionGap] rhythm ([Arrangement.spacedBy]); the content is
- * top-aligned and scrolls if the card is too short to fit all three:
+ * Calendar card. Three vertical sections on the [FemtoDimens.CardSectionGap]
+ * rhythm:
  *
- *  1. Head — big day number (primary tint) + weekday + month label.
- *  2. Strip — 6 future days starting today, each cell carrying a "has event" dot.
- *  3. Events — up to two upcoming events, separated from the strip by a 1dp divider.
+ *  1. Head — big day number (primary tint) + weekday + month label. The head
+ *     always shows **today**; selecting another day in the strip never moves it.
+ *  2. Strip — 6 days starting today, each tappable. The selected cell carries
+ *     the highlight; today keeps a thin ring while another day is previewed.
+ *  3. Events — the selected day's events, bottom-anchored so the per-day-capped
+ *     list grows into the flexible gap rather than pushing the card taller.
  *
- * Typography and spacing follow `docs/design/dashboard-v2-mockup.html`
- * (`.calendar-card` rules) verbatim; the dashboard's wider 18sp body-size
- * floor is intentionally relaxed here so the strip and event list match
- * the design.
+ * Selection is card-local ([rememberSaveable]); the dashboard owns no calendar
+ * selection state. Typography and spacing follow
+ * `docs/design/dashboard-v2-mockup.html` (`.calendar-card` rules); the
+ * dashboard's 18sp body-size floor is intentionally relaxed here so the strip
+ * and event list match the design.
  */
 @Composable
 internal fun CalendarCard(
@@ -67,37 +78,53 @@ internal fun CalendarCard(
     tonalElevation = FemtoDimens.CardElevation,
 ) {
     when {
-        // null is the loading frame: render nothing rather than a denial
-        // message the user has not earned yet.
-        snapshot == null -> {
-            Unit
-        }
+        // null is the loading frame: render nothing rather than a denial the
+        // user has not earned yet.
+        snapshot == null -> Unit
 
-        // A non-null snapshot with access denied carries no real strip /
-        // event data, so show the denial message instead of a hollow strip
-        // plus a misleading "no upcoming events".
-        !snapshot.hasCalendarAccess -> {
-            PermissionDenied()
-        }
+        // A non-null snapshot with access denied carries no real strip data, so
+        // show the denial message instead of a hollow strip.
+        !snapshot.hasCalendarAccess -> PermissionDenied()
 
-        else -> {
-            // verticalScroll is a safety net: fillMaxWidth (not fillMaxSize) lets
-            // the content keep its intrinsic height, so on a card too short for
-            // the head + strip + events it scrolls instead of clipping; on a tall
-            // enough card it simply sits top-aligned.
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(FemtoDimens.CardPadding),
-                verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
-            ) {
-                Head(snapshot)
-                Strip(snapshot.dayStrip)
-                Events(snapshot.events)
-            }
-        }
+        else -> CalendarContent(snapshot)
+    }
+}
+
+@Composable
+private fun CalendarContent(snapshot: CalendarSnapshot) {
+    // Card-local selection, defaulting to today and surviving configuration
+    // change via the epoch-day saver. The big-day head stays on today.
+    var selectedDate by rememberSaveable(stateSaver = LocalDateSaver) {
+        mutableStateOf(snapshot.today)
+    }
+    val days = snapshot.dayStrip
+    // A selection outside the rolling window — after a midnight rollover, or a
+    // stale restored value — clamps back to today, so the events area never
+    // shows an out-of-window blank. This is the spec's "reset to today on
+    // rollover" without clobbering a config-change-restored selection.
+    val selected = days.firstOrNull { it.date == selectedDate } ?: days.first()
+    Column(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(FemtoDimens.CardPadding),
+        verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
+    ) {
+        Head(snapshot)
+        Strip(
+            days = days,
+            today = snapshot.today,
+            // Highlight the clamped selection (`selected.date`), not the raw
+            // `selectedDate` state: after a rollover the stored value can point
+            // outside the window, and the clamp keeps exactly one cell lit.
+            selectedDate = selected.date,
+            onSelect = { selectedDate = it },
+        )
+        // Bottom-anchor the events: the per-day cap bounds their count, so they
+        // grow upward into this flexible gap instead of pushing the card taller
+        // — selecting a busy day cannot worsen the clip.
+        Spacer(Modifier.weight(1f))
+        Events(selected.events)
     }
 }
 
@@ -137,37 +164,61 @@ private fun Head(snapshot: CalendarSnapshot) =
     }
 
 @Composable
-private fun Strip(days: List<DayCell>) =
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        days.forEachIndexed { index, day ->
-            DayCellView(
-                day = day,
-                isToday = index == 0,
-                modifier = Modifier.weight(1f),
-            )
-        }
+private fun Strip(
+    days: List<DayCell>,
+    today: LocalDate,
+    selectedDate: LocalDate,
+    onSelect: (LocalDate) -> Unit,
+) = Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.spacedBy(4.dp),
+) {
+    days.forEach { day ->
+        DayCellView(
+            day = day,
+            isToday = day.date == today,
+            isSelected = day.date == selectedDate,
+            onClick = { onSelect(day.date) },
+            modifier = Modifier.weight(1f),
+        )
     }
+}
 
 @Composable
 private fun DayCellView(
     day: DayCell,
     isToday: Boolean,
+    isSelected: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val background =
-        if (isToday) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer
+        if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer
     val onBackground =
-        if (isToday) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+        if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
     val numberColor =
-        if (isToday) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+        if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+    val shape = RoundedCornerShape(FemtoDimens.DayCellCorner)
     Column(
         modifier =
             modifier
-                .clip(RoundedCornerShape(FemtoDimens.DayCellCorner))
-                .background(background)
+                .clip(shape)
+                // Today keeps a thin ring when it is not the selected cell, so it
+                // stays identifiable while the user previews another day.
+                .then(
+                    if (isToday && !isSelected) {
+                        Modifier.border(1.dp, MaterialTheme.colorScheme.primary, shape)
+                    } else {
+                        Modifier
+                    },
+                ).background(background)
+                .clickable(onClick = onClick)
+                // The day-of-month alone repeats across months; the ISO date is a
+                // stable, unique label for selection and testing.
+                .semantics { contentDescription = day.date.toString() }
+                // Sub-64dp tap target: a deliberate exception for the in-card
+                // mini-calendar grid (CLAUDE.md#automotive-overrides keeps 64dp the
+                // default; the strip relaxes it like the footer status cluster).
                 .padding(vertical = 8.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -232,6 +283,14 @@ private fun Events(events: List<EventItem>) =
     }
 
 private val EventTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
+// Store the card-local selection as an epoch day so rememberSaveable can persist
+// it across configuration change without a Parcelable wrapper.
+private val LocalDateSaver: Saver<LocalDate, Long> =
+    Saver(
+        save = { it.toEpochDay() },
+        restore = { LocalDate.ofEpochDay(it) },
+    )
 
 @Composable
 private fun EventRow(
@@ -305,17 +364,27 @@ private fun CalendarCardPreview() {
                     monthLabel = "March 2026",
                     dayStrip =
                         listOf(
-                            DayCell(LocalDate.of(2026, 3, 30), "Mon", true),
-                            DayCell(LocalDate.of(2026, 3, 31), "Tue", false),
-                            DayCell(LocalDate.of(2026, 4, 1), "Wed", true),
-                            DayCell(LocalDate.of(2026, 4, 2), "Thu", false),
-                            DayCell(LocalDate.of(2026, 4, 3), "Fri", true),
-                            DayCell(LocalDate.of(2026, 4, 4), "Sat", false),
-                        ),
-                    events =
-                        listOf(
-                            EventItem(LocalTime.of(10, 30), "Team standup"),
-                            EventItem(LocalTime.of(14, 0), "Pick up kids"),
+                            DayCell(
+                                LocalDate.of(2026, 3, 30),
+                                "Mon",
+                                listOf(
+                                    EventItem(LocalTime.of(10, 30), "Team standup"),
+                                    EventItem(LocalTime.of(14, 0), "Pick up kids"),
+                                ),
+                            ),
+                            DayCell(LocalDate.of(2026, 3, 31), "Tue", emptyList()),
+                            DayCell(
+                                LocalDate.of(2026, 4, 1),
+                                "Wed",
+                                listOf(EventItem(null, "Quarter close")),
+                            ),
+                            DayCell(LocalDate.of(2026, 4, 2), "Thu", emptyList()),
+                            DayCell(
+                                LocalDate.of(2026, 4, 3),
+                                "Fri",
+                                listOf(EventItem(LocalTime.of(9, 0), "Dentist")),
+                            ),
+                            DayCell(LocalDate.of(2026, 4, 4), "Sat", emptyList()),
                         ),
                     hasCalendarAccess = true,
                 ),

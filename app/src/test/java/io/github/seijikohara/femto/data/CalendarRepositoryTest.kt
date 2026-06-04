@@ -53,7 +53,7 @@ class CalendarRepositoryTest {
             // The snapshot must mark access denied in-band so the card can
             // render the denial message rather than a hollow strip.
             assertFalse(snapshot.hasCalendarAccess)
-            assertTrue(snapshot.events.isEmpty())
+            assertTrue(snapshot.dayStrip.all { it.events.isEmpty() })
             assertEquals(6, snapshot.dayStrip.size)
         }
 
@@ -79,7 +79,7 @@ class CalendarRepositoryTest {
             val snapshot = repository.snapshotFlow().first()
 
             assertNotNull(snapshot)
-            assertTrue(snapshot.events.isEmpty())
+            assertTrue(snapshot.dayStrip.all { it.events.isEmpty() })
             assertEquals(6, snapshot.dayStrip.size)
         }
 
@@ -123,9 +123,46 @@ class CalendarRepositoryTest {
                     .not(),
             )
 
-            // The all-day event carries no clock time.
-            assertEquals(1, snapshot.events.size)
-            assertNull(snapshot.events.single().time)
+            // The all-day event lands on its own day's cell and carries no clock
+            // time.
+            val eventDayEvents = snapshot.dayStrip.first { it.date == eventDay }.events
+            assertEquals(1, eventDayEvents.size)
+            assertNull(eventDayEvents.single().time)
+        }
+
+    @Test
+    fun `groups events onto their own day cells and caps each day`() =
+        runTest {
+            // Four events on today (over the per-day cap) plus one two days out.
+            // Each lands on its day's cell; today keeps only the earliest three
+            // and stays time-ordered; the day between carries nothing.
+            shadowOf(application).grantPermissions(Manifest.permission.READ_CALENDAR)
+            Robolectric
+                .buildContentProvider(MultiDayCalendarProvider::class.java)
+                .create(CalendarContract.AUTHORITY)
+
+            val repository =
+                CalendarRepository(
+                    application,
+                    clockFlow = flowOf(ClockTick(LocalTime.NOON, MultiDayCalendarProvider.TODAY)),
+                    zone = ZoneOffset.UTC,
+                )
+
+            val snapshot = repository.snapshotFlow().first()
+            assertNotNull(snapshot)
+
+            val today = snapshot.dayStrip.first { it.date == MultiDayCalendarProvider.TODAY }
+            assertEquals(listOf("A", "B", "C"), today.events.map { it.title })
+
+            val later = snapshot.dayStrip.first { it.date == MultiDayCalendarProvider.TODAY.plusDays(2) }
+            assertEquals(listOf("E"), later.events.map { it.title })
+
+            assertTrue(
+                snapshot.dayStrip
+                    .first { it.date == MultiDayCalendarProvider.TODAY.plusDays(1) }
+                    .events
+                    .isEmpty(),
+            )
         }
 
     @Test
@@ -235,6 +272,83 @@ class CalendarRepositoryTest {
             val TODAY: LocalDate = EVENT_DATE.minusDays(1)
             val EVENT_BEGIN_MS: Long =
                 EVENT_DATE.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        }
+    }
+
+    /**
+     * Stand-in calendar provider returning four timed rows on [TODAY] and one on
+     * `TODAY + 2`, all titled, in `BEGIN ASC` order. Exercises per-day grouping
+     * and the per-day cap (today's fourth row must drop).
+     */
+    class MultiDayCalendarProvider : ContentProvider() {
+        override fun onCreate(): Boolean = true
+
+        override fun query(
+            uri: Uri,
+            projection: Array<out String>?,
+            selection: String?,
+            selectionArgs: Array<out String>?,
+            sortOrder: String?,
+        ): Cursor {
+            val columns: Array<out String> =
+                projection ?: arrayOf(CalendarContract.Instances.BEGIN)
+            val cursor = MatrixCursor(columns)
+            ROWS.forEach { (beginMs, title) ->
+                cursor.addRow(
+                    columns.map { column ->
+                        when (column) {
+                            CalendarContract.Instances.BEGIN -> beginMs
+                            CalendarContract.Instances.ALL_DAY -> 0
+                            CalendarContract.Instances.TITLE -> title
+                            else -> null
+                        }
+                    },
+                )
+            }
+            return cursor
+        }
+
+        override fun getType(uri: Uri): String? = null
+
+        override fun insert(
+            uri: Uri,
+            values: ContentValues?,
+        ): Uri? = null
+
+        override fun delete(
+            uri: Uri,
+            selection: String?,
+            selectionArgs: Array<out String>?,
+        ): Int = 0
+
+        override fun update(
+            uri: Uri,
+            values: ContentValues?,
+            selection: String?,
+            selectionArgs: Array<out String>?,
+        ): Int = 0
+
+        companion object {
+            val TODAY: LocalDate = LocalDate.of(2099, 7, 1)
+
+            private fun at(
+                date: LocalDate,
+                hour: Int,
+            ): Long =
+                date
+                    .atTime(hour, 0)
+                    .atZone(ZoneOffset.UTC)
+                    .toInstant()
+                    .toEpochMilli()
+
+            val ROWS: List<Pair<Long, String>> =
+                listOf(
+                    at(TODAY, 9) to "A",
+                    at(TODAY, 10) to "B",
+                    at(TODAY, 11) to "C",
+                    at(TODAY, 12) to "D",
+                    at(TODAY.plusDays(2), 14) to "E",
+                )
         }
     }
 

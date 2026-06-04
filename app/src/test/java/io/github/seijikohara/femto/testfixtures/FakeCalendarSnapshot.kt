@@ -12,17 +12,19 @@ internal fun fakeCalendarSnapshot(
     monthLabel: String = "May 2026",
     dayStrip: List<DayCell> =
         listOf(
-            DayCell(LocalDate.of(2026, 5, 1), "Fri", true),
-            DayCell(LocalDate.of(2026, 5, 2), "Sat", false),
-            DayCell(LocalDate.of(2026, 5, 3), "Sun", true),
-            DayCell(LocalDate.of(2026, 5, 4), "Mon", false),
-            DayCell(LocalDate.of(2026, 5, 5), "Tue", false),
-            DayCell(LocalDate.of(2026, 5, 6), "Wed", true),
-        ),
-    events: List<EventItem> =
-        listOf(
-            EventItem(LocalTime.of(10, 30), "Team standup"),
-            EventItem(LocalTime.of(14, 0), "Pick up kids"),
+            DayCell(
+                LocalDate.of(2026, 5, 1),
+                "Fri",
+                listOf(
+                    EventItem(LocalTime.of(10, 30), "Team standup"),
+                    EventItem(LocalTime.of(14, 0), "Pick up kids"),
+                ),
+            ),
+            DayCell(LocalDate.of(2026, 5, 2), "Sat", emptyList()),
+            DayCell(LocalDate.of(2026, 5, 3), "Sun", listOf(EventItem(LocalTime.of(9, 0), "Brunch"))),
+            DayCell(LocalDate.of(2026, 5, 4), "Mon", emptyList()),
+            DayCell(LocalDate.of(2026, 5, 5), "Tue", emptyList()),
+            DayCell(LocalDate.of(2026, 5, 6), "Wed", listOf(EventItem(null, "Holiday"))),
         ),
     hasCalendarAccess: Boolean = true,
 ): CalendarSnapshot =
@@ -31,6 +33,5 @@ internal fun fakeCalendarSnapshot(
         weekday = weekday,
         monthLabel = monthLabel,
         dayStrip = dayStrip,
-        events = events,
         hasCalendarAccess = hasCalendarAccess,
     )
