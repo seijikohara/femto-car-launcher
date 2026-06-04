@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -56,15 +58,13 @@ import java.time.LocalTime
 import kotlin.math.roundToInt
 
 /**
- * Weather card. Three vertical sections stacked on a 12dp rhythm
- * ([Arrangement.spacedBy], matching the mockup `.weather-card`
- * `row-gap: 12px`); content stays top-aligned and any spare height in the
- * fixed-height card falls to the bottom, so the forecast divider keeps even
- * 12dp breathing room instead of being stretched apart:
+ * Weather card. Three vertical sections stacked on the
+ * [FemtoDimens.CardSectionGap] rhythm ([Arrangement.spacedBy]); the content is
+ * top-aligned and scrolls if the card is too short to fit all three:
  *
- *  1. Head — 56sp temperature + glyph (per-condition colour) + city + short conditions.
- *  2. Metrics — Feels / Wind / Humid row at 14sp / 700 weight.
- *  3. Forecast — three hourly chips at 13sp temperatures.
+ *  1. Head — big temperature + glyph (per-condition colour) + city + short conditions.
+ *  2. Metrics — Feels / Wind / Humid row.
+ *  3. Forecast — three hourly chips.
  *
  * Typography and spacing follow `docs/design/dashboard-v2-mockup.html`
  * (`.weather-card` rules) verbatim — the same intentional relaxation of
@@ -83,20 +83,25 @@ internal fun WeatherCard(
     color = MaterialTheme.colorScheme.surfaceContainer,
     tonalElevation = FemtoDimens.CardElevation,
 ) {
-    Column(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(FemtoDimens.CardPadding),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        if (snapshot != null) {
+    if (snapshot != null) {
+        // verticalScroll is a safety net: fillMaxWidth (not fillMaxSize) lets the
+        // content keep its intrinsic height, so on a card too short for the full
+        // head + metrics + forecast it scrolls instead of clipping; on a tall
+        // enough card it simply sits top-aligned.
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(FemtoDimens.CardPadding),
+            verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
+        ) {
             Head(snapshot, city, temperatureUnit)
             Metrics(snapshot, temperatureUnit, speedUnit)
             Forecast(snapshot.hourly, snapshot.sunrise, snapshot.sunset, temperatureUnit)
-        } else {
-            EmptyState()
         }
+    } else {
+        EmptyState()
     }
 }
 
@@ -228,7 +233,7 @@ private fun Forecast(
 ) {
     val next = hourly.take(3)
     if (next.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap)) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Row(
             modifier = Modifier.fillMaxWidth(),
