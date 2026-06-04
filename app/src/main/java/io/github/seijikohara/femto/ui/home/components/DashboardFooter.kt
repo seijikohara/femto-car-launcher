@@ -308,7 +308,7 @@ private fun BatteryIndicator(
 }
 
 @PreviewLightDark
-@Preview(name = "Dashboard footer", widthDp = 1280, heightDp = 72)
+@Preview(name = "Dashboard footer", widthDp = 1280, heightDp = 64)
 @Composable
 private fun DashboardFooterPreview() {
     FemtoTheme {
@@ -329,7 +329,7 @@ private fun DashboardFooterPreview() {
 // Narrow portrait head unit: the status cluster drops and the nav buttons share
 // the width down toward FemtoDimens.MinTouchTarget rather than clipping.
 @PreviewLightDark
-@Preview(name = "Dashboard footer (narrow)", widthDp = 520, heightDp = 72)
+@Preview(name = "Dashboard footer (narrow)", widthDp = 520, heightDp = 64)
 @Composable
 private fun DashboardFooterNarrowPreview() {
     FemtoTheme {
