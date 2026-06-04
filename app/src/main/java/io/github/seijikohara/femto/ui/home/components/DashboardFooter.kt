@@ -43,7 +43,13 @@ import com.composables.icons.lucide.Navigation
 import com.composables.icons.lucide.Phone
 import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Signal
+import com.composables.icons.lucide.SignalHigh
+import com.composables.icons.lucide.SignalLow
+import com.composables.icons.lucide.SignalMedium
 import com.composables.icons.lucide.Wifi
+import com.composables.icons.lucide.WifiHigh
+import com.composables.icons.lucide.WifiLow
+import com.composables.icons.lucide.WifiZero
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.SystemStatus
 import io.github.seijikohara.femto.ui.home.HomeAction
@@ -216,7 +222,9 @@ private fun StatusCluster(
     // shown permanently disconnected.
     status.cellularConnected?.let { connected ->
         StatusIcon(
-            icon = Lucide.Signal,
+            // A known level picks the graduated bars; a null level (READ_PHONE_STATE
+            // withheld / no reading yet) degrades to the binary connected icon.
+            icon = status.cellularSignalLevel?.let { cellularIconForLevel(it) } ?: Lucide.Signal,
             active = connected,
             description =
                 stringResource(
@@ -225,7 +233,9 @@ private fun StatusCluster(
         )
     }
     StatusIcon(
-        icon = Lucide.Wifi,
+        // The Wi-Fi level is always known once connected; degrade to the binary
+        // icon only when disconnected so a dimmed flat icon reads as "off".
+        icon = if (status.wifiConnected) wifiIconForLevel(status.wifiSignalLevel) else Lucide.Wifi,
         active = status.wifiConnected,
         description =
             stringResource(
@@ -246,6 +256,28 @@ private fun StatusCluster(
     )
     BatteryIndicator(percent = status.batteryPercent, charging = status.charging)
 }
+
+// Graduated Wi-Fi glyph for a 0..4 level. Lucide ships four distinct Wi-Fi
+// glyphs (zero / low / high / full arc); level 3 reuses the high arc and 4 the
+// full Wifi arc so the ramp stays monotonic with the available icons.
+private fun wifiIconForLevel(level: Int): ImageVector =
+    when (level) {
+        0 -> Lucide.WifiZero
+        1 -> Lucide.WifiLow
+        2, 3 -> Lucide.WifiHigh
+        else -> Lucide.Wifi
+    }
+
+// Graduated cellular glyph for a 0..4 level. Lucide ships ascending Signal bars
+// (low / medium / high) plus the full Signal glyph; level 0/1 map to the lowest
+// bars and 4 to the full glyph so the ramp tracks SignalStrength.level.
+private fun cellularIconForLevel(level: Int): ImageVector =
+    when (level) {
+        0, 1 -> Lucide.SignalLow
+        2 -> Lucide.SignalMedium
+        3 -> Lucide.SignalHigh
+        else -> Lucide.Signal
+    }
 
 @Composable
 private fun StatusIcon(
@@ -316,7 +348,9 @@ private fun DashboardFooterPreview() {
             systemStatus =
                 SystemStatus(
                     cellularConnected = true,
+                    cellularSignalLevel = 3,
                     wifiConnected = true,
+                    wifiSignalLevel = 4,
                     bluetoothConnected = true,
                     batteryPercent = 78,
                     charging = true,
@@ -337,7 +371,9 @@ private fun DashboardFooterNarrowPreview() {
             systemStatus =
                 SystemStatus(
                     cellularConnected = null,
+                    cellularSignalLevel = null,
                     wifiConnected = true,
+                    wifiSignalLevel = 2,
                     bluetoothConnected = false,
                     batteryPercent = null,
                     charging = false,

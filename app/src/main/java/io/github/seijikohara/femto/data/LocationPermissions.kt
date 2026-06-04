@@ -39,6 +39,17 @@ internal fun Context.hasReadCalendarPermission(): Boolean =
     ) == PackageManager.PERMISSION_GRANTED
 
 /**
+ * `READ_PHONE_STATE` gates the cellular `SignalStrength` read. It is a runtime
+ * grant on every supported API level; without it the footer's cellular
+ * indicator degrades to the binary connected/disconnected icon.
+ */
+internal fun Context.hasReadPhoneStatePermission(): Boolean =
+    ContextCompat.checkSelfPermission(
+        this,
+        Manifest.permission.READ_PHONE_STATE,
+    ) == PackageManager.PERMISSION_GRANTED
+
+/**
  * `BLUETOOTH_CONNECT` is a runtime grant only on Android 12+ (API 31).
  * Below that, the permission is install-time and always considered granted.
  */

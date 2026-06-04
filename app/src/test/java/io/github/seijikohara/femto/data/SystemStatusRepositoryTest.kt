@@ -23,6 +23,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowConnectivityManager
 import org.robolectric.shadows.ShadowNetwork
 import org.robolectric.shadows.ShadowNetworkCapabilities
+import org.robolectric.shadows.ShadowWifiManager
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
@@ -128,6 +129,51 @@ class SystemStatusRepositoryTest {
             }
         }
 
+    @Test
+    fun `wifiSignalLevel maps the capability RSSI onto a graduated level`() =
+        runTest {
+            // ShadowWifiManager.calculateSignalLevel(rssi, numLevels) returns
+            // floor(percent * (numLevels - 1)); 0.75 over the 5-bucket range pins
+            // the top index to 3. The capability must carry a real (non-unspecified)
+            // RSSI for wifiLevelFrom to consult the level at all.
+            ShadowWifiManager.setSignalLevelInPercent(0.75f)
+            val connectivity = application.getSystemService<ConnectivityManager>()!!
+            val shadowConnectivity = shadowOf(connectivity)
+
+            SystemStatusRepository(application).statusFlow().test {
+                assertEquals(0, awaitItem().wifiSignalLevel)
+
+                val callback = awaitRegisteredNetworkCallback(shadowConnectivity)
+                callback.onCapabilitiesChanged(WIFI_NETWORK, validatedWifiCapabilities(rssiDbm = -55))
+
+                assertEquals(3, awaitItem().wifiSignalLevel)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `cellularSignalLevel is null on a telephony-less unit`() =
+        runTest {
+            // setUp forces FEATURE_TELEPHONY off, so cellularLevelFlow never
+            // registers a TelephonyCallback and stays null.
+            val status = SystemStatusRepository(application).statusFlow().first()
+
+            assertNull(status.cellularSignalLevel)
+        }
+
+    @Test
+    fun `cellularSignalLevel is null when READ_PHONE_STATE is not granted`() =
+        runTest {
+            // Telephony is present, but Robolectric grants no runtime permissions on
+            // sdk 33, so telephonySignalFlow cannot register the callback and emits
+            // null — the footer degrades to the binary cellular icon.
+            shadowOf(application.packageManager).setSystemFeature(PackageManager.FEATURE_TELEPHONY, true)
+
+            val status = SystemStatusRepository(application).statusFlow().first()
+
+            assertNull(status.cellularSignalLevel)
+        }
+
     /**
      * Collect the first [SystemStatus] satisfying [predicate]. statusFlow runs its
      * callback flows on Dispatchers.Default, so the meaningful reading arrives on an
@@ -169,10 +215,18 @@ class SystemStatusRepositoryTest {
             putExtra(BatteryManager.EXTRA_PLUGGED, plugged)
         }
 
-    private fun validatedWifiCapabilities(): NetworkCapabilities =
+    private fun validatedWifiCapabilities(rssiDbm: Int? = null): NetworkCapabilities =
         ShadowNetworkCapabilities.newInstance().apply {
             shadowOf(this).addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
             shadowOf(this).addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            // NetworkCapabilities.setSignalStrength(int) is hidden in the public SDK
+            // but present at runtime under Robolectric; reflection is the only way to
+            // seed a non-unspecified RSSI so wifiLevelFrom reads it.
+            rssiDbm?.let { rssi ->
+                NetworkCapabilities::class.java
+                    .getMethod("setSignalStrength", Int::class.javaPrimitiveType)
+                    .invoke(this, rssi)
+            }
         }
 
     private companion object {

@@ -29,6 +29,7 @@ import io.github.seijikohara.femto.data.ThemeMode
 import io.github.seijikohara.femto.data.hasBluetoothConnectPermission
 import io.github.seijikohara.femto.data.hasFineLocationPermission
 import io.github.seijikohara.femto.data.hasReadCalendarPermission
+import io.github.seijikohara.femto.data.hasReadPhoneStatePermission
 import io.github.seijikohara.femto.ui.drawer.AppDrawerSheet
 import io.github.seijikohara.femto.ui.home.HomeEvent
 import io.github.seijikohara.femto.ui.home.HomeRoute
@@ -207,6 +208,7 @@ class MainActivity : ComponentActivity() {
             buildList {
                 if (!hasFineLocationPermission()) add(Manifest.permission.ACCESS_FINE_LOCATION)
                 if (!hasReadCalendarPermission()) add(Manifest.permission.READ_CALENDAR)
+                if (!hasReadPhoneStatePermission()) add(Manifest.permission.READ_PHONE_STATE)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !hasBluetoothConnectPermission()) {
                     add(Manifest.permission.BLUETOOTH_CONNECT)
                 }

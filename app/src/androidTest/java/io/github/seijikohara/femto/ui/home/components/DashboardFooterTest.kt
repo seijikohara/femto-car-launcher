@@ -103,6 +103,49 @@ class DashboardFooterTest {
     }
 
     @Test
+    fun shows_graduated_cellular_icon_when_level_is_known() {
+        rule.setContent {
+            FemtoTheme {
+                DashboardFooter(
+                    systemStatus = fakeSystemStatus(cellularConnected = true, cellularSignalLevel = 3),
+                    onAction = {},
+                )
+            }
+        }
+        // The graduated path still labels the indicator "Mobile data connected"; the
+        // glyph differs by level but the semantics stay stable for the screen reader.
+        rule.onNodeWithContentDescription("Mobile data connected").assertIsDisplayed()
+    }
+
+    @Test
+    fun degrades_cellular_to_binary_icon_when_level_is_null() {
+        rule.setContent {
+            FemtoTheme {
+                DashboardFooter(
+                    // Connected but level unknown (READ_PHONE_STATE withheld): the
+                    // indicator still renders, falling back to the binary glyph.
+                    systemStatus = fakeSystemStatus(cellularConnected = true, cellularSignalLevel = null),
+                    onAction = {},
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("Mobile data connected").assertIsDisplayed()
+    }
+
+    @Test
+    fun shows_graduated_wifi_icon_when_connected_with_a_level() {
+        rule.setContent {
+            FemtoTheme {
+                DashboardFooter(
+                    systemStatus = fakeSystemStatus(wifiConnected = true, wifiSignalLevel = 1),
+                    onAction = {},
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("Wi-Fi connected").assertIsDisplayed()
+    }
+
+    @Test
     fun hides_cellular_icon_on_telephony_less_unit() {
         rule.setContent {
             FemtoTheme {

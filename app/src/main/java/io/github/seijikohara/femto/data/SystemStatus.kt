@@ -15,7 +15,14 @@ data class SystemStatus(
     // the footer hides the cellular indicator entirely rather than showing a
     // permanently-disconnected one; true/false once telephony is present.
     val cellularConnected: Boolean?,
+    // 0..4 graduated cellular signal level, or null when telephony is absent, the
+    // READ_PHONE_STATE grant is withheld, or no reading has arrived. When null but
+    // cellularConnected is non-null, the footer degrades to the binary icon.
+    val cellularSignalLevel: Int?,
     val wifiConnected: Boolean,
+    // 0..4 graduated Wi-Fi signal level. Defaults to 0 (no bars) until the first
+    // capability reading arrives; the footer uses this for the graduated icon.
+    val wifiSignalLevel: Int,
     val bluetoothConnected: Boolean,
     // Null until the first battery reading arrives, or on battery-less units —
     // distinguishes "unknown" from a genuine 0% so the footer never reads as a
@@ -27,7 +34,9 @@ data class SystemStatus(
         val Initial: SystemStatus =
             SystemStatus(
                 cellularConnected = null,
+                cellularSignalLevel = null,
                 wifiConnected = false,
+                wifiSignalLevel = 0,
                 bluetoothConnected = false,
                 batteryPercent = null,
                 charging = false,

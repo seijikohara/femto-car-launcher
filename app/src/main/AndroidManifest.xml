@@ -74,6 +74,26 @@
     <uses-permission android:name="android.permission.READ_CALENDAR" />
 
     <!--
+        READ_PHONE_STATE: read the cellular SignalStrength.level via
+        TelephonyCallback so the footer status cluster shows graduated
+        cellular signal bars. Dangerous; runtime grant. Without it the
+        cellular indicator degrades to the binary connected/disconnected
+        icon. Justification mirrored in CLAUDE.md#permissions.
+    -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+    <!--
+        Declare telephony hardware as optional so Play does not implicitly
+        hard-require it (requesting READ_PHONE_STATE above otherwise implies
+        required=true). Wi-Fi-only AI boxes (Carlinkit / OTTOCAST) have no
+        telephony hardware; the cellular indicator degrades — cellularFlow()
+        and cellularLevelFlow() guard FEATURE_TELEPHONY and emit null — so
+        such units must still see and install the launcher (multi-region
+        distribution). See CLAUDE.md#launcher-behavior.
+    -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+
+    <!--
         Package visibility: declare interest in every app that registers
         the LAUNCHER intent so LauncherApps.getActivityList() returns the
         full set on Android 11+. This is the privacy-respecting path
