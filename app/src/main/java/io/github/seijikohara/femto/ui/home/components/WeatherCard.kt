@@ -115,12 +115,15 @@ private fun Head(
     val glyphs = weatherGlyphs()
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.Top) {
             Text(
                 text = tempLabel,
-                style = MaterialTheme.typography.bigNumber(),
+                // One notch below the shared bigNumber() so the hero temperature
+                // does not starve the condition / city column on a narrow
+                // info-pane card (the head-unit binding width).
+                style = MaterialTheme.typography.bigNumber().copy(fontSize = 46.sp, lineHeight = 42.sp),
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
             )
@@ -176,6 +179,7 @@ private fun Head(
                 style = MaterialTheme.typography.sectionLabel(11, 0.14f),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -376,8 +380,11 @@ private fun labelResFor(code: WeatherCode): Int =
         WeatherCode.UNKNOWN -> R.string.weather_cond_unknown
     }
 
+// Sized to the head-unit binding: each top-row card is ~165 x 207 dp (half the
+// info pane on the 853 x 512 dp / 5:3 projection), the geometry that starved the
+// condition / city column. CLOUDY exercises the longest short-condition label.
 @PreviewLightDark
-@Preview(name = "Weather card", widthDp = 240, heightDp = 224)
+@Preview(name = "Weather card", widthDp = 165, heightDp = 207)
 @Composable
 private fun WeatherCardPreview() {
     FemtoTheme {
@@ -386,7 +393,7 @@ private fun WeatherCardPreview() {
                 WeatherSnapshot(
                     tempC = 13.0,
                     apparentTempC = 11.0,
-                    code = WeatherCode.CLEAR,
+                    code = WeatherCode.CLOUDY,
                     windKmh = 11.0,
                     humidityPercent = 58,
                     uvIndex = 3.0,
