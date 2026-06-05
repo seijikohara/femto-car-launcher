@@ -2,16 +2,17 @@ package io.github.seijikohara.femto.ui.settings
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
-import io.github.seijikohara.femto.data.DisplayPreferences
-import io.github.seijikohara.femto.data.DisplaySettings
 import io.github.seijikohara.femto.data.FontPreferences
 import io.github.seijikohara.femto.data.FullscreenSetting
+import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -20,19 +21,20 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 
+// Robolectric only to obtain an Application for the (inert) FontPreferences; the
+// settings under test go through an in-memory FakeDisplaySettingsStore, so there
+// is no DataStore IO and the test is fully driven by the StandardTestDispatcher.
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class SettingsViewModelTest {
     private val application: Application = ApplicationProvider.getApplicationContext()
-    private val displayPreferences = DisplayPreferences(application)
+    private val store = FakeDisplaySettingsStore()
+    private val dispatcher = StandardTestDispatcher()
 
     @Before
     fun setUp() {
-        // Real Unconfined Main so a viewModelScope.launch from onAction runs its
-        // body eagerly on the calling thread. UnconfinedTestDispatcher would queue
-        // the body on a scheduler that only runTest pumps, so under runBlocking the
-        // write never executed and the await timed out.
-        Dispatchers.setMain(Dispatchers.Unconfined)
+        Dispatchers.setMain(dispatcher)
     }
 
     @After
@@ -41,43 +43,28 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `SetFullscreen persists via DisplayPreferences`() =
-        runBlocking {
+    fun `SetFullscreen writes the value to the store`() =
+        runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetFullscreen(FullscreenSetting.ON))
-            assertEquals(
-                FullscreenSetting.ON,
-                awaitSetting { it.fullscreen == FullscreenSetting.ON }.fullscreen,
-            )
+            advanceUntilIdle()
+            assertEquals(FullscreenSetting.ON, store.settings.first().fullscreen)
         }
 
     @Test
-    fun `SetMapFps persists via DisplayPreferences`() =
-        runBlocking {
+    fun `SetMapFps writes the value to the store`() =
+        runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetMapFps(30))
-            assertEquals(30, awaitSetting { it.mapFps == 30 }.mapFps)
+            advanceUntilIdle()
+            assertEquals(30, store.settings.first().mapFps)
         }
 
     @Test
-    fun `SetShowMusic persists via DisplayPreferences`() =
-        runBlocking {
+    fun `SetShowMusic writes the value to the store`() =
+        runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetShowMusic(false))
-            assertEquals(false, awaitSetting { !it.showMusic }.showMusic)
+            advanceUntilIdle()
+            assertEquals(false, store.settings.first().showMusic)
         }
 
-    private fun viewModel() = SettingsViewModel(displayPreferences, FontPreferences(application))
-
-    // Wait for the persisted settings to satisfy [predicate]. These tests exercise
-    // the real (Robolectric) DataStore round-trip, whose IO runs off the test
-    // scheduler; runTest's virtual clock cannot observe it and its end-of-test
-    // completion check races the write to an UncompletedCoroutinesError. runBlocking
-    // waits on real time instead, and this withTimeout bounds a write that never
-    // lands so a regression fails fast rather than hanging.
-    private suspend fun awaitSetting(predicate: (DisplaySettings) -> Boolean): DisplaySettings =
-        withTimeout(WRITE_TIMEOUT_MS) {
-            displayPreferences.settings.first(predicate)
-        }
-
-    private companion object {
-        const val WRITE_TIMEOUT_MS = 5_000L
-    }
+    private fun viewModel() = SettingsViewModel(store, FontPreferences(application))
 }
