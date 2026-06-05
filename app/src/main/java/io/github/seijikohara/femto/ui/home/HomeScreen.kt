@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
 import io.github.seijikohara.femto.ui.home.components.MapConfig
+import io.github.seijikohara.femto.ui.home.components.PanelVisibility
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -19,6 +20,7 @@ internal fun HomeScreen(
     speedUnit: SpeedUnit,
     temperatureUnit: TemperatureUnit,
     mapConfig: MapConfig,
+    panels: PanelVisibility,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Surface(
@@ -31,6 +33,7 @@ internal fun HomeScreen(
         speedUnit = speedUnit,
         temperatureUnit = temperatureUnit,
         mapConfig = mapConfig,
+        panels = panels,
         onAction = onAction,
         modifier = Modifier.fillMaxSize(),
     )
@@ -46,6 +49,7 @@ private fun HomeScreenPreview() =
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             temperatureUnit = TemperatureUnit.CELSIUS,
             mapConfig = MapConfig(),
+            panels = PanelVisibility(),
             onAction = {},
         )
     }

@@ -141,11 +141,7 @@ internal fun SettingsScreen(
 
         SettingGroup(
             title = stringResource(R.string.settings_group_map_3d),
-            options =
-                listOf(
-                    false to stringResource(R.string.settings_off),
-                    true to stringResource(R.string.settings_on),
-                ),
+            options = offOnOptions(),
             selected = uiState.mapBuildings3d,
             onSelect = { onAction(SettingsAction.SetMapBuildings3d(it)) },
         )
@@ -176,6 +172,27 @@ internal fun SettingsScreen(
             value = uiState.mapZoom,
             range = MIN_MAP_ZOOM..MAX_MAP_ZOOM,
             onValueChange = { onAction(SettingsAction.SetMapZoom(it)) },
+        )
+
+        SettingGroup(
+            title = stringResource(R.string.settings_group_panel_calendar),
+            options = offOnOptions(),
+            selected = uiState.showCalendar,
+            onSelect = { onAction(SettingsAction.SetShowCalendar(it)) },
+        )
+
+        SettingGroup(
+            title = stringResource(R.string.settings_group_panel_weather),
+            options = offOnOptions(),
+            selected = uiState.showWeather,
+            onSelect = { onAction(SettingsAction.SetShowWeather(it)) },
+        )
+
+        SettingGroup(
+            title = stringResource(R.string.settings_group_panel_music),
+            options = offOnOptions(),
+            selected = uiState.showMusic,
+            onSelect = { onAction(SettingsAction.SetShowMusic(it)) },
         )
 
         SettingGroup(
@@ -345,6 +362,15 @@ private fun SliderSetting(
         valueRange = range.first.toFloat()..range.last.toFloat(),
     )
 }
+
+// Shared Off/On options for a boolean SettingGroup. @Composable to resolve the
+// localized labels; keeps the boolean toggles from each repeating the pair.
+@Composable
+private fun offOnOptions(): List<Pair<Boolean, String>> =
+    listOf(
+        false to stringResource(R.string.settings_off),
+        true to stringResource(R.string.settings_on),
+    )
 
 // The display's maximum refresh rate (fps), the ceiling for the map frame-rate
 // slider. Falls back to 60 when the modes cannot be read; clamped to a sane band.

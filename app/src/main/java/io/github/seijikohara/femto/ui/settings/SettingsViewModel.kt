@@ -30,6 +30,9 @@ internal class SettingsViewModel(
                 mapStyle = display.mapStyle,
                 mapTiltDeg = display.mapTiltDeg,
                 mapZoom = display.mapZoom,
+                showCalendar = display.showCalendar,
+                showWeather = display.showWeather,
+                showMusic = display.showMusic,
                 fontTheme = font,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState.Initial)
@@ -48,6 +51,9 @@ internal class SettingsViewModel(
                 is SettingsAction.SetMapStyle -> displayPreferences.setMapStyle(action.value)
                 is SettingsAction.SetMapTilt -> displayPreferences.setMapTilt(action.value)
                 is SettingsAction.SetMapZoom -> displayPreferences.setMapZoom(action.value)
+                is SettingsAction.SetShowCalendar -> displayPreferences.setShowCalendar(action.value)
+                is SettingsAction.SetShowWeather -> displayPreferences.setShowWeather(action.value)
+                is SettingsAction.SetShowMusic -> displayPreferences.setShowMusic(action.value)
                 is SettingsAction.SetFontTheme -> fontPreferences.setFontTheme(action.value)
             }
         }

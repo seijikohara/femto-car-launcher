@@ -14,6 +14,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.seijikohara.femto.data.hasFineLocationPermission
 import io.github.seijikohara.femto.ui.home.components.MapConfig
+import io.github.seijikohara.femto.ui.home.components.PanelVisibility
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 
@@ -23,6 +24,7 @@ internal fun HomeRoute(
     speedUnit: SpeedUnit,
     temperatureUnit: TemperatureUnit,
     mapConfig: MapConfig,
+    panels: PanelVisibility,
     onEvent: (HomeEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -41,6 +43,7 @@ internal fun HomeRoute(
         speedUnit = speedUnit,
         temperatureUnit = temperatureUnit,
         mapConfig = mapConfig,
+        panels = panels,
         onAction = viewModel::onAction,
         modifier = modifier,
     )
