@@ -7,10 +7,8 @@ import io.github.seijikohara.femto.data.DisplaySettings
 import io.github.seijikohara.femto.data.FontPreferences
 import io.github.seijikohara.femto.data.FullscreenSetting
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
@@ -22,7 +20,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class SettingsViewModelTest {
@@ -31,8 +28,11 @@ class SettingsViewModelTest {
 
     @Before
     fun setUp() {
-        // Unconfined Main so a viewModelScope.launch from onAction runs eagerly.
-        Dispatchers.setMain(UnconfinedTestDispatcher())
+        // Real Unconfined Main so a viewModelScope.launch from onAction runs its
+        // body eagerly on the calling thread. UnconfinedTestDispatcher would queue
+        // the body on a scheduler that only runTest pumps, so under runBlocking the
+        // write never executed and the await timed out.
+        Dispatchers.setMain(Dispatchers.Unconfined)
     }
 
     @After
