@@ -117,6 +117,7 @@ class MainActivity : ComponentActivity() {
                         is24Hour = resolveIs24Hour(display.clock),
                         speedUnit = display.speedUnit.resolved(),
                         temperatureUnit = display.temperatureUnit.resolved(),
+                        mapRefresh = display.mapRefresh,
                         onEvent = { event ->
                             handleHomeEvent(
                                 event = event,

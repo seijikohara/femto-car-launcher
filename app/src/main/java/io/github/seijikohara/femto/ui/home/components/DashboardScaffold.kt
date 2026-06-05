@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import io.github.seijikohara.femto.data.MapRefreshSetting
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
@@ -65,6 +66,7 @@ internal fun DashboardScaffold(
     is24Hour: Boolean,
     speedUnit: SpeedUnit,
     temperatureUnit: TemperatureUnit,
+    mapRefresh: MapRefreshSetting,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(
@@ -95,6 +97,7 @@ internal fun DashboardScaffold(
                     uiState = uiState,
                     is24Hour = is24Hour,
                     speedUnit = speedUnit,
+                    mapRefresh = mapRefresh,
                     onAction = onAction,
                     modifier = Modifier.weight(MAP_PANE_PORTRAIT_WEIGHT).fillMaxWidth(),
                 )
@@ -119,6 +122,7 @@ internal fun DashboardScaffold(
                     uiState = uiState,
                     is24Hour = is24Hour,
                     speedUnit = speedUnit,
+                    mapRefresh = mapRefresh,
                     onAction = onAction,
                     modifier = Modifier.weight(MAP_PANE_LANDSCAPE_WEIGHT).fillMaxHeight(),
                 )
@@ -145,11 +149,13 @@ private fun MapPane(
     uiState: HomeUiState,
     is24Hour: Boolean,
     speedUnit: SpeedUnit,
+    mapRefresh: MapRefreshSetting,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Box(modifier = modifier) {
     MapPanel(
         location = uiState.location,
+        mapRefresh = mapRefresh,
         onTap = { onAction(HomeAction.OpenMaps) },
         modifier = Modifier.fillMaxSize(),
     )
@@ -249,6 +255,7 @@ private fun DashboardScaffoldLandscapePreview() {
             is24Hour = true,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             temperatureUnit = TemperatureUnit.CELSIUS,
+            mapRefresh = MapRefreshSetting.RESPONSIVE,
             onAction = {},
         )
     }
@@ -264,6 +271,7 @@ private fun DashboardScaffoldUltraWidePreview() {
             is24Hour = true,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             temperatureUnit = TemperatureUnit.CELSIUS,
+            mapRefresh = MapRefreshSetting.RESPONSIVE,
             onAction = {},
         )
     }
@@ -282,6 +290,7 @@ private fun DashboardScaffoldHeadUnitPreview() {
             is24Hour = true,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             temperatureUnit = TemperatureUnit.CELSIUS,
+            mapRefresh = MapRefreshSetting.RESPONSIVE,
             onAction = {},
         )
     }
@@ -297,6 +306,7 @@ private fun DashboardScaffoldPortraitPreview() {
             is24Hour = true,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             temperatureUnit = TemperatureUnit.CELSIUS,
+            mapRefresh = MapRefreshSetting.RESPONSIVE,
             onAction = {},
         )
     }
