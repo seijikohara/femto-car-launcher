@@ -2,10 +2,10 @@ package io.github.seijikohara.femto.ui.settings
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
-import app.cash.turbine.test
 import io.github.seijikohara.femto.data.DisplayPreferences
 import io.github.seijikohara.femto.data.FontPreferences
 import io.github.seijikohara.femto.data.FullscreenSetting
+import io.github.seijikohara.femto.data.MapRefreshSetting
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -39,15 +39,29 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `SetFullscreen ON persists via DisplayPreferences and uiState reflects it`() =
+    fun `SetFullscreen persists via DisplayPreferences`() =
         runTest {
             val viewModel = SettingsViewModel(displayPreferences, FontPreferences(application))
-            viewModel.uiState.test {
-                assertEquals(FullscreenSetting.OFF, awaitItem().fullscreen)
-                viewModel.onAction(SettingsAction.SetFullscreen(FullscreenSetting.ON))
-                assertEquals(FullscreenSetting.ON, awaitItem().fullscreen)
-                cancelAndIgnoreRemainingEvents()
-            }
-            assertEquals(FullscreenSetting.ON, displayPreferences.settings.first().fullscreen)
+            viewModel.onAction(SettingsAction.SetFullscreen(FullscreenSetting.ON))
+            // Assert the persisted value via first { predicate }: it waits for the
+            // write to land and is robust both to the DataStore being shared across
+            // the tests in this class and to DataStore IO completing off the test
+            // clock. Collecting the ViewModel StateFlow here instead hangs runTest,
+            // because its WhileSubscribed upstream reads the real DataStore on IO.
+            assertEquals(
+                FullscreenSetting.ON,
+                displayPreferences.settings.first { it.fullscreen == FullscreenSetting.ON }.fullscreen,
+            )
+        }
+
+    @Test
+    fun `SetMapRefresh persists via DisplayPreferences`() =
+        runTest {
+            val viewModel = SettingsViewModel(displayPreferences, FontPreferences(application))
+            viewModel.onAction(SettingsAction.SetMapRefresh(MapRefreshSetting.BALANCED))
+            assertEquals(
+                MapRefreshSetting.BALANCED,
+                displayPreferences.settings.first { it.mapRefresh == MapRefreshSetting.BALANCED }.mapRefresh,
+            )
         }
 }
