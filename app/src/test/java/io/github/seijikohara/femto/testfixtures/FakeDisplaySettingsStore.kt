@@ -4,6 +4,7 @@ import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.DisplaySettings
 import io.github.seijikohara.femto.data.DisplaySettingsStore
 import io.github.seijikohara.femto.data.FullscreenSetting
+import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.data.MapStyleSetting
 import io.github.seijikohara.femto.data.SpeedUnitSetting
 import io.github.seijikohara.femto.data.TemperatureUnitSetting
@@ -47,6 +48,8 @@ internal class FakeDisplaySettingsStore(
     override suspend fun setMapZoom(value: Int) = state.update { it.copy(mapZoom = value) }
 
     override suspend fun setMapRenderPercent(value: Int) = state.update { it.copy(mapRenderPercent = value) }
+
+    override suspend fun setMapRenderMode(value: MapRenderMode) = state.update { it.copy(mapRenderMode = value) }
 
     override suspend fun setShowCalendar(value: Boolean) = state.update { it.copy(showCalendar = value) }
 
