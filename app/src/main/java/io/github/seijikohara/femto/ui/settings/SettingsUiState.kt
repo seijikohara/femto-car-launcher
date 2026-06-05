@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.ui.settings
 import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.DisplaySettings
 import io.github.seijikohara.femto.data.FullscreenSetting
+import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.data.MapStyleSetting
 import io.github.seijikohara.femto.data.SpeedUnitSetting
 import io.github.seijikohara.femto.data.TemperatureUnitSetting
@@ -22,6 +23,7 @@ internal data class SettingsUiState(
     val mapTiltDeg: Int,
     val mapZoom: Int,
     val mapRenderPercent: Int,
+    val mapRenderMode: MapRenderMode,
     val showCalendar: Boolean,
     val showWeather: Boolean,
     val showMusic: Boolean,
@@ -43,6 +45,7 @@ internal data class SettingsUiState(
                 mapTiltDeg = DisplaySettings.Default.mapTiltDeg,
                 mapZoom = DisplaySettings.Default.mapZoom,
                 mapRenderPercent = DisplaySettings.Default.mapRenderPercent,
+                mapRenderMode = DisplaySettings.Default.mapRenderMode,
                 showCalendar = DisplaySettings.Default.showCalendar,
                 showWeather = DisplaySettings.Default.showWeather,
                 showMusic = DisplaySettings.Default.showMusic,
@@ -95,6 +98,10 @@ internal sealed interface SettingsAction {
 
     data class SetMapRenderPercent(
         val value: Int,
+    ) : SettingsAction
+
+    data class SetMapRenderMode(
+        val value: MapRenderMode,
     ) : SettingsAction
 
     data class SetShowCalendar(

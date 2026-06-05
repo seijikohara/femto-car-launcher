@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.data.FontPreferences
 import io.github.seijikohara.femto.data.FullscreenSetting
+import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -72,6 +73,14 @@ class SettingsViewModelTest {
             viewModel().onAction(SettingsAction.SetMapRenderPercent(50))
             advanceUntilIdle()
             assertEquals(50, store.settings.first().mapRenderPercent)
+        }
+
+    @Test
+    fun `SetMapRenderMode writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetMapRenderMode(MapRenderMode.LIVE))
+            advanceUntilIdle()
+            assertEquals(MapRenderMode.LIVE, store.settings.first().mapRenderMode)
         }
 
     private fun viewModel() = SettingsViewModel(store, FontPreferences(application))

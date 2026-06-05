@@ -45,6 +45,7 @@ import com.composables.icons.lucide.Lucide
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.FullscreenSetting
+import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.data.MapStyleSetting
 import io.github.seijikohara.femto.data.SpeedUnitSetting
 import io.github.seijikohara.femto.data.TemperatureUnitSetting
@@ -151,6 +152,16 @@ internal fun SettingsScreen(
 
         val maxFps = rememberMaxDisplayFps()
         SettingsSection(title = stringResource(R.string.settings_section_map)) {
+            ChoiceRow(
+                title = stringResource(R.string.settings_group_map_rendering),
+                options =
+                    listOf(
+                        MapRenderMode.SNAPSHOT to stringResource(R.string.settings_map_mode_snapshot),
+                        MapRenderMode.LIVE to stringResource(R.string.settings_map_mode_live),
+                    ),
+                selected = uiState.mapRenderMode,
+                onSelect = { onAction(SettingsAction.SetMapRenderMode(it)) },
+            )
             SliderRow(
                 title = stringResource(R.string.settings_group_map_refresh),
                 valueLabel = stringResource(R.string.settings_map_fps_value, uiState.mapFps),

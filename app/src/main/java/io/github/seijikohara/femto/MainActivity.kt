@@ -127,6 +127,7 @@ class MainActivity : ComponentActivity() {
                                 tiltDeg = display.mapTiltDeg,
                                 zoom = display.mapZoom,
                                 renderPercent = display.mapRenderPercent,
+                                renderMode = display.mapRenderMode,
                             ),
                         panels =
                             PanelVisibility(
