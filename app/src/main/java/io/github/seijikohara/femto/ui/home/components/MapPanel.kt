@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -30,11 +32,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -56,6 +60,11 @@ import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.FillExtrusionLayer
 import org.maplibre.android.style.layers.PropertyFactory
 import kotlin.coroutines.resume
+import kotlin.math.asin
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.roundToInt
+import kotlin.math.sin
 
 /**
  * Map tile surface + permission fallback.
@@ -114,7 +123,7 @@ private fun SnapshotMap(
     val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
     val heightPx = with(LocalDensity.current) { maxHeight.roundToPx() }
 
-    var bitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var frame by remember { mutableStateOf<MapFrame?>(null) }
     var failed by remember { mutableStateOf(false) }
     // Carry the last non-zero bearing so a stopped vehicle (GPS bearing 0) keeps
     // the heading-up rotation instead of snapping back to north.
@@ -154,15 +163,15 @@ private fun SnapshotMap(
             while (isActive) {
                 val loc = currentLocation.value
                 if (shouldRerender(lastRendered, loc)) {
-                    val rendered = snap.render(cameraFor(loc, bearingHolder))
+                    val rendered = snap.render(cameraFor(loc, bearingHolder), LatLng(loc.latitude, loc.longitude))
                     if (rendered != null) {
-                        bitmap = rendered
+                        frame = rendered
                         failed = false
                         lastRendered = loc
                     } else {
                         // Keep any previous frame; surface the fallback only when
                         // there is nothing to show yet. The loop retries next tick.
-                        failed = bitmap == null
+                        failed = frame == null
                     }
                 }
                 delay(intervalMs)
@@ -170,15 +179,16 @@ private fun SnapshotMap(
         }
     }
 
-    val current = bitmap
+    val current = frame
     when {
         current != null -> {
             Image(
-                bitmap = current.asImageBitmap(),
+                bitmap = current.bitmap.asImageBitmap(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize().clickable { onTap() },
             )
+            LocationMarker(xPx = current.markerX, yPx = current.markerY)
         }
 
         failed -> {
@@ -191,13 +201,27 @@ private fun SnapshotMap(
     }
 }
 
+// A rendered frame plus the pixel where the current location landed, so the
+// marker overlay sits exactly on it regardless of the look-ahead camera offset.
+private class MapFrame(
+    val bitmap: Bitmap,
+    val markerX: Float,
+    val markerY: Float,
+)
+
 // Render one frame off-screen. Suspends until the snapshotter's callback fires,
 // keeping the caller single-flight; cancelling the coroutine cancels the render.
-private suspend fun MapSnapshotter.render(camera: CameraPosition): Bitmap? =
+private suspend fun MapSnapshotter.render(
+    camera: CameraPosition,
+    markerLatLng: LatLng,
+): MapFrame? =
     suspendCancellableCoroutine { cont ->
         setCameraPosition(camera)
         start(
-            { snapshot -> if (cont.isActive) cont.resume(snapshot.bitmap) },
+            { snapshot ->
+                val p = snapshot.pixelForLatLng(markerLatLng)
+                if (cont.isActive) cont.resume(MapFrame(snapshot.bitmap, p.x, p.y))
+            },
             { _ -> if (cont.isActive) cont.resume(null) },
         )
         cont.invokeOnCancellation { cancel() }
@@ -206,14 +230,34 @@ private suspend fun MapSnapshotter.render(camera: CameraPosition): Bitmap? =
 private fun cameraFor(
     location: Location,
     bearingHolder: FloatArray,
-): CameraPosition =
-    CameraPosition
+): CameraPosition {
+    val bearing = location.carriedBearing(bearingHolder).toDouble()
+    // Aim the camera ahead of the current position (along the heading) so the
+    // current location renders low in the frame: more road ahead is visible and
+    // the marker sits just above the speed overlay (nav-style framing).
+    val target = LatLng(location.latitude, location.longitude).offsetForward(bearing, FORWARD_OFFSET_M)
+    return CameraPosition
         .Builder()
-        .target(LatLng(location.latitude, location.longitude))
+        .target(target)
         .zoom(MAP_ZOOM)
         .tilt(MAP_TILT)
-        .bearing(location.carriedBearing(bearingHolder).toDouble())
+        .bearing(bearing)
         .build()
+}
+
+// Destination point [meters] ahead of this point along [bearingDeg] (great-circle).
+private fun LatLng.offsetForward(
+    bearingDeg: Double,
+    meters: Double,
+): LatLng {
+    val angular = meters / EARTH_RADIUS_M
+    val br = Math.toRadians(bearingDeg)
+    val lat1 = Math.toRadians(latitude)
+    val lon1 = Math.toRadians(longitude)
+    val lat2 = asin(sin(lat1) * cos(angular) + cos(lat1) * sin(angular) * cos(br))
+    val lon2 = lon1 + atan2(sin(br) * sin(angular) * cos(lat1), cos(angular) - sin(lat1) * sin(lat2))
+    return LatLng(Math.toDegrees(lat2), Math.toDegrees(lon2))
+}
 
 private fun Location.carriedBearing(holder: FloatArray): Float =
     if (hasBearing() && bearing != 0f) {
@@ -291,6 +335,29 @@ private fun Attribution(modifier: Modifier = Modifier) =
                 .padding(horizontal = 6.dp, vertical = 2.dp),
     )
 
+// Current-location puck: a primary-coloured dot with a white ring, positioned by
+// the exact pixel the location rendered at (see MapFrame). offset {} takes layout
+// pixels, which match the snapshot pixels because the Image fills the panel 1:1.
+@Composable
+private fun LocationMarker(
+    xPx: Float,
+    yPx: Float,
+    modifier: Modifier = Modifier,
+) {
+    val half = with(LocalDensity.current) { MARKER_SIZE.toPx() } / 2f
+    Box(
+        modifier =
+            modifier
+                .offset { IntOffset((xPx - half).roundToInt(), (yPx - half).roundToInt()) }
+                .size(MARKER_SIZE)
+                .clip(CircleShape)
+                .background(Color.White)
+                .padding(3.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary),
+    )
+}
+
 @Composable
 private fun Fallback(modifier: Modifier = Modifier) =
     Column(
@@ -335,6 +402,12 @@ private const val BUILDING_COLOR_DARK = "#2A2E33"
 
 // Re-render once a fix moves at least this far; below it the last frame is held.
 private const val REFRESH_DISTANCE_M = 8f
+
+// Look-ahead: aim the camera this far ahead of the current position so the marker
+// sits low in the frame (above the speed overlay) with the road ahead visible.
+private const val FORWARD_OFFSET_M = 60.0
+private const val EARTH_RADIUS_M = 6_371_000.0
+private val MARKER_SIZE = 18.dp
 
 // Snapshot cadence per MapRefreshSetting — the minimum interval between renders.
 private const val RESPONSIVE_INTERVAL_MS = 500L
