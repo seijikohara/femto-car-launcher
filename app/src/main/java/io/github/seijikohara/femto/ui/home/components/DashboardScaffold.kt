@@ -214,9 +214,11 @@ private fun InfoPane(
 }
 
 // Below either breakpoint the dashboard switches to its compact spacing. The
-// thresholds are deliberately coarse: they separate small head units from large
-// in-dash panels without targeting any one resolution.
-private val CompactHeightBreakpoint: Dp = 420.dp
+// thresholds are deliberately coarse: they separate small / short head units
+// from large in-dash panels without targeting any one resolution. The height
+// threshold sits above the common ~512 dp 5:3 projection so those short
+// landscapes take the tighter spacing, leaving more room for the info-pane cards.
+private val CompactHeightBreakpoint: Dp = 560.dp
 private val CompactWidthBreakpoint: Dp = 600.dp
 
 // Compact outer / inter-pane spacing; the comfortable values are the FemtoDimens
@@ -226,12 +228,13 @@ private val CompactPaneGap: Dp = 10.dp
 
 // Pane weights. The map is the dominant surface in landscape; in portrait it
 // sits a little taller than the info pane. The info pane splits its height
-// roughly 0.43 : 0.57 between the calendar/weather row and the music card,
-// preserving the mockup's top-row-to-music proportion without a fixed height.
-private const val MAP_PANE_LANDSCAPE_WEIGHT = 1.5f
+// roughly evenly between the calendar/weather row and the music card so neither
+// is starved on a short head unit — a ~512 dp-tall 5:3 projection clipped the
+// calendar/weather row when the music card was weighted heavier.
+private const val MAP_PANE_LANDSCAPE_WEIGHT = 1.4f
 private const val MAP_PANE_PORTRAIT_WEIGHT = 1.1f
 private const val TOP_ROW_WEIGHT = 1f
-private const val MUSIC_CARD_WEIGHT = 1.35f
+private const val MUSIC_CARD_WEIGHT = 1.05f
 
 // Responsive previews. HomeUiState.Initial renders the empty/loading states (no
 // network/GL in a preview), which is enough to lock the responsive arrangement
@@ -255,6 +258,24 @@ private fun DashboardScaffoldLandscapePreview() {
 @Preview(name = "Dashboard - 8:3 ultra-wide", widthDp = 640, heightDp = 240)
 @Composable
 private fun DashboardScaffoldUltraWidePreview() {
+    FemtoTheme {
+        DashboardScaffold(
+            uiState = HomeUiState.Initial,
+            is24Hour = true,
+            speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+            temperatureUnit = TemperatureUnit.CELSIUS,
+            onAction = {},
+        )
+    }
+}
+
+// The real Carlinkit-class projection: 800x480 px at 150 dpi = 853x512 dp (5:3).
+// Wider and shorter in dp than the 16:9 case, so it is the binding geometry for
+// the speed-overlay width cap and the info-pane height split.
+@PreviewLightDark
+@Preview(name = "Dashboard - 5:3 head unit", widthDp = 853, heightDp = 512)
+@Composable
+private fun DashboardScaffoldHeadUnitPreview() {
     FemtoTheme {
         DashboardScaffold(
             uiState = HomeUiState.Initial,
