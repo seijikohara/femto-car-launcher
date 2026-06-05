@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.ui.settings
 import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.DisplaySettings
 import io.github.seijikohara.femto.data.FullscreenSetting
+import io.github.seijikohara.femto.data.MapStyleSetting
 import io.github.seijikohara.femto.data.SpeedUnitSetting
 import io.github.seijikohara.femto.data.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.ThemeMode
@@ -16,6 +17,10 @@ internal data class SettingsUiState(
     val clock: ClockSetting,
     val fullscreen: FullscreenSetting,
     val mapFps: Int,
+    val mapBuildings3d: Boolean,
+    val mapStyle: MapStyleSetting,
+    val mapTiltDeg: Int,
+    val mapZoom: Int,
     val fontTheme: FontTheme,
 ) {
     companion object {
@@ -29,6 +34,10 @@ internal data class SettingsUiState(
                 clock = DisplaySettings.Default.clock,
                 fullscreen = DisplaySettings.Default.fullscreen,
                 mapFps = DisplaySettings.Default.mapFps,
+                mapBuildings3d = DisplaySettings.Default.mapBuildings3d,
+                mapStyle = DisplaySettings.Default.mapStyle,
+                mapTiltDeg = DisplaySettings.Default.mapTiltDeg,
+                mapZoom = DisplaySettings.Default.mapZoom,
                 fontTheme = FontTheme.INTER,
             )
     }
@@ -57,6 +66,22 @@ internal sealed interface SettingsAction {
     ) : SettingsAction
 
     data class SetMapFps(
+        val value: Int,
+    ) : SettingsAction
+
+    data class SetMapBuildings3d(
+        val value: Boolean,
+    ) : SettingsAction
+
+    data class SetMapStyle(
+        val value: MapStyleSetting,
+    ) : SettingsAction
+
+    data class SetMapTilt(
+        val value: Int,
+    ) : SettingsAction
+
+    data class SetMapZoom(
         val value: Int,
     ) : SettingsAction
 

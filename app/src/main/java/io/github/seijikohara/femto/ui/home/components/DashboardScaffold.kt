@@ -65,7 +65,7 @@ internal fun DashboardScaffold(
     is24Hour: Boolean,
     speedUnit: SpeedUnit,
     temperatureUnit: TemperatureUnit,
-    mapFps: Int,
+    mapConfig: MapConfig,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(
@@ -96,7 +96,7 @@ internal fun DashboardScaffold(
                     uiState = uiState,
                     is24Hour = is24Hour,
                     speedUnit = speedUnit,
-                    mapFps = mapFps,
+                    mapConfig = mapConfig,
                     onAction = onAction,
                     modifier = Modifier.weight(MAP_PANE_PORTRAIT_WEIGHT).fillMaxWidth(),
                 )
@@ -121,7 +121,7 @@ internal fun DashboardScaffold(
                     uiState = uiState,
                     is24Hour = is24Hour,
                     speedUnit = speedUnit,
-                    mapFps = mapFps,
+                    mapConfig = mapConfig,
                     onAction = onAction,
                     modifier = Modifier.weight(MAP_PANE_LANDSCAPE_WEIGHT).fillMaxHeight(),
                 )
@@ -148,13 +148,13 @@ private fun MapPane(
     uiState: HomeUiState,
     is24Hour: Boolean,
     speedUnit: SpeedUnit,
-    mapFps: Int,
+    mapConfig: MapConfig,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Box(modifier = modifier) {
     MapPanel(
         location = uiState.location,
-        mapFps = mapFps,
+        mapConfig = mapConfig,
         onTap = { onAction(HomeAction.OpenMaps) },
         modifier = Modifier.fillMaxSize(),
     )
@@ -254,7 +254,7 @@ private fun DashboardScaffoldLandscapePreview() {
             is24Hour = true,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             temperatureUnit = TemperatureUnit.CELSIUS,
-            mapFps = 10,
+            mapConfig = MapConfig(),
             onAction = {},
         )
     }
@@ -270,7 +270,7 @@ private fun DashboardScaffoldUltraWidePreview() {
             is24Hour = true,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             temperatureUnit = TemperatureUnit.CELSIUS,
-            mapFps = 10,
+            mapConfig = MapConfig(),
             onAction = {},
         )
     }
@@ -289,7 +289,7 @@ private fun DashboardScaffoldHeadUnitPreview() {
             is24Hour = true,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             temperatureUnit = TemperatureUnit.CELSIUS,
-            mapFps = 10,
+            mapConfig = MapConfig(),
             onAction = {},
         )
     }
@@ -305,7 +305,7 @@ private fun DashboardScaffoldPortraitPreview() {
             is24Hour = true,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             temperatureUnit = TemperatureUnit.CELSIUS,
-            mapFps = 10,
+            mapConfig = MapConfig(),
             onAction = {},
         )
     }

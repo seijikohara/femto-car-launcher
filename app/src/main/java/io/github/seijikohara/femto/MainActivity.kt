@@ -41,6 +41,7 @@ import io.github.seijikohara.femto.ui.assistant.AssistantSheet
 import io.github.seijikohara.femto.ui.drawer.AppDrawerSheet
 import io.github.seijikohara.femto.ui.home.HomeEvent
 import io.github.seijikohara.femto.ui.home.HomeRoute
+import io.github.seijikohara.femto.ui.home.components.MapConfig
 import io.github.seijikohara.femto.ui.locale.resolved
 import io.github.seijikohara.femto.ui.settings.SettingsRoute
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -117,7 +118,14 @@ class MainActivity : ComponentActivity() {
                         is24Hour = resolveIs24Hour(display.clock),
                         speedUnit = display.speedUnit.resolved(),
                         temperatureUnit = display.temperatureUnit.resolved(),
-                        mapFps = display.mapFps,
+                        mapConfig =
+                            MapConfig(
+                                fps = display.mapFps,
+                                buildings3d = display.mapBuildings3d,
+                                style = display.mapStyle,
+                                tiltDeg = display.mapTiltDeg,
+                                zoom = display.mapZoom,
+                            ),
                         onEvent = { event ->
                             handleHomeEvent(
                                 event = event,

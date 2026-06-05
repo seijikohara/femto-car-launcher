@@ -18,8 +18,8 @@ class SettingsScreenTest {
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val groupLabel = context.getString(R.string.settings_group_fullscreen)
-    private val offLabel = context.getString(R.string.settings_fullscreen_off)
-    private val onLabel = context.getString(R.string.settings_fullscreen_on)
+    private val offLabel = context.getString(R.string.settings_off)
+    private val onLabel = context.getString(R.string.settings_on)
 
     @Test
     fun renders_fullscreen_group_chips() {

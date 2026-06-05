@@ -6,6 +6,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
+import io.github.seijikohara.femto.ui.home.components.MapConfig
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -17,7 +18,7 @@ internal fun HomeScreen(
     is24Hour: Boolean,
     speedUnit: SpeedUnit,
     temperatureUnit: TemperatureUnit,
-    mapFps: Int,
+    mapConfig: MapConfig,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Surface(
@@ -29,7 +30,7 @@ internal fun HomeScreen(
         is24Hour = is24Hour,
         speedUnit = speedUnit,
         temperatureUnit = temperatureUnit,
-        mapFps = mapFps,
+        mapConfig = mapConfig,
         onAction = onAction,
         modifier = Modifier.fillMaxSize(),
     )
@@ -44,7 +45,7 @@ private fun HomeScreenPreview() =
             is24Hour = true,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             temperatureUnit = TemperatureUnit.CELSIUS,
-            mapFps = 10,
+            mapConfig = MapConfig(),
             onAction = {},
         )
     }
