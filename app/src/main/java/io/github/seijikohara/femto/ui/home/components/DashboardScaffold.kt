@@ -26,6 +26,19 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
+// Which info-pane cards the dashboard renders. Each defaults to visible; hiding
+// one lets the remaining cards — or the map, when none remain — reflow into the
+// freed space. Sourced from DisplaySettings and threaded down like MapConfig.
+internal data class PanelVisibility(
+    val calendar: Boolean = true,
+    val weather: Boolean = true,
+    val music: Boolean = true,
+) {
+    // True while at least one info-pane card is shown. When false the scaffold
+    // drops the info pane entirely so the map fills the whole viewport.
+    val anyInfoPanel: Boolean get() = calendar || weather || music
+}
+
 /**
  * Top-level dashboard layout. Two panes plus a fixed footer, arranged
  * responsively from the available viewport rather than a fixed canvas:
@@ -66,6 +79,7 @@ internal fun DashboardScaffold(
     speedUnit: SpeedUnit,
     temperatureUnit: TemperatureUnit,
     mapConfig: MapConfig,
+    panels: PanelVisibility,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(
@@ -100,14 +114,17 @@ internal fun DashboardScaffold(
                     onAction = onAction,
                     modifier = Modifier.weight(MAP_PANE_PORTRAIT_WEIGHT).fillMaxWidth(),
                 )
-                InfoPane(
-                    uiState = uiState,
-                    temperatureUnit = temperatureUnit,
-                    speedUnit = speedUnit,
-                    paneGap = paneGap,
-                    onAction = onAction,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                )
+                if (panels.anyInfoPanel) {
+                    InfoPane(
+                        uiState = uiState,
+                        temperatureUnit = temperatureUnit,
+                        speedUnit = speedUnit,
+                        panels = panels,
+                        paneGap = paneGap,
+                        onAction = onAction,
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                    )
+                }
             }
         } else {
             Row(
@@ -125,14 +142,17 @@ internal fun DashboardScaffold(
                     onAction = onAction,
                     modifier = Modifier.weight(MAP_PANE_LANDSCAPE_WEIGHT).fillMaxHeight(),
                 )
-                InfoPane(
-                    uiState = uiState,
-                    temperatureUnit = temperatureUnit,
-                    speedUnit = speedUnit,
-                    paneGap = paneGap,
-                    onAction = onAction,
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                )
+                if (panels.anyInfoPanel) {
+                    InfoPane(
+                        uiState = uiState,
+                        temperatureUnit = temperatureUnit,
+                        speedUnit = speedUnit,
+                        panels = panels,
+                        paneGap = paneGap,
+                        onAction = onAction,
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                    )
+                }
             }
         }
     }
@@ -183,6 +203,7 @@ private fun InfoPane(
     uiState: HomeUiState,
     temperatureUnit: TemperatureUnit,
     speedUnit: SpeedUnit,
+    panels: PanelVisibility,
     paneGap: Dp,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
@@ -190,32 +211,44 @@ private fun InfoPane(
     modifier = modifier,
     verticalArrangement = Arrangement.spacedBy(paneGap),
 ) {
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .weight(TOP_ROW_WEIGHT),
-        horizontalArrangement = Arrangement.spacedBy(paneGap),
-    ) {
-        CalendarCard(
-            snapshot = uiState.calendar,
-            modifier = Modifier.weight(1f).fillMaxHeight(),
-        )
-        WeatherCard(
-            snapshot = uiState.weather,
-            city = uiState.address?.locality,
-            temperatureUnit = temperatureUnit,
-            speedUnit = speedUnit,
-            modifier = Modifier.weight(1f).fillMaxHeight(),
+    // The calendar/weather row only exists when at least one of the two is shown.
+    // A single visible card takes the full row width (it is the only weighted
+    // child); with both hidden the row is skipped and the music card fills the
+    // pane on its own.
+    if (panels.calendar || panels.weather) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .weight(TOP_ROW_WEIGHT),
+            horizontalArrangement = Arrangement.spacedBy(paneGap),
+        ) {
+            if (panels.calendar) {
+                CalendarCard(
+                    snapshot = uiState.calendar,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+            }
+            if (panels.weather) {
+                WeatherCard(
+                    snapshot = uiState.weather,
+                    city = uiState.address?.locality,
+                    temperatureUnit = temperatureUnit,
+                    speedUnit = speedUnit,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+            }
+        }
+    }
+    if (panels.music) {
+        MusicCard(
+            state = uiState.musicState,
+            onCommand = { command -> onAction(HomeAction.Music(command)) },
+            onConnect = { onAction(HomeAction.ConnectMusicPlayer) },
+            onLaunchSource = { packageName -> onAction(HomeAction.LaunchMusicSource(packageName)) },
+            modifier = Modifier.weight(MUSIC_CARD_WEIGHT).fillMaxWidth(),
         )
     }
-    MusicCard(
-        state = uiState.musicState,
-        onCommand = { command -> onAction(HomeAction.Music(command)) },
-        onConnect = { onAction(HomeAction.ConnectMusicPlayer) },
-        onLaunchSource = { packageName -> onAction(HomeAction.LaunchMusicSource(packageName)) },
-        modifier = Modifier.weight(MUSIC_CARD_WEIGHT).fillMaxWidth(),
-    )
 }
 
 // Below either breakpoint the dashboard switches to its compact spacing. The
@@ -255,6 +288,7 @@ private fun DashboardScaffoldLandscapePreview() {
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             temperatureUnit = TemperatureUnit.CELSIUS,
             mapConfig = MapConfig(),
+            panels = PanelVisibility(),
             onAction = {},
         )
     }
@@ -271,6 +305,7 @@ private fun DashboardScaffoldUltraWidePreview() {
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             temperatureUnit = TemperatureUnit.CELSIUS,
             mapConfig = MapConfig(),
+            panels = PanelVisibility(),
             onAction = {},
         )
     }
@@ -290,6 +325,7 @@ private fun DashboardScaffoldHeadUnitPreview() {
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             temperatureUnit = TemperatureUnit.CELSIUS,
             mapConfig = MapConfig(),
+            panels = PanelVisibility(),
             onAction = {},
         )
     }
@@ -306,6 +342,26 @@ private fun DashboardScaffoldPortraitPreview() {
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             temperatureUnit = TemperatureUnit.CELSIUS,
             mapConfig = MapConfig(),
+            panels = PanelVisibility(),
+            onAction = {},
+        )
+    }
+}
+
+// Calendar hidden: the weather card reflows to the full row width and the music
+// card keeps its slot, exercising the partial-visibility layout path.
+@PreviewLightDark
+@Preview(name = "Dashboard - calendar hidden", widthDp = 853, heightDp = 512)
+@Composable
+private fun DashboardScaffoldHiddenPanelPreview() {
+    FemtoTheme {
+        DashboardScaffold(
+            uiState = HomeUiState.Initial,
+            is24Hour = true,
+            speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+            temperatureUnit = TemperatureUnit.CELSIUS,
+            mapConfig = MapConfig(),
+            panels = PanelVisibility(calendar = false),
             onAction = {},
         )
     }

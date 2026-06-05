@@ -42,6 +42,7 @@ import io.github.seijikohara.femto.ui.drawer.AppDrawerSheet
 import io.github.seijikohara.femto.ui.home.HomeEvent
 import io.github.seijikohara.femto.ui.home.HomeRoute
 import io.github.seijikohara.femto.ui.home.components.MapConfig
+import io.github.seijikohara.femto.ui.home.components.PanelVisibility
 import io.github.seijikohara.femto.ui.locale.resolved
 import io.github.seijikohara.femto.ui.settings.SettingsRoute
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -125,6 +126,12 @@ class MainActivity : ComponentActivity() {
                                 style = display.mapStyle,
                                 tiltDeg = display.mapTiltDeg,
                                 zoom = display.mapZoom,
+                            ),
+                        panels =
+                            PanelVisibility(
+                                calendar = display.showCalendar,
+                                weather = display.showWeather,
+                                music = display.showMusic,
                             ),
                         onEvent = { event ->
                             handleHomeEvent(

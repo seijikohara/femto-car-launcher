@@ -106,6 +106,9 @@
     <string name="settings_group_map_zoom">Map zoom</string>
     <string name="settings_map_tilt_value">%1$d°</string>
     <string name="settings_map_zoom_value">z%1$d</string>
+    <string name="settings_group_panel_calendar">Calendar panel</string>
+    <string name="settings_group_panel_weather">Weather panel</string>
+    <string name="settings_group_panel_music">Music panel</string>
     <string name="settings_open_notification_access">Notification access</string>
     <string name="settings_open_system_settings">System settings</string>
 </resources>

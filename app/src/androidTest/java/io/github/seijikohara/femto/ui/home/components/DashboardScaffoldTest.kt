@@ -45,12 +45,41 @@ class DashboardScaffoldTest {
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     mapConfig = MapConfig(),
+                    panels = PanelVisibility(),
                     onAction = {},
                 )
             }
         }
         rule.onNodeWithText("Map unavailable").assertIsDisplayed()
         rule.onNodeWithText("Strobe").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Apps").assertIsDisplayed()
+    }
+
+    @Test
+    fun hides_info_panels_disabled_by_visibility_flags() {
+        // Disabling every info-pane panel drops the whole info pane, so none of
+        // their content renders while the map and footer stay put.
+        val uiState =
+            HomeUiState.Initial.copy(
+                location = null,
+                weather = fakeWeatherSnapshot(),
+                musicState = MusicCardState.Playing(fakeNowPlaying()),
+            )
+        rule.setContent {
+            FemtoTheme {
+                DashboardScaffold(
+                    uiState = uiState,
+                    is24Hour = true,
+                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    temperatureUnit = TemperatureUnit.CELSIUS,
+                    mapConfig = MapConfig(),
+                    panels = PanelVisibility(calendar = false, weather = false, music = false),
+                    onAction = {},
+                )
+            }
+        }
+        rule.onNodeWithText("Strobe").assertDoesNotExist()
+        rule.onNodeWithText("Map unavailable").assertIsDisplayed()
         rule.onNodeWithContentDescription("Apps").assertIsDisplayed()
     }
 }

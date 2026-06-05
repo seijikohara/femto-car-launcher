@@ -60,4 +60,12 @@ class SettingsViewModelTest {
             viewModel.onAction(SettingsAction.SetMapFps(30))
             assertEquals(30, displayPreferences.settings.first { it.mapFps == 30 }.mapFps)
         }
+
+    @Test
+    fun `SetShowMusic persists via DisplayPreferences`() =
+        runTest {
+            val viewModel = SettingsViewModel(displayPreferences, FontPreferences(application))
+            viewModel.onAction(SettingsAction.SetShowMusic(false))
+            assertEquals(false, displayPreferences.settings.first { !it.showMusic }.showMusic)
+        }
 }

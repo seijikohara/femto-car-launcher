@@ -21,6 +21,9 @@ internal data class SettingsUiState(
     val mapStyle: MapStyleSetting,
     val mapTiltDeg: Int,
     val mapZoom: Int,
+    val showCalendar: Boolean,
+    val showWeather: Boolean,
+    val showMusic: Boolean,
     val fontTheme: FontTheme,
 ) {
     companion object {
@@ -38,6 +41,9 @@ internal data class SettingsUiState(
                 mapStyle = DisplaySettings.Default.mapStyle,
                 mapTiltDeg = DisplaySettings.Default.mapTiltDeg,
                 mapZoom = DisplaySettings.Default.mapZoom,
+                showCalendar = DisplaySettings.Default.showCalendar,
+                showWeather = DisplaySettings.Default.showWeather,
+                showMusic = DisplaySettings.Default.showMusic,
                 fontTheme = FontTheme.INTER,
             )
     }
@@ -83,6 +89,18 @@ internal sealed interface SettingsAction {
 
     data class SetMapZoom(
         val value: Int,
+    ) : SettingsAction
+
+    data class SetShowCalendar(
+        val value: Boolean,
+    ) : SettingsAction
+
+    data class SetShowWeather(
+        val value: Boolean,
+    ) : SettingsAction
+
+    data class SetShowMusic(
+        val value: Boolean,
     ) : SettingsAction
 
     data class SetFontTheme(

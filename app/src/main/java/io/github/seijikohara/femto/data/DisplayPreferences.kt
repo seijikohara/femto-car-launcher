@@ -55,6 +55,12 @@ internal data class DisplaySettings(
     val mapStyle: MapStyleSetting,
     val mapTiltDeg: Int,
     val mapZoom: Int,
+    // Info-pane card visibility. Each card defaults to shown so a fresh install
+    // renders the full dashboard; hiding one lets the remaining cards (or the map)
+    // reflow into the freed space.
+    val showCalendar: Boolean,
+    val showWeather: Boolean,
+    val showMusic: Boolean,
 ) {
     companion object {
         val Default =
@@ -69,6 +75,9 @@ internal data class DisplaySettings(
                 mapStyle = MapStyleSetting.AUTO,
                 mapTiltDeg = DEFAULT_MAP_TILT_DEG,
                 mapZoom = DEFAULT_MAP_ZOOM,
+                showCalendar = true,
+                showWeather = true,
+                showMusic = true,
             )
     }
 }
@@ -98,6 +107,9 @@ internal class DisplayPreferences(
                 mapStyle = prefs[MAP_STYLE_KEY].toEnumOr(MapStyleSetting.AUTO),
                 mapTiltDeg = prefs[MAP_TILT_KEY] ?: DEFAULT_MAP_TILT_DEG,
                 mapZoom = prefs[MAP_ZOOM_KEY] ?: DEFAULT_MAP_ZOOM,
+                showCalendar = prefs[SHOW_CALENDAR_KEY] ?: true,
+                showWeather = prefs[SHOW_WEATHER_KEY] ?: true,
+                showMusic = prefs[SHOW_MUSIC_KEY] ?: true,
             )
         }
 
@@ -123,6 +135,12 @@ internal class DisplayPreferences(
 
     suspend fun setMapZoom(value: Int) = context.displayDataStore.edit { it[MAP_ZOOM_KEY] = value }
 
+    suspend fun setShowCalendar(value: Boolean) = context.displayDataStore.edit { it[SHOW_CALENDAR_KEY] = value }
+
+    suspend fun setShowWeather(value: Boolean) = context.displayDataStore.edit { it[SHOW_WEATHER_KEY] = value }
+
+    suspend fun setShowMusic(value: Boolean) = context.displayDataStore.edit { it[SHOW_MUSIC_KEY] = value }
+
     private companion object {
         val THEME_KEY = stringPreferencesKey("theme_mode")
         val SPEED_KEY = stringPreferencesKey("speed_unit")
@@ -134,6 +152,9 @@ internal class DisplayPreferences(
         val MAP_STYLE_KEY = stringPreferencesKey("map_style")
         val MAP_TILT_KEY = intPreferencesKey("map_tilt_deg")
         val MAP_ZOOM_KEY = intPreferencesKey("map_zoom")
+        val SHOW_CALENDAR_KEY = booleanPreferencesKey("show_calendar")
+        val SHOW_WEATHER_KEY = booleanPreferencesKey("show_weather")
+        val SHOW_MUSIC_KEY = booleanPreferencesKey("show_music")
     }
 }
 
