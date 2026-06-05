@@ -31,6 +31,7 @@ internal class SettingsViewModel(
                 mapStyle = display.mapStyle,
                 mapTiltDeg = display.mapTiltDeg,
                 mapZoom = display.mapZoom,
+                mapRenderPercent = display.mapRenderPercent,
                 showCalendar = display.showCalendar,
                 showWeather = display.showWeather,
                 showMusic = display.showMusic,
@@ -52,6 +53,7 @@ internal class SettingsViewModel(
                 is SettingsAction.SetMapStyle -> displayPreferences.setMapStyle(action.value)
                 is SettingsAction.SetMapTilt -> displayPreferences.setMapTilt(action.value)
                 is SettingsAction.SetMapZoom -> displayPreferences.setMapZoom(action.value)
+                is SettingsAction.SetMapRenderPercent -> displayPreferences.setMapRenderPercent(action.value)
                 is SettingsAction.SetShowCalendar -> displayPreferences.setShowCalendar(action.value)
                 is SettingsAction.SetShowWeather -> displayPreferences.setShowWeather(action.value)
                 is SettingsAction.SetShowMusic -> displayPreferences.setShowMusic(action.value)

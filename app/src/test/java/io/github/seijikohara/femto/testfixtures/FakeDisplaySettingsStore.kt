@@ -46,6 +46,8 @@ internal class FakeDisplaySettingsStore(
 
     override suspend fun setMapZoom(value: Int) = state.update { it.copy(mapZoom = value) }
 
+    override suspend fun setMapRenderPercent(value: Int) = state.update { it.copy(mapRenderPercent = value) }
+
     override suspend fun setShowCalendar(value: Boolean) = state.update { it.copy(showCalendar = value) }
 
     override suspend fun setShowWeather(value: Boolean) = state.update { it.copy(showWeather = value) }

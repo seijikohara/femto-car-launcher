@@ -67,13 +67,15 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 // User-tunable map rendering config (derived from DisplaySettings): target frame
-// rate, 3D buildings, light/dark style, oblique tilt, and zoom.
+// rate, 3D buildings, light/dark style, oblique tilt, zoom, and the render
+// resolution percent (lower renders a smaller bitmap, faster, upscaled to fill).
 internal data class MapConfig(
     val fps: Int = 10,
     val buildings3d: Boolean = true,
     val style: MapStyleSetting = MapStyleSetting.AUTO,
     val tiltDeg: Int = 55,
     val zoom: Int = 16,
+    val renderPercent: Int = 100,
 )
 
 /**
@@ -137,6 +139,15 @@ private fun SnapshotMap(
         }
     val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
     val heightPx = with(LocalDensity.current) { maxHeight.roundToPx() }
+    // Render at a fraction of the panel resolution; the Image upscales it to fill,
+    // so a lower percent rasterizes fewer pixels (faster render, higher achievable
+    // frame rate) at the cost of sharpness.
+    val renderPercent = mapConfig.renderPercent.coerceIn(1, 100)
+    val renderWidthPx = (widthPx * renderPercent / 100).coerceAtLeast(1)
+    val renderHeightPx = (heightPx * renderPercent / 100).coerceAtLeast(1)
+    // The snapshot pixels are upscaled to layout pixels by this factor, so the
+    // marker (placed in layout pixels) scales the snapshot pixel it rendered at.
+    val markerScale = widthPx.toFloat() / renderWidthPx
 
     var frame by remember { mutableStateOf<MapFrame?>(null) }
     var failed by remember { mutableStateOf(false) }
@@ -145,9 +156,9 @@ private fun SnapshotMap(
     val bearingHolder = remember { floatArrayOf(0f) }
     val currentLocation = rememberUpdatedState(location)
 
-    // One reusable snapshotter, rebuilt only when the panel size or theme changes.
+    // One reusable snapshotter, rebuilt only when the render size or theme changes.
     val snapshotter =
-        remember(widthPx, heightPx, isDark, mapConfig.buildings3d) {
+        remember(renderWidthPx, renderHeightPx, isDark, mapConfig.buildings3d) {
             if (widthPx <= 0 || heightPx <= 0) {
                 null
             } else {
@@ -155,7 +166,7 @@ private fun SnapshotMap(
                 MapSnapshotter(
                     context,
                     MapSnapshotter
-                        .Options(widthPx, heightPx)
+                        .Options(renderWidthPx, renderHeightPx)
                         .withLogo(false)
                         // Suppress the snapshot's baked-in credit; the styled
                         // Compose [Attribution] overlay is the single source of the
@@ -185,7 +196,7 @@ private fun SnapshotMap(
                 val loc = currentLocation.value
                 if (shouldRerender(lastRendered, loc)) {
                     val camera = cameraFor(loc, bearingHolder, mapConfig.tiltDeg, mapConfig.zoom)
-                    val rendered = snap.render(camera, LatLng(loc.latitude, loc.longitude))
+                    val rendered = snap.render(camera, LatLng(loc.latitude, loc.longitude), markerScale)
                     if (rendered != null) {
                         frame = rendered
                         failed = false
@@ -236,13 +247,16 @@ private class MapFrame(
 private suspend fun MapSnapshotter.render(
     camera: CameraPosition,
     markerLatLng: LatLng,
+    markerScale: Float,
 ): MapFrame? =
     suspendCancellableCoroutine { cont ->
         setCameraPosition(camera)
         start(
             { snapshot ->
+                // pixelForLatLng is in snapshot (render-bitmap) pixels; scale to the
+                // layout pixels the upscaled Image occupies so the marker lands true.
                 val p = snapshot.pixelForLatLng(markerLatLng)
-                if (cont.isActive) cont.resume(MapFrame(snapshot.bitmap, p.x, p.y))
+                if (cont.isActive) cont.resume(MapFrame(snapshot.bitmap, p.x * markerScale, p.y * markerScale))
             },
             { _ -> if (cont.isActive) cont.resume(null) },
         )
@@ -354,8 +368,9 @@ private fun Attribution(modifier: Modifier = Modifier) =
     )
 
 // Current-location puck: a primary-coloured dot with a white ring, positioned by
-// the exact pixel the location rendered at (see MapFrame). offset {} takes layout
-// pixels, which match the snapshot pixels because the Image fills the panel 1:1.
+// the pixel the location rendered at (see MapFrame). offset {} takes layout
+// pixels; MapFrame already scaled the snapshot pixel to layout space, so an
+// upscaled (sub-100%) render still lands the marker on the true position.
 @Composable
 private fun LocationMarker(
     xPx: Float,
@@ -418,7 +433,9 @@ private const val BUILDING_COLOR_LIGHT = "#E7E3DC"
 private const val BUILDING_COLOR_DARK = "#2A2E33"
 
 // Re-render once a fix moves at least this far; below it the last frame is held.
-private const val REFRESH_DISTANCE_M = 8f
+// Kept small so the map follows movement in smaller steps (smoother panning); the
+// single-flight render + fps throttle still bound how often a frame is produced.
+private const val REFRESH_DISTANCE_M = 2f
 
 // Look-ahead: aim the camera this far ahead of the current position so the marker
 // sits low in the frame (above the speed overlay) with the road ahead visible.
