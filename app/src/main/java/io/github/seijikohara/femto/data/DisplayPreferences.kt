@@ -26,6 +26,13 @@ internal enum class ClockSetting { AUTO, TWELVE_HOUR, TWENTY_FOUR_HOUR }
 internal enum class FullscreenSetting { OFF, ON }
 
 /**
+ * Map refresh cadence. The snapshot map re-renders on movement; this caps how
+ * often it does so: RESPONSIVE (~2 Hz) trades battery for smoother motion,
+ * BALANCED (~1 Hz), BATTERY_SAVER (every few seconds).
+ */
+internal enum class MapRefreshSetting { RESPONSIVE, BALANCED, BATTERY_SAVER }
+
+/**
  * User display settings that override the locale / system defaults. Every value
  * defaults to the auto / system choice so a fresh install behaves exactly as
  * before the settings screen existed.
@@ -36,6 +43,7 @@ internal data class DisplaySettings(
     val temperatureUnit: TemperatureUnitSetting,
     val clock: ClockSetting,
     val fullscreen: FullscreenSetting,
+    val mapRefresh: MapRefreshSetting,
 ) {
     companion object {
         val Default =
@@ -45,6 +53,7 @@ internal data class DisplaySettings(
                 temperatureUnit = TemperatureUnitSetting.AUTO,
                 clock = ClockSetting.AUTO,
                 fullscreen = FullscreenSetting.OFF,
+                mapRefresh = MapRefreshSetting.RESPONSIVE,
             )
     }
 }
@@ -69,6 +78,7 @@ internal class DisplayPreferences(
                 temperatureUnit = prefs[TEMPERATURE_KEY].toEnumOr(TemperatureUnitSetting.AUTO),
                 clock = prefs[CLOCK_KEY].toEnumOr(ClockSetting.AUTO),
                 fullscreen = prefs[FULLSCREEN_KEY].toEnumOr(FullscreenSetting.OFF),
+                mapRefresh = prefs[MAP_REFRESH_KEY].toEnumOr(MapRefreshSetting.RESPONSIVE),
             )
         }
 
@@ -84,12 +94,16 @@ internal class DisplayPreferences(
     suspend fun setFullscreen(value: FullscreenSetting) =
         context.displayDataStore.edit { it[FULLSCREEN_KEY] = value.name }
 
+    suspend fun setMapRefresh(value: MapRefreshSetting) =
+        context.displayDataStore.edit { it[MAP_REFRESH_KEY] = value.name }
+
     private companion object {
         val THEME_KEY = stringPreferencesKey("theme_mode")
         val SPEED_KEY = stringPreferencesKey("speed_unit")
         val TEMPERATURE_KEY = stringPreferencesKey("temperature_unit")
         val CLOCK_KEY = stringPreferencesKey("clock")
         val FULLSCREEN_KEY = stringPreferencesKey("fullscreen")
+        val MAP_REFRESH_KEY = stringPreferencesKey("map_refresh")
     }
 }
 
