@@ -46,7 +46,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPinOff
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.MapRefreshSetting
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -78,7 +77,8 @@ import kotlin.math.sin
  * normal Skia composition path and presents reliably; the snapshotter also
  * yields the oblique 3D view (camera tilt + building fill-extrusion) for free.
  *
- * The snapshot re-renders on movement, throttled by [MapRefreshSetting]. It is
+ * The snapshot re-renders on movement, capped at the map frame-rate (fps)
+ * setting. It is
  * single-flight (one render in flight at a time) and holds the previous frame
  * until the next is ready, so there is no flicker. Clock and speed overlays are
  * placed by the parent on top of this surface.
@@ -86,7 +86,7 @@ import kotlin.math.sin
 @Composable
 internal fun MapPanel(
     location: Location?,
-    mapRefresh: MapRefreshSetting,
+    mapFps: Int,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Surface(
@@ -101,7 +101,7 @@ internal fun MapPanel(
         if (location != null) {
             SnapshotMap(
                 location = location,
-                mapRefresh = mapRefresh,
+                mapFps = mapFps,
                 onTap = onTap,
                 modifier = Modifier.fillMaxSize(),
             )
@@ -114,7 +114,7 @@ internal fun MapPanel(
 @Composable
 private fun SnapshotMap(
     location: Location,
-    mapRefresh: MapRefreshSetting,
+    mapFps: Int,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) = BoxWithConstraints(modifier = modifier) {
@@ -152,9 +152,10 @@ private fun SnapshotMap(
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
-    LaunchedEffect(snapshotter, mapRefresh, lifecycleOwner) {
+    LaunchedEffect(snapshotter, mapFps, lifecycleOwner) {
         val snap = snapshotter ?: return@LaunchedEffect
-        val intervalMs = mapRefresh.intervalMs()
+        // Target frame interval; coerceAtLeast(1) guards 0 fps from divide-by-zero.
+        val intervalMs = 1_000L / mapFps.coerceAtLeast(1)
         // Render only while the launcher is visible; pause off-screen to drop the
         // render cost. lastRendered resets on each return to STARTED so a stale
         // map refreshes immediately when the dashboard comes back to the front.
@@ -274,13 +275,6 @@ private fun shouldRerender(
     last: Location?,
     current: Location,
 ): Boolean = last == null || last.distanceTo(current) >= REFRESH_DISTANCE_M
-
-private fun MapRefreshSetting.intervalMs(): Long =
-    when (this) {
-        MapRefreshSetting.RESPONSIVE -> RESPONSIVE_INTERVAL_MS
-        MapRefreshSetting.BALANCED -> BALANCED_INTERVAL_MS
-        MapRefreshSetting.BATTERY_SAVER -> BATTERY_SAVER_INTERVAL_MS
-    }
 
 private fun styleBuilderFor(
     context: Context,
@@ -408,8 +402,3 @@ private const val REFRESH_DISTANCE_M = 8f
 private const val FORWARD_OFFSET_M = 60.0
 private const val EARTH_RADIUS_M = 6_371_000.0
 private val MARKER_SIZE = 18.dp
-
-// Snapshot cadence per MapRefreshSetting — the minimum interval between renders.
-private const val RESPONSIVE_INTERVAL_MS = 500L
-private const val BALANCED_INTERVAL_MS = 1_000L
-private const val BATTERY_SAVER_INTERVAL_MS = 3_000L

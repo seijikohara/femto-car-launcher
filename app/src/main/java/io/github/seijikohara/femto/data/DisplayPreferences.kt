@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -25,12 +26,8 @@ internal enum class ClockSetting { AUTO, TWELVE_HOUR, TWENTY_FOUR_HOUR }
 /** Fullscreen: keep the system bars, or hide both status and navigation bars. */
 internal enum class FullscreenSetting { OFF, ON }
 
-/**
- * Map refresh cadence. The snapshot map re-renders on movement; this caps how
- * often it does so: RESPONSIVE (~2 Hz) trades battery for smoother motion,
- * BALANCED (~1 Hz), BATTERY_SAVER (every few seconds).
- */
-internal enum class MapRefreshSetting { RESPONSIVE, BALANCED, BATTERY_SAVER }
+/** Default target map frame rate (fps) before the user picks one. */
+internal const val DEFAULT_MAP_FPS = 10
 
 /**
  * User display settings that override the locale / system defaults. Every value
@@ -43,7 +40,9 @@ internal data class DisplaySettings(
     val temperatureUnit: TemperatureUnitSetting,
     val clock: ClockSetting,
     val fullscreen: FullscreenSetting,
-    val mapRefresh: MapRefreshSetting,
+    // Target map frame rate (fps): the snapshot map caps its re-render rate at
+    // this many frames per second. Clamped to the display's max refresh at use.
+    val mapFps: Int,
 ) {
     companion object {
         val Default =
@@ -53,7 +52,7 @@ internal data class DisplaySettings(
                 temperatureUnit = TemperatureUnitSetting.AUTO,
                 clock = ClockSetting.AUTO,
                 fullscreen = FullscreenSetting.OFF,
-                mapRefresh = MapRefreshSetting.RESPONSIVE,
+                mapFps = DEFAULT_MAP_FPS,
             )
     }
 }
@@ -78,7 +77,7 @@ internal class DisplayPreferences(
                 temperatureUnit = prefs[TEMPERATURE_KEY].toEnumOr(TemperatureUnitSetting.AUTO),
                 clock = prefs[CLOCK_KEY].toEnumOr(ClockSetting.AUTO),
                 fullscreen = prefs[FULLSCREEN_KEY].toEnumOr(FullscreenSetting.OFF),
-                mapRefresh = prefs[MAP_REFRESH_KEY].toEnumOr(MapRefreshSetting.RESPONSIVE),
+                mapFps = prefs[MAP_FPS_KEY] ?: DEFAULT_MAP_FPS,
             )
         }
 
@@ -94,8 +93,7 @@ internal class DisplayPreferences(
     suspend fun setFullscreen(value: FullscreenSetting) =
         context.displayDataStore.edit { it[FULLSCREEN_KEY] = value.name }
 
-    suspend fun setMapRefresh(value: MapRefreshSetting) =
-        context.displayDataStore.edit { it[MAP_REFRESH_KEY] = value.name }
+    suspend fun setMapFps(value: Int) = context.displayDataStore.edit { it[MAP_FPS_KEY] = value }
 
     private companion object {
         val THEME_KEY = stringPreferencesKey("theme_mode")
@@ -103,7 +101,7 @@ internal class DisplayPreferences(
         val TEMPERATURE_KEY = stringPreferencesKey("temperature_unit")
         val CLOCK_KEY = stringPreferencesKey("clock")
         val FULLSCREEN_KEY = stringPreferencesKey("fullscreen")
-        val MAP_REFRESH_KEY = stringPreferencesKey("map_refresh")
+        val MAP_FPS_KEY = intPreferencesKey("map_fps")
     }
 }
 
