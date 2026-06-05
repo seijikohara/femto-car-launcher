@@ -25,7 +25,7 @@ internal class SettingsViewModel(
                 temperatureUnit = display.temperatureUnit,
                 clock = display.clock,
                 fullscreen = display.fullscreen,
-                mapRefresh = display.mapRefresh,
+                mapFps = display.mapFps,
                 fontTheme = font,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState.Initial)
@@ -39,7 +39,7 @@ internal class SettingsViewModel(
                 is SettingsAction.SetTemperatureUnit -> displayPreferences.setTemperatureUnit(action.value)
                 is SettingsAction.SetClock -> displayPreferences.setClock(action.value)
                 is SettingsAction.SetFullscreen -> displayPreferences.setFullscreen(action.value)
-                is SettingsAction.SetMapRefresh -> displayPreferences.setMapRefresh(action.value)
+                is SettingsAction.SetMapFps -> displayPreferences.setMapFps(action.value)
                 is SettingsAction.SetFontTheme -> fontPreferences.setFontTheme(action.value)
             }
         }

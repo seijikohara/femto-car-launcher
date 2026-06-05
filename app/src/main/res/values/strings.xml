@@ -98,10 +98,8 @@
     <string name="settings_group_fullscreen">Fullscreen</string>
     <string name="settings_fullscreen_off">Off</string>
     <string name="settings_fullscreen_on">On</string>
-    <string name="settings_group_map_refresh">Map refresh</string>
-    <string name="settings_map_refresh_responsive">Responsive</string>
-    <string name="settings_map_refresh_balanced">Balanced</string>
-    <string name="settings_map_refresh_battery">Battery saver</string>
+    <string name="settings_group_map_refresh">Map frame rate</string>
+    <string name="settings_map_fps_value">%1$d fps</string>
     <string name="settings_open_notification_access">Notification access</string>
     <string name="settings_open_system_settings">System settings</string>
 </resources>

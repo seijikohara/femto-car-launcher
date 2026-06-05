@@ -17,12 +17,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
@@ -30,7 +33,6 @@ import com.composables.icons.lucide.Lucide
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.FullscreenSetting
-import io.github.seijikohara.femto.data.MapRefreshSetting
 import io.github.seijikohara.femto.data.SpeedUnitSetting
 import io.github.seijikohara.femto.data.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.ThemeMode
@@ -38,6 +40,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.FontTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import kotlin.math.roundToInt
 
 /**
  * In-app settings: theme, units, clock, font, and links out to the relevant
@@ -126,16 +129,13 @@ internal fun SettingsScreen(
             onSelect = { onAction(SettingsAction.SetFullscreen(it)) },
         )
 
-        SettingGroup(
+        val maxFps = rememberMaxDisplayFps()
+        SliderSetting(
             title = stringResource(R.string.settings_group_map_refresh),
-            options =
-                listOf(
-                    MapRefreshSetting.RESPONSIVE to stringResource(R.string.settings_map_refresh_responsive),
-                    MapRefreshSetting.BALANCED to stringResource(R.string.settings_map_refresh_balanced),
-                    MapRefreshSetting.BATTERY_SAVER to stringResource(R.string.settings_map_refresh_battery),
-                ),
-            selected = uiState.mapRefresh,
-            onSelect = { onAction(SettingsAction.SetMapRefresh(it)) },
+            valueLabel = stringResource(R.string.settings_map_fps_value, uiState.mapFps),
+            value = uiState.mapFps,
+            range = MIN_MAP_FPS..maxFps,
+            onValueChange = { onAction(SettingsAction.SetMapFps(it)) },
         )
 
         SettingGroup(
@@ -270,6 +270,57 @@ private fun SystemGroup(
         Text(text = stringResource(R.string.settings_open_system_settings))
     }
 }
+
+@Composable
+private fun SliderSetting(
+    title: String,
+    valueLabel: String,
+    value: Int,
+    range: IntRange,
+    onValueChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) = Column(
+    modifier = modifier.fillMaxWidth(),
+    verticalArrangement = Arrangement.spacedBy(4.dp),
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = valueLabel,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+    Slider(
+        value = value.coerceIn(range.first, range.last).toFloat(),
+        onValueChange = { onValueChange(it.roundToInt().coerceIn(range.first, range.last)) },
+        valueRange = range.first.toFloat()..range.last.toFloat(),
+    )
+}
+
+// The display's maximum refresh rate (fps), the ceiling for the map frame-rate
+// slider. Falls back to 60 when the modes cannot be read; clamped to a sane band.
+@Composable
+private fun rememberMaxDisplayFps(): Int {
+    val context = LocalContext.current
+    return remember(context) {
+        val fromModes = context.display?.supportedModes?.maxOfOrNull { it.refreshRate }
+        val refresh = fromModes ?: context.display?.refreshRate ?: DEFAULT_MAX_FPS
+        refresh.roundToInt().coerceIn(MIN_MAP_FPS, MAX_MAP_FPS_CEILING)
+    }
+}
+
+private const val MIN_MAP_FPS = 1
+private const val MAX_MAP_FPS_CEILING = 120
+private const val DEFAULT_MAX_FPS = 60f
 
 // A human-readable label for a font theme (e.g. INTER -> "Inter").
 private fun FontTheme.displayName(): String = name.lowercase().replaceFirstChar(Char::uppercaseChar)

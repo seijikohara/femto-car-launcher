@@ -5,7 +5,6 @@ import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.data.DisplayPreferences
 import io.github.seijikohara.femto.data.FontPreferences
 import io.github.seijikohara.femto.data.FullscreenSetting
-import io.github.seijikohara.femto.data.MapRefreshSetting
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -55,13 +54,10 @@ class SettingsViewModelTest {
         }
 
     @Test
-    fun `SetMapRefresh persists via DisplayPreferences`() =
+    fun `SetMapFps persists via DisplayPreferences`() =
         runTest {
             val viewModel = SettingsViewModel(displayPreferences, FontPreferences(application))
-            viewModel.onAction(SettingsAction.SetMapRefresh(MapRefreshSetting.BALANCED))
-            assertEquals(
-                MapRefreshSetting.BALANCED,
-                displayPreferences.settings.first { it.mapRefresh == MapRefreshSetting.BALANCED }.mapRefresh,
-            )
+            viewModel.onAction(SettingsAction.SetMapFps(30))
+            assertEquals(30, displayPreferences.settings.first { it.mapFps == 30 }.mapFps)
         }
 }
