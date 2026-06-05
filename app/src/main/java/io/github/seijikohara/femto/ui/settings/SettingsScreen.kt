@@ -33,6 +33,7 @@ import com.composables.icons.lucide.Lucide
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.FullscreenSetting
+import io.github.seijikohara.femto.data.MapStyleSetting
 import io.github.seijikohara.femto.data.SpeedUnitSetting
 import io.github.seijikohara.femto.data.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.ThemeMode
@@ -122,8 +123,8 @@ internal fun SettingsScreen(
             title = stringResource(R.string.settings_group_fullscreen),
             options =
                 listOf(
-                    FullscreenSetting.OFF to stringResource(R.string.settings_fullscreen_off),
-                    FullscreenSetting.ON to stringResource(R.string.settings_fullscreen_on),
+                    FullscreenSetting.OFF to stringResource(R.string.settings_off),
+                    FullscreenSetting.ON to stringResource(R.string.settings_on),
                 ),
             selected = uiState.fullscreen,
             onSelect = { onAction(SettingsAction.SetFullscreen(it)) },
@@ -136,6 +137,45 @@ internal fun SettingsScreen(
             value = uiState.mapFps,
             range = MIN_MAP_FPS..maxFps,
             onValueChange = { onAction(SettingsAction.SetMapFps(it)) },
+        )
+
+        SettingGroup(
+            title = stringResource(R.string.settings_group_map_3d),
+            options =
+                listOf(
+                    false to stringResource(R.string.settings_off),
+                    true to stringResource(R.string.settings_on),
+                ),
+            selected = uiState.mapBuildings3d,
+            onSelect = { onAction(SettingsAction.SetMapBuildings3d(it)) },
+        )
+
+        SettingGroup(
+            title = stringResource(R.string.settings_group_map_style),
+            options =
+                listOf(
+                    MapStyleSetting.AUTO to stringResource(R.string.settings_option_auto),
+                    MapStyleSetting.LIGHT to stringResource(R.string.settings_theme_light),
+                    MapStyleSetting.DARK to stringResource(R.string.settings_theme_dark),
+                ),
+            selected = uiState.mapStyle,
+            onSelect = { onAction(SettingsAction.SetMapStyle(it)) },
+        )
+
+        SliderSetting(
+            title = stringResource(R.string.settings_group_map_tilt),
+            valueLabel = stringResource(R.string.settings_map_tilt_value, uiState.mapTiltDeg),
+            value = uiState.mapTiltDeg,
+            range = MIN_MAP_TILT..MAX_MAP_TILT,
+            onValueChange = { onAction(SettingsAction.SetMapTilt(it)) },
+        )
+
+        SliderSetting(
+            title = stringResource(R.string.settings_group_map_zoom),
+            valueLabel = stringResource(R.string.settings_map_zoom_value, uiState.mapZoom),
+            value = uiState.mapZoom,
+            range = MIN_MAP_ZOOM..MAX_MAP_ZOOM,
+            onValueChange = { onAction(SettingsAction.SetMapZoom(it)) },
         )
 
         SettingGroup(
@@ -312,15 +352,25 @@ private fun SliderSetting(
 private fun rememberMaxDisplayFps(): Int {
     val context = LocalContext.current
     return remember(context) {
-        val fromModes = context.display?.supportedModes?.maxOfOrNull { it.refreshRate }
-        val refresh = fromModes ?: context.display?.refreshRate ?: DEFAULT_MAX_FPS
-        refresh.roundToInt().coerceIn(MIN_MAP_FPS, MAX_MAP_FPS_CEILING)
+        // Context.getDisplay() is non-null on a visual (Activity) context but
+        // throws on a non-visual one (e.g. a preview), so guard with runCatching
+        // and fall back to 60 fps rather than null-check a non-null receiver.
+        runCatching {
+            val display = context.display
+            display.supportedModes.maxOfOrNull { it.refreshRate } ?: display.refreshRate
+        }.getOrDefault(DEFAULT_MAX_FPS)
+            .roundToInt()
+            .coerceIn(MIN_MAP_FPS, MAX_MAP_FPS_CEILING)
     }
 }
 
 private const val MIN_MAP_FPS = 1
 private const val MAX_MAP_FPS_CEILING = 120
 private const val DEFAULT_MAX_FPS = 60f
+private const val MIN_MAP_TILT = 0
+private const val MAX_MAP_TILT = 60
+private const val MIN_MAP_ZOOM = 12
+private const val MAX_MAP_ZOOM = 19
 
 // A human-readable label for a font theme (e.g. INTER -> "Inter").
 private fun FontTheme.displayName(): String = name.lowercase().replaceFirstChar(Char::uppercaseChar)

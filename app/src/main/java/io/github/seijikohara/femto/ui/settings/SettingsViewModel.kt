@@ -26,6 +26,10 @@ internal class SettingsViewModel(
                 clock = display.clock,
                 fullscreen = display.fullscreen,
                 mapFps = display.mapFps,
+                mapBuildings3d = display.mapBuildings3d,
+                mapStyle = display.mapStyle,
+                mapTiltDeg = display.mapTiltDeg,
+                mapZoom = display.mapZoom,
                 fontTheme = font,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState.Initial)
@@ -40,6 +44,10 @@ internal class SettingsViewModel(
                 is SettingsAction.SetClock -> displayPreferences.setClock(action.value)
                 is SettingsAction.SetFullscreen -> displayPreferences.setFullscreen(action.value)
                 is SettingsAction.SetMapFps -> displayPreferences.setMapFps(action.value)
+                is SettingsAction.SetMapBuildings3d -> displayPreferences.setMapBuildings3d(action.value)
+                is SettingsAction.SetMapStyle -> displayPreferences.setMapStyle(action.value)
+                is SettingsAction.SetMapTilt -> displayPreferences.setMapTilt(action.value)
+                is SettingsAction.SetMapZoom -> displayPreferences.setMapZoom(action.value)
                 is SettingsAction.SetFontTheme -> fontPreferences.setFontTheme(action.value)
             }
         }

@@ -44,7 +44,7 @@ class DashboardScaffoldTest {
                     is24Hour = true,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     temperatureUnit = TemperatureUnit.CELSIUS,
-                    mapFps = 10,
+                    mapConfig = MapConfig(),
                     onAction = {},
                 )
             }

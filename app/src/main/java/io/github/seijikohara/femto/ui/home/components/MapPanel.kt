@@ -46,6 +46,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPinOff
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.MapStyleSetting
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -65,6 +66,16 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
+// User-tunable map rendering config (derived from DisplaySettings): target frame
+// rate, 3D buildings, light/dark style, oblique tilt, and zoom.
+internal data class MapConfig(
+    val fps: Int = 10,
+    val buildings3d: Boolean = true,
+    val style: MapStyleSetting = MapStyleSetting.AUTO,
+    val tiltDeg: Int = 55,
+    val zoom: Int = 16,
+)
+
 /**
  * Map tile surface + permission fallback.
  *
@@ -78,15 +89,14 @@ import kotlin.math.sin
  * yields the oblique 3D view (camera tilt + building fill-extrusion) for free.
  *
  * The snapshot re-renders on movement, capped at the map frame-rate (fps)
- * setting. It is
- * single-flight (one render in flight at a time) and holds the previous frame
- * until the next is ready, so there is no flicker. Clock and speed overlays are
- * placed by the parent on top of this surface.
+ * setting. It is single-flight (one render in flight) and holds the previous
+ * frame until the next is ready, so there is no flicker. Clock and speed
+ * overlays are placed by the parent on top of this surface.
  */
 @Composable
 internal fun MapPanel(
     location: Location?,
-    mapFps: Int,
+    mapConfig: MapConfig,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Surface(
@@ -101,7 +111,7 @@ internal fun MapPanel(
         if (location != null) {
             SnapshotMap(
                 location = location,
-                mapFps = mapFps,
+                mapConfig = mapConfig,
                 onTap = onTap,
                 modifier = Modifier.fillMaxSize(),
             )
@@ -114,12 +124,17 @@ internal fun MapPanel(
 @Composable
 private fun SnapshotMap(
     location: Location,
-    mapFps: Int,
+    mapConfig: MapConfig,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) = BoxWithConstraints(modifier = modifier) {
     val context = LocalContext.current
-    val isDark = isSystemInDarkTheme()
+    val isDark =
+        when (mapConfig.style) {
+            MapStyleSetting.AUTO -> isSystemInDarkTheme()
+            MapStyleSetting.LIGHT -> false
+            MapStyleSetting.DARK -> true
+        }
     val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
     val heightPx = with(LocalDensity.current) { maxHeight.roundToPx() }
 
@@ -132,7 +147,7 @@ private fun SnapshotMap(
 
     // One reusable snapshotter, rebuilt only when the panel size or theme changes.
     val snapshotter =
-        remember(widthPx, heightPx, isDark) {
+        remember(widthPx, heightPx, isDark, mapConfig.buildings3d) {
             if (widthPx <= 0 || heightPx <= 0) {
                 null
             } else {
@@ -142,7 +157,7 @@ private fun SnapshotMap(
                     MapSnapshotter
                         .Options(widthPx, heightPx)
                         .withLogo(false)
-                        .withStyleBuilder(styleBuilderFor(context, isDark)),
+                        .withStyleBuilder(styleBuilderFor(context, isDark, mapConfig.buildings3d)),
                 )
             }
         }
@@ -152,10 +167,10 @@ private fun SnapshotMap(
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
-    LaunchedEffect(snapshotter, mapFps, lifecycleOwner) {
+    LaunchedEffect(snapshotter, mapConfig, lifecycleOwner) {
         val snap = snapshotter ?: return@LaunchedEffect
         // Target frame interval; coerceAtLeast(1) guards 0 fps from divide-by-zero.
-        val intervalMs = 1_000L / mapFps.coerceAtLeast(1)
+        val intervalMs = 1_000L / mapConfig.fps.coerceAtLeast(1)
         // Render only while the launcher is visible; pause off-screen to drop the
         // render cost. lastRendered resets on each return to STARTED so a stale
         // map refreshes immediately when the dashboard comes back to the front.
@@ -164,7 +179,8 @@ private fun SnapshotMap(
             while (isActive) {
                 val loc = currentLocation.value
                 if (shouldRerender(lastRendered, loc)) {
-                    val rendered = snap.render(cameraFor(loc, bearingHolder), LatLng(loc.latitude, loc.longitude))
+                    val camera = cameraFor(loc, bearingHolder, mapConfig.tiltDeg, mapConfig.zoom)
+                    val rendered = snap.render(camera, LatLng(loc.latitude, loc.longitude))
                     if (rendered != null) {
                         frame = rendered
                         failed = false
@@ -231,6 +247,8 @@ private suspend fun MapSnapshotter.render(
 private fun cameraFor(
     location: Location,
     bearingHolder: FloatArray,
+    tiltDeg: Int,
+    zoom: Int,
 ): CameraPosition {
     val bearing = location.carriedBearing(bearingHolder).toDouble()
     // Aim the camera ahead of the current position (along the heading) so the
@@ -240,8 +258,8 @@ private fun cameraFor(
     return CameraPosition
         .Builder()
         .target(target)
-        .zoom(MAP_ZOOM)
-        .tilt(MAP_TILT)
+        .zoom(zoom.toDouble())
+        .tilt(tiltDeg.toDouble())
         .bearing(bearing)
         .build()
 }
@@ -279,6 +297,7 @@ private fun shouldRerender(
 private fun styleBuilderFor(
     context: Context,
     isDark: Boolean,
+    buildings3d: Boolean,
 ): Style.Builder {
     val base =
         if (isDark) {
@@ -295,7 +314,7 @@ private fun styleBuilderFor(
     // MapSnapshotter exposes no post-load style to mutate. Both Positron and the
     // bundled dark style carry OpenStreetMap buildings on the same OpenMapTiles
     // "openmaptiles" vector source / "building" source-layer.
-    return base.withLayer(buildingExtrusionLayer(isDark))
+    return if (buildings3d) base.withLayer(buildingExtrusionLayer(isDark)) else base
 }
 
 private fun buildingExtrusionLayer(isDark: Boolean): FillExtrusionLayer =
@@ -382,7 +401,6 @@ private fun Fallback(modifier: Modifier = Modifier) =
 // internal so MapSnapshotRenderTest renders the SAME style host / zoom the panel
 // uses, keeping the OpenFreeMap style URL and zoom a single source of truth.
 internal const val MAP_ZOOM = 16.5
-private const val MAP_TILT = 55.0
 internal const val POSITRON_STYLE_URL = "https://tiles.openfreemap.org/styles/positron"
 private const val DARK_STYLE_ASSET = "map/dark.json"
 

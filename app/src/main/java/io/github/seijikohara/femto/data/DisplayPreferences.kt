@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -29,6 +30,13 @@ internal enum class FullscreenSetting { OFF, ON }
 /** Default target map frame rate (fps) before the user picks one. */
 internal const val DEFAULT_MAP_FPS = 10
 
+/** Map light/dark style: follow the system theme, or force light / dark. */
+internal enum class MapStyleSetting { AUTO, LIGHT, DARK }
+
+/** Default oblique-camera tilt (degrees) and zoom level for the map. */
+internal const val DEFAULT_MAP_TILT_DEG = 55
+internal const val DEFAULT_MAP_ZOOM = 16
+
 /**
  * User display settings that override the locale / system defaults. Every value
  * defaults to the auto / system choice so a fresh install behaves exactly as
@@ -43,6 +51,10 @@ internal data class DisplaySettings(
     // Target map frame rate (fps): the snapshot map caps its re-render rate at
     // this many frames per second. Clamped to the display's max refresh at use.
     val mapFps: Int,
+    val mapBuildings3d: Boolean,
+    val mapStyle: MapStyleSetting,
+    val mapTiltDeg: Int,
+    val mapZoom: Int,
 ) {
     companion object {
         val Default =
@@ -53,6 +65,10 @@ internal data class DisplaySettings(
                 clock = ClockSetting.AUTO,
                 fullscreen = FullscreenSetting.OFF,
                 mapFps = DEFAULT_MAP_FPS,
+                mapBuildings3d = true,
+                mapStyle = MapStyleSetting.AUTO,
+                mapTiltDeg = DEFAULT_MAP_TILT_DEG,
+                mapZoom = DEFAULT_MAP_ZOOM,
             )
     }
 }
@@ -78,6 +94,10 @@ internal class DisplayPreferences(
                 clock = prefs[CLOCK_KEY].toEnumOr(ClockSetting.AUTO),
                 fullscreen = prefs[FULLSCREEN_KEY].toEnumOr(FullscreenSetting.OFF),
                 mapFps = prefs[MAP_FPS_KEY] ?: DEFAULT_MAP_FPS,
+                mapBuildings3d = prefs[MAP_BUILDINGS_KEY] ?: true,
+                mapStyle = prefs[MAP_STYLE_KEY].toEnumOr(MapStyleSetting.AUTO),
+                mapTiltDeg = prefs[MAP_TILT_KEY] ?: DEFAULT_MAP_TILT_DEG,
+                mapZoom = prefs[MAP_ZOOM_KEY] ?: DEFAULT_MAP_ZOOM,
             )
         }
 
@@ -95,6 +115,14 @@ internal class DisplayPreferences(
 
     suspend fun setMapFps(value: Int) = context.displayDataStore.edit { it[MAP_FPS_KEY] = value }
 
+    suspend fun setMapBuildings3d(value: Boolean) = context.displayDataStore.edit { it[MAP_BUILDINGS_KEY] = value }
+
+    suspend fun setMapStyle(value: MapStyleSetting) = context.displayDataStore.edit { it[MAP_STYLE_KEY] = value.name }
+
+    suspend fun setMapTilt(value: Int) = context.displayDataStore.edit { it[MAP_TILT_KEY] = value }
+
+    suspend fun setMapZoom(value: Int) = context.displayDataStore.edit { it[MAP_ZOOM_KEY] = value }
+
     private companion object {
         val THEME_KEY = stringPreferencesKey("theme_mode")
         val SPEED_KEY = stringPreferencesKey("speed_unit")
@@ -102,6 +130,10 @@ internal class DisplayPreferences(
         val CLOCK_KEY = stringPreferencesKey("clock")
         val FULLSCREEN_KEY = stringPreferencesKey("fullscreen")
         val MAP_FPS_KEY = intPreferencesKey("map_fps")
+        val MAP_BUILDINGS_KEY = booleanPreferencesKey("map_buildings_3d")
+        val MAP_STYLE_KEY = stringPreferencesKey("map_style")
+        val MAP_TILT_KEY = intPreferencesKey("map_tilt_deg")
+        val MAP_ZOOM_KEY = intPreferencesKey("map_zoom")
     }
 }
 

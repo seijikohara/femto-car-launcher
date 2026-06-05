@@ -87,6 +87,8 @@
     <string name="settings_group_font">Font</string>
     <string name="settings_group_system">System</string>
     <string name="settings_option_auto">Auto</string>
+    <string name="settings_off">Off</string>
+    <string name="settings_on">On</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
     <string name="settings_speed_km">km/h</string>
@@ -96,10 +98,14 @@
     <string name="settings_clock_12">12-hour</string>
     <string name="settings_clock_24">24-hour</string>
     <string name="settings_group_fullscreen">Fullscreen</string>
-    <string name="settings_fullscreen_off">Off</string>
-    <string name="settings_fullscreen_on">On</string>
     <string name="settings_group_map_refresh">Map frame rate</string>
     <string name="settings_map_fps_value">%1$d fps</string>
+    <string name="settings_group_map_3d">3D buildings</string>
+    <string name="settings_group_map_style">Map style</string>
+    <string name="settings_group_map_tilt">Map tilt</string>
+    <string name="settings_group_map_zoom">Map zoom</string>
+    <string name="settings_map_tilt_value">%1$d°</string>
+    <string name="settings_map_zoom_value">z%1$d</string>
     <string name="settings_open_notification_access">Notification access</string>
     <string name="settings_open_system_settings">System settings</string>
 </resources>
