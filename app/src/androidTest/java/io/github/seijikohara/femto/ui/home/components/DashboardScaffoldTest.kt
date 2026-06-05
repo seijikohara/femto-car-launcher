@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import io.github.seijikohara.femto.data.ClockTick
+import io.github.seijikohara.femto.data.MapRefreshSetting
 import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
@@ -44,6 +45,7 @@ class DashboardScaffoldTest {
                     is24Hour = true,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     temperatureUnit = TemperatureUnit.CELSIUS,
+                    mapRefresh = MapRefreshSetting.RESPONSIVE,
                     onAction = {},
                 )
             }
