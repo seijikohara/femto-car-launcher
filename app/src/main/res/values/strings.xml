@@ -80,6 +80,11 @@
     <!-- Settings -->
     <string name="settings_title">Settings</string>
     <string name="settings_back">Back</string>
+    <string name="settings_cancel">Cancel</string>
+    <string name="settings_section_display">Display</string>
+    <string name="settings_section_units">Units</string>
+    <string name="settings_section_map">Map</string>
+    <string name="settings_section_panels">Panels</string>
     <string name="settings_group_theme">Theme</string>
     <string name="settings_group_speed">Speed &amp; distance</string>
     <string name="settings_group_temperature">Temperature</string>
@@ -87,8 +92,6 @@
     <string name="settings_group_font">Font</string>
     <string name="settings_group_system">System</string>
     <string name="settings_option_auto">Auto</string>
-    <string name="settings_off">Off</string>
-    <string name="settings_on">On</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
     <string name="settings_speed_km">km/h</string>
