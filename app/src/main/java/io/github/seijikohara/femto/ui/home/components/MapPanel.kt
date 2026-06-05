@@ -157,6 +157,11 @@ private fun SnapshotMap(
                     MapSnapshotter
                         .Options(widthPx, heightPx)
                         .withLogo(false)
+                        // Suppress the snapshot's baked-in credit; the styled
+                        // Compose [Attribution] overlay is the single source of the
+                        // OSM / OpenMapTiles / OpenFreeMap credit (avoids the
+                        // duplicate text the baked-in attribution drew on-device).
+                        .withAttribution(false)
                         .withStyleBuilder(styleBuilderFor(context, isDark, mapConfig.buildings3d)),
                 )
             }
