@@ -85,6 +85,41 @@ internal data class DisplaySettings(
 private val Context.displayDataStore: DataStore<Preferences> by preferencesDataStore(name = "display_preferences")
 
 /**
+ * Read/write surface for [DisplaySettings]. [DisplayPreferences] is the
+ * DataStore-backed production implementation; tests substitute an in-memory fake
+ * so the view-model can be exercised without real DataStore IO.
+ */
+internal interface DisplaySettingsStore {
+    val settings: Flow<DisplaySettings>
+
+    suspend fun setThemeMode(value: ThemeMode)
+
+    suspend fun setSpeedUnit(value: SpeedUnitSetting)
+
+    suspend fun setTemperatureUnit(value: TemperatureUnitSetting)
+
+    suspend fun setClock(value: ClockSetting)
+
+    suspend fun setFullscreen(value: FullscreenSetting)
+
+    suspend fun setMapFps(value: Int)
+
+    suspend fun setMapBuildings3d(value: Boolean)
+
+    suspend fun setMapStyle(value: MapStyleSetting)
+
+    suspend fun setMapTilt(value: Int)
+
+    suspend fun setMapZoom(value: Int)
+
+    suspend fun setShowCalendar(value: Boolean)
+
+    suspend fun setShowWeather(value: Boolean)
+
+    suspend fun setShowMusic(value: Boolean)
+}
+
+/**
  * DataStore-backed accessor for [DisplaySettings].
  *
  * Each enum is stored by name and decoded defensively (an unknown / renamed
@@ -93,8 +128,8 @@ private val Context.displayDataStore: DataStore<Preferences> by preferencesDataS
  */
 internal class DisplayPreferences(
     private val context: Context,
-) {
-    val settings: Flow<DisplaySettings> =
+) : DisplaySettingsStore {
+    override val settings: Flow<DisplaySettings> =
         context.displayDataStore.data.map { prefs ->
             DisplaySettings(
                 themeMode = prefs[THEME_KEY].toEnumOr(ThemeMode.SYSTEM),
@@ -113,33 +148,59 @@ internal class DisplayPreferences(
             )
         }
 
-    suspend fun setThemeMode(value: ThemeMode) = context.displayDataStore.edit { it[THEME_KEY] = value.name }
+    // Block bodies (returning Unit): edit() yields Preferences, which the
+    // DisplaySettingsStore contract intentionally discards.
+    override suspend fun setThemeMode(value: ThemeMode) {
+        context.displayDataStore.edit { it[THEME_KEY] = value.name }
+    }
 
-    suspend fun setSpeedUnit(value: SpeedUnitSetting) = context.displayDataStore.edit { it[SPEED_KEY] = value.name }
+    override suspend fun setSpeedUnit(value: SpeedUnitSetting) {
+        context.displayDataStore.edit { it[SPEED_KEY] = value.name }
+    }
 
-    suspend fun setTemperatureUnit(value: TemperatureUnitSetting) =
+    override suspend fun setTemperatureUnit(value: TemperatureUnitSetting) {
         context.displayDataStore.edit { it[TEMPERATURE_KEY] = value.name }
+    }
 
-    suspend fun setClock(value: ClockSetting) = context.displayDataStore.edit { it[CLOCK_KEY] = value.name }
+    override suspend fun setClock(value: ClockSetting) {
+        context.displayDataStore.edit { it[CLOCK_KEY] = value.name }
+    }
 
-    suspend fun setFullscreen(value: FullscreenSetting) =
+    override suspend fun setFullscreen(value: FullscreenSetting) {
         context.displayDataStore.edit { it[FULLSCREEN_KEY] = value.name }
+    }
 
-    suspend fun setMapFps(value: Int) = context.displayDataStore.edit { it[MAP_FPS_KEY] = value }
+    override suspend fun setMapFps(value: Int) {
+        context.displayDataStore.edit { it[MAP_FPS_KEY] = value }
+    }
 
-    suspend fun setMapBuildings3d(value: Boolean) = context.displayDataStore.edit { it[MAP_BUILDINGS_KEY] = value }
+    override suspend fun setMapBuildings3d(value: Boolean) {
+        context.displayDataStore.edit { it[MAP_BUILDINGS_KEY] = value }
+    }
 
-    suspend fun setMapStyle(value: MapStyleSetting) = context.displayDataStore.edit { it[MAP_STYLE_KEY] = value.name }
+    override suspend fun setMapStyle(value: MapStyleSetting) {
+        context.displayDataStore.edit { it[MAP_STYLE_KEY] = value.name }
+    }
 
-    suspend fun setMapTilt(value: Int) = context.displayDataStore.edit { it[MAP_TILT_KEY] = value }
+    override suspend fun setMapTilt(value: Int) {
+        context.displayDataStore.edit { it[MAP_TILT_KEY] = value }
+    }
 
-    suspend fun setMapZoom(value: Int) = context.displayDataStore.edit { it[MAP_ZOOM_KEY] = value }
+    override suspend fun setMapZoom(value: Int) {
+        context.displayDataStore.edit { it[MAP_ZOOM_KEY] = value }
+    }
 
-    suspend fun setShowCalendar(value: Boolean) = context.displayDataStore.edit { it[SHOW_CALENDAR_KEY] = value }
+    override suspend fun setShowCalendar(value: Boolean) {
+        context.displayDataStore.edit { it[SHOW_CALENDAR_KEY] = value }
+    }
 
-    suspend fun setShowWeather(value: Boolean) = context.displayDataStore.edit { it[SHOW_WEATHER_KEY] = value }
+    override suspend fun setShowWeather(value: Boolean) {
+        context.displayDataStore.edit { it[SHOW_WEATHER_KEY] = value }
+    }
 
-    suspend fun setShowMusic(value: Boolean) = context.displayDataStore.edit { it[SHOW_MUSIC_KEY] = value }
+    override suspend fun setShowMusic(value: Boolean) {
+        context.displayDataStore.edit { it[SHOW_MUSIC_KEY] = value }
+    }
 
     private companion object {
         val THEME_KEY = stringPreferencesKey("theme_mode")

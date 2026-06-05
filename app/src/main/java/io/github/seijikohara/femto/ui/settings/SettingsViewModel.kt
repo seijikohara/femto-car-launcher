@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.seijikohara.femto.data.DisplayPreferences
+import io.github.seijikohara.femto.data.DisplaySettingsStore
 import io.github.seijikohara.femto.data.FontPreferences
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -14,7 +15,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 internal class SettingsViewModel(
-    private val displayPreferences: DisplayPreferences,
+    private val displayPreferences: DisplaySettingsStore,
     private val fontPreferences: FontPreferences,
 ) : ViewModel() {
     val uiState: StateFlow<SettingsUiState> =
