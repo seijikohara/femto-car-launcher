@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -109,21 +111,42 @@ private fun PlayingState(
     nowPlaying: NowPlaying,
     onCommand: (MusicCommand) -> Unit,
     onLaunchSource: (String) -> Unit,
-) = Box(modifier = Modifier.fillMaxSize()) {
+) = Row(
+    modifier =
+        Modifier
+            .fillMaxSize()
+            .padding(FemtoDimens.CardPadding),
+    horizontalArrangement = Arrangement.spacedBy(14.dp),
+    verticalAlignment = Alignment.CenterVertically,
+) {
+    // Album art on the left, sized square to the card height.
+    AlbumArt(
+        nowPlaying = nowPlaying,
+        modifier = Modifier.fillMaxHeight().aspectRatio(1f),
+    )
+    // Track info + transport controls on the right.
     Column(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(FemtoDimens.CardPadding),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.weight(1f).fillMaxHeight(),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        AlbumArt(nowPlaying = nowPlaying)
-        Meta(
-            source = sourceLabel(nowPlaying.packageName),
-            title = nowPlaying.title,
-            artist = nowPlaying.artist,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Meta(
+                source = sourceLabel(nowPlaying.packageName),
+                title = nowPlaying.title,
+                artist = nowPlaying.artist,
+                modifier = Modifier.weight(1f),
+            )
+            // Tapping the source app's icon brings that app to the foreground.
+            SourceAppButton(
+                sourceIcon = nowPlaying.sourceIcon,
+                sourceLabel = sourceLabel(nowPlaying.packageName),
+                onClick = { onLaunchSource(nowPlaying.packageName) },
+            )
+        }
         Progress(
             positionMs = nowPlaying.positionMs,
             durationMs = nowPlaying.durationMs,
@@ -133,12 +156,6 @@ private fun PlayingState(
         )
         TransportRow(isPlaying = nowPlaying.isPlaying, onCommand = onCommand)
     }
-    SourceAppButton(
-        sourceIcon = nowPlaying.sourceIcon,
-        sourceLabel = sourceLabel(nowPlaying.packageName),
-        onClick = { onLaunchSource(nowPlaying.packageName) },
-        modifier = Modifier.align(Alignment.TopEnd),
-    )
 }
 
 @Composable
@@ -181,12 +198,14 @@ private fun SourceAppButton(
 }
 
 @Composable
-private fun AlbumArt(nowPlaying: NowPlaying) {
+private fun AlbumArt(
+    nowPlaying: NowPlaying,
+    modifier: Modifier = Modifier,
+) {
     val art = nowPlaying.albumArt
     Box(
         modifier =
-            Modifier
-                .size(FemtoDimens.MusicArtSize)
+            modifier
                 .clip(RoundedCornerShape(FemtoDimens.ArtCorner))
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh),
         contentAlignment = Alignment.Center,
@@ -229,9 +248,10 @@ private fun Meta(
     source: String,
     title: String,
     artist: String?,
+    modifier: Modifier = Modifier,
 ) = Column(
-    modifier = Modifier.fillMaxWidth(),
-    horizontalAlignment = Alignment.CenterHorizontally,
+    modifier = modifier.fillMaxWidth(),
+    horizontalAlignment = Alignment.Start,
     verticalArrangement = Arrangement.spacedBy(2.dp),
 ) {
     Row(
@@ -533,7 +553,7 @@ private fun formatMillis(ms: Long): String {
 }
 
 @PreviewLightDark
-@Preview(name = "Music card · playing", widthDp = 360, heightDp = 360)
+@Preview(name = "Music card · playing", widthDp = 360, heightDp = 200)
 @Composable
 private fun MusicCardPlayingPreview() {
     FemtoTheme {

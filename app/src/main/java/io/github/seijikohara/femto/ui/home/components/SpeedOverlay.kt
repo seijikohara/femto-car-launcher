@@ -134,7 +134,7 @@ internal fun SpeedOverlay(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.GlassBorderAlpha),
                     shape = RoundedCornerShape(FemtoDimens.SpeedOverlayCorner),
-                ).padding(horizontal = 18.dp, vertical = 16.dp),
+                ).padding(horizontal = 18.dp, vertical = 10.dp),
     ) {
         MetricRow(
             currentSpeed = currentSpeedText,
@@ -145,7 +145,7 @@ internal fun SpeedOverlay(
             onReset = onReset,
         )
         if (shortAddress.isNotBlank()) {
-            Box(modifier = Modifier.height(12.dp))
+            Box(modifier = Modifier.height(8.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             Box(modifier = Modifier.height(10.dp))
             AddressRow(text = shortAddress)
