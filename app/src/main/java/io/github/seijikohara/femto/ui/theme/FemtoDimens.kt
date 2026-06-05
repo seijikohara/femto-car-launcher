@@ -76,6 +76,15 @@ object FemtoDimens {
      */
     val SpeedMetricMinWidth = 76.dp
 
+    /**
+     * Upper bound on the speed overlay's width so it reads as a centred glass
+     * card on the map pane rather than stretching toward a full-width bar on a
+     * wide head unit (e.g. an 853 dp-wide 5:3 projection). The overlay still
+     * sizes to its content via `IntrinsicSize.Max`; this only caps the maximum,
+     * and the address row ellipsizes within it instead of expanding the card.
+     */
+    val SpeedOverlayMaxWidth = 440.dp
+
     /** Weather glyph beside the city name in the weather card head row. */
     val WeatherGlyphLarge = 20.dp
 

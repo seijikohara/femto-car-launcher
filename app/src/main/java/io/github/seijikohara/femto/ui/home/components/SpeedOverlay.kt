@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -121,13 +123,18 @@ internal fun SpeedOverlay(
                 // defaults to fillMaxWidth) would stretch the card to the full
                 // map pane. The address-row divider then spans the same width.
                 .width(IntrinsicSize.Max)
+                // Cap the width so a wide map pane (e.g. an 853 dp 5:3 head unit)
+                // keeps the overlay a centred glass card, not a full-width bar.
+                // IntrinsicSize.Max still hugs short content; this only bounds the
+                // maximum, and the address row ellipsizes within it.
+                .widthIn(max = FemtoDimens.SpeedOverlayMaxWidth)
                 .clip(RoundedCornerShape(FemtoDimens.SpeedOverlayCorner))
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = glassAlpha))
                 .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.GlassBorderAlpha),
                     shape = RoundedCornerShape(FemtoDimens.SpeedOverlayCorner),
-                ).padding(horizontal = 24.dp, vertical = 16.dp),
+                ).padding(horizontal = 18.dp, vertical = 16.dp),
     ) {
         MetricRow(
             currentSpeed = currentSpeedText,
@@ -156,7 +163,7 @@ private fun MetricRow(
     onReset: () -> Unit,
 ) = Row(
     verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(16.dp),
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
 ) {
     NowMetric(value = currentSpeed, unit = speedUnitLabel)
     Separator()
@@ -253,6 +260,9 @@ private fun SecondaryMetric(
 @Composable
 private fun AddressRow(text: String) =
     Row(
+        // Fill the overlay's (metric-row-defined) width so a long address
+        // ellipsizes within it instead of stretching the card wider.
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -272,6 +282,8 @@ private fun AddressRow(text: String) =
                 ),
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.86f),
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
         )
     }
 
