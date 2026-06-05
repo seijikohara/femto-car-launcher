@@ -66,5 +66,13 @@ class SettingsViewModelTest {
             assertEquals(false, store.settings.first().showMusic)
         }
 
+    @Test
+    fun `SetMapRenderPercent writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetMapRenderPercent(50))
+            advanceUntilIdle()
+            assertEquals(50, store.settings.first().mapRenderPercent)
+        }
+
     private fun viewModel() = SettingsViewModel(store, FontPreferences(application))
 }

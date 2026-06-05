@@ -38,6 +38,13 @@ internal const val DEFAULT_MAP_TILT_DEG = 55
 internal const val DEFAULT_MAP_ZOOM = 16
 
 /**
+ * Default snapshot render resolution, as a percentage of the panel's pixel size.
+ * 100 renders at full resolution; lower values render a smaller bitmap (upscaled
+ * to fill), trading sharpness for a faster render and a smoother frame rate.
+ */
+internal const val DEFAULT_MAP_RENDER_PERCENT = 100
+
+/**
  * User display settings that override the locale / system defaults. Every value
  * defaults to the auto / system choice so a fresh install behaves exactly as
  * before the settings screen existed.
@@ -55,6 +62,9 @@ internal data class DisplaySettings(
     val mapStyle: MapStyleSetting,
     val mapTiltDeg: Int,
     val mapZoom: Int,
+    // Snapshot render resolution as a percent of the panel pixel size; lower is
+    // blurrier but renders faster, so the frame rate can climb closer to mapFps.
+    val mapRenderPercent: Int,
     // Info-pane card visibility. Each card defaults to shown so a fresh install
     // renders the full dashboard; hiding one lets the remaining cards (or the map)
     // reflow into the freed space.
@@ -75,6 +85,7 @@ internal data class DisplaySettings(
                 mapStyle = MapStyleSetting.AUTO,
                 mapTiltDeg = DEFAULT_MAP_TILT_DEG,
                 mapZoom = DEFAULT_MAP_ZOOM,
+                mapRenderPercent = DEFAULT_MAP_RENDER_PERCENT,
                 showCalendar = true,
                 showWeather = true,
                 showMusic = true,
@@ -112,6 +123,8 @@ internal interface DisplaySettingsStore {
 
     suspend fun setMapZoom(value: Int)
 
+    suspend fun setMapRenderPercent(value: Int)
+
     suspend fun setShowCalendar(value: Boolean)
 
     suspend fun setShowWeather(value: Boolean)
@@ -142,6 +155,7 @@ internal class DisplayPreferences(
                 mapStyle = prefs[MAP_STYLE_KEY].toEnumOr(MapStyleSetting.AUTO),
                 mapTiltDeg = prefs[MAP_TILT_KEY] ?: DEFAULT_MAP_TILT_DEG,
                 mapZoom = prefs[MAP_ZOOM_KEY] ?: DEFAULT_MAP_ZOOM,
+                mapRenderPercent = prefs[MAP_QUALITY_KEY] ?: DEFAULT_MAP_RENDER_PERCENT,
                 showCalendar = prefs[SHOW_CALENDAR_KEY] ?: true,
                 showWeather = prefs[SHOW_WEATHER_KEY] ?: true,
                 showMusic = prefs[SHOW_MUSIC_KEY] ?: true,
@@ -190,6 +204,10 @@ internal class DisplayPreferences(
         context.displayDataStore.edit { it[MAP_ZOOM_KEY] = value }
     }
 
+    override suspend fun setMapRenderPercent(value: Int) {
+        context.displayDataStore.edit { it[MAP_QUALITY_KEY] = value }
+    }
+
     override suspend fun setShowCalendar(value: Boolean) {
         context.displayDataStore.edit { it[SHOW_CALENDAR_KEY] = value }
     }
@@ -213,6 +231,7 @@ internal class DisplayPreferences(
         val MAP_STYLE_KEY = stringPreferencesKey("map_style")
         val MAP_TILT_KEY = intPreferencesKey("map_tilt_deg")
         val MAP_ZOOM_KEY = intPreferencesKey("map_zoom")
+        val MAP_QUALITY_KEY = intPreferencesKey("map_render_percent")
         val SHOW_CALENDAR_KEY = booleanPreferencesKey("show_calendar")
         val SHOW_WEATHER_KEY = booleanPreferencesKey("show_weather")
         val SHOW_MUSIC_KEY = booleanPreferencesKey("show_music")

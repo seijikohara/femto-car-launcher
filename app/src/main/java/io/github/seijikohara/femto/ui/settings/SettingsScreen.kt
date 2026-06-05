@@ -188,6 +188,13 @@ internal fun SettingsScreen(
                 range = MIN_MAP_ZOOM..MAX_MAP_ZOOM,
                 onValueChange = { onAction(SettingsAction.SetMapZoom(it)) },
             )
+            SliderRow(
+                title = stringResource(R.string.settings_group_map_quality),
+                valueLabel = stringResource(R.string.settings_map_quality_value, uiState.mapRenderPercent),
+                value = uiState.mapRenderPercent,
+                range = MIN_MAP_QUALITY..MAX_MAP_QUALITY,
+                onValueChange = { onAction(SettingsAction.SetMapRenderPercent(it)) },
+            )
         }
 
         SettingsSection(title = stringResource(R.string.settings_section_panels)) {
@@ -494,6 +501,11 @@ private const val MIN_MAP_TILT = 0
 private const val MAX_MAP_TILT = 60
 private const val MIN_MAP_ZOOM = 12
 private const val MAX_MAP_ZOOM = 19
+
+// Snapshot render resolution band (percent). The floor stays well above zero so
+// the upscaled map keeps roads legible; 100 is full panel resolution.
+private const val MIN_MAP_QUALITY = 30
+private const val MAX_MAP_QUALITY = 100
 
 private fun Boolean.toFullscreen(): FullscreenSetting = if (this) FullscreenSetting.ON else FullscreenSetting.OFF
 
