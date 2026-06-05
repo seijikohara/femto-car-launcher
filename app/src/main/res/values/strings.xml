@@ -5,7 +5,7 @@
     <!-- Map panel -->
     <string name="map_unavailable">Map unavailable</string>
     <string name="map_permission_cta">Grant location access to enable the map and overlays.</string>
-    <string name="map_attribution">© OpenStreetMap · OpenMapTiles</string>
+    <string name="map_attribution">© OpenStreetMap · OpenMapTiles · OpenFreeMap</string>
 
     <!-- Speed overlay -->
     <string name="speed_reset_trip">Reset trip</string>
