@@ -111,51 +111,63 @@ private fun PlayingState(
     nowPlaying: NowPlaying,
     onCommand: (MusicCommand) -> Unit,
     onLaunchSource: (String) -> Unit,
-) = Row(
+) = Column(
     modifier =
         Modifier
             .fillMaxSize()
             .padding(FemtoDimens.CardPadding),
-    horizontalArrangement = Arrangement.spacedBy(14.dp),
-    verticalAlignment = Alignment.CenterVertically,
+    verticalArrangement = Arrangement.spacedBy(10.dp),
 ) {
-    // Album art on the left, sized square to the card height.
-    AlbumArt(
-        nowPlaying = nowPlaying,
-        modifier = Modifier.fillMaxHeight().aspectRatio(1f),
-    )
-    // Track info + transport controls on the right.
-    Column(
-        modifier = Modifier.weight(1f).fillMaxHeight(),
-        verticalArrangement = Arrangement.SpaceBetween,
+    // Album art + track info share the top region; the transport row spans the
+    // full card width below. On a narrow info-pane card a square album beside the
+    // three >= 64 dp controls leaves no room for them, so the controls drop to a
+    // full-width strip where they always fit.
+    Row(
+        modifier = Modifier.fillMaxWidth().weight(1f),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.Top,
+        // Album art on the left, sized square to the top region's height.
+        AlbumArt(
+            nowPlaying = nowPlaying,
+            modifier = Modifier.fillMaxHeight().aspectRatio(1f),
+        )
+        Column(
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
         ) {
-            Meta(
-                source = sourceLabel(nowPlaying.packageName),
-                title = nowPlaying.title,
-                artist = nowPlaying.artist,
-                modifier = Modifier.weight(1f),
-            )
-            // Tapping the source app's icon brings that app to the foreground.
-            SourceAppButton(
-                sourceIcon = nowPlaying.sourceIcon,
-                sourceLabel = sourceLabel(nowPlaying.packageName),
-                onClick = { onLaunchSource(nowPlaying.packageName) },
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Meta(
+                    source = sourceLabel(nowPlaying.packageName),
+                    title = nowPlaying.title,
+                    artist = nowPlaying.artist,
+                    modifier = Modifier.weight(1f),
+                )
+                // Tapping the source app's icon brings that app to the foreground.
+                SourceAppButton(
+                    sourceIcon = nowPlaying.sourceIcon,
+                    sourceLabel = sourceLabel(nowPlaying.packageName),
+                    onClick = { onLaunchSource(nowPlaying.packageName) },
+                )
+            }
+            Progress(
+                positionMs = nowPlaying.positionMs,
+                durationMs = nowPlaying.durationMs,
+                positionUpdateTimeMs = nowPlaying.positionUpdateTimeMs,
+                isPlaying = nowPlaying.isPlaying,
+                playbackSpeed = nowPlaying.playbackSpeed,
             )
         }
-        Progress(
-            positionMs = nowPlaying.positionMs,
-            durationMs = nowPlaying.durationMs,
-            positionUpdateTimeMs = nowPlaying.positionUpdateTimeMs,
-            isPlaying = nowPlaying.isPlaying,
-            playbackSpeed = nowPlaying.playbackSpeed,
-        )
-        TransportRow(isPlaying = nowPlaying.isPlaying, onCommand = onCommand)
     }
+    TransportRow(
+        isPlaying = nowPlaying.isPlaying,
+        onCommand = onCommand,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
@@ -391,8 +403,10 @@ private fun Progress(
 private fun TransportRow(
     isPlaying: Boolean,
     onCommand: (MusicCommand) -> Unit,
+    modifier: Modifier = Modifier,
 ) = Row(
-    horizontalArrangement = Arrangement.spacedBy(16.dp),
+    modifier = modifier,
+    horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
     verticalAlignment = Alignment.CenterVertically,
 ) {
     TransportButton(

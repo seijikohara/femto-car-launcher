@@ -171,7 +171,7 @@ private fun Strip(
     onSelect: (LocalDate) -> Unit,
 ) = Row(
     modifier = Modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.spacedBy(4.dp),
+    horizontalArrangement = Arrangement.spacedBy(3.dp),
 ) {
     days.forEach { day ->
         DayCellView(
@@ -219,12 +219,17 @@ private fun DayCellView(
                 // Sub-64dp tap target: a deliberate exception for the in-card
                 // mini-calendar grid (CLAUDE.md#automotive-overrides keeps 64dp the
                 // default; the strip relaxes it like the footer status cluster).
-                .padding(vertical = 8.dp, horizontal = 4.dp),
+                // Tight horizontal padding so a two-digit day fits the ~20 dp cell
+                // a narrow info-pane card gives each of the six columns.
+                .padding(vertical = 8.dp, horizontal = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Text(
-            text = day.weekdayLetter.take(3).uppercase(),
+            // Two letters (not three): on the head-unit binding width a 3-letter
+            // Latin abbreviation overflows the cell, while a 2-letter one fits and
+            // stays unambiguous; CJK weekday labels are a single glyph regardless.
+            text = day.weekdayLetter.take(2).uppercase(),
             style = MaterialTheme.typography.sectionLabel(9, 0.08f),
             color = onBackground,
             maxLines = 1,
@@ -234,9 +239,9 @@ private fun DayCellView(
             text = "${day.date.dayOfMonth}",
             style =
                 MaterialTheme.typography.titleSmall.copy(
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
-                    lineHeight = 16.sp,
+                    lineHeight = 15.sp,
                     fontFeatureSettings = TabularFigures,
                 ),
             color = numberColor,
@@ -351,8 +356,11 @@ private fun PermissionDenied() =
         )
     }
 
+// Sized to the head-unit binding: each top-row card is ~165 x 207 dp (half the
+// info pane on the 853 x 512 dp / 5:3 projection), the geometry that exposed the
+// two-digit-day clip. Wider panels only add slack.
 @PreviewLightDark
-@Preview(name = "Calendar card", widthDp = 240, heightDp = 224)
+@Preview(name = "Calendar card", widthDp = 165, heightDp = 207)
 @Composable
 private fun CalendarCardPreview() {
     FemtoTheme {
