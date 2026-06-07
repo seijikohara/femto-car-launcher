@@ -39,8 +39,6 @@ internal class FakeDisplaySettingsStore(
 
     override suspend fun setMapFps(value: Int) = state.update { it.copy(mapFps = value) }
 
-    override suspend fun setMapBuildings3d(value: Boolean) = state.update { it.copy(mapBuildings3d = value) }
-
     override suspend fun setMapStyle(value: MapStyleSetting) = state.update { it.copy(mapStyle = value) }
 
     override suspend fun setMapTilt(value: Int) = state.update { it.copy(mapTiltDeg = value) }

@@ -122,7 +122,6 @@ class MainActivity : ComponentActivity() {
                         mapConfig =
                             MapConfig(
                                 fps = display.mapFps,
-                                buildings3d = display.mapBuildings3d,
                                 style = display.mapStyle,
                                 tiltDeg = display.mapTiltDeg,
                                 zoom = display.mapZoom,

@@ -71,9 +71,6 @@ import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.snapshotter.MapSnapshotter
-import org.maplibre.android.style.expressions.Expression
-import org.maplibre.android.style.layers.FillExtrusionLayer
-import org.maplibre.android.style.layers.PropertyFactory
 import kotlin.coroutines.resume
 import kotlin.math.asin
 import kotlin.math.atan2
@@ -82,11 +79,10 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 // User-tunable map rendering config (derived from DisplaySettings): target frame
-// rate, 3D buildings, light/dark style, oblique tilt, zoom, and the render
-// resolution percent (lower renders a smaller bitmap, faster, upscaled to fill).
+// rate, light/dark style, oblique tilt, zoom, and the render resolution percent
+// (lower renders a smaller bitmap, faster, upscaled to fill).
 internal data class MapConfig(
     val fps: Int = 10,
-    val buildings3d: Boolean = true,
     val style: MapStyleSetting = MapStyleSetting.AUTO,
     val tiltDeg: Int = 55,
     val zoom: Int = 16,
@@ -97,7 +93,7 @@ internal data class MapConfig(
 /**
  * Map tile surface + permission fallback, in one of two backends selected by
  * [MapConfig.renderMode] (both render free OpenStreetMap vector tiles via
- * OpenFreeMap / MapLibre with a heading-up, oblique 3D camera):
+ * OpenFreeMap / MapLibre with a heading-up, oblique (tilted) camera):
  *
  * - SNAPSHOT (default, [SnapshotMap]) draws off-screen [MapSnapshotter] bitmaps
  *   into a Compose [Image]. A live GL `MapView` never presents frames on the
@@ -187,7 +183,7 @@ private fun SnapshotMap(
 
     // One reusable snapshotter, rebuilt only when the render size or theme changes.
     val snapshotter =
-        remember(renderWidthPx, renderHeightPx, isDark, mapConfig.buildings3d) {
+        remember(renderWidthPx, renderHeightPx, isDark) {
             if (widthPx <= 0 || heightPx <= 0) {
                 null
             } else {
@@ -202,7 +198,7 @@ private fun SnapshotMap(
                         // OSM / OpenMapTiles / OpenFreeMap credit (avoids the
                         // duplicate text the baked-in attribution drew on-device).
                         .withAttribution(false)
-                        .withStyleBuilder(styleBuilderFor(context, isDark, mapConfig.buildings3d)),
+                        .withStyleBuilder(styleBuilderFor(context, isDark)),
                 )
             }
         }
@@ -342,50 +338,34 @@ private fun shouldRerender(
     current: Location,
 ): Boolean = last == null || last.distanceTo(current) >= REFRESH_DISTANCE_M
 
+// Build the (light/dark) base style. A 3D building fill-extrusion layer was
+// removed: the MapSnapshotter's GL crashed intermittently (native SIGSEGV in
+// glDrawElements on its "Snapshotter" thread) while re-rendering an extrusion
+// layer, taking the whole launcher down on movement. The oblique camera tilt
+// still gives the map a bird's-eye perspective; only the extruded buildings are
+// gone. True extruded 3D needs the live GL MapView, which does not present on the
+// projected head-unit display.
 private fun styleBuilderFor(
     context: Context,
     isDark: Boolean,
-    buildings3d: Boolean,
-): Style.Builder {
-    val base =
-        if (isDark) {
-            Style.Builder().fromJson(
-                context.assets
-                    .open(DARK_STYLE_ASSET)
-                    .bufferedReader()
-                    .use { it.readText() },
-            )
-        } else {
-            Style.Builder().fromUri(POSITRON_STYLE_URL)
-        }
-    // Add the 3D building layer to the builder before the snapshotter loads it:
-    // MapSnapshotter exposes no post-load style to mutate. Both Positron and the
-    // bundled dark style carry OpenStreetMap buildings on the same OpenMapTiles
-    // "openmaptiles" vector source / "building" source-layer.
-    return if (buildings3d) base.withLayer(buildingExtrusionLayer(isDark)) else base
-}
-
-private fun buildingExtrusionLayer(isDark: Boolean): FillExtrusionLayer =
-    FillExtrusionLayer(BUILDING_3D_LAYER_ID, OPENMAPTILES_SOURCE_ID).apply {
-        setSourceLayer(BUILDING_SOURCE_LAYER)
-        setMinZoom(BUILDING_EXTRUSION_MIN_ZOOM)
-        setProperties(
-            PropertyFactory.fillExtrusionColor(if (isDark) BUILDING_COLOR_DARK else BUILDING_COLOR_LIGHT),
-            PropertyFactory.fillExtrusionHeight(Expression.get("render_height")),
-            PropertyFactory.fillExtrusionBase(Expression.get("render_min_height")),
-            PropertyFactory.fillExtrusionOpacity(BUILDING_OPACITY),
+): Style.Builder =
+    if (isDark) {
+        Style.Builder().fromJson(
+            context.assets
+                .open(DARK_STYLE_ASSET)
+                .bufferedReader()
+                .use { it.readText() },
         )
-        // Only extrude features that actually carry a height, so flat building
-        // polygons without the attribute are left to the base style's fill.
-        setFilter(Expression.all(Expression.has("render_height"), Expression.has("render_min_height")))
+    } else {
+        Style.Builder().fromUri(POSITRON_STYLE_URL)
     }
 
 // Live GL backend. A real MapView (TextureView + RGBA surface) with the location
 // component driving a heading-up TRACKING_GPS camera. Smoother than the snapshot
 // where the device can scan out GL buffers; on projected / virtualised displays
 // that cannot, it shows the fallback's grey rectangle — hence SNAPSHOT is default
-// and this is opt-in so the user can test their hardware. Reuses styleBuilderFor
-// (so the 3D-building setting carries over) and the shared OpenFreeMap host.
+// and this is opt-in so the user can test their hardware. Shares styleBuilderFor
+// and the OpenFreeMap host with the snapshot path.
 @Composable
 private fun LiveMap(
     location: Location,
@@ -445,10 +425,10 @@ private fun LiveMap(
         }
     }
 
-    LaunchedEffect(map, isDark, mapConfig.buildings3d, mapConfig.zoom, mapConfig.tiltDeg, retryTick) {
+    LaunchedEffect(map, isDark, mapConfig.zoom, mapConfig.tiltDeg, retryTick) {
         val ready = map ?: return@LaunchedEffect
         loadFailed = false
-        ready.setStyle(styleBuilderFor(context, isDark, mapConfig.buildings3d)) { style ->
+        ready.setStyle(styleBuilderFor(context, isDark)) { style ->
             retryAttempt = 0
             activateHeadingUp(context, ready, style, mapConfig.zoom, mapConfig.tiltDeg)
             ready.locationComponent.forceLocationUpdate(currentLocation.value.withCarriedBearing(bearingHolder))
@@ -646,14 +626,6 @@ private fun Fallback(modifier: Modifier = Modifier) =
 internal const val MAP_ZOOM = 16.5
 internal const val POSITRON_STYLE_URL = "https://tiles.openfreemap.org/styles/positron"
 private const val DARK_STYLE_ASSET = "map/dark.json"
-
-private const val OPENMAPTILES_SOURCE_ID = "openmaptiles"
-private const val BUILDING_SOURCE_LAYER = "building"
-private const val BUILDING_3D_LAYER_ID = "building-3d"
-private const val BUILDING_EXTRUSION_MIN_ZOOM = 15f
-private const val BUILDING_OPACITY = 0.85f
-private const val BUILDING_COLOR_LIGHT = "#E7E3DC"
-private const val BUILDING_COLOR_DARK = "#2A2E33"
 
 // Re-render once a fix moves at least this far; below it the last frame is held.
 // Kept small so the map follows movement in smaller steps (smoother panning); the
