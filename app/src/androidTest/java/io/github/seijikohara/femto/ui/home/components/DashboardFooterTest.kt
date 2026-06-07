@@ -133,6 +133,22 @@ class DashboardFooterTest {
     }
 
     @Test
+    fun shows_cellular_disconnected_when_signal_level_is_zero() {
+        rule.setContent {
+            FemtoTheme {
+                DashboardFooter(
+                    // A known level drives the lit state off signal presence, not the
+                    // validated-route flag: zero bars reads as disconnected even while
+                    // the cellular network momentarily holds NET_CAPABILITY_VALIDATED.
+                    systemStatus = fakeSystemStatus(cellularConnected = true, cellularSignalLevel = 0),
+                    onAction = {},
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("Mobile data disconnected").assertIsDisplayed()
+    }
+
+    @Test
     fun shows_graduated_wifi_icon_when_connected_with_a_level() {
         rule.setContent {
             FemtoTheme {
@@ -183,6 +199,19 @@ class DashboardFooterTest {
             }
         }
         rule.onNodeWithContentDescription("GPS searching").assertIsDisplayed()
+    }
+
+    @Test
+    fun renders_gps_satellite_count_text() {
+        rule.setContent {
+            FemtoTheme {
+                DashboardFooter(
+                    systemStatus = fakeSystemStatus(gpsFixed = true, gpsSatelliteCount = 9),
+                    onAction = {},
+                )
+            }
+        }
+        rule.onNodeWithText("9").assertIsDisplayed()
     }
 
     @Test

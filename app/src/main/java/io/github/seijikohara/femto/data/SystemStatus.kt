@@ -33,6 +33,9 @@ data class SystemStatus(
     // last fix ages past the freshness window so the footer reads "searching"
     // when GPS reception drops (e.g. a tunnel or a parked cold start).
     val gpsFixed: Boolean,
+    // Satellites currently used in the GPS fix (0 while searching / no GNSS read).
+    // Shown under the footer's GPS icon as a coarse reception quality readout.
+    val gpsSatelliteCount: Int,
 ) {
     companion object {
         val Initial: SystemStatus =
@@ -45,6 +48,7 @@ data class SystemStatus(
                 batteryPercent = null,
                 charging = false,
                 gpsFixed = false,
+                gpsSatelliteCount = 0,
             )
     }
 }

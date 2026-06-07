@@ -3,6 +3,7 @@
 package io.github.seijikohara.femto.data
 
 import android.app.Application
+import android.bluetooth.BluetoothManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
@@ -54,14 +55,19 @@ class SystemStatusRepositoryTest {
     }
 
     @Test
-    fun `bluetoothConnected is false when BLUETOOTH_CONNECT is not granted`() =
+    fun `bluetoothConnected falls back to the adapter power state when BLUETOOTH_CONNECT is not granted`() =
         runTest {
-            // Robolectric grants no runtime permissions by default on sdk 33, so
-            // readBluetoothConnected short-circuits to false rather than touching
-            // the adapter. The footer renders a dimmed BT icon instead of throwing.
-            val status = SystemStatusRepository(application).statusFlow().first()
+            // Robolectric grants no runtime permissions on sdk 33, so the
+            // connected-device APIs are unreadable. isEnabled() needs no permission,
+            // so with the adapter powered on readBluetoothConnected reports BT-on
+            // rather than a misleading "disconnected". The bluetoothFlow seeds false
+            // via onStart, so wait past the seed for the broadcast-driven read; a
+            // regressed impl that returns false here would hang the predicate.
+            setBluetoothEnabled(true)
 
-            assertFalse(status.bluetoothConnected)
+            val status = firstStatusMatching(SystemStatusRepository(application)) { it.bluetoothConnected }
+
+            assertTrue(status.bluetoothConnected)
         }
 
     @Test
@@ -237,6 +243,19 @@ class SystemStatusRepositoryTest {
             }
         }
 
+    @Test
+    fun `gpsSatelliteCount is zero without the fine location grant`() =
+        runTest {
+            // gnssSatelliteFlow gates on ACCESS_FINE_LOCATION; Robolectric grants no
+            // runtime permissions on sdk 33, so it stays 0 (the searching readout)
+            // rather than registering a GnssStatus callback.
+            val locations = MutableSharedFlow<Location?>(extraBufferCapacity = 1)
+
+            val status = gpsRepository(locations).statusFlow().first()
+
+            assertEquals(0, status.gpsSatelliteCount)
+        }
+
     // statusFlow runs its combine on the injected dispatcher; an UnconfinedTestDispatcher
     // backed by runTest's scheduler lets advanceTimeBy drive gpsFlow's freshness delay.
     private fun TestScope.gpsRepository(locationFlow: MutableSharedFlow<Location?>): SystemStatusRepository =
@@ -275,6 +294,14 @@ class SystemStatusRepositoryTest {
             }
             shadowConnectivity.networkCallbacks.single()
         }
+
+    // Drive the default adapter's power state through its shadow. isEnabled() needs
+    // no permission, so this is the lever readBluetoothConnected falls back to when
+    // BLUETOOTH_CONNECT is withheld.
+    private fun setBluetoothEnabled(enabled: Boolean) {
+        val adapter = application.getSystemService<BluetoothManager>()!!.adapter
+        shadowOf(adapter).setEnabled(enabled)
+    }
 
     private fun batteryIntent(
         level: Int,
