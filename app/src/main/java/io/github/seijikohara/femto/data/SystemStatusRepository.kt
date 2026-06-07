@@ -12,6 +12,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.location.GnssStatus
 import android.location.Location
 import android.location.LocationManager
 import android.net.ConnectivityManager
@@ -53,9 +54,10 @@ import kotlinx.coroutines.flow.transformLatest
  *
  * Each sub-signal lives in its own callback flow and they are combined
  * into a single [SystemStatus]. Bluetooth read requires `BLUETOOTH_CONNECT`
- * on Android 12+; when denied the flow emits `bluetoothConnected = false`
- * rather than throwing, so a missing permission degrades gracefully into
- * a dimmed icon. Cellular signal strength requires `READ_PHONE_STATE`; when
+ * on Android 12+; when denied the flow falls back to the adapter power state
+ * (the connected-device APIs throw without the grant), so a paired head unit
+ * still reads as BT-on rather than a misleading "disconnected". Cellular
+ * signal strength requires `READ_PHONE_STATE`; when
  * denied the level flow emits null and the footer degrades to the binary
  * connected/disconnected icon.
  *
@@ -76,6 +78,7 @@ internal class SystemStatusRepository(
     private val connectivity: ConnectivityManager? = context.getSystemService()
     private val bluetoothManager: BluetoothManager? = context.getSystemService()
     private val telephonyManager: TelephonyManager? = context.getSystemService()
+    private val locationManager: LocationManager? = context.getSystemService()
 
     fun statusFlow(): Flow<SystemStatus> =
         combine(
@@ -84,7 +87,7 @@ internal class SystemStatusRepository(
             batteryFlow().onStart { emit(BatteryReading(percent = null, charging = false)) },
             cellularLevelFlow().onStart { emit(null) },
             gpsFlow(),
-        ) { connectivitySignals, bt, battery, cellularLevel, gpsFixed ->
+        ) { connectivitySignals, bt, battery, cellularLevel, gps ->
             SystemStatus(
                 cellularConnected = connectivitySignals.cellularConnected,
                 cellularSignalLevel = cellularLevel,
@@ -93,7 +96,8 @@ internal class SystemStatusRepository(
                 bluetoothConnected = bt,
                 batteryPercent = battery.percent,
                 charging = battery.charging,
-                gpsFixed = gpsFixed,
+                gpsFixed = gps.fixed,
+                gpsSatelliteCount = gps.satellites,
             )
         }.distinctUntilChanged().flowOn(dispatcher)
 
@@ -242,8 +246,16 @@ internal class SystemStatusRepository(
             awaitClose { tm.unregisterTelephonyCallback(callback) }
         }
 
+    // Combine the reception flag with the satellite count so the footer renders
+    // both from one [SystemStatus] slot. combine emits once both sources have
+    // seeded (gpsFixedFlow via onStart, gnssSatelliteFlow via its leading 0).
+    private fun gpsFlow(): Flow<GpsReading> =
+        combine(gpsFixedFlow(), gnssSatelliteFlow()) { fixed, satellites ->
+            GpsReading(fixed = fixed, satellites = satellites)
+        }
+
     /**
-     * GPS reception state. Emits true on each fresh GPS_PROVIDER fix, then false
+     * GPS reception flag. Emits true on each fresh GPS_PROVIDER fix, then false
      * once that fix ages past [GPS_FIX_FRESHNESS_MS] with no follow-up — so the
      * footer reads "searching" when reception drops (tunnel, parked cold start).
      *
@@ -254,7 +266,7 @@ internal class SystemStatusRepository(
      * keep coming. [onStart] seeds false so combine has an initial value before
      * the first fix (and the [emptyFlow] default leaves it false forever).
      */
-    private fun gpsFlow(): Flow<Boolean> =
+    private fun gpsFixedFlow(): Flow<Boolean> =
         locationFlow
             .filterNotNull()
             .filter { it.provider == LocationManager.GPS_PROVIDER }
@@ -263,6 +275,32 @@ internal class SystemStatusRepository(
                 delay(GPS_FIX_FRESHNESS_MS)
                 emit(false)
             }.onStart { emit(false) }
+
+    /**
+     * Count of satellites used in the current GPS fix, via [GnssStatus]. Emits 0
+     * to start and whenever GNSS reports none used (searching), so the footer's
+     * satellite readout reflects the no-fix case. Needs ACCESS_FINE_LOCATION; the
+     * map already gates on that grant, and without it this stays 0.
+     */
+    @SuppressLint("MissingPermission") // Gated on hasFineLocationPermission() below.
+    private fun gnssSatelliteFlow(): Flow<Int> {
+        val lm = locationManager ?: return flowOf(0)
+        if (!context.hasFineLocationPermission()) return flowOf(0)
+        return callbackFlow {
+            trySend(0)
+            val callback = object : GnssStatus.Callback() {
+                override fun onSatelliteStatusChanged(status: GnssStatus) {
+                    var usedInFix = 0
+                    for (i in 0 until status.satelliteCount) {
+                        if (status.usedInFix(i)) usedInFix++
+                    }
+                    trySend(usedInFix)
+                }
+            }
+            lm.registerGnssStatusCallback(context.mainExecutor, callback)
+            awaitClose { lm.unregisterGnssStatusCallback(callback) }
+        }
+    }
 
     /**
      * Connected-state stream merging two re-read triggers:
@@ -309,7 +347,11 @@ internal class SystemStatusRepository(
     @SuppressLint("MissingPermission") // Permission is checked inside hasBluetoothConnect().
     private fun readBluetoothConnected(adapter: BluetoothAdapter?): Boolean {
         if (adapter == null || !adapter.isEnabled) return false
-        if (!hasBluetoothConnect()) return false
+        // Without BLUETOOTH_CONNECT the connected-device APIs throw, so the precise
+        // pairing state is unknowable. Fall back to the adapter-enabled state (true
+        // here, past the isEnabled guard) instead of a hard "disconnected": a head
+        // unit paired to a phone otherwise reads as BT-off in the footer.
+        if (!hasBluetoothConnect()) return true
         val devices = bluetoothManager?.getConnectedDevices(BluetoothProfile.GATT) ?: emptyList()
         return devices.isNotEmpty() ||
             adapter.getProfileConnectionState(BluetoothProfile.HEADSET) ==
@@ -370,6 +412,13 @@ internal class SystemStatusRepository(
     private data class ConnectivitySignals(
         val cellularConnected: Boolean?,
         val wifi: WifiReading,
+    )
+
+    // Pairs the GPS freshness flag (from locationFlow) with the GnssStatus
+    // satellite count so the footer renders both from one combined slot.
+    private data class GpsReading(
+        val fixed: Boolean,
+        val satellites: Int,
     )
 
     internal companion object {

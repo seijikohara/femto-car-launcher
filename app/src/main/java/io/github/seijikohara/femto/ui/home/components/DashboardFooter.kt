@@ -222,14 +222,22 @@ private fun StatusCluster(
     // Cellular is hidden entirely on telephony-less units (null), rather than
     // shown permanently disconnected.
     status.cellularConnected?.let { connected ->
+        val level = status.cellularSignalLevel
+        // Drive the lit state off signal presence when the level is known: on a
+        // Wi-Fi-primary head unit the cellular network repeatedly drops in and out
+        // of NET_CAPABILITY_VALIDATED (Wi-Fi owns the default route), which flickered
+        // the icon. A known SignalStrength.level tracks the radio directly and is
+        // stable; fall back to the validated-connectivity flag only when the level is
+        // unknown (READ_PHONE_STATE withheld).
+        val active = level?.let { it > 0 } ?: connected
         StatusIcon(
             // A known level picks the graduated bars; a null level (READ_PHONE_STATE
             // withheld / no reading yet) degrades to the binary connected icon.
-            icon = status.cellularSignalLevel?.let { cellularIconForLevel(it) } ?: Lucide.Signal,
-            active = connected,
+            icon = level?.let { cellularIconForLevel(it) } ?: Lucide.Signal,
+            active = active,
             description =
                 stringResource(
-                    if (connected) R.string.status_cellular_connected else R.string.status_cellular_disconnected,
+                    if (active) R.string.status_cellular_connected else R.string.status_cellular_disconnected,
                 ),
         )
     }
@@ -255,14 +263,7 @@ private fun StatusCluster(
                 },
             ),
     )
-    StatusIcon(
-        icon = Lucide.Satellite,
-        active = status.gpsFixed,
-        description =
-            stringResource(
-                if (status.gpsFixed) R.string.status_gps_fixed else R.string.status_gps_searching,
-            ),
-    )
+    GpsIndicator(fixed = status.gpsFixed, satelliteCount = status.gpsSatelliteCount)
     BatteryIndicator(percent = status.batteryPercent, charging = status.charging)
 }
 
@@ -302,6 +303,44 @@ private fun StatusIcon(
         contentDescription = description,
         tint = tint,
         modifier = modifier.size(20.dp),
+    )
+}
+
+// Satellite icon stacked over the count of satellites used in the current fix,
+// mirroring BatteryIndicator. The icon and count dim together while searching
+// (no fresh GPS fix) so a parked / tunnelled cold start reads as "0 locked".
+// The 13sp count uses the same footer glance-metadata allowance as the battery
+// percent (CLAUDE.md#automotive-overrides).
+@Composable
+private fun GpsIndicator(
+    fixed: Boolean,
+    satelliteCount: Int,
+    modifier: Modifier = Modifier,
+) = Column(
+    modifier = modifier,
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(1.dp),
+) {
+    val tint = if (fixed) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
+    Icon(
+        imageVector = Lucide.Satellite,
+        contentDescription =
+            stringResource(
+                if (fixed) R.string.status_gps_fixed else R.string.status_gps_searching,
+            ),
+        tint = tint,
+        modifier = Modifier.size(20.dp),
+    )
+    Text(
+        text = stringResource(R.string.status_gps_satellites, satelliteCount),
+        style =
+            MaterialTheme.typography.labelLarge.copy(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFeatureSettings = TabularFigures,
+            ),
+        color = tint,
+        maxLines = 1,
     )
 }
 
@@ -364,6 +403,7 @@ private fun DashboardFooterPreview() {
                     batteryPercent = 78,
                     charging = true,
                     gpsFixed = true,
+                    gpsSatelliteCount = 9,
                 ),
             onAction = {},
         )
@@ -388,6 +428,7 @@ private fun DashboardFooterNarrowPreview() {
                     batteryPercent = null,
                     charging = false,
                     gpsFixed = false,
+                    gpsSatelliteCount = 0,
                 ),
             onAction = {},
         )
