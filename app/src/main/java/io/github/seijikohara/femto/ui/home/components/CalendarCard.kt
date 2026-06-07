@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -107,8 +106,10 @@ private fun CalendarContent(snapshot: CalendarSnapshot) {
         modifier =
             Modifier
                 .fillMaxSize()
-                .padding(FemtoDimens.CardPadding),
-        verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
+                // Tighter than the shared card padding/gap: the head-unit info-pane
+                // card is short, so pack the head, strip and events to avoid a clip.
+                .padding(FemtoDimens.CardPaddingCompact),
+        verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
     ) {
         Head(snapshot)
         Strip(
@@ -262,8 +263,7 @@ private fun DayCellView(
 
 @Composable
 private fun Events(events: List<EventItem>) =
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (events.isEmpty()) {
             Text(
                 text = stringResource(R.string.calendar_no_events),

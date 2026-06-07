@@ -103,6 +103,14 @@ object FemtoDimens {
     /** Vertical rhythm between the sections stacked inside a card. */
     val CardSectionGap = 10.dp
 
+    /**
+     * Tighter padding / section rhythm for the short top-row info cards
+     * (calendar, weather) on the head-unit info pane, so the head + strip +
+     * events (or head + metrics + forecast) pack in without clipping.
+     */
+    val CardPaddingCompact = 10.dp
+    val CardSectionGapCompact = 6.dp
+
     /** Corner radius for dashboard cards. Mockup legend: card radius 16 dp (Shapes.large). */
     val CardCorner = 16.dp
 
