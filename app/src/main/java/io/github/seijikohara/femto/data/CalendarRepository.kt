@@ -191,6 +191,16 @@ internal class CalendarRepository(
      * Re-emit whenever the calendar provider notifies a change. Debounced
      * because edit / delete operations on a single event can fire several
      * notifications in quick succession.
+     *
+     * Registering an observer on the calendar provider requires `READ_CALENDAR`;
+     * without it `registerContentObserver` throws `SecurityException`. On a
+     * launcher that would crash the home screen on every cold start until the
+     * user grants the calendar, so a denied (or racing-revoked) grant skips
+     * registration rather than throwing. The card already renders the denial
+     * fallback from the clock alone (see [snapshotFlow]), and a grant that
+     * arrives later is picked up on the next clock tick, which re-runs
+     * [buildSnapshot] and its permission check. This mirrors [readWindow], whose
+     * `runCatching` already guards the query side against the same fault.
      */
     private fun calendarChangeFlow(): Flow<Unit> =
         callbackFlow {
@@ -199,13 +209,19 @@ internal class CalendarRepository(
                     trySend(Unit)
                 }
             }
-            context.contentResolver.registerContentObserver(
-                CalendarContract.Events.CONTENT_URI,
-                // notifyForDescendants =
-                true,
-                observer,
-            )
-            awaitClose { context.contentResolver.unregisterContentObserver(observer) }
+            val registered =
+                hasPermission() &&
+                    runCatching {
+                        context.contentResolver.registerContentObserver(
+                            CalendarContract.Events.CONTENT_URI,
+                            // notifyForDescendants =
+                            true,
+                            observer,
+                        )
+                    }.isSuccess
+            awaitClose {
+                if (registered) context.contentResolver.unregisterContentObserver(observer)
+            }
         }.debounce(CHANGE_DEBOUNCE_MS)
 
     private companion object {
