@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import android.os.SystemClock
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -127,33 +128,25 @@ private fun PlayingState(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Album art on the left, sized square to the top region's height.
+        // Album art on the left, sized square to the top region's height. Tapping it
+        // brings the source app to the foreground — the artwork is a comfortable
+        // >= MinTouchTarget tap target, so the source affordance no longer needs a
+        // dedicated button stealing width from the title. A small source-app badge
+        // sits in the artwork's top-right corner as the at-a-glance "which app" cue.
         AlbumArt(
             nowPlaying = nowPlaying,
+            onLaunchSource = { onLaunchSource(nowPlaying.packageName) },
             modifier = Modifier.fillMaxHeight().aspectRatio(1f),
         )
         Column(
             modifier = Modifier.weight(1f).fillMaxHeight(),
             verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                Meta(
-                    source = sourceLabel(nowPlaying.packageName),
-                    title = nowPlaying.title,
-                    artist = nowPlaying.artist,
-                    modifier = Modifier.weight(1f),
-                )
-                // Tapping the source app's icon brings that app to the foreground.
-                SourceAppButton(
-                    sourceIcon = nowPlaying.sourceIcon,
-                    sourceLabel = sourceLabel(nowPlaying.packageName),
-                    onClick = { onLaunchSource(nowPlaying.packageName) },
-                )
-            }
+            Meta(
+                source = sourceLabel(nowPlaying.packageName),
+                title = nowPlaying.title,
+                artist = nowPlaying.artist,
+            )
             Progress(
                 positionMs = nowPlaying.positionMs,
                 durationMs = nowPlaying.durationMs,
@@ -171,87 +164,99 @@ private fun PlayingState(
 }
 
 @Composable
-private fun SourceAppButton(
-    sourceIcon: ImageBitmap?,
-    sourceLabel: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val description = stringResource(R.string.music_open_source, sourceLabel)
-    Box(
-        modifier =
-            modifier
-                .size(FemtoDimens.MinTouchTarget)
-                .clip(RoundedCornerShape(14.dp))
-                .clickable(onClick = onClick)
-                .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center,
-    ) {
-        if (sourceIcon != null) {
-            Image(
-                bitmap = sourceIcon,
-                contentDescription = null,
-                modifier =
-                    Modifier
-                        .size(28.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-            )
-        } else {
-            // Fallback when the source icon could not be resolved: a generic
-            // launch glyph keeps the open-app affordance tappable.
-            Icon(
-                imageVector = Lucide.ExternalLink,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(22.dp),
-            )
-        }
-    }
-}
-
-@Composable
 private fun AlbumArt(
     nowPlaying: NowPlaying,
+    onLaunchSource: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val art = nowPlaying.albumArt
+    val description = stringResource(R.string.music_open_source, sourceLabel(nowPlaying.packageName))
     Box(
         modifier =
             modifier
                 .clip(RoundedCornerShape(FemtoDimens.ArtCorner))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .clickable(onClick = onLaunchSource)
+                .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {
-        if (art != null) {
-            Image(
-                bitmap = art,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.linearGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.tertiary,
+        // Crossfade keys on the ImageBitmap identity, which is stable across the
+        // per-second position recompositions, so the dissolve fires only on a real
+        // artwork change (track switch / art arriving) — not on every tick.
+        Crossfade(targetState = nowPlaying.albumArt, label = "albumArt") { art ->
+            if (art != null) {
+                Image(
+                    bitmap = art,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.tertiary,
+                                    ),
                                 ),
                             ),
-                        ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Lucide.Music,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(48.dp),
-                )
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Lucide.Music,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(48.dp),
+                    )
+                }
             }
         }
+        SourceBadge(
+            sourceIcon = nowPlaying.sourceIcon,
+            modifier =
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(6.dp),
+        )
+    }
+}
+
+// Small source-app cue pinned to the artwork's top-right corner. Purely visual —
+// the surrounding album art carries the launch tap target and its semantics — so
+// this stays compact rather than a separate >= MinTouchTarget control.
+@Composable
+private fun SourceBadge(
+    sourceIcon: ImageBitmap?,
+    modifier: Modifier = Modifier,
+) = Box(
+    modifier =
+        modifier
+            .size(26.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)),
+    contentAlignment = Alignment.Center,
+) {
+    if (sourceIcon != null) {
+        Image(
+            bitmap = sourceIcon,
+            contentDescription = null,
+            modifier =
+                Modifier
+                    .size(18.dp)
+                    .clip(RoundedCornerShape(5.dp)),
+        )
+    } else {
+        // The source icon could not be resolved (rare): a generic launch glyph
+        // still signals the artwork opens the player.
+        Icon(
+            imageVector = Lucide.ExternalLink,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(14.dp),
+        )
     }
 }
 
