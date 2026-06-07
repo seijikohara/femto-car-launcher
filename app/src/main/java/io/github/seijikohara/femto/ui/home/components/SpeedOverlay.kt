@@ -114,6 +114,9 @@ internal fun SpeedOverlay(
     val distance = speedUnit.tripDistanceFromMeters(tripState.distanceMeters)
     val avgSpeed = speedUnit.fromMetersPerSecond(tripState.avgSpeedMs.toFloat()).roundToInt()
     val shortAddress = address?.displayString().orEmpty()
+    // Altitude (metres) from the fix when the chip reports it; null hides the
+    // altitude readout rather than showing a misleading 0.
+    val altitudeM = location?.takeIf { it.hasAltitude() }?.altitude?.roundToInt()
     val glassAlpha = if (isSystemInDarkTheme()) FemtoDimens.GlassBgAlphaDark else FemtoDimens.GlassBgAlphaLight
     Column(
         modifier =
@@ -151,7 +154,7 @@ internal fun SpeedOverlay(
         Box(modifier = Modifier.height(5.dp))
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         Box(modifier = Modifier.height(5.dp))
-        AddressRow(text = shortAddress.ifBlank { NO_ADDRESS_PLACEHOLDER })
+        AddressRow(text = shortAddress.ifBlank { NO_ADDRESS_PLACEHOLDER }, altitudeM = altitudeM)
     }
 }
 
@@ -260,34 +263,46 @@ private fun SecondaryMetric(
 }
 
 @Composable
-private fun AddressRow(text: String) =
-    Row(
-        // Fill the overlay's (metric-row-defined) width so a long address
-        // ellipsizes within it instead of stretching the card wider.
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Icon(
-            imageVector = Lucide.MapPin,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.86f),
-            modifier = Modifier.size(FemtoDimens.WeatherGlyphSmall),
-        )
+private fun AddressRow(
+    text: String,
+    altitudeM: Int?,
+) = Row(
+    // Fill the overlay's (metric-row-defined) width so a long address
+    // ellipsizes within it instead of stretching the card wider.
+    modifier = Modifier.fillMaxWidth(),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+) {
+    Icon(
+        imageVector = Lucide.MapPin,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.86f),
+        modifier = Modifier.size(FemtoDimens.WeatherGlyphSmall),
+    )
+    Text(
+        text = text,
+        style =
+            MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 16.sp,
+            ),
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.86f),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.weight(1f),
+    )
+    // Altitude readout, trailing the address (the address ellipsizes to make
+    // room). Hidden when the fix carries no altitude.
+    if (altitudeM != null) {
         Text(
-            text = text,
-            style =
-                MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    lineHeight = 16.sp,
-                ),
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.86f),
+            text = stringResource(R.string.speed_altitude, altitudeM),
+            style = MaterialTheme.typography.sectionLabel(11, 0.04f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.86f),
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
         )
     }
+}
 
 // Trailing reset control for the trip metrics, anchored to the overlay's
 // top-right (the end of the metric row). Sized below MinTouchTarget so it does
@@ -358,7 +373,11 @@ private fun SpeedOverlayPreview() {
         // A non-null fix exercises the live-speed path so the hero numeral
         // renders the smoothed value rather than the no-fix em-dash.
         SpeedOverlay(
-            location = Location("preview").apply { speed = 13.2f },
+            location =
+                Location("preview").apply {
+                    speed = 13.2f
+                    altitude = 42.0
+                },
             address = ShortAddress(locality = "Minato-ku", region = "Tokyo"),
             tripState = TripState(distanceMeters = 24_400.0, avgSpeedMs = 11.7, currentSpeedMs = 13.2),
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,

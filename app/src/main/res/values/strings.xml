@@ -9,6 +9,7 @@
 
     <!-- Speed overlay -->
     <string name="speed_reset_trip">Reset trip</string>
+    <string name="speed_altitude">ALT %1$d m</string>
 
     <!-- Calendar card -->
     <string name="calendar_no_events">No upcoming events</string>

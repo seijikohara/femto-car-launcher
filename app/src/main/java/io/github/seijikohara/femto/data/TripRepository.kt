@@ -151,9 +151,13 @@ internal class TripRepository(
                 // sub-second gaps): do not publish or accrue them.
                 if (speed != null && speed <= MAX_PLAUSIBLE_SPEED_MS) {
                     currentSpeedMs = speed
+                    // Count every tracked interval toward the average's time base,
+                    // including time spent stopped, so AVG is the overall trip
+                    // average (distance / elapsed) rather than a moving-only average.
+                    // Long gaps are already excluded by the deltaSeconds window above.
+                    totalSeconds += deltaSeconds
                     if (speed >= MIN_MOVING_SPEED_MS) {
                         totalMeters += previous.distanceTo(current).toDouble()
-                        totalSeconds += deltaSeconds
                     }
                 }
             }

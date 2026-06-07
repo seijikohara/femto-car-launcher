@@ -48,7 +48,9 @@ class TripRepositoryTest {
     @Test
     fun `excludes stationary fixes below the moving-speed floor`() =
         runTest {
-            // Same position, reported speed below MIN_MOVING_SPEED_MS.
+            // Same position, reported speed below MIN_MOVING_SPEED_MS. Stationary
+            // fixes add no DISTANCE (asserted here); their time still counts toward
+            // the average — see `average includes stopped time`.
             val flow =
                 flowOf(
                     fakeLocation(speedMps = 0.1f, elapsedRealtimeNanos = 0L),
@@ -58,6 +60,29 @@ class TripRepositoryTest {
             TripRepository(flow).stateFlow().test {
                 skipItems(2) // initial snapshot + first fix
                 assertEquals(0.0, awaitItem().distanceMeters, 0.0)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `average includes stopped time`() =
+        runTest {
+            // Move for 10 s, then sit stopped for another 10 s at the same spot: the
+            // stopped interval adds time but no distance, so the overall average must
+            // drop below the moving-only average.
+            val flow =
+                flowOf(
+                    fakeLocation(latitude = ORIGIN_LAT, speedMps = 11f, elapsedRealtimeNanos = 0L),
+                    fakeLocation(latitude = ORIGIN_LAT + STEP, speedMps = 11f, elapsedRealtimeNanos = tenSeconds(1)),
+                    fakeLocation(latitude = ORIGIN_LAT + STEP, speedMps = 0.1f, elapsedRealtimeNanos = tenSeconds(2)),
+                )
+
+            TripRepository(flow).stateFlow().test {
+                skipItems(2) // initial snapshot + first fix (no previous yet)
+                val moving = awaitItem() // after the second (moving) fix
+                val afterStop = awaitItem() // after the stopped fix
+                assertTrue(afterStop.avgSpeedMs > 0.0)
+                assertTrue(afterStop.avgSpeedMs < moving.avgSpeedMs)
                 cancelAndIgnoreRemainingEvents()
             }
         }
