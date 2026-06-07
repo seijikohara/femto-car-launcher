@@ -124,22 +124,29 @@ object FemtoDimens {
     val ArtCorner = 14.dp
 
     /**
-     * Glass overlay background opacity in light theme.
+     * Glass overlay tint opacity in light theme: the surface tint laid over the
+     * blurred map backdrop (the clock / speed panels use Haze). Kept below a fully
+     * opaque scrim so the backdrop blur stays visible while text contrast holds; on
+     * the Live map backend (no captured backdrop) the panel falls back to an opaque
+     * surface base under this tint, so it stays legible there too.
      *
      * The glass alpha tokens keep the PascalCase token vocabulary of this object
      * rather than ktlint's SCREAMING_SNAKE_CASE for `const val`, so they read as
      * siblings of the dp tokens above.
      */
     @Suppress("ktlint:standard:property-naming")
-    const val GlassBgAlphaLight = 0.78f
+    const val GlassBgAlphaLight = 0.6f
 
-    /** Glass overlay background opacity in dark theme — more translucent so the darker map reads through. */
+    /** Glass overlay tint opacity in dark theme — more translucent so the darker blurred map reads through. */
     @Suppress("ktlint:standard:property-naming")
-    const val GlassBgAlphaDark = 0.55f
+    const val GlassBgAlphaDark = 0.42f
 
     /** Glass overlay hairline border opacity, shared across light and dark themes. */
     @Suppress("ktlint:standard:property-naming")
     const val GlassBorderAlpha = 0.6f
+
+    /** Backdrop blur radius for the glass overlays (clock / speed) over the map. */
+    val GlassBlurRadius = 24.dp
 
     /**
      * App-drawer bottom-sheet height as a fraction of the viewport, so the

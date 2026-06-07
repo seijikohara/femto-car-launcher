@@ -1,6 +1,5 @@
 package io.github.seijikohara.femto.ui.home.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.padding
@@ -17,6 +16,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
@@ -53,6 +56,7 @@ internal fun ClockOverlay(
     modifier: Modifier = Modifier,
     is24Hour: Boolean = true,
     showSeconds: Boolean = true,
+    hazeState: HazeState = rememberHazeState(),
 ) {
     val now by produceState(initialValue = LocalTime.now(), showSeconds) {
         while (true) {
@@ -72,6 +76,9 @@ internal fun ClockOverlay(
             else -> ClockFormatter12NoSeconds
         }
     val glassAlpha = if (isSystemInDarkTheme()) FemtoDimens.GlassBgAlphaDark else FemtoDimens.GlassBgAlphaLight
+    // Capture the theme colors outside the hazeEffect block, which is a draw-time
+    // lambda and cannot read MaterialTheme.
+    val surfaceColor = MaterialTheme.colorScheme.surface
     Text(
         text = now.format(formatter),
         style =
@@ -86,8 +93,11 @@ internal fun ClockOverlay(
         modifier =
             modifier
                 .clip(RoundedCornerShape(FemtoDimens.OverlayCorner))
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = glassAlpha))
-                .border(
+                .hazeEffect(state = hazeState) {
+                    backgroundColor = surfaceColor
+                    tints = listOf(HazeTint(surfaceColor.copy(alpha = glassAlpha)))
+                    blurRadius = FemtoDimens.GlassBlurRadius
+                }.border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.GlassBorderAlpha),
                     shape = RoundedCornerShape(FemtoDimens.OverlayCorner),
