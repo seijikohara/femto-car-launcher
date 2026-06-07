@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.settings
 
+import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.DisplaySettings
 import io.github.seijikohara.femto.data.FullscreenSetting
@@ -13,6 +14,7 @@ import io.github.seijikohara.femto.ui.theme.FontTheme
 /** State for the in-app settings screen: the persisted display + font choices. */
 internal data class SettingsUiState(
     val themeMode: ThemeMode,
+    val accentColor: AccentColor,
     val speedUnit: SpeedUnitSetting,
     val temperatureUnit: TemperatureUnitSetting,
     val clock: ClockSetting,
@@ -36,6 +38,7 @@ internal data class SettingsUiState(
         val Initial =
             SettingsUiState(
                 themeMode = DisplaySettings.Default.themeMode,
+                accentColor = DisplaySettings.Default.accentColor,
                 speedUnit = DisplaySettings.Default.speedUnit,
                 temperatureUnit = DisplaySettings.Default.temperatureUnit,
                 clock = DisplaySettings.Default.clock,
@@ -60,6 +63,10 @@ internal data class SettingsUiState(
 internal sealed interface SettingsAction {
     data class SetThemeMode(
         val value: ThemeMode,
+    ) : SettingsAction
+
+    data class SetAccentColor(
+        val value: AccentColor,
     ) : SettingsAction
 
     data class SetSpeedUnit(

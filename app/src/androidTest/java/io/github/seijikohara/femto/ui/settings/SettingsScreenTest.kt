@@ -2,11 +2,13 @@ package io.github.seijikohara.femto.ui.settings
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.FullscreenSetting
 import io.github.seijikohara.femto.data.ThemeMode
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -23,6 +25,7 @@ class SettingsScreenTest {
     private val themeLabel = context.getString(R.string.settings_group_theme)
     private val darkLabel = context.getString(R.string.settings_theme_dark)
     private val showSecondsLabel = context.getString(R.string.settings_group_clock_seconds)
+    private val tealAccentLabel = context.getString(R.string.settings_accent_teal)
 
     @Test
     fun renders_fullscreen_row() {
@@ -48,6 +51,16 @@ class SettingsScreenTest {
         // row flips the switch off.
         rule.onNodeWithText(showSecondsLabel).performScrollTo().performClick()
         assertEquals(listOf(SettingsAction.SetShowClockSeconds(false)), actions)
+    }
+
+    @Test
+    fun tapping_an_accent_swatch_dispatches_set_accent_color() {
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(onAction = { actions += it })
+        // The accent swatches scroll horizontally; bring the Teal chip into view,
+        // then tapping it reports the matching AccentColor.
+        rule.onNodeWithContentDescription(tealAccentLabel).performScrollTo().performClick()
+        assertEquals(listOf(SettingsAction.SetAccentColor(AccentColor.TEAL)), actions)
     }
 
     @Test

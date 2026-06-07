@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.testfixtures
 
+import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.DisplaySettings
 import io.github.seijikohara.femto.data.DisplaySettingsStore
@@ -25,6 +26,8 @@ internal class FakeDisplaySettingsStore(
     override val settings: Flow<DisplaySettings> = state
 
     override suspend fun setThemeMode(value: ThemeMode) = state.update { it.copy(themeMode = value) }
+
+    override suspend fun setAccentColor(value: AccentColor) = state.update { it.copy(accentColor = value) }
 
     override suspend fun setSpeedUnit(value: SpeedUnitSetting) = state.update { it.copy(speedUnit = value) }
 
