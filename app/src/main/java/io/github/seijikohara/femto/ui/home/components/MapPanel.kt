@@ -5,7 +5,11 @@ import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.PixelFormat
 import android.location.Location
+import android.view.SurfaceView
+import android.view.View
+import android.view.ViewGroup
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -406,7 +410,12 @@ private fun LiveMap(
                 MapLibreMapOptions
                     .createFromAttributes(context)
                     .textureMode(false)
-            MapView(context, options).apply { onCreate(null) }
+            MapView(context, options).apply {
+                onCreate(null)
+                // Pin an opaque EGL config on the inner GL surface so it composites
+                // (MapLibre's default alpha config showed the card through = grey).
+                configureMapGlSurface(this)
+            }
         }
 
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
@@ -472,6 +481,29 @@ private fun LiveMap(
             )
         } else {
             Attribution(modifier = Modifier.align(Alignment.BottomStart))
+        }
+    }
+}
+
+// Force MapLibre's inner GL SurfaceView to composite like a plain GLSurfaceView:
+// an opaque holder with default (non-media-overlay) z-order. A bare opaque
+// GLSurfaceView presents fine in the same spot, while MapLibre's translucent,
+// media-overlay default surface showed the card through (= grey). This is the
+// device-side bet; the emulator cannot judge it (it forces MapLibre onto an
+// emulator-only EGL config path that never composites regardless).
+private fun configureMapGlSurface(view: View) {
+    when (view) {
+        is SurfaceView -> {
+            view.setZOrderMediaOverlay(false)
+            view.holder.setFormat(PixelFormat.OPAQUE)
+        }
+
+        is ViewGroup -> {
+            (0 until view.childCount).forEach { configureMapGlSurface(view.getChildAt(it)) }
+        }
+
+        else -> {
+            Unit
         }
     }
 }
