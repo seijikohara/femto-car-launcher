@@ -18,6 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
@@ -176,15 +178,20 @@ private fun MapPane(
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Box(modifier = modifier) {
+    // Shared Haze state: the map registers as the blur source, the glass overlays
+    // sample it for their backdrop blur. Only the snapshot backend (a Compose
+    // Image) can be captured; the Live GL surface falls back to the opaque tint.
+    val hazeState = rememberHazeState()
     MapPanel(
         location = uiState.location,
         mapConfig = mapConfig,
         onTap = { onAction(HomeAction.OpenMaps) },
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().hazeSource(hazeState),
     )
     ClockOverlay(
         is24Hour = is24Hour,
         showSeconds = showClockSeconds,
+        hazeState = hazeState,
         modifier =
             Modifier
                 .align(Alignment.TopEnd)
@@ -196,6 +203,7 @@ private fun MapPane(
         tripState = uiState.tripState,
         speedUnit = speedUnit,
         onReset = { onAction(HomeAction.ResetTrip) },
+        hazeState = hazeState,
         modifier =
             Modifier
                 .align(Alignment.BottomCenter)

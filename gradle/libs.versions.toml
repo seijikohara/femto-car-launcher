@@ -7,6 +7,7 @@ composeBom = "2026.05.01"
 coreKtx = "1.19.0"
 datastore = "1.2.1"
 espressoCore = "3.7.0"
+haze = "1.7.2"
 junit = "4.13.2"
 junitVersion = "1.3.0"
 kotlin = "2.4.0"
@@ -44,6 +45,7 @@ androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-ru
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
 composables-icons-lucide = { module = "com.composables:icons-lucide", version.ref = "composablesIconsLucide" }
+haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
 junit = { module = "junit:junit", version.ref = "junit" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }

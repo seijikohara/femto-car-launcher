@@ -41,6 +41,10 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPin
 import com.composables.icons.lucide.RotateCcw
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.ShortAddress
 import io.github.seijikohara.femto.data.TripState
@@ -92,6 +96,7 @@ internal fun SpeedOverlay(
     speedUnit: SpeedUnit,
     onReset: () -> Unit,
     modifier: Modifier = Modifier,
+    hazeState: HazeState = rememberHazeState(),
 ) {
     // Source the hero numeral from the trip's effective speed, not
     // location.speed: cheap GPS chips leave Location.speed at 0.0
@@ -118,6 +123,9 @@ internal fun SpeedOverlay(
     // altitude readout rather than showing a misleading 0.
     val altitudeM = location?.takeIf { it.hasAltitude() }?.altitude?.roundToInt()
     val glassAlpha = if (isSystemInDarkTheme()) FemtoDimens.GlassBgAlphaDark else FemtoDimens.GlassBgAlphaLight
+    // Capture the surface color outside the draw-time hazeEffect block, which
+    // cannot read MaterialTheme.
+    val surfaceColor = MaterialTheme.colorScheme.surface
     Column(
         modifier =
             modifier
@@ -132,8 +140,11 @@ internal fun SpeedOverlay(
                 // maximum, and the address row ellipsizes within it.
                 .widthIn(max = FemtoDimens.SpeedOverlayMaxWidth)
                 .clip(RoundedCornerShape(FemtoDimens.SpeedOverlayCorner))
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = glassAlpha))
-                .border(
+                .hazeEffect(state = hazeState) {
+                    backgroundColor = surfaceColor
+                    tints = listOf(HazeTint(surfaceColor.copy(alpha = glassAlpha)))
+                    blurRadius = FemtoDimens.GlassBlurRadius
+                }.border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.GlassBorderAlpha),
                     shape = RoundedCornerShape(FemtoDimens.SpeedOverlayCorner),
