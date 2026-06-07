@@ -52,6 +52,13 @@ internal const val DEFAULT_MAP_ZOOM = 16
 internal const val DEFAULT_MAP_RENDER_PERCENT = 100
 
 /**
+ * Default map look-ahead (metres): the camera aims this far ahead of the current
+ * position along the heading, so the location marker sits low in the frame (near
+ * the speed overlay) with the road ahead visible. Larger = marker lower.
+ */
+internal const val DEFAULT_MAP_LOOKAHEAD_M = 180
+
+/**
  * User display settings that override the locale / system defaults. Every value
  * defaults to the auto / system choice so a fresh install behaves exactly as
  * before the settings screen existed.
@@ -72,6 +79,9 @@ internal data class DisplaySettings(
     // blurrier but renders faster, so the frame rate can climb closer to mapFps.
     val mapRenderPercent: Int,
     val mapRenderMode: MapRenderMode,
+    // Camera look-ahead (metres): how far ahead of the current position the camera
+    // aims, which sets how low the location marker sits (closer to the speed panel).
+    val mapLookAheadM: Int,
     // Info-pane card visibility. Each card defaults to shown so a fresh install
     // renders the full dashboard; hiding one lets the remaining cards (or the map)
     // reflow into the freed space.
@@ -93,6 +103,7 @@ internal data class DisplaySettings(
                 mapZoom = DEFAULT_MAP_ZOOM,
                 mapRenderPercent = DEFAULT_MAP_RENDER_PERCENT,
                 mapRenderMode = MapRenderMode.SNAPSHOT,
+                mapLookAheadM = DEFAULT_MAP_LOOKAHEAD_M,
                 showCalendar = true,
                 showWeather = true,
                 showMusic = true,
@@ -132,6 +143,8 @@ internal interface DisplaySettingsStore {
 
     suspend fun setMapRenderMode(value: MapRenderMode)
 
+    suspend fun setMapLookAhead(value: Int)
+
     suspend fun setShowCalendar(value: Boolean)
 
     suspend fun setShowWeather(value: Boolean)
@@ -163,6 +176,7 @@ internal class DisplayPreferences(
                 mapZoom = prefs[MAP_ZOOM_KEY] ?: DEFAULT_MAP_ZOOM,
                 mapRenderPercent = prefs[MAP_QUALITY_KEY] ?: DEFAULT_MAP_RENDER_PERCENT,
                 mapRenderMode = prefs[MAP_RENDER_MODE_KEY].toEnumOr(MapRenderMode.SNAPSHOT),
+                mapLookAheadM = prefs[MAP_LOOKAHEAD_KEY] ?: DEFAULT_MAP_LOOKAHEAD_M,
                 showCalendar = prefs[SHOW_CALENDAR_KEY] ?: true,
                 showWeather = prefs[SHOW_WEATHER_KEY] ?: true,
                 showMusic = prefs[SHOW_MUSIC_KEY] ?: true,
@@ -215,6 +229,10 @@ internal class DisplayPreferences(
         context.displayDataStore.edit { it[MAP_RENDER_MODE_KEY] = value.name }
     }
 
+    override suspend fun setMapLookAhead(value: Int) {
+        context.displayDataStore.edit { it[MAP_LOOKAHEAD_KEY] = value }
+    }
+
     override suspend fun setShowCalendar(value: Boolean) {
         context.displayDataStore.edit { it[SHOW_CALENDAR_KEY] = value }
     }
@@ -239,6 +257,7 @@ internal class DisplayPreferences(
         val MAP_ZOOM_KEY = intPreferencesKey("map_zoom")
         val MAP_QUALITY_KEY = intPreferencesKey("map_render_percent")
         val MAP_RENDER_MODE_KEY = stringPreferencesKey("map_render_mode")
+        val MAP_LOOKAHEAD_KEY = intPreferencesKey("map_look_ahead_m")
         val SHOW_CALENDAR_KEY = booleanPreferencesKey("show_calendar")
         val SHOW_WEATHER_KEY = booleanPreferencesKey("show_weather")
         val SHOW_MUSIC_KEY = booleanPreferencesKey("show_music")

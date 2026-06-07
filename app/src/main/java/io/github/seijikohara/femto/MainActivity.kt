@@ -127,6 +127,7 @@ class MainActivity : ComponentActivity() {
                                 zoom = display.mapZoom,
                                 renderPercent = display.mapRenderPercent,
                                 renderMode = display.mapRenderMode,
+                                lookAheadM = display.mapLookAheadM,
                             ),
                         panels =
                             PanelVisibility(

@@ -195,6 +195,13 @@ internal fun SettingsScreen(
                 onValueChange = { onAction(SettingsAction.SetMapZoom(it)) },
             )
             SliderRow(
+                title = stringResource(R.string.settings_group_map_look_ahead),
+                valueLabel = stringResource(R.string.settings_map_look_ahead_value, uiState.mapLookAheadM),
+                value = uiState.mapLookAheadM,
+                range = MIN_MAP_LOOK_AHEAD..MAX_MAP_LOOK_AHEAD,
+                onValueChange = { onAction(SettingsAction.SetMapLookAhead(it)) },
+            )
+            SliderRow(
                 title = stringResource(R.string.settings_group_map_quality),
                 valueLabel = stringResource(R.string.settings_map_quality_value, uiState.mapRenderPercent),
                 value = uiState.mapRenderPercent,
@@ -507,6 +514,11 @@ private const val MIN_MAP_TILT = 0
 private const val MAX_MAP_TILT = 60
 private const val MIN_MAP_ZOOM = 12
 private const val MAX_MAP_ZOOM = 19
+
+// Camera look-ahead band (metres): 0 centres the marker; larger pushes it lower,
+// toward the speed panel.
+private const val MIN_MAP_LOOK_AHEAD = 0
+private const val MAX_MAP_LOOK_AHEAD = 400
 
 // Snapshot render resolution band (percent). The floor stays well above zero so
 // the upscaled map keeps roads legible; 100 is full panel resolution.
