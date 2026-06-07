@@ -398,14 +398,14 @@ private fun LiveMap(
     val mapView =
         remember {
             MapLibre.getInstance(context)
-            // TextureView so the map is clipped by the parent card and the overlays
-            // sit on top; translucent (RGBA) surface because the opaque-RGB EGL
-            // config is rejected by some head-unit GL drivers (blank otherwise).
+            // EXPERIMENT: SurfaceView (textureMode = false) instead of TextureView.
+            // A SurfaceView gets its own SurfaceFlinger-composited layer (the path
+            // games / Google Maps use) which may present GL where the TextureView
+            // texture-share path showed grey on the projected head-unit display.
             val options =
                 MapLibreMapOptions
                     .createFromAttributes(context)
-                    .textureMode(true)
-                    .translucentTextureSurface(true)
+                    .textureMode(false)
             MapView(context, options).apply { onCreate(null) }
         }
 
