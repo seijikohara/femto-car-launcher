@@ -44,6 +44,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -572,16 +573,21 @@ private fun Location.withCarriedBearing(holder: FloatArray): Location =
 private fun Attribution(modifier: Modifier = Modifier) =
     Text(
         text = stringResource(R.string.map_attribution),
-        // Legal credit, not glance content, so it intentionally sits below the
-        // body-text floor — OSM ODbL / OpenMapTiles CC-BY require the credit.
-        style = MaterialTheme.typography.labelSmall,
+        // Legal credit, not glance content — OSM ODbL / OpenMapTiles CC-BY require
+        // it but it is not read on the move, so it sits well below the body-text
+        // floor and is shrunk further here so the centred speed overlay does not
+        // bury it on a narrow map pane.
+        style = MaterialTheme.typography.labelSmall.copy(
+            fontSize = ATTRIBUTION_FONT_SIZE,
+            lineHeight = ATTRIBUTION_FONT_SIZE,
+        ),
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
         modifier =
             modifier
-                .padding(6.dp)
+                .padding(4.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
-                .padding(horizontal = 6.dp, vertical = 2.dp),
+                .padding(horizontal = 4.dp, vertical = 1.dp),
     )
 
 // Current-location puck: a primary-coloured dot with a white ring, positioned by
@@ -659,6 +665,10 @@ private const val REFRESH_DISTANCE_M = 2f
 private const val FORWARD_OFFSET_M = 60.0
 private const val EARTH_RADIUS_M = 6_371_000.0
 private val MARKER_SIZE = 18.dp
+
+// Small attribution type: legal credit only, deliberately tiny so the centred
+// speed overlay does not bury it on a narrow map pane.
+private val ATTRIBUTION_FONT_SIZE = 8.sp
 
 // Live-map style-reload budget after a load failure: RETRY_BASE_DELAY_MS shifted
 // left by the attempt index yields 2s, 4s, 8s before settling on the fallback.
