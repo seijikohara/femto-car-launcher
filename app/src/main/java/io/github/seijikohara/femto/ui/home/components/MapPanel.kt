@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.location.Location
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -37,7 +37,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -247,7 +251,7 @@ private fun SnapshotMap(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize().clickable { onTap() },
             )
-            LocationMarker(xPx = current.markerX, yPx = current.markerY)
+            LocationMarker(xPx = current.markerX, yPx = current.markerY, tiltDeg = mapConfig.tiltDeg)
         }
 
         failed -> {
@@ -574,28 +578,54 @@ private fun Attribution(modifier: Modifier = Modifier) =
                 .padding(horizontal = 4.dp, vertical = 1.dp),
     )
 
-// Current-location puck: a primary-coloured dot with a white ring, positioned by
-// the pixel the location rendered at (see MapFrame). offset {} takes layout
-// pixels; MapFrame already scaled the snapshot pixel to layout space, so an
-// upscaled (sub-100%) render still lands the marker on the true position.
+// Current-location puck: a heading-up navigation chevron, positioned by the pixel
+// the location rendered at (see MapFrame). The map is heading-up, so the chevron
+// always points toward the top of the frame (forward); rotationX lays it onto the
+// oblique ground plane so it matches the map's tilt and reads as a nav arrow
+// resting on the road rather than a flat sticker. offset {} takes layout pixels;
+// MapFrame already scaled the snapshot pixel to layout space, so an upscaled
+// (sub-100%) render still lands the marker on the true position.
 @Composable
 private fun LocationMarker(
     xPx: Float,
     yPx: Float,
+    tiltDeg: Int,
     modifier: Modifier = Modifier,
 ) {
-    val half = with(LocalDensity.current) { MARKER_SIZE.toPx() } / 2f
+    val half = with(LocalDensity.current) { MARKER_ARROW_SIZE.toPx() } / 2f
+    val fill = MaterialTheme.colorScheme.primary
+    val outlinePx = with(LocalDensity.current) { 1.5.dp.toPx() }
     Box(
         modifier =
             modifier
                 .offset { IntOffset((xPx - half).roundToInt(), (yPx - half).roundToInt()) }
-                .size(MARKER_SIZE)
-                .clip(CircleShape)
-                .background(Color.White)
-                .padding(3.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary),
-    )
+                .size(MARKER_ARROW_SIZE)
+                .graphicsLayer {
+                    // Lay the chevron back onto the tilted ground plane so it sits in
+                    // the same perspective as the map. transformOrigin centres the
+                    // pivot on the rendered pixel; cameraDistance softens the foreshorten.
+                    rotationX = tiltDeg.toFloat()
+                    cameraDistance = MARKER_CAMERA_DISTANCE * density
+                    transformOrigin = TransformOrigin(0.5f, 0.5f)
+                },
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            // An upward arrowhead with a concave tail notch (the classic nav chevron):
+            // tip at top-centre, the two base corners, and a notch rising from the base.
+            val chevron =
+                Path().apply {
+                    moveTo(w / 2f, 0f)
+                    lineTo(w, h)
+                    lineTo(w / 2f, h * 0.72f)
+                    lineTo(0f, h)
+                    close()
+                }
+            drawPath(chevron, color = fill)
+            drawPath(chevron, color = Color.White, style = Stroke(width = outlinePx))
+        }
+    }
 }
 
 @Composable
@@ -637,7 +667,11 @@ private const val DARK_STYLE_ASSET = "map/dark.json"
 private const val REFRESH_DISTANCE_M = 2f
 
 private const val EARTH_RADIUS_M = 6_371_000.0
-private val MARKER_SIZE = 18.dp
+
+// Heading-up nav chevron size and the graphicsLayer camera distance (multiplied by
+// density) that softens the perspective when the chevron is laid onto the tilt.
+private val MARKER_ARROW_SIZE = 30.dp
+private const val MARKER_CAMERA_DISTANCE = 12f
 
 // Small attribution type: legal credit only, deliberately tiny so the centred
 // speed overlay does not bury it on a narrow map pane.
