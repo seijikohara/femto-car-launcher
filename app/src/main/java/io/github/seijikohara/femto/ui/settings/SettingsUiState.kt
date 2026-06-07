@@ -23,6 +23,7 @@ internal data class SettingsUiState(
     val mapZoom: Int,
     val mapRenderPercent: Int,
     val mapRenderMode: MapRenderMode,
+    val mapLookAheadM: Int,
     val showCalendar: Boolean,
     val showWeather: Boolean,
     val showMusic: Boolean,
@@ -44,6 +45,7 @@ internal data class SettingsUiState(
                 mapZoom = DisplaySettings.Default.mapZoom,
                 mapRenderPercent = DisplaySettings.Default.mapRenderPercent,
                 mapRenderMode = DisplaySettings.Default.mapRenderMode,
+                mapLookAheadM = DisplaySettings.Default.mapLookAheadM,
                 showCalendar = DisplaySettings.Default.showCalendar,
                 showWeather = DisplaySettings.Default.showWeather,
                 showMusic = DisplaySettings.Default.showMusic,
@@ -96,6 +98,10 @@ internal sealed interface SettingsAction {
 
     data class SetMapRenderMode(
         val value: MapRenderMode,
+    ) : SettingsAction
+
+    data class SetMapLookAhead(
+        val value: Int,
     ) : SettingsAction
 
     data class SetShowCalendar(

@@ -88,6 +88,7 @@ internal data class MapConfig(
     val zoom: Int = 16,
     val renderPercent: Int = 100,
     val renderMode: MapRenderMode = MapRenderMode.SNAPSHOT,
+    val lookAheadM: Int = 180,
 )
 
 /**
@@ -220,7 +221,7 @@ private fun SnapshotMap(
             while (isActive) {
                 val loc = currentLocation.value
                 if (shouldRerender(lastRendered, loc)) {
-                    val camera = cameraFor(loc, bearingHolder, mapConfig.tiltDeg, mapConfig.zoom)
+                    val camera = cameraFor(loc, bearingHolder, mapConfig.tiltDeg, mapConfig.zoom, mapConfig.lookAheadM)
                     val rendered = snap.render(camera, LatLng(loc.latitude, loc.longitude), markerScale)
                     if (rendered != null) {
                         frame = rendered
@@ -293,12 +294,15 @@ private fun cameraFor(
     bearingHolder: FloatArray,
     tiltDeg: Int,
     zoom: Int,
+    lookAheadM: Int,
 ): CameraPosition {
     val bearing = location.carriedBearing(bearingHolder).toDouble()
     // Aim the camera ahead of the current position (along the heading) so the
     // current location renders low in the frame: more road ahead is visible and
-    // the marker sits just above the speed overlay (nav-style framing).
-    val target = LatLng(location.latitude, location.longitude).offsetForward(bearing, FORWARD_OFFSET_M)
+    // the marker sits just above the speed overlay (nav-style framing). The
+    // look-ahead distance is user-tunable so the marker can be placed nearer to
+    // (or further from) the speed panel.
+    val target = LatLng(location.latitude, location.longitude).offsetForward(bearing, lookAheadM.toDouble())
     return CameraPosition
         .Builder()
         .target(target)
@@ -632,9 +636,6 @@ private const val DARK_STYLE_ASSET = "map/dark.json"
 // single-flight render + fps throttle still bound how often a frame is produced.
 private const val REFRESH_DISTANCE_M = 2f
 
-// Look-ahead: aim the camera this far ahead of the current position so the marker
-// sits low in the frame (above the speed overlay) with the road ahead visible.
-private const val FORWARD_OFFSET_M = 60.0
 private const val EARTH_RADIUS_M = 6_371_000.0
 private val MARKER_SIZE = 18.dp
 

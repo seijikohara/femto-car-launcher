@@ -83,5 +83,13 @@ class SettingsViewModelTest {
             assertEquals(MapRenderMode.LIVE, store.settings.first().mapRenderMode)
         }
 
+    @Test
+    fun `SetMapLookAhead writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetMapLookAhead(200))
+            advanceUntilIdle()
+            assertEquals(200, store.settings.first().mapLookAheadM)
+        }
+
     private fun viewModel() = SettingsViewModel(store, FontPreferences(application))
 }
