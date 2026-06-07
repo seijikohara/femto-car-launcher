@@ -134,7 +134,7 @@ internal fun SpeedOverlay(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.GlassBorderAlpha),
                     shape = RoundedCornerShape(FemtoDimens.SpeedOverlayCorner),
-                ).padding(horizontal = 18.dp, vertical = 10.dp),
+                ).padding(horizontal = 18.dp, vertical = 6.dp),
     ) {
         MetricRow(
             currentSpeed = currentSpeedText,
@@ -145,9 +145,11 @@ internal fun SpeedOverlay(
             onReset = onReset,
         )
         if (shortAddress.isNotBlank()) {
-            Box(modifier = Modifier.height(8.dp))
+            // Tightened so the metric row's vertical breathing room matches the
+            // address row's, instead of sitting noticeably taller.
+            Box(modifier = Modifier.height(5.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            Box(modifier = Modifier.height(10.dp))
+            Box(modifier = Modifier.height(5.dp))
             AddressRow(text = shortAddress)
         }
     }
@@ -288,9 +290,10 @@ private fun AddressRow(text: String) =
     }
 
 // Trailing reset control for the trip metrics, anchored to the overlay's
-// top-right (the end of the metric row). A 64 dp hit area
-// (CLAUDE.md#automotive-overrides) wraps a small glyph; the box also sets the
-// metric row height, so the tap target is met without a separate overlay.
+// top-right (the end of the metric row). Sized below MinTouchTarget so it does
+// not crowd the metric cells on a narrow overlay — a deliberate in-overlay
+// exception (CLAUDE.md#automotive-overrides keeps 64 dp the default), the same
+// relaxation the calendar strip takes; also trims the metric row's height.
 @Composable
 private fun ResetButton(
     onReset: () -> Unit,
@@ -298,7 +301,7 @@ private fun ResetButton(
 ) = Box(
     modifier =
         modifier
-            .size(FemtoDimens.MinTouchTarget)
+            .size(RESET_BUTTON_SIZE)
             .clip(CircleShape)
             .clickable(onClick = onReset),
     contentAlignment = Alignment.Center,
@@ -338,6 +341,10 @@ private const val SPEED_OVERLAY_EMA_ALPHA = 0.33f
 // the WeatherCard convention and the permissions contract (location
 // panels read empty until granted). It avoids the ambiguous "0".
 private const val NO_SPEED_PLACEHOLDER = "—"
+
+// Reset control size: narrower than MinTouchTarget so it leaves the metric cells
+// more room on a compact overlay and shortens the metric row (see ResetButton).
+private val RESET_BUTTON_SIZE = 48.dp
 
 @PreviewLightDark
 @Preview(name = "Speed overlay", widthDp = 560, heightDp = 160)
