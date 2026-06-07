@@ -18,7 +18,6 @@ internal data class SettingsUiState(
     val clock: ClockSetting,
     val fullscreen: FullscreenSetting,
     val mapFps: Int,
-    val mapBuildings3d: Boolean,
     val mapStyle: MapStyleSetting,
     val mapTiltDeg: Int,
     val mapZoom: Int,
@@ -40,7 +39,6 @@ internal data class SettingsUiState(
                 clock = DisplaySettings.Default.clock,
                 fullscreen = DisplaySettings.Default.fullscreen,
                 mapFps = DisplaySettings.Default.mapFps,
-                mapBuildings3d = DisplaySettings.Default.mapBuildings3d,
                 mapStyle = DisplaySettings.Default.mapStyle,
                 mapTiltDeg = DisplaySettings.Default.mapTiltDeg,
                 mapZoom = DisplaySettings.Default.mapZoom,
@@ -78,10 +76,6 @@ internal sealed interface SettingsAction {
 
     data class SetMapFps(
         val value: Int,
-    ) : SettingsAction
-
-    data class SetMapBuildings3d(
-        val value: Boolean,
     ) : SettingsAction
 
     data class SetMapStyle(

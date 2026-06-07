@@ -169,11 +169,6 @@ internal fun SettingsScreen(
                 range = MIN_MAP_FPS..maxFps,
                 onValueChange = { onAction(SettingsAction.SetMapFps(it)) },
             )
-            SwitchRow(
-                title = stringResource(R.string.settings_group_map_3d),
-                checked = uiState.mapBuildings3d,
-                onCheckedChange = { onAction(SettingsAction.SetMapBuildings3d(it)) },
-            )
             ChoiceRow(
                 title = stringResource(R.string.settings_group_map_style),
                 options =

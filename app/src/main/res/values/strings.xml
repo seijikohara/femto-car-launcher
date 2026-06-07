@@ -106,7 +106,6 @@
     <string name="settings_map_mode_live">Live</string>
     <string name="settings_group_map_refresh">Map frame rate</string>
     <string name="settings_map_fps_value">%1$d fps</string>
-    <string name="settings_group_map_3d">3D buildings</string>
     <string name="settings_group_map_style">Map style</string>
     <string name="settings_group_map_tilt">Map tilt</string>
     <string name="settings_group_map_zoom">Map zoom</string>

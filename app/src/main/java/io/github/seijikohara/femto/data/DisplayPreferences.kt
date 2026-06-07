@@ -65,7 +65,6 @@ internal data class DisplaySettings(
     // Target map frame rate (fps): the snapshot map caps its re-render rate at
     // this many frames per second. Clamped to the display's max refresh at use.
     val mapFps: Int,
-    val mapBuildings3d: Boolean,
     val mapStyle: MapStyleSetting,
     val mapTiltDeg: Int,
     val mapZoom: Int,
@@ -89,7 +88,6 @@ internal data class DisplaySettings(
                 clock = ClockSetting.AUTO,
                 fullscreen = FullscreenSetting.OFF,
                 mapFps = DEFAULT_MAP_FPS,
-                mapBuildings3d = true,
                 mapStyle = MapStyleSetting.AUTO,
                 mapTiltDeg = DEFAULT_MAP_TILT_DEG,
                 mapZoom = DEFAULT_MAP_ZOOM,
@@ -123,8 +121,6 @@ internal interface DisplaySettingsStore {
     suspend fun setFullscreen(value: FullscreenSetting)
 
     suspend fun setMapFps(value: Int)
-
-    suspend fun setMapBuildings3d(value: Boolean)
 
     suspend fun setMapStyle(value: MapStyleSetting)
 
@@ -162,7 +158,6 @@ internal class DisplayPreferences(
                 clock = prefs[CLOCK_KEY].toEnumOr(ClockSetting.AUTO),
                 fullscreen = prefs[FULLSCREEN_KEY].toEnumOr(FullscreenSetting.OFF),
                 mapFps = prefs[MAP_FPS_KEY] ?: DEFAULT_MAP_FPS,
-                mapBuildings3d = prefs[MAP_BUILDINGS_KEY] ?: true,
                 mapStyle = prefs[MAP_STYLE_KEY].toEnumOr(MapStyleSetting.AUTO),
                 mapTiltDeg = prefs[MAP_TILT_KEY] ?: DEFAULT_MAP_TILT_DEG,
                 mapZoom = prefs[MAP_ZOOM_KEY] ?: DEFAULT_MAP_ZOOM,
@@ -198,10 +193,6 @@ internal class DisplayPreferences(
 
     override suspend fun setMapFps(value: Int) {
         context.displayDataStore.edit { it[MAP_FPS_KEY] = value }
-    }
-
-    override suspend fun setMapBuildings3d(value: Boolean) {
-        context.displayDataStore.edit { it[MAP_BUILDINGS_KEY] = value }
     }
 
     override suspend fun setMapStyle(value: MapStyleSetting) {
@@ -243,7 +234,6 @@ internal class DisplayPreferences(
         val CLOCK_KEY = stringPreferencesKey("clock")
         val FULLSCREEN_KEY = stringPreferencesKey("fullscreen")
         val MAP_FPS_KEY = intPreferencesKey("map_fps")
-        val MAP_BUILDINGS_KEY = booleanPreferencesKey("map_buildings_3d")
         val MAP_STYLE_KEY = stringPreferencesKey("map_style")
         val MAP_TILT_KEY = intPreferencesKey("map_tilt_deg")
         val MAP_ZOOM_KEY = intPreferencesKey("map_zoom")
