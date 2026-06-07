@@ -5,7 +5,11 @@ import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.PixelFormat
 import android.location.Location
+import android.view.SurfaceView
+import android.view.View
+import android.view.ViewGroup
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -368,12 +372,12 @@ private fun styleBuilderFor(
         Style.Builder().fromUri(POSITRON_STYLE_URL)
     }
 
-// Live GL backend. A real MapView (TextureView + RGBA surface) with the location
-// component driving a heading-up TRACKING_GPS camera. Smoother than the snapshot
-// where the device can scan out GL buffers; on projected / virtualised displays
-// that cannot, it shows the fallback's grey rectangle — hence SNAPSHOT is default
-// and this is opt-in so the user can test their hardware. Shares styleBuilderFor
-// and the OpenFreeMap host with the snapshot path.
+// Live GL backend. A real MapView on a SurfaceView (its own SurfaceFlinger layer)
+// with the location component driving a heading-up TRACKING_GPS camera. Smoother
+// than the snapshot where the device can scan out GL buffers; on projected /
+// virtualised displays that cannot, it shows the fallback's grey rectangle — hence
+// SNAPSHOT is default and this is opt-in so the user can test their hardware.
+// Shares styleBuilderFor and the OpenFreeMap host with the snapshot path.
 @Composable
 private fun LiveMap(
     location: Location,
@@ -398,15 +402,20 @@ private fun LiveMap(
     val mapView =
         remember {
             MapLibre.getInstance(context)
-            // TextureView so the map is clipped by the parent card and the overlays
-            // sit on top; translucent (RGBA) surface because the opaque-RGB EGL
-            // config is rejected by some head-unit GL drivers (blank otherwise).
+            // SurfaceView backend (textureMode = false), not TextureView. A
+            // SurfaceView gets its own SurfaceFlinger-composited layer — the path
+            // games / Google Maps use — which presents GL on more head units than
+            // the TextureView texture-share path (that one showed grey on the
+            // projected AI-box display). The snapshot backend stays the default; this
+            // is the opt-in LIVE path for hardware that can scan out GL.
             val options =
                 MapLibreMapOptions
                     .createFromAttributes(context)
-                    .textureMode(true)
-                    .translucentTextureSurface(true)
-            MapView(context, options).apply { onCreate(null) }
+                    .textureMode(false)
+            MapView(context, options).apply {
+                onCreate(null)
+                configureMapGlSurface(this)
+            }
         }
 
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
@@ -472,6 +481,29 @@ private fun LiveMap(
             )
         } else {
             Attribution(modifier = Modifier.align(Alignment.BottomStart))
+        }
+    }
+}
+
+// Force MapLibre's inner GL SurfaceView to composite like a plain GLSurfaceView:
+// an opaque holder with default (non-media-overlay) z-order. A bare opaque
+// GLSurfaceView presents fine in the same spot, while MapLibre's translucent,
+// media-overlay default surface showed the card through (= grey). This is the
+// device-side bet; the emulator cannot judge it (it forces MapLibre onto an
+// emulator-only EGL config path that never composites regardless).
+private fun configureMapGlSurface(view: View) {
+    when (view) {
+        is SurfaceView -> {
+            view.setZOrderMediaOverlay(false)
+            view.holder.setFormat(PixelFormat.OPAQUE)
+        }
+
+        is ViewGroup -> {
+            (0 until view.childCount).forEach { configureMapGlSurface(view.getChildAt(it)) }
+        }
+
+        else -> {
+            Unit
         }
     }
 }
