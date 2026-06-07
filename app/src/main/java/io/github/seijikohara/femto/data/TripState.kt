@@ -7,9 +7,10 @@ import androidx.compose.runtime.Immutable
  *
  * `distanceMeters` is the total ground distance covered since the
  * activity (and therefore the launcher process) started. `avgSpeedMs`
- * is the moving average — total distance divided by the time the
- * device was actually moving (jitter at rest is filtered out at the
- * repository level). `currentSpeedMs` is the latest instantaneous
+ * is the overall trip average — total distance divided by the total
+ * tracked time, including time spent stopped (only untracked gaps, e.g.
+ * the app backgrounded, are excluded at the repository level).
+ * `currentSpeedMs` is the latest instantaneous
  * effective speed: the reported fix speed when the GPS chip supplies
  * one, otherwise the position-derived speed so the hero numeral still
  * moves on speed-less HALs.
