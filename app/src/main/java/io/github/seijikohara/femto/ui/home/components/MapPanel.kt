@@ -372,12 +372,12 @@ private fun styleBuilderFor(
         Style.Builder().fromUri(POSITRON_STYLE_URL)
     }
 
-// Live GL backend. A real MapView (TextureView + RGBA surface) with the location
-// component driving a heading-up TRACKING_GPS camera. Smoother than the snapshot
-// where the device can scan out GL buffers; on projected / virtualised displays
-// that cannot, it shows the fallback's grey rectangle — hence SNAPSHOT is default
-// and this is opt-in so the user can test their hardware. Shares styleBuilderFor
-// and the OpenFreeMap host with the snapshot path.
+// Live GL backend. A real MapView on a SurfaceView (its own SurfaceFlinger layer)
+// with the location component driving a heading-up TRACKING_GPS camera. Smoother
+// than the snapshot where the device can scan out GL buffers; on projected /
+// virtualised displays that cannot, it shows the fallback's grey rectangle — hence
+// SNAPSHOT is default and this is opt-in so the user can test their hardware.
+// Shares styleBuilderFor and the OpenFreeMap host with the snapshot path.
 @Composable
 private fun LiveMap(
     location: Location,
@@ -402,18 +402,18 @@ private fun LiveMap(
     val mapView =
         remember {
             MapLibre.getInstance(context)
-            // EXPERIMENT: SurfaceView (textureMode = false) instead of TextureView.
-            // A SurfaceView gets its own SurfaceFlinger-composited layer (the path
-            // games / Google Maps use) which may present GL where the TextureView
-            // texture-share path showed grey on the projected head-unit display.
+            // SurfaceView backend (textureMode = false), not TextureView. A
+            // SurfaceView gets its own SurfaceFlinger-composited layer — the path
+            // games / Google Maps use — which presents GL on more head units than
+            // the TextureView texture-share path (that one showed grey on the
+            // projected AI-box display). The snapshot backend stays the default; this
+            // is the opt-in LIVE path for hardware that can scan out GL.
             val options =
                 MapLibreMapOptions
                     .createFromAttributes(context)
                     .textureMode(false)
             MapView(context, options).apply {
                 onCreate(null)
-                // Pin an opaque EGL config on the inner GL surface so it composites
-                // (MapLibre's default alpha config showed the card through = grey).
                 configureMapGlSurface(this)
             }
         }
