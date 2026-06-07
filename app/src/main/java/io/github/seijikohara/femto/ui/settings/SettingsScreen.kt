@@ -212,6 +212,7 @@ internal fun SettingsScreen(
                 value = uiState.mapRenderPercent,
                 range = MIN_MAP_QUALITY..MAX_MAP_QUALITY,
                 onValueChange = { onAction(SettingsAction.SetMapRenderPercent(it)) },
+                description = stringResource(R.string.settings_map_quality_desc),
             )
         }
 
@@ -392,7 +393,8 @@ private fun SwitchRow(
     Switch(checked = checked, onCheckedChange = null)
 }
 
-// A numeric row: an inline slider under the title / current-value line.
+// A numeric row: an inline slider under the title / current-value line, with an
+// optional [description] caption beneath that explains what the value trades off.
 @Composable
 private fun SliderRow(
     title: String,
@@ -401,6 +403,7 @@ private fun SliderRow(
     range: IntRange,
     onValueChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    description: String? = null,
 ) = Column(
     modifier =
         modifier
@@ -422,6 +425,13 @@ private fun SliderRow(
         Text(
             text = valueLabel,
             style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    if (description != null) {
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
