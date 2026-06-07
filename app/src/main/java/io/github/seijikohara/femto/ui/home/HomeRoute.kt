@@ -21,6 +21,7 @@ import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 @Composable
 internal fun HomeRoute(
     is24Hour: Boolean,
+    showClockSeconds: Boolean,
     speedUnit: SpeedUnit,
     temperatureUnit: TemperatureUnit,
     mapConfig: MapConfig,
@@ -40,6 +41,7 @@ internal fun HomeRoute(
     HomeScreen(
         uiState = uiState,
         is24Hour = is24Hour,
+        showClockSeconds = showClockSeconds,
         speedUnit = speedUnit,
         temperatureUnit = temperatureUnit,
         mapConfig = mapConfig,

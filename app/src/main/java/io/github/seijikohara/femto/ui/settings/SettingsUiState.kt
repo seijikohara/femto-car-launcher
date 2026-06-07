@@ -16,6 +16,7 @@ internal data class SettingsUiState(
     val speedUnit: SpeedUnitSetting,
     val temperatureUnit: TemperatureUnitSetting,
     val clock: ClockSetting,
+    val showClockSeconds: Boolean,
     val fullscreen: FullscreenSetting,
     val mapFps: Int,
     val mapStyle: MapStyleSetting,
@@ -38,6 +39,7 @@ internal data class SettingsUiState(
                 speedUnit = DisplaySettings.Default.speedUnit,
                 temperatureUnit = DisplaySettings.Default.temperatureUnit,
                 clock = DisplaySettings.Default.clock,
+                showClockSeconds = DisplaySettings.Default.showClockSeconds,
                 fullscreen = DisplaySettings.Default.fullscreen,
                 mapFps = DisplaySettings.Default.mapFps,
                 mapStyle = DisplaySettings.Default.mapStyle,
@@ -70,6 +72,10 @@ internal sealed interface SettingsAction {
 
     data class SetClock(
         val value: ClockSetting,
+    ) : SettingsAction
+
+    data class SetShowClockSeconds(
+        val value: Boolean,
     ) : SettingsAction
 
     data class SetFullscreen(

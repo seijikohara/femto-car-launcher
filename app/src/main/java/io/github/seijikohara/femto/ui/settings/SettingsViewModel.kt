@@ -25,6 +25,7 @@ internal class SettingsViewModel(
                 speedUnit = display.speedUnit,
                 temperatureUnit = display.temperatureUnit,
                 clock = display.clock,
+                showClockSeconds = display.showClockSeconds,
                 fullscreen = display.fullscreen,
                 mapFps = display.mapFps,
                 mapStyle = display.mapStyle,
@@ -48,6 +49,7 @@ internal class SettingsViewModel(
                 is SettingsAction.SetSpeedUnit -> displayPreferences.setSpeedUnit(action.value)
                 is SettingsAction.SetTemperatureUnit -> displayPreferences.setTemperatureUnit(action.value)
                 is SettingsAction.SetClock -> displayPreferences.setClock(action.value)
+                is SettingsAction.SetShowClockSeconds -> displayPreferences.setShowClockSeconds(action.value)
                 is SettingsAction.SetFullscreen -> displayPreferences.setFullscreen(action.value)
                 is SettingsAction.SetMapFps -> displayPreferences.setMapFps(action.value)
                 is SettingsAction.SetMapStyle -> displayPreferences.setMapStyle(action.value)

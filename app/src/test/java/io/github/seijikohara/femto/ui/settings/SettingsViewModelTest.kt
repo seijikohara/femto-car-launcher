@@ -68,6 +68,14 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `SetShowClockSeconds writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetShowClockSeconds(false))
+            advanceUntilIdle()
+            assertEquals(false, store.settings.first().showClockSeconds)
+        }
+
+    @Test
     fun `SetMapRenderPercent writes the value to the store`() =
         runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetMapRenderPercent(50))

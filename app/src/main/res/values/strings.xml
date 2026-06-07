@@ -103,6 +103,7 @@
     <string name="settings_temp_fahrenheit">°F</string>
     <string name="settings_clock_12">12-hour</string>
     <string name="settings_clock_24">24-hour</string>
+    <string name="settings_group_clock_seconds">Show seconds</string>
     <string name="settings_group_fullscreen">Fullscreen</string>
     <string name="settings_group_map_rendering">Map rendering</string>
     <string name="settings_map_mode_snapshot">Snapshot</string>

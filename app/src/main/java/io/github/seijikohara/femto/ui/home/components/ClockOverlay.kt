@@ -25,11 +25,14 @@ import kotlinx.coroutines.delay
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
-// Fixed-width seconds patterns. Both use a leading-zero hour so the 12-hour
-// form stays the same advance count as the 24-hour form; paired with tabular
-// figures this keeps the overlay width constant as the time changes.
+// Fixed-width patterns. Every form uses a leading-zero hour so the 12-hour form
+// stays the same advance count as the 24-hour form; paired with tabular figures
+// this keeps the overlay width constant as the time changes. The NoSeconds forms
+// back the "show seconds = off" setting.
 private val ClockFormatter24 = DateTimeFormatter.ofPattern("HH:mm:ss")
 private val ClockFormatter12 = DateTimeFormatter.ofPattern("hh:mm:ss")
+private val ClockFormatter24NoSeconds = DateTimeFormatter.ofPattern("HH:mm")
+private val ClockFormatter12NoSeconds = DateTimeFormatter.ofPattern("hh:mm")
 
 /**
  * Glass overlay anchored to the map pane's top-right corner.
@@ -39,23 +42,35 @@ private val ClockFormatter12 = DateTimeFormatter.ofPattern("hh:mm:ss")
  * (translucent surface container + 1 dp outline) so the overlay reads as
  * frosted glass over the map tiles below.
  *
- * The overlay self-times its seconds with a local [produceState] loop so the
- * per-second recomposition is scoped to this `Text` alone. The shared
- * minute-resolution `ClockTick` deliberately stays out of this path: a
- * per-second tick there would re-query the calendar every second.
+ * The overlay self-times with a local [produceState] loop so the recomposition
+ * is scoped to this `Text` alone. The shared minute-resolution `ClockTick`
+ * deliberately stays out of this path: a per-second tick there would re-query
+ * the calendar every second. When [showSeconds] is off the loop ticks once per
+ * minute instead of once per second, so a minute-resolution clock costs nothing.
  */
 @Composable
 internal fun ClockOverlay(
     modifier: Modifier = Modifier,
     is24Hour: Boolean = true,
+    showSeconds: Boolean = true,
 ) {
-    val now by produceState(initialValue = LocalTime.now()) {
+    val now by produceState(initialValue = LocalTime.now(), showSeconds) {
         while (true) {
             value = LocalTime.now()
-            delay(1000L - System.currentTimeMillis() % 1000) // align to the next second
+            val nowMs = System.currentTimeMillis()
+            // Align the next tick to the upcoming second boundary, or the upcoming
+            // minute boundary when seconds are hidden (no needless 60x/min wake-ups).
+            val delayMs = if (showSeconds) 1000L - nowMs % 1000 else 60_000L - nowMs % 60_000
+            delay(delayMs)
         }
     }
-    val formatter = if (is24Hour) ClockFormatter24 else ClockFormatter12
+    val formatter =
+        when {
+            is24Hour && showSeconds -> ClockFormatter24
+            is24Hour -> ClockFormatter24NoSeconds
+            showSeconds -> ClockFormatter12
+            else -> ClockFormatter12NoSeconds
+        }
     val glassAlpha = if (isSystemInDarkTheme()) FemtoDimens.GlassBgAlphaDark else FemtoDimens.GlassBgAlphaLight
     Text(
         text = now.format(formatter),
