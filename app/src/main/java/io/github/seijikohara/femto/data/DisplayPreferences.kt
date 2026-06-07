@@ -24,6 +24,17 @@ internal enum class TemperatureUnitSetting { AUTO, CELSIUS, FAHRENHEIT }
 /** Clock: follow the system 12/24h setting, or force 12h / 24h. */
 internal enum class ClockSetting { AUTO, TWELVE_HOUR, TWENTY_FOUR_HOUR }
 
+/**
+ * App accent: [DYNAMIC] keeps Material You wallpaper-derived color (the default);
+ * every other entry forces a fixed preset seed from which the whole Material 3
+ * scheme is generated. The seed color for each preset lives in the theme layer
+ * (`accentSeedColor`), keeping this data enum free of any Compose dependency.
+ *
+ * Public (unlike the other display enums) because the public [FemtoTheme] takes
+ * it as a parameter, mirroring [FontTheme]'s visibility.
+ */
+enum class AccentColor { DYNAMIC, BLUE, TEAL, GREEN, AMBER, ORANGE, RED, VIOLET, PINK }
+
 /** Fullscreen: keep the system bars, or hide both status and navigation bars. */
 internal enum class FullscreenSetting { OFF, ON }
 
@@ -65,6 +76,7 @@ internal const val DEFAULT_MAP_LOOKAHEAD_M = 180
  */
 internal data class DisplaySettings(
     val themeMode: ThemeMode,
+    val accentColor: AccentColor,
     val speedUnit: SpeedUnitSetting,
     val temperatureUnit: TemperatureUnitSetting,
     val clock: ClockSetting,
@@ -97,6 +109,7 @@ internal data class DisplaySettings(
         val Default =
             DisplaySettings(
                 themeMode = ThemeMode.SYSTEM,
+                accentColor = AccentColor.DYNAMIC,
                 speedUnit = SpeedUnitSetting.AUTO,
                 temperatureUnit = TemperatureUnitSetting.AUTO,
                 clock = ClockSetting.AUTO,
@@ -127,6 +140,8 @@ internal interface DisplaySettingsStore {
     val settings: Flow<DisplaySettings>
 
     suspend fun setThemeMode(value: ThemeMode)
+
+    suspend fun setAccentColor(value: AccentColor)
 
     suspend fun setSpeedUnit(value: SpeedUnitSetting)
 
@@ -173,6 +188,7 @@ internal class DisplayPreferences(
         context.displayDataStore.data.map { prefs ->
             DisplaySettings(
                 themeMode = prefs[THEME_KEY].toEnumOr(ThemeMode.SYSTEM),
+                accentColor = prefs[ACCENT_KEY].toEnumOr(AccentColor.DYNAMIC),
                 speedUnit = prefs[SPEED_KEY].toEnumOr(SpeedUnitSetting.AUTO),
                 temperatureUnit = prefs[TEMPERATURE_KEY].toEnumOr(TemperatureUnitSetting.AUTO),
                 clock = prefs[CLOCK_KEY].toEnumOr(ClockSetting.AUTO),
@@ -195,6 +211,10 @@ internal class DisplayPreferences(
     // DisplaySettingsStore contract intentionally discards.
     override suspend fun setThemeMode(value: ThemeMode) {
         context.displayDataStore.edit { it[THEME_KEY] = value.name }
+    }
+
+    override suspend fun setAccentColor(value: AccentColor) {
+        context.displayDataStore.edit { it[ACCENT_KEY] = value.name }
     }
 
     override suspend fun setSpeedUnit(value: SpeedUnitSetting) {
@@ -259,6 +279,7 @@ internal class DisplayPreferences(
 
     private companion object {
         val THEME_KEY = stringPreferencesKey("theme_mode")
+        val ACCENT_KEY = stringPreferencesKey("accent_color")
         val SPEED_KEY = stringPreferencesKey("speed_unit")
         val TEMPERATURE_KEY = stringPreferencesKey("temperature_unit")
         val CLOCK_KEY = stringPreferencesKey("clock")

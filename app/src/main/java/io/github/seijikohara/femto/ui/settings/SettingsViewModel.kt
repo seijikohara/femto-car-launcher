@@ -22,6 +22,7 @@ internal class SettingsViewModel(
         combine(displayPreferences.settings, fontPreferences.fontTheme) { display, font ->
             SettingsUiState(
                 themeMode = display.themeMode,
+                accentColor = display.accentColor,
                 speedUnit = display.speedUnit,
                 temperatureUnit = display.temperatureUnit,
                 clock = display.clock,
@@ -46,6 +47,7 @@ internal class SettingsViewModel(
         viewModelScope.launch {
             when (action) {
                 is SettingsAction.SetThemeMode -> displayPreferences.setThemeMode(action.value)
+                is SettingsAction.SetAccentColor -> displayPreferences.setAccentColor(action.value)
                 is SettingsAction.SetSpeedUnit -> displayPreferences.setSpeedUnit(action.value)
                 is SettingsAction.SetTemperatureUnit -> displayPreferences.setTemperatureUnit(action.value)
                 is SettingsAction.SetClock -> displayPreferences.setClock(action.value)

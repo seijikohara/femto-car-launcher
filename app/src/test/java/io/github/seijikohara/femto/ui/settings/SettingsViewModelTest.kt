@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.ui.settings
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.FontPreferences
 import io.github.seijikohara.femto.data.FullscreenSetting
 import io.github.seijikohara.femto.data.MapRenderMode
@@ -49,6 +50,14 @@ class SettingsViewModelTest {
             viewModel().onAction(SettingsAction.SetFullscreen(FullscreenSetting.ON))
             advanceUntilIdle()
             assertEquals(FullscreenSetting.ON, store.settings.first().fullscreen)
+        }
+
+    @Test
+    fun `SetAccentColor writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetAccentColor(AccentColor.TEAL))
+            advanceUntilIdle()
+            assertEquals(AccentColor.TEAL, store.settings.first().accentColor)
         }
 
     @Test

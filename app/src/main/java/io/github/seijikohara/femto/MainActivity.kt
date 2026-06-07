@@ -102,7 +102,7 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(display.fullscreen) {
                 applyFullscreen(display.fullscreen)
             }
-            FemtoTheme(fontTheme = fontTheme, darkTheme = darkTheme) {
+            FemtoTheme(fontTheme = fontTheme, accent = display.accentColor, darkTheme = darkTheme) {
                 // The dashboard stays composed; the app drawer and assistant are
                 // bottom-sheet overlays and settings is a full destination over it.
                 var showDrawer by rememberSaveable { mutableStateOf(false) }

@@ -1,6 +1,9 @@
 package io.github.seijikohara.femto.ui.settings
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -33,16 +37,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.Lucide
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.FullscreenSetting
 import io.github.seijikohara.femto.data.MapRenderMode
@@ -54,6 +63,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.FontTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.accentSeedColor
 import kotlin.math.roundToInt
 
 /**
@@ -100,6 +110,10 @@ internal fun SettingsScreen(
                     ),
                 selected = uiState.themeMode,
                 onSelect = { onAction(SettingsAction.SetThemeMode(it)) },
+            )
+            AccentRow(
+                selected = uiState.accentColor,
+                onSelect = { onAction(SettingsAction.SetAccentColor(it)) },
             )
             ChoiceRow(
                 title = stringResource(R.string.settings_group_font),
@@ -301,6 +315,88 @@ private fun SettingsSection(
         tonalElevation = FemtoDimens.CardElevation,
     ) {
         Column(content = content)
+    }
+}
+
+// The accent picker: a title over a horizontally-scrolling row of color swatches.
+// Selecting a swatch applies its seed immediately, so the picker (and the whole
+// app) recolors live. DYNAMIC keeps Material You wallpaper color.
+@Composable
+private fun AccentRow(
+    selected: AccentColor,
+    onSelect: (AccentColor) -> Unit,
+    modifier: Modifier = Modifier,
+) = Column(
+    modifier =
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+    verticalArrangement = Arrangement.spacedBy(10.dp),
+) {
+    Text(
+        text = stringResource(R.string.settings_group_accent),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        AccentColor.entries.forEach { accent ->
+            AccentSwatch(
+                accent = accent,
+                selected = accent == selected,
+                onClick = { onSelect(accent) },
+            )
+        }
+    }
+}
+
+// One accent swatch: a >= MinTouchTarget tap target around a circular color chip.
+// A preset shows its seed; DYNAMIC shows a sweep gradient to read as "automatic".
+// The selected chip grows and gains an onSurface ring (color-agnostic, unlike a
+// tinted check that could vanish on a light seed).
+@Composable
+private fun AccentSwatch(
+    accent: AccentColor,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val description = stringResource(accent.labelRes())
+    val seed = accent.accentSeedColor()
+    val ringColor =
+        if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outlineVariant
+    Box(
+        modifier =
+            modifier
+                .size(FemtoDimens.MinTouchTarget)
+                .clip(CircleShape)
+                .clickable(onClick = onClick)
+                .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        val fill =
+            if (seed != null) {
+                Modifier.background(seed)
+            } else {
+                Modifier.background(Brush.sweepGradient(DynamicAccentSweep))
+            }
+        Box(
+            modifier =
+                Modifier
+                    .size(if (selected) 44.dp else 38.dp)
+                    .clip(CircleShape)
+                    .then(fill)
+                    .border(
+                        width = if (selected) 3.dp else 1.dp,
+                        color = ringColor,
+                        shape = CircleShape,
+                    ),
+        )
     }
 }
 
@@ -541,6 +637,34 @@ private const val MIN_MAP_QUALITY = 30
 private const val MAX_MAP_QUALITY = 100
 
 private fun Boolean.toFullscreen(): FullscreenSetting = if (this) FullscreenSetting.ON else FullscreenSetting.OFF
+
+// The human-readable label for an accent, used as each swatch's content
+// description (the swatches are color-only, so they need an accessible name).
+private fun AccentColor.labelRes(): Int =
+    when (this) {
+        AccentColor.DYNAMIC -> R.string.settings_accent_dynamic
+        AccentColor.BLUE -> R.string.settings_accent_blue
+        AccentColor.TEAL -> R.string.settings_accent_teal
+        AccentColor.GREEN -> R.string.settings_accent_green
+        AccentColor.AMBER -> R.string.settings_accent_amber
+        AccentColor.ORANGE -> R.string.settings_accent_orange
+        AccentColor.RED -> R.string.settings_accent_red
+        AccentColor.VIOLET -> R.string.settings_accent_violet
+        AccentColor.PINK -> R.string.settings_accent_pink
+    }
+
+// Rainbow stops for the DYNAMIC swatch's sweep gradient; the first hue repeats at
+// the end so the sweep closes seamlessly. Signals "automatic / wallpaper-derived".
+private val DynamicAccentSweep =
+    listOf(
+        Color(0xFFEF5350),
+        Color(0xFFFFCA28),
+        Color(0xFF66BB6A),
+        Color(0xFF26C6DA),
+        Color(0xFF42A5F5),
+        Color(0xFFAB47BC),
+        Color(0xFFEF5350),
+    )
 
 // A human-readable label for a font theme (e.g. INTER -> "Inter").
 private fun FontTheme.displayName(): String = name.lowercase().replaceFirstChar(Char::uppercaseChar)

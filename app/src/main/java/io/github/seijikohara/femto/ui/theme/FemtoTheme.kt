@@ -7,12 +7,16 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
+import com.materialkolor.rememberDynamicColorScheme
+import io.github.seijikohara.femto.data.AccentColor
 
 /**
  * Root theme for the launcher.
  *
- * Color: Material You dynamic color (always available because minSdk = 33).
- * Falls back to a Bold Minimal monochrome scheme inside Compose previews.
+ * Color: [AccentColor.DYNAMIC] (the default) uses Material You wallpaper-derived
+ * color (always available because minSdk = 33); any other [accent] generates the
+ * Material 3 scheme from a fixed preset seed. Falls back to a Bold Minimal
+ * monochrome scheme inside Compose previews when on the dynamic path.
  *
  * Typography: Bold Minimal weights and automotive sizing on top of M3 roles.
  *
@@ -24,17 +28,26 @@ import androidx.compose.ui.platform.LocalInspectionMode
 @Composable
 fun FemtoTheme(
     fontTheme: FontTheme = FontTheme.INTER,
+    accent: AccentColor = AccentColor.DYNAMIC,
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val inPreview = LocalInspectionMode.current
+    val seed = accent.accentSeedColor()
     MaterialTheme(
         colorScheme =
             when {
+                // A fixed preset seed generates a full M3 scheme and works without a
+                // context (so it also previews), so it takes precedence everywhere.
+                seed != null -> rememberDynamicColorScheme(seedColor = seed, isDark = darkTheme)
+
                 inPreview && darkTheme -> DarkFallback
+
                 inPreview -> LightFallback
+
                 darkTheme -> dynamicDarkColorScheme(context)
+
                 else -> dynamicLightColorScheme(context)
             },
         typography = femtoTypography(fontPairOf(fontTheme).latin),

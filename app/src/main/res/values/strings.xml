@@ -97,6 +97,16 @@
     <string name="settings_option_auto">Auto</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
+    <string name="settings_group_accent">Accent color</string>
+    <string name="settings_accent_dynamic">Dynamic</string>
+    <string name="settings_accent_blue">Blue</string>
+    <string name="settings_accent_teal">Teal</string>
+    <string name="settings_accent_green">Green</string>
+    <string name="settings_accent_amber">Amber</string>
+    <string name="settings_accent_orange">Orange</string>
+    <string name="settings_accent_red">Red</string>
+    <string name="settings_accent_violet">Violet</string>
+    <string name="settings_accent_pink">Pink</string>
     <string name="settings_speed_km">km/h</string>
     <string name="settings_speed_mi">mph</string>
     <string name="settings_temp_celsius">°C</string>

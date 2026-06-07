@@ -68,10 +68,15 @@ with automotive overrides on top.
 
 - Always wrap composables in `FemtoTheme { ... }`. Do not call
   `MaterialTheme(...)` directly outside `FemtoTheme.kt`.
-- Color: Material You dynamic color is always on
-  (`dynamicLightColorScheme` / `dynamicDarkColorScheme`). Pull from
-  `MaterialTheme.colorScheme.*`; never hardcode hex outside
-  `Color.kt`.
+- Color: Material You dynamic color
+  (`dynamicLightColorScheme` / `dynamicDarkColorScheme`) is the
+  **default** (`AccentColor.DYNAMIC`). The user may instead pick a
+  fixed accent in Settings, which generates the Material 3 scheme from
+  a preset seed (`AccentColor` + `accentSeedColor` + MaterialKolor's
+  `rememberDynamicColorScheme`); `FemtoTheme(accent = ...)` selects
+  between them. Either way, pull from `MaterialTheme.colorScheme.*`;
+  the seed colors in `ui/theme/AccentColors.kt` are the only hardcoded
+  hex outside `Color.kt`.
 - Shape: M3 default `Shapes` (squircles). Do not customise.
 - Typography: Bold Minimal on M3 roles, tuned **one weight notch
   lighter** than the original scale after on-device review found the
