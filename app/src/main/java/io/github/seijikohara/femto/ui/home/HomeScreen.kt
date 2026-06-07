@@ -17,6 +17,7 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 internal fun HomeScreen(
     uiState: HomeUiState,
     is24Hour: Boolean,
+    showClockSeconds: Boolean,
     speedUnit: SpeedUnit,
     temperatureUnit: TemperatureUnit,
     mapConfig: MapConfig,
@@ -30,6 +31,7 @@ internal fun HomeScreen(
     DashboardScaffold(
         uiState = uiState,
         is24Hour = is24Hour,
+        showClockSeconds = showClockSeconds,
         speedUnit = speedUnit,
         temperatureUnit = temperatureUnit,
         mapConfig = mapConfig,
@@ -46,6 +48,7 @@ private fun HomeScreenPreview() =
         HomeScreen(
             uiState = HomeUiState.Initial,
             is24Hour = true,
+            showClockSeconds = true,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             temperatureUnit = TemperatureUnit.CELSIUS,
             mapConfig = MapConfig(),

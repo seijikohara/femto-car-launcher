@@ -148,6 +148,11 @@ internal fun SettingsScreen(
                 selected = uiState.clock,
                 onSelect = { onAction(SettingsAction.SetClock(it)) },
             )
+            SwitchRow(
+                title = stringResource(R.string.settings_group_clock_seconds),
+                checked = uiState.showClockSeconds,
+                onCheckedChange = { onAction(SettingsAction.SetShowClockSeconds(it)) },
+            )
         }
 
         val maxFps = rememberMaxDisplayFps()

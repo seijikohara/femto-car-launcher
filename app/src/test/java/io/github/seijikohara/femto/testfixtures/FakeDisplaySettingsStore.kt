@@ -35,6 +35,8 @@ internal class FakeDisplaySettingsStore(
 
     override suspend fun setClock(value: ClockSetting) = state.update { it.copy(clock = value) }
 
+    override suspend fun setShowClockSeconds(value: Boolean) = state.update { it.copy(showClockSeconds = value) }
+
     override suspend fun setFullscreen(value: FullscreenSetting) = state.update { it.copy(fullscreen = value) }
 
     override suspend fun setMapFps(value: Int) = state.update { it.copy(mapFps = value) }

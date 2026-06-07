@@ -117,6 +117,7 @@ class MainActivity : ComponentActivity() {
                 } else {
                     HomeRoute(
                         is24Hour = resolveIs24Hour(display.clock),
+                        showClockSeconds = display.showClockSeconds,
                         speedUnit = display.speedUnit.resolved(),
                         temperatureUnit = display.temperatureUnit.resolved(),
                         mapConfig =

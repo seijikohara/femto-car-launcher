@@ -42,6 +42,7 @@ class DashboardScaffoldTest {
                 DashboardScaffold(
                     uiState = uiState,
                     is24Hour = true,
+                    showClockSeconds = true,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     mapConfig = MapConfig(),
@@ -70,6 +71,7 @@ class DashboardScaffoldTest {
                 DashboardScaffold(
                     uiState = uiState,
                     is24Hour = true,
+                    showClockSeconds = true,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     mapConfig = MapConfig(),

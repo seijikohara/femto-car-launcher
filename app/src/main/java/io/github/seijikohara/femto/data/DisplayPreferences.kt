@@ -68,6 +68,10 @@ internal data class DisplaySettings(
     val speedUnit: SpeedUnitSetting,
     val temperatureUnit: TemperatureUnitSetting,
     val clock: ClockSetting,
+    // Whether the clock overlay shows seconds. Defaults to true (the original
+    // HH:mm:ss readout); when false the overlay drops to HH:mm and self-times
+    // per-minute instead of per-second.
+    val showClockSeconds: Boolean,
     val fullscreen: FullscreenSetting,
     // Target map frame rate (fps): the snapshot map caps its re-render rate at
     // this many frames per second. Clamped to the display's max refresh at use.
@@ -96,6 +100,7 @@ internal data class DisplaySettings(
                 speedUnit = SpeedUnitSetting.AUTO,
                 temperatureUnit = TemperatureUnitSetting.AUTO,
                 clock = ClockSetting.AUTO,
+                showClockSeconds = true,
                 fullscreen = FullscreenSetting.OFF,
                 mapFps = DEFAULT_MAP_FPS,
                 mapStyle = MapStyleSetting.AUTO,
@@ -128,6 +133,8 @@ internal interface DisplaySettingsStore {
     suspend fun setTemperatureUnit(value: TemperatureUnitSetting)
 
     suspend fun setClock(value: ClockSetting)
+
+    suspend fun setShowClockSeconds(value: Boolean)
 
     suspend fun setFullscreen(value: FullscreenSetting)
 
@@ -169,6 +176,7 @@ internal class DisplayPreferences(
                 speedUnit = prefs[SPEED_KEY].toEnumOr(SpeedUnitSetting.AUTO),
                 temperatureUnit = prefs[TEMPERATURE_KEY].toEnumOr(TemperatureUnitSetting.AUTO),
                 clock = prefs[CLOCK_KEY].toEnumOr(ClockSetting.AUTO),
+                showClockSeconds = prefs[SHOW_CLOCK_SECONDS_KEY] ?: true,
                 fullscreen = prefs[FULLSCREEN_KEY].toEnumOr(FullscreenSetting.OFF),
                 mapFps = prefs[MAP_FPS_KEY] ?: DEFAULT_MAP_FPS,
                 mapStyle = prefs[MAP_STYLE_KEY].toEnumOr(MapStyleSetting.AUTO),
@@ -199,6 +207,10 @@ internal class DisplayPreferences(
 
     override suspend fun setClock(value: ClockSetting) {
         context.displayDataStore.edit { it[CLOCK_KEY] = value.name }
+    }
+
+    override suspend fun setShowClockSeconds(value: Boolean) {
+        context.displayDataStore.edit { it[SHOW_CLOCK_SECONDS_KEY] = value }
     }
 
     override suspend fun setFullscreen(value: FullscreenSetting) {
@@ -250,6 +262,7 @@ internal class DisplayPreferences(
         val SPEED_KEY = stringPreferencesKey("speed_unit")
         val TEMPERATURE_KEY = stringPreferencesKey("temperature_unit")
         val CLOCK_KEY = stringPreferencesKey("clock")
+        val SHOW_CLOCK_SECONDS_KEY = booleanPreferencesKey("show_clock_seconds")
         val FULLSCREEN_KEY = stringPreferencesKey("fullscreen")
         val MAP_FPS_KEY = intPreferencesKey("map_fps")
         val MAP_STYLE_KEY = stringPreferencesKey("map_style")

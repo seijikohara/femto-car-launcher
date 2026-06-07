@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.FullscreenSetting
@@ -21,6 +22,7 @@ class SettingsScreenTest {
     private val fullscreenLabel = context.getString(R.string.settings_group_fullscreen)
     private val themeLabel = context.getString(R.string.settings_group_theme)
     private val darkLabel = context.getString(R.string.settings_theme_dark)
+    private val showSecondsLabel = context.getString(R.string.settings_group_clock_seconds)
 
     @Test
     fun renders_fullscreen_row() {
@@ -35,6 +37,17 @@ class SettingsScreenTest {
         // Initial.fullscreen is OFF, so tapping the row flips the switch to ON.
         rule.onNodeWithText(fullscreenLabel).performClick()
         assertEquals(listOf(SettingsAction.SetFullscreen(FullscreenSetting.ON)), actions)
+    }
+
+    @Test
+    fun toggling_show_seconds_dispatches_set_show_clock_seconds_off() {
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(onAction = { actions += it })
+        // The row sits in the Units section, below the fold on a short head unit, so
+        // scroll it into view first. Initial.showClockSeconds is true, so tapping the
+        // row flips the switch off.
+        rule.onNodeWithText(showSecondsLabel).performScrollTo().performClick()
+        assertEquals(listOf(SettingsAction.SetShowClockSeconds(false)), actions)
     }
 
     @Test
