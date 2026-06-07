@@ -115,8 +115,9 @@
     <string name="settings_group_map_zoom">Map zoom</string>
     <string name="settings_map_tilt_value">%1$d°</string>
     <string name="settings_map_zoom_value">z%1$d</string>
-    <string name="settings_group_map_quality">Render quality</string>
+    <string name="settings_group_map_quality">Map sharpness</string>
     <string name="settings_map_quality_value">%1$d%%</string>
+    <string name="settings_map_quality_desc">Lower renders the map faster but softer — useful on slow head units.</string>
     <string name="settings_group_map_look_ahead">Marker look-ahead</string>
     <string name="settings_map_look_ahead_value">%1$d m</string>
     <string name="settings_group_panel_calendar">Calendar panel</string>
