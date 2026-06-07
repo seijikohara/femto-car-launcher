@@ -76,7 +76,7 @@ internal fun ClockOverlay(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.GlassBorderAlpha),
                     shape = RoundedCornerShape(FemtoDimens.OverlayCorner),
-                ).padding(horizontal = 20.dp, vertical = 12.dp),
+                ).padding(horizontal = 16.dp, vertical = 6.dp),
     )
 }
 

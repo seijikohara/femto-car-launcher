@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -93,8 +92,10 @@ internal fun WeatherCard(
                 Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(FemtoDimens.CardPadding),
-            verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
+                    // Compact padding/gap so head + metrics + forecast pack into the
+                    // short head-unit info-pane card without needing to scroll/clip.
+                    .padding(FemtoDimens.CardPaddingCompact),
+            verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
         ) {
             Head(snapshot, city, temperatureUnit)
             Metrics(snapshot, temperatureUnit, speedUnit)
@@ -237,8 +238,7 @@ private fun Forecast(
 ) {
     val next = hourly.take(3)
     if (next.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap)) {
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    Column(verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp),

@@ -144,14 +144,14 @@ internal fun SpeedOverlay(
             avgSpeed = avgSpeed,
             onReset = onReset,
         )
-        if (shortAddress.isNotBlank()) {
-            // Tightened so the metric row's vertical breathing room matches the
-            // address row's, instead of sitting noticeably taller.
-            Box(modifier = Modifier.height(5.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            Box(modifier = Modifier.height(5.dp))
-            AddressRow(text = shortAddress)
-        }
+        // Always render the address row (even with no fix / unresolved address) so
+        // the overlay keeps a stable height instead of collapsing then growing when
+        // the address arrives. The 5 dp gaps keep the metric row's breathing room in
+        // step with the address row's.
+        Box(modifier = Modifier.height(5.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        Box(modifier = Modifier.height(5.dp))
+        AddressRow(text = shortAddress.ifBlank { NO_ADDRESS_PLACEHOLDER })
     }
 }
 
@@ -341,6 +341,10 @@ private const val SPEED_OVERLAY_EMA_ALPHA = 0.33f
 // the WeatherCard convention and the permissions contract (location
 // panels read empty until granted). It avoids the ambiguous "0".
 private const val NO_SPEED_PLACEHOLDER = "—"
+
+// Shown in the address row until a fix / reverse-geocode resolves, so the overlay
+// reserves the row instead of collapsing (and the MapPin still reads as "location").
+private const val NO_ADDRESS_PLACEHOLDER = "—"
 
 // Reset control size: narrower than MinTouchTarget so it leaves the metric cells
 // more room on a compact overlay and shortens the metric row (see ResetButton).
