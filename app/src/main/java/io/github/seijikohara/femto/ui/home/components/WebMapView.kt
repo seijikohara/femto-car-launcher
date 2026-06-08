@@ -10,12 +10,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
@@ -34,7 +37,9 @@ import io.github.seijikohara.femto.data.MapStyleSetting
  * [WebViewAssetLoader] from the real https origin appassets.androidplatform.net so
  * MapLibre's tile-processing Web Worker can fetch tiles. GPS fixes drive
  * `map.easeTo()` for heading-up smooth follow — this is how #2 smooth movement is
- * delivered (the JS eases between sparse fixes).
+ * delivered (the JS eases between sparse fixes). A `maplibregl.Marker` chevron rides
+ * the same fixes as the self-location puck (filled with the Material primary), laid
+ * on the tilted ground so it matches the SNAPSHOT backend's marker.
  *
  * There is NO auto-fallback: the page relies on MapLibre's built-in WebGL
  * context-loss restore (`webglcontextlost`/`webglcontextrestored`) and the host
@@ -96,15 +101,21 @@ internal fun WebMapView(
             }
         }
 
+    // Material primary as the self-location marker fill, so the WebGL puck matches
+    // the SNAPSHOT marker and the user's accent. Passed on every camera update so it
+    // self-heals if the first push raced the page load (the next GPS fix re-applies).
+    val markerColor = MaterialTheme.colorScheme.primary.toCssHex()
+
     // Key on [webView] too: a render-mode switch rebuilds the WebView, and the new
     // instance must receive the current camera and style immediately rather than
     // waiting for the next GPS fix / theme change (it would otherwise show the
     // default [0,0] world view in the meantime).
-    LaunchedEffect(webView, location.latitude, location.longitude, mapConfig.zoom, mapConfig.tiltDeg) {
+    LaunchedEffect(webView, location.latitude, location.longitude, mapConfig.zoom, mapConfig.tiltDeg, markerColor) {
         val bearing = location.carriedBearing(bearingHolder)
         webView.evaluateJavascript(
             "window.updateCamera && updateCamera(" +
-                "${location.latitude}, ${location.longitude}, $bearing, ${mapConfig.zoom}, ${mapConfig.tiltDeg})",
+                "${location.latitude}, ${location.longitude}, $bearing, ${mapConfig.zoom}, ${mapConfig.tiltDeg}, " +
+                "'$markerColor')",
             null,
         )
     }
@@ -156,3 +167,6 @@ internal fun WebMapView(
 // Dark map served via WebViewAssetLoader from the bundled dark style (shares the
 // OpenFreeMap sources); light uses the hosted positron style ([POSITRON_STYLE_URL]).
 private const val DARK_STYLE_URL = "https://appassets.androidplatform.net/assets/map/dark.json"
+
+// "#rrggbb" for CSS, dropping the alpha (the marker SVG fill is opaque).
+private fun Color.toCssHex(): String = "#%06X".format(0xFFFFFF and toArgb())
