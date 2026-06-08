@@ -39,10 +39,14 @@ import io.github.seijikohara.femto.data.MapStyleSetting
  * `map.easeTo()` for heading-up smooth follow — this is how #2 smooth movement is
  * delivered (the JS eases between sparse fixes).
  *
- * The page reports health over the `AndroidMapBridge` JS interface: [onReady] once a
- * frame has rendered, [onFail] when WebGL is unavailable or its context is lost
- * (e.g. a GPU-process crash). The caller falls back to the SNAPSHOT backend on
- * [onFail] or a ready timeout, so a map always shows.
+ * The page reports health over the `AndroidMapBridge` JS interface: [onReady] once
+ * the style and first frame have loaded (`map.on("load")` — not `idle`, which never
+ * fires while the heading-up camera keeps easing between GPS fixes), and [onFail]
+ * when WebGL is unavailable or its GPU context is lost. [onFail]'s `fatal` flag is
+ * true only for a lost context (a hard failure that must fall back even after a
+ * successful render); the caller drops to SNAPSHOT before the map is ready (any
+ * [onFail] or a ready timeout) and, once ready, only on a fatal [onFail] — so a
+ * working map is never lost to transient noise such as a tile fetch error.
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -51,7 +55,7 @@ internal fun WebMapView(
     mapConfig: MapConfig,
     onTap: () -> Unit,
     onReady: () -> Unit,
-    onFail: () -> Unit,
+    onFail: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -81,8 +85,11 @@ internal fun WebMapView(
                         @JavascriptInterface
                         fun onMapReady() = mainHandler.post { onReadyState.value() }
 
+                        // fatal = a lost GPU context, which must fall back even after
+                        // a successful render; other reasons only matter before ready.
                         @JavascriptInterface
-                        fun onWebGlFailed(reason: String) = mainHandler.post { onFailState.value() }
+                        fun onWebGlFailed(reason: String) =
+                            mainHandler.post { onFailState.value(reason == "context-lost") }
                     },
                     "AndroidMapBridge",
                 )
