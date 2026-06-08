@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug-only: registers map GL diagnosis activities (native reference + WebView
+     PoC). Merged into debug builds only; never ships in release. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name=".MapLibreReferenceActivity"
+            android:exported="true" />
+        <activity
+            android:name=".MapLibreWebViewActivity"
+            android:exported="true" />
+    </application>
+</manifest>

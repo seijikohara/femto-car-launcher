@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <link href="./maplibre-gl.css" rel="stylesheet" />
+    <script src="./maplibre-gl.js"></script>
+    <style>
+      html, body { margin: 0; padding: 0; background: #eaeaea; }
+      /* height:100% resolves to 0 inside an Android WebView (the container measures
+         0 px tall); fixed/inset fills the WebView viewport reliably. */
+      #map { position: fixed; inset: 0; }
+      .maplibregl-ctrl-attrib, .maplibregl-ctrl-logo { display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <script>
+      // Report map health to the Android host (WebMapView @JavascriptInterface) so it
+      // can fall back Hardware WebGL -> Software WebGL -> SNAPSHOT.
+      function report(fn, arg) {
+        try {
+          if (window.AndroidMapBridge && window.AndroidMapBridge[fn]) window.AndroidMapBridge[fn](arg || "");
+        } catch (e) {}
+      }
+      (function () {
+        const c = document.createElement("canvas");
+        if (!(c.getContext("webgl2") || c.getContext("webgl"))) report("onWebGlFailed", "no-webgl-context");
+      })();
+
+      let map;
+      try {
+        map = new maplibregl.Map({
+          container: "map",
+          style: "https://tiles.openfreemap.org/styles/positron",
+          center: [0, 0],
+          zoom: 1,
+          attributionControl: false,
+        });
+        let ready = false;
+        map.on("load", () =>
+          map.once("idle", () => {
+            if (!ready) { ready = true; report("onMapReady"); }
+          }),
+        );
+        map.on("error", (e) => {
+          const msg = (e && e.error && e.error.message) || "map-error";
+          if (/webgl|context|gl\b/i.test(msg)) report("onWebGlFailed", msg);
+        });
+        setTimeout(() => {
+          const cv = document.querySelector("#map canvas");
+          if (cv) cv.addEventListener("webglcontextlost", (ev) => { ev.preventDefault(); report("onWebGlFailed", "context-lost"); });
+        }, 0);
+
+        // Android -> JS: smooth heading-up camera follow (this is how #2 smooth
+        // movement is achieved — easeTo interpolates between sparse GPS fixes). The
+        // first fix jumps (no dramatic fly-in from the [0,0] start); the rest ease.
+        let firstCamera = true;
+        window.updateCamera = function (lat, lon, bearing, zoom, tilt) {
+          if (!map) return;
+          const opts = { center: [lon, lat], bearing: bearing || 0, zoom: zoom || 16, pitch: tilt || 0 };
+          if (firstCamera) { firstCamera = false; map.jumpTo(opts); }
+          else map.easeTo({ ...opts, duration: 1000, essential: true });
+        };
+        window.setStyleUrl = function (url) { if (map && url) map.setStyle(url); };
+      } catch (e) {
+        report("onWebGlFailed", "exception:" + (e && e.message));
+      }
+    </script>
+  </body>
+</html>
