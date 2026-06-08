@@ -40,7 +40,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -169,24 +168,17 @@ internal fun SettingsScreen(
             )
         }
 
-        val maxFps = rememberMaxDisplayFps()
         SettingsSection(title = stringResource(R.string.settings_section_map)) {
             ChoiceRow(
                 title = stringResource(R.string.settings_group_map_rendering),
                 options =
                     listOf(
+                        MapRenderMode.LIVE_HARDWARE to stringResource(R.string.settings_map_mode_live_hardware),
+                        MapRenderMode.LIVE_SOFTWARE to stringResource(R.string.settings_map_mode_live_software),
                         MapRenderMode.SNAPSHOT to stringResource(R.string.settings_map_mode_snapshot),
-                        MapRenderMode.LIVE to stringResource(R.string.settings_map_mode_live),
                     ),
                 selected = uiState.mapRenderMode,
                 onSelect = { onAction(SettingsAction.SetMapRenderMode(it)) },
-            )
-            SliderRow(
-                title = stringResource(R.string.settings_group_map_refresh),
-                valueLabel = stringResource(R.string.settings_map_fps_value, uiState.mapFps),
-                value = uiState.mapFps,
-                range = MIN_MAP_FPS..maxFps,
-                onValueChange = { onAction(SettingsAction.SetMapFps(it)) },
             )
             ChoiceRow(
                 title = stringResource(R.string.settings_group_map_style),
@@ -600,27 +592,6 @@ private fun TrailingIcon(
     modifier = modifier.size(FemtoDimens.InlineIconSize),
 )
 
-// The display's maximum refresh rate (fps), the ceiling for the map frame-rate
-// slider. Falls back to 60 when the modes cannot be read; clamped to a sane band.
-@Composable
-private fun rememberMaxDisplayFps(): Int {
-    val context = LocalContext.current
-    return remember(context) {
-        // Context.getDisplay() is non-null on a visual (Activity) context but
-        // throws on a non-visual one (e.g. a preview), so guard with runCatching
-        // and fall back to 60 fps rather than null-check a non-null receiver.
-        runCatching {
-            val display = context.display
-            display.supportedModes.maxOfOrNull { it.refreshRate } ?: display.refreshRate
-        }.getOrDefault(DEFAULT_MAX_FPS)
-            .roundToInt()
-            .coerceIn(MIN_MAP_FPS, MAX_MAP_FPS_CEILING)
-    }
-}
-
-private const val MIN_MAP_FPS = 1
-private const val MAX_MAP_FPS_CEILING = 120
-private const val DEFAULT_MAX_FPS = 60f
 private const val MIN_MAP_TILT = 0
 private const val MAX_MAP_TILT = 60
 private const val MIN_MAP_ZOOM = 12
