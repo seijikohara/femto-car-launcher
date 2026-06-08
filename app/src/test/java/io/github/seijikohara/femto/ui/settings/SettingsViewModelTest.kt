@@ -61,14 +61,6 @@ class SettingsViewModelTest {
         }
 
     @Test
-    fun `SetMapFps writes the value to the store`() =
-        runTest(dispatcher) {
-            viewModel().onAction(SettingsAction.SetMapFps(30))
-            advanceUntilIdle()
-            assertEquals(30, store.settings.first().mapFps)
-        }
-
-    @Test
     fun `SetShowMusic writes the value to the store`() =
         runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetShowMusic(false))
@@ -95,9 +87,9 @@ class SettingsViewModelTest {
     @Test
     fun `SetMapRenderMode writes the value to the store`() =
         runTest(dispatcher) {
-            viewModel().onAction(SettingsAction.SetMapRenderMode(MapRenderMode.LIVE))
+            viewModel().onAction(SettingsAction.SetMapRenderMode(MapRenderMode.LIVE_HARDWARE))
             advanceUntilIdle()
-            assertEquals(MapRenderMode.LIVE, store.settings.first().mapRenderMode)
+            assertEquals(MapRenderMode.LIVE_HARDWARE, store.settings.first().mapRenderMode)
         }
 
     @Test

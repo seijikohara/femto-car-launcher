@@ -42,8 +42,6 @@ internal class FakeDisplaySettingsStore(
 
     override suspend fun setFullscreen(value: FullscreenSetting) = state.update { it.copy(fullscreen = value) }
 
-    override suspend fun setMapFps(value: Int) = state.update { it.copy(mapFps = value) }
-
     override suspend fun setMapStyle(value: MapStyleSetting) = state.update { it.copy(mapStyle = value) }
 
     override suspend fun setMapTilt(value: Int) = state.update { it.copy(mapTiltDeg = value) }

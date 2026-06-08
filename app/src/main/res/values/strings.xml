@@ -6,9 +6,6 @@
     <string name="map_unavailable">Map unavailable</string>
     <string name="map_permission_cta">Grant location access to enable the map and overlays.</string>
     <string name="map_attribution">© OpenStreetMap · OpenMapTiles · OpenFreeMap</string>
-    <string name="map_live_unavailable_title">Live map unavailable</string>
-    <string name="map_live_unavailable_body">This device cannot render the real-time map. Switch to the snapshot map for a reliable still view.</string>
-    <string name="map_live_use_snapshot">Switch to snapshot map</string>
 
     <!-- Speed overlay -->
     <string name="speed_reset_trip">Reset trip</string>
@@ -119,10 +116,9 @@
     <string name="settings_group_clock_seconds">Show seconds</string>
     <string name="settings_group_fullscreen">Fullscreen</string>
     <string name="settings_group_map_rendering">Map rendering</string>
+    <string name="settings_map_mode_live_hardware">Live (hardware)</string>
+    <string name="settings_map_mode_live_software">Live (software)</string>
     <string name="settings_map_mode_snapshot">Snapshot</string>
-    <string name="settings_map_mode_live">Live</string>
-    <string name="settings_group_map_refresh">Map frame rate</string>
-    <string name="settings_map_fps_value">%1$d fps</string>
     <string name="settings_group_map_style">Map style</string>
     <string name="settings_group_map_tilt">Map tilt</string>
     <string name="settings_group_map_zoom">Map zoom</string>

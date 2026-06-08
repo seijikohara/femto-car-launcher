@@ -148,10 +148,6 @@ internal class HomeViewModel(
             HomeAction.ResetTrip -> {
                 resetTrip()
             }
-
-            HomeAction.UseSnapshotMap -> {
-                mutableEvents.tryEmit(HomeEvent.UseSnapshotMap)
-            }
         }
     }
 }

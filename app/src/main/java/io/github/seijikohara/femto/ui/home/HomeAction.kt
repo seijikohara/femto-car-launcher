@@ -35,11 +35,4 @@ internal sealed interface HomeAction {
     data object OpenAssistant : HomeAction
 
     data object ResetTrip : HomeAction
-
-    /**
-     * Switch the persisted map render mode to SNAPSHOT. Raised from the live-map
-     * error surface when WebGL is unavailable on this device, so the user opts into
-     * the reliable snapshot backend instead of being silently downgraded.
-     */
-    data object UseSnapshotMap : HomeAction
 }

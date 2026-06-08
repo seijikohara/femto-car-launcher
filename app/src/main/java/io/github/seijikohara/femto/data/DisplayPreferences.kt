@@ -38,18 +38,21 @@ enum class AccentColor { DYNAMIC, BLUE, TEAL, GREEN, AMBER, ORANGE, RED, VIOLET,
 /** Fullscreen: keep the system bars, or hide both status and navigation bars. */
 internal enum class FullscreenSetting { OFF, ON }
 
-/** Default target map frame rate (fps) before the user picks one. */
-internal const val DEFAULT_MAP_FPS = 10
-
 /** Map light/dark style: follow the system theme, or force light / dark. */
 internal enum class MapStyleSetting { AUTO, LIGHT, DARK }
 
 /**
- * Map render backend. SNAPSHOT draws off-screen bitmaps (presents reliably on the
- * projected / virtualised displays of AI boxes); LIVE uses a GL MapView (smoother
- * where the device can scan out GL buffers, but blank on displays that cannot).
+ * Map render backend, picked explicitly by the user (no auto-fallback).
+ *
+ * - [LIVE_HARDWARE]: MapLibre GL JS in a hardware-accelerated WebView (smoothest
+ *   where the device GPU presents WebGL).
+ * - [LIVE_SOFTWARE]: the same WebView forced to the software layer
+ *   (`setLayerType(LAYER_TYPE_SOFTWARE)`), so Chromium renders WebGL via
+ *   SwiftShader — a fallback for GPUs that cannot keep a live WebGL context.
+ * - [SNAPSHOT]: off-screen `MapSnapshotter` bitmaps; presents reliably on the
+ *   projected / virtualised displays of AI boxes. The default.
  */
-internal enum class MapRenderMode { SNAPSHOT, LIVE }
+internal enum class MapRenderMode { LIVE_HARDWARE, LIVE_SOFTWARE, SNAPSHOT }
 
 /** Default oblique-camera tilt (degrees) and zoom level for the map. */
 internal const val DEFAULT_MAP_TILT_DEG = 55
@@ -85,14 +88,11 @@ internal data class DisplaySettings(
     // per-minute instead of per-second.
     val showClockSeconds: Boolean,
     val fullscreen: FullscreenSetting,
-    // Target map frame rate (fps): the snapshot map caps its re-render rate at
-    // this many frames per second. Clamped to the display's max refresh at use.
-    val mapFps: Int,
     val mapStyle: MapStyleSetting,
     val mapTiltDeg: Int,
     val mapZoom: Int,
     // Snapshot render resolution as a percent of the panel pixel size; lower is
-    // blurrier but renders faster, so the frame rate can climb closer to mapFps.
+    // blurrier but renders faster (a smaller bitmap to upscale).
     val mapRenderPercent: Int,
     val mapRenderMode: MapRenderMode,
     // Camera look-ahead (metres): how far ahead of the current position the camera
@@ -115,7 +115,6 @@ internal data class DisplaySettings(
                 clock = ClockSetting.AUTO,
                 showClockSeconds = true,
                 fullscreen = FullscreenSetting.OFF,
-                mapFps = DEFAULT_MAP_FPS,
                 mapStyle = MapStyleSetting.AUTO,
                 mapTiltDeg = DEFAULT_MAP_TILT_DEG,
                 mapZoom = DEFAULT_MAP_ZOOM,
@@ -152,8 +151,6 @@ internal interface DisplaySettingsStore {
     suspend fun setShowClockSeconds(value: Boolean)
 
     suspend fun setFullscreen(value: FullscreenSetting)
-
-    suspend fun setMapFps(value: Int)
 
     suspend fun setMapStyle(value: MapStyleSetting)
 
@@ -194,12 +191,11 @@ internal class DisplayPreferences(
                 clock = prefs[CLOCK_KEY].toEnumOr(ClockSetting.AUTO),
                 showClockSeconds = prefs[SHOW_CLOCK_SECONDS_KEY] ?: true,
                 fullscreen = prefs[FULLSCREEN_KEY].toEnumOr(FullscreenSetting.OFF),
-                mapFps = prefs[MAP_FPS_KEY] ?: DEFAULT_MAP_FPS,
                 mapStyle = prefs[MAP_STYLE_KEY].toEnumOr(MapStyleSetting.AUTO),
                 mapTiltDeg = prefs[MAP_TILT_KEY] ?: DEFAULT_MAP_TILT_DEG,
                 mapZoom = prefs[MAP_ZOOM_KEY] ?: DEFAULT_MAP_ZOOM,
                 mapRenderPercent = prefs[MAP_QUALITY_KEY] ?: DEFAULT_MAP_RENDER_PERCENT,
-                mapRenderMode = prefs[MAP_RENDER_MODE_KEY].toEnumOr(MapRenderMode.SNAPSHOT),
+                mapRenderMode = prefs[MAP_RENDER_MODE_KEY].toMapRenderModeOr(MapRenderMode.SNAPSHOT),
                 mapLookAheadM = prefs[MAP_LOOKAHEAD_KEY] ?: DEFAULT_MAP_LOOKAHEAD_M,
                 showCalendar = prefs[SHOW_CALENDAR_KEY] ?: true,
                 showWeather = prefs[SHOW_WEATHER_KEY] ?: true,
@@ -235,10 +231,6 @@ internal class DisplayPreferences(
 
     override suspend fun setFullscreen(value: FullscreenSetting) {
         context.displayDataStore.edit { it[FULLSCREEN_KEY] = value.name }
-    }
-
-    override suspend fun setMapFps(value: Int) {
-        context.displayDataStore.edit { it[MAP_FPS_KEY] = value }
     }
 
     override suspend fun setMapStyle(value: MapStyleSetting) {
@@ -285,7 +277,6 @@ internal class DisplayPreferences(
         val CLOCK_KEY = stringPreferencesKey("clock")
         val SHOW_CLOCK_SECONDS_KEY = booleanPreferencesKey("show_clock_seconds")
         val FULLSCREEN_KEY = stringPreferencesKey("fullscreen")
-        val MAP_FPS_KEY = intPreferencesKey("map_fps")
         val MAP_STYLE_KEY = stringPreferencesKey("map_style")
         val MAP_TILT_KEY = intPreferencesKey("map_tilt_deg")
         val MAP_ZOOM_KEY = intPreferencesKey("map_zoom")
@@ -302,3 +293,12 @@ internal class DisplayPreferences(
 // unrecognised value so the read never throws on a downgrade / renamed entry.
 private inline fun <reified T : Enum<T>> String?.toEnumOr(fallback: T): T =
     this?.let { name -> enumEntries<T>().firstOrNull { it.name == name } } ?: fallback
+
+// Decode the render mode, migrating the pre-3-mode "LIVE" value to LIVE_HARDWARE
+// so a user who chose the live map keeps it (rather than silently reverting to
+// the SNAPSHOT default) after the SNAPSHOT/LIVE enum split into three.
+private fun String?.toMapRenderModeOr(fallback: MapRenderMode): MapRenderMode =
+    when (this) {
+        "LIVE" -> MapRenderMode.LIVE_HARDWARE
+        else -> toEnumOr(fallback)
+    }

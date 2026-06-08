@@ -20,13 +20,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -53,7 +50,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,13 +60,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPinOff
-import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.data.MapStyleSetting
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
-import io.github.seijikohara.femto.ui.theme.FemtoTheme
-import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -93,11 +86,10 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-// User-tunable map rendering config (derived from DisplaySettings): target frame
-// rate, light/dark style, oblique tilt, zoom, and the render resolution percent
-// (lower renders a smaller bitmap, faster, upscaled to fill).
+// User-tunable map rendering config (derived from DisplaySettings): light/dark
+// style, oblique tilt, zoom, the render resolution percent (lower renders a
+// smaller bitmap, faster, upscaled to fill), and the user-picked render backend.
 internal data class MapConfig(
-    val fps: Int = 10,
     val style: MapStyleSetting = MapStyleSetting.AUTO,
     val tiltDeg: Int = 55,
     val zoom: Int = 16,
@@ -107,23 +99,22 @@ internal data class MapConfig(
 )
 
 /**
- * Map tile surface + permission fallback, in one of two backends selected by
- * [MapConfig.renderMode] (both render free OpenStreetMap vector tiles via
- * OpenFreeMap / MapLibre with a heading-up, oblique (tilted) camera):
+ * Map tile surface + permission fallback, in one of three backends selected
+ * explicitly by [MapConfig.renderMode] (all render free OpenStreetMap vector
+ * tiles via OpenFreeMap / MapLibre with a heading-up, oblique (tilted) camera):
  *
  * - SNAPSHOT (default, [SnapshotMap]) draws off-screen [MapSnapshotter] bitmaps
  *   into a Compose [Image]. A native live GL `MapView` never presents frames on
  *   the projected / virtualised displays of CarPlay / Android Auto AI boxes — the
  *   GL buffers are not scanned out, so it shows a grey rectangle — whereas a
  *   bitmap rides the normal Skia composition path and presents reliably. The
- *   snapshot re-renders on movement, capped at the frame-rate (fps) setting,
- *   single-flight, holding the previous frame so there is no flicker.
- * - LIVE ([WebMapView]) renders MapLibre GL JS (WebGL) in a WebView, which
- *   composites inline through HWUI and animates the camera for a smooth follow.
- *   It does NOT auto-downgrade: when WebGL is unavailable or no frame arrives
- *   within [WEBGL_READY_TIMEOUT_MS] it shows [LiveUnsupported], offering a manual
- *   switch to SNAPSHOT. The two backends differ visually (only SNAPSHOT draws the
- *   location marker), so a silent switch would confuse — the user opts in.
+ *   snapshot re-renders on movement, single-flight, holding the previous frame so
+ *   there is no flicker.
+ * - LIVE_HARDWARE / LIVE_SOFTWARE ([WebMapView]) render MapLibre GL JS (WebGL) in
+ *   a WebView, which composites inline through HWUI and animates the camera for a
+ *   smooth follow. LIVE_SOFTWARE forces the WebView onto the software layer so
+ *   Chromium renders WebGL via SwiftShader (for GPUs that cannot keep a hardware
+ *   WebGL context). There is NO auto-fallback: the chosen backend is kept as-is.
  *
  * Clock and speed overlays are placed by the parent on top of this surface.
  */
@@ -132,7 +123,6 @@ internal fun MapPanel(
     location: Location?,
     mapConfig: MapConfig,
     onTap: () -> Unit,
-    onUseSnapshot: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Surface(
     modifier = modifier,
@@ -145,6 +135,26 @@ internal fun MapPanel(
         // centre point; without it the map has nothing to show, so fall back.
         if (location != null) {
             when (mapConfig.renderMode) {
+                MapRenderMode.LIVE_HARDWARE -> {
+                    WebMapView(
+                        location = location,
+                        mapConfig = mapConfig,
+                        onTap = onTap,
+                        softwareRendering = false,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+
+                MapRenderMode.LIVE_SOFTWARE -> {
+                    WebMapView(
+                        location = location,
+                        mapConfig = mapConfig,
+                        onTap = onTap,
+                        softwareRendering = true,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+
                 MapRenderMode.SNAPSHOT -> {
                     SnapshotMap(
                         location = location,
@@ -152,36 +162,6 @@ internal fun MapPanel(
                         onTap = onTap,
                         modifier = Modifier.fillMaxSize(),
                     )
-                }
-
-                MapRenderMode.LIVE -> {
-                    // LIVE renders the WebGL map ([WebMapView]) and does NOT silently
-                    // downgrade to SNAPSHOT: a WebGL failure (reason from the bridge)
-                    // or a ready timeout shows [LiveUnsupported], which offers a manual
-                    // switch. The backends differ visually, so a silent swap confuses.
-                    var failReason by remember { mutableStateOf<String?>(null) }
-                    var webGlReady by remember { mutableStateOf(false) }
-                    val reason = failReason
-                    if (reason != null) {
-                        LiveUnsupported(
-                            reason = reason,
-                            onUseSnapshot = onUseSnapshot,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    } else {
-                        WebMapView(
-                            location = location,
-                            mapConfig = mapConfig,
-                            onTap = onTap,
-                            onReady = { webGlReady = true },
-                            onFail = { failReason = it },
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                        LaunchedEffect(Unit) {
-                            delay(WEBGL_READY_TIMEOUT_MS)
-                            if (!webGlReady) failReason = READY_TIMEOUT_REASON
-                        }
-                    }
                 }
             }
         } else {
@@ -252,8 +232,6 @@ private fun SnapshotMap(
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(snapshotter, mapConfig, lifecycleOwner) {
         val snap = snapshotter ?: return@LaunchedEffect
-        // Target frame interval; coerceAtLeast(1) guards 0 fps from divide-by-zero.
-        val intervalMs = 1_000L / mapConfig.fps.coerceAtLeast(1)
         // Render only while the launcher is visible; pause off-screen to drop the
         // render cost. lastRendered resets on each return to STARTED so a stale
         // map refreshes immediately when the dashboard comes back to the front.
@@ -274,7 +252,10 @@ private fun SnapshotMap(
                         failed = frame == null
                     }
                 }
-                delay(intervalMs)
+                // Poll for movement at a fixed cadence; a frame is produced only when
+                // the fix actually moves (shouldRerender), so this is a cheap throttle
+                // on how often we re-check, not a frame-rate cap.
+                delay(SNAPSHOT_POLL_INTERVAL_MS)
             }
         }
     }
@@ -503,83 +484,16 @@ private fun Fallback(modifier: Modifier = Modifier) =
         )
     }
 
-// Shown when LIVE is selected but WebGL is unavailable on this device (or the map
-// never reported a frame within the timeout). LIVE deliberately does not
-// auto-downgrade — the backends look different (only SNAPSHOT draws the location
-// marker), so a silent switch is confusing. Offer an explicit switch to SNAPSHOT
-// instead. The failure reason is shown in debug builds only, to aid diagnosis.
-@Composable
-private fun LiveUnsupported(
-    reason: String,
-    onUseSnapshot: () -> Unit,
-    modifier: Modifier = Modifier,
-) = Column(
-    modifier = modifier.fillMaxSize().padding(24.dp),
-    verticalArrangement = Arrangement.Center,
-    horizontalAlignment = Alignment.CenterHorizontally,
-) {
-    // Debug-only diagnosis reason, placed ABOVE the icon (top of the centered
-    // group) so it is not hidden behind the SpeedOverlay the parent draws over the
-    // lower-centre of the map (DashboardScaffold.MapPane).
-    if (BuildConfig.DEBUG) {
-        Text(
-            text = reason,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 8.dp),
-        )
-    }
-    Icon(
-        imageVector = Lucide.MapPinOff,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.size(40.dp),
-    )
-    Text(
-        text = stringResource(R.string.map_live_unavailable_title),
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onSurface,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.padding(top = 8.dp),
-    )
-    Text(
-        text = stringResource(R.string.map_live_unavailable_body),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.padding(top = 4.dp),
-    )
-    Button(
-        onClick = onUseSnapshot,
-        modifier =
-            Modifier
-                .padding(top = 16.dp)
-                .heightIn(min = FemtoDimens.MinTouchTarget)
-                .widthIn(min = FemtoDimens.MinTouchTarget),
-    ) {
-        Text(text = stringResource(R.string.map_live_use_snapshot))
-    }
-}
-
-@PreviewLightDark
-@Composable
-private fun LiveUnsupportedPreview() =
-    FemtoTheme {
-        LiveUnsupported(reason = "context-lost", onUseSnapshot = {})
-    }
-
 // internal so MapSnapshotRenderTest renders the SAME style host / zoom the panel
 // uses, keeping the OpenFreeMap style URL and zoom a single source of truth.
 internal const val MAP_ZOOM = 16.5
 internal const val POSITRON_STYLE_URL = "https://tiles.openfreemap.org/styles/positron"
 private const val DARK_STYLE_ASSET = "map/dark.json"
 
-// Show the live-map-unavailable surface if the WebGL map has not reported a
-// rendered frame within this window (covers a silent WebGL failure with no event).
-private const val WEBGL_READY_TIMEOUT_MS = 10_000L
-
-// Reason surfaced (debug only) when the timeout above elapses with no frame.
-private const val READY_TIMEOUT_REASON = "ready-timeout"
+// How often the snapshot loop polls the current fix for movement. A frame is only
+// produced when the fix actually moves (shouldRerender), so this just bounds the
+// re-check cadence, not the render rate.
+private const val SNAPSHOT_POLL_INTERVAL_MS = 200L
 
 // Re-render once a fix moves at least this far; below it the last frame is held.
 // Kept small so the map follows movement in smaller steps (smoother panning); the

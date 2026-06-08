@@ -2,9 +2,7 @@ package io.github.seijikohara.femto.ui.home.components
 
 import android.annotation.SuppressLint
 import android.location.Location
-import android.os.Handler
-import android.os.Looper
-import android.webkit.JavascriptInterface
+import android.view.View
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -16,7 +14,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -39,15 +36,13 @@ import io.github.seijikohara.femto.data.MapStyleSetting
  * `map.easeTo()` for heading-up smooth follow — this is how #2 smooth movement is
  * delivered (the JS eases between sparse fixes).
  *
- * The page reports health over the `AndroidMapBridge` JS interface: [onReady] on
- * the first rendered frame after the style loads (a `render` once `isStyleLoaded()`
- * — not `load`, which can stall in a WebView, nor `idle`, which never fires while
- * the heading-up camera eases), and again after MapLibre auto-restores a lost GL
- * context. [onFail] fires with a short reason only for a PERSISTENT failure: WebGL
- * unavailable, or a `webglcontextlost` that does not restore within the page's
- * grace window (transient losses are left to MapLibre's built-in restore). The
- * caller does not silently fall back; it surfaces a live-map-unavailable message
- * offering a manual switch to the SNAPSHOT backend.
+ * There is NO auto-fallback: the page relies on MapLibre's built-in WebGL
+ * context-loss restore (`webglcontextlost`/`webglcontextrestored`) and the host
+ * keeps the chosen backend regardless. [softwareRendering] forces the WebView onto
+ * the software layer (`setLayerType(LAYER_TYPE_SOFTWARE)`) so Chromium renders
+ * WebGL via SwiftShader — the LIVE_SOFTWARE backend for GPUs that cannot keep a
+ * hardware WebGL context. Switching the flag rebuilds the WebView (it keys the
+ * `remember`).
  *
  * [ON_START][androidx.lifecycle.Lifecycle.Event.ON_START] resumes the WebView and
  * nudges the map to re-measure/repaint; the WebView is paused only on ON_STOP (a
@@ -59,13 +54,10 @@ internal fun WebMapView(
     location: Location,
     mapConfig: MapConfig,
     onTap: () -> Unit,
-    onReady: () -> Unit,
-    onFail: (String) -> Unit,
+    softwareRendering: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val onReadyState = rememberUpdatedState(onReady)
-    val onFailState = rememberUpdatedState(onFail)
     val bearingHolder = remember { floatArrayOf(0f) }
     val isDark =
         when (mapConfig.style) {
@@ -75,14 +67,17 @@ internal fun WebMapView(
         }
 
     val webView =
-        remember {
+        remember(softwareRendering) {
             val assetLoader =
                 WebViewAssetLoader
                     .Builder()
                     .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context))
                     .build()
-            val mainHandler = Handler(Looper.getMainLooper())
             WebView(context).apply {
+                // Hardware layer renders WebGL on the GPU; the software layer routes
+                // Chromium through SwiftShader (the LIVE_SOFTWARE backend) for devices
+                // whose GPU cannot keep a live WebGL context.
+                setLayerType(if (softwareRendering) View.LAYER_TYPE_SOFTWARE else View.LAYER_TYPE_HARDWARE, null)
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 // Keep rasterizing while attached but not yet visible (the Compose
@@ -90,18 +85,6 @@ internal fun WebMapView(
                 // surface eviction dropped the WebGL context a few seconds in on the
                 // head unit. Costs some memory; fine for the single foreground map.
                 settings.offscreenPreRaster = true
-                addJavascriptInterface(
-                    object {
-                        @JavascriptInterface
-                        fun onMapReady() = mainHandler.post { onReadyState.value() }
-
-                        // Forward the failure reason verbatim; the caller surfaces it
-                        // (debug) and offers a manual switch to the SNAPSHOT backend.
-                        @JavascriptInterface
-                        fun onWebGlFailed(reason: String) = mainHandler.post { onFailState.value(reason) }
-                    },
-                    "AndroidMapBridge",
-                )
                 webViewClient =
                     object : WebViewClientCompat() {
                         override fun shouldInterceptRequest(
@@ -113,7 +96,11 @@ internal fun WebMapView(
             }
         }
 
-    LaunchedEffect(location.latitude, location.longitude, mapConfig.zoom, mapConfig.tiltDeg) {
+    // Key on [webView] too: a render-mode switch rebuilds the WebView, and the new
+    // instance must receive the current camera and style immediately rather than
+    // waiting for the next GPS fix / theme change (it would otherwise show the
+    // default [0,0] world view in the meantime).
+    LaunchedEffect(webView, location.latitude, location.longitude, mapConfig.zoom, mapConfig.tiltDeg) {
         val bearing = location.carriedBearing(bearingHolder)
         webView.evaluateJavascript(
             "window.updateCamera && updateCamera(" +
@@ -121,7 +108,7 @@ internal fun WebMapView(
             null,
         )
     }
-    LaunchedEffect(isDark) {
+    LaunchedEffect(webView, isDark) {
         val style = if (isDark) DARK_STYLE_URL else POSITRON_STYLE_URL
         webView.evaluateJavascript("window.setStyleUrl && setStyleUrl('$style')", null)
     }
