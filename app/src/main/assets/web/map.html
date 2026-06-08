@@ -37,16 +37,19 @@
           zoom: 1,
           attributionControl: false,
         });
+        // Report ready on the first rendered frame via map.on("load"), NOT
+        // map.once("idle"). "idle" means nothing is left to render; the heading-up
+        // camera eases (easeTo) toward every GPS fix, so on a moving vehicle idle
+        // never fires and a perfectly working map would hit the ready timeout and
+        // fall back to SNAPSHOT. "load" fires once the style and first frame are up.
         let ready = false;
-        map.on("load", () =>
-          map.once("idle", () => {
-            if (!ready) { ready = true; report("onMapReady"); }
-          }),
-        );
-        map.on("error", (e) => {
-          const msg = (e && e.error && e.error.message) || "map-error";
-          if (/webgl|context|gl\b/i.test(msg)) report("onWebGlFailed", msg);
+        map.on("load", () => {
+          if (!ready) { ready = true; report("onMapReady"); }
         });
+        // Tile / style fetch errors (OpenFreeMap is a no-SLA host) are NOT WebGL
+        // failures and recover on their own — never fall back on them. Real WebGL
+        // unavailability is caught by the getContext probe above, the constructor
+        // try/catch, and the webglcontextlost listener below (a lost GPU context).
         setTimeout(() => {
           const cv = document.querySelector("#map canvas");
           if (cv) cv.addEventListener("webglcontextlost", (ev) => { ev.preventDefault(); report("onWebGlFailed", "context-lost"); });

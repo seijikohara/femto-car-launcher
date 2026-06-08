@@ -113,9 +113,9 @@ internal data class MapConfig(
  *   single-flight, holding the previous frame so there is no flicker.
  * - LIVE ([WebMapView]) renders MapLibre GL JS (WebGL) in a WebView, which
  *   composites inline through HWUI and animates the camera for a smooth follow.
- *   It stages down to SNAPSHOT when WebGL is unavailable, its GPU context is
- *   lost, or no frame arrives within [WEBGL_READY_TIMEOUT_MS] — so a map always
- *   shows.
+ *   It stages down to SNAPSHOT when WebGL is unavailable or no frame arrives
+ *   within [WEBGL_READY_TIMEOUT_MS]; once the map has rendered, only a lost GPU
+ *   context drops it — so a working map is never lost to transient noise.
  *
  * Clock and speed overlays are placed by the parent on top of this surface.
  */
@@ -165,7 +165,10 @@ internal fun MapPanel(
                             mapConfig = mapConfig,
                             onTap = onTap,
                             onReady = { webGlReady = true },
-                            onFail = { webGlDown = true },
+                            // Before ready, any failure drops to the snapshot. After
+                            // ready, only a fatal one (lost GPU context) does — a
+                            // working map is not dropped on transient noise.
+                            onFail = { fatal -> if (fatal || !webGlReady) webGlDown = true },
                             modifier = Modifier.fillMaxSize(),
                         )
                         LaunchedEffect(Unit) {
