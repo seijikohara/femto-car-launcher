@@ -20,10 +20,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -50,6 +53,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,10 +64,13 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPinOff
+import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.data.MapStyleSetting
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -113,9 +120,10 @@ internal data class MapConfig(
  *   single-flight, holding the previous frame so there is no flicker.
  * - LIVE ([WebMapView]) renders MapLibre GL JS (WebGL) in a WebView, which
  *   composites inline through HWUI and animates the camera for a smooth follow.
- *   It stages down to SNAPSHOT when WebGL is unavailable or no frame arrives
- *   within [WEBGL_READY_TIMEOUT_MS]; once the map has rendered, only a lost GPU
- *   context drops it — so a working map is never lost to transient noise.
+ *   It does NOT auto-downgrade: when WebGL is unavailable or no frame arrives
+ *   within [WEBGL_READY_TIMEOUT_MS] it shows [LiveUnsupported], offering a manual
+ *   switch to SNAPSHOT. The two backends differ visually (only SNAPSHOT draws the
+ *   location marker), so a silent switch would confuse — the user opts in.
  *
  * Clock and speed overlays are placed by the parent on top of this surface.
  */
@@ -124,6 +132,7 @@ internal fun MapPanel(
     location: Location?,
     mapConfig: MapConfig,
     onTap: () -> Unit,
+    onUseSnapshot: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Surface(
     modifier = modifier,
@@ -146,17 +155,17 @@ internal fun MapPanel(
                 }
 
                 MapRenderMode.LIVE -> {
-                    // Staged fallback: Hardware/Software WebGL ([WebMapView]) -> SNAPSHOT.
-                    // WebMapView reports ready (cancels the timeout) or failed (WebGL
-                    // unavailable / GPU-process crash); either a failure or a ready
-                    // timeout drops to the snapshot bitmap so a map always shows.
-                    var webGlDown by remember { mutableStateOf(false) }
+                    // LIVE renders the WebGL map ([WebMapView]) and does NOT silently
+                    // downgrade to SNAPSHOT: a WebGL failure (reason from the bridge)
+                    // or a ready timeout shows [LiveUnsupported], which offers a manual
+                    // switch. The backends differ visually, so a silent swap confuses.
+                    var failReason by remember { mutableStateOf<String?>(null) }
                     var webGlReady by remember { mutableStateOf(false) }
-                    if (webGlDown) {
-                        SnapshotMap(
-                            location = location,
-                            mapConfig = mapConfig,
-                            onTap = onTap,
+                    val reason = failReason
+                    if (reason != null) {
+                        LiveUnsupported(
+                            reason = reason,
+                            onUseSnapshot = onUseSnapshot,
                             modifier = Modifier.fillMaxSize(),
                         )
                     } else {
@@ -165,15 +174,12 @@ internal fun MapPanel(
                             mapConfig = mapConfig,
                             onTap = onTap,
                             onReady = { webGlReady = true },
-                            // Before ready, any failure drops to the snapshot. After
-                            // ready, only a fatal one (lost GPU context) does — a
-                            // working map is not dropped on transient noise.
-                            onFail = { fatal -> if (fatal || !webGlReady) webGlDown = true },
+                            onFail = { failReason = it },
                             modifier = Modifier.fillMaxSize(),
                         )
                         LaunchedEffect(Unit) {
                             delay(WEBGL_READY_TIMEOUT_MS)
-                            if (!webGlReady) webGlDown = true
+                            if (!webGlReady) failReason = READY_TIMEOUT_REASON
                         }
                     }
                 }
@@ -497,15 +503,80 @@ private fun Fallback(modifier: Modifier = Modifier) =
         )
     }
 
+// Shown when LIVE is selected but WebGL is unavailable on this device (or the map
+// never reported a frame within the timeout). LIVE deliberately does not
+// auto-downgrade — the backends look different (only SNAPSHOT draws the location
+// marker), so a silent switch is confusing. Offer an explicit switch to SNAPSHOT
+// instead. The failure reason is shown in debug builds only, to aid diagnosis.
+@Composable
+private fun LiveUnsupported(
+    reason: String,
+    onUseSnapshot: () -> Unit,
+    modifier: Modifier = Modifier,
+) = Column(
+    modifier = modifier.fillMaxSize().padding(24.dp),
+    verticalArrangement = Arrangement.Center,
+    horizontalAlignment = Alignment.CenterHorizontally,
+) {
+    Icon(
+        imageVector = Lucide.MapPinOff,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(40.dp),
+    )
+    Text(
+        text = stringResource(R.string.map_live_unavailable_title),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurface,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(top = 8.dp),
+    )
+    Text(
+        text = stringResource(R.string.map_live_unavailable_body),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(top = 4.dp),
+    )
+    Button(
+        onClick = onUseSnapshot,
+        modifier =
+            Modifier
+                .padding(top = 16.dp)
+                .heightIn(min = FemtoDimens.MinTouchTarget)
+                .widthIn(min = FemtoDimens.MinTouchTarget),
+    ) {
+        Text(text = stringResource(R.string.map_live_use_snapshot))
+    }
+    if (BuildConfig.DEBUG) {
+        Text(
+            text = reason,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+    }
+}
+
+@PreviewLightDark
+@Composable
+private fun LiveUnsupportedPreview() =
+    FemtoTheme {
+        LiveUnsupported(reason = "context-lost", onUseSnapshot = {})
+    }
+
 // internal so MapSnapshotRenderTest renders the SAME style host / zoom the panel
 // uses, keeping the OpenFreeMap style URL and zoom a single source of truth.
 internal const val MAP_ZOOM = 16.5
 internal const val POSITRON_STYLE_URL = "https://tiles.openfreemap.org/styles/positron"
 private const val DARK_STYLE_ASSET = "map/dark.json"
 
-// Fall back from the WebGL map to the snapshot bitmap if it has not reported a
+// Show the live-map-unavailable surface if the WebGL map has not reported a
 // rendered frame within this window (covers a silent WebGL failure with no event).
 private const val WEBGL_READY_TIMEOUT_MS = 10_000L
+
+// Reason surfaced (debug only) when the timeout above elapses with no frame.
+private const val READY_TIMEOUT_REASON = "ready-timeout"
 
 // Re-render once a fix moves at least this far; below it the last frame is held.
 // Kept small so the map follows movement in smaller steps (smoother panning); the

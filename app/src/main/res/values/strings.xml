@@ -6,6 +6,9 @@
     <string name="map_unavailable">Map unavailable</string>
     <string name="map_permission_cta">Grant location access to enable the map and overlays.</string>
     <string name="map_attribution">© OpenStreetMap · OpenMapTiles · OpenFreeMap</string>
+    <string name="map_live_unavailable_title">Live map unavailable</string>
+    <string name="map_live_unavailable_body">This device cannot render the real-time map. Switch to the snapshot map for a reliable still view.</string>
+    <string name="map_live_use_snapshot">Switch to snapshot map</string>
 
     <!-- Speed overlay -->
     <string name="speed_reset_trip">Reset trip</string>

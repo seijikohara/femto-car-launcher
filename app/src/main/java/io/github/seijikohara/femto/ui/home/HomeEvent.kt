@@ -47,4 +47,11 @@ internal sealed interface HomeEvent {
 
     /** Open the voice-assistant bottom sheet so the user picks which assistant intent to fire. */
     data object OpenAssistantSheet : HomeEvent
+
+    /**
+     * Persist `MapRenderMode.SNAPSHOT`. The host owns the display preferences, so
+     * the live-map error surface requests the switch through this event rather than
+     * writing the preference from the dashboard tree.
+     */
+    data object UseSnapshotMap : HomeEvent
 }

@@ -186,6 +186,7 @@ private fun MapPane(
         location = uiState.location,
         mapConfig = mapConfig,
         onTap = { onAction(HomeAction.OpenMaps) },
+        onUseSnapshot = { onAction(HomeAction.UseSnapshotMap) },
         modifier = Modifier.fillMaxSize().hazeSource(hazeState),
     )
     ClockOverlay(

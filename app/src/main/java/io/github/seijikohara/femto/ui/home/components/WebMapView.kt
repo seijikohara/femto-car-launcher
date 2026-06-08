@@ -42,11 +42,11 @@ import io.github.seijikohara.femto.data.MapStyleSetting
  * The page reports health over the `AndroidMapBridge` JS interface: [onReady] once
  * the style and first frame have loaded (`map.on("load")` — not `idle`, which never
  * fires while the heading-up camera keeps easing between GPS fixes), and [onFail]
- * when WebGL is unavailable or its GPU context is lost. [onFail]'s `fatal` flag is
- * true only for a lost context (a hard failure that must fall back even after a
- * successful render); the caller drops to SNAPSHOT before the map is ready (any
- * [onFail] or a ready timeout) and, once ready, only on a fatal [onFail] — so a
- * working map is never lost to transient noise such as a tile fetch error.
+ * with a short reason (`context-lost`, `no-webgl-context`, `exception:...`) when
+ * WebGL is unavailable or its GPU context is lost. The caller does not silently
+ * fall back: it surfaces a live-map-unavailable message offering a manual switch
+ * to the SNAPSHOT backend, so the map never changes appearance behind the user's
+ * back.
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -55,7 +55,7 @@ internal fun WebMapView(
     mapConfig: MapConfig,
     onTap: () -> Unit,
     onReady: () -> Unit,
-    onFail: (Boolean) -> Unit,
+    onFail: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -85,11 +85,10 @@ internal fun WebMapView(
                         @JavascriptInterface
                         fun onMapReady() = mainHandler.post { onReadyState.value() }
 
-                        // fatal = a lost GPU context, which must fall back even after
-                        // a successful render; other reasons only matter before ready.
+                        // Forward the failure reason verbatim; the caller surfaces it
+                        // (debug) and offers a manual switch to the SNAPSHOT backend.
                         @JavascriptInterface
-                        fun onWebGlFailed(reason: String) =
-                            mainHandler.post { onFailState.value(reason == "context-lost") }
+                        fun onWebGlFailed(reason: String) = mainHandler.post { onFailState.value(reason) }
                     },
                     "AndroidMapBridge",
                 )
