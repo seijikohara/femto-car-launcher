@@ -105,14 +105,17 @@ internal data class MapConfig(
  * OpenFreeMap / MapLibre with a heading-up, oblique (tilted) camera):
  *
  * - SNAPSHOT (default, [SnapshotMap]) draws off-screen [MapSnapshotter] bitmaps
- *   into a Compose [Image]. A live GL `MapView` never presents frames on the
- *   projected / virtualised displays of CarPlay / Android Auto AI boxes — the GL
- *   buffers are not scanned out, so it shows a grey rectangle — whereas a bitmap
- *   rides the normal Skia composition path and presents reliably. The snapshot
- *   re-renders on movement, capped at the frame-rate (fps) setting, single-flight,
- *   holding the previous frame so there is no flicker.
- * - LIVE ([LiveMap]) is the GL `MapView`: smoother where the device can scan out
- *   GL, blank where it cannot. Opt-in so the user can test their hardware.
+ *   into a Compose [Image]. A native live GL `MapView` never presents frames on
+ *   the projected / virtualised displays of CarPlay / Android Auto AI boxes — the
+ *   GL buffers are not scanned out, so it shows a grey rectangle — whereas a
+ *   bitmap rides the normal Skia composition path and presents reliably. The
+ *   snapshot re-renders on movement, capped at the frame-rate (fps) setting,
+ *   single-flight, holding the previous frame so there is no flicker.
+ * - LIVE ([WebMapView]) renders MapLibre GL JS (WebGL) in a WebView, which
+ *   composites inline through HWUI and animates the camera for a smooth follow.
+ *   It stages down to SNAPSHOT when WebGL is unavailable, its GPU context is
+ *   lost, or no frame arrives within [WEBGL_READY_TIMEOUT_MS] — so a map always
+ *   shows.
  *
  * Clock and speed overlays are placed by the parent on top of this surface.
  */
@@ -143,12 +146,33 @@ internal fun MapPanel(
                 }
 
                 MapRenderMode.LIVE -> {
-                    LiveMap(
-                        location = location,
-                        mapConfig = mapConfig,
-                        onTap = onTap,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                    // Staged fallback: Hardware/Software WebGL ([WebMapView]) -> SNAPSHOT.
+                    // WebMapView reports ready (cancels the timeout) or failed (WebGL
+                    // unavailable / GPU-process crash); either a failure or a ready
+                    // timeout drops to the snapshot bitmap so a map always shows.
+                    var webGlDown by remember { mutableStateOf(false) }
+                    var webGlReady by remember { mutableStateOf(false) }
+                    if (webGlDown) {
+                        SnapshotMap(
+                            location = location,
+                            mapConfig = mapConfig,
+                            onTap = onTap,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        WebMapView(
+                            location = location,
+                            mapConfig = mapConfig,
+                            onTap = onTap,
+                            onReady = { webGlReady = true },
+                            onFail = { webGlDown = true },
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                        LaunchedEffect(Unit) {
+                            delay(WEBGL_READY_TIMEOUT_MS)
+                            if (!webGlReady) webGlDown = true
+                        }
+                    }
                 }
             }
         } else {
@@ -334,7 +358,7 @@ private fun LatLng.offsetForward(
     return LatLng(Math.toDegrees(lat2), Math.toDegrees(lon2))
 }
 
-private fun Location.carriedBearing(holder: FloatArray): Float =
+internal fun Location.carriedBearing(holder: FloatArray): Float =
     if (hasBearing() && bearing != 0f) {
         holder[0] = bearing
         bearing
@@ -372,225 +396,8 @@ private fun styleBuilderFor(
         Style.Builder().fromUri(POSITRON_STYLE_URL)
     }
 
-// Live GL backend. A real MapView on a SurfaceView (its own SurfaceFlinger layer)
-// with the location component driving a heading-up TRACKING_GPS camera. Smoother
-// than the snapshot where the device can scan out GL buffers; on projected /
-// virtualised displays that cannot, it shows the fallback's grey rectangle — hence
-// SNAPSHOT is default and this is opt-in so the user can test their hardware.
-// Shares styleBuilderFor and the OpenFreeMap host with the snapshot path.
 @Composable
-private fun LiveMap(
-    location: Location,
-    mapConfig: MapConfig,
-    onTap: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val context = LocalContext.current
-    val isDark =
-        when (mapConfig.style) {
-            MapStyleSetting.AUTO -> isSystemInDarkTheme()
-            MapStyleSetting.LIGHT -> false
-            MapStyleSetting.DARK -> true
-        }
-    val onTapState = rememberUpdatedState(onTap)
-    // Read the latest fix inside the async style-load callback, which fires after
-    // the effect captured its closure (the style load can take seconds).
-    val currentLocation = rememberUpdatedState(location)
-    // Carry the last non-zero bearing so a stopped vehicle keeps its heading.
-    val bearingHolder = remember { floatArrayOf(0f) }
-
-    val mapView =
-        remember {
-            MapLibre.getInstance(context)
-            // SurfaceView backend (textureMode = false), not TextureView. A
-            // SurfaceView gets its own SurfaceFlinger-composited layer — the path
-            // games / Google Maps use — which presents GL on more head units than
-            // the TextureView texture-share path (that one showed grey on the
-            // projected AI-box display). The snapshot backend stays the default; this
-            // is the opt-in LIVE path for hardware that can scan out GL.
-            val options =
-                MapLibreMapOptions
-                    .createFromAttributes(context)
-                    .textureMode(false)
-            MapView(context, options).apply {
-                onCreate(null)
-                configureMapGlSurface(this)
-            }
-        }
-
-    var map by remember { mutableStateOf<MapLibreMap?>(null) }
-    var loadFailed by remember { mutableStateOf(false) }
-    // OpenFreeMap is a no-SLA host: re-key the style effect to retry a transient
-    // failure, bounded so a hard outage settles on the fallback.
-    var retryTick by remember { mutableIntStateOf(0) }
-    var retryAttempt by remember { mutableIntStateOf(0) }
-
-    ForwardLifecycle(mapView)
-    ForwardLowMemory(mapView)
-
-    LaunchedEffect(mapView) {
-        mapView.addOnDidFailLoadingMapListener { loadFailed = true }
-        mapView.getMapAsync { ready ->
-            ready.uiSettings.apply {
-                setAllGesturesEnabled(false)
-                isCompassEnabled = false
-                isLogoEnabled = false
-                // The styled Compose [Attribution] overlay is the single credit.
-                isAttributionEnabled = false
-            }
-            map = ready
-        }
-    }
-
-    LaunchedEffect(map, isDark, mapConfig.zoom, mapConfig.tiltDeg, retryTick) {
-        val ready = map ?: return@LaunchedEffect
-        loadFailed = false
-        ready.setStyle(styleBuilderFor(context, isDark)) { style ->
-            retryAttempt = 0
-            activateHeadingUp(context, ready, style, mapConfig.zoom, mapConfig.tiltDeg)
-            ready.locationComponent.forceLocationUpdate(currentLocation.value.withCarriedBearing(bearingHolder))
-        }
-    }
-
-    LaunchedEffect(loadFailed) {
-        if (loadFailed && retryAttempt < MAX_RETRIES) {
-            delay(RETRY_BASE_DELAY_MS shl retryAttempt)
-            retryAttempt += 1
-            retryTick += 1
-        }
-    }
-
-    LaunchedEffect(map, location) {
-        map
-            ?.locationComponent
-            ?.takeIf { it.isLocationComponentActivated }
-            ?.forceLocationUpdate(location.withCarriedBearing(bearingHolder))
-    }
-
-    Box(modifier = modifier) {
-        AndroidView(
-            modifier = Modifier.fillMaxSize().clickable { onTapState.value() },
-            factory = { mapView },
-        )
-        if (loadFailed) {
-            Fallback(
-                modifier = Modifier.clickable {
-                    retryAttempt = 0
-                    retryTick += 1
-                },
-            )
-        } else {
-            Attribution(modifier = Modifier.align(Alignment.BottomStart))
-        }
-    }
-}
-
-// Force MapLibre's inner GL SurfaceView to composite like a plain GLSurfaceView:
-// an opaque holder with default (non-media-overlay) z-order. A bare opaque
-// GLSurfaceView presents fine in the same spot, while MapLibre's translucent,
-// media-overlay default surface showed the card through (= grey). This is the
-// device-side bet; the emulator cannot judge it (it forces MapLibre onto an
-// emulator-only EGL config path that never composites regardless).
-private fun configureMapGlSurface(view: View) {
-    when (view) {
-        is SurfaceView -> {
-            view.setZOrderMediaOverlay(false)
-            view.holder.setFormat(PixelFormat.OPAQUE)
-        }
-
-        is ViewGroup -> {
-            (0 until view.childCount).forEach { configureMapGlSurface(view.getChildAt(it)) }
-        }
-
-        else -> {
-            Unit
-        }
-    }
-}
-
-@Composable
-private fun ForwardLifecycle(mapView: MapView) {
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, mapView) {
-        val observer =
-            LifecycleEventObserver { _, event ->
-                when (event) {
-                    Lifecycle.Event.ON_START -> mapView.onStart()
-                    Lifecycle.Event.ON_RESUME -> mapView.onResume()
-                    Lifecycle.Event.ON_PAUSE -> mapView.onPause()
-                    Lifecycle.Event.ON_STOP -> mapView.onStop()
-                    else -> Unit
-                }
-            }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            mapView.onStop()
-            mapView.onDestroy()
-        }
-    }
-}
-
-// MapView needs onLowMemory() to release its GL tile / glyph caches under
-// pressure; lifecycle events alone never deliver it. Head units are RAM-tight, so
-// forward both onLowMemory and onTrimMemory at RUNNING_LOW, before the OS starts
-// killing background apps.
-@Composable
-private fun ForwardLowMemory(mapView: MapView) {
-    val context = LocalContext.current
-    DisposableEffect(context, mapView) {
-        val callbacks =
-            object : ComponentCallbacks2 {
-                override fun onLowMemory() = mapView.onLowMemory()
-
-                @Suppress("DEPRECATION")
-                override fun onTrimMemory(level: Int) {
-                    if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
-                        mapView.onLowMemory()
-                    }
-                }
-
-                override fun onConfigurationChanged(newConfig: Configuration) = Unit
-            }
-        context.registerComponentCallbacks(callbacks)
-        onDispose { context.unregisterComponentCallbacks(callbacks) }
-    }
-}
-
-@SuppressLint("MissingPermission") // LiveMap renders only with a location fix, which implies the grant.
-private fun activateHeadingUp(
-    context: Context,
-    map: MapLibreMap,
-    style: Style,
-    zoom: Int,
-    tiltDeg: Int,
-) {
-    map.locationComponent.apply {
-        activateLocationComponent(
-            LocationComponentActivationOptions
-                .builder(context, style)
-                // The launcher owns a single GPS flow; do not start a second engine.
-                .useDefaultLocationEngine(false)
-                .build(),
-        )
-        isLocationComponentEnabled = true
-        renderMode = RenderMode.GPS
-        cameraMode = CameraMode.TRACKING_GPS
-    }
-    map.moveCamera(CameraUpdateFactory.zoomTo(zoom.toDouble()))
-    map.moveCamera(CameraUpdateFactory.tiltTo(tiltDeg.toDouble()))
-}
-
-private fun Location.withCarriedBearing(holder: FloatArray): Location =
-    if (hasBearing() && bearing != 0f) {
-        holder[0] = bearing
-        this
-    } else {
-        Location(this).apply { bearing = holder[0] }
-    }
-
-@Composable
-private fun Attribution(modifier: Modifier = Modifier) =
+internal fun Attribution(modifier: Modifier = Modifier) =
     Text(
         text = stringResource(R.string.map_attribution),
         // Legal credit, not glance content — OSM ODbL / OpenMapTiles CC-BY require
@@ -693,6 +500,10 @@ internal const val MAP_ZOOM = 16.5
 internal const val POSITRON_STYLE_URL = "https://tiles.openfreemap.org/styles/positron"
 private const val DARK_STYLE_ASSET = "map/dark.json"
 
+// Fall back from the WebGL map to the snapshot bitmap if it has not reported a
+// rendered frame within this window (covers a silent WebGL failure with no event).
+private const val WEBGL_READY_TIMEOUT_MS = 10_000L
+
 // Re-render once a fix moves at least this far; below it the last frame is held.
 // Kept small so the map follows movement in smaller steps (smoother panning); the
 // single-flight render + fps throttle still bound how often a frame is produced.
@@ -708,8 +519,3 @@ private const val MARKER_CAMERA_DISTANCE = 12f
 // Small attribution type: legal credit only, deliberately tiny so the centred
 // speed overlay does not bury it on a narrow map pane.
 private val ATTRIBUTION_FONT_SIZE = 8.sp
-
-// Live-map style-reload budget after a load failure: RETRY_BASE_DELAY_MS shifted
-// left by the attempt index yields 2s, 4s, 8s before settling on the fallback.
-private const val MAX_RETRIES = 3
-private const val RETRY_BASE_DELAY_MS = 2_000L
