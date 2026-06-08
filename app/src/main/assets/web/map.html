@@ -16,8 +16,11 @@
   <body>
     <div id="map"></div>
     <script>
-      // Report map health to the Android host (WebMapView @JavascriptInterface) so it
-      // can fall back Hardware WebGL -> Software WebGL -> SNAPSHOT.
+      // Grace period (ms) to let MapLibre restore a lost GL context before the loss
+      // is treated as persistent and the host falls back to the snapshot backend.
+      var CONTEXT_RESTORE_GRACE_MS = 6000;
+
+      // Report map health to the Android host (WebMapView @JavascriptInterface).
       function report(fn, arg) {
         try {
           if (window.AndroidMapBridge && window.AndroidMapBridge[fn]) window.AndroidMapBridge[fn](arg || "");
@@ -37,23 +40,42 @@
           zoom: 1,
           attributionControl: false,
         });
-        // Report ready on the first rendered frame via map.on("load"), NOT
-        // map.once("idle"). "idle" means nothing is left to render; the heading-up
-        // camera eases (easeTo) toward every GPS fix, so on a moving vehicle idle
-        // never fires and a perfectly working map would hit the ready timeout and
-        // fall back to SNAPSHOT. "load" fires once the style and first frame are up.
+        // Report ready on the first ACTUALLY-RENDERED frame after the style is
+        // applied, not on map.on("load"). In a WebView "load" can stall or never
+        // fire (a sprite/glyph/style fetch on the no-SLA host, or a zero-size
+        // container) while the map is visibly drawing — which previously hit the
+        // 10s ready timeout and fell back. The first "render" after isStyleLoaded()
+        // means real pixels are on screen; it also re-fires after a context restore.
         let ready = false;
-        map.on("load", () => {
+        function markReady() {
           if (!ready) { ready = true; report("onMapReady"); }
+        }
+        map.on("render", () => { if (map.isStyleLoaded()) markReady(); });
+        map.on("load", markReady); // belt-and-suspenders if render is missed
+
+        // WebGL context loss is usually TRANSIENT on mobile / WebView GPUs, and
+        // MapLibre auto-recovers: it preventDefault()s the loss, saves the style,
+        // and on webglcontextrestored rebuilds the painter and re-renders (see
+        // map.ts _contextLost / _contextRestored, re-fired as Map events). So do
+        // NOT fall back on the first loss — start a grace timer and let MapLibre
+        // restore. Report a PERSISTENT loss only if no restore arrives in time, so
+        // SNAPSHOT is the last resort, not the first reaction. (MapLibre owns the
+        // canvas listener; subscribe to its Map events rather than adding our own.)
+        let contextLostTimer = null;
+        map.on("webglcontextlost", () => {
+          if (contextLostTimer) return;
+          contextLostTimer = setTimeout(() => {
+            contextLostTimer = null;
+            report("onWebGlFailed", "context-lost");
+          }, CONTEXT_RESTORE_GRACE_MS);
         });
-        // Tile / style fetch errors (OpenFreeMap is a no-SLA host) are NOT WebGL
-        // failures and recover on their own — never fall back on them. Real WebGL
-        // unavailability is caught by the getContext probe above, the constructor
-        // try/catch, and the webglcontextlost listener below (a lost GPU context).
-        setTimeout(() => {
-          const cv = document.querySelector("#map canvas");
-          if (cv) cv.addEventListener("webglcontextlost", (ev) => { ev.preventDefault(); report("onWebGlFailed", "context-lost"); });
-        }, 0);
+        map.on("webglcontextrestored", () => {
+          // Recovered within the grace window: cancel the pending failure. We never
+          // reported failure (the host never showed the unavailable surface), and
+          // MapLibre re-renders after restore, so the "render" listener re-confirms
+          // readiness — nothing to re-send here.
+          if (contextLostTimer) { clearTimeout(contextLostTimer); contextLostTimer = null; }
+        });
 
         // Android -> JS: smooth heading-up camera follow (this is how #2 smooth
         // movement is achieved — easeTo interpolates between sparse GPS fixes). The
@@ -66,6 +88,10 @@
           else map.easeTo({ ...opts, duration: 1000, essential: true });
         };
         window.setStyleUrl = function (url) { if (map && url) map.setStyle(url); };
+        // Host (Android) calls this on lifecycle resume so the map re-measures and
+        // repaints after the WebView was paused / not visible (guards a stale GL
+        // surface): map.resize() + triggerRepaint().
+        window.onHostResume = function () { if (map) { map.resize(); map.triggerRepaint(); } };
       } catch (e) {
         report("onWebGlFailed", "exception:" + (e && e.message));
       }

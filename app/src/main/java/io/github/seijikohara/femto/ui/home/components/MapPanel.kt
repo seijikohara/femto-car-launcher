@@ -518,6 +518,17 @@ private fun LiveUnsupported(
     verticalArrangement = Arrangement.Center,
     horizontalAlignment = Alignment.CenterHorizontally,
 ) {
+    // Debug-only diagnosis reason, placed ABOVE the icon (top of the centered
+    // group) so it is not hidden behind the SpeedOverlay the parent draws over the
+    // lower-centre of the map (DashboardScaffold.MapPane).
+    if (BuildConfig.DEBUG) {
+        Text(
+            text = reason,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+    }
     Icon(
         imageVector = Lucide.MapPinOff,
         contentDescription = null,
@@ -547,14 +558,6 @@ private fun LiveUnsupported(
                 .widthIn(min = FemtoDimens.MinTouchTarget),
     ) {
         Text(text = stringResource(R.string.map_live_use_snapshot))
-    }
-    if (BuildConfig.DEBUG) {
-        Text(
-            text = reason,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp),
-        )
     }
 }
 
