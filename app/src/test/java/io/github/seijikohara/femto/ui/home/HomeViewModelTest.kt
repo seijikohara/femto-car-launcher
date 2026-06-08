@@ -180,6 +180,15 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun `onAction UseSnapshotMap emits UseSnapshotMap event`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.UseSnapshotMap,
+                expected = HomeEvent.UseSnapshotMap,
+            )
+        }
+
+    @Test
     fun `onAction ConnectMusicPlayer emits OpenNotificationListenerSettings`() =
         runTest {
             stubViewModel().assertEvent(

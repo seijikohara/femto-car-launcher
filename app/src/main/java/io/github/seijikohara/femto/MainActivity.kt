@@ -30,6 +30,7 @@ import io.github.seijikohara.femto.data.DisplayPreferences
 import io.github.seijikohara.femto.data.DisplaySettings
 import io.github.seijikohara.femto.data.FontPreferences
 import io.github.seijikohara.femto.data.FullscreenSetting
+import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.data.SystemPermissionSignals
 import io.github.seijikohara.femto.data.ThemeMode
 import io.github.seijikohara.femto.data.hasBluetoothConnectPermission
@@ -233,6 +234,14 @@ class MainActivity : ComponentActivity() {
                 // Close the drawer overlay so the two bottom sheets never stack.
                 setShowDrawer(false)
                 setShowAssistant(true)
+            }
+
+            HomeEvent.UseSnapshotMap -> {
+                // The live WebGL map failed on this device; persist the snapshot
+                // backend so the dashboard shows the reliable bitmap map instead.
+                lifecycleScope.launch {
+                    displayPreferences.setMapRenderMode(MapRenderMode.SNAPSHOT)
+                }
             }
         }
     }
