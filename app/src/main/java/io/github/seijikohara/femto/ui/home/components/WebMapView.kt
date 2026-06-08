@@ -39,14 +39,19 @@ import io.github.seijikohara.femto.data.MapStyleSetting
  * `map.easeTo()` for heading-up smooth follow — this is how #2 smooth movement is
  * delivered (the JS eases between sparse fixes).
  *
- * The page reports health over the `AndroidMapBridge` JS interface: [onReady] once
- * the style and first frame have loaded (`map.on("load")` — not `idle`, which never
- * fires while the heading-up camera keeps easing between GPS fixes), and [onFail]
- * with a short reason (`context-lost`, `no-webgl-context`, `exception:...`) when
- * WebGL is unavailable or its GPU context is lost. The caller does not silently
- * fall back: it surfaces a live-map-unavailable message offering a manual switch
- * to the SNAPSHOT backend, so the map never changes appearance behind the user's
- * back.
+ * The page reports health over the `AndroidMapBridge` JS interface: [onReady] on
+ * the first rendered frame after the style loads (a `render` once `isStyleLoaded()`
+ * — not `load`, which can stall in a WebView, nor `idle`, which never fires while
+ * the heading-up camera eases), and again after MapLibre auto-restores a lost GL
+ * context. [onFail] fires with a short reason only for a PERSISTENT failure: WebGL
+ * unavailable, or a `webglcontextlost` that does not restore within the page's
+ * grace window (transient losses are left to MapLibre's built-in restore). The
+ * caller does not silently fall back; it surfaces a live-map-unavailable message
+ * offering a manual switch to the SNAPSHOT backend.
+ *
+ * [ON_START][androidx.lifecycle.Lifecycle.Event.ON_START] resumes the WebView and
+ * nudges the map to re-measure/repaint; the WebView is paused only on ON_STOP (a
+ * visible WebView paused on ON_PAUSE can drop its GL context).
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -80,6 +85,11 @@ internal fun WebMapView(
             WebView(context).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
+                // Keep rasterizing while attached but not yet visible (the Compose
+                // AndroidView attach window) so the GL surface is not evicted —
+                // surface eviction dropped the WebGL context a few seconds in on the
+                // head unit. Costs some memory; fine for the single foreground map.
+                settings.offscreenPreRaster = true
                 addJavascriptInterface(
                     object {
                         @JavascriptInterface
@@ -121,9 +131,23 @@ internal fun WebMapView(
         val observer =
             LifecycleEventObserver { _, event ->
                 when (event) {
-                    Lifecycle.Event.ON_RESUME -> webView.onResume()
-                    Lifecycle.Event.ON_PAUSE -> webView.onPause()
-                    else -> Unit
+                    // Pause only when truly backgrounded (ON_STOP), not ON_PAUSE: the
+                    // launcher map stays visible behind transient lifecycle dips, and
+                    // pausing a visible WebView can drop its GL context (the "few
+                    // seconds then grey" cause). Resume on ON_START and nudge the map
+                    // to re-measure / repaint after a possible surface loss.
+                    Lifecycle.Event.ON_START -> {
+                        webView.onResume()
+                        webView.evaluateJavascript("window.onHostResume && onHostResume()", null)
+                    }
+
+                    Lifecycle.Event.ON_STOP -> {
+                        webView.onPause()
+                    }
+
+                    else -> {
+                        Unit
+                    }
                 }
             }
         lifecycleOwner.lifecycle.addObserver(observer)
