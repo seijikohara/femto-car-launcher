@@ -1,7 +1,7 @@
 package io.github.seijikohara.femto.ui.settings
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -10,6 +10,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.FullscreenSetting
+import io.github.seijikohara.femto.data.MapStyleSetting
 import io.github.seijikohara.femto.data.ThemeMode
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Assert.assertEquals
@@ -28,6 +29,9 @@ class SettingsScreenTest {
     private val tealAccentLabel = context.getString(R.string.settings_accent_teal)
     private val resetLabel = context.getString(R.string.settings_reset_to_defaults)
     private val resetConfirmLabel = context.getString(R.string.settings_reset_confirm)
+    private val keepScreenOnLabel = context.getString(R.string.settings_keep_screen_on)
+    private val lightSchemeLabel = context.getString(R.string.settings_group_map_scheme_light)
+    private val darkSchemeLabel = context.getString(R.string.settings_group_map_scheme_dark)
 
     @Test
     fun renders_fullscreen_row() {
@@ -87,15 +91,49 @@ class SettingsScreenTest {
         assertEquals(listOf(SettingsAction.ResetToDefaults), actions)
     }
 
-    private fun setScreen(onAction: (SettingsAction) -> Unit = {}) {
+    @Test
+    fun keep_screen_on_row_is_shown() {
+        setScreen()
+        rule.onNodeWithText(keepScreenOnLabel).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun auto_map_style_shows_both_scheme_rows() {
+        // AUTO can use either scheme (the system theme decides), so both rows show.
+        setScreen(uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.AUTO))
+        rule.onNodeWithText(lightSchemeLabel).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText(darkSchemeLabel).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun light_map_style_hides_the_dark_scheme_row() {
+        // A fixed LIGHT style never uses the dark scheme, so that row is hidden.
+        setScreen(uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.LIGHT))
+        rule.onNodeWithText(lightSchemeLabel).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText(darkSchemeLabel).assertDoesNotExist()
+    }
+
+    @Test
+    fun dark_map_style_hides_the_light_scheme_row() {
+        // A fixed DARK style never uses the light scheme, so that row is hidden.
+        setScreen(uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.DARK))
+        rule.onNodeWithText(darkSchemeLabel).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText(lightSchemeLabel).assertDoesNotExist()
+    }
+
+    private fun setScreen(
+        uiState: SettingsUiState = SettingsUiState.Initial,
+        onAction: (SettingsAction) -> Unit = {},
+    ) {
         rule.setContent {
             FemtoTheme {
                 SettingsScreen(
-                    uiState = SettingsUiState.Initial,
+                    uiState = uiState,
                     onAction = onAction,
                     onBack = {},
                     onOpenNotificationAccess = {},
                     onOpenSystemSettings = {},
+                    onOpenFontPicker = {},
                 )
             }
         }

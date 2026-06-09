@@ -73,6 +73,14 @@ internal fun FontPickerScreen(
             query = uiState.query,
             onQueryChange = { onAction(FontPickerAction.Search(it)) },
         )
+        // The catalog is served most-popular-first; name the order so it does not
+        // read as arbitrary. Static label — sorting is not user-switchable.
+        Text(
+            text = stringResource(R.string.font_picker_sort_popular),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
         LazyColumn(
             modifier = Modifier.fillMaxWidth().weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp),

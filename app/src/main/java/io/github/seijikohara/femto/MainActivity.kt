@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.text.format.DateFormat
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -108,6 +109,9 @@ class MainActivity : ComponentActivity() {
             // focus-regain case.
             LaunchedEffect(display.fullscreen) {
                 applyFullscreen(display.fullscreen)
+            }
+            LaunchedEffect(display.keepScreenOn) {
+                applyKeepScreenOn(display.keepScreenOn)
             }
             FemtoTheme(fontFamily = fontFamily, accent = display.accentColor, darkTheme = darkTheme) {
                 // The dashboard stays composed; the app drawer, assistant, and
@@ -214,6 +218,16 @@ class MainActivity : ComponentActivity() {
             FullscreenSetting.OFF -> {
                 controller.show(WindowInsetsCompat.Type.systemBars())
             }
+        }
+    }
+
+    // Keep the panel lit while the launcher is foreground. Unlike the system bars
+    // this survives focus changes, so it needs no onWindowFocusChanged re-apply.
+    private fun applyKeepScreenOn(enabled: Boolean) {
+        if (enabled) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
 

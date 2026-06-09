@@ -1,7 +1,7 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.platform.app.InstrumentationRegistry
@@ -19,7 +19,7 @@ class CalendarCardTest {
     fun renders_each_days_events_in_the_agenda_list() {
         rule.setContent {
             FemtoTheme {
-                CalendarCard(snapshot = fakeCalendarSnapshot())
+                CalendarCard(snapshot = fakeCalendarSnapshot(), is24Hour = true)
             }
         }
         // The agenda lists every day, so events from different days all render
@@ -32,7 +32,7 @@ class CalendarCardTest {
     fun shows_a_placeholder_for_days_without_events() {
         rule.setContent {
             FemtoTheme {
-                CalendarCard(snapshot = fakeCalendarSnapshot())
+                CalendarCard(snapshot = fakeCalendarSnapshot(), is24Hour = true)
             }
         }
         // The fixture has free days (e.g. 2026-05-02), each shown with the em-dash
@@ -45,7 +45,7 @@ class CalendarCardTest {
     fun shows_today_number_for_granted_snapshot() {
         rule.setContent {
             FemtoTheme {
-                CalendarCard(snapshot = fakeCalendarSnapshot())
+                CalendarCard(snapshot = fakeCalendarSnapshot(), is24Hour = true)
             }
         }
         // The hero head renders the day-of-month of the fixture's `today`
@@ -59,7 +59,7 @@ class CalendarCardTest {
     fun shows_permission_denied_message_when_access_is_denied() {
         rule.setContent {
             FemtoTheme {
-                CalendarCard(snapshot = fakeCalendarSnapshot(hasCalendarAccess = false))
+                CalendarCard(snapshot = fakeCalendarSnapshot(hasCalendarAccess = false), is24Hour = true)
             }
         }
         // Resolve the copy from resources so the literal stays the SSOT in

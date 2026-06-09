@@ -107,12 +107,17 @@
     <string name="settings_section_units">Units</string>
     <string name="settings_section_map">Map</string>
     <string name="settings_section_panels">Panels</string>
+    <string name="settings_subheader_screen">Screen</string>
+    <string name="settings_subheader_fonts">Fonts</string>
+    <string name="settings_subheader_map_rendering">Rendering</string>
+    <string name="settings_subheader_map_appearance">Appearance</string>
+    <string name="settings_subheader_map_camera">Camera</string>
     <string name="settings_group_theme">Theme</string>
     <string name="settings_group_speed">Speed &amp; distance</string>
     <string name="settings_group_temperature">Temperature</string>
     <string name="settings_group_clock">Clock</string>
     <string name="settings_group_font_latin">Latin font</string>
-    <string name="settings_group_font_cjk">Japanese / CJK fallback</string>
+    <string name="settings_group_font_cjk">CJK fallback</string>
     <string name="settings_font_system">System default</string>
     <string name="settings_group_system">System</string>
     <string name="font_picker_search_hint">Search Google Fonts</string>
@@ -125,6 +130,7 @@
     <string name="font_picker_error">Could not load the font list. Check the connection and reopen.</string>
     <string name="font_picker_empty">No fonts available.</string>
     <string name="font_picker_no_matches">No fonts match the search.</string>
+    <string name="font_picker_sort_popular">Most popular first</string>
     <string name="settings_option_auto">Auto</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
@@ -146,6 +152,7 @@
     <string name="settings_clock_24">24-hour</string>
     <string name="settings_group_clock_seconds">Show seconds</string>
     <string name="settings_group_fullscreen">Fullscreen</string>
+    <string name="settings_keep_screen_on">Keep screen on</string>
     <string name="settings_group_map_rendering">Map rendering</string>
     <string name="settings_map_mode_live">Live</string>
     <string name="settings_map_mode_snapshot">Snapshot</string>

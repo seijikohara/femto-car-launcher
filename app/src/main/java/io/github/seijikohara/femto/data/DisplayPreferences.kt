@@ -101,6 +101,9 @@ internal data class DisplaySettings(
     // per-minute instead of per-second.
     val showClockSeconds: Boolean,
     val fullscreen: FullscreenSetting,
+    // Whether to keep the screen awake while the launcher is foreground. Defaults
+    // to true: the head unit runs on vehicle power, so the dashboard should stay lit.
+    val keepScreenOn: Boolean,
     val mapStyle: MapStyleSetting,
     // Independent colour schemes for the light and dark map contexts (which one
     // applies follows [mapStyle] / the system theme). Both default to ACCENT.
@@ -137,6 +140,7 @@ internal data class DisplaySettings(
                 clock = ClockSetting.AUTO,
                 showClockSeconds = true,
                 fullscreen = FullscreenSetting.OFF,
+                keepScreenOn = true,
                 mapStyle = MapStyleSetting.AUTO,
                 mapSchemeLight = MapColorScheme.ACCENT,
                 mapSchemeDark = MapColorScheme.ACCENT,
@@ -177,6 +181,8 @@ internal interface DisplaySettingsStore {
     suspend fun setShowClockSeconds(value: Boolean)
 
     suspend fun setFullscreen(value: FullscreenSetting)
+
+    suspend fun setKeepScreenOn(value: Boolean)
 
     suspend fun setMapStyle(value: MapStyleSetting)
 
@@ -228,6 +234,7 @@ internal class DisplayPreferences(
                 clock = prefs[CLOCK_KEY].toEnumOr(ClockSetting.AUTO),
                 showClockSeconds = prefs[SHOW_CLOCK_SECONDS_KEY] ?: true,
                 fullscreen = prefs[FULLSCREEN_KEY].toEnumOr(FullscreenSetting.OFF),
+                keepScreenOn = prefs[KEEP_SCREEN_ON_KEY] ?: true,
                 mapStyle = prefs[MAP_STYLE_KEY].toEnumOr(MapStyleSetting.AUTO),
                 mapSchemeLight = prefs[MAP_SCHEME_LIGHT_KEY].toEnumOr(MapColorScheme.ACCENT),
                 mapSchemeDark = prefs[MAP_SCHEME_DARK_KEY].toEnumOr(MapColorScheme.ACCENT),
@@ -272,6 +279,10 @@ internal class DisplayPreferences(
 
     override suspend fun setFullscreen(value: FullscreenSetting) {
         context.displayDataStore.edit { it[FULLSCREEN_KEY] = value.name }
+    }
+
+    override suspend fun setKeepScreenOn(value: Boolean) {
+        context.displayDataStore.edit { it[KEEP_SCREEN_ON_KEY] = value }
     }
 
     override suspend fun setMapStyle(value: MapStyleSetting) {
@@ -341,6 +352,7 @@ internal class DisplayPreferences(
         val CLOCK_KEY = stringPreferencesKey("clock")
         val SHOW_CLOCK_SECONDS_KEY = booleanPreferencesKey("show_clock_seconds")
         val FULLSCREEN_KEY = stringPreferencesKey("fullscreen")
+        val KEEP_SCREEN_ON_KEY = booleanPreferencesKey("keep_screen_on")
         val MAP_STYLE_KEY = stringPreferencesKey("map_style")
         val MAP_SCHEME_LIGHT_KEY = stringPreferencesKey("map_scheme_light")
         val MAP_SCHEME_DARK_KEY = stringPreferencesKey("map_scheme_dark")

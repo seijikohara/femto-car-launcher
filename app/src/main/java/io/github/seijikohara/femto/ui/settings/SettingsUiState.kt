@@ -20,6 +20,7 @@ internal data class SettingsUiState(
     val clock: ClockSetting,
     val showClockSeconds: Boolean,
     val fullscreen: FullscreenSetting,
+    val keepScreenOn: Boolean,
     val mapStyle: MapStyleSetting,
     val mapSchemeLight: MapColorScheme,
     val mapSchemeDark: MapColorScheme,
@@ -49,6 +50,7 @@ internal data class SettingsUiState(
                 clock = DisplaySettings.Default.clock,
                 showClockSeconds = DisplaySettings.Default.showClockSeconds,
                 fullscreen = DisplaySettings.Default.fullscreen,
+                keepScreenOn = DisplaySettings.Default.keepScreenOn,
                 mapStyle = DisplaySettings.Default.mapStyle,
                 mapSchemeLight = DisplaySettings.Default.mapSchemeLight,
                 mapSchemeDark = DisplaySettings.Default.mapSchemeDark,
@@ -96,6 +98,10 @@ internal sealed interface SettingsAction {
 
     data class SetFullscreen(
         val value: FullscreenSetting,
+    ) : SettingsAction
+
+    data class SetKeepScreenOn(
+        val value: Boolean,
     ) : SettingsAction
 
     data class SetMapStyle(
