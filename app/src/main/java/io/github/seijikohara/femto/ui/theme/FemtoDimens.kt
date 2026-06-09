@@ -114,14 +114,8 @@ object FemtoDimens {
     val CardPaddingCompact = 10.dp
     val CardSectionGapCompact = 6.dp
 
-    /** Corner radius for dashboard cards. Mockup legend: card radius 16 dp (Shapes.large). */
-    val CardCorner = 16.dp
-
     /** Corner radius for the calendar day-strip cells. Mockup `.day-cell`: 10 px. */
     val DayCellCorner = 10.dp
-
-    /** Corner radius for the weather forecast chips. Mockup `.chip`: 8 px. */
-    val ChipCorner = 8.dp
 
     /** Corner radius for the music album-art block. Mockup `.music-card .art`: 14 px. */
     val ArtCorner = 14.dp
