@@ -125,6 +125,7 @@ internal fun DashboardScaffold(
                         speedUnit = speedUnit,
                         panels = panels,
                         paneGap = paneGap,
+                        is24Hour = is24Hour,
                         onAction = onAction,
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                     )
@@ -154,6 +155,7 @@ internal fun DashboardScaffold(
                         speedUnit = speedUnit,
                         panels = panels,
                         paneGap = paneGap,
+                        is24Hour = is24Hour,
                         onAction = onAction,
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                     )
@@ -218,6 +220,7 @@ private fun InfoPane(
     speedUnit: SpeedUnit,
     panels: PanelVisibility,
     paneGap: Dp,
+    is24Hour: Boolean,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(
@@ -239,6 +242,7 @@ private fun InfoPane(
             if (panels.calendar) {
                 CalendarCard(
                     snapshot = uiState.calendar,
+                    is24Hour = is24Hour,
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
             }
@@ -247,6 +251,7 @@ private fun InfoPane(
                     snapshot = uiState.weather,
                     temperatureUnit = temperatureUnit,
                     speedUnit = speedUnit,
+                    is24Hour = is24Hour,
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
             }

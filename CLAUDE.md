@@ -106,19 +106,40 @@ not a magic number in another file.
 
 ### Fonts <a id="fonts"></a>
 
-Variable fonts live under `app/src/main/res/font/` with lowercase
-filenames (`geist_variable.ttf`, `mplus2_variable.ttf`).
+No fonts are bundled. The default is the head-unit **system font**
+(`FontFamily.Default`); the user may instead pick any Google Fonts
+family per slot, downloaded on demand and cached on disk.
 
-- `FontTheme` is the user-facing enum of curated latin/JP pairs.
-- `fontPairOf(theme)` returns the pair. Adding a new pair = new enum
-  entry + new branch + new font files + new OFL text.
+- Two independent slots: a **Latin** face (alphanumerics / Western
+  text) and a **CJK fallback** face (the multibyte fill for glyphs
+  the Latin face lacks). `FontSelection(latinFamily, cjkFamily)` —
+  a null family means the system font for that slot.
+- `FontRepository` (app-scoped singleton, `data/`) is the SSOT: it
+  loads the public Google Fonts catalog
+  (`fonts.google.com/metadata/fonts`, no API key, no Play Services),
+  downloads the chosen family's TTF from `fonts.gstatic.com` over
+  `INTERNET`, caches it under `filesDir/google_fonts/<slug>/`, and
+  **evicts the cache of families no longer selected** on every
+  switch. Prefer the upright variable font (one file spans every
+  weight and carries full CJK coverage); fall back to static weights.
+- `FontCache` owns the on-disk layout (so a relaunch rebuilds the
+  family offline with no network); `GoogleFontsApi` owns the
+  network; `buildFontFamily(latin, cjk)` (theme) composes the
+  resolved faces into one `FontFamily` (Latin first, CJK as
+  fallback) that feeds `femtoTypography`.
+- `FemtoTheme(fontFamily = ...)` takes the resolved family;
+  `MainActivity` collects `FontRepository.resolved` so a freshly
+  chosen face swaps in once its download lands.
+- Picker UI lives under `ui/fontpicker/` (searchable full-catalog
+  list, per-slot, with download progress); Settings exposes one row
+  per slot.
 - Variable-font weight axes require file-level
-  `@file:OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)`.
-- MVP exposes only `FontTheme.GEIST`. `FontPreferences` (DataStore)
-  is the extension point for future font-switching UI.
-- See the
+  `@file:OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)`
+  (see `ui/theme/DownloadedFonts.kt`).
+- The
   [`add-bundled-font`](.claude/skills/add-bundled-font/SKILL.md)
-  skill for the procedure when adding a new pair.
+  skill applies only if a face is ever bundled again (e.g. an
+  offline-guaranteed default); the live model is download-on-demand.
 
 ### Launcher behavior <a id="launcher-behavior"></a>
 
@@ -174,7 +195,7 @@ targets that matter for any head-unit UI, regardless of motion.
 | `ACCESS_NETWORK_STATE` | MapLibre connectivity probe before fetching OpenFreeMap vector map tiles. |
 | `ACCESS_WIFI_STATE` | Read Wi-Fi transport / validation state so the footer status cluster reports a live Wi-Fi indicator. Normal protection; auto-granted at install. |
 | `BLUETOOTH_CONNECT` | Read the set of currently-connected Bluetooth devices (HEADSET / A2DP / GATT) so the footer status cluster reflects head-unit pairing state. Dangerous on Android 12+; runtime grant. When denied, the connected-device APIs are unreadable, so the BT indicator falls back to the adapter power state (on/off) rather than a misleading "disconnected"; the rest of the launcher remains functional. |
-| `INTERNET` | Open-Meteo weather API, OpenFreeMap vector map tile fetch (MapLibre), Nominatim/OSM reverse geocoding, and the optional live-map terrain layer (Mapterhorn DEM tiles). |
+| `INTERNET` | Open-Meteo weather API, OpenFreeMap vector map tile fetch (MapLibre), Nominatim/OSM reverse geocoding, the optional live-map terrain layer (Mapterhorn DEM tiles), and the on-demand Google Fonts catalog + TTF download (`fonts.google.com` / `fonts.gstatic.com`, no API key, no Play Services). |
 | `READ_CALENDAR` | Query `CalendarContract.Instances` for the dashboard's Calendar card — the 6-day strip dots and the upcoming-event list. Dangerous; runtime grant. The card falls back to "today's date only" when denied. |
 | `READ_PHONE_STATE` | Read the cellular `SignalStrength.level` via `TelephonyCallback` so the footer status cluster shows graduated cellular signal bars. Dangerous; runtime grant. The cellular indicator degrades to the binary connected/disconnected icon when denied. |
 | `RECORD_AUDIO` | Capture speech for the in-launcher voice assistant (`android.speech.SpeechRecognizer`) so the user talks to the assistant without leaving the launcher. Dangerous; requested at runtime only when the user taps the mic, never at startup. When denied — or when no on-device recognizer is available — the assistant sheet degrades to the system-intent delegation rows. |

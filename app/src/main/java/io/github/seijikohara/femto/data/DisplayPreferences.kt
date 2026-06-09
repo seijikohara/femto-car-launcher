@@ -31,7 +31,7 @@ internal enum class ClockSetting { AUTO, TWELVE_HOUR, TWENTY_FOUR_HOUR }
  * (`accentSeedColor`), keeping this data enum free of any Compose dependency.
  *
  * Public (unlike the other display enums) because the public [FemtoTheme] takes
- * it as a parameter, mirroring [FontTheme]'s visibility.
+ * it as a parameter.
  */
 enum class AccentColor { DYNAMIC, BLUE, TEAL, GREEN, AMBER, ORANGE, RED, VIOLET, PINK }
 

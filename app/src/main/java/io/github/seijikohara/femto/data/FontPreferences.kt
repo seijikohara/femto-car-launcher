@@ -6,38 +6,51 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import io.github.seijikohara.femto.ui.theme.FontTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 private val Context.fontDataStore: DataStore<Preferences> by preferencesDataStore(name = "font_preferences")
 
 /**
- * DataStore-backed accessor for the user's selected [FontTheme].
+ * DataStore-backed accessor for the user's [FontSelection].
  *
- * MVP exposes no UI to mutate the value, so the read path always emits the
- * default. The setter exists so future settings code can flip the choice
- * without introducing the persistence layer separately.
+ * Each slot stores a Google Fonts family name; an absent key means the system
+ * font (the default), so a fresh install and a reset both fall back to the
+ * platform typeface with no download.
  */
 internal class FontPreferences(
     private val context: Context,
 ) {
-    val fontTheme: Flow<FontTheme> =
+    val selection: Flow<FontSelection> =
         context.fontDataStore.data.map { prefs ->
-            FontTheme.entries.firstOrNull { it.name == prefs[KEY] } ?: FontTheme.INTER
+            FontSelection(latinFamily = prefs[LATIN_KEY], cjkFamily = prefs[CJK_KEY])
         }
 
-    suspend fun setFontTheme(theme: FontTheme) {
-        context.fontDataStore.edit { it[KEY] = theme.name }
+    /** Persist [family] for [slot]; a null family clears the slot to system. */
+    suspend fun setFamily(
+        slot: FontSlot,
+        family: String?,
+    ) {
+        val key = keyFor(slot)
+        context.fontDataStore.edit { prefs ->
+            if (family == null) prefs.remove(key) else prefs[key] = family
+        }
     }
 
-    // Clearing the key makes the read path fall back to the FontTheme.INTER
-    // default, mirroring DisplayPreferences.resetToDefaults.
+    // Clearing the keys makes the read path fall back to the system font,
+    // mirroring DisplayPreferences.resetToDefaults.
     suspend fun resetToDefaults() {
         context.fontDataStore.edit { it.clear() }
     }
 
+    private fun keyFor(slot: FontSlot): Preferences.Key<String> =
+        when (slot) {
+            FontSlot.LATIN -> LATIN_KEY
+            FontSlot.CJK -> CJK_KEY
+        }
+
     private companion object {
-        val KEY = stringPreferencesKey("font_theme")
+        val LATIN_KEY = stringPreferencesKey("latin_family")
+        val CJK_KEY = stringPreferencesKey("cjk_family")
     }
 }

@@ -7,6 +7,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.text.font.FontFamily
 import com.materialkolor.rememberDynamicColorScheme
 import io.github.seijikohara.femto.data.AccentColor
 
@@ -19,6 +20,8 @@ import io.github.seijikohara.femto.data.AccentColor
  * monochrome scheme inside Compose previews when on the dynamic path.
  *
  * Typography: Bold Minimal weights and automotive sizing on top of M3 roles.
+ * [fontFamily] is the resolved typeface — the system default, or the user's
+ * downloaded Google Fonts pair (Latin + CJK fallback); see [buildFontFamily].
  *
  * Shape: M3 default squircle tokens (no override).
  *
@@ -27,7 +30,7 @@ import io.github.seijikohara.femto.data.AccentColor
  */
 @Composable
 fun FemtoTheme(
-    fontTheme: FontTheme = FontTheme.INTER,
+    fontFamily: FontFamily = FontFamily.Default,
     accent: AccentColor = AccentColor.DYNAMIC,
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
@@ -50,7 +53,7 @@ fun FemtoTheme(
 
                 else -> dynamicLightColorScheme(context)
             },
-        typography = femtoTypography(fontPairOf(fontTheme).latin),
+        typography = femtoTypography(fontFamily),
         content = content,
     )
 }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -29,7 +30,8 @@ import io.github.seijikohara.femto.data.AppsRepository
 import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.DisplayPreferences
 import io.github.seijikohara.femto.data.DisplaySettings
-import io.github.seijikohara.femto.data.FontPreferences
+import io.github.seijikohara.femto.data.FontRepository
+import io.github.seijikohara.femto.data.FontSlot
 import io.github.seijikohara.femto.data.FullscreenSetting
 import io.github.seijikohara.femto.data.SystemPermissionSignals
 import io.github.seijikohara.femto.data.ThemeMode
@@ -40,6 +42,7 @@ import io.github.seijikohara.femto.data.hasReadPhoneStatePermission
 import io.github.seijikohara.femto.ui.assistant.AssistantOption
 import io.github.seijikohara.femto.ui.assistant.AssistantSheet
 import io.github.seijikohara.femto.ui.drawer.AppDrawerSheet
+import io.github.seijikohara.femto.ui.fontpicker.FontPickerSheet
 import io.github.seijikohara.femto.ui.home.HomeEvent
 import io.github.seijikohara.femto.ui.home.HomeRoute
 import io.github.seijikohara.femto.ui.home.components.MapConfig
@@ -47,7 +50,7 @@ import io.github.seijikohara.femto.ui.home.components.PanelVisibility
 import io.github.seijikohara.femto.ui.locale.resolved
 import io.github.seijikohara.femto.ui.settings.SettingsSheet
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
-import io.github.seijikohara.femto.ui.theme.FontTheme
+import io.github.seijikohara.femto.ui.theme.buildFontFamily
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -55,7 +58,7 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     private val appsRepository by lazy { AppsRepository(this) }
     private val displayPreferences by lazy { DisplayPreferences(this) }
-    private val fontPreferences by lazy { FontPreferences(this) }
+    private val fontRepository by lazy { FontRepository.get(this) }
 
     // Cache the latest fullscreen choice so [onWindowFocusChanged] can re-hide the
     // system bars when focus returns from another Activity. The Compose
@@ -90,7 +93,10 @@ class MainActivity : ComponentActivity() {
             val display by displayPreferences.settings.collectAsStateWithLifecycle(
                 initialValue = DisplaySettings.Default,
             )
-            val fontTheme by fontPreferences.fontTheme.collectAsStateWithLifecycle(initialValue = FontTheme.INTER)
+            // The resolved Google Fonts faces (or system default) drive the theme;
+            // they swap in reactively when a freshly chosen family finishes downloading.
+            val resolvedFonts by fontRepository.resolved.collectAsStateWithLifecycle()
+            val fontFamily = remember(resolvedFonts) { buildFontFamily(resolvedFonts.latin, resolvedFonts.cjk) }
             val darkTheme =
                 when (display.themeMode) {
                     ThemeMode.SYSTEM -> isSystemInDarkTheme()
@@ -103,12 +109,14 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(display.fullscreen) {
                 applyFullscreen(display.fullscreen)
             }
-            FemtoTheme(fontTheme = fontTheme, accent = display.accentColor, darkTheme = darkTheme) {
+            FemtoTheme(fontFamily = fontFamily, accent = display.accentColor, darkTheme = darkTheme) {
                 // The dashboard stays composed; the app drawer, assistant, and
                 // settings are all bottom-sheet overlays that slide up over it.
                 var showDrawer by rememberSaveable { mutableStateOf(false) }
                 var showAssistant by rememberSaveable { mutableStateOf(false) }
                 var showSettings by rememberSaveable { mutableStateOf(false) }
+                // The font picker opens over settings for one slot at a time; null = closed.
+                var fontPickerSlot by rememberSaveable { mutableStateOf<FontSlot?>(null) }
                 HomeRoute(
                     is24Hour = resolveIs24Hour(display.clock),
                     showClockSeconds = display.showClockSeconds,
@@ -168,7 +176,14 @@ class MainActivity : ComponentActivity() {
                     SettingsSheet(
                         onOpenNotificationAccess = ::openNotificationListenerSettings,
                         onOpenSystemSettings = ::openSystemSettings,
+                        onOpenFontPicker = { fontPickerSlot = it },
                         onDismiss = { showSettings = false },
+                    )
+                }
+                fontPickerSlot?.let { slot ->
+                    FontPickerSheet(
+                        slot = slot,
+                        onDismiss = { fontPickerSlot = null },
                     )
                 }
             }

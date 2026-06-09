@@ -19,7 +19,7 @@ internal class SettingsViewModel(
     private val fontPreferences: FontPreferences,
 ) : ViewModel() {
     val uiState: StateFlow<SettingsUiState> =
-        combine(displayPreferences.settings, fontPreferences.fontTheme) { display, font ->
+        combine(displayPreferences.settings, fontPreferences.selection) { display, font ->
             SettingsUiState(
                 themeMode = display.themeMode,
                 accentColor = display.accentColor,
@@ -41,7 +41,8 @@ internal class SettingsViewModel(
                 showCalendar = display.showCalendar,
                 showWeather = display.showWeather,
                 showMusic = display.showMusic,
-                fontTheme = font,
+                latinFont = font.latinFamily,
+                cjkFont = font.cjkFamily,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState.Initial)
 
@@ -127,10 +128,6 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetShowMusic -> {
                     displayPreferences.setShowMusic(action.value)
-                }
-
-                is SettingsAction.SetFontTheme -> {
-                    fontPreferences.setFontTheme(action.value)
                 }
 
                 is SettingsAction.ResetToDefaults -> {
