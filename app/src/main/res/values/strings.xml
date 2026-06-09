@@ -89,6 +89,15 @@
     <string name="assistant_option_assistant">Assistant</string>
     <string name="assistant_option_voice_command">Voice command</string>
     <string name="assistant_option_voice_search">Voice search</string>
+    <string name="assistant_delegate_label">Or use the system assistant</string>
+    <string name="assistant_voice_mic">Microphone</string>
+    <string name="assistant_voice_idle">Tap the mic to speak</string>
+    <string name="assistant_voice_listening">Listening…</string>
+    <string name="assistant_voice_search">Search</string>
+    <string name="assistant_voice_again">Speak again</string>
+    <string name="assistant_voice_error_no_match">Didn\'t catch that. Tap the mic to try again.</string>
+    <string name="assistant_voice_error_network">No connection for speech. Tap to retry.</string>
+    <string name="assistant_voice_error_generic">Voice input failed. Tap to retry.</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>

@@ -6,12 +6,16 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.VoiceState
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
-class AssistantSheetContentTest {
+// Drives the delegation fallback in isolation: with VoiceState.Unavailable the
+// in-launcher voice surface is hidden, so only the three system-intent rows
+// render and their dispatch can be asserted without a recognizer.
+class AssistantScreenTest {
     @get:Rule
     val rule = createComposeRule()
 
@@ -21,10 +25,16 @@ class AssistantSheetContentTest {
     private val voiceSearchLabel = context.getString(R.string.assistant_option_voice_search)
 
     @Test
-    fun renders_all_three_options() {
+    fun renders_all_three_delegation_options() {
         rule.setContent {
             FemtoTheme {
-                AssistantSheetContent(onLaunchOption = {})
+                AssistantScreen(
+                    uiState = AssistantUiState(voice = VoiceState.Unavailable),
+                    onMicTap = {},
+                    onReset = {},
+                    onSubmitQuery = {},
+                    onLaunchOption = {},
+                )
             }
         }
         rule.onNodeWithText(assistantLabel).assertIsDisplayed()
@@ -37,7 +47,13 @@ class AssistantSheetContentTest {
         var launched: AssistantOption? = null
         rule.setContent {
             FemtoTheme {
-                AssistantSheetContent(onLaunchOption = { launched = it })
+                AssistantScreen(
+                    uiState = AssistantUiState(voice = VoiceState.Unavailable),
+                    onMicTap = {},
+                    onReset = {},
+                    onSubmitQuery = {},
+                    onLaunchOption = { launched = it },
+                )
             }
         }
         rule.onNodeWithText(assistantLabel).performClick()
@@ -45,23 +61,17 @@ class AssistantSheetContentTest {
     }
 
     @Test
-    fun tapping_voice_command_dispatches_voice_command_option() {
-        var launched: AssistantOption? = null
-        rule.setContent {
-            FemtoTheme {
-                AssistantSheetContent(onLaunchOption = { launched = it })
-            }
-        }
-        rule.onNodeWithText(voiceCommandLabel).performClick()
-        assertEquals(AssistantOption.VOICE_COMMAND, launched)
-    }
-
-    @Test
     fun tapping_voice_search_dispatches_voice_search_option() {
         var launched: AssistantOption? = null
         rule.setContent {
             FemtoTheme {
-                AssistantSheetContent(onLaunchOption = { launched = it })
+                AssistantScreen(
+                    uiState = AssistantUiState(voice = VoiceState.Unavailable),
+                    onMicTap = {},
+                    onReset = {},
+                    onSubmitQuery = {},
+                    onLaunchOption = { launched = it },
+                )
             }
         }
         rule.onNodeWithText(voiceSearchLabel).performClick()

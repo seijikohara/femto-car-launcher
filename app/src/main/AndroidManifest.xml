@@ -94,6 +94,26 @@
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <!--
+        RECORD_AUDIO: capture speech for the in-launcher voice assistant
+        (android.speech.SpeechRecognizer) so the user can talk to the
+        assistant without leaving the launcher. Dangerous; requested at
+        runtime only when the user taps the mic, never at startup. When
+        denied — or when no recognizer is available — the assistant sheet
+        degrades to the system-intent delegation rows.
+        Justification mirrored in CLAUDE.md#permissions.
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!--
+        Declare microphone hardware as optional so Play does not implicitly
+        hard-require it (requesting RECORD_AUDIO above otherwise implies
+        required=true). Head units without a mic must still see and install
+        the launcher (multi-region distribution); the voice surface degrades
+        to delegation there.
+    -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!--
         Package visibility: declare interest in every app that registers
         the LAUNCHER intent so LauncherApps.getActivityList() returns the
         full set on Android 11+. This is the privacy-respecting path

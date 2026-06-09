@@ -50,6 +50,17 @@ internal fun Context.hasReadPhoneStatePermission(): Boolean =
     ) == PackageManager.PERMISSION_GRANTED
 
 /**
+ * `RECORD_AUDIO` gates the in-launcher voice assistant's microphone capture. It
+ * is a runtime grant on every supported API level; when withheld the assistant
+ * sheet falls back to the system-intent delegation rows.
+ */
+internal fun Context.hasRecordAudioPermission(): Boolean =
+    ContextCompat.checkSelfPermission(
+        this,
+        Manifest.permission.RECORD_AUDIO,
+    ) == PackageManager.PERMISSION_GRANTED
+
+/**
  * `BLUETOOTH_CONNECT` is a runtime grant only on Android 12+ (API 31).
  * Below that, the permission is install-time and always considered granted.
  */

@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto
 
 import android.Manifest
+import android.app.SearchManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
@@ -156,6 +157,10 @@ class MainActivity : ComponentActivity() {
                             launchAssistantOption(option)
                             showAssistant = false
                         },
+                        onSubmitQuery = { query ->
+                            submitVoiceQuery(query)
+                            showAssistant = false
+                        },
                         onDismiss = { showAssistant = false },
                     )
                 }
@@ -251,6 +256,18 @@ class MainActivity : ComponentActivity() {
                 AssistantOption.VOICE_SEARCH -> Intent.ACTION_WEB_SEARCH
             }
         tryStartActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    // Dispatch a phrase the user spoke into the in-launcher voice surface. The
+    // capture happened in-process (no system-assistant hand-off); the action is a
+    // plain web search so it resolves across markets and OEMs. A missing handler
+    // is a silent no-op (tryStartActivity swallows ActivityNotFoundException).
+    private fun submitVoiceQuery(query: String) {
+        val intent =
+            Intent(Intent.ACTION_WEB_SEARCH)
+                .putExtra(SearchManager.QUERY, query)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        tryStartActivity(intent)
     }
 
     private fun resolveIs24Hour(clock: ClockSetting): Boolean =
