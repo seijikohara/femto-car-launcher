@@ -23,6 +23,13 @@ data class SystemStatus(
     // 0..4 graduated Wi-Fi signal level. Defaults to 0 (no bars) until the first
     // capability reading arrives; the footer uses this for the graduated icon.
     val wifiSignalLevel: Int,
+    // Whether the Bluetooth adapter is powered on. The footer lights the BT icon
+    // on this (an enabled adapter should not read as off), separate from whether a
+    // device is actually connected.
+    val bluetoothEnabled: Boolean,
+    // Whether a device is actively connected (HEADSET / A2DP / GATT). Drives the
+    // "connected" glyph variant; unknowable without BLUETOOTH_CONNECT, where it
+    // falls back to the enabled state.
     val bluetoothConnected: Boolean,
     // Null until the first battery reading arrives, or on battery-less units —
     // distinguishes "unknown" from a genuine 0% so the footer never reads as a
@@ -44,6 +51,7 @@ data class SystemStatus(
                 cellularSignalLevel = null,
                 wifiConnected = false,
                 wifiSignalLevel = 0,
+                bluetoothEnabled = false,
                 bluetoothConnected = false,
                 batteryPercent = null,
                 charging = false,

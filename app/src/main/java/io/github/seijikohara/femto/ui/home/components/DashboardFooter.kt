@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Battery
 import com.composables.icons.lucide.Bluetooth
+import com.composables.icons.lucide.BluetoothConnected
 import com.composables.icons.lucide.Globe
 import com.composables.icons.lucide.LayoutGrid
 import com.composables.icons.lucide.Lucide
@@ -252,14 +253,16 @@ private fun StatusCluster(
             ),
     )
     StatusIcon(
-        icon = Lucide.Bluetooth,
-        active = status.bluetoothConnected,
+        // Light the icon whenever the adapter is ON (an enabled adapter should not
+        // read as off); switch to the connected glyph only when a device is linked.
+        icon = if (status.bluetoothConnected) Lucide.BluetoothConnected else Lucide.Bluetooth,
+        active = status.bluetoothEnabled,
         description =
             stringResource(
-                if (status.bluetoothConnected) {
-                    R.string.status_bluetooth_connected
-                } else {
-                    R.string.status_bluetooth_disconnected
+                when {
+                    status.bluetoothConnected -> R.string.status_bluetooth_connected
+                    status.bluetoothEnabled -> R.string.status_bluetooth_on
+                    else -> R.string.status_bluetooth_off
                 },
             ),
     )
@@ -399,6 +402,7 @@ private fun DashboardFooterPreview() {
                     cellularSignalLevel = 3,
                     wifiConnected = true,
                     wifiSignalLevel = 4,
+                    bluetoothEnabled = true,
                     bluetoothConnected = true,
                     batteryPercent = 78,
                     charging = true,
@@ -424,6 +428,7 @@ private fun DashboardFooterNarrowPreview() {
                     cellularSignalLevel = null,
                     wifiConnected = true,
                     wifiSignalLevel = 2,
+                    bluetoothEnabled = true,
                     bluetoothConnected = false,
                     batteryPercent = null,
                     charging = false,
