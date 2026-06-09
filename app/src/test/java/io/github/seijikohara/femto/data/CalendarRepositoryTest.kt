@@ -53,8 +53,8 @@ class CalendarRepositoryTest {
             // The snapshot must mark access denied in-band so the card can
             // render the denial message rather than a hollow strip.
             assertFalse(snapshot.hasCalendarAccess)
-            assertTrue(snapshot.dayStrip.all { it.events.isEmpty() })
-            assertEquals(6, snapshot.dayStrip.size)
+            assertTrue(snapshot.days.all { it.events.isEmpty() })
+            assertEquals(30, snapshot.days.size)
         }
 
     @Test
@@ -79,8 +79,8 @@ class CalendarRepositoryTest {
             val snapshot = repository.snapshotFlow().first()
 
             assertNotNull(snapshot)
-            assertTrue(snapshot.dayStrip.all { it.events.isEmpty() })
-            assertEquals(6, snapshot.dayStrip.size)
+            assertTrue(snapshot.days.all { it.events.isEmpty() })
+            assertEquals(30, snapshot.days.size)
         }
 
     @Test
@@ -113,11 +113,11 @@ class CalendarRepositoryTest {
             // second strip cell and leaves today (cell 0) undotted; a system-zone
             // read would shift the dot to today.
             val eventDay = AllDayCalendarProvider.EVENT_DATE
-            val dottedDays = snapshot.dayStrip.filter { it.hasEvent }.map { it.date }
+            val dottedDays = snapshot.days.filter { it.hasEvent }.map { it.date }
             assertEquals(listOf(eventDay), dottedDays)
-            assertTrue(snapshot.dayStrip.first { it.date == eventDay }.hasEvent)
+            assertTrue(snapshot.days.first { it.date == eventDay }.hasEvent)
             assertTrue(
-                snapshot.dayStrip
+                snapshot.days
                     .first { it.date == AllDayCalendarProvider.TODAY }
                     .hasEvent
                     .not(),
@@ -125,17 +125,17 @@ class CalendarRepositoryTest {
 
             // The all-day event lands on its own day's cell and carries no clock
             // time.
-            val eventDayEvents = snapshot.dayStrip.first { it.date == eventDay }.events
+            val eventDayEvents = snapshot.days.first { it.date == eventDay }.events
             assertEquals(1, eventDayEvents.size)
             assertNull(eventDayEvents.single().time)
         }
 
     @Test
-    fun `groups events onto their own day cells and caps each day`() =
+    fun `groups every event onto its own day cell in time order`() =
         runTest {
-            // Four events on today (over the per-day cap) plus one two days out.
-            // Each lands on its day's cell; today keeps only the earliest three
-            // and stays time-ordered; the day between carries nothing.
+            // Four events on today plus one two days out. Each lands on its day's
+            // cell; today keeps all four in time order (no per-day cap); the day
+            // between carries nothing.
             shadowOf(application).grantPermissions(Manifest.permission.READ_CALENDAR)
             Robolectric
                 .buildContentProvider(MultiDayCalendarProvider::class.java)
@@ -151,14 +151,14 @@ class CalendarRepositoryTest {
             val snapshot = repository.snapshotFlow().first()
             assertNotNull(snapshot)
 
-            val today = snapshot.dayStrip.first { it.date == MultiDayCalendarProvider.TODAY }
-            assertEquals(listOf("A", "B", "C"), today.events.map { it.title })
+            val today = snapshot.days.first { it.date == MultiDayCalendarProvider.TODAY }
+            assertEquals(listOf("A", "B", "C", "D"), today.events.map { it.title })
 
-            val later = snapshot.dayStrip.first { it.date == MultiDayCalendarProvider.TODAY.plusDays(2) }
+            val later = snapshot.days.first { it.date == MultiDayCalendarProvider.TODAY.plusDays(2) }
             assertEquals(listOf("E"), later.events.map { it.title })
 
             assertTrue(
-                snapshot.dayStrip
+                snapshot.days
                     .first { it.date == MultiDayCalendarProvider.TODAY.plusDays(1) }
                     .events
                     .isEmpty(),
@@ -277,8 +277,8 @@ class CalendarRepositoryTest {
 
     /**
      * Stand-in calendar provider returning four timed rows on [TODAY] and one on
-     * `TODAY + 2`, all titled, in `BEGIN ASC` order. Exercises per-day grouping
-     * and the per-day cap (today's fourth row must drop).
+     * `TODAY + 2`, all titled, in `BEGIN ASC` order. Exercises per-day grouping and
+     * time-ordering (all four of today's rows are kept — there is no per-day cap).
      */
     class MultiDayCalendarProvider : ContentProvider() {
         override fun onCreate(): Boolean = true
