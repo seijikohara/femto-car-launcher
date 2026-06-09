@@ -78,6 +78,11 @@ with automotive overrides on top.
   the seed colors in `ui/theme/AccentColors.kt` are the only hardcoded
   hex outside `Color.kt`.
 - Shape: M3 default `Shapes` (squircles). Do not customise.
+- Elevation: M3 standard — express surface hierarchy with the
+  `surfaceContainer*` color roles (cards sit on `surfaceContainer`,
+  nested emphasis on `surfaceContainerHigh`); do not pass a non-zero
+  `tonalElevation` / `shadowElevation` to a `Surface` / `Card`. No
+  dedicated elevation token exists.
 - Typography: Bold Minimal on M3 roles, tuned **one weight notch
   lighter** than the original scale after on-device review found the
   heavy display/headline weights too dense on the head unit (display
@@ -95,7 +100,6 @@ with automotive overrides on top.
 | --- | --- | --- | --- |
 | Tap target | 48 dp | **≥ 64 dp** | `FemtoDimens.MinTouchTarget` |
 | Body text on the head-unit dashboard | flexible | **≥ 18 sp**, never `bodySmall` / `labelSmall` (cards may relax this for glance-metadata strip / metrics / progress when the design SSOT specifies it — see `docs/design/dashboard-v2-mockup.html`) | `FemtoDimens.MinBodyTextSize` |
-| Card / Surface elevation | tonal | **0 dp** (Bold Minimal: flat) | `FemtoDimens.CardElevation` |
 
 When the value lives in code, the symbol on the right is the SSOT —
 not a magic number in another file.

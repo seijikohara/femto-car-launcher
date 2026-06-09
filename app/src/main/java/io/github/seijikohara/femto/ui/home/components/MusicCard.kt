@@ -97,7 +97,6 @@ internal fun MusicCard(
     modifier = modifier,
     shape = MaterialTheme.shapes.large,
     color = MaterialTheme.colorScheme.surfaceContainer,
-    tonalElevation = FemtoDimens.CardElevation,
 ) {
     when (state) {
         MusicCardState.NeedsPermission -> ConnectState(onConnect = onConnect)

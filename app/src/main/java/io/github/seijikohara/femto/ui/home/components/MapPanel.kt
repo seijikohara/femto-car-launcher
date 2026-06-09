@@ -134,7 +134,6 @@ internal fun MapPanel(
     modifier = modifier,
     shape = MaterialTheme.shapes.large,
     color = MaterialTheme.colorScheme.surfaceContainer,
-    tonalElevation = FemtoDimens.CardElevation,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         // A location fix is the only gate: with it we have permission and a

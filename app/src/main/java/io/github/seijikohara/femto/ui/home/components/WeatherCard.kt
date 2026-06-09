@@ -77,7 +77,6 @@ internal fun WeatherCard(
     modifier = modifier,
     shape = MaterialTheme.shapes.large,
     color = MaterialTheme.colorScheme.surfaceContainer,
-    tonalElevation = FemtoDimens.CardElevation,
 ) {
     if (snapshot != null) {
         // verticalScroll is a safety net: fillMaxWidth (not fillMaxSize) lets the
