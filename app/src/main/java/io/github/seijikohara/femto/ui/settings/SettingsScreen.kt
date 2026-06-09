@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.settings
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -119,6 +120,18 @@ internal fun SettingsScreen(
                 selected = uiState.accentColor,
                 onSelect = { onAction(SettingsAction.SetAccentColor(it)) },
             )
+            SettingsSubheader(stringResource(R.string.settings_subheader_screen))
+            SwitchRow(
+                title = stringResource(R.string.settings_group_fullscreen),
+                checked = uiState.fullscreen == FullscreenSetting.ON,
+                onCheckedChange = { onAction(SettingsAction.SetFullscreen(it.toFullscreen())) },
+            )
+            SwitchRow(
+                title = stringResource(R.string.settings_keep_screen_on),
+                checked = uiState.keepScreenOn,
+                onCheckedChange = { onAction(SettingsAction.SetKeepScreenOn(it)) },
+            )
+            SettingsSubheader(stringResource(R.string.settings_subheader_fonts))
             FontRow(
                 title = stringResource(R.string.settings_group_font_latin),
                 family = uiState.latinFont,
@@ -128,11 +141,6 @@ internal fun SettingsScreen(
                 title = stringResource(R.string.settings_group_font_cjk),
                 family = uiState.cjkFont,
                 onClick = { onOpenFontPicker(FontSlot.CJK) },
-            )
-            SwitchRow(
-                title = stringResource(R.string.settings_group_fullscreen),
-                checked = uiState.fullscreen == FullscreenSetting.ON,
-                onCheckedChange = { onAction(SettingsAction.SetFullscreen(it.toFullscreen())) },
             )
         }
 
@@ -178,6 +186,7 @@ internal fun SettingsScreen(
         }
 
         SettingsSection(title = stringResource(R.string.settings_section_map)) {
+            SettingsSubheader(stringResource(R.string.settings_subheader_map_rendering))
             ChoiceRow(
                 title = stringResource(R.string.settings_group_map_rendering),
                 options =
@@ -188,6 +197,36 @@ internal fun SettingsScreen(
                 selected = uiState.mapRenderMode,
                 onSelect = { onAction(SettingsAction.SetMapRenderMode(it)) },
             )
+            // Snapshot exposes bitmap sharpness; the live (WebGL) backend exposes 3D
+            // buildings + terrain. Each row sits directly under the rendering parent
+            // and slides in/out, so the swap reads as a result of the mode change. A
+            // hidden row keeps its stored value; only the layout changes.
+            AnimatedVisibility(visible = uiState.mapRenderMode == MapRenderMode.SNAPSHOT) {
+                SliderRow(
+                    title = stringResource(R.string.settings_group_map_quality),
+                    valueLabel = stringResource(R.string.settings_map_quality_value, uiState.mapRenderPercent),
+                    value = uiState.mapRenderPercent,
+                    range = MIN_MAP_QUALITY..MAX_MAP_QUALITY,
+                    onValueChange = { onAction(SettingsAction.SetMapRenderPercent(it)) },
+                    description = stringResource(R.string.settings_map_quality_desc),
+                )
+            }
+            AnimatedVisibility(visible = uiState.mapRenderMode == MapRenderMode.LIVE) {
+                Column {
+                    SwitchRow(
+                        title = stringResource(R.string.settings_group_map_3d),
+                        checked = uiState.map3dBuildings,
+                        onCheckedChange = { onAction(SettingsAction.SetMap3dBuildings(it)) },
+                    )
+                    SwitchRow(
+                        title = stringResource(R.string.settings_group_map_terrain),
+                        checked = uiState.mapTerrain,
+                        onCheckedChange = { onAction(SettingsAction.SetMapTerrain(it)) },
+                        summary = stringResource(R.string.settings_map_terrain_desc),
+                    )
+                }
+            }
+            SettingsSubheader(stringResource(R.string.settings_subheader_map_appearance))
             ChoiceRow(
                 title = stringResource(R.string.settings_group_map_style),
                 options =
@@ -199,32 +238,39 @@ internal fun SettingsScreen(
                 selected = uiState.mapStyle,
                 onSelect = { onAction(SettingsAction.SetMapStyle(it)) },
             )
-            // Independent colour schemes for the light and dark contexts. ACCENT is
-            // the adaptive accent-tinted default; the rest are fixed OpenFreeMap styles.
-            ChoiceRow(
-                title = stringResource(R.string.settings_group_map_scheme_light),
-                options =
-                    listOf(
-                        MapColorScheme.ACCENT to stringResource(R.string.settings_map_scheme_accent),
-                        MapColorScheme.POSITRON to stringResource(R.string.settings_map_scheme_positron),
-                        MapColorScheme.BRIGHT to stringResource(R.string.settings_map_scheme_bright),
-                        MapColorScheme.LIBERTY to stringResource(R.string.settings_map_scheme_liberty),
-                    ),
-                selected = uiState.mapSchemeLight,
-                onSelect = { onAction(SettingsAction.SetMapSchemeLight(it)) },
-            )
-            ChoiceRow(
-                title = stringResource(R.string.settings_group_map_scheme_dark),
-                options =
-                    listOf(
-                        MapColorScheme.ACCENT to stringResource(R.string.settings_map_scheme_accent),
-                        MapColorScheme.DARK_MATTER to stringResource(R.string.settings_map_scheme_dark_matter),
-                        MapColorScheme.DARK to stringResource(R.string.settings_map_scheme_dark),
-                        MapColorScheme.FIORD to stringResource(R.string.settings_map_scheme_fiord),
-                    ),
-                selected = uiState.mapSchemeDark,
-                onSelect = { onAction(SettingsAction.SetMapSchemeDark(it)) },
-            )
+            // Light scheme applies for AUTO + LIGHT, Dark scheme for AUTO + DARK. AUTO
+            // can use either (the system theme decides), so AUTO shows both; a fixed
+            // LIGHT / DARK hides the scheme it never uses. Independent colour schemes:
+            // ACCENT is the adaptive accent-tinted default, the rest fixed OpenFreeMap.
+            AnimatedVisibility(visible = uiState.mapStyle != MapStyleSetting.DARK) {
+                ChoiceRow(
+                    title = stringResource(R.string.settings_group_map_scheme_light),
+                    options =
+                        listOf(
+                            MapColorScheme.ACCENT to stringResource(R.string.settings_map_scheme_accent),
+                            MapColorScheme.POSITRON to stringResource(R.string.settings_map_scheme_positron),
+                            MapColorScheme.BRIGHT to stringResource(R.string.settings_map_scheme_bright),
+                            MapColorScheme.LIBERTY to stringResource(R.string.settings_map_scheme_liberty),
+                        ),
+                    selected = uiState.mapSchemeLight,
+                    onSelect = { onAction(SettingsAction.SetMapSchemeLight(it)) },
+                )
+            }
+            AnimatedVisibility(visible = uiState.mapStyle != MapStyleSetting.LIGHT) {
+                ChoiceRow(
+                    title = stringResource(R.string.settings_group_map_scheme_dark),
+                    options =
+                        listOf(
+                            MapColorScheme.ACCENT to stringResource(R.string.settings_map_scheme_accent),
+                            MapColorScheme.DARK_MATTER to stringResource(R.string.settings_map_scheme_dark_matter),
+                            MapColorScheme.DARK to stringResource(R.string.settings_map_scheme_dark),
+                            MapColorScheme.FIORD to stringResource(R.string.settings_map_scheme_fiord),
+                        ),
+                    selected = uiState.mapSchemeDark,
+                    onSelect = { onAction(SettingsAction.SetMapSchemeDark(it)) },
+                )
+            }
+            SettingsSubheader(stringResource(R.string.settings_subheader_map_camera))
             SliderRow(
                 title = stringResource(R.string.settings_group_map_tilt),
                 valueLabel = stringResource(R.string.settings_map_tilt_value, uiState.mapTiltDeg),
@@ -240,8 +286,7 @@ internal fun SettingsScreen(
                 onValueChange = { onAction(SettingsAction.SetMapZoom(it)) },
             )
             // Marker vertical position applies to both backends (0 = map centre,
-            // 100 = just above the speed overlay), so it sits outside the
-            // mode-specific block below.
+            // 100 = just above the speed overlay).
             SliderRow(
                 title = stringResource(R.string.settings_group_map_marker_pos),
                 valueLabel = stringResource(R.string.settings_map_marker_pos_value, uiState.mapMarkerPos),
@@ -249,32 +294,6 @@ internal fun SettingsScreen(
                 range = MIN_MAP_MARKER_POS..MAX_MAP_MARKER_POS,
                 onValueChange = { onAction(SettingsAction.SetMapMarkerPos(it)) },
             )
-            // Mode-specific rows: the live (WebGL) backends expose 3D buildings /
-            // terrain; the snapshot backend exposes the bitmap sharpness. Showing
-            // only the rows that affect the chosen backend keeps the panel honest
-            // (e.g. sharpness does nothing on the live map).
-            if (uiState.mapRenderMode == MapRenderMode.SNAPSHOT) {
-                SliderRow(
-                    title = stringResource(R.string.settings_group_map_quality),
-                    valueLabel = stringResource(R.string.settings_map_quality_value, uiState.mapRenderPercent),
-                    value = uiState.mapRenderPercent,
-                    range = MIN_MAP_QUALITY..MAX_MAP_QUALITY,
-                    onValueChange = { onAction(SettingsAction.SetMapRenderPercent(it)) },
-                    description = stringResource(R.string.settings_map_quality_desc),
-                )
-            } else {
-                SwitchRow(
-                    title = stringResource(R.string.settings_group_map_3d),
-                    checked = uiState.map3dBuildings,
-                    onCheckedChange = { onAction(SettingsAction.SetMap3dBuildings(it)) },
-                )
-                SwitchRow(
-                    title = stringResource(R.string.settings_group_map_terrain),
-                    checked = uiState.mapTerrain,
-                    onCheckedChange = { onAction(SettingsAction.SetMapTerrain(it)) },
-                    summary = stringResource(R.string.settings_map_terrain_desc),
-                )
-            }
         }
 
         SettingsSection(title = stringResource(R.string.settings_section_panels)) {
@@ -364,6 +383,21 @@ private fun SettingsSection(
         Column(content = content)
     }
 }
+
+// A sub-group label inside a section card, separating related rows under a
+// section heading. Same 18sp as the section heading but muted (onSurfaceVariant
+// vs the section's primary) and indented to align with row content, so it reads
+// as a child cluster rather than a new section.
+@Composable
+private fun SettingsSubheader(
+    title: String,
+    modifier: Modifier = Modifier,
+) = Text(
+    text = title,
+    style = MaterialTheme.typography.labelLarge,
+    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    modifier = modifier.padding(start = 20.dp, top = 14.dp, bottom = 2.dp),
+)
 
 // The accent picker: a title over a horizontally-scrolling row of color swatches.
 // Selecting a swatch applies its seed immediately, so the picker (and the whole
