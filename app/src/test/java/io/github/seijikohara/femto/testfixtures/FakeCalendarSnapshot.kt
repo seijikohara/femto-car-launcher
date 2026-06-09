@@ -10,7 +10,7 @@ internal fun fakeCalendarSnapshot(
     today: LocalDate = LocalDate.of(2026, 5, 1),
     weekday: String = "Friday",
     monthLabel: String = "May 2026",
-    dayStrip: List<DayCell> =
+    days: List<DayCell> =
         listOf(
             DayCell(
                 LocalDate.of(2026, 5, 1),
@@ -32,6 +32,6 @@ internal fun fakeCalendarSnapshot(
         today = today,
         weekday = weekday,
         monthLabel = monthLabel,
-        dayStrip = dayStrip,
+        days = days,
         hasCalendarAccess = hasCalendarAccess,
     )

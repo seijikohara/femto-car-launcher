@@ -37,9 +37,9 @@ import java.util.Locale
  * Combines two upstream signals — the wall clock (so today / weekday /
  * month follow real time without an extra timer) and the events provider
  * (so the per-day events refresh when the user edits a calendar event). The
- * events query window is `today + 5 days` to match the 6-cell strip on the
- * calendar card; each day's events are attached to its strip cell so the card
- * can switch the shown day from card-local selection without a re-query.
+ * events query window is `today + WINDOW_DAYS` so the card can render a vertical
+ * scrollable list of the coming days; each day's full event list is attached to
+ * its day cell (days with no events are present too, with an empty list).
  *
  * When `READ_CALENDAR` is denied the snapshot still emits from the clock
  * alone, but with `hasCalendarAccess = false` so the card renders the denial
@@ -64,7 +64,7 @@ internal class CalendarRepository(
     private fun buildSnapshot(today: LocalDate): CalendarSnapshot {
         val granted = hasPermission()
         val eventsByDay = if (granted) readWindow(today) else emptyMap()
-        val strip = (0 until DAY_STRIP_LENGTH).map { offset ->
+        val days = (0 until WINDOW_DAYS).map { offset ->
             val date = today.plusDays(offset.toLong())
             DayCell(
                 date = date,
@@ -76,7 +76,7 @@ internal class CalendarRepository(
             today = today,
             weekday = today.dayOfWeek.getDisplayName(TextStyle.FULL, locale),
             monthLabel = monthLabelOf(today),
-            dayStrip = strip,
+            days = days,
             hasCalendarAccess = granted,
         )
     }
@@ -101,7 +101,7 @@ internal class CalendarRepository(
             PackageManager.PERMISSION_GRANTED
 
     /**
-     * Build the `Instances` content URI for the `today .. today + DAY_STRIP_LENGTH`
+     * Build the `Instances` content URI for the `today .. today + WINDOW_DAYS`
      * window. `Instances` requires the begin / end millis embedded as path ids
      * rather than passed as a selection.
      */
@@ -114,7 +114,7 @@ internal class CalendarRepository(
                 ContentUris.appendId(
                     it,
                     today
-                        .plusDays(DAY_STRIP_LENGTH.toLong())
+                        .plusDays(WINDOW_DAYS.toLong())
                         .atStartOfDay(zone)
                         .toInstant()
                         .toEpochMilli(),
@@ -122,11 +122,10 @@ internal class CalendarRepository(
             }.build()
 
     /**
-     * Scan the strip window once and group every event by its local day. The
-     * card shows whichever day the user selects, so the window holds the whole
-     * day (no `BEGIN >= now` future-only filter) capped at [EVENTS_PER_DAY_LIMIT]
-     * per day to bound the card height. Rows arrive `BEGIN ASC`, so each day's
-     * list stays time-ordered and the cap keeps the earliest events.
+     * Scan the window once and group every event by its local day. The card lists
+     * each day's full set of events (no per-day cap — the card scrolls), so the
+     * whole day is held with no `BEGIN >= now` future-only filter. Rows arrive
+     * `BEGIN ASC`, so each day's list stays time-ordered.
      *
      * A mid-stream permission revoke (SecurityException) or an OEM provider
      * fault (SQLiteException) must not tear down the dashboard StateFlow, so the
@@ -150,21 +149,18 @@ internal class CalendarRepository(
                 )?.use { cursor ->
                     while (cursor.moveToNext()) {
                         val startMs = cursor.getLong(0)
-                        // Skip null-title rows entirely: with the dot derived from
-                        // the listed events, a row that cannot be shown must not
-                        // dot its day either.
+                        // Skip null-title rows entirely: a row that cannot be shown
+                        // must not contribute to its day's list either.
                         val title = cursor.getString(1) ?: continue
                         val allDay = cursor.getInt(2) != 0
-                        val dayEvents = byDay.getOrPut(localDateOf(startMs, allDay)) { mutableListOf() }
-                        if (dayEvents.size < EVENTS_PER_DAY_LIMIT) {
-                            dayEvents += EventItem(
+                        byDay.getOrPut(localDateOf(startMs, allDay)) { mutableListOf() } +=
+                            EventItem(
                                 // All-day rows carry no clock time; surface null
                                 // so the card renders an "all day" label instead
                                 // of a spurious 00:00 derived from the system zone.
                                 time = if (allDay) null else LocalTime.ofInstant(Instant.ofEpochMilli(startMs), zone),
                                 title = title,
                             )
-                        }
                     }
                 }
             byDay.mapValues { (_, events) -> events.toList() }
@@ -225,8 +221,8 @@ internal class CalendarRepository(
         }.debounce(CHANGE_DEBOUNCE_MS)
 
     private companion object {
-        const val DAY_STRIP_LENGTH = 6
-        const val EVENTS_PER_DAY_LIMIT = 3
+        // Vertical day-list horizon (today .. today + WINDOW_DAYS).
+        const val WINDOW_DAYS = 30
         const val CHANGE_DEBOUNCE_MS = 500L
     }
 }
