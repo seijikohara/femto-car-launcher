@@ -87,9 +87,9 @@ class SettingsViewModelTest {
     @Test
     fun `SetMapRenderMode writes the value to the store`() =
         runTest(dispatcher) {
-            viewModel().onAction(SettingsAction.SetMapRenderMode(MapRenderMode.LIVE_HARDWARE))
+            viewModel().onAction(SettingsAction.SetMapRenderMode(MapRenderMode.LIVE))
             advanceUntilIdle()
-            assertEquals(MapRenderMode.LIVE_HARDWARE, store.settings.first().mapRenderMode)
+            assertEquals(MapRenderMode.LIVE, store.settings.first().mapRenderMode)
         }
 
     @Test

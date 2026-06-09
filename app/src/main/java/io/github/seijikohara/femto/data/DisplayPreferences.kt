@@ -44,15 +44,18 @@ internal enum class MapStyleSetting { AUTO, LIGHT, DARK }
 /**
  * Map render backend, picked explicitly by the user (no auto-fallback).
  *
- * - [LIVE_HARDWARE]: MapLibre GL JS in a hardware-accelerated WebView (smoothest
- *   where the device GPU presents WebGL).
- * - [LIVE_SOFTWARE]: the same WebView forced to the software layer
- *   (`setLayerType(LAYER_TYPE_SOFTWARE)`), so Chromium renders WebGL via
- *   SwiftShader — a fallback for GPUs that cannot keep a live WebGL context.
- * - [SNAPSHOT]: off-screen `MapSnapshotter` bitmaps; presents reliably on the
- *   projected / virtualised displays of AI boxes. The default.
+ * - [LIVE]: MapLibre GL JS (WebGL) in a hardware-accelerated WebView — smooth,
+ *   animated, renders on both the emulator and the head unit.
+ * - [SNAPSHOT]: off-screen `MapSnapshotter` bitmaps; presents reliably on any
+ *   display (the robust floor for hardware that cannot keep a WebGL context).
+ *   The default.
+ *
+ * A software-WebGL (SwiftShader) backend was removed: there is no per-app API to
+ * route WebView WebGL through SwiftShader (`setLayerType(LAYER_TYPE_SOFTWARE)`
+ * yields a blank map, not software WebGL), and hardware WebGL works on the target
+ * device, so SNAPSHOT already covers the no-WebGL case.
  */
-internal enum class MapRenderMode { LIVE_HARDWARE, LIVE_SOFTWARE, SNAPSHOT }
+internal enum class MapRenderMode { LIVE, SNAPSHOT }
 
 /** Default oblique-camera tilt (degrees) and zoom level for the map. */
 internal const val DEFAULT_MAP_TILT_DEG = 55
@@ -317,11 +320,11 @@ internal class DisplayPreferences(
 private inline fun <reified T : Enum<T>> String?.toEnumOr(fallback: T): T =
     this?.let { name -> enumEntries<T>().firstOrNull { it.name == name } } ?: fallback
 
-// Decode the render mode, migrating the pre-3-mode "LIVE" value to LIVE_HARDWARE
-// so a user who chose the live map keeps it (rather than silently reverting to
-// the SNAPSHOT default) after the SNAPSHOT/LIVE enum split into three.
+// Decode the render mode, migrating the short-lived three-mode values
+// (LIVE_HARDWARE / LIVE_SOFTWARE) back to LIVE, so anyone who picked a live map
+// keeps it after the software backend was removed.
 private fun String?.toMapRenderModeOr(fallback: MapRenderMode): MapRenderMode =
     when (this) {
-        "LIVE" -> MapRenderMode.LIVE_HARDWARE
+        "LIVE_HARDWARE", "LIVE_SOFTWARE" -> MapRenderMode.LIVE
         else -> toEnumOr(fallback)
     }

@@ -2,7 +2,6 @@ package io.github.seijikohara.femto.ui.home.components
 
 import android.annotation.SuppressLint
 import android.location.Location
-import android.view.View
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -44,11 +43,9 @@ import io.github.seijikohara.femto.data.MapStyleSetting
  *
  * There is NO auto-fallback: the page relies on MapLibre's built-in WebGL
  * context-loss restore (`webglcontextlost`/`webglcontextrestored`) and the host
- * keeps the chosen backend regardless. [softwareRendering] forces the WebView onto
- * the software layer (`setLayerType(LAYER_TYPE_SOFTWARE)`) so Chromium renders
- * WebGL via SwiftShader — the LIVE_SOFTWARE backend for GPUs that cannot keep a
- * hardware WebGL context. Switching the flag rebuilds the WebView (it keys the
- * `remember`).
+ * keeps the chosen backend regardless. The WebView renders WebGL on the GPU
+ * (hardware-accelerated); a device that cannot keep a WebGL context uses the
+ * SNAPSHOT backend instead.
  *
  * [ON_START][androidx.lifecycle.Lifecycle.Event.ON_START] resumes the WebView and
  * nudges the map to re-measure/repaint; the WebView is paused only on ON_STOP (a
@@ -60,7 +57,6 @@ internal fun WebMapView(
     location: Location,
     mapConfig: MapConfig,
     onTap: () -> Unit,
-    softwareRendering: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -77,21 +73,16 @@ internal fun WebMapView(
     // current camera / style / feature state is (re)applied as soon as the page is
     // ready — closing the race where an effect fires before the script registers
     // window.updateCamera / setStyleUrl / setFeatures and is silently dropped.
-    // Reset with the WebView (a render-mode switch rebuilds it and reloads the page).
-    val pageReady = remember(softwareRendering) { mutableStateOf(false) }
+    val pageReady = remember { mutableStateOf(false) }
 
     val webView =
-        remember(softwareRendering) {
+        remember {
             val assetLoader =
                 WebViewAssetLoader
                     .Builder()
                     .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context))
                     .build()
             WebView(context).apply {
-                // Hardware layer renders WebGL on the GPU; the software layer routes
-                // Chromium through SwiftShader (the LIVE_SOFTWARE backend) for devices
-                // whose GPU cannot keep a live WebGL context.
-                setLayerType(if (softwareRendering) View.LAYER_TYPE_SOFTWARE else View.LAYER_TYPE_HARDWARE, null)
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 // Keep rasterizing while attached but not yet visible (the Compose
@@ -120,15 +111,13 @@ internal fun WebMapView(
         }
 
     // Material primary as the self-location marker fill, so the WebGL puck matches
-    // the SNAPSHOT marker and the user's accent. Passed on every camera update so it
-    // self-heals if the first push raced the page load (the next GPS fix re-applies).
+    // the SNAPSHOT marker and the user's accent.
     val markerColor = MaterialTheme.colorScheme.primary.toCssHex()
 
-    // Each effect keys on [pageReady] (so it fires once the page is ready) and on
-    // [webView] (a render-mode switch rebuilds it), then pushes the current state.
+    // Each effect keys on [pageReady] (so it fires once the page is ready), then
+    // pushes the current state to the page.
     LaunchedEffect(
         pageReady.value,
-        webView,
         location.latitude,
         location.longitude,
         mapConfig.zoom,
@@ -144,14 +133,14 @@ internal fun WebMapView(
             null,
         )
     }
-    LaunchedEffect(pageReady.value, webView, isDark) {
+    LaunchedEffect(pageReady.value, isDark) {
         if (!pageReady.value) return@LaunchedEffect
         val style = if (isDark) DARK_STYLE_URL else POSITRON_STYLE_URL
         webView.evaluateJavascript("window.setStyleUrl && setStyleUrl('$style')", null)
     }
     // LIVE-only feature toggles (3D buildings / terrain). The page merges them into
     // the style via MapLibre transformStyle, so this re-applies the style.
-    LaunchedEffect(pageReady.value, webView, mapConfig.buildings3d, mapConfig.terrain) {
+    LaunchedEffect(pageReady.value, mapConfig.buildings3d, mapConfig.terrain) {
         if (!pageReady.value) return@LaunchedEffect
         webView.evaluateJavascript(
             "window.setFeatures && setFeatures(${mapConfig.buildings3d}, ${mapConfig.terrain})",

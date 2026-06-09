@@ -173,8 +173,7 @@ internal fun SettingsScreen(
                 title = stringResource(R.string.settings_group_map_rendering),
                 options =
                     listOf(
-                        MapRenderMode.LIVE_HARDWARE to stringResource(R.string.settings_map_mode_live_hardware),
-                        MapRenderMode.LIVE_SOFTWARE to stringResource(R.string.settings_map_mode_live_software),
+                        MapRenderMode.LIVE to stringResource(R.string.settings_map_mode_live),
                         MapRenderMode.SNAPSHOT to stringResource(R.string.settings_map_mode_snapshot),
                     ),
                 selected = uiState.mapRenderMode,
