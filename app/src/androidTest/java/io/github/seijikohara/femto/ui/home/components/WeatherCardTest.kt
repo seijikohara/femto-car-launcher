@@ -24,6 +24,7 @@ class WeatherCardTest {
                     snapshot = fakeWeatherSnapshot(tempC = 18.0),
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    is24Hour = true,
                 )
             }
         }
@@ -39,6 +40,7 @@ class WeatherCardTest {
                     snapshot = null,
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    is24Hour = true,
                 )
             }
         }
@@ -55,6 +57,7 @@ class WeatherCardTest {
                     snapshot = fakeWeatherSnapshot(code = WeatherCode.PARTLY_CLOUDY),
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    is24Hour = true,
                 )
             }
         }
@@ -71,6 +74,7 @@ class WeatherCardTest {
                     snapshot = fakeWeatherSnapshot(),
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    is24Hour = true,
                 )
             }
         }
@@ -89,6 +93,7 @@ class WeatherCardTest {
                     snapshot = fakeWeatherSnapshot(),
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    is24Hour = true,
                 )
             }
         }
