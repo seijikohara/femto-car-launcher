@@ -45,7 +45,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Pause
@@ -112,157 +111,108 @@ private fun PlayingState(
     nowPlaying: NowPlaying,
     onCommand: (MusicCommand) -> Unit,
     onLaunchSource: (String) -> Unit,
-) = Column(
-    modifier =
-        Modifier
-            .fillMaxSize()
-            .padding(FemtoDimens.CardPadding),
-    verticalArrangement = Arrangement.spacedBy(10.dp),
 ) {
-    // Album art + track info share the top region; the transport row spans the
-    // full card width below. On a narrow info-pane card a square album beside the
-    // three >= 64 dp controls leaves no room for them, so the controls drop to a
-    // full-width strip where they always fit.
-    Row(
-        modifier = Modifier.fillMaxWidth().weight(1f),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    // The whole card (except the transport controls, which consume their own taps)
+    // opens the source app. The transport buttons are clickable children, so they
+    // intercept their presses before this parent clickable fires.
+    val openLabel = stringResource(R.string.music_open_source, sourceLabel(nowPlaying.packageName))
+    Column(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .clickable(onClickLabel = openLabel) { onLaunchSource(nowPlaying.packageName) }
+                .padding(FemtoDimens.CardPadding),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // Album art on the left, sized square to the top region's height. Tapping it
-        // brings the source app to the foreground — the artwork is a comfortable
-        // >= MinTouchTarget tap target, so the source affordance no longer needs a
-        // dedicated button stealing width from the title. A small source-app badge
-        // sits in the artwork's top-right corner as the at-a-glance "which app" cue.
-        AlbumArt(
-            nowPlaying = nowPlaying,
-            onLaunchSource = { onLaunchSource(nowPlaying.packageName) },
-            modifier = Modifier.fillMaxHeight().aspectRatio(1f),
-        )
-        Column(
-            modifier = Modifier.weight(1f).fillMaxHeight(),
-            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+        // Album art + track info share the top region; the transport row spans the
+        // full card width below. On a narrow info-pane card a square album beside the
+        // three >= 64 dp controls leaves no room for them, so the controls drop to a
+        // full-width strip where they always fit.
+        Row(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Meta(
-                source = sourceLabel(nowPlaying.packageName),
-                title = nowPlaying.title,
-                artist = nowPlaying.artist,
-            )
-            Progress(
-                positionMs = nowPlaying.positionMs,
-                durationMs = nowPlaying.durationMs,
-                positionUpdateTimeMs = nowPlaying.positionUpdateTimeMs,
-                isPlaying = nowPlaying.isPlaying,
-                playbackSpeed = nowPlaying.playbackSpeed,
-            )
+            AlbumArt(nowPlaying = nowPlaying, modifier = Modifier.fillMaxHeight().aspectRatio(1f))
+            Column(
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+            ) {
+                Meta(
+                    source = sourceLabel(nowPlaying.packageName),
+                    sourceIcon = nowPlaying.sourceIcon,
+                    title = nowPlaying.title,
+                    artist = nowPlaying.artist,
+                )
+                Progress(
+                    positionMs = nowPlaying.positionMs,
+                    durationMs = nowPlaying.durationMs,
+                    positionUpdateTimeMs = nowPlaying.positionUpdateTimeMs,
+                    isPlaying = nowPlaying.isPlaying,
+                    playbackSpeed = nowPlaying.playbackSpeed,
+                )
+            }
         }
+        TransportRow(
+            isPlaying = nowPlaying.isPlaying,
+            onCommand = onCommand,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
-    TransportRow(
-        isPlaying = nowPlaying.isPlaying,
-        onCommand = onCommand,
-        modifier = Modifier.fillMaxWidth(),
-    )
 }
 
 @Composable
 private fun AlbumArt(
     nowPlaying: NowPlaying,
-    onLaunchSource: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val description = stringResource(R.string.music_open_source, sourceLabel(nowPlaying.packageName))
-    Box(
-        modifier =
-            modifier
-                .clip(RoundedCornerShape(FemtoDimens.ArtCorner))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .clickable(onClick = onLaunchSource)
-                .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center,
-    ) {
-        // Crossfade keys on the ImageBitmap identity, which is stable across the
-        // per-second position recompositions, so the dissolve fires only on a real
-        // artwork change (track switch / art arriving) — not on every tick.
-        Crossfade(targetState = nowPlaying.albumArt, label = "albumArt") { art ->
-            if (art != null) {
-                Image(
-                    bitmap = art,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.tertiary,
-                                    ),
-                                ),
-                            ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Lucide.Music,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(48.dp),
-                    )
-                }
-            }
-        }
-        SourceBadge(
-            sourceIcon = nowPlaying.sourceIcon,
-            modifier =
-                Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(6.dp),
-        )
-    }
-}
-
-// Small source-app cue pinned to the artwork's top-right corner. Purely visual —
-// the surrounding album art carries the launch tap target and its semantics — so
-// this stays compact rather than a separate >= MinTouchTarget control.
-@Composable
-private fun SourceBadge(
-    sourceIcon: ImageBitmap?,
     modifier: Modifier = Modifier,
 ) = Box(
     modifier =
         modifier
-            .size(26.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)),
+            .clip(RoundedCornerShape(FemtoDimens.ArtCorner))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
     contentAlignment = Alignment.Center,
 ) {
-    if (sourceIcon != null) {
-        Image(
-            bitmap = sourceIcon,
-            contentDescription = null,
-            modifier =
-                Modifier
-                    .size(18.dp)
-                    .clip(RoundedCornerShape(5.dp)),
-        )
-    } else {
-        // The source icon could not be resolved (rare): a generic launch glyph
-        // still signals the artwork opens the player.
-        Icon(
-            imageVector = Lucide.ExternalLink,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(14.dp),
-        )
+    // Crossfade keys on the ImageBitmap identity, which is stable across the
+    // per-second position recompositions, so the dissolve fires only on a real
+    // artwork change (track switch / art arriving) — not on every tick.
+    Crossfade(targetState = nowPlaying.albumArt, label = "albumArt") { art ->
+        if (art != null) {
+            Image(
+                bitmap = art,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.primary,
+                                    MaterialTheme.colorScheme.tertiary,
+                                ),
+                            ),
+                        ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Lucide.Music,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(48.dp),
+                )
+            }
+        }
     }
 }
 
 @Composable
 private fun Meta(
     source: String,
+    sourceIcon: ImageBitmap?,
     title: String,
     artist: String?,
     modifier: Modifier = Modifier,
@@ -275,12 +225,22 @@ private fun Meta(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Icon(
-            imageVector = Lucide.Music,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(12.dp),
-        )
+        // The source app's own icon precedes its name; fall back to a generic music
+        // glyph when the icon could not be resolved (rare).
+        if (sourceIcon != null) {
+            Image(
+                bitmap = sourceIcon,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp).clip(RoundedCornerShape(4.dp)),
+            )
+        } else {
+            Icon(
+                imageVector = Lucide.Music,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(12.dp),
+            )
+        }
         Text(
             text = source.uppercase(),
             style = MaterialTheme.typography.sectionLabel(10, 0.16f),
@@ -301,20 +261,20 @@ private fun Meta(
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
-    if (!artist.isNullOrBlank()) {
-        Text(
-            text = artist,
-            style =
-                MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    lineHeight = 16.sp,
-                ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
+    Text(
+        // Radio / stream tracks often carry no artist; show an em dash so the line
+        // height stays stable rather than the title jumping down.
+        text = artist?.takeUnless { it.isBlank() } ?: "—",
+        style =
+            MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 16.sp,
+            ),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 @Composable
