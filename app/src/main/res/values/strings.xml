@@ -61,7 +61,8 @@
     <string name="status_wifi_connected">Wi-Fi connected</string>
     <string name="status_wifi_disconnected">Wi-Fi disconnected</string>
     <string name="status_bluetooth_connected">Bluetooth connected</string>
-    <string name="status_bluetooth_disconnected">Bluetooth disconnected</string>
+    <string name="status_bluetooth_on">Bluetooth on</string>
+    <string name="status_bluetooth_off">Bluetooth off</string>
     <string name="status_gps_fixed">GPS fixed</string>
     <string name="status_gps_searching">GPS searching</string>
     <!-- Count of satellites used in the current GPS fix, shown under the footer's satellite icon. -->

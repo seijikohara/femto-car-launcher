@@ -83,7 +83,7 @@ internal class SystemStatusRepository(
     fun statusFlow(): Flow<SystemStatus> =
         combine(
             connectivitySignals(),
-            bluetoothFlow().onStart { emit(false) },
+            bluetoothFlow().onStart { emit(BluetoothReading(enabled = false, connected = false)) },
             batteryFlow().onStart { emit(BatteryReading(percent = null, charging = false)) },
             cellularLevelFlow().onStart { emit(null) },
             gpsFlow(),
@@ -93,7 +93,8 @@ internal class SystemStatusRepository(
                 cellularSignalLevel = cellularLevel,
                 wifiConnected = connectivitySignals.wifi.connected,
                 wifiSignalLevel = connectivitySignals.wifi.level,
-                bluetoothConnected = bt,
+                bluetoothEnabled = bt.enabled,
+                bluetoothConnected = bt.connected,
                 batteryPercent = battery.percent,
                 charging = battery.charging,
                 gpsFixed = gps.fixed,
@@ -312,23 +313,23 @@ internal class SystemStatusRepository(
      *   [statusFlow] keeps its `distinctUntilChanged`, so an unchanged value is
      *   suppressed.
      */
-    private fun bluetoothFlow(): Flow<Boolean> =
+    private fun bluetoothFlow(): Flow<BluetoothReading> =
         merge(
             bluetoothBroadcastFlow(),
-            SystemPermissionSignals.refreshes.map { readBluetoothConnected(bluetoothManager?.adapter) },
+            SystemPermissionSignals.refreshes.map { readBluetooth(bluetoothManager?.adapter) },
         )
 
-    private fun bluetoothBroadcastFlow(): Flow<Boolean> =
+    private fun bluetoothBroadcastFlow(): Flow<BluetoothReading> =
         callbackFlow {
             val adapter: BluetoothAdapter? = bluetoothManager?.adapter
-            trySend(readBluetoothConnected(adapter))
+            trySend(readBluetooth(adapter))
 
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(
                     c: Context?,
                     intent: Intent?,
                 ) {
-                    trySend(readBluetoothConnected(adapter))
+                    trySend(readBluetooth(adapter))
                 }
             }
             val filter = IntentFilter().apply {
@@ -345,19 +346,24 @@ internal class SystemStatusRepository(
         }
 
     @SuppressLint("MissingPermission") // Permission is checked inside hasBluetoothConnect().
-    private fun readBluetoothConnected(adapter: BluetoothAdapter?): Boolean {
-        if (adapter == null || !adapter.isEnabled) return false
+    private fun readBluetooth(adapter: BluetoothAdapter?): BluetoothReading {
+        val enabled = adapter?.isEnabled == true
+        if (!enabled) return BluetoothReading(enabled = false, connected = false)
         // Without BLUETOOTH_CONNECT the connected-device APIs throw, so the precise
-        // pairing state is unknowable. Fall back to the adapter-enabled state (true
-        // here, past the isEnabled guard) instead of a hard "disconnected": a head
-        // unit paired to a phone otherwise reads as BT-off in the footer.
-        if (!hasBluetoothConnect()) return true
-        val devices = bluetoothManager?.getConnectedDevices(BluetoothProfile.GATT) ?: emptyList()
-        return devices.isNotEmpty() ||
-            adapter.getProfileConnectionState(BluetoothProfile.HEADSET) ==
-            BluetoothAdapter.STATE_CONNECTED ||
-            adapter.getProfileConnectionState(BluetoothProfile.A2DP) ==
-            BluetoothAdapter.STATE_CONNECTED
+        // pairing state is unknowable; treat an enabled adapter as connected so a
+        // head unit paired to a phone is not under-reported.
+        val connected =
+            if (!hasBluetoothConnect()) {
+                true
+            } else {
+                val devices = bluetoothManager?.getConnectedDevices(BluetoothProfile.GATT) ?: emptyList()
+                devices.isNotEmpty() ||
+                    adapter.getProfileConnectionState(BluetoothProfile.HEADSET) ==
+                    BluetoothAdapter.STATE_CONNECTED ||
+                    adapter.getProfileConnectionState(BluetoothProfile.A2DP) ==
+                    BluetoothAdapter.STATE_CONNECTED
+            }
+        return BluetoothReading(enabled = true, connected = connected)
     }
 
     private fun hasBluetoothConnect(): Boolean {
@@ -405,6 +411,14 @@ internal class SystemStatusRepository(
     private data class WifiReading(
         val connected: Boolean,
         val level: Int,
+    )
+
+    // [enabled] = adapter powered on (lights the footer icon); [connected] = a
+    // device is actively connected (selects the connected glyph). They diverge when
+    // BT is on with nothing paired/connected.
+    private data class BluetoothReading(
+        val enabled: Boolean,
+        val connected: Boolean,
     )
 
     // Typed intermediate for the first-stage combine of the two reactive

@@ -77,16 +77,29 @@ class DashboardFooterTest {
     }
 
     @Test
-    fun shows_bluetooth_disconnected_description_when_bluetooth_disconnected() {
+    fun shows_bluetooth_on_description_when_enabled_but_not_connected() {
         rule.setContent {
             FemtoTheme {
                 DashboardFooter(
-                    systemStatus = fakeSystemStatus(bluetoothConnected = false),
+                    systemStatus = fakeSystemStatus(bluetoothEnabled = true, bluetoothConnected = false),
                     onAction = {},
                 )
             }
         }
-        rule.onNodeWithContentDescription("Bluetooth disconnected").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Bluetooth on").assertIsDisplayed()
+    }
+
+    @Test
+    fun shows_bluetooth_off_description_when_adapter_disabled() {
+        rule.setContent {
+            FemtoTheme {
+                DashboardFooter(
+                    systemStatus = fakeSystemStatus(bluetoothEnabled = false, bluetoothConnected = false),
+                    onAction = {},
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("Bluetooth off").assertIsDisplayed()
     }
 
     @Test

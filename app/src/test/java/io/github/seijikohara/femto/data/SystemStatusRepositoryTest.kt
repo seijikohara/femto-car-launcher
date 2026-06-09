@@ -59,15 +59,27 @@ class SystemStatusRepositoryTest {
         runTest {
             // Robolectric grants no runtime permissions on sdk 33, so the
             // connected-device APIs are unreadable. isEnabled() needs no permission,
-            // so with the adapter powered on readBluetoothConnected reports BT-on
-            // rather than a misleading "disconnected". The bluetoothFlow seeds false
-            // via onStart, so wait past the seed for the broadcast-driven read; a
-            // regressed impl that returns false here would hang the predicate.
+            // so with the adapter powered on readBluetooth reports BT-on rather than a
+            // misleading "disconnected". The bluetoothFlow seeds false via onStart, so
+            // wait past the seed for the broadcast-driven read; a regressed impl that
+            // returns false here would hang the predicate.
             setBluetoothEnabled(true)
 
             val status = firstStatusMatching(SystemStatusRepository(application)) { it.bluetoothConnected }
 
             assertTrue(status.bluetoothConnected)
+        }
+
+    @Test
+    fun `bluetoothEnabled tracks the adapter power state`() =
+        runTest {
+            // isEnabled() needs no permission, so the enabled flag is readable even
+            // without BLUETOOTH_CONNECT; the footer lights the icon on it.
+            setBluetoothEnabled(true)
+
+            val status = firstStatusMatching(SystemStatusRepository(application)) { it.bluetoothEnabled }
+
+            assertTrue(status.bluetoothEnabled)
         }
 
     @Test
@@ -296,7 +308,7 @@ class SystemStatusRepositoryTest {
         }
 
     // Drive the default adapter's power state through its shadow. isEnabled() needs
-    // no permission, so this is the lever readBluetoothConnected falls back to when
+    // no permission, so this is the lever readBluetooth falls back to when
     // BLUETOOTH_CONNECT is withheld.
     private fun setBluetoothEnabled(enabled: Boolean) {
         val adapter = application.getSystemService<BluetoothManager>()!!.adapter
