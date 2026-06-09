@@ -22,7 +22,6 @@ class WeatherCardTest {
             FemtoTheme {
                 WeatherCard(
                     snapshot = fakeWeatherSnapshot(tempC = 18.0),
-                    city = "Shibuya",
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                 )
@@ -38,7 +37,6 @@ class WeatherCardTest {
             FemtoTheme {
                 WeatherCard(
                     snapshot = null,
-                    city = "Shibuya",
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                 )
@@ -50,19 +48,19 @@ class WeatherCardTest {
     }
 
     @Test
-    fun renders_condition_label_for_partly_cloudy() {
+    fun renders_condition_glyph_with_description_for_partly_cloudy() {
         rule.setContent {
             FemtoTheme {
                 WeatherCard(
                     snapshot = fakeWeatherSnapshot(code = WeatherCode.PARTLY_CLOUDY),
-                    city = "Shibuya",
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                 )
             }
         }
-        // The condition label is uppercased for layout, so match case-insensitively.
-        rule.onNodeWithText("Partly cloudy", ignoreCase = true).assertIsDisplayed()
+        // The condition is now conveyed by the hero glyph; its label survives as the
+        // icon's content description for TalkBack.
+        rule.onNodeWithContentDescription("Partly cloudy", ignoreCase = true).assertIsDisplayed()
     }
 
     @Test
@@ -71,7 +69,6 @@ class WeatherCardTest {
             FemtoTheme {
                 WeatherCard(
                     snapshot = fakeWeatherSnapshot(),
-                    city = "Shibuya",
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                 )
@@ -88,7 +85,6 @@ class WeatherCardTest {
             FemtoTheme {
                 WeatherCard(
                     snapshot = fakeWeatherSnapshot(),
-                    city = "Shibuya",
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                 )

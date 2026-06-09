@@ -25,7 +25,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -61,7 +60,7 @@ import kotlin.math.roundToInt
  * [FemtoDimens.CardSectionGap] rhythm ([Arrangement.spacedBy]); the content is
  * top-aligned and scrolls if the card is too short to fit all three:
  *
- *  1. Head — big temperature + glyph (per-condition colour) + city + short conditions.
+ *  1. Head — big temperature + a hero per-condition glyph.
  *  2. Metrics — Feels / Wind / Humid row.
  *  3. Forecast — three hourly chips.
  *
@@ -72,7 +71,6 @@ import kotlin.math.roundToInt
 @Composable
 internal fun WeatherCard(
     snapshot: WeatherSnapshot?,
-    city: String?,
     temperatureUnit: TemperatureUnit,
     speedUnit: SpeedUnit,
     modifier: Modifier = Modifier,
@@ -97,7 +95,7 @@ internal fun WeatherCard(
                     .padding(FemtoDimens.CardPaddingCompact),
             verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
         ) {
-            Head(snapshot, city, temperatureUnit)
+            Head(snapshot, temperatureUnit)
             Metrics(snapshot, temperatureUnit, speedUnit)
             Forecast(snapshot.hourly, snapshot.sunrise, snapshot.sunset, temperatureUnit)
         }
@@ -109,21 +107,22 @@ internal fun WeatherCard(
 @Composable
 private fun Head(
     snapshot: WeatherSnapshot,
-    city: String?,
     temperatureUnit: TemperatureUnit,
 ) {
     val tempLabel = "${temperatureUnit.fromCelsius(snapshot.tempC).roundToInt()}"
     val glyphs = weatherGlyphs()
+    // Big temperature on the left, a hero condition glyph on the right. The city
+    // and the textual condition were removed (the city clipped on the narrow card),
+    // leaving the icon as the single condition cue, sized to balance the
+    // temperature; the condition label survives as the icon's content description.
     Row(
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Row(verticalAlignment = Alignment.Top) {
             Text(
                 text = tempLabel,
-                // One notch below the shared bigNumber() so the hero temperature
-                // does not starve the condition / city column on a narrow
-                // info-pane card (the head-unit binding width).
                 style = MaterialTheme.typography.bigNumber().copy(fontSize = 46.sp, lineHeight = 42.sp),
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
@@ -140,49 +139,12 @@ private fun Head(
                 modifier = Modifier.padding(top = 4.dp, start = 2.dp),
             )
         }
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Icon(
-                    imageVector = glyphIconFor(snapshot.code, snapshot.isDay),
-                    contentDescription = null,
-                    tint = glyphTintFor(snapshot.code, snapshot.isDay, glyphs),
-                    modifier = Modifier.size(FemtoDimens.WeatherGlyphLarge),
-                )
-                Text(
-                    text = city.orEmpty(),
-                    modifier = Modifier.weight(1f),
-                    // The mockup specs 18px, sized for a short Latin city. The
-                    // weather head slot (narrowed by the wide big-temperature)
-                    // truncates 8+ char names like "Shinjuku" at 18sp, so the
-                    // city stays at 16sp — within the card-metadata relaxation of
-                    // the 18sp glance floor — to fit more multi-region city names.
-                    style =
-                        MaterialTheme.typography.titleMedium.copy(
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            letterSpacing = (-0.01f).em,
-                            lineHeight = 16.sp,
-                        ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Text(
-                text = stringResource(labelResFor(snapshot.code)).uppercase(),
-                style = MaterialTheme.typography.sectionLabel(11, 0.14f),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        Icon(
+            imageVector = glyphIconFor(snapshot.code, snapshot.isDay),
+            contentDescription = stringResource(labelResFor(snapshot.code)),
+            tint = glyphTintFor(snapshot.code, snapshot.isDay, glyphs),
+            modifier = Modifier.size(FemtoDimens.WeatherGlyphHero),
+        )
     }
 }
 
@@ -381,8 +343,7 @@ private fun labelResFor(code: WeatherCode): Int =
     }
 
 // Sized to the head-unit binding: each top-row card is ~165 x 207 dp (half the
-// info pane on the 853 x 512 dp / 5:3 projection), the geometry that starved the
-// condition / city column. CLOUDY exercises the longest short-condition label.
+// info pane on the 853 x 512 dp / 5:3 projection).
 @PreviewLightDark
 @Preview(name = "Weather card", widthDp = 165, heightDp = 207)
 @Composable
@@ -409,7 +370,6 @@ private fun WeatherCardPreview() {
                     daily = emptyList(),
                     fetchedAt = Instant.now(),
                 ),
-            city = "Košice",
             temperatureUnit = TemperatureUnit.CELSIUS,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
         )
