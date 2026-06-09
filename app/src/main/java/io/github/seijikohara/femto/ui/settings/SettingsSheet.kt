@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
+import io.github.seijikohara.femto.data.FontSlot
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 
 /**
@@ -29,6 +30,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 internal fun SettingsSheet(
     onOpenNotificationAccess: () -> Unit,
     onOpenSystemSettings: () -> Unit,
+    onOpenFontPicker: (FontSlot) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -47,6 +49,7 @@ internal fun SettingsSheet(
                 onBack = onDismiss,
                 onOpenNotificationAccess = onOpenNotificationAccess,
                 onOpenSystemSettings = onOpenSystemSettings,
+                onOpenFontPicker = onOpenFontPicker,
             )
         }
     }

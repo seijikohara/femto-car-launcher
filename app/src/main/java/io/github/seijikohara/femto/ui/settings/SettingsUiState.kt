@@ -10,7 +10,6 @@ import io.github.seijikohara.femto.data.MapStyleSetting
 import io.github.seijikohara.femto.data.SpeedUnitSetting
 import io.github.seijikohara.femto.data.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.ThemeMode
-import io.github.seijikohara.femto.ui.theme.FontTheme
 
 /** State for the in-app settings screen: the persisted display + font choices. */
 internal data class SettingsUiState(
@@ -34,11 +33,13 @@ internal data class SettingsUiState(
     val showCalendar: Boolean,
     val showWeather: Boolean,
     val showMusic: Boolean,
-    val fontTheme: FontTheme,
+    // The chosen Google Fonts families per slot; null means the system font.
+    val latinFont: String?,
+    val cjkFont: String?,
 ) {
     companion object {
         // Seeded from the persistence defaults so the default values live in one
-        // place (DisplaySettings.Default + the FontTheme MVP default).
+        // place (DisplaySettings.Default + the system-font default for both slots).
         val Initial =
             SettingsUiState(
                 themeMode = DisplaySettings.Default.themeMode,
@@ -61,7 +62,8 @@ internal data class SettingsUiState(
                 showCalendar = DisplaySettings.Default.showCalendar,
                 showWeather = DisplaySettings.Default.showWeather,
                 showMusic = DisplaySettings.Default.showMusic,
-                fontTheme = FontTheme.INTER,
+                latinFont = null,
+                cjkFont = null,
             )
     }
 }
@@ -146,10 +148,6 @@ internal sealed interface SettingsAction {
 
     data class SetShowMusic(
         val value: Boolean,
-    ) : SettingsAction
-
-    data class SetFontTheme(
-        val value: FontTheme,
     ) : SettingsAction
 
     /** Restore every display + font setting to its default value. */

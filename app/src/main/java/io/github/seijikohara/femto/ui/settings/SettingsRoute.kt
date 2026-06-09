@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.seijikohara.femto.data.FontSlot
 
 /**
  * Settings entry point: binds [SettingsViewModel], collects its state, and
@@ -20,6 +21,7 @@ internal fun SettingsRoute(
     onBack: () -> Unit,
     onOpenNotificationAccess: () -> Unit,
     onOpenSystemSettings: () -> Unit,
+    onOpenFontPicker: (FontSlot) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -33,6 +35,7 @@ internal fun SettingsRoute(
         onBack = onBack,
         onOpenNotificationAccess = onOpenNotificationAccess,
         onOpenSystemSettings = onOpenSystemSettings,
+        onOpenFontPicker = onOpenFontPicker,
         modifier = modifier,
     )
 }
