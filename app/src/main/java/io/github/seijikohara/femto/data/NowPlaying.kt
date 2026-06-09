@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 internal data class NowPlaying(
     val title: String,
     val artist: String?,
+    val album: String?,
     val albumArt: ImageBitmap?,
     val isPlaying: Boolean,
     val positionMs: Long,

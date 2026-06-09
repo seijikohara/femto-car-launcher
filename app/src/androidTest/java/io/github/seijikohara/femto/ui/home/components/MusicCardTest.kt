@@ -35,6 +35,21 @@ class MusicCardTest {
     }
 
     @Test
+    fun renders_album_when_present() {
+        rule.setContent {
+            FemtoTheme {
+                MusicCard(
+                    state = MusicCardState.Playing(fakeNowPlaying(album = "For Lack of a Better Name")),
+                    onCommand = {},
+                    onConnect = {},
+                    onLaunchSource = {},
+                )
+            }
+        }
+        rule.onNodeWithText("For Lack of a Better Name").assertIsDisplayed()
+    }
+
+    @Test
     fun keeps_paused_session_on_screen_instead_of_collapsing_to_empty() {
         rule.setContent {
             FemtoTheme {

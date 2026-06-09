@@ -186,6 +186,7 @@ internal class MusicSessionRepository(
                             ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)?.takeIf { it.isNotBlank() }
                             ?: sourceLabel(controller.packageName),
                     artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST),
+                    album = metadata.getString(MediaMetadata.METADATA_KEY_ALBUM),
                     albumArt = metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)?.asImageBitmap(),
                     // sourceIcon is resolved downstream off Main (see stateFlow).
                     // A paused controller renders with isPlaying=false (Play icon,
