@@ -11,10 +11,24 @@
          0 px tall); fixed/inset fills the WebView viewport reliably. */
       #map { position: fixed; inset: 0; }
       .maplibregl-ctrl-attrib, .maplibregl-ctrl-logo { display: none; }
+      /* Self-location chevron pinned at a fixed screen spot (centre X, markerPos
+         height). The camera brings the location to it, so the chevron stays put and
+         the map slides / rotates beneath it (car-nav style) instead of the marker
+         sliding to catch the eased camera. */
+      #self-marker {
+        position: fixed; left: 50%; top: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: none; display: none; will-change: top, transform;
+      }
     </style>
   </head>
   <body>
     <div id="map"></div>
+    <div id="self-marker">
+      <svg width="34" height="34" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+        <path d="M15 0 L30 30 L15 21.6 L0 30 Z" fill="#3367D6" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round"/>
+      </svg>
+    </div>
     <script>
       // Diagnostic logging only (visible via chrome://inspect or the debug PoC's
       // WebChromeClient). There is NO host fallback path: the chosen render backend
@@ -129,20 +143,14 @@
         map.on("webglcontextlost", () => log("webglcontextlost (awaiting MapLibre restore)"));
         map.on("webglcontextrestored", () => log("webglcontextrestored"));
 
-        // Self-location puck: a heading-up nav chevron that mirrors the SNAPSHOT
-        // backend's marker so the two render the same. rotationAlignment "map" +
-        // pitchAlignment "map" rotate it to the travel bearing and lay it flat on
-        // the tilted ground plane (the heading-up camera then points it toward the
-        // top of the frame). It is a DOM Marker, so it survives setStyle. The fill
-        // is set from the host's Material primary via updateCamera's last argument;
-        // the inline default only shows for the first frame before the host pushes.
-        var markerEl = document.createElement("div");
-        markerEl.innerHTML =
-          '<svg width="34" height="34" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">' +
-          '<path d="M15 0 L30 30 L15 21.6 L0 30 Z" fill="#3367D6" stroke="#FFFFFF" ' +
-          'stroke-width="1.5" stroke-linejoin="round"/></svg>';
-        var marker = new maplibregl.Marker({ element: markerEl, rotationAlignment: "map", pitchAlignment: "map" });
-        var markerAdded = false;
+        // Self-location chevron: a fixed-on-screen DOM overlay (see #self-marker CSS).
+        // The camera brings the location to the chevron's spot, so the chevron stays
+        // still and the map slides + rotates beneath it (car-nav style) rather than a
+        // geo-anchored marker sliding to catch the eased camera. It is heading-UP: the
+        // chevron always points to the top of the frame and the map rotates to the
+        // travel bearing; rotateX lays it onto the tilted ground plane.
+        var markerEl = document.getElementById("self-marker");
+        var markerPath = markerEl.querySelector("path");
 
         // The lowest the marker drops below centre, as a fraction of map height, at
         // markerPos = 100 (mirrors MAX_MARKER_DROP in MapPanel.kt).
@@ -158,21 +166,25 @@
           return 2 * drop * (map.getContainer().clientHeight || 0);
         }
 
-        // Android -> JS: smooth heading-up camera follow (this is how #2 smooth
-        // movement is achieved — easeTo interpolates between sparse GPS fixes). The
-        // first fix jumps (no dramatic fly-in from the [0,0] start); the rest ease.
-        // The marker rides the same fixes; [markerColor] (Material primary, "#rrggbb")
-        // is applied here so it self-heals if the first push raced page load.
+        // Android -> JS: smooth heading-up camera follow (easeTo interpolates between
+        // sparse GPS fixes). The first fix jumps (no fly-in from [0,0]); the rest ease.
+        // The chevron is pinned on screen (not geo-anchored), so only the camera moves
+        // and the chevron stays put while the map slides + rotates beneath it. The map
+        // rotates to the travel bearing, so the fixed chevron always reads as forward;
+        // rotateX lays it onto the tilted ground plane to match the map pitch. The
+        // chevron's screen height tracks markerPos, matching the camera padding so the
+        // location renders right under it. [markerColor] (Material primary) self-heals
+        // if the first push raced page load.
         let firstCamera = true;
         window.updateCamera = function (lat, lon, bearing, zoom, tilt, markerPos, markerColor) {
           if (!map) return;
           var heading = bearing || 0;
-          if (markerColor) {
-            var path = markerEl.querySelector("path");
-            if (path) path.setAttribute("fill", markerColor);
-          }
-          marker.setLngLat([lon, lat]).setRotation(heading);
-          if (!markerAdded) { marker.addTo(map); markerAdded = true; }
+          if (markerColor && markerPath) markerPath.setAttribute("fill", markerColor);
+          var pos = Math.max(0, Math.min(100, markerPos || 0));
+          markerEl.style.top = (50 + (pos / 100) * MAX_MARKER_DROP * 100) + "%";
+          markerEl.style.transform =
+            "translate(-50%, -50%) perspective(600px) rotateX(" + (tilt || 0) + "deg)";
+          markerEl.style.display = "block";
           const opts = {
             center: [lon, lat],
             bearing: heading,
