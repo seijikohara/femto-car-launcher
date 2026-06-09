@@ -59,6 +59,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 internal fun CalendarCard(
     snapshot: CalendarSnapshot?,
+    is24Hour: Boolean,
     modifier: Modifier = Modifier,
 ) = Surface(
     modifier = modifier,
@@ -74,31 +75,33 @@ internal fun CalendarCard(
         // denial message instead of a hollow agenda.
         !snapshot.hasCalendarAccess -> PermissionDenied()
 
-        else -> CalendarContent(snapshot)
+        else -> CalendarContent(snapshot, is24Hour)
     }
 }
 
 @Composable
-private fun CalendarContent(snapshot: CalendarSnapshot) =
-    Column(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                // Tighter than the shared card padding/gap: the head-unit info-pane
-                // card is short, so pack the head and the list to avoid a clip.
-                .padding(FemtoDimens.CardPaddingCompact),
-        verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
+private fun CalendarContent(
+    snapshot: CalendarSnapshot,
+    is24Hour: Boolean,
+) = Column(
+    modifier =
+        Modifier
+            .fillMaxSize()
+            // Tighter than the shared card padding/gap: the head-unit info-pane
+            // card is short, so pack the head and the list to avoid a clip.
+            .padding(FemtoDimens.CardPaddingCompact),
+    verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
+) {
+    Head(snapshot)
+    LazyColumn(
+        modifier = Modifier.fillMaxWidth().weight(1f),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Head(snapshot)
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(items = snapshot.days, key = { it.date.toString() }) { day ->
-                DayRow(day = day, isToday = day.date == snapshot.today)
-            }
+        items(items = snapshot.days, key = { it.date.toString() }) { day ->
+            DayRow(day = day, isToday = day.date == snapshot.today, is24Hour = is24Hour)
         }
     }
+}
 
 @Composable
 private fun Head(snapshot: CalendarSnapshot) =
@@ -142,6 +145,7 @@ private fun Head(snapshot: CalendarSnapshot) =
 private fun DayRow(
     day: DayCell,
     isToday: Boolean,
+    is24Hour: Boolean,
 ) = Row(
     modifier = Modifier.fillMaxWidth(),
     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -206,7 +210,11 @@ private fun DayRow(
                     // A timed event leads with a clock; an all-day event (null time)
                     // leads with a sun so it reads as "all day" at a glance.
                     icon = if (event.time != null) Lucide.Clock else Lucide.Sun,
-                    time = event.time?.format(EventTimeFormatter) ?: stringResource(R.string.calendar_all_day),
+                    // Event times honour the user's 12/24-hour clock setting, matching
+                    // the dashboard clock rather than always printing 24-hour.
+                    time =
+                        event.time?.format(eventTimeFormatter(is24Hour))
+                            ?: stringResource(R.string.calendar_all_day),
                     title = event.title,
                 )
             }
@@ -268,7 +276,13 @@ private fun PermissionDenied() =
 
 private const val NO_EVENTS_PLACEHOLDER = "—"
 
-private val EventTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+// 24-hour "14:30" or compact 12-hour "2:30 PM"; the latter stays short enough to
+// keep the narrow agenda row from clipping the event title.
+private val EventTimeFormatter24: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+private val EventTimeFormatter12: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
+
+private fun eventTimeFormatter(is24Hour: Boolean): DateTimeFormatter =
+    if (is24Hour) EventTimeFormatter24 else EventTimeFormatter12
 
 // Sized to the head-unit binding: each top-row card is ~165 x 207 dp (half the
 // info pane on the 853 x 512 dp / 5:3 projection). Wider panels only add slack.
@@ -309,6 +323,7 @@ private fun CalendarCardPreview() {
                         ),
                     hasCalendarAccess = true,
                 ),
+            is24Hour = true,
         )
     }
 }
