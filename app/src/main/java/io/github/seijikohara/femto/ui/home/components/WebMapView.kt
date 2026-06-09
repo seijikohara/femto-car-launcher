@@ -184,9 +184,7 @@ internal fun WebMapView(
                         webView.onPause()
                     }
 
-                    else -> {
-                        Unit
-                    }
+                    else -> {}
                 }
             }
         lifecycleOwner.lifecycle.addObserver(observer)
