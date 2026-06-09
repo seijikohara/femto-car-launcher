@@ -151,4 +151,7 @@ internal sealed interface SettingsAction {
     data class SetFontTheme(
         val value: FontTheme,
     ) : SettingsAction
+
+    /** Restore every display + font setting to its default value. */
+    data object ResetToDefaults : SettingsAction
 }

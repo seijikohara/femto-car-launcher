@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.ui.settings
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.data.AccentColor
+import io.github.seijikohara.femto.data.DisplaySettings
 import io.github.seijikohara.femto.data.FontPreferences
 import io.github.seijikohara.femto.data.FullscreenSetting
 import io.github.seijikohara.femto.data.MapColorScheme
@@ -131,6 +132,21 @@ class SettingsViewModelTest {
             viewModel().onAction(SettingsAction.SetMapTerrain(true))
             advanceUntilIdle()
             assertEquals(true, store.settings.first().mapTerrain)
+        }
+
+    @Test
+    fun `ResetToDefaults restores display settings to their defaults`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            // Move a representative field of each persisted type off its default.
+            vm.onAction(SettingsAction.SetFullscreen(FullscreenSetting.ON))
+            vm.onAction(SettingsAction.SetAccentColor(AccentColor.TEAL))
+            vm.onAction(SettingsAction.SetShowMusic(false))
+            vm.onAction(SettingsAction.SetMapTilt(10))
+            advanceUntilIdle()
+            vm.onAction(SettingsAction.ResetToDefaults)
+            advanceUntilIdle()
+            assertEquals(DisplaySettings.Default, store.settings.first())
         }
 
     private fun viewModel() = SettingsViewModel(store, FontPreferences(application))

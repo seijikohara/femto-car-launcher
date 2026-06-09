@@ -152,4 +152,8 @@
     <string name="settings_group_panel_music">Music panel</string>
     <string name="settings_open_notification_access">Notification access</string>
     <string name="settings_open_system_settings">System settings</string>
+    <string name="settings_reset_to_defaults">Reset to defaults</string>
+    <string name="settings_reset_confirm_title">Reset all settings?</string>
+    <string name="settings_reset_confirm_message">This restores every display, unit, map, panel and font setting to its default value.</string>
+    <string name="settings_reset_confirm">Reset</string>
 </resources>

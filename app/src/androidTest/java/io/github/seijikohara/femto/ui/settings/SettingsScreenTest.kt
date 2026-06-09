@@ -26,6 +26,8 @@ class SettingsScreenTest {
     private val darkLabel = context.getString(R.string.settings_theme_dark)
     private val showSecondsLabel = context.getString(R.string.settings_group_clock_seconds)
     private val tealAccentLabel = context.getString(R.string.settings_accent_teal)
+    private val resetLabel = context.getString(R.string.settings_reset_to_defaults)
+    private val resetConfirmLabel = context.getString(R.string.settings_reset_confirm)
 
     @Test
     fun renders_fullscreen_row() {
@@ -72,6 +74,17 @@ class SettingsScreenTest {
         rule.onNodeWithText(themeLabel).performClick()
         rule.onNodeWithText(darkLabel).performClick()
         assertEquals(listOf(SettingsAction.SetThemeMode(ThemeMode.DARK)), actions)
+    }
+
+    @Test
+    fun confirming_reset_dispatches_reset_to_defaults() {
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(onAction = { actions += it })
+        // The reset row sits at the bottom (System section); scroll it in, tap to
+        // open the confirm dialog, then tap Reset to confirm.
+        rule.onNodeWithText(resetLabel).performScrollTo().performClick()
+        rule.onNodeWithText(resetConfirmLabel).performClick()
+        assertEquals(listOf(SettingsAction.ResetToDefaults), actions)
     }
 
     private fun setScreen(onAction: (SettingsAction) -> Unit = {}) {

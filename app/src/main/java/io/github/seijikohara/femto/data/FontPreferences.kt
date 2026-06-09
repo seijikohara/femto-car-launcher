@@ -31,6 +31,12 @@ internal class FontPreferences(
         context.fontDataStore.edit { it[KEY] = theme.name }
     }
 
+    // Clearing the key makes the read path fall back to the FontTheme.INTER
+    // default, mirroring DisplayPreferences.resetToDefaults.
+    suspend fun resetToDefaults() {
+        context.fontDataStore.edit { it.clear() }
+    }
+
     private companion object {
         val KEY = stringPreferencesKey("font_theme")
     }
