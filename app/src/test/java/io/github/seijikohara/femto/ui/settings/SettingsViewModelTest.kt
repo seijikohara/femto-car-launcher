@@ -55,6 +55,14 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `SetKeepScreenOn writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetKeepScreenOn(false))
+            advanceUntilIdle()
+            assertEquals(false, store.settings.first().keepScreenOn)
+        }
+
+    @Test
     fun `SetAccentColor writes the value to the store`() =
         runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetAccentColor(AccentColor.TEAL))
