@@ -127,7 +127,7 @@ class MainActivity : ComponentActivity() {
                                 zoom = display.mapZoom,
                                 renderPercent = display.mapRenderPercent,
                                 renderMode = display.mapRenderMode,
-                                lookAheadM = display.mapLookAheadM,
+                                markerPos = display.mapMarkerPos,
                                 buildings3d = display.map3dBuildings,
                                 terrain = display.mapTerrain,
                             ),

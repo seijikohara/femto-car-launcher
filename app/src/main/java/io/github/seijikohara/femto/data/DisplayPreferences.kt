@@ -69,11 +69,11 @@ internal const val DEFAULT_MAP_ZOOM = 16
 internal const val DEFAULT_MAP_RENDER_PERCENT = 100
 
 /**
- * Default map look-ahead (metres): the camera aims this far ahead of the current
- * position along the heading, so the location marker sits low in the frame (near
- * the speed overlay) with the road ahead visible. Larger = marker lower.
+ * Default location-marker vertical position (0..100): 0 centres the marker in the
+ * map, 100 drops it just above the speed overlay. The camera is shifted so the
+ * marker lands at the chosen height.
  */
-internal const val DEFAULT_MAP_LOOKAHEAD_M = 180
+internal const val DEFAULT_MAP_MARKER_POS = 70
 
 /**
  * User display settings that override the locale / system defaults. Every value
@@ -98,9 +98,9 @@ internal data class DisplaySettings(
     // blurrier but renders faster (a smaller bitmap to upscale).
     val mapRenderPercent: Int,
     val mapRenderMode: MapRenderMode,
-    // Camera look-ahead (metres): how far ahead of the current position the camera
-    // aims, which sets how low the location marker sits (closer to the speed panel).
-    val mapLookAheadM: Int,
+    // Location-marker vertical position (0..100): 0 = map centre, 100 = just above
+    // the speed overlay. Applied to both backends.
+    val mapMarkerPos: Int,
     // Live-map (WebGL) feature toggles. Both default off; they apply to the LIVE
     // backends only (SNAPSHOT's native GL cannot extrude/relief safely). 3D buildings
     // extrude the OpenMapTiles building layer; terrain adds raster-DEM relief.
@@ -128,7 +128,7 @@ internal data class DisplaySettings(
                 mapZoom = DEFAULT_MAP_ZOOM,
                 mapRenderPercent = DEFAULT_MAP_RENDER_PERCENT,
                 mapRenderMode = MapRenderMode.SNAPSHOT,
-                mapLookAheadM = DEFAULT_MAP_LOOKAHEAD_M,
+                mapMarkerPos = DEFAULT_MAP_MARKER_POS,
                 map3dBuildings = false,
                 mapTerrain = false,
                 showCalendar = true,
@@ -172,7 +172,7 @@ internal interface DisplaySettingsStore {
 
     suspend fun setMapRenderMode(value: MapRenderMode)
 
-    suspend fun setMapLookAhead(value: Int)
+    suspend fun setMapMarkerPos(value: Int)
 
     suspend fun setMap3dBuildings(value: Boolean)
 
@@ -210,7 +210,7 @@ internal class DisplayPreferences(
                 mapZoom = prefs[MAP_ZOOM_KEY] ?: DEFAULT_MAP_ZOOM,
                 mapRenderPercent = prefs[MAP_QUALITY_KEY] ?: DEFAULT_MAP_RENDER_PERCENT,
                 mapRenderMode = prefs[MAP_RENDER_MODE_KEY].toMapRenderModeOr(MapRenderMode.SNAPSHOT),
-                mapLookAheadM = prefs[MAP_LOOKAHEAD_KEY] ?: DEFAULT_MAP_LOOKAHEAD_M,
+                mapMarkerPos = prefs[MAP_MARKER_POS_KEY] ?: DEFAULT_MAP_MARKER_POS,
                 map3dBuildings = prefs[MAP_3D_BUILDINGS_KEY] ?: false,
                 mapTerrain = prefs[MAP_TERRAIN_KEY] ?: false,
                 showCalendar = prefs[SHOW_CALENDAR_KEY] ?: true,
@@ -269,8 +269,8 @@ internal class DisplayPreferences(
         context.displayDataStore.edit { it[MAP_RENDER_MODE_KEY] = value.name }
     }
 
-    override suspend fun setMapLookAhead(value: Int) {
-        context.displayDataStore.edit { it[MAP_LOOKAHEAD_KEY] = value }
+    override suspend fun setMapMarkerPos(value: Int) {
+        context.displayDataStore.edit { it[MAP_MARKER_POS_KEY] = value }
     }
 
     override suspend fun setMap3dBuildings(value: Boolean) {
@@ -306,7 +306,7 @@ internal class DisplayPreferences(
         val MAP_ZOOM_KEY = intPreferencesKey("map_zoom")
         val MAP_QUALITY_KEY = intPreferencesKey("map_render_percent")
         val MAP_RENDER_MODE_KEY = stringPreferencesKey("map_render_mode")
-        val MAP_LOOKAHEAD_KEY = intPreferencesKey("map_look_ahead_m")
+        val MAP_MARKER_POS_KEY = intPreferencesKey("map_marker_pos")
         val MAP_3D_BUILDINGS_KEY = booleanPreferencesKey("map_3d_buildings")
         val MAP_TERRAIN_KEY = booleanPreferencesKey("map_terrain")
         val SHOW_CALENDAR_KEY = booleanPreferencesKey("show_calendar")

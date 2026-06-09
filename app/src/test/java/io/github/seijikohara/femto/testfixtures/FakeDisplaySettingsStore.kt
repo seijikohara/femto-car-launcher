@@ -52,7 +52,7 @@ internal class FakeDisplaySettingsStore(
 
     override suspend fun setMapRenderMode(value: MapRenderMode) = state.update { it.copy(mapRenderMode = value) }
 
-    override suspend fun setMapLookAhead(value: Int) = state.update { it.copy(mapLookAheadM = value) }
+    override suspend fun setMapMarkerPos(value: Int) = state.update { it.copy(mapMarkerPos = value) }
 
     override suspend fun setMap3dBuildings(value: Boolean) = state.update { it.copy(map3dBuildings = value) }
 

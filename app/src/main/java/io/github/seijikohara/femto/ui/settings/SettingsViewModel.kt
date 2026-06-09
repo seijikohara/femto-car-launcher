@@ -33,7 +33,7 @@ internal class SettingsViewModel(
                 mapZoom = display.mapZoom,
                 mapRenderPercent = display.mapRenderPercent,
                 mapRenderMode = display.mapRenderMode,
-                mapLookAheadM = display.mapLookAheadM,
+                mapMarkerPos = display.mapMarkerPos,
                 map3dBuildings = display.map3dBuildings,
                 mapTerrain = display.mapTerrain,
                 showCalendar = display.showCalendar,
@@ -59,7 +59,7 @@ internal class SettingsViewModel(
                 is SettingsAction.SetMapZoom -> displayPreferences.setMapZoom(action.value)
                 is SettingsAction.SetMapRenderPercent -> displayPreferences.setMapRenderPercent(action.value)
                 is SettingsAction.SetMapRenderMode -> displayPreferences.setMapRenderMode(action.value)
-                is SettingsAction.SetMapLookAhead -> displayPreferences.setMapLookAhead(action.value)
+                is SettingsAction.SetMapMarkerPos -> displayPreferences.setMapMarkerPos(action.value)
                 is SettingsAction.SetMap3dBuildings -> displayPreferences.setMap3dBuildings(action.value)
                 is SettingsAction.SetMapTerrain -> displayPreferences.setMapTerrain(action.value)
                 is SettingsAction.SetShowCalendar -> displayPreferences.setShowCalendar(action.value)
