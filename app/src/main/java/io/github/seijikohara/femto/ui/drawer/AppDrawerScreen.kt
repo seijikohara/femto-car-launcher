@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +25,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,6 +44,8 @@ import com.composables.icons.lucide.LayoutList
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Pin
 import com.composables.icons.lucide.PinOff
+import com.composables.icons.lucide.Search
+import com.composables.icons.lucide.X
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.AppEntry
 import io.github.seijikohara.femto.data.DrawerLayout
@@ -51,9 +55,12 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
-private val MinTileWidth = 96.dp
+// 120 dp (up from 96) yields ~5 columns on the 853 dp-wide reference head unit,
+// giving each tile room for a 64 dp icon plus its label without crowding.
+private val MinTileWidth = 120.dp
 
 internal const val APP_DRAWER_PROGRESS_TEST_TAG = "app-drawer-progress"
+internal const val APP_DRAWER_SEARCH_TEST_TAG = "app-drawer-search"
 
 @Composable
 internal fun AppDrawerScreen(
@@ -107,29 +114,71 @@ private fun ContentState(
     onToggleLayout: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier.fillMaxSize()) {
-    LayoutToggleBar(layout = layout, onToggleLayout = onToggleLayout)
+    var query by remember { mutableStateOf("") }
+    DrawerTopBar(
+        query = query,
+        onQueryChange = { query = it },
+        layout = layout,
+        onToggleLayout = onToggleLayout,
+    )
     if (apps.isEmpty()) {
         CenteredMessage(text = stringResource(R.string.drawer_no_apps))
         return@Column
     }
+    // Filter by the search query (label substring, case-insensitive); an empty query
+    // shows everything.
+    val trimmed = query.trim()
+    val matched =
+        if (trimmed.isEmpty()) {
+            apps
+        } else {
+            apps.filter { it.label.contains(trimmed, ignoreCase = true) }
+        }
+    if (matched.isEmpty()) {
+        CenteredMessage(text = stringResource(R.string.drawer_no_matches))
+        return@Column
+    }
     // Split into the pinned section and the rest (both keep the shared label sort).
-    val pinnedApps = apps.filter { it.componentName.flattenToString() in pinned }
-    val otherApps = apps.filterNot { it.componentName.flattenToString() in pinned }
+    val pinnedApps = matched.filter { it.componentName.flattenToString() in pinned }
+    val otherApps = matched.filterNot { it.componentName.flattenToString() in pinned }
     when (layout) {
         DrawerLayout.GRID -> GridApps(pinnedApps, otherApps, onLaunch, onTogglePin)
         DrawerLayout.LIST -> ListApps(pinnedApps, otherApps, onLaunch, onTogglePin)
     }
 }
 
+// Search field + layout toggle. Filtering by app name is the main usability win on a
+// head unit with a long app list; the layout toggle stays at the trailing edge.
 @Composable
-private fun LayoutToggleBar(
+private fun DrawerTopBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
     layout: DrawerLayout,
     onToggleLayout: () -> Unit,
     modifier: Modifier = Modifier,
-) = Box(
+) = Row(
     modifier = modifier.fillMaxWidth().padding(horizontal = FemtoDimens.ScreenPadding, vertical = 4.dp),
-    contentAlignment = Alignment.CenterEnd,
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
 ) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier.weight(1f).testTag(APP_DRAWER_SEARCH_TEST_TAG),
+        textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = FemtoDimens.MinBodyTextSize),
+        placeholder = {
+            Text(text = stringResource(R.string.drawer_search_hint), fontSize = FemtoDimens.MinBodyTextSize)
+        },
+        leadingIcon = { Icon(imageVector = Lucide.Search, contentDescription = null) },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(imageVector = Lucide.X, contentDescription = stringResource(R.string.drawer_search_clear))
+                }
+            }
+        },
+        singleLine = true,
+    )
     // The icon shows the layout the tap switches TO.
     IconButton(onClick = onToggleLayout, modifier = Modifier.size(FemtoDimens.MinTouchTarget)) {
         Icon(

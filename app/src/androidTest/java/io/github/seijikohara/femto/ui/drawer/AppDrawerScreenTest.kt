@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import io.github.seijikohara.femto.data.DrawerLayout
 import io.github.seijikohara.femto.testfixtures.fakeAppEntry
@@ -119,6 +120,48 @@ class AppDrawerScreenTest {
             }
         }
         rule.onNodeWithText("No apps installed").assertIsDisplayed()
+    }
+
+    @Test
+    fun search_filters_apps_by_label() {
+        val maps = fakeAppEntry(packageName = "com.maps", className = ".Main", label = "Maps")
+        val music = fakeAppEntry(packageName = "com.music", className = ".Main", label = "Music")
+        rule.setContent {
+            FemtoTheme {
+                AppDrawerScreen(
+                    uiState = AppDrawerUiState.Content(listOf(maps, music)),
+                    layout = DrawerLayout.LIST,
+                    pinned = emptySet(),
+                    onLaunch = {},
+                    onTogglePin = {},
+                    onToggleLayout = {},
+                    onRetry = {},
+                )
+            }
+        }
+        rule.onNodeWithTag(APP_DRAWER_SEARCH_TEST_TAG).performTextInput("mu")
+        rule.onNodeWithText("Music").assertIsDisplayed()
+        rule.onNodeWithText("Maps").assertDoesNotExist()
+    }
+
+    @Test
+    fun search_with_no_match_shows_no_matches_message() {
+        val maps = fakeAppEntry(packageName = "com.maps", className = ".Main", label = "Maps")
+        rule.setContent {
+            FemtoTheme {
+                AppDrawerScreen(
+                    uiState = AppDrawerUiState.Content(listOf(maps)),
+                    layout = DrawerLayout.LIST,
+                    pinned = emptySet(),
+                    onLaunch = {},
+                    onTogglePin = {},
+                    onToggleLayout = {},
+                    onRetry = {},
+                )
+            }
+        }
+        rule.onNodeWithTag(APP_DRAWER_SEARCH_TEST_TAG).performTextInput("zzz")
+        rule.onNodeWithText("No apps match your search").assertIsDisplayed()
     }
 
     @Test
