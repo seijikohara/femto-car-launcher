@@ -12,13 +12,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.seijikohara.femto.data.AppsRepository
+import io.github.seijikohara.femto.data.DrawerLayout
+import io.github.seijikohara.femto.data.DrawerPreferences
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import kotlinx.coroutines.launch
 
 /**
  * App drawer presented as a Material 3 [ModalBottomSheet] over the dashboard.
@@ -57,6 +62,13 @@ internal fun AppDrawerSheet(
             .onSuccess { apps -> uiState = AppDrawerUiState.Content(apps) }
             .onFailure { uiState = AppDrawerUiState.Error }
     }
+
+    // Drawer layout + pinned apps are persisted; collect them and write changes back.
+    val drawerPreferences = remember { DrawerPreferences(context) }
+    val layout by drawerPreferences.layout.collectAsStateWithLifecycle(initialValue = DrawerLayout.GRID)
+    val pinned by drawerPreferences.pinned.collectAsStateWithLifecycle(initialValue = emptySet())
+    val scope = rememberCoroutineScope()
+
     val sheetHeight = (LocalConfiguration.current.screenHeightDp * FemtoDimens.DrawerSheetHeightFraction).dp
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -70,7 +82,19 @@ internal fun AppDrawerSheet(
         ) {
             AppDrawerScreen(
                 uiState = uiState,
+                layout = layout,
+                pinned = pinned,
                 onLaunch = onLaunch,
+                onTogglePin = { component ->
+                    scope.launch { drawerPreferences.togglePinned(component.flattenToString()) }
+                },
+                onToggleLayout = {
+                    scope.launch {
+                        drawerPreferences.setLayout(
+                            if (layout == DrawerLayout.GRID) DrawerLayout.LIST else DrawerLayout.GRID,
+                        )
+                    }
+                },
                 onRetry = { retryKey++ },
             )
         }

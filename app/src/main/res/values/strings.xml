@@ -74,6 +74,12 @@
     <string name="drawer_no_apps">No apps installed</string>
     <string name="drawer_load_error">Couldn\'t load apps</string>
     <string name="drawer_retry">Retry</string>
+    <string name="drawer_layout_grid">Grid layout</string>
+    <string name="drawer_layout_list">List layout</string>
+    <string name="drawer_section_pinned">Pinned</string>
+    <string name="drawer_section_apps">Apps</string>
+    <string name="drawer_pin">Pin</string>
+    <string name="drawer_unpin">Unpin</string>
 
     <!-- Assistant sheet -->
     <string name="assistant_sheet_title">Voice assistant</string>
