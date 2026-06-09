@@ -21,9 +21,6 @@ object FemtoDimens {
     /** Spacing between tiles in a launcher grid. */
     val GridGutter = 16.dp
 
-    /** Default card elevation. Bold Minimal keeps surfaces flat. */
-    val CardElevation = 0.dp
-
     /** Hero-block icon size for dashboard cards (e.g., the weather summary). */
     val HeroIconSize = 36.dp
 

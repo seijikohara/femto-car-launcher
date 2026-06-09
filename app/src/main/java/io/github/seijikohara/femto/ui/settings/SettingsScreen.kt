@@ -351,7 +351,6 @@ private fun SettingsSection(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainer,
-        tonalElevation = FemtoDimens.CardElevation,
     ) {
         Column(content = content)
     }

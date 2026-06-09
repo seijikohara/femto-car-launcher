@@ -56,7 +56,6 @@ internal fun CalendarCard(
     modifier = modifier,
     shape = MaterialTheme.shapes.large,
     color = MaterialTheme.colorScheme.surfaceContainer,
-    tonalElevation = FemtoDimens.CardElevation,
 ) {
     when {
         // null is the loading frame: render nothing rather than a denial the
