@@ -88,6 +88,9 @@ object FemtoDimens {
     /** Weather glyph beside the city name in the weather card head row. */
     val WeatherGlyphLarge = 20.dp
 
+    /** Hero weather glyph in the head row, sized to balance the big temperature. */
+    val WeatherGlyphHero = 56.dp
+
     /** Weather glyph inside the 3-hour forecast chips. */
     val WeatherGlyphSmall = 18.dp
 

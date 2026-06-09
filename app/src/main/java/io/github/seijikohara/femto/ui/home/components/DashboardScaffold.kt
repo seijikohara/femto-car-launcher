@@ -245,7 +245,6 @@ private fun InfoPane(
             if (panels.weather) {
                 WeatherCard(
                     snapshot = uiState.weather,
-                    city = uiState.address?.locality,
                     temperatureUnit = temperatureUnit,
                     speedUnit = speedUnit,
                     modifier = Modifier.weight(1f).fillMaxHeight(),
