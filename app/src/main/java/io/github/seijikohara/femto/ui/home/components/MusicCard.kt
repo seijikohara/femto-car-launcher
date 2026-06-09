@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,6 +39,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,12 +47,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.Disc
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Pause
 import com.composables.icons.lucide.Play
 import com.composables.icons.lucide.SkipBack
 import com.composables.icons.lucide.SkipForward
+import com.composables.icons.lucide.User
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.data.NowPlaying
@@ -142,6 +146,7 @@ private fun PlayingState(
                     sourceIcon = nowPlaying.sourceIcon,
                     title = nowPlaying.title,
                     artist = nowPlaying.artist,
+                    album = nowPlaying.album,
                 )
                 Progress(
                     positionMs = nowPlaying.positionMs,
@@ -214,63 +219,110 @@ private fun Meta(
     sourceIcon: ImageBitmap?,
     title: String,
     artist: String?,
+    album: String?,
     modifier: Modifier = Modifier,
-) = Column(
-    modifier = modifier.fillMaxWidth(),
-    horizontalAlignment = Alignment.Start,
-    verticalArrangement = Arrangement.spacedBy(2.dp),
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        // The source app's own icon precedes its name; fall back to a generic music
-        // glyph when the icon could not be resolved (rare).
-        if (sourceIcon != null) {
-            Image(
-                bitmap = sourceIcon,
-                contentDescription = null,
-                modifier = Modifier.size(14.dp).clip(RoundedCornerShape(4.dp)),
-            )
-        } else {
-            Icon(
-                imageVector = Lucide.Music,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(12.dp),
-            )
-        }
-        Text(
-            text = source.uppercase(),
-            style = MaterialTheme.typography.sectionLabel(10, 0.16f),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-        )
-    }
-    Text(
-        text = title,
-        style =
-            MaterialTheme.typography.titleLarge.copy(
+    // Title, artist and album styles derive from the M3 type roles once and are
+    // remembered so a track-change recomposition doesn't reallocate them.
+    val typography = MaterialTheme.typography
+    val titleStyle =
+        remember(typography) {
+            typography.titleLarge.copy(
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = (-0.02f).em,
                 lineHeight = 23.sp,
-            ),
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
-    Text(
-        // Radio / stream tracks often carry no artist; show an em dash so the line
-        // height stays stable rather than the title jumping down.
-        text = artist?.takeUnless { it.isBlank() } ?: "—",
-        style =
-            MaterialTheme.typography.bodyMedium.copy(
+            )
+        }
+    val secondaryStyle =
+        remember(typography) {
+            typography.bodyMedium.copy(
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 lineHeight = 16.sp,
-            ),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.Start,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            // The source app's own icon precedes its name; fall back to a generic
+            // music glyph when the icon could not be resolved (rare).
+            if (sourceIcon != null) {
+                Image(
+                    bitmap = sourceIcon,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp).clip(RoundedCornerShape(4.dp)),
+                )
+            } else {
+                Icon(
+                    imageVector = Lucide.Music,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(12.dp),
+                )
+            }
+            Text(
+                text = source.uppercase(),
+                style = MaterialTheme.typography.sectionLabel(10, 0.16f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
+        MetaLine(
+            icon = Lucide.Music,
+            text = title,
+            style = titleStyle,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        MetaLine(
+            icon = Lucide.User,
+            // Radio / stream tracks often carry no artist; show an em dash so the
+            // line height stays stable rather than the title jumping down.
+            text = artist?.takeUnless { it.isBlank() } ?: "—",
+            style = secondaryStyle,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        // Album is absent for many radio / stream sessions; drop the whole line
+        // rather than show a placeholder, so the block stays compact without it.
+        if (!album.isNullOrBlank()) {
+            MetaLine(
+                icon = Lucide.Disc,
+                text = album,
+                style = secondaryStyle,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MetaLine(
+    icon: ImageVector,
+    text: String,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier,
+) = Row(
+    modifier = modifier,
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(6.dp),
+) {
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = color,
+        modifier = Modifier.size(14.dp),
+    )
+    Text(
+        text = text,
+        style = style,
+        color = color,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
@@ -542,6 +594,7 @@ private fun MusicCardPlayingPreview() {
                         NowPlaying(
                             title = "Sunset Lover",
                             artist = "Petit Biscuit",
+                            album = "Petit Biscuit",
                             albumArt = null,
                             isPlaying = true,
                             positionMs = 98_000,
