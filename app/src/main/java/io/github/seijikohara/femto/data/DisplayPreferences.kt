@@ -203,6 +203,9 @@ internal interface DisplaySettingsStore {
     suspend fun setShowWeather(value: Boolean)
 
     suspend fun setShowMusic(value: Boolean)
+
+    /** Restore every display setting to [DisplaySettings.Default]. */
+    suspend fun resetToDefaults()
 }
 
 /**
@@ -321,6 +324,13 @@ internal class DisplayPreferences(
 
     override suspend fun setShowMusic(value: Boolean) {
         context.displayDataStore.edit { it[SHOW_MUSIC_KEY] = value }
+    }
+
+    // Clearing every key makes the read path above fall back to its per-field
+    // defaults, which are kept identical to DisplaySettings.Default — so a reset
+    // restores the defaults without duplicating the default literals here.
+    override suspend fun resetToDefaults() {
+        context.displayDataStore.edit { it.clear() }
     }
 
     private companion object {

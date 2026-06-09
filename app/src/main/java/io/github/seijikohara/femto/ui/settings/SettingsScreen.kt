@@ -49,6 +49,7 @@ import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.RotateCcw
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.ClockSetting
@@ -296,6 +297,7 @@ internal fun SettingsScreen(
                 title = stringResource(R.string.settings_open_system_settings),
                 onClick = onOpenSystemSettings,
             )
+            ResetRow(onConfirm = { onAction(SettingsAction.ResetToDefaults) })
         }
     }
 }
@@ -591,6 +593,52 @@ private fun ActionRow(
 ) {
     TrailingIcon(Lucide.ExternalLink)
 }
+
+// A destructive row: resetting every setting to its default. Tapping opens a
+// confirm dialog — the only destructive action in Settings — so a stray tap on
+// the head unit never wipes the user's configuration.
+@Composable
+private fun ResetRow(
+    onConfirm: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var dialogOpen by remember { mutableStateOf(false) }
+    SettingRow(
+        title = stringResource(R.string.settings_reset_to_defaults),
+        modifier = modifier.clickable { dialogOpen = true },
+    ) {
+        TrailingIcon(Lucide.RotateCcw)
+    }
+    if (dialogOpen) {
+        ResetConfirmDialog(
+            onConfirm = {
+                onConfirm()
+                dialogOpen = false
+            },
+            onDismiss = { dialogOpen = false },
+        )
+    }
+}
+
+@Composable
+private fun ResetConfirmDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) = AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(text = stringResource(R.string.settings_reset_confirm_title)) },
+    text = { Text(text = stringResource(R.string.settings_reset_confirm_message)) },
+    confirmButton = {
+        TextButton(onClick = onConfirm) {
+            Text(text = stringResource(R.string.settings_reset_confirm))
+        }
+    },
+    dismissButton = {
+        TextButton(onClick = onDismiss) {
+            Text(text = stringResource(R.string.settings_cancel))
+        }
+    },
+)
 
 // Shared row scaffold: a tap target ≥ MinTouchTarget with a title, optional
 // summary, and a trailing slot. The caller supplies the interaction (clickable /

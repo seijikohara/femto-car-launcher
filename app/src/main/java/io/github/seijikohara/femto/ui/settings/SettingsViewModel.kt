@@ -49,27 +49,94 @@ internal class SettingsViewModel(
         // Each branch is a single suspending write; launch once and dispatch.
         viewModelScope.launch {
             when (action) {
-                is SettingsAction.SetThemeMode -> displayPreferences.setThemeMode(action.value)
-                is SettingsAction.SetAccentColor -> displayPreferences.setAccentColor(action.value)
-                is SettingsAction.SetSpeedUnit -> displayPreferences.setSpeedUnit(action.value)
-                is SettingsAction.SetTemperatureUnit -> displayPreferences.setTemperatureUnit(action.value)
-                is SettingsAction.SetClock -> displayPreferences.setClock(action.value)
-                is SettingsAction.SetShowClockSeconds -> displayPreferences.setShowClockSeconds(action.value)
-                is SettingsAction.SetFullscreen -> displayPreferences.setFullscreen(action.value)
-                is SettingsAction.SetMapStyle -> displayPreferences.setMapStyle(action.value)
-                is SettingsAction.SetMapSchemeLight -> displayPreferences.setMapSchemeLight(action.value)
-                is SettingsAction.SetMapSchemeDark -> displayPreferences.setMapSchemeDark(action.value)
-                is SettingsAction.SetMapTilt -> displayPreferences.setMapTilt(action.value)
-                is SettingsAction.SetMapZoom -> displayPreferences.setMapZoom(action.value)
-                is SettingsAction.SetMapRenderPercent -> displayPreferences.setMapRenderPercent(action.value)
-                is SettingsAction.SetMapRenderMode -> displayPreferences.setMapRenderMode(action.value)
-                is SettingsAction.SetMapMarkerPos -> displayPreferences.setMapMarkerPos(action.value)
-                is SettingsAction.SetMap3dBuildings -> displayPreferences.setMap3dBuildings(action.value)
-                is SettingsAction.SetMapTerrain -> displayPreferences.setMapTerrain(action.value)
-                is SettingsAction.SetShowCalendar -> displayPreferences.setShowCalendar(action.value)
-                is SettingsAction.SetShowWeather -> displayPreferences.setShowWeather(action.value)
-                is SettingsAction.SetShowMusic -> displayPreferences.setShowMusic(action.value)
-                is SettingsAction.SetFontTheme -> fontPreferences.setFontTheme(action.value)
+                is SettingsAction.SetThemeMode -> {
+                    displayPreferences.setThemeMode(action.value)
+                }
+
+                is SettingsAction.SetAccentColor -> {
+                    displayPreferences.setAccentColor(action.value)
+                }
+
+                is SettingsAction.SetSpeedUnit -> {
+                    displayPreferences.setSpeedUnit(action.value)
+                }
+
+                is SettingsAction.SetTemperatureUnit -> {
+                    displayPreferences.setTemperatureUnit(action.value)
+                }
+
+                is SettingsAction.SetClock -> {
+                    displayPreferences.setClock(action.value)
+                }
+
+                is SettingsAction.SetShowClockSeconds -> {
+                    displayPreferences.setShowClockSeconds(action.value)
+                }
+
+                is SettingsAction.SetFullscreen -> {
+                    displayPreferences.setFullscreen(action.value)
+                }
+
+                is SettingsAction.SetMapStyle -> {
+                    displayPreferences.setMapStyle(action.value)
+                }
+
+                is SettingsAction.SetMapSchemeLight -> {
+                    displayPreferences.setMapSchemeLight(action.value)
+                }
+
+                is SettingsAction.SetMapSchemeDark -> {
+                    displayPreferences.setMapSchemeDark(action.value)
+                }
+
+                is SettingsAction.SetMapTilt -> {
+                    displayPreferences.setMapTilt(action.value)
+                }
+
+                is SettingsAction.SetMapZoom -> {
+                    displayPreferences.setMapZoom(action.value)
+                }
+
+                is SettingsAction.SetMapRenderPercent -> {
+                    displayPreferences.setMapRenderPercent(action.value)
+                }
+
+                is SettingsAction.SetMapRenderMode -> {
+                    displayPreferences.setMapRenderMode(action.value)
+                }
+
+                is SettingsAction.SetMapMarkerPos -> {
+                    displayPreferences.setMapMarkerPos(action.value)
+                }
+
+                is SettingsAction.SetMap3dBuildings -> {
+                    displayPreferences.setMap3dBuildings(action.value)
+                }
+
+                is SettingsAction.SetMapTerrain -> {
+                    displayPreferences.setMapTerrain(action.value)
+                }
+
+                is SettingsAction.SetShowCalendar -> {
+                    displayPreferences.setShowCalendar(action.value)
+                }
+
+                is SettingsAction.SetShowWeather -> {
+                    displayPreferences.setShowWeather(action.value)
+                }
+
+                is SettingsAction.SetShowMusic -> {
+                    displayPreferences.setShowMusic(action.value)
+                }
+
+                is SettingsAction.SetFontTheme -> {
+                    fontPreferences.setFontTheme(action.value)
+                }
+
+                is SettingsAction.ResetToDefaults -> {
+                    displayPreferences.resetToDefaults()
+                    fontPreferences.resetToDefaults()
+                }
             }
         }
     }
