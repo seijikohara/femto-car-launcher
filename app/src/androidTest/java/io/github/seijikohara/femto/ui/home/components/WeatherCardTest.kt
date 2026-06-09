@@ -74,9 +74,11 @@ class WeatherCardTest {
                 )
             }
         }
-        rule.onNodeWithText("FEELS").assertIsDisplayed()
-        rule.onNodeWithText("WIND").assertIsDisplayed()
-        rule.onNodeWithText("HUMID.").assertIsDisplayed()
+        // Each metric is now a Lucide glyph; its text label survives as the icon's
+        // content description for TalkBack.
+        rule.onNodeWithContentDescription("FEELS").assertIsDisplayed()
+        rule.onNodeWithContentDescription("WIND").assertIsDisplayed()
+        rule.onNodeWithContentDescription("HUMID.").assertIsDisplayed()
     }
 
     @Test

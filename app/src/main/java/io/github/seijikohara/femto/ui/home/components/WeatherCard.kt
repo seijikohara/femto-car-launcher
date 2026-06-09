@@ -185,24 +185,17 @@ private fun Metric(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
-) = Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(11.dp),
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.sectionLabel(10, 0.1f),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-        )
-    }
+) = Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+    // The Lucide glyph stands in for the metric label (thermometer = feels-like,
+    // wind, droplet = humidity); the text label moves to the icon's content
+    // description so the value keeps the full column width and never clips on the
+    // narrow head-unit card.
+    Icon(
+        imageVector = icon,
+        contentDescription = label,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(16.dp),
+    )
     Text(
         text = value,
         style =
