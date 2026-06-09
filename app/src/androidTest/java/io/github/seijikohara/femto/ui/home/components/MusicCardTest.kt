@@ -51,7 +51,7 @@ class MusicCardTest {
     }
 
     @Test
-    fun tapping_source_icon_dispatches_launch_with_the_source_package() {
+    fun tapping_the_card_dispatches_launch_with_the_source_package() {
         var launched: String? = null
         rule.setContent {
             FemtoTheme {
@@ -63,10 +63,30 @@ class MusicCardTest {
                 )
             }
         }
-        // The fixture's package (com.spotify.music) resolves to the "Spotify"
-        // source label, so the open-app button is described "Open Spotify".
-        rule.onNodeWithContentDescription("Open Spotify").assertIsDisplayed().performClick()
+        // The whole card (outside the transport controls) opens the source app.
+        // Tapping the title — a non-interactive child — reaches the card's clickable.
+        rule.onNodeWithText("Strobe").performClick()
         assertEquals("com.spotify.music", launched)
+    }
+
+    @Test
+    fun tapping_a_transport_control_does_not_launch_the_source() {
+        var launched: String? = null
+        var command: MusicCommand? = null
+        rule.setContent {
+            FemtoTheme {
+                MusicCard(
+                    state = MusicCardState.Playing(fakeNowPlaying()),
+                    onCommand = { command = it },
+                    onConnect = {},
+                    onLaunchSource = { launched = it },
+                )
+            }
+        }
+        // The transport button consumes its tap, so the card-wide launch must not fire.
+        rule.onNodeWithContentDescription("Play / pause").performClick()
+        assertEquals(MusicCommand.PlayPause, command)
+        assertEquals(null, launched)
     }
 
     @Test
