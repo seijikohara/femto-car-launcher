@@ -5,6 +5,7 @@ import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.DisplaySettings
 import io.github.seijikohara.femto.data.DisplaySettingsStore
 import io.github.seijikohara.femto.data.FullscreenSetting
+import io.github.seijikohara.femto.data.MapColorScheme
 import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.data.MapStyleSetting
 import io.github.seijikohara.femto.data.SpeedUnitSetting
@@ -43,6 +44,10 @@ internal class FakeDisplaySettingsStore(
     override suspend fun setFullscreen(value: FullscreenSetting) = state.update { it.copy(fullscreen = value) }
 
     override suspend fun setMapStyle(value: MapStyleSetting) = state.update { it.copy(mapStyle = value) }
+
+    override suspend fun setMapSchemeLight(value: MapColorScheme) = state.update { it.copy(mapSchemeLight = value) }
+
+    override suspend fun setMapSchemeDark(value: MapColorScheme) = state.update { it.copy(mapSchemeDark = value) }
 
     override suspend fun setMapTilt(value: Int) = state.update { it.copy(mapTiltDeg = value) }
 

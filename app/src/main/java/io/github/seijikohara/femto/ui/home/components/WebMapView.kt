@@ -17,8 +17,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
@@ -114,6 +112,12 @@ internal fun WebMapView(
     // the SNAPSHOT marker and the user's accent.
     val markerColor = MaterialTheme.colorScheme.primary.toCssHex()
 
+    // Resolve the colour scheme for the active light/dark context. ACCENT recolours
+    // the bundled base with these Material colours (in map.html's transformStyle);
+    // the others are plain hosted / bundled styles.
+    val styleRef = mapStyleRefFor(if (isDark) mapConfig.schemeDark else mapConfig.schemeLight, isDark)
+    val accentColors = accentMapColors()
+
     // Each effect keys on [pageReady] (so it fires once the page is ready), then
     // pushes the current state to the page.
     LaunchedEffect(
@@ -134,10 +138,22 @@ internal fun WebMapView(
             null,
         )
     }
-    LaunchedEffect(pageReady.value, isDark) {
+    LaunchedEffect(pageReady.value, styleRef, accentColors) {
         if (!pageReady.value) return@LaunchedEffect
-        val style = if (isDark) DARK_STYLE_URL else POSITRON_STYLE_URL
-        webView.evaluateJavascript("window.setStyleUrl && setStyleUrl('$style')", null)
+        // Resolve the scheme to a URL the WebView can load (hosted, or the bundled
+        // base served over appassets) plus the accent palette (empty = no recolor).
+        val url =
+            when (styleRef) {
+                is MapStyleRef.Hosted -> styleRef.url
+                is MapStyleRef.Bundled -> appAssetsUrl(styleRef.asset)
+                is MapStyleRef.Accent -> appAssetsUrl(styleRef.baseAsset)
+            }
+        val accent = (styleRef as? MapStyleRef.Accent)?.let { accentColors }
+        webView.evaluateJavascript(
+            "window.setStyleUrl && setStyleUrl('$url', " +
+                "'${accent?.background ?: ""}', '${accent?.water ?: ""}', '${accent?.land ?: ""}')",
+            null,
+        )
     }
     // LIVE-only feature toggles (3D buildings / terrain). The page merges them into
     // the style via MapLibre transformStyle, so this re-applies the style.
@@ -192,9 +208,6 @@ internal fun WebMapView(
     }
 }
 
-// Dark map served via WebViewAssetLoader from the bundled dark style (shares the
-// OpenFreeMap sources); light uses the hosted positron style ([POSITRON_STYLE_URL]).
-private const val DARK_STYLE_URL = "https://appassets.androidplatform.net/assets/map/dark.json"
-
-// "#rrggbb" for CSS, dropping the alpha (the marker SVG fill is opaque).
-private fun Color.toCssHex(): String = "#%06X".format(0xFFFFFF and toArgb())
+// A bundled asset served to the WebView over the WebViewAssetLoader https origin so
+// MapLibre's tile Worker can fetch it (and the asset's OpenFreeMap sources) cross-origin.
+private fun appAssetsUrl(asset: String): String = "https://appassets.androidplatform.net/assets/$asset"

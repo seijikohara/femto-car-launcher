@@ -53,6 +53,7 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.FullscreenSetting
+import io.github.seijikohara.femto.data.MapColorScheme
 import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.data.MapStyleSetting
 import io.github.seijikohara.femto.data.SpeedUnitSetting
@@ -189,6 +190,32 @@ internal fun SettingsScreen(
                     ),
                 selected = uiState.mapStyle,
                 onSelect = { onAction(SettingsAction.SetMapStyle(it)) },
+            )
+            // Independent colour schemes for the light and dark contexts. ACCENT is
+            // the adaptive accent-tinted default; the rest are fixed OpenFreeMap styles.
+            ChoiceRow(
+                title = stringResource(R.string.settings_group_map_scheme_light),
+                options =
+                    listOf(
+                        MapColorScheme.ACCENT to stringResource(R.string.settings_map_scheme_accent),
+                        MapColorScheme.POSITRON to stringResource(R.string.settings_map_scheme_positron),
+                        MapColorScheme.BRIGHT to stringResource(R.string.settings_map_scheme_bright),
+                        MapColorScheme.LIBERTY to stringResource(R.string.settings_map_scheme_liberty),
+                    ),
+                selected = uiState.mapSchemeLight,
+                onSelect = { onAction(SettingsAction.SetMapSchemeLight(it)) },
+            )
+            ChoiceRow(
+                title = stringResource(R.string.settings_group_map_scheme_dark),
+                options =
+                    listOf(
+                        MapColorScheme.ACCENT to stringResource(R.string.settings_map_scheme_accent),
+                        MapColorScheme.DARK_MATTER to stringResource(R.string.settings_map_scheme_dark_matter),
+                        MapColorScheme.DARK to stringResource(R.string.settings_map_scheme_dark),
+                        MapColorScheme.FIORD to stringResource(R.string.settings_map_scheme_fiord),
+                    ),
+                selected = uiState.mapSchemeDark,
+                onSelect = { onAction(SettingsAction.SetMapSchemeDark(it)) },
             )
             SliderRow(
                 title = stringResource(R.string.settings_group_map_tilt),

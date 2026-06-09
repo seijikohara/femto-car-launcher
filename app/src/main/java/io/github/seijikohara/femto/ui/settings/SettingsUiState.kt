@@ -4,6 +4,7 @@ import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.DisplaySettings
 import io.github.seijikohara.femto.data.FullscreenSetting
+import io.github.seijikohara.femto.data.MapColorScheme
 import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.data.MapStyleSetting
 import io.github.seijikohara.femto.data.SpeedUnitSetting
@@ -21,6 +22,8 @@ internal data class SettingsUiState(
     val showClockSeconds: Boolean,
     val fullscreen: FullscreenSetting,
     val mapStyle: MapStyleSetting,
+    val mapSchemeLight: MapColorScheme,
+    val mapSchemeDark: MapColorScheme,
     val mapTiltDeg: Int,
     val mapZoom: Int,
     val mapRenderPercent: Int,
@@ -46,6 +49,8 @@ internal data class SettingsUiState(
                 showClockSeconds = DisplaySettings.Default.showClockSeconds,
                 fullscreen = DisplaySettings.Default.fullscreen,
                 mapStyle = DisplaySettings.Default.mapStyle,
+                mapSchemeLight = DisplaySettings.Default.mapSchemeLight,
+                mapSchemeDark = DisplaySettings.Default.mapSchemeDark,
                 mapTiltDeg = DisplaySettings.Default.mapTiltDeg,
                 mapZoom = DisplaySettings.Default.mapZoom,
                 mapRenderPercent = DisplaySettings.Default.mapRenderPercent,
@@ -93,6 +98,14 @@ internal sealed interface SettingsAction {
 
     data class SetMapStyle(
         val value: MapStyleSetting,
+    ) : SettingsAction
+
+    data class SetMapSchemeLight(
+        val value: MapColorScheme,
+    ) : SettingsAction
+
+    data class SetMapSchemeDark(
+        val value: MapColorScheme,
     ) : SettingsAction
 
     data class SetMapTilt(

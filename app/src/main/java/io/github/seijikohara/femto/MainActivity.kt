@@ -123,6 +123,8 @@ class MainActivity : ComponentActivity() {
                         mapConfig =
                             MapConfig(
                                 style = display.mapStyle,
+                                schemeLight = display.mapSchemeLight,
+                                schemeDark = display.mapSchemeDark,
                                 tiltDeg = display.mapTiltDeg,
                                 zoom = display.mapZoom,
                                 renderPercent = display.mapRenderPercent,

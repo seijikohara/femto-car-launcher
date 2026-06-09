@@ -42,6 +42,16 @@ internal enum class FullscreenSetting { OFF, ON }
 internal enum class MapStyleSetting { AUTO, LIGHT, DARK }
 
 /**
+ * A map colour scheme. [ACCENT] is the adaptive default: the base style for the
+ * active light/dark context (bundled positron / dark-matter) recoloured with the
+ * app's Material accent. The rest are fixed OpenFreeMap styles — [POSITRON],
+ * [BRIGHT], [LIBERTY] read as light; [DARK_MATTER] (bundled), [DARK], [FIORD] read
+ * as dark. The light and dark schemes are chosen independently (see
+ * [DisplaySettings.mapSchemeLight] / [DisplaySettings.mapSchemeDark]).
+ */
+internal enum class MapColorScheme { ACCENT, POSITRON, BRIGHT, LIBERTY, DARK_MATTER, DARK, FIORD }
+
+/**
  * Map render backend, picked explicitly by the user (no auto-fallback).
  *
  * - [LIVE]: MapLibre GL JS (WebGL) in a hardware-accelerated WebView — smooth,
@@ -92,6 +102,10 @@ internal data class DisplaySettings(
     val showClockSeconds: Boolean,
     val fullscreen: FullscreenSetting,
     val mapStyle: MapStyleSetting,
+    // Independent colour schemes for the light and dark map contexts (which one
+    // applies follows [mapStyle] / the system theme). Both default to ACCENT.
+    val mapSchemeLight: MapColorScheme,
+    val mapSchemeDark: MapColorScheme,
     val mapTiltDeg: Int,
     val mapZoom: Int,
     // Snapshot render resolution as a percent of the panel pixel size; lower is
@@ -124,6 +138,8 @@ internal data class DisplaySettings(
                 showClockSeconds = true,
                 fullscreen = FullscreenSetting.OFF,
                 mapStyle = MapStyleSetting.AUTO,
+                mapSchemeLight = MapColorScheme.ACCENT,
+                mapSchemeDark = MapColorScheme.ACCENT,
                 mapTiltDeg = DEFAULT_MAP_TILT_DEG,
                 mapZoom = DEFAULT_MAP_ZOOM,
                 mapRenderPercent = DEFAULT_MAP_RENDER_PERCENT,
@@ -163,6 +179,10 @@ internal interface DisplaySettingsStore {
     suspend fun setFullscreen(value: FullscreenSetting)
 
     suspend fun setMapStyle(value: MapStyleSetting)
+
+    suspend fun setMapSchemeLight(value: MapColorScheme)
+
+    suspend fun setMapSchemeDark(value: MapColorScheme)
 
     suspend fun setMapTilt(value: Int)
 
@@ -206,6 +226,8 @@ internal class DisplayPreferences(
                 showClockSeconds = prefs[SHOW_CLOCK_SECONDS_KEY] ?: true,
                 fullscreen = prefs[FULLSCREEN_KEY].toEnumOr(FullscreenSetting.OFF),
                 mapStyle = prefs[MAP_STYLE_KEY].toEnumOr(MapStyleSetting.AUTO),
+                mapSchemeLight = prefs[MAP_SCHEME_LIGHT_KEY].toEnumOr(MapColorScheme.ACCENT),
+                mapSchemeDark = prefs[MAP_SCHEME_DARK_KEY].toEnumOr(MapColorScheme.ACCENT),
                 mapTiltDeg = prefs[MAP_TILT_KEY] ?: DEFAULT_MAP_TILT_DEG,
                 mapZoom = prefs[MAP_ZOOM_KEY] ?: DEFAULT_MAP_ZOOM,
                 mapRenderPercent = prefs[MAP_QUALITY_KEY] ?: DEFAULT_MAP_RENDER_PERCENT,
@@ -251,6 +273,14 @@ internal class DisplayPreferences(
 
     override suspend fun setMapStyle(value: MapStyleSetting) {
         context.displayDataStore.edit { it[MAP_STYLE_KEY] = value.name }
+    }
+
+    override suspend fun setMapSchemeLight(value: MapColorScheme) {
+        context.displayDataStore.edit { it[MAP_SCHEME_LIGHT_KEY] = value.name }
+    }
+
+    override suspend fun setMapSchemeDark(value: MapColorScheme) {
+        context.displayDataStore.edit { it[MAP_SCHEME_DARK_KEY] = value.name }
     }
 
     override suspend fun setMapTilt(value: Int) {
@@ -302,6 +332,8 @@ internal class DisplayPreferences(
         val SHOW_CLOCK_SECONDS_KEY = booleanPreferencesKey("show_clock_seconds")
         val FULLSCREEN_KEY = stringPreferencesKey("fullscreen")
         val MAP_STYLE_KEY = stringPreferencesKey("map_style")
+        val MAP_SCHEME_LIGHT_KEY = stringPreferencesKey("map_scheme_light")
+        val MAP_SCHEME_DARK_KEY = stringPreferencesKey("map_scheme_dark")
         val MAP_TILT_KEY = intPreferencesKey("map_tilt_deg")
         val MAP_ZOOM_KEY = intPreferencesKey("map_zoom")
         val MAP_QUALITY_KEY = intPreferencesKey("map_render_percent")

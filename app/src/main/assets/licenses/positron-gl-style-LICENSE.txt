@@ -1,0 +1,31 @@
+Positron GL style (bundled as assets/map/light.json)
+
+Copyright (c) 2024, MapTiler.com & OpenMapTiles contributors.
+Copyright (c) 2015, CartoDB Inc.
+All rights reserved.
+
+Derived from "CartoDB Basemaps" (https://github.com/CartoDB/CartoDB-basemaps)
+designed by Stamen and Paul Norman for CartoDB Inc., licensed under CC-BY 3.0.
+
+The style JSON is the OpenFreeMap "positron" style
+(https://tiles.openfreemap.org/styles/positron), which serves OpenMapTiles vector
+tiles, fonts, and sprites from OpenFreeMap (https://openfreemap.org). Map data ©
+OpenStreetMap contributors.
+
+# Code license: BSD 3-Clause License
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+- Redistributions of source code must retain the above copyright notice, this list
+  of conditions and the following disclaimer.
+- Redistributions in binary form must reproduce the above copyright notice, this
+  list of conditions and the following disclaimer in the documentation and/or other
+  materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
+EXPRESS OR IMPLIED WARRANTIES ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER
+OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+OR CONSEQUENTIAL DAMAGES ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE.
+
+# Data license: CC-BY 4.0 (OpenMapTiles) / ODbL (OpenStreetMap)

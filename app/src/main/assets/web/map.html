@@ -30,12 +30,22 @@
       var MAPTERHORN_DEM_URL = "https://tiles.mapterhorn.com/tilejson.json";
       var featureState = { buildings: false, terrain: false };
       var currentStyleUrl = "https://tiles.openfreemap.org/styles/positron";
+      // Set by setStyleUrl for the ACCENT scheme: { background, water, land } hex,
+      // or null for a plain style. Recoloured in injectFeatures (mirrors the Kotlin
+      // recolorAccent in MapPanel.kt — keep the layer groups in sync).
+      var accentColors = null;
+      var ACCENT_LAND = ["landcover", "landuse", "park"];
 
       // The first vector source id in a style (the OpenMapTiles source), so 3D
       // buildings work across positron / the bundled dark.json without hard-coding.
       function vectorSourceId(style) {
         var sources = style.sources || {};
         return Object.keys(sources).find(function (id) { return sources[id].type === "vector"; });
+      }
+
+      function setPaint(layer, key, value) {
+        layer.paint = layer.paint || {};
+        layer.paint[key] = value;
       }
 
       // MapLibre transformStyle: merge the active feature layers/sources into a
@@ -55,6 +65,16 @@
         if (nextStyle.sources.terrainSource) {
           delete nextStyle.sources.terrainSource;
           delete nextStyle.terrain;
+        }
+        // ACCENT scheme: recolour background / water / land fills with the accent
+        // palette, leaving roads + labels legible against the base.
+        if (accentColors) {
+          nextStyle.layers.forEach(function (l) {
+            if (l.type === "background") setPaint(l, "background-color", accentColors.background);
+            else if (l.type === "fill" && l["source-layer"] === "water") setPaint(l, "fill-color", accentColors.water);
+            else if (l.type === "fill" && ACCENT_LAND.indexOf(l["source-layer"]) >= 0)
+              setPaint(l, "fill-color", accentColors.land);
+          });
         }
         var src = vectorSourceId(nextStyle);
         if (featureState.buildings && src) {
@@ -163,7 +183,14 @@
           if (firstCamera) { firstCamera = false; map.jumpTo(opts); }
           else map.easeTo({ ...opts, duration: 1000, essential: true });
         };
-        window.setStyleUrl = function (url) { if (url) { currentStyleUrl = url; applyStyle(); } };
+        // Android -> JS: switch the base style and (for the ACCENT scheme) its
+        // recolour palette; empty colour args mean a plain, non-accent style.
+        window.setStyleUrl = function (url, bg, water, land) {
+          if (!url) return;
+          currentStyleUrl = url;
+          accentColors = bg ? { background: bg, water: water, land: land } : null;
+          applyStyle();
+        };
         // Android -> JS: flip the LIVE feature toggles, then re-apply the style so
         // transformStyle injects (or omits) the matching layers/sources.
         window.setFeatures = function (buildings, terrain) {

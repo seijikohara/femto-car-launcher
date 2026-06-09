@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.FontPreferences
 import io.github.seijikohara.femto.data.FullscreenSetting
+import io.github.seijikohara.femto.data.MapColorScheme
 import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
 import kotlinx.coroutines.Dispatchers
@@ -90,6 +91,22 @@ class SettingsViewModelTest {
             viewModel().onAction(SettingsAction.SetMapRenderMode(MapRenderMode.LIVE))
             advanceUntilIdle()
             assertEquals(MapRenderMode.LIVE, store.settings.first().mapRenderMode)
+        }
+
+    @Test
+    fun `SetMapSchemeLight writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetMapSchemeLight(MapColorScheme.BRIGHT))
+            advanceUntilIdle()
+            assertEquals(MapColorScheme.BRIGHT, store.settings.first().mapSchemeLight)
+        }
+
+    @Test
+    fun `SetMapSchemeDark writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetMapSchemeDark(MapColorScheme.FIORD))
+            advanceUntilIdle()
+            assertEquals(MapColorScheme.FIORD, store.settings.first().mapSchemeDark)
         }
 
     @Test
