@@ -53,6 +53,7 @@ import com.composables.icons.lucide.RotateCcw
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.ClockSetting
+import io.github.seijikohara.femto.data.FontSlot
 import io.github.seijikohara.femto.data.FullscreenSetting
 import io.github.seijikohara.femto.data.MapColorScheme
 import io.github.seijikohara.femto.data.MapRenderMode
@@ -62,7 +63,6 @@ import io.github.seijikohara.femto.data.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.ThemeMode
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
-import io.github.seijikohara.femto.ui.theme.FontTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.accentSeedColor
 import kotlin.math.roundToInt
@@ -85,6 +85,7 @@ internal fun SettingsScreen(
     onBack: () -> Unit,
     onOpenNotificationAccess: () -> Unit,
     onOpenSystemSettings: () -> Unit,
+    onOpenFontPicker: (FontSlot) -> Unit,
     modifier: Modifier = Modifier,
 ) = Surface(
     modifier = modifier.fillMaxSize(),
@@ -118,11 +119,15 @@ internal fun SettingsScreen(
                 selected = uiState.accentColor,
                 onSelect = { onAction(SettingsAction.SetAccentColor(it)) },
             )
-            ChoiceRow(
-                title = stringResource(R.string.settings_group_font),
-                options = FontTheme.entries.map { it to it.displayName() },
-                selected = uiState.fontTheme,
-                onSelect = { onAction(SettingsAction.SetFontTheme(it)) },
+            FontRow(
+                title = stringResource(R.string.settings_group_font_latin),
+                family = uiState.latinFont,
+                onClick = { onOpenFontPicker(FontSlot.LATIN) },
+            )
+            FontRow(
+                title = stringResource(R.string.settings_group_font_cjk),
+                family = uiState.cjkFont,
+                onClick = { onOpenFontPicker(FontSlot.CJK) },
             )
             SwitchRow(
                 title = stringResource(R.string.settings_group_fullscreen),
@@ -736,8 +741,21 @@ private val DynamicAccentSweep =
         Color(0xFFEF5350),
     )
 
-// A human-readable label for a font theme (e.g. INTER -> "Inter").
-private fun FontTheme.displayName(): String = name.lowercase().replaceFirstChar(Char::uppercaseChar)
+// A font-slot row: the current family (or "System default") under the title,
+// opening the full Google Fonts picker on tap.
+@Composable
+private fun FontRow(
+    title: String,
+    family: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) = SettingRow(
+    title = title,
+    modifier = modifier.clickable(onClick = onClick),
+    summary = family ?: stringResource(R.string.settings_font_system),
+) {
+    TrailingIcon(Lucide.ChevronRight)
+}
 
 // Small modifier helper: clip to a circle and make clickable, for the back box.
 private fun Modifier.clipClickable(onClick: () -> Unit): Modifier =
@@ -755,6 +773,7 @@ private fun SettingsScreenPreview() {
             onBack = {},
             onOpenNotificationAccess = {},
             onOpenSystemSettings = {},
+            onOpenFontPicker = {},
         )
     }
 }

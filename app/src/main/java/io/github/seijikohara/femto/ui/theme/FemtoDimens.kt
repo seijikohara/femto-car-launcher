@@ -149,4 +149,12 @@ object FemtoDimens {
      */
     @Suppress("ktlint:standard:property-naming")
     const val DrawerSheetHeightFraction = 0.72f
+
+    /**
+     * Font-picker bottom-sheet height as a fraction of the viewport. Taller than
+     * the drawer / settings sheets because the picker is a long, scrollable list
+     * of every Google Fonts family and benefits from the extra rows.
+     */
+    @Suppress("ktlint:standard:property-naming")
+    const val FontPickerSheetHeightFraction = 0.92f
 }
