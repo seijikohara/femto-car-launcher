@@ -117,8 +117,7 @@
     <string name="settings_group_clock_seconds">Show seconds</string>
     <string name="settings_group_fullscreen">Fullscreen</string>
     <string name="settings_group_map_rendering">Map rendering</string>
-    <string name="settings_map_mode_live_hardware">Live (hardware)</string>
-    <string name="settings_map_mode_live_software">Live (software)</string>
+    <string name="settings_map_mode_live">Live</string>
     <string name="settings_map_mode_snapshot">Snapshot</string>
     <string name="settings_group_map_style">Map style</string>
     <string name="settings_group_map_tilt">Map tilt</string>

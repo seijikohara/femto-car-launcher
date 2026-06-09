@@ -113,11 +113,9 @@ internal data class MapConfig(
  *   bitmap rides the normal Skia composition path and presents reliably. The
  *   snapshot re-renders on movement, single-flight, holding the previous frame so
  *   there is no flicker.
- * - LIVE_HARDWARE / LIVE_SOFTWARE ([WebMapView]) render MapLibre GL JS (WebGL) in
- *   a WebView, which composites inline through HWUI and animates the camera for a
- *   smooth follow. LIVE_SOFTWARE forces the WebView onto the software layer so
- *   Chromium renders WebGL via SwiftShader (for GPUs that cannot keep a hardware
- *   WebGL context). There is NO auto-fallback: the chosen backend is kept as-is.
+ * - LIVE ([WebMapView]) renders MapLibre GL JS (WebGL) in a hardware-accelerated
+ *   WebView, which composites inline through HWUI and animates the camera for a
+ *   smooth follow. There is NO auto-fallback: the chosen backend is kept as-is.
  *
  * Clock and speed overlays are placed by the parent on top of this surface.
  */
@@ -138,22 +136,11 @@ internal fun MapPanel(
         // centre point; without it the map has nothing to show, so fall back.
         if (location != null) {
             when (mapConfig.renderMode) {
-                MapRenderMode.LIVE_HARDWARE -> {
+                MapRenderMode.LIVE -> {
                     WebMapView(
                         location = location,
                         mapConfig = mapConfig,
                         onTap = onTap,
-                        softwareRendering = false,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-
-                MapRenderMode.LIVE_SOFTWARE -> {
-                    WebMapView(
-                        location = location,
-                        mapConfig = mapConfig,
-                        onTap = onTap,
-                        softwareRendering = true,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
