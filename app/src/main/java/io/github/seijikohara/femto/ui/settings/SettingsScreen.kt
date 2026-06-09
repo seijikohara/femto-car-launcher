@@ -88,7 +88,9 @@ internal fun SettingsScreen(
     modifier: Modifier = Modifier,
 ) = Surface(
     modifier = modifier.fillMaxSize(),
-    color = MaterialTheme.colorScheme.background,
+    // Hosted in the settings bottom sheet: match the M3 sheet container colour so the
+    // surface reads as the sheet rather than painting the opaque app background.
+    color = MaterialTheme.colorScheme.surfaceContainerLow,
 ) {
     Column(
         modifier =

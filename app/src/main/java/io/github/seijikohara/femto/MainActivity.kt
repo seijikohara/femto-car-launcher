@@ -44,7 +44,7 @@ import io.github.seijikohara.femto.ui.home.HomeRoute
 import io.github.seijikohara.femto.ui.home.components.MapConfig
 import io.github.seijikohara.femto.ui.home.components.PanelVisibility
 import io.github.seijikohara.femto.ui.locale.resolved
-import io.github.seijikohara.femto.ui.settings.SettingsRoute
+import io.github.seijikohara.femto.ui.settings.SettingsSheet
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.FontTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -103,69 +103,68 @@ class MainActivity : ComponentActivity() {
                 applyFullscreen(display.fullscreen)
             }
             FemtoTheme(fontTheme = fontTheme, accent = display.accentColor, darkTheme = darkTheme) {
-                // The dashboard stays composed; the app drawer and assistant are
-                // bottom-sheet overlays and settings is a full destination over it.
+                // The dashboard stays composed; the app drawer, assistant, and
+                // settings are all bottom-sheet overlays that slide up over it.
                 var showDrawer by rememberSaveable { mutableStateOf(false) }
                 var showAssistant by rememberSaveable { mutableStateOf(false) }
                 var showSettings by rememberSaveable { mutableStateOf(false) }
+                HomeRoute(
+                    is24Hour = resolveIs24Hour(display.clock),
+                    showClockSeconds = display.showClockSeconds,
+                    speedUnit = display.speedUnit.resolved(),
+                    temperatureUnit = display.temperatureUnit.resolved(),
+                    mapConfig =
+                        MapConfig(
+                            style = display.mapStyle,
+                            schemeLight = display.mapSchemeLight,
+                            schemeDark = display.mapSchemeDark,
+                            tiltDeg = display.mapTiltDeg,
+                            zoom = display.mapZoom,
+                            renderPercent = display.mapRenderPercent,
+                            renderMode = display.mapRenderMode,
+                            markerPos = display.mapMarkerPos,
+                            buildings3d = display.map3dBuildings,
+                            terrain = display.mapTerrain,
+                        ),
+                    panels =
+                        PanelVisibility(
+                            calendar = display.showCalendar,
+                            weather = display.showWeather,
+                            music = display.showMusic,
+                        ),
+                    onEvent = { event ->
+                        handleHomeEvent(
+                            event = event,
+                            setShowDrawer = { showDrawer = it },
+                            setShowAssistant = { showAssistant = it },
+                            setShowSettings = { showSettings = it },
+                        )
+                    },
+                )
+                if (showDrawer) {
+                    AppDrawerSheet(
+                        onLaunch = { component ->
+                            appsRepository.launch(component)
+                            showDrawer = false
+                        },
+                        onDismiss = { showDrawer = false },
+                    )
+                }
+                if (showAssistant) {
+                    AssistantSheet(
+                        onLaunchOption = { option ->
+                            launchAssistantOption(option)
+                            showAssistant = false
+                        },
+                        onDismiss = { showAssistant = false },
+                    )
+                }
                 if (showSettings) {
-                    SettingsRoute(
-                        onBack = { showSettings = false },
+                    SettingsSheet(
                         onOpenNotificationAccess = ::openNotificationListenerSettings,
                         onOpenSystemSettings = ::openSystemSettings,
+                        onDismiss = { showSettings = false },
                     )
-                } else {
-                    HomeRoute(
-                        is24Hour = resolveIs24Hour(display.clock),
-                        showClockSeconds = display.showClockSeconds,
-                        speedUnit = display.speedUnit.resolved(),
-                        temperatureUnit = display.temperatureUnit.resolved(),
-                        mapConfig =
-                            MapConfig(
-                                style = display.mapStyle,
-                                schemeLight = display.mapSchemeLight,
-                                schemeDark = display.mapSchemeDark,
-                                tiltDeg = display.mapTiltDeg,
-                                zoom = display.mapZoom,
-                                renderPercent = display.mapRenderPercent,
-                                renderMode = display.mapRenderMode,
-                                markerPos = display.mapMarkerPos,
-                                buildings3d = display.map3dBuildings,
-                                terrain = display.mapTerrain,
-                            ),
-                        panels =
-                            PanelVisibility(
-                                calendar = display.showCalendar,
-                                weather = display.showWeather,
-                                music = display.showMusic,
-                            ),
-                        onEvent = { event ->
-                            handleHomeEvent(
-                                event = event,
-                                setShowDrawer = { showDrawer = it },
-                                setShowAssistant = { showAssistant = it },
-                                setShowSettings = { showSettings = it },
-                            )
-                        },
-                    )
-                    if (showDrawer) {
-                        AppDrawerSheet(
-                            onLaunch = { component ->
-                                appsRepository.launch(component)
-                                showDrawer = false
-                            },
-                            onDismiss = { showDrawer = false },
-                        )
-                    }
-                    if (showAssistant) {
-                        AssistantSheet(
-                            onLaunchOption = { option ->
-                                launchAssistantOption(option)
-                                showAssistant = false
-                            },
-                            onDismiss = { showAssistant = false },
-                        )
-                    }
                 }
             }
         }
