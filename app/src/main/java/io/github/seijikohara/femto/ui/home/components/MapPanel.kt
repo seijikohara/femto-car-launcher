@@ -88,7 +88,8 @@ import kotlin.math.sin
 
 // User-tunable map rendering config (derived from DisplaySettings): light/dark
 // style, oblique tilt, zoom, the render resolution percent (lower renders a
-// smaller bitmap, faster, upscaled to fill), and the user-picked render backend.
+// smaller bitmap, faster, upscaled to fill), the user-picked render backend, and
+// the LIVE-only feature toggles (3D buildings / terrain relief).
 internal data class MapConfig(
     val style: MapStyleSetting = MapStyleSetting.AUTO,
     val tiltDeg: Int = 55,
@@ -96,6 +97,8 @@ internal data class MapConfig(
     val renderPercent: Int = 100,
     val renderMode: MapRenderMode = MapRenderMode.SNAPSHOT,
     val lookAheadM: Int = 180,
+    val buildings3d: Boolean = false,
+    val terrain: Boolean = false,
 )
 
 /**
@@ -387,9 +390,18 @@ private fun styleBuilderFor(
     }
 
 @Composable
-internal fun Attribution(modifier: Modifier = Modifier) =
+internal fun Attribution(
+    modifier: Modifier = Modifier,
+    showTerrainCredit: Boolean = false,
+) {
+    // Append the terrain provider's required credit when that LIVE layer is active
+    // (its licence mandates attribution); the base OSM / OpenMapTiles / OpenFreeMap
+    // credit always shows.
+    val base = stringResource(R.string.map_attribution)
+    val terrain = stringResource(R.string.map_attribution_terrain)
+    val text = base + (if (showTerrainCredit) " · $terrain" else "")
     Text(
-        text = stringResource(R.string.map_attribution),
+        text = text,
         // Legal credit, not glance content — OSM ODbL / OpenMapTiles CC-BY require
         // it but it is not read on the move, so it sits well below the body-text
         // floor and is shrunk further here so the centred speed overlay does not
@@ -406,6 +418,7 @@ internal fun Attribution(modifier: Modifier = Modifier) =
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
                 .padding(horizontal = 4.dp, vertical = 1.dp),
     )
+}
 
 // Current-location puck: a heading-up navigation chevron, positioned by the pixel
 // the location rendered at (see MapFrame). The map is heading-up, so the chevron

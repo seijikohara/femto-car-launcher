@@ -128,6 +128,8 @@ class MainActivity : ComponentActivity() {
                                 renderPercent = display.mapRenderPercent,
                                 renderMode = display.mapRenderMode,
                                 lookAheadM = display.mapLookAheadM,
+                                buildings3d = display.map3dBuildings,
+                                terrain = display.mapTerrain,
                             ),
                         panels =
                             PanelVisibility(

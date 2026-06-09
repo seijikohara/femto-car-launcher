@@ -100,5 +100,21 @@ class SettingsViewModelTest {
             assertEquals(200, store.settings.first().mapLookAheadM)
         }
 
+    @Test
+    fun `SetMap3dBuildings writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetMap3dBuildings(true))
+            advanceUntilIdle()
+            assertEquals(true, store.settings.first().map3dBuildings)
+        }
+
+    @Test
+    fun `SetMapTerrain writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetMapTerrain(true))
+            advanceUntilIdle()
+            assertEquals(true, store.settings.first().mapTerrain)
+        }
+
     private fun viewModel() = SettingsViewModel(store, FontPreferences(application))
 }
