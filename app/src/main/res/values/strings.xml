@@ -127,8 +127,8 @@
     <string name="settings_group_map_quality">Map sharpness</string>
     <string name="settings_map_quality_value">%1$d%%</string>
     <string name="settings_map_quality_desc">Lower renders the map faster but softer — useful on slow head units.</string>
-    <string name="settings_group_map_look_ahead">Marker look-ahead</string>
-    <string name="settings_map_look_ahead_value">%1$d m</string>
+    <string name="settings_group_map_marker_pos">Marker position</string>
+    <string name="settings_map_marker_pos_value">%1$d%%</string>
     <string name="settings_group_map_3d">3D buildings</string>
     <string name="settings_group_map_terrain">Terrain</string>
     <string name="settings_map_terrain_desc">3D elevation relief (Mapterhorn). Adds tile downloads; heavier on low-end GPUs.</string>

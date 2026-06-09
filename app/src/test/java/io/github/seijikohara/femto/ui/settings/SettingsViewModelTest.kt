@@ -93,11 +93,11 @@ class SettingsViewModelTest {
         }
 
     @Test
-    fun `SetMapLookAhead writes the value to the store`() =
+    fun `SetMapMarkerPos writes the value to the store`() =
         runTest(dispatcher) {
-            viewModel().onAction(SettingsAction.SetMapLookAhead(200))
+            viewModel().onAction(SettingsAction.SetMapMarkerPos(40))
             advanceUntilIdle()
-            assertEquals(200, store.settings.first().mapLookAheadM)
+            assertEquals(40, store.settings.first().mapMarkerPos)
         }
 
     @Test

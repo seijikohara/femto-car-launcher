@@ -83,6 +83,7 @@ import kotlin.coroutines.resume
 import kotlin.math.asin
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
@@ -96,7 +97,7 @@ internal data class MapConfig(
     val zoom: Int = 16,
     val renderPercent: Int = 100,
     val renderMode: MapRenderMode = MapRenderMode.SNAPSHOT,
-    val lookAheadM: Int = 180,
+    val markerPos: Int = 70,
     val buildings3d: Boolean = false,
     val terrain: Boolean = false,
 )
@@ -230,7 +231,15 @@ private fun SnapshotMap(
             while (isActive) {
                 val loc = currentLocation.value
                 if (shouldRerender(lastRendered, loc)) {
-                    val camera = cameraFor(loc, bearingHolder, mapConfig.tiltDeg, mapConfig.zoom, mapConfig.lookAheadM)
+                    val camera =
+                        cameraFor(
+                            location = loc,
+                            bearingHolder = bearingHolder,
+                            tiltDeg = mapConfig.tiltDeg,
+                            zoom = mapConfig.zoom,
+                            markerPos = mapConfig.markerPos,
+                            renderHeightPx = renderHeightPx,
+                        )
                     val rendered = snap.render(camera, LatLng(loc.latitude, loc.longitude), markerScale)
                     if (rendered != null) {
                         frame = rendered
@@ -306,15 +315,20 @@ private fun cameraFor(
     bearingHolder: FloatArray,
     tiltDeg: Int,
     zoom: Int,
-    lookAheadM: Int,
+    markerPos: Int,
+    renderHeightPx: Int,
 ): CameraPosition {
     val bearing = location.carriedBearing(bearingHolder).toDouble()
     // Aim the camera ahead of the current position (along the heading) so the
-    // current location renders low in the frame: more road ahead is visible and
-    // the marker sits just above the speed overlay (nav-style framing). The
-    // look-ahead distance is user-tunable so the marker can be placed nearer to
-    // (or further from) the speed panel.
-    val target = LatLng(location.latitude, location.longitude).offsetForward(bearing, lookAheadM.toDouble())
+    // location renders low in the frame (nav-style framing). [markerPos] (0..100)
+    // picks the marker's screen height: 0 keeps it centred, 100 drops it just above
+    // the speed overlay. Convert that to a look-ahead distance via the ground
+    // resolution at this zoom/latitude so the same setting reads consistently across
+    // zooms (the tilt makes this approximate; pixelForLatLng still places the marker
+    // exactly where the location renders).
+    val dropFraction = (markerPos.coerceIn(0, 100) / 100.0) * MAX_MARKER_DROP
+    val lookAheadM = dropFraction * renderHeightPx * metersPerPixel(zoom, location.latitude)
+    val target = LatLng(location.latitude, location.longitude).offsetForward(bearing, lookAheadM)
     return CameraPosition
         .Builder()
         .target(target)
@@ -323,6 +337,13 @@ private fun cameraFor(
         .bearing(bearing)
         .build()
 }
+
+// Ground metres per screen pixel for a MapLibre (512-px tile) web-mercator zoom at
+// [latDeg]; the basis for turning the marker-position fraction into a look-ahead.
+private fun metersPerPixel(
+    zoom: Int,
+    latDeg: Double,
+): Double = EARTH_CIRCUMFERENCE_M * cos(Math.toRadians(latDeg)) / (512.0 * 2.0.pow(zoom))
 
 // Destination point [meters] ahead of this point along [bearingDeg] (great-circle).
 private fun LatLng.offsetForward(
@@ -501,6 +522,12 @@ private const val SNAPSHOT_POLL_INTERVAL_MS = 200L
 private const val REFRESH_DISTANCE_M = 2f
 
 private const val EARTH_RADIUS_M = 6_371_000.0
+private const val EARTH_CIRCUMFERENCE_M = 40_075_016.686
+
+// The lowest the marker drops as a fraction of the map height below centre at
+// markerPos = 100 — kept below 0.5 so the puck stays clear of the speed overlay
+// (mirrored by MAX_MARKER_DROP in map.html for the live backend).
+private const val MAX_MARKER_DROP = 0.32
 
 // Heading-up nav chevron size and the graphicsLayer camera distance (multiplied by
 // density) that softens the perspective when the chevron is laid onto the tilt.

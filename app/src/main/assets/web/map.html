@@ -124,13 +124,27 @@
         var marker = new maplibregl.Marker({ element: markerEl, rotationAlignment: "map", pitchAlignment: "map" });
         var markerAdded = false;
 
+        // The lowest the marker drops below centre, as a fraction of map height, at
+        // markerPos = 100 (mirrors MAX_MARKER_DROP in MapPanel.kt).
+        var MAX_MARKER_DROP = 0.32;
+
+        // Top camera padding (px) that places the centred location at the height the
+        // marker-position setting asks for. padTop shifts the focal point down, so
+        // the location (and its marker) sits lower in the frame; markerPos 0 keeps it
+        // centred, 100 drops it MAX_MARKER_DROP of the height toward the speed panel.
+        function markerPadTop(markerPos) {
+          var pos = Math.max(0, Math.min(100, markerPos || 0));
+          var drop = (pos / 100) * MAX_MARKER_DROP;
+          return 2 * drop * (map.getContainer().clientHeight || 0);
+        }
+
         // Android -> JS: smooth heading-up camera follow (this is how #2 smooth
         // movement is achieved — easeTo interpolates between sparse GPS fixes). The
         // first fix jumps (no dramatic fly-in from the [0,0] start); the rest ease.
         // The marker rides the same fixes; [markerColor] (Material primary, "#rrggbb")
         // is applied here so it self-heals if the first push raced page load.
         let firstCamera = true;
-        window.updateCamera = function (lat, lon, bearing, zoom, tilt, markerColor) {
+        window.updateCamera = function (lat, lon, bearing, zoom, tilt, markerPos, markerColor) {
           if (!map) return;
           var heading = bearing || 0;
           if (markerColor) {
@@ -139,7 +153,13 @@
           }
           marker.setLngLat([lon, lat]).setRotation(heading);
           if (!markerAdded) { marker.addTo(map); markerAdded = true; }
-          const opts = { center: [lon, lat], bearing: heading, zoom: zoom || 16, pitch: tilt || 0 };
+          const opts = {
+            center: [lon, lat],
+            bearing: heading,
+            zoom: zoom || 16,
+            pitch: tilt || 0,
+            padding: { top: markerPadTop(markerPos), bottom: 0, left: 0, right: 0 },
+          };
           if (firstCamera) { firstCamera = false; map.jumpTo(opts); }
           else map.easeTo({ ...opts, duration: 1000, essential: true });
         };

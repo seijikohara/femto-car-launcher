@@ -204,18 +204,21 @@ internal fun SettingsScreen(
                 range = MIN_MAP_ZOOM..MAX_MAP_ZOOM,
                 onValueChange = { onAction(SettingsAction.SetMapZoom(it)) },
             )
+            // Marker vertical position applies to both backends (0 = map centre,
+            // 100 = just above the speed overlay), so it sits outside the
+            // mode-specific block below.
+            SliderRow(
+                title = stringResource(R.string.settings_group_map_marker_pos),
+                valueLabel = stringResource(R.string.settings_map_marker_pos_value, uiState.mapMarkerPos),
+                value = uiState.mapMarkerPos,
+                range = MIN_MAP_MARKER_POS..MAX_MAP_MARKER_POS,
+                onValueChange = { onAction(SettingsAction.SetMapMarkerPos(it)) },
+            )
             // Mode-specific rows: the live (WebGL) backends expose 3D buildings /
-            // terrain; the snapshot backend exposes look-ahead framing and the bitmap
-            // sharpness. Showing only the rows that affect the chosen backend keeps
-            // the panel honest (e.g. sharpness does nothing on the live map).
+            // terrain; the snapshot backend exposes the bitmap sharpness. Showing
+            // only the rows that affect the chosen backend keeps the panel honest
+            // (e.g. sharpness does nothing on the live map).
             if (uiState.mapRenderMode == MapRenderMode.SNAPSHOT) {
-                SliderRow(
-                    title = stringResource(R.string.settings_group_map_look_ahead),
-                    valueLabel = stringResource(R.string.settings_map_look_ahead_value, uiState.mapLookAheadM),
-                    value = uiState.mapLookAheadM,
-                    range = MIN_MAP_LOOK_AHEAD..MAX_MAP_LOOK_AHEAD,
-                    onValueChange = { onAction(SettingsAction.SetMapLookAhead(it)) },
-                )
                 SliderRow(
                     title = stringResource(R.string.settings_group_map_quality),
                     valueLabel = stringResource(R.string.settings_map_quality_value, uiState.mapRenderPercent),
@@ -617,10 +620,10 @@ private const val MAX_MAP_TILT = 60
 private const val MIN_MAP_ZOOM = 12
 private const val MAX_MAP_ZOOM = 19
 
-// Camera look-ahead band (metres): 0 centres the marker; larger pushes it lower,
-// toward the speed panel.
-private const val MIN_MAP_LOOK_AHEAD = 0
-private const val MAX_MAP_LOOK_AHEAD = 400
+// Marker vertical-position band (percent): 0 centres the marker; 100 drops it to
+// just above the speed panel.
+private const val MIN_MAP_MARKER_POS = 0
+private const val MAX_MAP_MARKER_POS = 100
 
 // Snapshot render resolution band (percent). The floor stays well above zero so
 // the upscaled map keeps roads legible; 100 is full panel resolution.
