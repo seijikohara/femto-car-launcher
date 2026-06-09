@@ -75,6 +75,7 @@ internal fun WeatherCard(
     snapshot: WeatherSnapshot?,
     temperatureUnit: TemperatureUnit,
     speedUnit: SpeedUnit,
+    is24Hour: Boolean,
     modifier: Modifier = Modifier,
 ) = Surface(
     modifier = modifier,
@@ -98,7 +99,7 @@ internal fun WeatherCard(
         ) {
             Head(snapshot, temperatureUnit)
             Metrics(snapshot, temperatureUnit, speedUnit)
-            Forecast(snapshot.hourly, snapshot.sunrise, snapshot.sunset, temperatureUnit)
+            Forecast(snapshot.hourly, snapshot.sunrise, snapshot.sunset, temperatureUnit, is24Hour)
         }
     } else {
         EmptyState()
@@ -216,6 +217,7 @@ private fun Forecast(
     sunrise: LocalTime?,
     sunset: LocalTime?,
     temperatureUnit: TemperatureUnit,
+    is24Hour: Boolean,
 ) {
     val next = hourly.take(3)
     if (next.isEmpty()) return
@@ -225,7 +227,7 @@ private fun Forecast(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             next.forEach { hour ->
-                ForecastChip(hour, sunrise, sunset, temperatureUnit, modifier = Modifier.weight(1f))
+                ForecastChip(hour, sunrise, sunset, temperatureUnit, is24Hour, modifier = Modifier.weight(1f))
             }
         }
     }
@@ -237,6 +239,7 @@ private fun ForecastChip(
     sunrise: LocalTime?,
     sunset: LocalTime?,
     temperatureUnit: TemperatureUnit,
+    is24Hour: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val glyphs = weatherGlyphs()
@@ -251,7 +254,7 @@ private fun ForecastChip(
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Text(
-            text = "%02dh".format(forecast.time.hour),
+            text = forecastHourLabel(forecast.time, is24Hour),
             style = MaterialTheme.typography.sectionLabel(10, 0.08f),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -293,6 +296,21 @@ private fun EmptyState() =
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(48.dp),
         )
+    }
+
+// Forecast hour label honouring the user's clock setting: compact 24-hour "09h"
+// or 12-hour "9a" / "2p" so the tiny chip never widens. Midnight reads "12a",
+// noon "12p".
+private fun forecastHourLabel(
+    time: LocalTime,
+    is24Hour: Boolean,
+): String =
+    if (is24Hour) {
+        "%02dh".format(time.hour)
+    } else {
+        val hour12 = ((time.hour + 11) % 12) + 1
+        val meridiem = if (time.hour < 12) "a" else "p"
+        "$hour12$meridiem"
     }
 
 // Day/night drives the sun-vs-moon glyph for CLEAR. Use the snapshot's real
@@ -391,6 +409,7 @@ private fun WeatherCardPreview() {
                 ),
             temperatureUnit = TemperatureUnit.CELSIUS,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+            is24Hour = true,
         )
     }
 }

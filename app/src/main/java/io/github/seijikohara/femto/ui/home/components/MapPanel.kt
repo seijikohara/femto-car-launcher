@@ -188,11 +188,14 @@ private fun SnapshotMap(
     val renderPercent = mapConfig.renderPercent.coerceIn(1, 100)
     val renderWidthPx = (widthPx * renderPercent / 100).coerceAtLeast(1)
     val renderHeightPx = (heightPx * renderPercent / 100).coerceAtLeast(1)
-    // The snapshot pixels are upscaled to layout pixels by this factor, so the
-    // marker (placed in layout pixels) scales the snapshot pixel it rendered at.
-    val markerScale = widthPx.toFloat() / renderWidthPx
+    // The chevron sits at a fixed on-screen spot — centre X, markerPos height — and
+    // the camera look-ahead aims the location there, so the map slides beneath a
+    // still marker (car-nav style) rather than the marker drifting per frame.
+    val dropFraction = markerDropFraction(mapConfig.markerPos)
+    val markerXPx = widthPx / 2f
+    val markerYPx = (heightPx * (0.5 + dropFraction)).toFloat()
 
-    var frame by remember { mutableStateOf<MapFrame?>(null) }
+    var frame by remember { mutableStateOf<Bitmap?>(null) }
     var failed by remember { mutableStateOf(false) }
     // Carry the last non-zero bearing so a stopped vehicle (GPS bearing 0) keeps
     // the heading-up rotation instead of snapping back to north.
@@ -245,7 +248,7 @@ private fun SnapshotMap(
                             markerPos = mapConfig.markerPos,
                             renderHeightPx = renderHeightPx,
                         )
-                    val rendered = snap.render(camera, LatLng(loc.latitude, loc.longitude), markerScale)
+                    val rendered = snap.render(camera)
                     if (rendered != null) {
                         frame = rendered
                         failed = false
@@ -268,12 +271,12 @@ private fun SnapshotMap(
     when {
         current != null -> {
             Image(
-                bitmap = current.bitmap.asImageBitmap(),
+                bitmap = current.asImageBitmap(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize().clickable { onTap() },
             )
-            LocationMarker(xPx = current.markerX, yPx = current.markerY, tiltDeg = mapConfig.tiltDeg)
+            LocationMarker(xPx = markerXPx, yPx = markerYPx, tiltDeg = mapConfig.tiltDeg)
         }
 
         failed -> {
@@ -286,34 +289,24 @@ private fun SnapshotMap(
     }
 }
 
-// A rendered frame plus the pixel where the current location landed, so the
-// marker overlay sits exactly on it regardless of the look-ahead camera offset.
-private class MapFrame(
-    val bitmap: Bitmap,
-    val markerX: Float,
-    val markerY: Float,
-)
-
 // Render one frame off-screen. Suspends until the snapshotter's callback fires,
 // keeping the caller single-flight; cancelling the coroutine cancels the render.
-private suspend fun MapSnapshotter.render(
-    camera: CameraPosition,
-    markerLatLng: LatLng,
-    markerScale: Float,
-): MapFrame? =
+// The marker is NOT placed from pixelForLatLng: the camera look-ahead already aims
+// the location at the fixed on-screen marker spot, so the chevron stays put and the
+// map slides beneath it (car-nav style) rather than drifting per frame.
+private suspend fun MapSnapshotter.render(camera: CameraPosition): Bitmap? =
     suspendCancellableCoroutine { cont ->
         setCameraPosition(camera)
         start(
-            { snapshot ->
-                // pixelForLatLng is in snapshot (render-bitmap) pixels; scale to the
-                // layout pixels the upscaled Image occupies so the marker lands true.
-                val p = snapshot.pixelForLatLng(markerLatLng)
-                if (cont.isActive) cont.resume(MapFrame(snapshot.bitmap, p.x * markerScale, p.y * markerScale))
-            },
+            { snapshot -> if (cont.isActive) cont.resume(snapshot.bitmap) },
             { _ -> if (cont.isActive) cont.resume(null) },
         )
         cont.invokeOnCancellation { cancel() }
     }
+
+// The marker's drop below centre as a fraction of the map height, shared by the
+// camera look-ahead and the fixed on-screen marker spot so the two always agree.
+private fun markerDropFraction(markerPos: Int): Double = (markerPos.coerceIn(0, 100) / 100.0) * MAX_MARKER_DROP
 
 private fun cameraFor(
     location: Location,
@@ -325,13 +318,15 @@ private fun cameraFor(
 ): CameraPosition {
     val bearing = location.carriedBearing(bearingHolder).toDouble()
     // Aim the camera ahead of the current position (along the heading) so the
-    // location renders low in the frame (nav-style framing). [markerPos] (0..100)
-    // picks the marker's screen height: 0 keeps it centred, 100 drops it just above
-    // the speed overlay. Convert that to a look-ahead distance via the ground
-    // resolution at this zoom/latitude so the same setting reads consistently across
-    // zooms (the tilt makes this approximate; pixelForLatLng still places the marker
-    // exactly where the location renders).
-    val dropFraction = (markerPos.coerceIn(0, 100) / 100.0) * MAX_MARKER_DROP
+    // location renders low in the frame, under the fixed on-screen chevron
+    // (nav-style framing). [markerPos] (0..100) picks the chevron's screen height: 0
+    // keeps it centred, 100 drops it just above the speed overlay. The look-ahead is
+    // computed in render-bitmap pixels (renderHeightPx); the bitmap is Crop-upscaled
+    // to the layout at the same aspect, so the location lands at the same layout
+    // fraction the chevron is pinned to regardless of renderPercent. The tilt makes
+    // this approximate, but a fixed chevron stays steady rather than drifting with
+    // the per-frame estimate.
+    val dropFraction = markerDropFraction(markerPos)
     val lookAheadM = dropFraction * renderHeightPx * metersPerPixel(zoom, location.latitude)
     val target = LatLng(location.latitude, location.longitude).offsetForward(bearing, lookAheadM)
     return CameraPosition
@@ -470,13 +465,12 @@ internal fun Attribution(
     )
 }
 
-// Current-location puck: a heading-up navigation chevron, positioned by the pixel
-// the location rendered at (see MapFrame). The map is heading-up, so the chevron
-// always points toward the top of the frame (forward); rotationX lays it onto the
-// oblique ground plane so it matches the map's tilt and reads as a nav arrow
-// resting on the road rather than a flat sticker. offset {} takes layout pixels;
-// MapFrame already scaled the snapshot pixel to layout space, so an upscaled
-// (sub-100%) render still lands the marker on the true position.
+// Current-location puck: a heading-up navigation chevron at a fixed on-screen spot
+// (the camera look-ahead keeps the location there, so the chevron stays still while
+// the map slides beneath it). The map is heading-up, so the chevron always points
+// toward the top of the frame (forward); rotationX lays it onto the oblique ground
+// plane so it matches the map's tilt and reads as a nav arrow resting on the road
+// rather than a flat sticker.
 @Composable
 private fun LocationMarker(
     xPx: Float,
