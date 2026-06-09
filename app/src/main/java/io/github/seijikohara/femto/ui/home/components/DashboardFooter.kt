@@ -33,8 +33,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Battery
+import com.composables.icons.lucide.BatteryCharging
+import com.composables.icons.lucide.BatteryFull
+import com.composables.icons.lucide.BatteryLow
+import com.composables.icons.lucide.BatteryMedium
 import com.composables.icons.lucide.Bluetooth
 import com.composables.icons.lucide.BluetoothConnected
+import com.composables.icons.lucide.BluetoothOff
 import com.composables.icons.lucide.Globe
 import com.composables.icons.lucide.LayoutGrid
 import com.composables.icons.lucide.Lucide
@@ -253,9 +258,10 @@ private fun StatusCluster(
             ),
     )
     StatusIcon(
-        // Light the icon whenever the adapter is ON (an enabled adapter should not
-        // read as off); switch to the connected glyph only when a device is linked.
-        icon = if (status.bluetoothConnected) Lucide.BluetoothConnected else Lucide.Bluetooth,
+        // Off / on / connected each get a distinct glyph: a crossed icon when the
+        // adapter is powered off, the plain glyph when on but unpaired, the linked
+        // glyph when a device is connected.
+        icon = bluetoothIconFor(enabled = status.bluetoothEnabled, connected = status.bluetoothConnected),
         active = status.bluetoothEnabled,
         description =
             stringResource(
@@ -273,7 +279,7 @@ private fun StatusCluster(
 // Graduated Wi-Fi glyph for a 0..4 level. Lucide ships four distinct Wi-Fi
 // glyphs (zero / low / high / full arc); level 3 reuses the high arc and 4 the
 // full Wifi arc so the ramp stays monotonic with the available icons.
-private fun wifiIconForLevel(level: Int): ImageVector =
+internal fun wifiIconForLevel(level: Int): ImageVector =
     when (level) {
         0 -> Lucide.WifiZero
         1 -> Lucide.WifiLow
@@ -284,12 +290,43 @@ private fun wifiIconForLevel(level: Int): ImageVector =
 // Graduated cellular glyph for a 0..4 level. Lucide ships ascending Signal bars
 // (low / medium / high) plus the full Signal glyph; level 0/1 map to the lowest
 // bars and 4 to the full glyph so the ramp tracks SignalStrength.level.
-private fun cellularIconForLevel(level: Int): ImageVector =
+internal fun cellularIconForLevel(level: Int): ImageVector =
     when (level) {
         0, 1 -> Lucide.SignalLow
         2 -> Lucide.SignalMedium
         3 -> Lucide.SignalHigh
         else -> Lucide.Signal
+    }
+
+// Graduated battery glyph. Charging shows the bolt; otherwise the fill steps with
+// the percent across rough thirds — 20 is the conventional low-battery warning
+// point, 60 the medium/full divide. A null percent (cold start / battery-less
+// unit) falls back to the neutral battery outline.
+internal fun batteryIconForLevel(
+    percent: Int?,
+    charging: Boolean,
+): ImageVector =
+    when {
+        charging -> Lucide.BatteryCharging
+        percent == null -> Lucide.Battery
+        percent <= 20 -> Lucide.BatteryLow
+        percent <= 60 -> Lucide.BatteryMedium
+        else -> Lucide.BatteryFull
+    }
+
+// Bluetooth glyph across the three states the adapter exposes: crossed when
+// powered off, the plain glyph when on but unpaired, and the linked glyph when a
+// device is connected. A connected device implies the adapter is on, so connected
+// is checked first. Android exposes no Bluetooth RSSI, so off / on / connected is
+// the meaningful axis rather than a signal ramp.
+internal fun bluetoothIconFor(
+    enabled: Boolean,
+    connected: Boolean,
+): ImageVector =
+    when {
+        connected -> Lucide.BluetoothConnected
+        enabled -> Lucide.Bluetooth
+        else -> Lucide.BluetoothOff
     }
 
 @Composable
@@ -362,7 +399,7 @@ private fun BatteryIndicator(
     verticalArrangement = Arrangement.spacedBy(1.dp),
 ) {
     Icon(
-        imageVector = Lucide.Battery,
+        imageVector = batteryIconForLevel(percent = percent, charging = charging),
         contentDescription = stringResource(R.string.status_battery),
         tint = if (charging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.size(20.dp),
