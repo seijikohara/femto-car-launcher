@@ -1,20 +1,25 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -22,6 +27,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.Clock
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Sun
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.CalendarSnapshot
 import io.github.seijikohara.femto.data.DayCell
@@ -141,7 +149,20 @@ private fun DayRow(
 ) {
     val accent = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
     Column(
-        modifier = Modifier.width(28.dp),
+        modifier =
+            Modifier
+                .width(28.dp)
+                .then(
+                    // A faint pill behind today's gutter lifts it out of the agenda
+                    // at a glance, beyond the primary text tint alone.
+                    if (isToday) {
+                        Modifier
+                            .clip(MaterialTheme.shapes.small)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    } else {
+                        Modifier
+                    },
+                ).padding(vertical = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(1.dp),
     ) {
@@ -182,7 +203,9 @@ private fun DayRow(
         } else {
             day.events.forEach { event ->
                 EventRow(
-                    // A null time marks an all-day event.
+                    // A timed event leads with a clock; an all-day event (null time)
+                    // leads with a sun so it reads as "all day" at a glance.
+                    icon = if (event.time != null) Lucide.Clock else Lucide.Sun,
                     time = event.time?.format(EventTimeFormatter) ?: stringResource(R.string.calendar_all_day),
                     title = event.title,
                 )
@@ -193,6 +216,7 @@ private fun DayRow(
 
 @Composable
 private fun EventRow(
+    icon: ImageVector,
     time: String,
     title: String,
 ) = Row(
@@ -200,6 +224,12 @@ private fun EventRow(
     horizontalArrangement = Arrangement.spacedBy(6.dp),
     verticalAlignment = Alignment.Top,
 ) {
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 3.dp).size(12.dp),
+    )
     Text(
         text = time,
         style =

@@ -30,9 +30,12 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Cloud
 import com.composables.icons.lucide.CloudSun
+import com.composables.icons.lucide.Droplet
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Moon
 import com.composables.icons.lucide.Sun
+import com.composables.icons.lucide.Thermometer
+import com.composables.icons.lucide.Wind
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.HourlyForecast
 import io.github.seijikohara.femto.data.WeatherCode
@@ -156,25 +159,50 @@ private fun Metrics(
     horizontalArrangement = Arrangement.spacedBy(16.dp),
 ) {
     Metric(
+        modifier = Modifier.weight(1f),
+        icon = Lucide.Thermometer,
         label = stringResource(R.string.weather_metric_feels),
         value = "${temperatureUnit.fromCelsius(snapshot.apparentTempC).roundToInt()}°",
     )
-    Metric(label = stringResource(R.string.weather_metric_wind), value = windLabel(snapshot.windKmh, speedUnit))
+    Metric(
+        modifier = Modifier.weight(1f),
+        icon = Lucide.Wind,
+        label = stringResource(R.string.weather_metric_wind),
+        value = windLabel(snapshot.windKmh, speedUnit),
+    )
     val humidityLabel = snapshot.humidityPercent?.let { "$it%" } ?: "—"
-    Metric(label = stringResource(R.string.weather_metric_humidity), value = humidityLabel)
+    Metric(
+        modifier = Modifier.weight(1f),
+        icon = Lucide.Droplet,
+        label = stringResource(R.string.weather_metric_humidity),
+        value = humidityLabel,
+    )
 }
 
 @Composable
 private fun Metric(
+    icon: ImageVector,
     label: String,
     value: String,
-) = Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-    Text(
-        text = label,
-        style = MaterialTheme.typography.sectionLabel(10, 0.1f),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1,
-    )
+    modifier: Modifier = Modifier,
+) = Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(11.dp),
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.sectionLabel(10, 0.1f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+    }
     Text(
         text = value,
         style =
