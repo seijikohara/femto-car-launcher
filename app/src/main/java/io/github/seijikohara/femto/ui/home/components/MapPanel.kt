@@ -61,12 +61,14 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPinOff
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.MapColorScheme
 import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.data.MapStyleSetting
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.suspendCancellableCoroutine
+import org.json.JSONObject
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -93,6 +95,8 @@ import kotlin.math.sin
 // the LIVE-only feature toggles (3D buildings / terrain relief).
 internal data class MapConfig(
     val style: MapStyleSetting = MapStyleSetting.AUTO,
+    val schemeLight: MapColorScheme = MapColorScheme.ACCENT,
+    val schemeDark: MapColorScheme = MapColorScheme.ACCENT,
     val tiltDeg: Int = 55,
     val zoom: Int = 16,
     val renderPercent: Int = 100,
@@ -175,6 +179,8 @@ private fun SnapshotMap(
             MapStyleSetting.LIGHT -> false
             MapStyleSetting.DARK -> true
         }
+    val styleRef = mapStyleRefFor(if (isDark) mapConfig.schemeDark else mapConfig.schemeLight, isDark)
+    val accentColors = accentMapColors()
     val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
     val heightPx = with(LocalDensity.current) { maxHeight.roundToPx() }
     // Render at a fraction of the panel resolution; the Image upscales it to fill,
@@ -194,9 +200,9 @@ private fun SnapshotMap(
     val bearingHolder = remember { floatArrayOf(0f) }
     val currentLocation = rememberUpdatedState(location)
 
-    // One reusable snapshotter, rebuilt only when the render size or theme changes.
+    // One reusable snapshotter, rebuilt only when the render size or style changes.
     val snapshotter =
-        remember(renderWidthPx, renderHeightPx, isDark) {
+        remember(renderWidthPx, renderHeightPx, styleRef, accentColors) {
             if (widthPx <= 0 || heightPx <= 0) {
                 null
             } else {
@@ -211,7 +217,7 @@ private fun SnapshotMap(
                         // OSM / OpenMapTiles / OpenFreeMap credit (avoids the
                         // duplicate text the baked-in attribution drew on-device).
                         .withAttribution(false)
-                        .withStyleBuilder(styleBuilderFor(context, isDark)),
+                        .withStyleBuilder(styleBuilderFor(context, styleRef, accentColors)),
                 )
             }
         }
@@ -375,27 +381,64 @@ private fun shouldRerender(
     current: Location,
 ): Boolean = last == null || last.distanceTo(current) >= REFRESH_DISTANCE_M
 
-// Build the (light/dark) base style. A 3D building fill-extrusion layer was
-// removed: the MapSnapshotter's GL crashed intermittently (native SIGSEGV in
-// glDrawElements on its "Snapshotter" thread) while re-rendering an extrusion
-// layer, taking the whole launcher down on movement. The oblique camera tilt
-// still gives the map a bird's-eye perspective; only the extruded buildings are
-// gone. True extruded 3D needs the live GL MapView, which does not present on the
-// projected head-unit display.
+// Build the style for the resolved [MapStyleRef]: a hosted OpenFreeMap URL, a
+// bundled asset, or the ACCENT scheme (a bundled base recoloured with the Material
+// accent). No 3D fill-extrusion is added — the MapSnapshotter's GL crashed
+// (native SIGSEGV) re-rendering one; the oblique tilt gives the bird's-eye look and
+// extruded 3D needs the live WebGL backend.
 private fun styleBuilderFor(
     context: Context,
-    isDark: Boolean,
+    styleRef: MapStyleRef,
+    accentColors: AccentMapColors,
 ): Style.Builder =
-    if (isDark) {
-        Style.Builder().fromJson(
-            context.assets
-                .open(DARK_STYLE_ASSET)
-                .bufferedReader()
-                .use { it.readText() },
-        )
-    } else {
-        Style.Builder().fromUri(POSITRON_STYLE_URL)
+    when (styleRef) {
+        is MapStyleRef.Hosted -> {
+            Style.Builder().fromUri(styleRef.url)
+        }
+
+        is MapStyleRef.Bundled -> {
+            Style.Builder().fromJson(context.readAsset(styleRef.asset))
+        }
+
+        is MapStyleRef.Accent -> {
+            Style.Builder().fromJson(recolorAccent(context.readAsset(styleRef.baseAsset), accentColors))
+        }
     }
+
+private fun Context.readAsset(path: String): String = assets.open(path).bufferedReader().use { it.readText() }
+
+// Recolour the background, water, and landcover/landuse/park fills of a style JSON
+// with the accent palette, leaving roads and labels (legible against the base) as
+// they are. The same three layer groups are recoloured in map.html for the live
+// backend; keep the two in sync.
+private fun recolorAccent(
+    styleJson: String,
+    colors: AccentMapColors,
+): String {
+    val root = JSONObject(styleJson)
+    val layers = root.optJSONArray("layers") ?: return styleJson
+    for (i in 0 until layers.length()) {
+        val layer = layers.getJSONObject(i)
+        val paint = layer.optJSONObject("paint") ?: JSONObject().also { layer.put("paint", it) }
+        val sourceLayer = layer.optString("source-layer")
+        when {
+            layer.optString("type") == "background" -> {
+                paint.put("background-color", colors.background)
+            }
+
+            layer.optString("type") == "fill" && sourceLayer == "water" -> {
+                paint.put("fill-color", colors.water)
+            }
+
+            layer.optString("type") == "fill" && sourceLayer in ACCENT_LAND_LAYERS -> {
+                paint.put("fill-color", colors.land)
+            }
+        }
+    }
+    return root.toString()
+}
+
+private val ACCENT_LAND_LAYERS = setOf("landcover", "landuse", "park")
 
 @Composable
 internal fun Attribution(
@@ -505,11 +548,9 @@ private fun Fallback(modifier: Modifier = Modifier) =
         )
     }
 
-// internal so MapSnapshotRenderTest renders the SAME style host / zoom the panel
-// uses, keeping the OpenFreeMap style URL and zoom a single source of truth.
+// internal so MapSnapshotRenderTest renders the SAME zoom the panel uses, keeping
+// it a single source of truth (POSITRON_STYLE_URL lives in MapScheme.kt).
 internal const val MAP_ZOOM = 16.5
-internal const val POSITRON_STYLE_URL = "https://tiles.openfreemap.org/styles/positron"
-private const val DARK_STYLE_ASSET = "map/dark.json"
 
 // How often the snapshot loop polls the current fix for movement. A frame is only
 // produced when the fix actually moves (shouldRerender), so this just bounds the

@@ -126,6 +126,15 @@
     <string name="settings_map_mode_live">Live</string>
     <string name="settings_map_mode_snapshot">Snapshot</string>
     <string name="settings_group_map_style">Map style</string>
+    <string name="settings_group_map_scheme_light">Light scheme</string>
+    <string name="settings_group_map_scheme_dark">Dark scheme</string>
+    <string name="settings_map_scheme_accent">Accent</string>
+    <string name="settings_map_scheme_positron">Positron</string>
+    <string name="settings_map_scheme_bright">Bright</string>
+    <string name="settings_map_scheme_liberty">Liberty</string>
+    <string name="settings_map_scheme_dark_matter">Dark Matter</string>
+    <string name="settings_map_scheme_dark">Dark</string>
+    <string name="settings_map_scheme_fiord">Fiord</string>
     <string name="settings_group_map_tilt">Map tilt</string>
     <string name="settings_group_map_zoom">Map zoom</string>
     <string name="settings_map_tilt_value">%1$d°</string>

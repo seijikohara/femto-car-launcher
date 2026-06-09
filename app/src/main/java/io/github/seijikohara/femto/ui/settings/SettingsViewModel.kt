@@ -29,6 +29,8 @@ internal class SettingsViewModel(
                 showClockSeconds = display.showClockSeconds,
                 fullscreen = display.fullscreen,
                 mapStyle = display.mapStyle,
+                mapSchemeLight = display.mapSchemeLight,
+                mapSchemeDark = display.mapSchemeDark,
                 mapTiltDeg = display.mapTiltDeg,
                 mapZoom = display.mapZoom,
                 mapRenderPercent = display.mapRenderPercent,
@@ -55,6 +57,8 @@ internal class SettingsViewModel(
                 is SettingsAction.SetShowClockSeconds -> displayPreferences.setShowClockSeconds(action.value)
                 is SettingsAction.SetFullscreen -> displayPreferences.setFullscreen(action.value)
                 is SettingsAction.SetMapStyle -> displayPreferences.setMapStyle(action.value)
+                is SettingsAction.SetMapSchemeLight -> displayPreferences.setMapSchemeLight(action.value)
+                is SettingsAction.SetMapSchemeDark -> displayPreferences.setMapSchemeDark(action.value)
                 is SettingsAction.SetMapTilt -> displayPreferences.setMapTilt(action.value)
                 is SettingsAction.SetMapZoom -> displayPreferences.setMapZoom(action.value)
                 is SettingsAction.SetMapRenderPercent -> displayPreferences.setMapRenderPercent(action.value)
