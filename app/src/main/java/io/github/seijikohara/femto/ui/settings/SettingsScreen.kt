@@ -349,7 +349,7 @@ private fun SettingsSection(
     )
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(FemtoDimens.CardCorner),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainer,
         tonalElevation = FemtoDimens.CardElevation,
     ) {

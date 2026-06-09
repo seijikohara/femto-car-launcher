@@ -95,7 +95,7 @@ internal fun MusicCard(
     modifier: Modifier = Modifier,
 ) = Surface(
     modifier = modifier,
-    shape = RoundedCornerShape(FemtoDimens.CardCorner),
+    shape = MaterialTheme.shapes.large,
     color = MaterialTheme.colorScheme.surfaceContainer,
     tonalElevation = FemtoDimens.CardElevation,
 ) {
