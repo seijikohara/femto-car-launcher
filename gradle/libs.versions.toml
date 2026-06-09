@@ -25,7 +25,7 @@ splashscreen = "1.2.0"
 spotless = "8.6.0"
 turbine = "1.2.1"
 versionCatalogUpdate = "1.1.0"
-webkit = "1.12.1"
+webkit = "1.16.0"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity" }
