@@ -6,6 +6,7 @@
     <string name="map_unavailable">Map unavailable</string>
     <string name="map_permission_cta">Grant location access to enable the map and overlays.</string>
     <string name="map_attribution">© OpenStreetMap · OpenMapTiles · OpenFreeMap</string>
+    <string name="map_attribution_terrain">Terrain © Mapterhorn</string>
 
     <!-- Speed overlay -->
     <string name="speed_reset_trip">Reset trip</string>
@@ -129,6 +130,9 @@
     <string name="settings_map_quality_desc">Lower renders the map faster but softer — useful on slow head units.</string>
     <string name="settings_group_map_look_ahead">Marker look-ahead</string>
     <string name="settings_map_look_ahead_value">%1$d m</string>
+    <string name="settings_group_map_3d">3D buildings</string>
+    <string name="settings_group_map_terrain">Terrain</string>
+    <string name="settings_map_terrain_desc">3D elevation relief (Mapterhorn). Adds tile downloads; heavier on low-end GPUs.</string>
     <string name="settings_group_panel_calendar">Calendar panel</string>
     <string name="settings_group_panel_weather">Weather panel</string>
     <string name="settings_group_panel_music">Music panel</string>

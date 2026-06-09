@@ -205,21 +205,39 @@ internal fun SettingsScreen(
                 range = MIN_MAP_ZOOM..MAX_MAP_ZOOM,
                 onValueChange = { onAction(SettingsAction.SetMapZoom(it)) },
             )
-            SliderRow(
-                title = stringResource(R.string.settings_group_map_look_ahead),
-                valueLabel = stringResource(R.string.settings_map_look_ahead_value, uiState.mapLookAheadM),
-                value = uiState.mapLookAheadM,
-                range = MIN_MAP_LOOK_AHEAD..MAX_MAP_LOOK_AHEAD,
-                onValueChange = { onAction(SettingsAction.SetMapLookAhead(it)) },
-            )
-            SliderRow(
-                title = stringResource(R.string.settings_group_map_quality),
-                valueLabel = stringResource(R.string.settings_map_quality_value, uiState.mapRenderPercent),
-                value = uiState.mapRenderPercent,
-                range = MIN_MAP_QUALITY..MAX_MAP_QUALITY,
-                onValueChange = { onAction(SettingsAction.SetMapRenderPercent(it)) },
-                description = stringResource(R.string.settings_map_quality_desc),
-            )
+            // Mode-specific rows: the live (WebGL) backends expose 3D buildings /
+            // terrain; the snapshot backend exposes look-ahead framing and the bitmap
+            // sharpness. Showing only the rows that affect the chosen backend keeps
+            // the panel honest (e.g. sharpness does nothing on the live map).
+            if (uiState.mapRenderMode == MapRenderMode.SNAPSHOT) {
+                SliderRow(
+                    title = stringResource(R.string.settings_group_map_look_ahead),
+                    valueLabel = stringResource(R.string.settings_map_look_ahead_value, uiState.mapLookAheadM),
+                    value = uiState.mapLookAheadM,
+                    range = MIN_MAP_LOOK_AHEAD..MAX_MAP_LOOK_AHEAD,
+                    onValueChange = { onAction(SettingsAction.SetMapLookAhead(it)) },
+                )
+                SliderRow(
+                    title = stringResource(R.string.settings_group_map_quality),
+                    valueLabel = stringResource(R.string.settings_map_quality_value, uiState.mapRenderPercent),
+                    value = uiState.mapRenderPercent,
+                    range = MIN_MAP_QUALITY..MAX_MAP_QUALITY,
+                    onValueChange = { onAction(SettingsAction.SetMapRenderPercent(it)) },
+                    description = stringResource(R.string.settings_map_quality_desc),
+                )
+            } else {
+                SwitchRow(
+                    title = stringResource(R.string.settings_group_map_3d),
+                    checked = uiState.map3dBuildings,
+                    onCheckedChange = { onAction(SettingsAction.SetMap3dBuildings(it)) },
+                )
+                SwitchRow(
+                    title = stringResource(R.string.settings_group_map_terrain),
+                    checked = uiState.mapTerrain,
+                    onCheckedChange = { onAction(SettingsAction.SetMapTerrain(it)) },
+                    summary = stringResource(R.string.settings_map_terrain_desc),
+                )
+            }
         }
 
         SettingsSection(title = stringResource(R.string.settings_section_panels)) {
@@ -467,16 +485,19 @@ private fun <T> ChoiceDialog(
 )
 
 // A boolean row: the whole row is the toggle (role = Switch), so the inline
-// Switch is presentation-only (onCheckedChange = null) and never double-fires.
+// Switch is presentation-only (onCheckedChange = null) and never double-fires. An
+// optional [summary] explains what the toggle does (e.g. attribution / cost notes).
 @Composable
 private fun SwitchRow(
     title: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    summary: String? = null,
 ) = SettingRow(
     title = title,
     modifier = modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
+    summary = summary,
 ) {
     Switch(checked = checked, onCheckedChange = null)
 }

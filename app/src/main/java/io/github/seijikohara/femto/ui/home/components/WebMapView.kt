@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,6 +72,14 @@ internal fun WebMapView(
             MapStyleSetting.DARK -> true
         }
 
+    // Flips true once the page's script has run (onPageFinished) so the JS bridge
+    // functions exist. The state-pushing effects below gate + key on it, so the
+    // current camera / style / feature state is (re)applied as soon as the page is
+    // ready — closing the race where an effect fires before the script registers
+    // window.updateCamera / setStyleUrl / setFeatures and is silently dropped.
+    // Reset with the WebView (a render-mode switch rebuilds it and reloads the page).
+    val pageReady = remember(softwareRendering) { mutableStateOf(false) }
+
     val webView =
         remember(softwareRendering) {
             val assetLoader =
@@ -96,6 +105,15 @@ internal fun WebMapView(
                             view: WebView,
                             request: WebResourceRequest,
                         ): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
+
+                        // The inline page script runs synchronously during parse, so by
+                        // onPageFinished the bridge functions are registered.
+                        override fun onPageFinished(
+                            view: WebView,
+                            url: String,
+                        ) {
+                            pageReady.value = true
+                        }
                     }
                 loadUrl("https://appassets.androidplatform.net/assets/web/map.html")
             }
@@ -106,11 +124,18 @@ internal fun WebMapView(
     // self-heals if the first push raced the page load (the next GPS fix re-applies).
     val markerColor = MaterialTheme.colorScheme.primary.toCssHex()
 
-    // Key on [webView] too: a render-mode switch rebuilds the WebView, and the new
-    // instance must receive the current camera and style immediately rather than
-    // waiting for the next GPS fix / theme change (it would otherwise show the
-    // default [0,0] world view in the meantime).
-    LaunchedEffect(webView, location.latitude, location.longitude, mapConfig.zoom, mapConfig.tiltDeg, markerColor) {
+    // Each effect keys on [pageReady] (so it fires once the page is ready) and on
+    // [webView] (a render-mode switch rebuilds it), then pushes the current state.
+    LaunchedEffect(
+        pageReady.value,
+        webView,
+        location.latitude,
+        location.longitude,
+        mapConfig.zoom,
+        mapConfig.tiltDeg,
+        markerColor,
+    ) {
+        if (!pageReady.value) return@LaunchedEffect
         val bearing = location.carriedBearing(bearingHolder)
         webView.evaluateJavascript(
             "window.updateCamera && updateCamera(" +
@@ -119,9 +144,19 @@ internal fun WebMapView(
             null,
         )
     }
-    LaunchedEffect(webView, isDark) {
+    LaunchedEffect(pageReady.value, webView, isDark) {
+        if (!pageReady.value) return@LaunchedEffect
         val style = if (isDark) DARK_STYLE_URL else POSITRON_STYLE_URL
         webView.evaluateJavascript("window.setStyleUrl && setStyleUrl('$style')", null)
+    }
+    // LIVE-only feature toggles (3D buildings / terrain). The page merges them into
+    // the style via MapLibre transformStyle, so this re-applies the style.
+    LaunchedEffect(pageReady.value, webView, mapConfig.buildings3d, mapConfig.terrain) {
+        if (!pageReady.value) return@LaunchedEffect
+        webView.evaluateJavascript(
+            "window.setFeatures && setFeatures(${mapConfig.buildings3d}, ${mapConfig.terrain})",
+            null,
+        )
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -160,7 +195,10 @@ internal fun WebMapView(
             modifier = Modifier.fillMaxSize().clickable { onTap() },
             factory = { webView },
         )
-        Attribution(modifier = Modifier.align(Alignment.BottomStart))
+        Attribution(
+            modifier = Modifier.align(Alignment.BottomStart),
+            showTerrainCredit = mapConfig.terrain,
+        )
     }
 }
 

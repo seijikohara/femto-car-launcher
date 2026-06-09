@@ -21,6 +21,69 @@
       // is kept as-is, and MapLibre's own context-loss restore handles transient
       // WebGL drops, so the page never asks the host to switch away.
       function log(msg) { try { console.log("[map] " + msg); } catch (e) {} }
+
+      // LIVE-only feature toggles, merged into the style via MapLibre transformStyle
+      // (the official "hybrid satellite map with terrain elevation" approach, minus
+      // satellite). DEM = Mapterhorn (free, no key); 3D buildings reuse the
+      // OpenMapTiles building layer's render_height. The terrain provider's required
+      // credit is shown by the host's Compose attribution overlay when active.
+      var MAPTERHORN_DEM_URL = "https://tiles.mapterhorn.com/tilejson.json";
+      var featureState = { buildings: false, terrain: false };
+      var currentStyleUrl = "https://tiles.openfreemap.org/styles/positron";
+
+      // The first vector source id in a style (the OpenMapTiles source), so 3D
+      // buildings work across positron / the bundled dark.json without hard-coding.
+      function vectorSourceId(style) {
+        var sources = style.sources || {};
+        return Object.keys(sources).find(function (id) { return sources[id].type === "vector"; });
+      }
+
+      // MapLibre transformStyle: merge the active feature layers/sources into a
+      // freshly-loaded base style. OFF features are simply not injected, so toggling
+      // off and re-setting the style removes them cleanly.
+      function injectFeatures(previousStyle, nextStyle) {
+        nextStyle.sources = nextStyle.sources || {};
+        nextStyle.layers = nextStyle.layers || [];
+        // Idempotent: strip any of OUR previously-injected layers/sources first, so a
+        // re-applied style (toggle change, or a setStyle that races the initial load
+        // and reuses the current style) never produces a duplicate-id error.
+        nextStyle.layers = nextStyle.layers.filter(function (l) {
+          return l.id !== "femto-3d-buildings";
+        });
+        // Only strip terrain if WE injected it (terrainSource present), so a base
+        // style that ever ships its own terrain is left intact.
+        if (nextStyle.sources.terrainSource) {
+          delete nextStyle.sources.terrainSource;
+          delete nextStyle.terrain;
+        }
+        var src = vectorSourceId(nextStyle);
+        if (featureState.buildings && src) {
+          // Insert beneath the first label (symbol) layer so labels stay on top.
+          var firstSymbol = nextStyle.layers.find(function (l) { return l.type === "symbol"; });
+          var buildings = {
+            id: "femto-3d-buildings", source: src, "source-layer": "building",
+            type: "fill-extrusion", minzoom: 14,
+            filter: ["!=", ["get", "hide_3d"], true],
+            paint: {
+              "fill-extrusion-color": "#c2c8d0",
+              "fill-extrusion-height": ["interpolate", ["linear"], ["zoom"], 14, 0, 16, ["get", "render_height"]],
+              "fill-extrusion-base": ["interpolate", ["linear"], ["zoom"], 14, 0, 16, ["get", "render_min_height"]],
+              "fill-extrusion-opacity": 0.85,
+            },
+          };
+          if (firstSymbol) nextStyle.layers.splice(nextStyle.layers.indexOf(firstSymbol), 0, buildings);
+          else nextStyle.layers.push(buildings);
+        }
+        if (featureState.terrain) {
+          nextStyle.sources.terrainSource = { type: "raster-dem", url: MAPTERHORN_DEM_URL };
+          nextStyle.terrain = { source: "terrainSource", exaggeration: 1.0 };
+        }
+        return nextStyle;
+      }
+
+      function applyStyle() {
+        if (map && currentStyleUrl) map.setStyle(currentStyleUrl, { transformStyle: injectFeatures });
+      }
       (function () {
         const c = document.createElement("canvas");
         if (!(c.getContext("webgl2") || c.getContext("webgl"))) log("no-webgl-context");
@@ -80,7 +143,13 @@
           if (firstCamera) { firstCamera = false; map.jumpTo(opts); }
           else map.easeTo({ ...opts, duration: 1000, essential: true });
         };
-        window.setStyleUrl = function (url) { if (map && url) map.setStyle(url); };
+        window.setStyleUrl = function (url) { if (url) { currentStyleUrl = url; applyStyle(); } };
+        // Android -> JS: flip the LIVE feature toggles, then re-apply the style so
+        // transformStyle injects (or omits) the matching layers/sources.
+        window.setFeatures = function (buildings, terrain) {
+          featureState = { buildings: !!buildings, terrain: !!terrain };
+          applyStyle();
+        };
         // Host (Android) calls this on lifecycle resume so the map re-measures and
         // repaints after the WebView was paused / not visible (guards a stale GL
         // surface): map.resize() + triggerRepaint().

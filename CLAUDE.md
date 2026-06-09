@@ -170,7 +170,7 @@ targets that matter for any head-unit UI, regardless of motion.
 | `ACCESS_NETWORK_STATE` | MapLibre connectivity probe before fetching OpenFreeMap vector map tiles. |
 | `ACCESS_WIFI_STATE` | Read Wi-Fi transport / validation state so the footer status cluster reports a live Wi-Fi indicator. Normal protection; auto-granted at install. |
 | `BLUETOOTH_CONNECT` | Read the set of currently-connected Bluetooth devices (HEADSET / A2DP / GATT) so the footer status cluster reflects head-unit pairing state. Dangerous on Android 12+; runtime grant. When denied, the connected-device APIs are unreadable, so the BT indicator falls back to the adapter power state (on/off) rather than a misleading "disconnected"; the rest of the launcher remains functional. |
-| `INTERNET` | Open-Meteo weather API, OpenFreeMap vector map tile fetch (MapLibre), and Nominatim/OSM reverse geocoding. |
+| `INTERNET` | Open-Meteo weather API, OpenFreeMap vector map tile fetch (MapLibre), Nominatim/OSM reverse geocoding, and the optional live-map terrain layer (Mapterhorn DEM tiles). |
 | `READ_CALENDAR` | Query `CalendarContract.Instances` for the dashboard's Calendar card — the 6-day strip dots and the upcoming-event list. Dangerous; runtime grant. The card falls back to "today's date only" when denied. |
 | `READ_PHONE_STATE` | Read the cellular `SignalStrength.level` via `TelephonyCallback` so the footer status cluster shows graduated cellular signal bars. Dangerous; runtime grant. The cellular indicator degrades to the binary connected/disconnected icon when denied. |
 

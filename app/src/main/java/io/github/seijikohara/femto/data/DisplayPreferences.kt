@@ -98,6 +98,11 @@ internal data class DisplaySettings(
     // Camera look-ahead (metres): how far ahead of the current position the camera
     // aims, which sets how low the location marker sits (closer to the speed panel).
     val mapLookAheadM: Int,
+    // Live-map (WebGL) feature toggles. Both default off; they apply to the LIVE
+    // backends only (SNAPSHOT's native GL cannot extrude/relief safely). 3D buildings
+    // extrude the OpenMapTiles building layer; terrain adds raster-DEM relief.
+    val map3dBuildings: Boolean,
+    val mapTerrain: Boolean,
     // Info-pane card visibility. Each card defaults to shown so a fresh install
     // renders the full dashboard; hiding one lets the remaining cards (or the map)
     // reflow into the freed space.
@@ -121,6 +126,8 @@ internal data class DisplaySettings(
                 mapRenderPercent = DEFAULT_MAP_RENDER_PERCENT,
                 mapRenderMode = MapRenderMode.SNAPSHOT,
                 mapLookAheadM = DEFAULT_MAP_LOOKAHEAD_M,
+                map3dBuildings = false,
+                mapTerrain = false,
                 showCalendar = true,
                 showWeather = true,
                 showMusic = true,
@@ -164,6 +171,10 @@ internal interface DisplaySettingsStore {
 
     suspend fun setMapLookAhead(value: Int)
 
+    suspend fun setMap3dBuildings(value: Boolean)
+
+    suspend fun setMapTerrain(value: Boolean)
+
     suspend fun setShowCalendar(value: Boolean)
 
     suspend fun setShowWeather(value: Boolean)
@@ -197,6 +208,8 @@ internal class DisplayPreferences(
                 mapRenderPercent = prefs[MAP_QUALITY_KEY] ?: DEFAULT_MAP_RENDER_PERCENT,
                 mapRenderMode = prefs[MAP_RENDER_MODE_KEY].toMapRenderModeOr(MapRenderMode.SNAPSHOT),
                 mapLookAheadM = prefs[MAP_LOOKAHEAD_KEY] ?: DEFAULT_MAP_LOOKAHEAD_M,
+                map3dBuildings = prefs[MAP_3D_BUILDINGS_KEY] ?: false,
+                mapTerrain = prefs[MAP_TERRAIN_KEY] ?: false,
                 showCalendar = prefs[SHOW_CALENDAR_KEY] ?: true,
                 showWeather = prefs[SHOW_WEATHER_KEY] ?: true,
                 showMusic = prefs[SHOW_MUSIC_KEY] ?: true,
@@ -257,6 +270,14 @@ internal class DisplayPreferences(
         context.displayDataStore.edit { it[MAP_LOOKAHEAD_KEY] = value }
     }
 
+    override suspend fun setMap3dBuildings(value: Boolean) {
+        context.displayDataStore.edit { it[MAP_3D_BUILDINGS_KEY] = value }
+    }
+
+    override suspend fun setMapTerrain(value: Boolean) {
+        context.displayDataStore.edit { it[MAP_TERRAIN_KEY] = value }
+    }
+
     override suspend fun setShowCalendar(value: Boolean) {
         context.displayDataStore.edit { it[SHOW_CALENDAR_KEY] = value }
     }
@@ -283,6 +304,8 @@ internal class DisplayPreferences(
         val MAP_QUALITY_KEY = intPreferencesKey("map_render_percent")
         val MAP_RENDER_MODE_KEY = stringPreferencesKey("map_render_mode")
         val MAP_LOOKAHEAD_KEY = intPreferencesKey("map_look_ahead_m")
+        val MAP_3D_BUILDINGS_KEY = booleanPreferencesKey("map_3d_buildings")
+        val MAP_TERRAIN_KEY = booleanPreferencesKey("map_terrain")
         val SHOW_CALENDAR_KEY = booleanPreferencesKey("show_calendar")
         val SHOW_WEATHER_KEY = booleanPreferencesKey("show_weather")
         val SHOW_MUSIC_KEY = booleanPreferencesKey("show_music")
