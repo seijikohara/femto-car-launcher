@@ -237,10 +237,12 @@ private fun DayRow(
 private fun EventRow(
     time: String,
     title: String,
-) = Row(
+) = Column(
+    // Time above, title below: the side-by-side row made a wrapping title
+    // hang after the time at an unnatural break, while the two-line stack
+    // wraps from the card's left edge.
     modifier = Modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.spacedBy(6.dp),
-    verticalAlignment = Alignment.Top,
+    verticalArrangement = Arrangement.spacedBy(1.dp),
 ) {
     Text(
         text = time,

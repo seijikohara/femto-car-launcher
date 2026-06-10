@@ -56,6 +56,7 @@ import io.github.seijikohara.femto.ui.theme.sectionLabel
 import io.github.seijikohara.femto.ui.theme.weatherGlyphs
 import java.time.Instant
 import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
 /**
@@ -305,20 +306,17 @@ private fun EmptyState() =
         )
     }
 
-// Forecast hour label honouring the user's clock setting: compact 24-hour "09h"
-// or 12-hour "9a" / "2p" so the tiny chip never widens. Midnight reads "12a",
-// noon "12p".
+// Forecast hour label in the same notation family as the clock and the
+// calendar ("12:00" / "12 PM" via the locale's meridiem word), so the
+// 12/24-hour setting is visibly honoured. The earlier compact "12h" / "12p"
+// forms read as setting-agnostic shorthand.
+private val ForecastHourFormatter24: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+private val ForecastHourFormatter12: DateTimeFormatter = DateTimeFormatter.ofPattern("h a")
+
 private fun forecastHourLabel(
     time: LocalTime,
     is24Hour: Boolean,
-): String =
-    if (is24Hour) {
-        "%02dh".format(time.hour)
-    } else {
-        val hour12 = ((time.hour + 11) % 12) + 1
-        val meridiem = if (time.hour < 12) "a" else "p"
-        "$hour12$meridiem"
-    }
+): String = time.format(if (is24Hour) ForecastHourFormatter24 else ForecastHourFormatter12)
 
 // Day/night drives the sun-vs-moon glyph for CLEAR. Use the snapshot's real
 // sunrise/sunset when present; fall back to a fixed 6..18 window only when either
