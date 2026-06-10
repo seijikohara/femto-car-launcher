@@ -164,7 +164,10 @@ internal class HomeViewModel(
 
 // Replace a source failure with that source's neutral value so one broken
 // repository degrades its own card instead of killing the launcher process.
-// Cancellation is rethrown to keep structured concurrency intact.
+// Cancellation is rethrown to keep structured concurrency intact. By design the
+// failed source then COMPLETES: its card stays at the neutral value until the
+// process restarts. No automatic retry — a broken system service would turn a
+// retry loop into a battery drain on the head unit.
 private fun <T> Flow<T>.catchAsDefault(
     source: String,
     default: T,

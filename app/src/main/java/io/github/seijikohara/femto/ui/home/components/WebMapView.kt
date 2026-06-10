@@ -49,6 +49,8 @@ import com.composables.icons.lucide.MapPinOff
 import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.MapStyleSetting
+import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
 /**
  * Live map backend: MapLibre GL JS (WebGL) in a WebView — the only path that renders
@@ -411,6 +413,18 @@ private fun LiveMapNotice(
 // A bundled asset served to the WebView over the WebViewAssetLoader https origin so
 // MapLibre's tile Worker can fetch it (and the asset's OpenFreeMap sources) cross-origin.
 private fun appAssetsUrl(asset: String): String = "https://appassets.androidplatform.net/assets/$asset"
+
+@PreviewLightDark
+@Composable
+private fun LiveMapNoticePreview() {
+    FemtoTheme {
+        LiveMapNotice(
+            titleRes = R.string.map_live_renderer_gone,
+            hintRes = R.string.map_live_renderer_gone_hint,
+            reason = "renderer crashed",
+        )
+    }
+}
 
 private const val TAG = "WebMapView"
 
