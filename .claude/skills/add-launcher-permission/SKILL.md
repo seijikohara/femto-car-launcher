@@ -64,9 +64,9 @@ procedural detail.
 | --- | --- | --- |
 | `QUERY_ALL_PACKAGES` | Show installed apps in the launcher's app list | Play Store policy: requires justification at submission. Prefer `<queries>` with specific intents when feasible. |
 | `SYSTEM_ALERT_WINDOW` | Map / music PiP overlays | User-grantable but visually scary; explain in onboarding. |
-| `POST_NOTIFICATIONS` | Driving-mode reminders, quick replies | API 33+; runtime grant required. |
+| `POST_NOTIFICATIONS` | User-facing alerts raised by a launcher feature | API 33+; runtime grant required. |
 | `BIND_NOTIFICATION_LISTENER_SERVICE` | Read music MediaSession metadata | User must enable via Settings → Notifications → Notification access. |
-| `READ_PHONE_STATE` | Detect calls to mute media | Dangerous; consider whether `TelephonyCallback` without this permission suffices. |
+| `READ_PHONE_STATE` | Graduated cellular signal bars (`SignalStrength.level` via `TelephonyCallback`) | Already declared — see the audit log at `CLAUDE.md#permissions`. Dangerous; degrade to a binary connectivity icon when denied. |
 | `ACCESS_FINE_LOCATION` | Map centring, speed / altitude / address overlays, current-location weather lookup | Dangerous; runtime grant required. Without it, the dependent dashboard panels render empty placeholders. |
 
 ## Skill-specific anti-patterns

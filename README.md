@@ -1,4 +1,18 @@
+<div align="center">
+
+<img src="logo.svg" alt="Femto Car Launcher logo" width="128">
+
 # Femto Car Launcher
+
+**A glanceable Android home launcher for car head units.**
+
+[![CI](https://github.com/seijikohara/femto-car-launcher/actions/workflows/ci.yml/badge.svg)](https://github.com/seijikohara/femto-car-launcher/actions/workflows/ci.yml)
+[![Download nightly APK](https://img.shields.io/badge/download-nightly_APK-3BE0AE?logo=android&logoColor=white)](https://github.com/seijikohara/femto-car-launcher/releases/tag/nightly)
+[![Android 13+](https://img.shields.io/badge/Android-13%2B_(API_33)-3DDC84?logo=android&logoColor=white)](https://developer.android.com/about/versions/13)
+[![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/develop/ui/compose)
+
+</div>
 
 Femto Car Launcher is an Android home-screen replacement (launcher) for
 in-car head units. It targets two hardware classes: aftermarket CarPlay /
@@ -17,10 +31,13 @@ strictest applicable rule wins when markets diverge.
 
 The home screen is a fixed dashboard rather than a scrolling grid of apps.
 
-- **Map panel** — renders OpenStreetMap vector tiles through MapLibre,
-  served by the keyless OpenFreeMap service. The view is heading-up (the
-  map rotates so the travel direction points up) and shows a static
-  placeholder until a location fix arrives. No API key is required.
+- **Map panel** — a live vector map rendered by MapLibre GL JS inside a
+  WebView, with OpenStreetMap tiles served by the keyless OpenFreeMap
+  service. The view is heading-up (the map rotates so the travel
+  direction points up) and offers an optional three-dimensional terrain
+  relief layer (Mapterhorn elevation tiles). Head units whose WebView
+  cannot sustain WebGL can switch to a Snapshot mode that rasterises the
+  same vector map off-screen. No API key is required in either mode.
 - **Trip overlay** — current speed, trip distance, and average speed
   derived from the Global Positioning System (GPS), plus the
   reverse-geocoded address of the current position.
@@ -33,24 +50,47 @@ The home screen is a fixed dashboard rather than a scrolling grid of apps.
   app, and transport controls), read through a notification-listener
   service.
 - **Clock overlay** — a self-updating clock that honours the system
-  12/24-hour setting.
+  12/24-hour setting, with an optional seconds display.
 - **Status cluster** — graduated Wi-Fi and cellular signal strength,
   Bluetooth connection state, GPS reception, and battery level and charging
   state.
-- **App access** — a bottom application bar with shortcuts and a full app
-  drawer.
+- **App dock and drawer** — an application dock that the user can attach
+  to any screen edge (bottom, top, left, or right), and a full app drawer
+  with search, a pinned-apps row, and small / medium / large icon-size
+  presets.
 - **Voice assistant** — a microphone button opens a bottom sheet that
-  launches the system voice assistant, voice command, or voice search.
+  captures speech in-launcher (`android.speech.SpeechRecognizer`) with a
+  live transcript. When no on-device recognizer exists or the microphone
+  permission is denied, the sheet degrades to launching the system voice
+  assistant, voice command, or voice search.
+- **Fonts** — the head-unit system font by default, or any Google Fonts
+  family chosen per slot (a Latin face plus a CJK — Chinese, Japanese,
+  Korean — fallback face), downloaded on demand and cached on disk. No
+  fonts are bundled in the APK and no Play Services are required.
 - **Settings** — in-app preferences for theme (follow-system / light /
-  dark), speed and temperature units, clock format, a fullscreen toggle
-  that hides the system bars, and the font pairing, plus shortcuts to the
-  system notification-access and Android settings screens.
+  dark), accent colour (Material You dynamic colour or a fixed seed
+  preset), screen orientation (auto / landscape / portrait), speed and
+  temperature units, clock format and seconds, a fullscreen toggle that
+  hides the system bars, dock edge, drawer icon size, glass-effect blur
+  and opacity for the dashboard overlays, map rendering (Live / Snapshot
+  mode, render quality, terrain), location-update tuning, and the font
+  pairing — plus shortcuts to the system notification-access and Android
+  settings screens, and a one-tap reset to defaults.
 
 Each panel degrades gracefully. A panel whose runtime permission is denied,
 or whose data source is unavailable, renders an empty or reduced state
 instead of failing. The dashboard renders the same tree regardless of
 vehicle motion; distraction responsibility stays with the driver and the
 vehicle's own cluster.
+
+## Download
+
+Every merge to `main` publishes a release-signed APK as a rolling
+prerelease tagged
+[`nightly`](https://github.com/seijikohara/femto-car-launcher/releases/tag/nightly).
+The tag is re-pointed to the built commit each run, so the release always
+reflects the latest `main`. Install it with `adb install -r <apk>` or by
+sideloading on the head unit.
 
 ## Architecture
 
@@ -62,12 +102,13 @@ vehicle's own cluster.
   as a `HOME` launcher with `launchMode="singleTask"`.
 - **Data:** one repository per dashboard source, each exposing a Kotlin
   `Flow`. User preferences persist through Jetpack DataStore.
+- **Map page:** the live map is a separate TypeScript application under
+  [`webmap/`](webmap/) (Vite + MapLibre GL JS). Gradle builds it with a
+  self-provisioned Node.js + pnpm toolchain and embeds the output in the
+  app's assets; the launcher loads it in a WebView.
 - **Network:** the map is keyless. Weather (Open-Meteo) and reverse
   geocoding (OpenStreetMap Nominatim) default to public endpoints and
   accept configurable production hosts (see [Configuration](#configuration)).
-
-Project rules, the design system, and coding conventions live in
-[`CLAUDE.md`](CLAUDE.md).
 
 ## Tech stack
 
@@ -76,10 +117,14 @@ Project rules, the design system, and coding conventions live in
 - Gradle 9, a Java Development Kit (JDK) 21 toolchain, and Java 11
   source/target compatibility.
 - `minSdk = 33` (Android 13), `targetSdk = 36`.
+- Web map page: TypeScript, Vite, and MapLibre GL JS, managed with pnpm.
+  The Gradle build provisions Node.js and pnpm itself, so no local
+  Node.js installation is needed. Vite targets `chrome109` — the
+  Android 13 factory WebView floor.
 
 [`gradle/libs.versions.toml`](gradle/libs.versions.toml) is the single
-source of truth for dependency versions; see
-[`CLAUDE.md#tech-stack`](CLAUDE.md#tech-stack) for the resolved list.
+source of truth for Gradle dependency versions
+([`webmap/package.json`](webmap/package.json) for the web page).
 
 ## Project layout
 
@@ -89,22 +134,27 @@ app/src/main/
 │   ├── MainActivity.kt   # single launcher entry (HOME activity)
 │   ├── data/             # repositories, DataStore wrappers, network APIs
 │   └── ui/
-│       ├── home/         # the dashboard: panels, overlays, footer cluster
-│       ├── drawer/       # full app drawer (bottom sheet)
+│       ├── home/         # the dashboard: panels, overlays, status cluster
+│       ├── drawer/       # full app drawer with pinned dock
 │       ├── assistant/    # voice-assistant bottom sheet
 │       ├── settings/     # in-app settings
+│       ├── fontpicker/   # per-slot Google Fonts picker
 │       ├── locale/       # unit and locale formatting
 │       └── theme/        # FemtoTheme, design tokens, previews
-└── res/                  # themes, bundled fonts, strings
+└── res/                  # themes, strings (per-locale), launcher icon
+webmap/                   # TypeScript source of the live map page
+                          # (built into app assets by Gradle)
 ```
 
 ## Build and run
 
 **Prerequisites:** JDK 21, Android Studio (latest stable), and an Android
-13+ device or Android Virtual Device (AVD).
+13+ device or Android Virtual Device (AVD). Node.js and pnpm are **not**
+prerequisites — the Gradle build downloads its own copies to compile the
+`webmap/` page.
 
 ```bash
-./gradlew assembleDebug      # build the debug APK
+./gradlew assembleDebug      # build the debug APK (includes the webmap build)
 ./gradlew test               # JVM unit tests
 ./gradlew lint               # Android Lint
 ./gradlew connectedAndroidTest  # instrumented tests (device / emulator)
@@ -123,9 +173,9 @@ landscape profile) and launch the app as the home activity.
 The launcher runs with no configuration: `./gradlew assembleDebug`
 produces a working build, and the map needs no API key.
 
-Two network services default to shared public endpoints that are suitable
-for a proof of concept but are rate-limited and unsuitable for production
-traffic. Override them for a release build through the git-ignored
+Two network services default to shared public endpoints that are fine for
+development and evaluation but are rate-limited and unsuitable for
+production traffic. Override them for a release build through the git-ignored
 `local.properties` file, which feeds `BuildConfig` at build time:
 
 | Property | Purpose | Default |
@@ -147,58 +197,10 @@ and on pushes to `main`:
   `./gradlew spotlessCheck test lint assembleDebug` on a Temurin JDK 21
   runner.
 - **Publish nightly** (`main` pushes and manual `workflow_dispatch` only):
-  builds a release-signed APK and republishes a rolling prerelease.
+  builds the release-signed APK behind the [Download](#download) badge.
 
-### Nightly build
-
-On every merge to `main`, CI builds a release-signed APK and republishes it
-as a rolling prerelease tagged `nightly`. The tag is re-pointed to the built
-commit each run, so the release always reflects the latest `main`. Download
-the latest APK from the [`nightly` release](../../releases/tag/nightly).
-
-The nightly APK is **release-signed**. Local and contributor
-`./gradlew assembleRelease` builds stay **unsigned**, because no keystore
-environment variables are present. The signing config is registered only
-when `RELEASE_KEYSTORE_PATH` is set, so local release builds keep working.
-
-### Signing secrets
-
-A maintainer must add four repository secrets (Settings -> Secrets and
-variables -> Actions) before the nightly job can sign:
-
-| Secret | Contents |
-| --- | --- |
-| `RELEASE_KEYSTORE_BASE64` | Base64 of the upload keystore (`.jks`) |
-| `RELEASE_KEYSTORE_PASSWORD` | Keystore (store) password |
-| `RELEASE_KEY_ALIAS` | Key alias inside the keystore |
-| `RELEASE_KEY_PASSWORD` | Password for that key |
-
-Generate an upload keystore once:
-
-```bash
-keytool -genkeypair -v \
-  -keystore release.jks \
-  -alias femto-upload \
-  -keyalg RSA -keysize 2048 -validity 10000
-```
-
-Base64-encode it for the `RELEASE_KEYSTORE_BASE64` secret:
-
-```bash
-# macOS
-base64 -i release.jks | pbcopy
-# Linux
-base64 -w0 release.jks
-```
-
-Keep `release.jks` out of version control. If `RELEASE_KEYSTORE_BASE64` is
-missing, the nightly job fails with an explicit message instead of
-publishing an unsigned APK.
-
-## Contributing
-
-Project rules, code style, and design-system policies live in
-[`CLAUDE.md`](CLAUDE.md); read it before contributing. Key sections:
-[design system](CLAUDE.md#design-system),
-[Compose architecture](CLAUDE.md#compose-architecture),
-[Kotlin style](CLAUDE.md#kotlin-style), and [testing](CLAUDE.md#testing).
+The nightly APK is **release-signed**; local and contributor
+`./gradlew assembleRelease` builds stay **unsigned**, because the signing
+config is registered only when the keystore environment variables are
+present. Maintainer setup for the signing secrets lives in
+[`.github/RELEASING.md`](.github/RELEASING.md).

@@ -34,31 +34,30 @@ when markets diverge.
 ## Source layout
 
 ```
-app/src/main/
-├── java/io/github/seijikohara/femto/
-│   ├── MainActivity.kt           # ComponentActivity, single launcher entry
-│   ├── data/                     # DataStore wrappers and persistence
-│   └── ui/
-│       ├── <area>/               # One area per top-level surface
-│       │   ├── <Area>Route.kt    # VM-binding entry point (when stateful)
-│       │   ├── <Area>Screen.kt   # Pure UI; takes UiState + onAction
-│       │   ├── <Area>UiState.kt  # data class + Action sealed (when stateful)
-│       │   ├── <Area>ViewModel.kt# StateFlow<UiState>; handles Action
-│       │   └── components/       # Area-private widgets
-│       └── theme/                # FemtoTheme + tokens + PreviewLightDark
-├── test/...                      # JVM unit tests (runTest + TestDispatcher)
-└── androidTest/...               # Compose UI tests (createComposeRule)
-└── res/
-    ├── font/                     # Bundled variable fonts (lowercase names)
-    └── values{,-night}/themes.xml
+app/src/
+├── main/
+│   ├── java/io/github/seijikohara/femto/
+│   │   ├── MainActivity.kt           # ComponentActivity, single launcher entry
+│   │   ├── data/                     # Repositories, DataStore stores, network APIs (flat package)
+│   │   └── ui/
+│   │       ├── <area>/               # One area per top-level surface
+│   │       │   ├── <Area>Route.kt    # VM-binding entry point (when stateful)
+│   │       │   ├── <Area>Screen.kt   # Pure UI; takes UiState + onAction
+│   │       │   ├── <Area>UiState.kt  # data class + Action sealed (when stateful)
+│   │       │   ├── <Area>ViewModel.kt# StateFlow<UiState>; handles Action
+│   │       │   └── components/       # Area-private widgets
+│   │       └── theme/                # FemtoTheme + tokens + PreviewLightDark
+│   └── res/                          # themes (values{,-night}/), strings (per-locale), icon drawables, xml/
+├── test/...                          # JVM unit tests (runTest + TestDispatcher)
+└── androidTest/...                   # Compose UI tests (createComposeRule)
 ```
 
 `webmap/` (top level) is the TypeScript source of the LIVE map WebView
 page. Gradle builds it into `assets/web/` via the node-gradle plugin —
 the `node {}` block in `app/build.gradle.kts` is the wiring SSOT, and
 nothing under `src/main/assets/web/` is committed. `assets/licenses/`
-holds OFL/equivalent texts for every bundled font plus the licenses of
-the bundled map styles and MapLibre GL JS.
+holds the licenses of the bundled map styles (Positron / Dark Matter)
+and MapLibre GL JS.
 `gradle/libs.versions.toml` is the dependency catalog SSOT (the web
 page's npm dependencies live in `webmap/package.json` + lockfile).
 
@@ -109,7 +108,7 @@ with automotive overrides on top.
 | Concern | M3 default | Femto rule | Symbol |
 | --- | --- | --- | --- |
 | Tap target | 48 dp | **≥ 64 dp** | `FemtoDimens.MinTouchTarget` |
-| Body text on the head-unit dashboard | flexible | **≥ 18 sp**, never `bodySmall` / `labelSmall` (cards may relax this for glance-metadata strip / metrics / progress when the design SSOT specifies it — see `docs/design/dashboard-v2-mockup.html`) | `FemtoDimens.MinBodyTextSize` |
+| Body text on the head-unit dashboard | flexible | **≥ 18 sp**, never `bodySmall` / `labelSmall`. Cards may deliberately relax this for glance metadata, metrics, and progress captions; the shipped card components under `ui/home/components/` are the reference for where the relaxation applies (inherited from the retired dashboard-v2 mockup, whose KDoc notes mark each spot) | `FemtoDimens.MinBodyTextSize` |
 
 When the value lives in code, the symbol on the right is the SSOT —
 not a magic number in another file.
@@ -146,10 +145,9 @@ family per slot, downloaded on demand and cached on disk.
 - Variable-font weight axes require file-level
   `@file:OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)`
   (see `ui/theme/DownloadedFonts.kt`).
-- The
-  [`add-bundled-font`](.claude/skills/add-bundled-font/SKILL.md)
-  skill applies only if a face is ever bundled again (e.g. an
-  offline-guaranteed default); the live model is download-on-demand.
+- No fonts ship inside the APK. If a face is ever bundled again
+  (e.g. an offline-guaranteed default), scope that as a new feature —
+  the former bundling procedure was retired with the bundled fonts.
 
 ### Launcher behavior <a id="launcher-behavior"></a>
 
@@ -427,7 +425,6 @@ manually invocable as `/<skill-name>`. Manual-only skills are marked
 | --- | --- |
 | `add-compose-screen` | Scaffold a new Compose screen. |
 | `add-viewmodel` | Promote a screen to the UDF `Route` + `Screen` + `ViewModel` shape. |
-| `add-bundled-font` | Add a new variable-font pair (`FontTheme`). |
 | `add-launcher-permission` | Discipline for new `<uses-permission>` entries. |
 | `update-gradle-dependency` | Version-catalog discipline. |
 | `update-launcher-icon` | Re-derive the adaptive launcher icon from `/logo.svg` (the brand-mark SSOT). |

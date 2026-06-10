@@ -78,8 +78,8 @@ internal sealed interface MusicCommand {
 }
 
 /**
- * Music card. Vertical layout per `docs/design/dashboard-v2-mockup.html`
- * (`.music-card` rules):
+ * Music card. Vertical layout inherited from the `.music-card` rules of the
+ * retired dashboard-v2 design mockup:
  *
  *  1. Album art (140 dp, 14 dp corner)
  *  2. Meta — uppercase source eyebrow (10sp / 0.16em), 20sp title, 14sp artist

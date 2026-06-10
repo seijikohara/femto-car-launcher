@@ -53,8 +53,8 @@ object FemtoDimens {
     /**
      * Corner radius for the speed overlay on the map pane. Deliberately
      * distinct from [OverlayCorner] (16 dp): the speed overlay carries a
-     * larger 20 dp corner per `docs/design/dashboard-v2-mockup.html`
-     * `.speed-overlay`, so the two tokens stay separate rather than reusing
+     * larger 20 dp corner — a retired-dashboard-v2-mockup decision kept on
+     * device — so the two tokens stay separate rather than reusing
      * [OverlayCorner].
      */
     val SpeedOverlayCorner = 20.dp

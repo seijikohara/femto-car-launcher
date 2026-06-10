@@ -66,8 +66,8 @@ import kotlin.math.roundToInt
  *  2. Metrics — Feels / Wind / Humid row.
  *  3. Forecast — three hourly chips.
  *
- * Typography and spacing follow `docs/design/dashboard-v2-mockup.html`
- * (`.weather-card` rules) verbatim — the same intentional relaxation of
+ * Typography and spacing originated in the `.weather-card` rules of the
+ * retired dashboard-v2 design mockup — the same intentional relaxation of
  * the dashboard's 18sp body-size floor as [CalendarCard] applies here.
  */
 @Composable

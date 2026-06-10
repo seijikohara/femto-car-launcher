@@ -1,6 +1,6 @@
 ---
 name: compose-launcher-reviewer
-description: Reviews changes to femto-car-launcher for adherence to its Compose / Material 3 / Bold Minimal / automotive conventions. Use after touching ui/theme, ui/home, MainActivity, AndroidManifest.xml, build files, or font resources, and before opening a PR. The caller must provide the diff or file list explicitly — the agent does not guess scope.
+description: Reviews changes to femto-car-launcher for adherence to its Compose / Material 3 / Bold Minimal / automotive conventions. Use after touching ui/theme, ui/home, MainActivity, AndroidManifest.xml, build files, or font wiring, and before opening a PR. The caller must provide the diff or file list explicitly — the agent does not guess scope.
 model: sonnet
 color: cyan
 tools:
@@ -39,8 +39,10 @@ For each touched area, verify the diff against the named section of
   in commit body is required; the audit table in `CLAUDE.md` must be
   updated. Removal of HOME / DEFAULT / LAUNCHER categories or pinning
   `screenOrientation` is **blocking**.
-- Bundled font additions / changes → `CLAUDE.md#fonts`. Missing OFL
-  text or non-conforming filename is **blocking**.
+- Font-selection / download changes (`FontRepository`,
+  `ui/fontpicker`, typography wiring) → `CLAUDE.md#fonts`. Bypassing
+  `FontRepository` as the catalog / cache SSOT or breaking the
+  cache-eviction contract is **blocking**.
 - New / upgraded dependencies → `CLAUDE.md#dependencies`. Raw
   `implementation("...")` strings or BOM-overriding pins without
   justification are findings.

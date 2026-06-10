@@ -98,9 +98,9 @@ private val NavSpecs =
     )
 
 /**
- * Dashboard dock. Originally derived from `docs/design/dashboard-v2-mockup.html`
- * `.footer`, since evolved from on-device feedback (shorter height, no Home
- * button, added cellular indicator); this composable, not the mockup, is now the
+ * Dashboard dock. Originally derived from the `.footer` of the retired
+ * dashboard-v2 design mockup, since evolved from on-device feedback (shorter
+ * height, no Home button, added cellular indicator); this composable is the
  * authoritative dock spec.
  *
  * [position] picks the hosting edge: [DockPosition.BOTTOM] / [DockPosition.TOP]

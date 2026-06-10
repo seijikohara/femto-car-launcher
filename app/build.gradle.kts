@@ -50,11 +50,11 @@ tasks.named("preBuild") {
 }
 
 // Production geocoder and weather hosts are threaded in via gitignored
-// local.properties so the public PoC endpoints are never the implicit production
-// default. Production builds should set GEOCODER_BASE_URL / WEATHER_BASE_URL (and
-// the matching *_API_KEY when the host requires one) to a non-public host; absent
-// values fall back to the public Nominatim / Open-Meteo PoC endpoints, which are
-// rate-limited and unsuitable for production traffic.
+// local.properties so the shared public endpoints are never the implicit
+// production default. Production builds should set GEOCODER_BASE_URL /
+// WEATHER_BASE_URL (and the matching *_API_KEY when the host requires one) to a
+// non-public host; absent values fall back to the public Nominatim / Open-Meteo
+// endpoints, which are rate-limited and unsuitable for production traffic.
 val localProperties =
     Properties().apply {
         rootProject

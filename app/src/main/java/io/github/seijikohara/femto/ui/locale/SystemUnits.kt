@@ -127,8 +127,8 @@ internal fun SpeedUnit.label(): String =
  * Format a wind speed (supplied in km/h by the weather provider) for the
  * dashboard, matching the speed unit the rest of the launcher shows. Imperial
  * locales read wind as mph (paired with the [SpeedOverlay] reading); metric
- * locales keep m/s per `docs/design/dashboard-v2-mockup.html`, which specs m/s
- * as the conventional meteorological wind unit outside imperial markets.
+ * locales keep m/s — the conventional meteorological wind unit outside
+ * imperial markets, a deliberate dashboard-v2 design decision.
  */
 internal fun windLabel(
     windKmh: Double,
