@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package io.github.seijikohara.femto.data
 
 import android.annotation.SuppressLint
@@ -12,12 +14,15 @@ import androidx.core.location.LocationManagerCompat
 import androidx.core.location.LocationRequestCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.shareIn
 
@@ -25,6 +30,9 @@ private const val TAG = "LocationRepository"
 
 internal class LocationRepository(
     private val context: Context,
+    // User-tunable request parameters (see [LocationSettings]); a change while
+    // collectors are live tears down and re-registers the platform listener.
+    private val settings: Flow<LocationSettings>,
     // Repository-scoped scope owns the single shared GPS subscription. The default keeps
     // production wiring trivial; tests inject their own scope to drive shareIn deterministically.
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
@@ -48,7 +56,7 @@ internal class LocationRepository(
     // never disturbs the other. A per-provider failure is dropped (no null emission) so a
     // working provider is never blanked by the other's absence.
     @SuppressLint("MissingPermission") // Caller checks fine or coarse location before subscribing.
-    private fun rawLocationFlow(): Flow<Location?> =
+    private fun rawLocationFlow(settings: LocationSettings): Flow<Location?> =
         callbackFlow {
             // One listener shared across both registrations; each fix is forwarded verbatim.
             val listener = LocationListenerCompat { location -> trySend(location) }
@@ -63,7 +71,7 @@ internal class LocationRepository(
                     LocationManagerCompat.requestLocationUpdates(
                         locationManager,
                         provider,
-                        LocationRequestCompat.Builder(LOCATION_INTERVAL_MS).build(),
+                        settings.toLocationRequest(),
                         listener,
                         Looper.getMainLooper(),
                     )
@@ -73,15 +81,24 @@ internal class LocationRepository(
             awaitClose { locationManager.removeUpdates(listener) }
         }.flowOn(Dispatchers.Main.immediate)
 
-    // Single hot fan-out of the cold raw flow. On an always-on head unit the four consumers
-    // (ViewModel combine, ReverseGeocoder, Weather, Trip) collect the same instance, so they
-    // share one platform GPS registration + one getLastKnownLocation instead of four each.
-    // WhileSubscribed(5_000) gates that single registration: it starts on the first collector,
-    // and stops ~5s after the last collector leaves (the grace window avoids tearing down and
-    // re-registering GPS across brief recomposition / config-change gaps). replay = 1 hands a
-    // late subscriber the most recent fix immediately rather than waiting for the next update.
+    // Single hot fan-out of the cold raw flow. On an always-on head unit the consumers
+    // (ViewModel combine, ReverseGeocoder, Weather, Trip, SystemStatus) collect the same
+    // instance, so they share one platform GPS registration + one getLastKnownLocation
+    // instead of one each. WhileSubscribed(5_000) gates that single registration: it starts
+    // on the first collector, and stops ~5s after the last collector leaves (the grace
+    // window avoids tearing down and re-registering GPS across brief recomposition /
+    // config-change gaps). replay = 1 hands a late subscriber the most recent fix
+    // immediately rather than waiting for the next update.
+    //
+    // flatMapLatest re-runs the raw flow when the user changes a location setting: the
+    // cancelled inner flow's awaitClose removes the old listener, the new one re-registers
+    // with the new request and re-seeds getLastKnownLocation, and replay = 1 bridges
+    // subscribers across the swap so nobody observes a gap.
     private val shared: SharedFlow<Location?> =
-        rawLocationFlow().shareIn(scope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+        settings
+            .distinctUntilChanged()
+            .flatMapLatest { rawLocationFlow(it) }
+            .shareIn(scope, SharingStarted.WhileSubscribed(5_000), replay = 1)
 
     // The repository factory already builds one LocationRepository and passes the single flow
     // instance to all consumers, so returning the shared flow makes that sharing real.
@@ -97,8 +114,23 @@ internal class LocationRepository(
 
         else -> Log.w(TAG, "$stage $provider failed", error)
     }
-
-    private companion object {
-        const val LOCATION_INTERVAL_MS = 1_000L
-    }
 }
+
+private fun LocationSettings.toLocationRequest(): LocationRequestCompat =
+    LocationRequestCompat
+        .Builder(intervalMillis)
+        .setQuality(quality.toCompatQuality())
+        // The head unit runs on vehicle power: never throttle below the requested
+        // interval — let the GNSS chip deliver fixes as fast as it emits them. The
+        // interval itself is the user-facing rate knob, so a separate min-interval
+        // setting would only duplicate it.
+        .setMinUpdateIntervalMillis(0L)
+        .setMinUpdateDistanceMeters(minUpdateDistanceMeters.toFloat())
+        .build()
+
+private fun LocationQualitySetting.toCompatQuality(): Int =
+    when (this) {
+        LocationQualitySetting.HIGH_ACCURACY -> LocationRequestCompat.QUALITY_HIGH_ACCURACY
+        LocationQualitySetting.BALANCED -> LocationRequestCompat.QUALITY_BALANCED_POWER_ACCURACY
+        LocationQualitySetting.LOW_POWER -> LocationRequestCompat.QUALITY_LOW_POWER
+    }

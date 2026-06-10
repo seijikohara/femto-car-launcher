@@ -33,6 +33,7 @@ class SettingsScreenTest {
     private val lightSchemeLabel = context.getString(R.string.settings_group_map_scheme_light)
     private val darkSchemeLabel = context.getString(R.string.settings_group_map_scheme_dark)
     private val glassBlurLabel = context.getString(R.string.settings_group_glass_blur)
+    private val locationIntervalLabel = context.getString(R.string.settings_group_location_interval)
 
     @Test
     fun renders_fullscreen_row() {
@@ -102,6 +103,12 @@ class SettingsScreenTest {
     fun glass_blur_row_is_shown() {
         setScreen()
         rule.onNodeWithText(glassBlurLabel).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun location_interval_row_is_shown() {
+        setScreen()
+        rule.onNodeWithText(locationIntervalLabel).performScrollTo().assertIsDisplayed()
     }
 
     @Test

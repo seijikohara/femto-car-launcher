@@ -15,6 +15,7 @@ import io.github.seijikohara.femto.data.CalendarRepository
 import io.github.seijikohara.femto.data.CalendarSnapshot
 import io.github.seijikohara.femto.data.ClockRepository
 import io.github.seijikohara.femto.data.ClockTick
+import io.github.seijikohara.femto.data.LocationPreferences
 import io.github.seijikohara.femto.data.LocationRepository
 import io.github.seijikohara.femto.data.MusicCardState
 import io.github.seijikohara.femto.data.MusicSessionRepository
@@ -195,7 +196,7 @@ internal class HomeViewModelFactory(
         modelClass: Class<T>,
         extras: CreationExtras,
     ): T {
-        val location = LocationRepository(application)
+        val location = LocationRepository(application, LocationPreferences(application).settings)
         val locationFlow = location.locationFlow()
         val clock = ClockRepository(application)
         val clockFlow = clock.tickFlow()

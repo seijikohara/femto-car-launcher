@@ -11,8 +11,10 @@ import io.github.seijikohara.femto.testfixtures.fakeLocation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -54,7 +56,12 @@ class LocationRepositoryTest {
             val seedFix = fakeLocation()
             seedLastKnown(LocationManager.GPS_PROVIDER, seedFix)
 
-            val repository = LocationRepository(application, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+            val repository =
+                LocationRepository(
+                    application,
+                    flowOf(LocationSettings.Default),
+                    CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+                )
 
             // The first non-null fix arrives before any live update exists, proving
             // the stale cache is forwarded on subscribe rather than the flow blocking
@@ -74,7 +81,12 @@ class LocationRepositoryTest {
             val seedFix = fakeLocation()
             seedLastKnown(LocationManager.NETWORK_PROVIDER, seedFix)
 
-            val repository = LocationRepository(application, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+            val repository =
+                LocationRepository(
+                    application,
+                    flowOf(LocationSettings.Default),
+                    CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+                )
 
             val emitted = repository.locationFlow().filterNotNull().first()
 
@@ -89,13 +101,60 @@ class LocationRepositoryTest {
             val seedFix = fakeLocation()
             seedLastKnown(LocationManager.GPS_PROVIDER, seedFix)
 
-            val repository = LocationRepository(application, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+            val repository =
+                LocationRepository(
+                    application,
+                    flowOf(LocationSettings.Default),
+                    CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+                )
 
             repository.locationFlow().filterNotNull().test {
                 assertEquals(seedFix.latitude, awaitItem().latitude, 0.0)
                 cancelAndIgnoreRemainingEvents()
             }
         }
+
+    @Test
+    fun `keeps delivering live fixes after a settings change re-registers the listener`() =
+        runTest {
+            val settings = MutableStateFlow(LocationSettings.Default)
+            val repository =
+                LocationRepository(
+                    application,
+                    settings,
+                    CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+                )
+
+            repository.locationFlow().filterNotNull().test {
+                simulateFix(fakeLocation(latitude = 10.0))
+                assertEquals(10.0, awaitItem().latitude, 0.0)
+
+                // Swap the request parameters mid-collection: flatMapLatest must tear
+                // down the old registration and bring up a new one without dropping
+                // the subscriber.
+                settings.value = LocationSettings.Default.copy(intervalMillis = 1_000L)
+
+                simulateFix(fakeLocation(latitude = 20.0))
+                // The swap re-runs the getLastKnownLocation seed, which may replay
+                // the previous fix first; the live fix from the new registration
+                // must follow it.
+                var item = awaitItem()
+                while (item.latitude != 20.0) item = awaitItem()
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    // Dispatch a live fix to whatever listeners are currently registered for the
+    // fix's provider (GPS here, matching the repository's GPS_PROVIDER registration).
+    // The shadow posts the callback to the registration's main Looper, so idle it
+    // to run the delivery (the coroutine Main override does not drive that Handler).
+    private fun simulateFix(location: android.location.Location) {
+        val locationManager = checkNotNull(application.getSystemService<LocationManager>())
+        shadowOf(locationManager).simulateLocation(
+            android.location.Location(location).apply { provider = LocationManager.GPS_PROVIDER },
+        )
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+    }
 
     // ShadowLocationManager.setLastKnownLocation is the only seeding hook the shadow
     // exposes; its @Deprecated marker mirrors the platform setter and has no

@@ -383,6 +383,71 @@ class TripRepositoryTest {
             }
         }
 
+    @Test
+    fun `defers speed-less sub-floor fixes until the accumulated delta clears the floor`() =
+        runTest {
+            // Speed-less fixes 250 ms apart — a sub-second request interval on a
+            // chip that never reports speed. Each individual delta is below the
+            // trust floor, so the anchor must hold (distance stays 0 after the
+            // second fix) until the accumulated delta reaches 0.5 s, then accrue
+            // in one step. Advancing the anchor per fix would freeze distance
+            // forever at this cadence.
+            val flow =
+                flowOf(
+                    fakeLocation(latitude = ORIGIN_LAT, hasSpeed = false, elapsedRealtimeNanos = 0L),
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + SMALL_STEP,
+                        hasSpeed = false,
+                        elapsedRealtimeNanos = quarterSecond(1),
+                    ),
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + 2 * SMALL_STEP,
+                        hasSpeed = false,
+                        elapsedRealtimeNanos = quarterSecond(2),
+                    ),
+                )
+
+            TripRepository(flow).stateFlow().test {
+                skipItems(2) // initial snapshot + first fix (anchor only)
+                assertEquals(0.0, awaitItem().distanceMeters, 0.0) // deferred sub-floor fix
+                assertTrue(awaitItem().distanceMeters > 0.0) // accumulated delta clears the floor
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `re-anchors on an implausible speed without accruing`() =
+        runTest {
+            // The implausible middle fix must not accrue, but it must advance the
+            // anchor: the next normal fix then accrues one step from the glitch
+            // position, not the ten-step span back to the origin.
+            val flow =
+                flowOf(
+                    fakeLocation(latitude = ORIGIN_LAT, speedMps = 11f, elapsedRealtimeNanos = 0L),
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + 10 * STEP,
+                        speedMps = 5_000f,
+                        elapsedRealtimeNanos = tenSeconds(1),
+                    ),
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + 11 * STEP,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = tenSeconds(2),
+                    ),
+                )
+
+            TripRepository(flow).stateFlow().test {
+                skipItems(2) // initial snapshot + first fix
+                assertEquals(0.0, awaitItem().distanceMeters, 0.0) // implausible fix dropped
+                val final = awaitItem()
+                // One ~111 m step from the re-anchored position; the ~1.2 km span
+                // from the origin would mean the glitch fix failed to re-anchor.
+                assertTrue(final.distanceMeters > 0.0)
+                assertTrue(final.distanceMeters < 300.0)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
     private companion object {
         const val ORIGIN_LAT = 35.6580
 
@@ -390,7 +455,14 @@ class TripRepositoryTest {
         // the moving-speed floor.
         const val STEP = 0.001
 
+        // ~5.5 m; over 250 ms a plausible vehicle step (~22 m/s once the
+        // accumulated delta clears the trust floor).
+        const val SMALL_STEP = STEP / 20
+
         // n * 10 s expressed in boot-clock nanoseconds.
         fun tenSeconds(n: Long): Long = n * 10_000_000_000L
+
+        // n * 250 ms expressed in boot-clock nanoseconds.
+        fun quarterSecond(n: Long): Long = n * 250_000_000L
     }
 }

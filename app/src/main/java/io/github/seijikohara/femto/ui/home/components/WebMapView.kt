@@ -51,6 +51,7 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.MapStyleSetting
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import kotlinx.coroutines.delay
 
 /**
  * Live map backend: MapLibre GL JS (WebGL) in a WebView — the only path that renders
@@ -292,6 +293,11 @@ internal fun WebMapView(
     }
     LaunchedEffect(webView, pageReady.value, styleRef, accentColors) {
         if (!pageReady.value) return@LaunchedEffect
+        // The theme cross-fade animates MaterialTheme colours, so accentColors
+        // churns once per frame for the fade duration after a theme change. Each
+        // push restarts the page's style swap, so debounce: every churn cancels
+        // this effect and only the settled palette reaches the page.
+        delay(STYLE_PUSH_DEBOUNCE_MS)
         // Resolve the scheme to a URL the WebView can load (hosted, or the bundled
         // base served over appassets) plus the accent palette (empty = no recolor).
         val url =
@@ -427,6 +433,11 @@ private fun LiveMapNoticePreview() {
 }
 
 private const val TAG = "WebMapView"
+
+// Settle window for style pushes: longer than one animation frame (so a churning
+// theme fade keeps cancelling the push) but short enough to feel immediate once
+// the colours stop moving.
+private const val STYLE_PUSH_DEBOUNCE_MS = 150L
 
 // One renderer death rebuilds the WebView silently (a lone death is usually the
 // system reclaiming memory, not a fault in the map); a second death inside this

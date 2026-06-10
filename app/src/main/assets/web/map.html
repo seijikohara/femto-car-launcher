@@ -20,10 +20,18 @@
         transform: translate(-50%, -50%);
         pointer-events: none; display: none; will-change: top, transform;
       }
+      /* Style-swap cross-fade: a frozen capture of the outgoing style pinned over
+         the map, faded out once the incoming style has rendered. */
+      #style-fade {
+        position: fixed; inset: 0; z-index: 10;
+        pointer-events: none; display: none; opacity: 0;
+      }
+      #style-fade img { width: 100%; height: 100%; }
     </style>
   </head>
   <body>
     <div id="map"></div>
+    <div id="style-fade"><img alt="" /></div>
     <div id="self-marker">
       <svg width="34" height="34" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
         <path d="M15 0 L30 30 L15 21.6 L0 30 Z" fill="#3367D6" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round"/>
@@ -129,6 +137,61 @@
       function applyStyle() {
         if (map && currentStyleUrl) map.setStyle(currentStyleUrl, { transformStyle: injectFeatures });
       }
+
+      // Cross-fade a style swap: capture the outgoing style's last frame from the
+      // GL canvas, pin it over the map, apply the new style, then fade the capture
+      // out once the new style has loaded and presented a frame. A timeout guard
+      // fades anyway so a style that never loads (offline) cannot pin the stale
+      // capture; the generation counter lets a rapid second swap cancel the first
+      // swap's pending callbacks.
+      var STYLE_FADE_MS = 500;
+      var STYLE_FADE_MAX_WAIT_MS = 4000;
+      var styleFadeGen = 0;
+      function applyStyleWithFade() {
+        if (!map) return;
+        // Nothing rendered yet (initial load): swap without a fade.
+        if (!map.isStyleLoaded()) { applyStyle(); return; }
+        var gen = ++styleFadeGen;
+        var el = document.getElementById("style-fade");
+        var img = el.querySelector("img");
+        // The GL buffer is only valid synchronously inside a render event, so the
+        // capture happens there (no preserveDrawingBuffer cost) — but the style
+        // swap itself is deferred OUT of the render loop: a setStyle issued
+        // mid-render leaves the presented frame stale on a static camera, so the
+        // new scheme only appeared as the camera moved.
+        map.once("render", function () {
+          if (gen !== styleFadeGen) return;
+          try {
+            img.src = map.getCanvas().toDataURL("image/jpeg", 0.85);
+            el.style.transition = "none";
+            el.style.opacity = "1";
+            el.style.display = "block";
+          } catch (e) { log("style-fade capture failed: " + (e && e.message)); }
+          setTimeout(function () {
+            if (gen !== styleFadeGen) return;
+            applyStyle();
+            var faded = false;
+            function fadeOut() {
+              if (faded || gen !== styleFadeGen) return;
+              faded = true;
+              el.style.transition = "opacity " + STYLE_FADE_MS + "ms ease";
+              el.style.opacity = "0";
+              setTimeout(function () { if (gen === styleFadeGen) el.style.display = "none"; }, STYLE_FADE_MS + 100);
+            }
+            // Fade once the swapped-in style has loaded and a frame with it has
+            // been rendered (the same readiness signal the host uses); "idle"
+            // would be nicer but never fires while the GPS camera keeps easing.
+            function check() {
+              if (gen !== styleFadeGen) { map.off("render", check); return; }
+              if (map.isStyleLoaded()) { map.off("render", check); fadeOut(); }
+            }
+            map.on("render", check);
+            setTimeout(fadeOut, STYLE_FADE_MAX_WAIT_MS);
+            map.triggerRepaint();
+          }, 0);
+        });
+        map.triggerRepaint();
+      }
       (function () {
         const c = document.createElement("canvas");
         if (!(c.getContext("webgl2") || c.getContext("webgl"))) {
@@ -231,13 +294,13 @@
           if (!url) return;
           currentStyleUrl = url;
           accentColors = bg ? { background: bg, water: water, land: land } : null;
-          applyStyle();
+          applyStyleWithFade();
         };
         // Android -> JS: flip the LIVE feature toggles, then re-apply the style so
         // transformStyle injects (or omits) the matching layers/sources.
         window.setFeatures = function (buildings, terrain) {
           featureState = { buildings: !!buildings, terrain: !!terrain };
-          applyStyle();
+          applyStyleWithFade();
         };
         // Host (Android) calls this on lifecycle resume so the map re-measures and
         // repaints after the WebView was paused / not visible (guards a stale GL

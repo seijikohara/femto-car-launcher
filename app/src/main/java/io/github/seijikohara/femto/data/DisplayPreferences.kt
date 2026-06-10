@@ -405,7 +405,8 @@ internal class DisplayPreferences(
 
 // Decode a stored enum name to [T], falling back to [fallback] for a missing or
 // unrecognised value so the read never throws on a downgrade / renamed entry.
-private inline fun <reified T : Enum<T>> String?.toEnumOr(fallback: T): T =
+// Shared by every preferences accessor in this package.
+internal inline fun <reified T : Enum<T>> String?.toEnumOr(fallback: T): T =
     this?.let { name -> enumEntries<T>().firstOrNull { it.name == name } } ?: fallback
 
 // Decode the render mode, migrating the short-lived three-mode values
