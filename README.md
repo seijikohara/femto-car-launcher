@@ -17,10 +17,13 @@ strictest applicable rule wins when markets diverge.
 
 The home screen is a fixed dashboard rather than a scrolling grid of apps.
 
-- **Map panel** — renders OpenStreetMap vector tiles through MapLibre,
-  served by the keyless OpenFreeMap service. The view is heading-up (the
-  map rotates so the travel direction points up) and shows a static
-  placeholder until a location fix arrives. No API key is required.
+- **Map panel** — a live vector map rendered by MapLibre GL JS inside a
+  WebView, with OpenStreetMap tiles served by the keyless OpenFreeMap
+  service. The view is heading-up (the map rotates so the travel
+  direction points up) and offers an optional three-dimensional terrain
+  relief layer (Mapterhorn elevation tiles). Head units whose WebView
+  cannot sustain WebGL can switch to a Snapshot mode that rasterises the
+  same vector map off-screen. No API key is required in either mode.
 - **Trip overlay** — current speed, trip distance, and average speed
   derived from the Global Positioning System (GPS), plus the
   reverse-geocoded address of the current position.
@@ -33,18 +36,32 @@ The home screen is a fixed dashboard rather than a scrolling grid of apps.
   app, and transport controls), read through a notification-listener
   service.
 - **Clock overlay** — a self-updating clock that honours the system
-  12/24-hour setting.
+  12/24-hour setting, with an optional seconds display.
 - **Status cluster** — graduated Wi-Fi and cellular signal strength,
   Bluetooth connection state, GPS reception, and battery level and charging
   state.
-- **App access** — a bottom application bar with shortcuts and a full app
-  drawer.
+- **App dock and drawer** — an application dock that the user can attach
+  to any screen edge (bottom, top, left, or right), and a full app drawer
+  with search, a pinned-apps row, and small / medium / large icon-size
+  presets.
 - **Voice assistant** — a microphone button opens a bottom sheet that
-  launches the system voice assistant, voice command, or voice search.
+  captures speech in-launcher (`android.speech.SpeechRecognizer`) with a
+  live transcript. When no on-device recognizer exists or the microphone
+  permission is denied, the sheet degrades to launching the system voice
+  assistant, voice command, or voice search.
+- **Fonts** — the head-unit system font by default, or any Google Fonts
+  family chosen per slot (a Latin face plus a CJK — Chinese, Japanese,
+  Korean — fallback face), downloaded on demand and cached on disk. No
+  fonts are bundled in the APK and no Play Services are required.
 - **Settings** — in-app preferences for theme (follow-system / light /
-  dark), speed and temperature units, clock format, a fullscreen toggle
-  that hides the system bars, and the font pairing, plus shortcuts to the
-  system notification-access and Android settings screens.
+  dark), accent colour (Material You dynamic colour or a fixed seed
+  preset), screen orientation (auto / landscape / portrait), speed and
+  temperature units, clock format and seconds, a fullscreen toggle that
+  hides the system bars, dock edge, drawer icon size, glass-effect blur
+  and opacity for the dashboard overlays, map rendering (Live / Snapshot
+  mode, render quality, terrain), location-update tuning, and the font
+  pairing — plus shortcuts to the system notification-access and Android
+  settings screens, and a one-tap reset to defaults.
 
 Each panel degrades gracefully. A panel whose runtime permission is denied,
 or whose data source is unavailable, renders an empty or reduced state
@@ -62,6 +79,10 @@ vehicle's own cluster.
   as a `HOME` launcher with `launchMode="singleTask"`.
 - **Data:** one repository per dashboard source, each exposing a Kotlin
   `Flow`. User preferences persist through Jetpack DataStore.
+- **Map page:** the live map is a separate TypeScript application under
+  [`webmap/`](webmap/) (Vite + MapLibre GL JS). Gradle builds it with a
+  self-provisioned Node.js + pnpm toolchain and embeds the output in the
+  app's assets; the launcher loads it in a WebView.
 - **Network:** the map is keyless. Weather (Open-Meteo) and reverse
   geocoding (OpenStreetMap Nominatim) default to public endpoints and
   accept configurable production hosts (see [Configuration](#configuration)).
@@ -76,9 +97,14 @@ Project rules, the design system, and coding conventions live in
 - Gradle 9, a Java Development Kit (JDK) 21 toolchain, and Java 11
   source/target compatibility.
 - `minSdk = 33` (Android 13), `targetSdk = 36`.
+- Web map page: TypeScript, Vite, and MapLibre GL JS, managed with pnpm.
+  The Gradle build provisions Node.js and pnpm itself, so no local
+  Node.js installation is needed. Vite targets `chrome109` — the
+  Android 13 factory WebView floor.
 
 [`gradle/libs.versions.toml`](gradle/libs.versions.toml) is the single
-source of truth for dependency versions; see
+source of truth for Gradle dependency versions
+([`webmap/package.json`](webmap/package.json) for the web page); see
 [`CLAUDE.md#tech-stack`](CLAUDE.md#tech-stack) for the resolved list.
 
 ## Project layout
@@ -89,22 +115,27 @@ app/src/main/
 │   ├── MainActivity.kt   # single launcher entry (HOME activity)
 │   ├── data/             # repositories, DataStore wrappers, network APIs
 │   └── ui/
-│       ├── home/         # the dashboard: panels, overlays, footer cluster
-│       ├── drawer/       # full app drawer (bottom sheet)
+│       ├── home/         # the dashboard: panels, overlays, status cluster
+│       ├── drawer/       # full app drawer with pinned dock
 │       ├── assistant/    # voice-assistant bottom sheet
 │       ├── settings/     # in-app settings
+│       ├── fontpicker/   # per-slot Google Fonts picker
 │       ├── locale/       # unit and locale formatting
 │       └── theme/        # FemtoTheme, design tokens, previews
-└── res/                  # themes, bundled fonts, strings
+└── res/                  # themes, strings (per-locale variants)
+webmap/                   # TypeScript source of the live map page
+                          # (built into app assets by Gradle)
 ```
 
 ## Build and run
 
 **Prerequisites:** JDK 21, Android Studio (latest stable), and an Android
-13+ device or Android Virtual Device (AVD).
+13+ device or Android Virtual Device (AVD). Node.js and pnpm are **not**
+prerequisites — the Gradle build downloads its own copies to compile the
+`webmap/` page.
 
 ```bash
-./gradlew assembleDebug      # build the debug APK
+./gradlew assembleDebug      # build the debug APK (includes the webmap build)
 ./gradlew test               # JVM unit tests
 ./gradlew lint               # Android Lint
 ./gradlew connectedAndroidTest  # instrumented tests (device / emulator)

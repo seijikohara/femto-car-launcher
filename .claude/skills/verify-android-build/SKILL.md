@@ -1,6 +1,6 @@
 ---
 name: verify-android-build
-description: Use before declaring any non-trivial code change complete in femto-car-launcher. Runs assembleDebug + lint, parses the result, and refuses to claim success on a red build. Triggers on "is the build green?", "let's verify", or implicitly after edits to Kotlin sources, manifest, themes, or Gradle files. This skill is the project's verification SSOT.
+description: Use before declaring any non-trivial code change complete in femto-car-launcher. Runs assembleDebug + lint, parses the result, and refuses to claim success on a red build. Triggers on "is the build green?", "let's verify", or implicitly after edits to Kotlin sources, manifest, themes, webmap TypeScript, or Gradle files. This skill is the project's verification SSOT.
 argument-hint: "[gradle-task]"
 allowed-tools:
   - Bash
@@ -10,9 +10,9 @@ paths:
   - app/src/main/AndroidManifest.xml
   - app/build.gradle.kts
   - gradle/libs.versions.toml
-  - app/src/main/res/font/**
   - app/src/main/res/values/themes.xml
   - app/src/main/res/values-night/themes.xml
+  - webmap/**
 ---
 
 # Verifying an Android build
@@ -46,7 +46,9 @@ task. Default is `assembleDebug`.
    ```
 
    Expect `BUILD SUCCESSFUL`. APK at
-   `app/build/outputs/apk/debug/app-debug.apk`.
+   `app/build/outputs/apk/debug/app-debug.apk`. `assembleDebug`
+   also builds the LIVE map web payload (`:app:buildWebMap` runs
+   pnpm + Vite over `webmap/`), so webmap regressions surface here.
 
 3. **Run lint** for any change touching the manifest, themes, or
    resources:
@@ -85,5 +87,5 @@ task. Default is `assembleDebug`.
 | `This API is experimental and is likely to change` | Variable-font `FontVariation` use | Add `@file:OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)` at the top of the file (see `CLAUDE.md#fonts`) |
 | `Unresolved reference: libs.<x>` | Forgot to add the alias in `libs.versions.toml` | Add to `[libraries]` (and `[plugins]` for plugins), then re-sync. See `CLAUDE.md#dependencies`. |
 | `Theme.Material3.DayNight.NoActionBar` not found | `com.google.android.material:material` removed | Re-add it in `libs.versions.toml` and `app/build.gradle.kts` |
-| Resource filename with brackets fails | `Geist[wght].ttf` placed under `res/font/` | Rename to lowercase snake-case; the `add-bundled-font` helper does this automatically |
+| `:app:buildWebMap` fails | TypeScript / Vite error under `webmap/` | Fix the webmap source; Gradle provisions Node and pnpm itself. Keep Vite's `build.target` at `chrome109` (CLAUDE.md, Tech stack) |
 | Compose Compiler version mismatch | Kotlin updated but `kotlin-compose` plugin pinned | Bump `kotlin` and `compose-compiler` plugin in lock-step (see `CLAUDE.md#dependencies`) |
