@@ -9,16 +9,19 @@ spotless {
     val ktlintVersion = libs.versions.ktlint.get()
     kotlinGradle {
         target("**/*.gradle.kts")
-        targetExclude("**/build/**", ".gradle/**")
+        // **/.gradle/** also covers app/.gradle, where the node-gradle plugin
+        // unpacks pnpm (which ships its own Markdown and script files).
+        targetExclude("**/build/**", "**/.gradle/**")
         ktlint(ktlintVersion)
     }
     format("markdown") {
         target("**/*.md")
         targetExclude(
             "**/build/**",
-            ".gradle/**",
+            "**/.gradle/**",
             ".idea/**",
             ".kotlin/**",
+            "**/node_modules/**",
         )
         endWithNewline()
     }
