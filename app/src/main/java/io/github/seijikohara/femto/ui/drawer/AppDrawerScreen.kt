@@ -145,7 +145,7 @@ private fun ContentState(
     }
     val pinnedSet = remember(pinned) { pinned.toSet() }
     // Prefix matches rank before substring matches; an empty query shows everything.
-    val matched = filterAndRank(apps, query) { it.label }
+    val matched = remember(apps, query) { filterAndRank(apps, query) { it.label } }
     Box(modifier = Modifier.weight(1f)) {
         if (matched.isEmpty()) {
             CenteredMessage(text = stringResource(R.string.drawer_no_matches))

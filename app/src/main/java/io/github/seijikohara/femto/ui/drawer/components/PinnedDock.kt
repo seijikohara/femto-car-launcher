@@ -1,5 +1,3 @@
-@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-
 package io.github.seijikohara.femto.ui.drawer.components
 
 import android.content.ComponentName
@@ -10,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -94,6 +93,7 @@ private fun DockTile(
             modifier =
                 Modifier
                     .width(DockTileWidth)
+                    .defaultMinSize(minHeight = FemtoDimens.MinTouchTarget)
                     .combinedClickable(
                         onClick = { onLaunch(entry.componentName) },
                         onLongClick = { menuOpen = true },

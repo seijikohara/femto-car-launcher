@@ -1,5 +1,3 @@
-@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.background
