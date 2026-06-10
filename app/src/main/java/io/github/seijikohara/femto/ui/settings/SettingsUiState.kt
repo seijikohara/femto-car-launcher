@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.ui.settings
 import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.DisplaySettings
+import io.github.seijikohara.femto.data.DockPosition
 import io.github.seijikohara.femto.data.DrawerIconSize
 import io.github.seijikohara.femto.data.FullscreenSetting
 import io.github.seijikohara.femto.data.LocationQualitySetting
@@ -10,6 +11,7 @@ import io.github.seijikohara.femto.data.LocationSettings
 import io.github.seijikohara.femto.data.MapColorScheme
 import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.data.MapStyleSetting
+import io.github.seijikohara.femto.data.OrientationSetting
 import io.github.seijikohara.femto.data.SpeedUnitSetting
 import io.github.seijikohara.femto.data.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.ThemeMode
@@ -23,6 +25,8 @@ internal data class SettingsUiState(
     val clock: ClockSetting,
     val showClockSeconds: Boolean,
     val fullscreen: FullscreenSetting,
+    val dockPosition: DockPosition,
+    val orientation: OrientationSetting,
     val keepScreenOn: Boolean,
     val mapStyle: MapStyleSetting,
     val mapSchemeLight: MapColorScheme,
@@ -59,6 +63,8 @@ internal data class SettingsUiState(
                 clock = DisplaySettings.Default.clock,
                 showClockSeconds = DisplaySettings.Default.showClockSeconds,
                 fullscreen = DisplaySettings.Default.fullscreen,
+                dockPosition = DisplaySettings.Default.dockPosition,
+                orientation = DisplaySettings.Default.orientation,
                 keepScreenOn = DisplaySettings.Default.keepScreenOn,
                 mapStyle = DisplaySettings.Default.mapStyle,
                 mapSchemeLight = DisplaySettings.Default.mapSchemeLight,
@@ -113,6 +119,14 @@ internal sealed interface SettingsAction {
 
     data class SetFullscreen(
         val value: FullscreenSetting,
+    ) : SettingsAction
+
+    data class SetDockPosition(
+        val value: DockPosition,
+    ) : SettingsAction
+
+    data class SetOrientation(
+        val value: OrientationSetting,
     ) : SettingsAction
 
     data class SetKeepScreenOn(

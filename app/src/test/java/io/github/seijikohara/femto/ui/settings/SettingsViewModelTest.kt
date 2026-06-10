@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.DisplaySettings
+import io.github.seijikohara.femto.data.DockPosition
 import io.github.seijikohara.femto.data.DrawerIconSize
 import io.github.seijikohara.femto.data.FontPreferences
 import io.github.seijikohara.femto.data.FullscreenSetting
@@ -11,6 +12,7 @@ import io.github.seijikohara.femto.data.LocationQualitySetting
 import io.github.seijikohara.femto.data.LocationSettings
 import io.github.seijikohara.femto.data.MapColorScheme
 import io.github.seijikohara.femto.data.MapRenderMode
+import io.github.seijikohara.femto.data.OrientationSetting
 import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeDrawerSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeLocationSettingsStore
@@ -212,6 +214,22 @@ class SettingsViewModelTest {
             advanceUntilIdle()
             assertEquals(12, store.settings.first().glassBlurRadius)
             assertEquals(60, store.settings.first().glassTintScale)
+        }
+
+    @Test
+    fun `SetDockPosition writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetDockPosition(DockPosition.LEFT))
+            advanceUntilIdle()
+            assertEquals(DockPosition.LEFT, store.settings.first().dockPosition)
+        }
+
+    @Test
+    fun `SetOrientation writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetOrientation(OrientationSetting.LANDSCAPE))
+            advanceUntilIdle()
+            assertEquals(OrientationSetting.LANDSCAPE, store.settings.first().orientation)
         }
 
     @Test

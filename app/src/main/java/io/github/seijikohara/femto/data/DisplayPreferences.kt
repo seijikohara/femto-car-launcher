@@ -46,6 +46,19 @@ enum class AccentColor { DYNAMIC, BLUE, TEAL, GREEN, AMBER, ORANGE, RED, VIOLET,
 /** Fullscreen: keep the system bars, or hide both status and navigation bars. */
 internal enum class FullscreenSetting { OFF, ON }
 
+/**
+ * Which screen edge hosts the dashboard dock. [BOTTOM] and [TOP] render the
+ * horizontal bar; [LEFT] and [RIGHT] render it as a vertical rail.
+ */
+internal enum class DockPosition { BOTTOM, TOP, LEFT, RIGHT }
+
+/**
+ * Screen orientation: follow the head unit ([AUTO], the default — portrait and
+ * landscape units must both work, per CLAUDE.md#launcher-behavior), or force
+ * landscape / portrait for units that misreport their natural orientation.
+ */
+internal enum class OrientationSetting { AUTO, LANDSCAPE, PORTRAIT }
+
 /** Map light/dark style: follow the system theme, or force light / dark. */
 internal enum class MapStyleSetting { AUTO, LIGHT, DARK }
 
@@ -113,6 +126,10 @@ internal data class DisplaySettings(
     // per-minute instead of per-second.
     val showClockSeconds: Boolean,
     val fullscreen: FullscreenSetting,
+    // Which screen edge hosts the dashboard dock; BOTTOM is the classic dock.
+    val dockPosition: DockPosition,
+    // Screen orientation; AUTO follows the head unit's natural orientation.
+    val orientation: OrientationSetting,
     // Whether to keep the screen awake while the launcher is foreground. Defaults
     // to true: the head unit runs on vehicle power, so the dashboard should stay lit.
     val keepScreenOn: Boolean,
@@ -156,6 +173,8 @@ internal data class DisplaySettings(
                 clock = ClockSetting.AUTO,
                 showClockSeconds = false,
                 fullscreen = FullscreenSetting.ON,
+                dockPosition = DockPosition.BOTTOM,
+                orientation = OrientationSetting.AUTO,
                 keepScreenOn = true,
                 mapStyle = MapStyleSetting.AUTO,
                 mapSchemeLight = MapColorScheme.ACCENT,
@@ -199,6 +218,10 @@ internal interface DisplaySettingsStore {
     suspend fun setShowClockSeconds(value: Boolean)
 
     suspend fun setFullscreen(value: FullscreenSetting)
+
+    suspend fun setDockPosition(value: DockPosition)
+
+    suspend fun setOrientation(value: OrientationSetting)
 
     suspend fun setKeepScreenOn(value: Boolean)
 
@@ -258,6 +281,8 @@ internal class DisplayPreferences(
                     clock = prefs[CLOCK_KEY].toEnumOr(ClockSetting.AUTO),
                     showClockSeconds = prefs[SHOW_CLOCK_SECONDS_KEY] ?: false,
                     fullscreen = prefs[FULLSCREEN_KEY].toEnumOr(FullscreenSetting.ON),
+                    dockPosition = prefs[DOCK_POSITION_KEY].toEnumOr(DockPosition.BOTTOM),
+                    orientation = prefs[ORIENTATION_KEY].toEnumOr(OrientationSetting.AUTO),
                     keepScreenOn = prefs[KEEP_SCREEN_ON_KEY] ?: true,
                     mapStyle = prefs[MAP_STYLE_KEY].toEnumOr(MapStyleSetting.AUTO),
                     mapSchemeLight = prefs[MAP_SCHEME_LIGHT_KEY].toEnumOr(MapColorScheme.ACCENT),
@@ -303,6 +328,14 @@ internal class DisplayPreferences(
 
     override suspend fun setFullscreen(value: FullscreenSetting) {
         context.displayDataStore.editOrLog(TAG) { it[FULLSCREEN_KEY] = value.name }
+    }
+
+    override suspend fun setDockPosition(value: DockPosition) {
+        context.displayDataStore.editOrLog(TAG) { it[DOCK_POSITION_KEY] = value.name }
+    }
+
+    override suspend fun setOrientation(value: OrientationSetting) {
+        context.displayDataStore.editOrLog(TAG) { it[ORIENTATION_KEY] = value.name }
     }
 
     override suspend fun setKeepScreenOn(value: Boolean) {
@@ -384,6 +417,8 @@ internal class DisplayPreferences(
         val CLOCK_KEY = stringPreferencesKey("clock")
         val SHOW_CLOCK_SECONDS_KEY = booleanPreferencesKey("show_clock_seconds")
         val FULLSCREEN_KEY = stringPreferencesKey("fullscreen")
+        val DOCK_POSITION_KEY = stringPreferencesKey("dock_position")
+        val ORIENTATION_KEY = stringPreferencesKey("orientation")
         val KEEP_SCREEN_ON_KEY = booleanPreferencesKey("keep_screen_on")
         val MAP_STYLE_KEY = stringPreferencesKey("map_style")
         val MAP_SCHEME_LIGHT_KEY = stringPreferencesKey("map_scheme_light")

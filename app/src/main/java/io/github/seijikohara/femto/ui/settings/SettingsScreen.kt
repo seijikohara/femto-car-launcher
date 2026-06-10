@@ -53,6 +53,7 @@ import com.composables.icons.lucide.RotateCcw
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.ClockSetting
+import io.github.seijikohara.femto.data.DockPosition
 import io.github.seijikohara.femto.data.DrawerIconSize
 import io.github.seijikohara.femto.data.FontSlot
 import io.github.seijikohara.femto.data.FullscreenSetting
@@ -60,6 +61,7 @@ import io.github.seijikohara.femto.data.LocationQualitySetting
 import io.github.seijikohara.femto.data.MapColorScheme
 import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.data.MapStyleSetting
+import io.github.seijikohara.femto.data.OrientationSetting
 import io.github.seijikohara.femto.data.SpeedUnitSetting
 import io.github.seijikohara.femto.data.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.ThemeMode
@@ -123,6 +125,17 @@ internal fun SettingsScreen(
                 onSelect = { onAction(SettingsAction.SetAccentColor(it)) },
             )
             SettingsSubheader(stringResource(R.string.settings_subheader_screen))
+            ChoiceRow(
+                title = stringResource(R.string.settings_group_orientation),
+                options =
+                    listOf(
+                        OrientationSetting.AUTO to stringResource(R.string.settings_option_auto),
+                        OrientationSetting.LANDSCAPE to stringResource(R.string.settings_orientation_landscape),
+                        OrientationSetting.PORTRAIT to stringResource(R.string.settings_orientation_portrait),
+                    ),
+                selected = uiState.orientation,
+                onSelect = { onAction(SettingsAction.SetOrientation(it)) },
+            )
             SwitchRow(
                 title = stringResource(R.string.settings_group_fullscreen),
                 checked = uiState.fullscreen == FullscreenSetting.ON,
@@ -132,6 +145,18 @@ internal fun SettingsScreen(
                 title = stringResource(R.string.settings_keep_screen_on),
                 checked = uiState.keepScreenOn,
                 onCheckedChange = { onAction(SettingsAction.SetKeepScreenOn(it)) },
+            )
+            ChoiceRow(
+                title = stringResource(R.string.settings_group_dock_position),
+                options =
+                    listOf(
+                        DockPosition.BOTTOM to stringResource(R.string.settings_dock_bottom),
+                        DockPosition.TOP to stringResource(R.string.settings_dock_top),
+                        DockPosition.LEFT to stringResource(R.string.settings_dock_left),
+                        DockPosition.RIGHT to stringResource(R.string.settings_dock_right),
+                    ),
+                selected = uiState.dockPosition,
+                onSelect = { onAction(SettingsAction.SetDockPosition(it)) },
             )
             SettingsSubheader(stringResource(R.string.settings_subheader_glass))
             SliderRow(

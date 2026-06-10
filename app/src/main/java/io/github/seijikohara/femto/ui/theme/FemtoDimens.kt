@@ -31,11 +31,12 @@ object FemtoDimens {
     val AlbumArtSize = 72.dp
 
     /**
-     * Footer dock height. Set to exactly [MinTouchTarget] (64.dp): the dock
-     * holds full-height nav buttons, so it cannot go lower without breaching the
-     * tap-target floor (CLAUDE.md#automotive-overrides).
+     * Dock thickness: its height as a horizontal bar, its width as a vertical
+     * rail. Set to exactly [MinTouchTarget] (64.dp): the dock holds full-size
+     * nav buttons, so it cannot go lower without breaching the tap-target floor
+     * (CLAUDE.md#automotive-overrides).
      */
-    val FooterHeight = 64.dp
+    val DockThickness = 64.dp
 
     /** Album art size inside the music card's vertical playing layout. */
     val MusicArtSize = 140.dp

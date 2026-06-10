@@ -4,10 +4,12 @@ import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.DisplaySettings
 import io.github.seijikohara.femto.data.DisplaySettingsStore
+import io.github.seijikohara.femto.data.DockPosition
 import io.github.seijikohara.femto.data.FullscreenSetting
 import io.github.seijikohara.femto.data.MapColorScheme
 import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.data.MapStyleSetting
+import io.github.seijikohara.femto.data.OrientationSetting
 import io.github.seijikohara.femto.data.SpeedUnitSetting
 import io.github.seijikohara.femto.data.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.ThemeMode
@@ -42,6 +44,10 @@ internal class FakeDisplaySettingsStore(
     override suspend fun setShowClockSeconds(value: Boolean) = state.update { it.copy(showClockSeconds = value) }
 
     override suspend fun setFullscreen(value: FullscreenSetting) = state.update { it.copy(fullscreen = value) }
+
+    override suspend fun setDockPosition(value: DockPosition) = state.update { it.copy(dockPosition = value) }
+
+    override suspend fun setOrientation(value: OrientationSetting) = state.update { it.copy(orientation = value) }
 
     override suspend fun setKeepScreenOn(value: Boolean) = state.update { it.copy(keepScreenOn = value) }
 

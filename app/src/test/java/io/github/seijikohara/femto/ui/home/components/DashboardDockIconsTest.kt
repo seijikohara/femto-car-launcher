@@ -20,11 +20,11 @@ import com.composables.icons.lucide.WifiZero
 import org.junit.Test
 import kotlin.test.assertEquals
 
-// Pure icon-mapping tests for the footer status cluster. Each indicator that
+// Pure icon-mapping tests for the dock status cluster. Each indicator that
 // exposes an intensity (cellular / Wi-Fi level, battery percent) or a multi-state
 // axis (bluetooth) maps to a distinct Lucide glyph; these lock the ramps so a
 // future glyph rename or off-by-one threshold is caught.
-class DashboardFooterIconsTest {
+class DashboardDockIconsTest {
     @Test
     fun `cellular steps across the signal levels`() {
         assertEquals(Lucide.SignalLow, cellularIconForLevel(0))
