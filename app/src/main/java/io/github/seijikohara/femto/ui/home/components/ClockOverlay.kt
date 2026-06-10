@@ -57,6 +57,7 @@ internal fun ClockOverlay(
     is24Hour: Boolean = true,
     showSeconds: Boolean = true,
     hazeState: HazeState = rememberHazeState(),
+    glassConfig: GlassConfig = GlassConfig(),
 ) {
     val now by produceState(initialValue = LocalTime.now(), showSeconds) {
         while (true) {
@@ -75,10 +76,6 @@ internal fun ClockOverlay(
             showSeconds -> ClockFormatter12
             else -> ClockFormatter12NoSeconds
         }
-    val glassAlpha = if (isSystemInDarkTheme()) FemtoDimens.GlassBgAlphaDark else FemtoDimens.GlassBgAlphaLight
-    // Capture the theme colors outside the hazeEffect block, which is a draw-time
-    // lambda and cannot read MaterialTheme.
-    val surfaceColor = MaterialTheme.colorScheme.surface
     Text(
         text = now.format(formatter),
         style =
@@ -93,11 +90,8 @@ internal fun ClockOverlay(
         modifier =
             modifier
                 .clip(RoundedCornerShape(FemtoDimens.OverlayCorner))
-                .hazeEffect(state = hazeState) {
-                    backgroundColor = surfaceColor
-                    tints = listOf(HazeTint(surfaceColor.copy(alpha = glassAlpha)))
-                    blurRadius = FemtoDimens.GlassBlurRadius
-                }.border(
+                .glassEffect(hazeState, glassConfig.blurRadius, glassConfig.tintScale)
+                .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.GlassBorderAlpha),
                     shape = RoundedCornerShape(FemtoDimens.OverlayCorner),

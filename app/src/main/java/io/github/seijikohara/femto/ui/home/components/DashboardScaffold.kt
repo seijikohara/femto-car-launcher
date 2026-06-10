@@ -83,6 +83,7 @@ internal fun DashboardScaffold(
     temperatureUnit: TemperatureUnit,
     mapConfig: MapConfig,
     panels: PanelVisibility,
+    glassConfig: GlassConfig,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(
@@ -115,6 +116,7 @@ internal fun DashboardScaffold(
                     showClockSeconds = showClockSeconds,
                     speedUnit = speedUnit,
                     mapConfig = mapConfig,
+                    glassConfig = glassConfig,
                     onAction = onAction,
                     modifier = Modifier.weight(MAP_PANE_PORTRAIT_WEIGHT).fillMaxWidth(),
                 )
@@ -145,6 +147,7 @@ internal fun DashboardScaffold(
                     showClockSeconds = showClockSeconds,
                     speedUnit = speedUnit,
                     mapConfig = mapConfig,
+                    glassConfig = glassConfig,
                     onAction = onAction,
                     modifier = Modifier.weight(MAP_PANE_LANDSCAPE_WEIGHT).fillMaxHeight(),
                 )
@@ -177,6 +180,7 @@ private fun MapPane(
     showClockSeconds: Boolean,
     speedUnit: SpeedUnit,
     mapConfig: MapConfig,
+    glassConfig: GlassConfig,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Box(modifier = modifier) {
@@ -194,6 +198,7 @@ private fun MapPane(
         is24Hour = is24Hour,
         showSeconds = showClockSeconds,
         hazeState = hazeState,
+        glassConfig = glassConfig,
         modifier =
             Modifier
                 .align(Alignment.TopEnd)
@@ -206,6 +211,7 @@ private fun MapPane(
         speedUnit = speedUnit,
         onReset = { onAction(HomeAction.ResetTrip) },
         hazeState = hazeState,
+        glassConfig = glassConfig,
         modifier =
             Modifier
                 .align(Alignment.BottomCenter)
@@ -307,6 +313,7 @@ private fun DashboardScaffoldLandscapePreview() {
             temperatureUnit = TemperatureUnit.CELSIUS,
             mapConfig = MapConfig(),
             panels = PanelVisibility(),
+            glassConfig = GlassConfig(),
             onAction = {},
         )
     }
@@ -325,6 +332,7 @@ private fun DashboardScaffoldUltraWidePreview() {
             temperatureUnit = TemperatureUnit.CELSIUS,
             mapConfig = MapConfig(),
             panels = PanelVisibility(),
+            glassConfig = GlassConfig(),
             onAction = {},
         )
     }
@@ -346,6 +354,7 @@ private fun DashboardScaffoldHeadUnitPreview() {
             temperatureUnit = TemperatureUnit.CELSIUS,
             mapConfig = MapConfig(),
             panels = PanelVisibility(),
+            glassConfig = GlassConfig(),
             onAction = {},
         )
     }
@@ -364,6 +373,7 @@ private fun DashboardScaffoldPortraitPreview() {
             temperatureUnit = TemperatureUnit.CELSIUS,
             mapConfig = MapConfig(),
             panels = PanelVisibility(),
+            glassConfig = GlassConfig(),
             onAction = {},
         )
     }
@@ -384,6 +394,7 @@ private fun DashboardScaffoldHiddenPanelPreview() {
             temperatureUnit = TemperatureUnit.CELSIUS,
             mapConfig = MapConfig(),
             panels = PanelVisibility(calendar = false),
+            glassConfig = GlassConfig(),
             onAction = {},
         )
     }

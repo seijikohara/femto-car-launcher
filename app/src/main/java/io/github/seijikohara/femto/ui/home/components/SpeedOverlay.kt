@@ -97,6 +97,7 @@ internal fun SpeedOverlay(
     onReset: () -> Unit,
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
+    glassConfig: GlassConfig = GlassConfig(),
 ) {
     // Source the hero numeral from the trip's effective speed, not
     // location.speed: cheap GPS chips leave Location.speed at 0.0
@@ -122,10 +123,6 @@ internal fun SpeedOverlay(
     // Altitude (metres) from the fix when the chip reports it; null hides the
     // altitude readout rather than showing a misleading 0.
     val altitudeM = location?.takeIf { it.hasAltitude() }?.altitude?.roundToInt()
-    val glassAlpha = if (isSystemInDarkTheme()) FemtoDimens.GlassBgAlphaDark else FemtoDimens.GlassBgAlphaLight
-    // Capture the surface color outside the draw-time hazeEffect block, which
-    // cannot read MaterialTheme.
-    val surfaceColor = MaterialTheme.colorScheme.surface
     Column(
         modifier =
             modifier
@@ -140,11 +137,8 @@ internal fun SpeedOverlay(
                 // maximum, and the address row ellipsizes within it.
                 .widthIn(max = FemtoDimens.SpeedOverlayMaxWidth)
                 .clip(RoundedCornerShape(FemtoDimens.SpeedOverlayCorner))
-                .hazeEffect(state = hazeState) {
-                    backgroundColor = surfaceColor
-                    tints = listOf(HazeTint(surfaceColor.copy(alpha = glassAlpha)))
-                    blurRadius = FemtoDimens.GlassBlurRadius
-                }.border(
+                .glassEffect(hazeState, glassConfig.blurRadius, glassConfig.tintScale)
+                .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.GlassBorderAlpha),
                     shape = RoundedCornerShape(FemtoDimens.SpeedOverlayCorner),
