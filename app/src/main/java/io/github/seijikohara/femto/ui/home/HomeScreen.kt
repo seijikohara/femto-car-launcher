@@ -6,6 +6,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
+import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
 import io.github.seijikohara.femto.ui.home.components.PanelVisibility
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
@@ -22,6 +23,7 @@ internal fun HomeScreen(
     temperatureUnit: TemperatureUnit,
     mapConfig: MapConfig,
     panels: PanelVisibility,
+    glassConfig: GlassConfig,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Surface(
@@ -36,6 +38,7 @@ internal fun HomeScreen(
         temperatureUnit = temperatureUnit,
         mapConfig = mapConfig,
         panels = panels,
+        glassConfig = glassConfig,
         onAction = onAction,
         modifier = Modifier.fillMaxSize(),
     )
@@ -53,6 +56,7 @@ private fun HomeScreenPreview() =
             temperatureUnit = TemperatureUnit.CELSIUS,
             mapConfig = MapConfig(),
             panels = PanelVisibility(),
+            glassConfig = GlassConfig(),
             onAction = {},
         )
     }

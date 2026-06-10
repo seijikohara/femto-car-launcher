@@ -157,5 +157,29 @@ class SettingsViewModelTest {
             assertEquals(DisplaySettings.Default, store.settings.first())
         }
 
+    @Test
+    fun `defaults reflect the revised values`() =
+        runTest(dispatcher) {
+            val defaults = DisplaySettings.Default
+            assertEquals(FullscreenSetting.ON, defaults.fullscreen)
+            assertEquals(MapRenderMode.LIVE, defaults.mapRenderMode)
+            assertEquals(true, defaults.map3dBuildings)
+            assertEquals(true, defaults.mapTerrain)
+            assertEquals(false, defaults.showClockSeconds)
+        }
+
+    @Test
+    fun `glass defaults and setters write to the store`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            assertEquals(24, vm.uiState.value.glassBlurRadius)
+            assertEquals(100, vm.uiState.value.glassTintScale)
+            vm.onAction(SettingsAction.SetGlassBlurRadius(12))
+            vm.onAction(SettingsAction.SetGlassTintScale(60))
+            advanceUntilIdle()
+            assertEquals(12, store.settings.first().glassBlurRadius)
+            assertEquals(60, store.settings.first().glassTintScale)
+        }
+
     private fun viewModel() = SettingsViewModel(store, FontPreferences(application))
 }

@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.dp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -46,6 +47,7 @@ import io.github.seijikohara.femto.ui.drawer.AppDrawerSheet
 import io.github.seijikohara.femto.ui.fontpicker.FontPickerSheet
 import io.github.seijikohara.femto.ui.home.HomeEvent
 import io.github.seijikohara.femto.ui.home.HomeRoute
+import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
 import io.github.seijikohara.femto.ui.home.components.PanelVisibility
 import io.github.seijikohara.femto.ui.locale.resolved
@@ -144,6 +146,11 @@ class MainActivity : ComponentActivity() {
                             calendar = display.showCalendar,
                             weather = display.showWeather,
                             music = display.showMusic,
+                        ),
+                    glassConfig =
+                        GlassConfig(
+                            blurRadius = display.glassBlurRadius.dp,
+                            tintScale = display.glassTintScale,
                         ),
                     onEvent = { event ->
                         handleHomeEvent(

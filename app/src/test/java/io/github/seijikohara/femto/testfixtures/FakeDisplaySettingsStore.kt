@@ -65,6 +65,10 @@ internal class FakeDisplaySettingsStore(
 
     override suspend fun setMapTerrain(value: Boolean) = state.update { it.copy(mapTerrain = value) }
 
+    override suspend fun setGlassBlurRadius(value: Int) = state.update { it.copy(glassBlurRadius = value) }
+
+    override suspend fun setGlassTintScale(value: Int) = state.update { it.copy(glassTintScale = value) }
+
     override suspend fun setShowCalendar(value: Boolean) = state.update { it.copy(showCalendar = value) }
 
     override suspend fun setShowWeather(value: Boolean) = state.update { it.copy(showWeather = value) }

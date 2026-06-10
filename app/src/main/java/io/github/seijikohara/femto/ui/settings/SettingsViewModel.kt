@@ -39,6 +39,8 @@ internal class SettingsViewModel(
                 mapMarkerPos = display.mapMarkerPos,
                 map3dBuildings = display.map3dBuildings,
                 mapTerrain = display.mapTerrain,
+                glassBlurRadius = display.glassBlurRadius,
+                glassTintScale = display.glassTintScale,
                 showCalendar = display.showCalendar,
                 showWeather = display.showWeather,
                 showMusic = display.showMusic,
@@ -121,6 +123,14 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetMapTerrain -> {
                     displayPreferences.setMapTerrain(action.value)
+                }
+
+                is SettingsAction.SetGlassBlurRadius -> {
+                    displayPreferences.setGlassBlurRadius(action.value)
+                }
+
+                is SettingsAction.SetGlassTintScale -> {
+                    displayPreferences.setGlassTintScale(action.value)
                 }
 
                 is SettingsAction.SetShowCalendar -> {

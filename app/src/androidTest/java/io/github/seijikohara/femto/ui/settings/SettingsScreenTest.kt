@@ -32,6 +32,7 @@ class SettingsScreenTest {
     private val keepScreenOnLabel = context.getString(R.string.settings_keep_screen_on)
     private val lightSchemeLabel = context.getString(R.string.settings_group_map_scheme_light)
     private val darkSchemeLabel = context.getString(R.string.settings_group_map_scheme_dark)
+    private val glassBlurLabel = context.getString(R.string.settings_group_glass_blur)
 
     @Test
     fun renders_fullscreen_row() {
@@ -40,23 +41,23 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun toggling_fullscreen_dispatches_set_fullscreen_on() {
+    fun toggling_fullscreen_dispatches_set_fullscreen_off() {
         val actions = mutableListOf<SettingsAction>()
         setScreen(onAction = { actions += it })
-        // Initial.fullscreen is OFF, so tapping the row flips the switch to ON.
+        // Initial.fullscreen is now ON (the revised default), so tapping flips it off.
         rule.onNodeWithText(fullscreenLabel).performClick()
-        assertEquals(listOf(SettingsAction.SetFullscreen(FullscreenSetting.ON)), actions)
+        assertEquals(listOf(SettingsAction.SetFullscreen(FullscreenSetting.OFF)), actions)
     }
 
     @Test
-    fun toggling_show_seconds_dispatches_set_show_clock_seconds_off() {
+    fun toggling_show_seconds_dispatches_set_show_clock_seconds_on() {
         val actions = mutableListOf<SettingsAction>()
         setScreen(onAction = { actions += it })
         // The row sits in the Units section, below the fold on a short head unit, so
-        // scroll it into view first. Initial.showClockSeconds is true, so tapping the
-        // row flips the switch off.
+        // scroll it into view first. Initial.showClockSeconds is now false (the revised
+        // default), so tapping the row flips the switch on.
         rule.onNodeWithText(showSecondsLabel).performScrollTo().performClick()
-        assertEquals(listOf(SettingsAction.SetShowClockSeconds(false)), actions)
+        assertEquals(listOf(SettingsAction.SetShowClockSeconds(true)), actions)
     }
 
     @Test
@@ -95,6 +96,12 @@ class SettingsScreenTest {
     fun keep_screen_on_row_is_shown() {
         setScreen()
         rule.onNodeWithText(keepScreenOnLabel).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun glass_blur_row_is_shown() {
+        setScreen()
+        rule.onNodeWithText(glassBlurLabel).performScrollTo().assertIsDisplayed()
     }
 
     @Test

@@ -85,6 +85,10 @@ internal const val DEFAULT_MAP_RENDER_PERCENT = 100
  */
 internal const val DEFAULT_MAP_MARKER_POS = 70
 
+/** Default glass-overlay blur radius (dp) and tint scale (percent of the per-theme base alpha). */
+internal const val DEFAULT_GLASS_BLUR_DP = 24
+internal const val DEFAULT_GLASS_TINT_SCALE = 100
+
 /**
  * User display settings that override the locale / system defaults. Every value
  * defaults to the auto / system choice so a fresh install behaves exactly as
@@ -123,6 +127,10 @@ internal data class DisplaySettings(
     // extrude the OpenMapTiles building layer; terrain adds raster-DEM relief.
     val map3dBuildings: Boolean,
     val mapTerrain: Boolean,
+    // Map-overlay glass blur strength: the backdrop blur radius (dp) and the tint
+    // opacity as a percent of the per-theme base alpha (100 = the current look).
+    val glassBlurRadius: Int,
+    val glassTintScale: Int,
     // Info-pane card visibility. Each card defaults to shown so a fresh install
     // renders the full dashboard; hiding one lets the remaining cards (or the map)
     // reflow into the freed space.
@@ -138,8 +146,8 @@ internal data class DisplaySettings(
                 speedUnit = SpeedUnitSetting.AUTO,
                 temperatureUnit = TemperatureUnitSetting.AUTO,
                 clock = ClockSetting.AUTO,
-                showClockSeconds = true,
-                fullscreen = FullscreenSetting.OFF,
+                showClockSeconds = false,
+                fullscreen = FullscreenSetting.ON,
                 keepScreenOn = true,
                 mapStyle = MapStyleSetting.AUTO,
                 mapSchemeLight = MapColorScheme.ACCENT,
@@ -147,10 +155,12 @@ internal data class DisplaySettings(
                 mapTiltDeg = DEFAULT_MAP_TILT_DEG,
                 mapZoom = DEFAULT_MAP_ZOOM,
                 mapRenderPercent = DEFAULT_MAP_RENDER_PERCENT,
-                mapRenderMode = MapRenderMode.SNAPSHOT,
+                mapRenderMode = MapRenderMode.LIVE,
                 mapMarkerPos = DEFAULT_MAP_MARKER_POS,
-                map3dBuildings = false,
-                mapTerrain = false,
+                map3dBuildings = true,
+                mapTerrain = true,
+                glassBlurRadius = DEFAULT_GLASS_BLUR_DP,
+                glassTintScale = DEFAULT_GLASS_TINT_SCALE,
                 showCalendar = true,
                 showWeather = true,
                 showMusic = true,
@@ -204,6 +214,10 @@ internal interface DisplaySettingsStore {
 
     suspend fun setMapTerrain(value: Boolean)
 
+    suspend fun setGlassBlurRadius(value: Int)
+
+    suspend fun setGlassTintScale(value: Int)
+
     suspend fun setShowCalendar(value: Boolean)
 
     suspend fun setShowWeather(value: Boolean)
@@ -232,8 +246,8 @@ internal class DisplayPreferences(
                 speedUnit = prefs[SPEED_KEY].toEnumOr(SpeedUnitSetting.AUTO),
                 temperatureUnit = prefs[TEMPERATURE_KEY].toEnumOr(TemperatureUnitSetting.AUTO),
                 clock = prefs[CLOCK_KEY].toEnumOr(ClockSetting.AUTO),
-                showClockSeconds = prefs[SHOW_CLOCK_SECONDS_KEY] ?: true,
-                fullscreen = prefs[FULLSCREEN_KEY].toEnumOr(FullscreenSetting.OFF),
+                showClockSeconds = prefs[SHOW_CLOCK_SECONDS_KEY] ?: false,
+                fullscreen = prefs[FULLSCREEN_KEY].toEnumOr(FullscreenSetting.ON),
                 keepScreenOn = prefs[KEEP_SCREEN_ON_KEY] ?: true,
                 mapStyle = prefs[MAP_STYLE_KEY].toEnumOr(MapStyleSetting.AUTO),
                 mapSchemeLight = prefs[MAP_SCHEME_LIGHT_KEY].toEnumOr(MapColorScheme.ACCENT),
@@ -241,10 +255,12 @@ internal class DisplayPreferences(
                 mapTiltDeg = prefs[MAP_TILT_KEY] ?: DEFAULT_MAP_TILT_DEG,
                 mapZoom = prefs[MAP_ZOOM_KEY] ?: DEFAULT_MAP_ZOOM,
                 mapRenderPercent = prefs[MAP_QUALITY_KEY] ?: DEFAULT_MAP_RENDER_PERCENT,
-                mapRenderMode = prefs[MAP_RENDER_MODE_KEY].toMapRenderModeOr(MapRenderMode.SNAPSHOT),
+                mapRenderMode = prefs[MAP_RENDER_MODE_KEY].toMapRenderModeOr(MapRenderMode.LIVE),
                 mapMarkerPos = prefs[MAP_MARKER_POS_KEY] ?: DEFAULT_MAP_MARKER_POS,
-                map3dBuildings = prefs[MAP_3D_BUILDINGS_KEY] ?: false,
-                mapTerrain = prefs[MAP_TERRAIN_KEY] ?: false,
+                map3dBuildings = prefs[MAP_3D_BUILDINGS_KEY] ?: true,
+                mapTerrain = prefs[MAP_TERRAIN_KEY] ?: true,
+                glassBlurRadius = prefs[GLASS_BLUR_KEY] ?: DEFAULT_GLASS_BLUR_DP,
+                glassTintScale = prefs[GLASS_TINT_KEY] ?: DEFAULT_GLASS_TINT_SCALE,
                 showCalendar = prefs[SHOW_CALENDAR_KEY] ?: true,
                 showWeather = prefs[SHOW_WEATHER_KEY] ?: true,
                 showMusic = prefs[SHOW_MUSIC_KEY] ?: true,
@@ -325,6 +341,14 @@ internal class DisplayPreferences(
         context.displayDataStore.edit { it[MAP_TERRAIN_KEY] = value }
     }
 
+    override suspend fun setGlassBlurRadius(value: Int) {
+        context.displayDataStore.edit { it[GLASS_BLUR_KEY] = value }
+    }
+
+    override suspend fun setGlassTintScale(value: Int) {
+        context.displayDataStore.edit { it[GLASS_TINT_KEY] = value }
+    }
+
     override suspend fun setShowCalendar(value: Boolean) {
         context.displayDataStore.edit { it[SHOW_CALENDAR_KEY] = value }
     }
@@ -363,6 +387,8 @@ internal class DisplayPreferences(
         val MAP_MARKER_POS_KEY = intPreferencesKey("map_marker_pos")
         val MAP_3D_BUILDINGS_KEY = booleanPreferencesKey("map_3d_buildings")
         val MAP_TERRAIN_KEY = booleanPreferencesKey("map_terrain")
+        val GLASS_BLUR_KEY = intPreferencesKey("glass_blur_radius")
+        val GLASS_TINT_KEY = intPreferencesKey("glass_tint_scale")
         val SHOW_CALENDAR_KEY = booleanPreferencesKey("show_calendar")
         val SHOW_WEATHER_KEY = booleanPreferencesKey("show_weather")
         val SHOW_MUSIC_KEY = booleanPreferencesKey("show_music")

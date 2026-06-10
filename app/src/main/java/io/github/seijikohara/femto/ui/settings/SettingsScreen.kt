@@ -131,6 +131,21 @@ internal fun SettingsScreen(
                 checked = uiState.keepScreenOn,
                 onCheckedChange = { onAction(SettingsAction.SetKeepScreenOn(it)) },
             )
+            SettingsSubheader(stringResource(R.string.settings_subheader_glass))
+            SliderRow(
+                title = stringResource(R.string.settings_group_glass_blur),
+                valueLabel = stringResource(R.string.settings_glass_blur_value, uiState.glassBlurRadius),
+                value = uiState.glassBlurRadius,
+                range = MIN_GLASS_BLUR..MAX_GLASS_BLUR,
+                onValueChange = { onAction(SettingsAction.SetGlassBlurRadius(it)) },
+            )
+            SliderRow(
+                title = stringResource(R.string.settings_group_glass_opacity),
+                valueLabel = stringResource(R.string.settings_glass_opacity_value, uiState.glassTintScale),
+                value = uiState.glassTintScale,
+                range = MIN_GLASS_OPACITY..MAX_GLASS_OPACITY,
+                onValueChange = { onAction(SettingsAction.SetGlassTintScale(it)) },
+            )
             SettingsSubheader(stringResource(R.string.settings_subheader_fonts))
             FontRow(
                 title = stringResource(R.string.settings_group_font_latin),
@@ -744,6 +759,13 @@ private const val MAX_MAP_MARKER_POS = 100
 // the upscaled map keeps roads legible; 100 is full panel resolution.
 private const val MIN_MAP_QUALITY = 30
 private const val MAX_MAP_QUALITY = 100
+
+// Glass-overlay blur radius (dp) and tint opacity (percent of the per-theme base
+// alpha; 100 = the default look, 0 = no tint).
+private const val MIN_GLASS_BLUR = 0
+private const val MAX_GLASS_BLUR = 40
+private const val MIN_GLASS_OPACITY = 0
+private const val MAX_GLASS_OPACITY = 150
 
 private fun Boolean.toFullscreen(): FullscreenSetting = if (this) FullscreenSetting.ON else FullscreenSetting.OFF
 
