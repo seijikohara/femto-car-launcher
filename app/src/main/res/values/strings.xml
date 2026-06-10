@@ -112,6 +112,7 @@
     <string name="settings_section_display">Display</string>
     <string name="settings_section_units">Units</string>
     <string name="settings_section_map">Map</string>
+    <string name="settings_section_location">Location</string>
     <string name="settings_section_panels">Panels</string>
     <string name="settings_subheader_screen">Screen</string>
     <string name="settings_subheader_glass">Glass</string>
@@ -189,6 +190,16 @@
     <string name="settings_group_map_3d">3D buildings</string>
     <string name="settings_group_map_terrain">Terrain</string>
     <string name="settings_map_terrain_desc">3D elevation relief (Mapterhorn). Adds tile downloads; heavier on low-end GPUs.</string>
+    <string name="settings_group_location_quality">Accuracy</string>
+    <string name="settings_location_quality_high">High accuracy</string>
+    <string name="settings_location_quality_balanced">Balanced</string>
+    <string name="settings_location_quality_low">Low power</string>
+    <string name="settings_group_location_interval">Update interval</string>
+    <string name="settings_location_interval_value">%1$d ms</string>
+    <string name="settings_location_interval_desc">How often position updates are requested. Shorter is smoother; longer reduces load on slow head units. Many GNSS chips cap at one update per second regardless.</string>
+    <string name="settings_group_location_min_distance">Minimum distance</string>
+    <string name="settings_location_min_distance_value">%1$d m</string>
+    <string name="settings_location_min_distance_desc">Skip updates closer than this to the last position; 0 delivers every fix.</string>
     <string name="settings_group_panel_calendar">Calendar panel</string>
     <string name="settings_group_panel_weather">Weather panel</string>
     <string name="settings_group_panel_music">Music panel</string>
@@ -196,6 +207,6 @@
     <string name="settings_open_system_settings">System settings</string>
     <string name="settings_reset_to_defaults">Reset to defaults</string>
     <string name="settings_reset_confirm_title">Reset all settings?</string>
-    <string name="settings_reset_confirm_message">This restores every display, unit, map, panel and font setting to its default value.</string>
+    <string name="settings_reset_confirm_message">This restores every display, unit, map, location, panel and font setting to its default value.</string>
     <string name="settings_reset_confirm">Reset</string>
 </resources>

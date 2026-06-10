@@ -55,6 +55,7 @@ import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.FontSlot
 import io.github.seijikohara.femto.data.FullscreenSetting
+import io.github.seijikohara.femto.data.LocationQualitySetting
 import io.github.seijikohara.femto.data.MapColorScheme
 import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.data.MapStyleSetting
@@ -308,6 +309,43 @@ internal fun SettingsScreen(
                 value = uiState.mapMarkerPos,
                 range = MIN_MAP_MARKER_POS..MAX_MAP_MARKER_POS,
                 onValueChange = { onAction(SettingsAction.SetMapMarkerPos(it)) },
+            )
+        }
+
+        SettingsSection(title = stringResource(R.string.settings_section_location)) {
+            ChoiceRow(
+                title = stringResource(R.string.settings_group_location_quality),
+                options =
+                    listOf(
+                        LocationQualitySetting.HIGH_ACCURACY to
+                            stringResource(R.string.settings_location_quality_high),
+                        LocationQualitySetting.BALANCED to
+                            stringResource(R.string.settings_location_quality_balanced),
+                        LocationQualitySetting.LOW_POWER to
+                            stringResource(R.string.settings_location_quality_low),
+                    ),
+                selected = uiState.locationQuality,
+                onSelect = { onAction(SettingsAction.SetLocationQuality(it)) },
+            )
+            // The slider works in 250 ms steps so the knob lands on round values;
+            // the persisted value stays in milliseconds.
+            SliderRow(
+                title = stringResource(R.string.settings_group_location_interval),
+                valueLabel =
+                    stringResource(R.string.settings_location_interval_value, uiState.locationIntervalMillis),
+                value = (uiState.locationIntervalMillis / LOCATION_INTERVAL_STEP_MS).toInt(),
+                range = MIN_LOCATION_INTERVAL_STEPS..MAX_LOCATION_INTERVAL_STEPS,
+                onValueChange = { onAction(SettingsAction.SetLocationIntervalMillis(it * LOCATION_INTERVAL_STEP_MS)) },
+                description = stringResource(R.string.settings_location_interval_desc),
+            )
+            SliderRow(
+                title = stringResource(R.string.settings_group_location_min_distance),
+                valueLabel =
+                    stringResource(R.string.settings_location_min_distance_value, uiState.locationMinDistanceMeters),
+                value = uiState.locationMinDistanceMeters,
+                range = MIN_LOCATION_MIN_DISTANCE..MAX_LOCATION_MIN_DISTANCE,
+                onValueChange = { onAction(SettingsAction.SetLocationMinDistance(it)) },
+                description = stringResource(R.string.settings_location_min_distance_desc),
             )
         }
 
@@ -766,6 +804,14 @@ private const val MIN_GLASS_BLUR = 0
 private const val MAX_GLASS_BLUR = 40
 private const val MIN_GLASS_OPACITY = 0
 private const val MAX_GLASS_OPACITY = 150
+
+// Location-request interval slider, in 250 ms steps (250 ms – 2 s); the persisted
+// value is milliseconds. Minimum-distance band in metres; 0 delivers every fix.
+private const val LOCATION_INTERVAL_STEP_MS = 250L
+private const val MIN_LOCATION_INTERVAL_STEPS = 1
+private const val MAX_LOCATION_INTERVAL_STEPS = 8
+private const val MIN_LOCATION_MIN_DISTANCE = 0
+private const val MAX_LOCATION_MIN_DISTANCE = 25
 
 private fun Boolean.toFullscreen(): FullscreenSetting = if (this) FullscreenSetting.ON else FullscreenSetting.OFF
 

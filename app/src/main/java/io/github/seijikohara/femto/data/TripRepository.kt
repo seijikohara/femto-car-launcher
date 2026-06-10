@@ -53,8 +53,11 @@ import kotlinx.coroutines.flow.merge
  * only when `deltaSeconds` is at least `MIN_TRUSTWORTHY_DELTA_SECONDS`.
  * A sub-second gap (two near-simultaneous fixes) would divide a real
  * position delta into an absurd speed, so below that floor the
- * position-derived path yields no reading and the fix contributes
- * nothing.
+ * position-derived path yields no reading and the fix *defers*: the
+ * anchor stays put, the delta keeps growing across subsequent fixes,
+ * and accrual happens in one step once the accumulated delta clears
+ * the floor. (Advancing the anchor instead would reset the delta on
+ * every fix and freeze distance forever at sub-second cadence.)
  *
  * The accumulators ([lastLocation], [totalMeters], [totalSeconds]) live
  * on the instance, not inside the cold `flow {}`. Under
@@ -142,27 +145,37 @@ internal class TripRepository(
     // upstream in stateFlow so they never advance the anchor.
     private fun accrue(current: Location) {
         val previous = lastLocation
-        if (previous != null) {
-            val deltaSeconds =
-                (current.elapsedRealtimeNanos - previous.elapsedRealtimeNanos) / NANOS_PER_SECOND
-            if (deltaSeconds in MIN_DELTA_SECONDS..MAX_GAP_SECONDS) {
-                val speed = effectiveSpeed(previous, current, deltaSeconds)
-                // Drop implausible speeds (teleport jumps, bad chip reports,
-                // sub-second gaps): do not publish or accrue them.
-                if (speed != null && speed <= MAX_PLAUSIBLE_SPEED_MS) {
-                    currentSpeedMs = speed
-                    // Count every tracked interval toward the average's time base,
-                    // including time spent stopped, so AVG is the overall trip
-                    // average (distance / elapsed) rather than a moving-only average.
-                    // Long gaps are already excluded by the deltaSeconds window above.
-                    totalSeconds += deltaSeconds
-                    if (speed >= MIN_MOVING_SPEED_MS) {
-                        totalMeters += previous.distanceTo(current).toDouble()
-                    }
-                }
+        if (previous == null) {
+            lastLocation = current
+            return
+        }
+        val deltaSeconds =
+            (current.elapsedRealtimeNanos - previous.elapsedRealtimeNanos) / NANOS_PER_SECOND
+        if (deltaSeconds !in MIN_DELTA_SECONDS..MAX_GAP_SECONDS) {
+            // Non-advancing clock or a long gap (parked, lost fix, tunnel):
+            // re-anchor without accruing — we do not interpolate across it.
+            lastLocation = current
+            return
+        }
+        // A speed-less fix below the trust floor keeps the anchor: the delta then
+        // keeps growing toward MIN_TRUSTWORTHY_DELTA_SECONDS instead of resetting
+        // on every fix. Without this, a sub-second fix cadence (interval < 500 ms
+        // on a chip that never reports speed) would freeze distance forever.
+        val speed = effectiveSpeed(previous, current, deltaSeconds) ?: return
+        lastLocation = current
+        // Drop implausible speeds (teleport jumps, bad chip reports): re-anchor
+        // but do not publish or accrue them.
+        if (speed <= MAX_PLAUSIBLE_SPEED_MS) {
+            currentSpeedMs = speed
+            // Count every tracked interval toward the average's time base,
+            // including time spent stopped, so AVG is the overall trip
+            // average (distance / elapsed) rather than a moving-only average.
+            // Long gaps are already excluded by the deltaSeconds window above.
+            totalSeconds += deltaSeconds
+            if (speed >= MIN_MOVING_SPEED_MS) {
+                totalMeters += previous.distanceTo(current).toDouble()
             }
         }
-        lastLocation = current
     }
 
     // The chip's reported speed when it has one; otherwise the position-derived

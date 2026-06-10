@@ -4,6 +4,8 @@ import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.DisplaySettings
 import io.github.seijikohara.femto.data.FullscreenSetting
+import io.github.seijikohara.femto.data.LocationQualitySetting
+import io.github.seijikohara.femto.data.LocationSettings
 import io.github.seijikohara.femto.data.MapColorScheme
 import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.data.MapStyleSetting
@@ -39,6 +41,9 @@ internal data class SettingsUiState(
     // The chosen Google Fonts families per slot; null means the system font.
     val latinFont: String?,
     val cjkFont: String?,
+    val locationQuality: LocationQualitySetting,
+    val locationIntervalMillis: Long,
+    val locationMinDistanceMeters: Int,
 ) {
     companion object {
         // Seeded from the persistence defaults so the default values live in one
@@ -70,6 +75,9 @@ internal data class SettingsUiState(
                 showMusic = DisplaySettings.Default.showMusic,
                 latinFont = null,
                 cjkFont = null,
+                locationQuality = LocationSettings.Default.quality,
+                locationIntervalMillis = LocationSettings.Default.intervalMillis,
+                locationMinDistanceMeters = LocationSettings.Default.minUpdateDistanceMeters,
             )
     }
 }
@@ -168,6 +176,18 @@ internal sealed interface SettingsAction {
         val value: Boolean,
     ) : SettingsAction
 
-    /** Restore every display + font setting to its default value. */
+    data class SetLocationQuality(
+        val value: LocationQualitySetting,
+    ) : SettingsAction
+
+    data class SetLocationIntervalMillis(
+        val value: Long,
+    ) : SettingsAction
+
+    data class SetLocationMinDistance(
+        val value: Int,
+    ) : SettingsAction
+
+    /** Restore every display + font + location setting to its default value. */
     data object ResetToDefaults : SettingsAction
 }

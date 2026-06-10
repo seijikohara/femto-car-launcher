@@ -6,9 +6,12 @@ import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.DisplaySettings
 import io.github.seijikohara.femto.data.FontPreferences
 import io.github.seijikohara.femto.data.FullscreenSetting
+import io.github.seijikohara.femto.data.LocationQualitySetting
+import io.github.seijikohara.femto.data.LocationSettings
 import io.github.seijikohara.femto.data.MapColorScheme
 import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
+import io.github.seijikohara.femto.testfixtures.FakeLocationSettingsStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -34,6 +37,7 @@ import kotlin.test.assertEquals
 class SettingsViewModelTest {
     private val application: Application = ApplicationProvider.getApplicationContext()
     private val store = FakeDisplaySettingsStore()
+    private val locationStore = FakeLocationSettingsStore()
     private val dispatcher = StandardTestDispatcher()
 
     @Before
@@ -143,6 +147,30 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `SetLocationQuality writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetLocationQuality(LocationQualitySetting.LOW_POWER))
+            advanceUntilIdle()
+            assertEquals(LocationQualitySetting.LOW_POWER, locationStore.settings.first().quality)
+        }
+
+    @Test
+    fun `SetLocationIntervalMillis writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetLocationIntervalMillis(1_000L))
+            advanceUntilIdle()
+            assertEquals(1_000L, locationStore.settings.first().intervalMillis)
+        }
+
+    @Test
+    fun `SetLocationMinDistance writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetLocationMinDistance(5))
+            advanceUntilIdle()
+            assertEquals(5, locationStore.settings.first().minUpdateDistanceMeters)
+        }
+
+    @Test
     fun `ResetToDefaults restores display settings to their defaults`() =
         runTest(dispatcher) {
             val vm = viewModel()
@@ -151,10 +179,12 @@ class SettingsViewModelTest {
             vm.onAction(SettingsAction.SetAccentColor(AccentColor.TEAL))
             vm.onAction(SettingsAction.SetShowMusic(false))
             vm.onAction(SettingsAction.SetMapTilt(10))
+            vm.onAction(SettingsAction.SetLocationIntervalMillis(2_000L))
             advanceUntilIdle()
             vm.onAction(SettingsAction.ResetToDefaults)
             advanceUntilIdle()
             assertEquals(DisplaySettings.Default, store.settings.first())
+            assertEquals(LocationSettings.Default, locationStore.settings.first())
         }
 
     @Test
@@ -181,5 +211,5 @@ class SettingsViewModelTest {
             assertEquals(60, store.settings.first().glassTintScale)
         }
 
-    private fun viewModel() = SettingsViewModel(store, FontPreferences(application))
+    private fun viewModel() = SettingsViewModel(store, FontPreferences(application), locationStore)
 }

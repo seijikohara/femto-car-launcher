@@ -11,6 +11,8 @@ import android.util.Log
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -198,6 +200,29 @@ private fun SnapshotMap(
 
     var frame by remember { mutableStateOf<Bitmap?>(null) }
     var failed by remember { mutableStateOf(false) }
+
+    // Cross-fade a scheme/style swap: when the style key changes, freeze the
+    // outgoing style's last frame underneath and drop the top layer to alpha 0
+    // (both layers still show the old bitmap, so nothing flashes); the incoming
+    // style's first frame then fades in over the frozen capture. Movement
+    // re-renders replace the bitmap directly — only a style swap animates.
+    val styleKey = styleRef to accentColors
+    var fadeFrom by remember { mutableStateOf<Bitmap?>(null) }
+    var lastStyleKey by remember { mutableStateOf<Any?>(null) }
+    val fadeIn = remember { Animatable(1f) }
+    LaunchedEffect(styleKey) {
+        if (lastStyleKey != null && lastStyleKey != styleKey && frame != null) {
+            fadeFrom = frame
+            fadeIn.snapTo(0f)
+        }
+        lastStyleKey = styleKey
+    }
+    LaunchedEffect(frame) {
+        if (fadeFrom != null && frame != null && frame !== fadeFrom) {
+            fadeIn.animateTo(1f, tween(STYLE_FADE_MS))
+            fadeFrom = null
+        }
+    }
     // Carry the last non-zero bearing so a stopped vehicle (GPS bearing 0) keeps
     // the heading-up rotation instead of snapping back to north.
     val bearingHolder = remember { floatArrayOf(0f) }
@@ -271,11 +296,23 @@ private fun SnapshotMap(
     val current = frame
     when {
         current != null -> {
+            fadeFrom?.let { outgoing ->
+                Image(
+                    bitmap = outgoing.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
             Image(
                 bitmap = current.asImageBitmap(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().clickable { onTap() },
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = fadeIn.value }
+                        .clickable { onTap() },
             )
             LocationMarker(xPx = markerXPx, yPx = markerYPx, tiltDeg = mapConfig.tiltDeg)
         }
@@ -553,6 +590,10 @@ internal const val MAP_ZOOM = 16.5
 // produced when the fix actually moves (shouldRerender), so this just bounds the
 // re-check cadence, not the render rate.
 private const val SNAPSHOT_POLL_INTERVAL_MS = 200L
+
+// How long a snapshot style swap takes to cross-fade (mirrors STYLE_FADE_MS in
+// assets/web/map.html so both map backends transition at the same pace).
+private const val STYLE_FADE_MS = 500
 
 private const val TAG = "MapPanel"
 

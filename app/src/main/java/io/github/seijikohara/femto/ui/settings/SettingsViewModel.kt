@@ -8,6 +8,8 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.seijikohara.femto.data.DisplayPreferences
 import io.github.seijikohara.femto.data.DisplaySettingsStore
 import io.github.seijikohara.femto.data.FontPreferences
+import io.github.seijikohara.femto.data.LocationPreferences
+import io.github.seijikohara.femto.data.LocationSettingsStore
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -17,9 +19,14 @@ import kotlinx.coroutines.launch
 internal class SettingsViewModel(
     private val displayPreferences: DisplaySettingsStore,
     private val fontPreferences: FontPreferences,
+    private val locationPreferences: LocationSettingsStore,
 ) : ViewModel() {
     val uiState: StateFlow<SettingsUiState> =
-        combine(displayPreferences.settings, fontPreferences.selection) { display, font ->
+        combine(
+            displayPreferences.settings,
+            fontPreferences.selection,
+            locationPreferences.settings,
+        ) { display, font, location ->
             SettingsUiState(
                 themeMode = display.themeMode,
                 accentColor = display.accentColor,
@@ -46,6 +53,9 @@ internal class SettingsViewModel(
                 showMusic = display.showMusic,
                 latinFont = font.latinFamily,
                 cjkFont = font.cjkFamily,
+                locationQuality = location.quality,
+                locationIntervalMillis = location.intervalMillis,
+                locationMinDistanceMeters = location.minUpdateDistanceMeters,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState.Initial)
 
@@ -145,8 +155,21 @@ internal class SettingsViewModel(
                     displayPreferences.setShowMusic(action.value)
                 }
 
+                is SettingsAction.SetLocationQuality -> {
+                    locationPreferences.setQuality(action.value)
+                }
+
+                is SettingsAction.SetLocationIntervalMillis -> {
+                    locationPreferences.setIntervalMillis(action.value)
+                }
+
+                is SettingsAction.SetLocationMinDistance -> {
+                    locationPreferences.setMinUpdateDistanceMeters(action.value)
+                }
+
                 is SettingsAction.ResetToDefaults -> {
                     displayPreferences.resetToDefaults()
+                    locationPreferences.resetToDefaults()
                     fontPreferences.resetToDefaults()
                 }
             }
@@ -165,6 +188,7 @@ internal class SettingsViewModelFactory(
         return SettingsViewModel(
             displayPreferences = DisplayPreferences(application),
             fontPreferences = FontPreferences(application),
+            locationPreferences = LocationPreferences(application),
         ) as T
     }
 }
