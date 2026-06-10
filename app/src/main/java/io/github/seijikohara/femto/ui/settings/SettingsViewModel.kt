@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.seijikohara.femto.data.DisplayPreferences
 import io.github.seijikohara.femto.data.DisplaySettingsStore
+import io.github.seijikohara.femto.data.DrawerPreferences
+import io.github.seijikohara.femto.data.DrawerSettingsStore
 import io.github.seijikohara.femto.data.FontPreferences
 import io.github.seijikohara.femto.data.LocationPreferences
 import io.github.seijikohara.femto.data.LocationSettingsStore
@@ -20,13 +22,15 @@ internal class SettingsViewModel(
     private val displayPreferences: DisplaySettingsStore,
     private val fontPreferences: FontPreferences,
     private val locationPreferences: LocationSettingsStore,
+    private val drawerPreferences: DrawerSettingsStore,
 ) : ViewModel() {
     val uiState: StateFlow<SettingsUiState> =
         combine(
             displayPreferences.settings,
             fontPreferences.selection,
             locationPreferences.settings,
-        ) { display, font, location ->
+            drawerPreferences.iconSize,
+        ) { display, font, location, drawerIconSize ->
             SettingsUiState(
                 themeMode = display.themeMode,
                 accentColor = display.accentColor,
@@ -51,6 +55,7 @@ internal class SettingsViewModel(
                 showCalendar = display.showCalendar,
                 showWeather = display.showWeather,
                 showMusic = display.showMusic,
+                drawerIconSize = drawerIconSize,
                 latinFont = font.latinFamily,
                 cjkFont = font.cjkFamily,
                 locationQuality = location.quality,
@@ -155,6 +160,10 @@ internal class SettingsViewModel(
                     displayPreferences.setShowMusic(action.value)
                 }
 
+                is SettingsAction.SetDrawerIconSize -> {
+                    drawerPreferences.setIconSize(action.value)
+                }
+
                 is SettingsAction.SetLocationQuality -> {
                     locationPreferences.setQuality(action.value)
                 }
@@ -189,6 +198,7 @@ internal class SettingsViewModelFactory(
             displayPreferences = DisplayPreferences(application),
             fontPreferences = FontPreferences(application),
             locationPreferences = LocationPreferences(application),
+            drawerPreferences = DrawerPreferences(application),
         ) as T
     }
 }

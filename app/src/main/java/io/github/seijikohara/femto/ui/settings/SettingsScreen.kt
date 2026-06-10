@@ -53,6 +53,7 @@ import com.composables.icons.lucide.RotateCcw
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.ClockSetting
+import io.github.seijikohara.femto.data.DrawerIconSize
 import io.github.seijikohara.femto.data.FontSlot
 import io.github.seijikohara.femto.data.FullscreenSetting
 import io.github.seijikohara.femto.data.LocationQualitySetting
@@ -146,6 +147,18 @@ internal fun SettingsScreen(
                 value = uiState.glassTintScale,
                 range = MIN_GLASS_OPACITY..MAX_GLASS_OPACITY,
                 onValueChange = { onAction(SettingsAction.SetGlassTintScale(it)) },
+            )
+            SettingsSubheader(stringResource(R.string.settings_subheader_drawer))
+            ChoiceRow(
+                title = stringResource(R.string.settings_group_drawer_icon_size),
+                options =
+                    listOf(
+                        DrawerIconSize.SMALL to stringResource(R.string.settings_icon_size_small),
+                        DrawerIconSize.MEDIUM to stringResource(R.string.settings_icon_size_medium),
+                        DrawerIconSize.LARGE to stringResource(R.string.settings_icon_size_large),
+                    ),
+                selected = uiState.drawerIconSize,
+                onSelect = { onAction(SettingsAction.SetDrawerIconSize(it)) },
             )
             SettingsSubheader(stringResource(R.string.settings_subheader_fonts))
             FontRow(

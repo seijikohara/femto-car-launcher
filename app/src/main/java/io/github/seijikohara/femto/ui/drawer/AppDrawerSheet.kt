@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.seijikohara.femto.data.AppsRepository
+import io.github.seijikohara.femto.data.DrawerIconSize
 import io.github.seijikohara.femto.data.DrawerLayout
 import io.github.seijikohara.femto.data.DrawerPreferences
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -77,7 +78,8 @@ internal fun AppDrawerSheet(
     // Drawer layout + pinned apps are persisted; collect them and write changes back.
     val drawerPreferences = remember { DrawerPreferences(context) }
     val layout by drawerPreferences.layout.collectAsStateWithLifecycle(initialValue = DrawerLayout.GRID)
-    val pinned by drawerPreferences.pinned.collectAsStateWithLifecycle(initialValue = emptySet())
+    val iconSize by drawerPreferences.iconSize.collectAsStateWithLifecycle(initialValue = DrawerIconSize.MEDIUM)
+    val pinned by drawerPreferences.pinned.collectAsStateWithLifecycle(initialValue = emptyList())
     val scope = rememberCoroutineScope()
 
     val sheetHeight = (LocalConfiguration.current.screenHeightDp * FemtoDimens.DrawerSheetHeightFraction).dp
@@ -94,6 +96,7 @@ internal fun AppDrawerSheet(
             AppDrawerScreen(
                 uiState = uiState,
                 layout = layout,
+                iconSize = iconSize,
                 pinned = pinned,
                 onLaunch = onLaunch,
                 onTogglePin = { component ->

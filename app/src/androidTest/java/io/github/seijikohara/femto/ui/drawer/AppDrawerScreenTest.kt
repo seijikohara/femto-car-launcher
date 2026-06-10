@@ -4,12 +4,15 @@ import android.content.ComponentName
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
+import io.github.seijikohara.femto.data.DrawerIconSize
 import io.github.seijikohara.femto.data.DrawerLayout
 import io.github.seijikohara.femto.testfixtures.fakeAppEntry
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -28,7 +31,8 @@ class AppDrawerScreenTest {
                 AppDrawerScreen(
                     uiState = AppDrawerUiState.Loading,
                     layout = DrawerLayout.GRID,
-                    pinned = emptySet(),
+                    iconSize = DrawerIconSize.MEDIUM,
+                    pinned = emptyList(),
                     onLaunch = {},
                     onTogglePin = {},
                     onToggleLayout = {},
@@ -48,7 +52,8 @@ class AppDrawerScreenTest {
                 AppDrawerScreen(
                     uiState = AppDrawerUiState.Content(listOf(maps)),
                     layout = DrawerLayout.GRID,
-                    pinned = emptySet(),
+                    iconSize = DrawerIconSize.MEDIUM,
+                    pinned = emptyList(),
                     onLaunch = { launched = it },
                     onTogglePin = {},
                     onToggleLayout = {},
@@ -69,7 +74,8 @@ class AppDrawerScreenTest {
                 AppDrawerScreen(
                     uiState = AppDrawerUiState.Content(listOf(maps)),
                     layout = DrawerLayout.GRID,
-                    pinned = emptySet(),
+                    iconSize = DrawerIconSize.MEDIUM,
+                    pinned = emptyList(),
                     onLaunch = {},
                     onTogglePin = { pinned = it },
                     onToggleLayout = {},
@@ -91,7 +97,8 @@ class AppDrawerScreenTest {
                 AppDrawerScreen(
                     uiState = AppDrawerUiState.Content(listOf(maps)),
                     layout = DrawerLayout.GRID,
-                    pinned = emptySet(),
+                    iconSize = DrawerIconSize.MEDIUM,
+                    pinned = emptyList(),
                     onLaunch = {},
                     onTogglePin = {},
                     onToggleLayout = { toggled = true },
@@ -111,7 +118,8 @@ class AppDrawerScreenTest {
                 AppDrawerScreen(
                     uiState = AppDrawerUiState.Content(emptyList()),
                     layout = DrawerLayout.GRID,
-                    pinned = emptySet(),
+                    iconSize = DrawerIconSize.MEDIUM,
+                    pinned = emptyList(),
                     onLaunch = {},
                     onTogglePin = {},
                     onToggleLayout = {},
@@ -131,7 +139,8 @@ class AppDrawerScreenTest {
                 AppDrawerScreen(
                     uiState = AppDrawerUiState.Content(listOf(maps, music)),
                     layout = DrawerLayout.LIST,
-                    pinned = emptySet(),
+                    iconSize = DrawerIconSize.MEDIUM,
+                    pinned = emptyList(),
                     onLaunch = {},
                     onTogglePin = {},
                     onToggleLayout = {},
@@ -152,7 +161,8 @@ class AppDrawerScreenTest {
                 AppDrawerScreen(
                     uiState = AppDrawerUiState.Content(listOf(maps)),
                     layout = DrawerLayout.LIST,
-                    pinned = emptySet(),
+                    iconSize = DrawerIconSize.MEDIUM,
+                    pinned = emptyList(),
                     onLaunch = {},
                     onTogglePin = {},
                     onToggleLayout = {},
@@ -165,6 +175,31 @@ class AppDrawerScreenTest {
     }
 
     @Test
+    fun pinned_apps_render_in_the_dock_and_launch_on_tap() {
+        var launched: ComponentName? = null
+        val maps = fakeAppEntry(packageName = "com.maps", className = ".Main", label = "Maps")
+        val music = fakeAppEntry(packageName = "com.music", className = ".Main", label = "Music")
+        rule.setContent {
+            FemtoTheme {
+                AppDrawerScreen(
+                    uiState = AppDrawerUiState.Content(listOf(maps, music)),
+                    layout = DrawerLayout.GRID,
+                    iconSize = DrawerIconSize.MEDIUM,
+                    pinned = listOf(music.componentName.flattenToString()),
+                    onLaunch = { launched = it },
+                    onTogglePin = {},
+                    onToggleLayout = {},
+                    onRetry = {},
+                )
+            }
+        }
+        // The pinned app appears twice: once in the grid, once in the dock.
+        assertEquals(2, rule.onAllNodesWithText("Music").fetchSemanticsNodes().size)
+        rule.onAllNodesWithText("Music").onLast().performClick()
+        assertEquals(music.componentName, launched)
+    }
+
+    @Test
     fun error_shows_retry_and_dispatches_on_tap() {
         var retried = false
         rule.setContent {
@@ -172,7 +207,8 @@ class AppDrawerScreenTest {
                 AppDrawerScreen(
                     uiState = AppDrawerUiState.Error,
                     layout = DrawerLayout.GRID,
-                    pinned = emptySet(),
+                    iconSize = DrawerIconSize.MEDIUM,
+                    pinned = emptyList(),
                     onLaunch = {},
                     onTogglePin = {},
                     onToggleLayout = {},
