@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import java.time.Instant
 import java.time.LocalDate
@@ -56,19 +57,32 @@ private const val TAG = "CalendarRepository"
 internal class CalendarRepository(
     private val context: Context,
     private val clockFlow: Flow<ClockTick>,
-    private val zone: ZoneId = ZoneId.systemDefault(),
-    private val locale: Locale = Locale.getDefault(),
+    // Read per rebuild rather than captured at construction: the repository
+    // outlives timezone and locale changes (a phone mounted as car nav crosses
+    // borders), and captured values would pin the agenda to the old zone /
+    // labels until the process dies.
+    private val zoneProvider: () -> ZoneId = ZoneId::systemDefault,
+    private val localeProvider: () -> Locale = Locale::getDefault,
 ) {
     fun snapshotFlow(): Flow<CalendarSnapshot?> =
         combine(
-            clockFlow,
+            // The snapshot depends on the calendar date, the permission state,
+            // and the zone — not on the tick's minute. Keying the clock side on
+            // that triple drops the old once-a-minute full 30-day Instances
+            // scan (recurrence expansion included) while keeping the ≤1-minute
+            // pickup of a runtime grant or a timezone change that the per-tick
+            // rebuild provided.
+            clockFlow
+                .map { Triple(it.date, hasPermission(), zoneProvider()) }
+                .distinctUntilChanged(),
             calendarChangeFlow().onStart { emit(Unit) },
-        ) { tick, _ ->
-            buildSnapshot(tick.date)
-        }.distinctUntilChanged().flowOn(Dispatchers.Default)
+        ) { (date, _, _), _ ->
+            buildSnapshot(date)
+        }.distinctUntilChanged().flowOn(Dispatchers.IO)
 
     private fun buildSnapshot(today: LocalDate): CalendarSnapshot {
         val granted = hasPermission()
+        val locale = localeProvider()
         // null marks a provider fault (see readWindow); the days still build
         // from the clock alone so the strip never disappears.
         val eventsByDay = if (granted) readWindow(today) else emptyMap()
@@ -83,7 +97,7 @@ internal class CalendarRepository(
         return CalendarSnapshot(
             today = today,
             weekday = today.dayOfWeek.getDisplayName(TextStyle.FULL, locale),
-            monthLabel = monthLabelOf(today),
+            monthLabel = monthLabelOf(today, locale),
             days = days,
             hasCalendarAccess = granted,
             queryFailed = eventsByDay == null,
@@ -97,7 +111,10 @@ internal class CalendarRepository(
      * (2026年3月). A hand-joined "Month Year" string would force English
      * ordering on every locale.
      */
-    private fun monthLabelOf(today: LocalDate): String =
+    private fun monthLabelOf(
+        today: LocalDate,
+        locale: Locale,
+    ): String =
         today.format(
             DateTimeFormatter.ofPattern(
                 DateFormat.getBestDateTimePattern(locale, "yMMMM"),
@@ -114,21 +131,23 @@ internal class CalendarRepository(
      * window. `Instances` requires the begin / end millis embedded as path ids
      * rather than passed as a selection.
      */
-    private fun windowUri(today: LocalDate) =
-        CalendarContract.Instances.CONTENT_URI
-            .buildUpon()
-            .let {
-                ContentUris.appendId(it, today.atStartOfDay(zone).toInstant().toEpochMilli())
-            }.let {
-                ContentUris.appendId(
-                    it,
-                    today
-                        .plusDays(WINDOW_DAYS.toLong())
-                        .atStartOfDay(zone)
-                        .toInstant()
-                        .toEpochMilli(),
-                )
-            }.build()
+    private fun windowUri(
+        today: LocalDate,
+        zone: ZoneId,
+    ) = CalendarContract.Instances.CONTENT_URI
+        .buildUpon()
+        .let {
+            ContentUris.appendId(it, today.atStartOfDay(zone).toInstant().toEpochMilli())
+        }.let {
+            ContentUris.appendId(
+                it,
+                today
+                    .plusDays(WINDOW_DAYS.toLong())
+                    .atStartOfDay(zone)
+                    .toInstant()
+                    .toEpochMilli(),
+            )
+        }.build()
 
     /**
      * Scan the window once and group every event by its local day. The card lists
@@ -146,10 +165,13 @@ internal class CalendarRepository(
     @SuppressLint("MissingPermission") // Caller checks READ_CALENDAR before subscribing.
     private fun readWindow(today: LocalDate): Map<LocalDate, List<EventItem>>? =
         runCatching {
+            // One zone for the whole scan: begin/end bounds and per-row day
+            // bucketing must agree even if the device zone changes mid-build.
+            val zone = zoneProvider()
             val byDay = linkedMapOf<LocalDate, MutableList<EventItem>>()
             context.contentResolver
                 .query(
-                    windowUri(today),
+                    windowUri(today, zone),
                     arrayOf(
                         CalendarContract.Instances.BEGIN,
                         CalendarContract.Instances.TITLE,
@@ -165,7 +187,7 @@ internal class CalendarRepository(
                         // must not contribute to its day's list either.
                         val title = cursor.getString(1) ?: continue
                         val allDay = cursor.getInt(2) != 0
-                        byDay.getOrPut(localDateOf(startMs, allDay)) { mutableListOf() } +=
+                        byDay.getOrPut(localDateOf(startMs, allDay, zone)) { mutableListOf() } +=
                             EventItem(
                                 // All-day rows carry no clock time; surface null
                                 // so the card renders an "all day" label instead
@@ -197,6 +219,7 @@ internal class CalendarRepository(
     private fun localDateOf(
         startMs: Long,
         allDay: Boolean,
+        zone: ZoneId,
     ): LocalDate =
         Instant
             .ofEpochMilli(startMs)
@@ -214,9 +237,10 @@ internal class CalendarRepository(
      * user grants the calendar, so a denied (or racing-revoked) grant skips
      * registration rather than throwing. The card already renders the denial
      * fallback from the clock alone (see [snapshotFlow]), and a grant that
-     * arrives later is picked up on the next clock tick, which re-runs
-     * [buildSnapshot] and its permission check. This mirrors [readWindow], whose
-     * `runCatching` already guards the query side against the same fault.
+     * arrives later is picked up within a minute: each tick re-evaluates the
+     * permission state inside the rebuild key, so the grant flips the key and
+     * re-runs [buildSnapshot]. This mirrors [readWindow], whose `runCatching`
+     * already guards the query side against the same fault.
      */
     private fun calendarChangeFlow(): Flow<Unit> =
         callbackFlow {

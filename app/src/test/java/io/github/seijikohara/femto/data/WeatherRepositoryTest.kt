@@ -167,7 +167,12 @@ class WeatherRepositoryTest {
             // second emit is seen as +10s (inside MIN_RETRY_INTERVAL) only once the
             // first attempt has actually hit the server — immune to the flowOn(IO) /
             // merge scheduling that made a manually-advanced clock flaky on CI.
-            val clock = RequestCountClock(Instant.parse("2026-05-01T05:32:00Z"), server, Duration.ofSeconds(10))
+            val clock =
+                RequestCountClock(
+                    Instant.parse("2026-05-01T05:32:00Z"),
+                    server,
+                    listOf(Duration.ZERO, Duration.ofSeconds(10)),
+                )
             val repo =
                 WeatherRepository(
                     api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
@@ -200,7 +205,12 @@ class WeatherRepositoryTest {
             // +61s once the first attempt has landed (just past MIN_RETRY_INTERVAL), so
             // the second emit triggers a real retry. Driven off the request count, not
             // wall time, to stay deterministic under flowOn(IO) / merge.
-            val clock = RequestCountClock(Instant.parse("2026-05-01T05:32:00Z"), server, Duration.ofSeconds(61))
+            val clock =
+                RequestCountClock(
+                    Instant.parse("2026-05-01T05:32:00Z"),
+                    server,
+                    listOf(Duration.ZERO, Duration.ofSeconds(61)),
+                )
             val repo =
                 WeatherRepository(
                     api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
@@ -219,6 +229,51 @@ class WeatherRepositoryTest {
                 cancelAndIgnoreRemainingEvents()
             }
 
+            assertEquals(2, server.requestCount)
+        }
+
+    @Test
+    fun `applies the retry floor after a failed refresh of a stale cache`() =
+        runTest {
+            // First call succeeds and seeds the cache; the outage starts after.
+            server.enqueue(MockResponse().setBody(FORECAST_BODY))
+            server.enqueue(MockResponse().setResponseCode(500))
+            server.enqueue(MockResponse().setResponseCode(500))
+
+            // Staleness is driven by DISTANCE (each fix ~10 km from the last, far
+            // past REFRESH_DISTANCE_M) so the cache ages play no role. The clock
+            // is keyed off the request count: the failed second attempt happens
+            // at +2min, and the third emission arrives 10s after that failure —
+            // inside MIN_RETRY_INTERVAL, so it must not reach the network even
+            // though the fix has moved far enough to warrant a refresh.
+            val clock =
+                RequestCountClock(
+                    Instant.parse("2026-05-01T05:32:00Z"),
+                    server,
+                    listOf(Duration.ZERO, Duration.ofMinutes(2), Duration.ofMinutes(2).plusSeconds(10)),
+                )
+            val repo =
+                WeatherRepository(
+                    api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
+                    locationFlow =
+                        flow {
+                            emit(fakeLocation())
+                            emit(fakeLocation(latitude = 35.7480))
+                            emit(fakeLocation(latitude = 35.8380))
+                        },
+                    clockFlow = emptyFlow(),
+                    clock = clock,
+                )
+
+            repo.snapshotFlow().test {
+                assertNotNull(awaitItem()) // fetched and cached
+                assertNotNull(awaitItem()) // failed refresh keeps the cache
+                assertNotNull(awaitItem()) // floored: cache again, no request
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            // The success plus ONE failed stale retry; before the global floor the
+            // third emission fired a request too (once per GPS tick in production).
             assertEquals(2, server.requestCount)
         }
 
@@ -250,21 +305,22 @@ class WeatherRepositoryTest {
         }
 
     // Clock that advances off the MockWebServer request count rather than wall time:
-    // it returns [base] until the first request has landed, then base + [offsetAfterFirst].
+    // it returns base + offsets[requestCount] (the last entry holds beyond the list).
     // Driving the clock off observable progress (not emission timing) makes the
     // outage-retry throttle tests immune to the flowOn(IO) / merge scheduling race that
     // a manually-advanced clock suffered on slow CI runners.
     private class RequestCountClock(
         private val base: Instant,
         private val server: MockWebServer,
-        private val offsetAfterFirst: Duration,
+        private val offsetsByRequestCount: List<Duration>,
         private val zone: ZoneId = ZoneOffset.UTC,
     ) : Clock() {
         override fun getZone(): ZoneId = zone
 
-        override fun withZone(zone: ZoneId): Clock = RequestCountClock(base, server, offsetAfterFirst, zone)
+        override fun withZone(zone: ZoneId): Clock = RequestCountClock(base, server, offsetsByRequestCount, zone)
 
-        override fun instant(): Instant = if (server.requestCount >= 1) base.plus(offsetAfterFirst) else base
+        override fun instant(): Instant =
+            base.plus(offsetsByRequestCount[server.requestCount.coerceAtMost(offsetsByRequestCount.size - 1)])
     }
 
     private companion object {
