@@ -1,18 +1,23 @@
 {
-  "name": "femto-webmap",
-  "private": true,
-  "type": "module",
-  "packageManager": "pnpm@11.5.2",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "check": "tsc --noEmit"
-  },
-  "dependencies": {
-    "maplibre-gl": "^5.24.0"
-  },
-  "devDependencies": {
-    "typescript": "~6.0.3",
-    "vite": "^8.0.16"
-  }
+	"name": "femto-webmap",
+	"private": true,
+	"type": "module",
+	"packageManager": "pnpm@11.5.2",
+	"scripts": {
+		"dev": "vite",
+		"build": "pnpm run check && vite build",
+		"check": "biome check . && tsc --noEmit && vitest run",
+		"test": "vitest run",
+		"lint": "biome check .",
+		"format": "biome format --write ."
+	},
+	"dependencies": {
+		"maplibre-gl": "^5.24.0"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.16",
+		"typescript": "~6.0.3",
+		"vite": "^8.0.16",
+		"vitest": "^4.1.8"
+	}
 }
