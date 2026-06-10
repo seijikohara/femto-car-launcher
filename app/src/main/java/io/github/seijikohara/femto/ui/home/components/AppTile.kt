@@ -2,36 +2,45 @@
 
 package io.github.seijikohara.femto.ui.home.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Pin
 import io.github.seijikohara.femto.data.AppEntry
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 
-private val IconSize = 64.dp
+private val DefaultIconSize = 64.dp
 private val IconLabelGap = 8.dp
 private val TilePadding = 8.dp
+private val PinBadgeSize = 20.dp
+private val PinBadgePadding = 3.dp
 
 /**
  * A single app tile in the launcher grid: icon + label, ≥ 64 dp
  * tap target enforced by [FemtoDimens.MinTouchTarget]. [onLongClick] opens the
- * drawer's pin / unpin menu.
+ * drawer's pin / unpin menu; [isPinned] overlays a small pin badge on the icon.
  */
 @Composable
 internal fun AppTile(
@@ -39,6 +48,8 @@ internal fun AppTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
+    iconSize: Dp = DefaultIconSize,
+    isPinned: Boolean = false,
 ) = Column(
     modifier =
         modifier
@@ -48,12 +59,15 @@ internal fun AppTile(
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.Center,
 ) {
-    Icon(
-        painter = BitmapPainter(entry.icon.asImageBitmap()),
-        contentDescription = entry.label,
-        tint = androidx.compose.ui.graphics.Color.Unspecified,
-        modifier = Modifier.size(IconSize),
-    )
+    Box {
+        Icon(
+            painter = BitmapPainter(entry.icon.asImageBitmap()),
+            contentDescription = entry.label,
+            tint = Color.Unspecified,
+            modifier = Modifier.size(iconSize),
+        )
+        if (isPinned) PinBadge(modifier = Modifier.align(Alignment.TopEnd))
+    }
     Spacer(Modifier.height(IconLabelGap))
     Text(
         text = entry.label,
@@ -64,3 +78,16 @@ internal fun AppTile(
         textAlign = TextAlign.Center,
     )
 }
+
+@Composable
+private fun PinBadge(modifier: Modifier = Modifier) =
+    Icon(
+        imageVector = Lucide.Pin,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+        modifier =
+            modifier
+                .size(PinBadgeSize)
+                .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
+                .padding(PinBadgePadding),
+    )

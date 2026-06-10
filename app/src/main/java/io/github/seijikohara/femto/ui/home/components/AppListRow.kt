@@ -19,15 +19,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Pin
 import io.github.seijikohara.femto.data.AppEntry
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 
-private val ListIconSize = 40.dp
+private val DefaultListIconSize = 40.dp
+private val PinIndicatorSize = 20.dp
 
 /**
  * A single app row in the drawer's list layout: a small icon beside the label, the
- * whole row a ≥ 64 dp tap target. [onLongClick] opens the pin / unpin menu.
+ * whole row a ≥ 64 dp tap target. [onLongClick] opens the pin / unpin menu;
+ * [isPinned] shows a trailing pin indicator.
  */
 @Composable
 internal fun AppListRow(
@@ -35,6 +40,8 @@ internal fun AppListRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
+    iconSize: Dp = DefaultListIconSize,
+    isPinned: Boolean = false,
 ) = Row(
     modifier =
         modifier
@@ -49,7 +56,7 @@ internal fun AppListRow(
         painter = BitmapPainter(entry.icon.asImageBitmap()),
         contentDescription = entry.label,
         tint = Color.Unspecified,
-        modifier = Modifier.size(ListIconSize),
+        modifier = Modifier.size(iconSize),
     )
     Text(
         text = entry.label,
@@ -58,5 +65,14 @@ internal fun AppListRow(
         fontSize = FemtoDimens.MinBodyTextSize,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.weight(1f),
     )
+    if (isPinned) {
+        Icon(
+            imageVector = Lucide.Pin,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(PinIndicatorSize),
+        )
+    }
 }

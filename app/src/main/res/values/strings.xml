@@ -82,8 +82,6 @@
     <string name="drawer_retry">Retry</string>
     <string name="drawer_layout_grid">Grid layout</string>
     <string name="drawer_layout_list">List layout</string>
-    <string name="drawer_section_pinned">Pinned</string>
-    <string name="drawer_section_apps">Apps</string>
     <string name="drawer_pin">Pin</string>
     <string name="drawer_unpin">Unpin</string>
     <string name="drawer_search_hint">Search apps</string>
@@ -120,6 +118,11 @@
     <string name="settings_group_glass_opacity">Glass opacity</string>
     <string name="settings_glass_blur_value">%1$d dp</string>
     <string name="settings_glass_opacity_value">%1$d%%</string>
+    <string name="settings_subheader_drawer">App drawer</string>
+    <string name="settings_group_drawer_icon_size">Icon size</string>
+    <string name="settings_icon_size_small">Small</string>
+    <string name="settings_icon_size_medium">Medium</string>
+    <string name="settings_icon_size_large">Large</string>
     <string name="settings_subheader_fonts">Fonts</string>
     <string name="settings_subheader_map_rendering">Rendering</string>
     <string name="settings_subheader_map_appearance">Appearance</string>

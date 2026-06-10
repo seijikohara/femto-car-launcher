@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -38,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.LayoutGrid
 import com.composables.icons.lucide.LayoutList
@@ -48,16 +48,31 @@ import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.X
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.AppEntry
+import io.github.seijikohara.femto.data.DrawerIconSize
 import io.github.seijikohara.femto.data.DrawerLayout
+import io.github.seijikohara.femto.ui.drawer.components.PinnedDock
 import io.github.seijikohara.femto.ui.home.components.AppListRow
 import io.github.seijikohara.femto.ui.home.components.AppTile
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
-// 120 dp (up from 96) yields ~5 columns on the 853 dp-wide reference head unit,
-// giving each tile room for a 64 dp icon plus its label without crowding.
-private val MinTileWidth = 120.dp
+// Per-preset drawer dimensions. MEDIUM matches the pre-preset values: a 120 dp
+// minimum tile yields ~5 columns on the 853 dp-wide reference head unit, giving
+// each tile room for a 64 dp icon plus its label without crowding. Every preset
+// keeps tiles and rows above FemtoDimens.MinTouchTarget.
+private data class DrawerDimensions(
+    val minTileWidth: Dp,
+    val gridIconSize: Dp,
+    val listIconSize: Dp,
+)
+
+private fun DrawerIconSize.dimensions(): DrawerDimensions =
+    when (this) {
+        DrawerIconSize.SMALL -> DrawerDimensions(minTileWidth = 96.dp, gridIconSize = 48.dp, listIconSize = 32.dp)
+        DrawerIconSize.MEDIUM -> DrawerDimensions(minTileWidth = 120.dp, gridIconSize = 64.dp, listIconSize = 40.dp)
+        DrawerIconSize.LARGE -> DrawerDimensions(minTileWidth = 160.dp, gridIconSize = 88.dp, listIconSize = 56.dp)
+    }
 
 internal const val APP_DRAWER_PROGRESS_TEST_TAG = "app-drawer-progress"
 internal const val APP_DRAWER_SEARCH_TEST_TAG = "app-drawer-search"
@@ -66,7 +81,8 @@ internal const val APP_DRAWER_SEARCH_TEST_TAG = "app-drawer-search"
 internal fun AppDrawerScreen(
     uiState: AppDrawerUiState,
     layout: DrawerLayout,
-    pinned: Set<String>,
+    iconSize: DrawerIconSize,
+    pinned: List<String>,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
     onToggleLayout: () -> Unit,
@@ -85,6 +101,7 @@ internal fun AppDrawerScreen(
             ContentState(
                 apps = uiState.apps,
                 layout = layout,
+                iconSize = iconSize,
                 pinned = pinned,
                 onLaunch = onLaunch,
                 onTogglePin = onTogglePin,
@@ -108,7 +125,8 @@ private fun LoadingState(modifier: Modifier = Modifier) =
 private fun ContentState(
     apps: List<AppEntry>,
     layout: DrawerLayout,
-    pinned: Set<String>,
+    iconSize: DrawerIconSize,
+    pinned: List<String>,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
     onToggleLayout: () -> Unit,
@@ -125,25 +143,34 @@ private fun ContentState(
         CenteredMessage(text = stringResource(R.string.drawer_no_apps))
         return@Column
     }
-    // Filter by the search query (label substring, case-insensitive); an empty query
-    // shows everything.
-    val trimmed = query.trim()
-    val matched =
-        if (trimmed.isEmpty()) {
-            apps
+    val pinnedSet = remember(pinned) { pinned.toSet() }
+    // Prefix matches rank before substring matches; an empty query shows everything.
+    val matched = filterAndRank(apps, query) { it.label }
+    Box(modifier = Modifier.weight(1f)) {
+        if (matched.isEmpty()) {
+            CenteredMessage(text = stringResource(R.string.drawer_no_matches))
         } else {
-            apps.filter { it.label.contains(trimmed, ignoreCase = true) }
+            val dimensions = iconSize.dimensions()
+            // A query forces the list layout so labels stay readable while searching.
+            when (effectiveLayout(layout, query)) {
+                DrawerLayout.GRID -> GridApps(matched, pinnedSet, dimensions, onLaunch, onTogglePin)
+                DrawerLayout.LIST -> ListApps(matched, pinnedSet, dimensions, onLaunch, onTogglePin)
+            }
         }
-    if (matched.isEmpty()) {
-        CenteredMessage(text = stringResource(R.string.drawer_no_matches))
-        return@Column
     }
-    // Split into the pinned section and the rest (both keep the shared label sort).
-    val pinnedApps = matched.filter { it.componentName.flattenToString() in pinned }
-    val otherApps = matched.filterNot { it.componentName.flattenToString() in pinned }
-    when (layout) {
-        DrawerLayout.GRID -> GridApps(pinnedApps, otherApps, onLaunch, onTogglePin)
-        DrawerLayout.LIST -> ListApps(pinnedApps, otherApps, onLaunch, onTogglePin)
+    // The dock renders pins in pin order, unaffected by the search query, and is
+    // skipped entirely when nothing is pinned.
+    val dockApps =
+        remember(apps, pinned) {
+            val byComponent = apps.associateBy { it.componentName.flattenToString() }
+            pinned.mapNotNull { byComponent[it] }
+        }
+    if (dockApps.isNotEmpty()) {
+        PinnedDock(
+            apps = dockApps,
+            onLaunch = onLaunch,
+            onUnpin = onTogglePin,
+        )
     }
 }
 
@@ -194,49 +221,49 @@ private fun DrawerTopBar(
 
 @Composable
 private fun GridApps(
-    pinnedApps: List<AppEntry>,
-    otherApps: List<AppEntry>,
+    apps: List<AppEntry>,
+    pinnedSet: Set<String>,
+    dimensions: DrawerDimensions,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
 ) = LazyVerticalGrid(
     modifier = modifier,
-    columns = GridCells.Adaptive(minSize = MinTileWidth),
+    columns = GridCells.Adaptive(minSize = dimensions.minTileWidth),
     contentPadding = PaddingValues(FemtoDimens.ScreenPadding),
     horizontalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
     verticalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
 ) {
-    if (pinnedApps.isNotEmpty()) {
-        item(span = { GridItemSpan(maxLineSpan) }) { SectionHeader(stringResource(R.string.drawer_section_pinned)) }
-        items(items = pinnedApps, key = { it.componentName.flattenToString() }) { entry ->
-            DrawerAppItem(entry, DrawerLayout.GRID, isPinned = true, onLaunch, onTogglePin)
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) { SectionHeader(stringResource(R.string.drawer_section_apps)) }
-    }
-    // otherApps are non-pinned by construction (filterNot), so isPinned = false.
-    items(items = otherApps, key = { it.componentName.flattenToString() }) { entry ->
-        DrawerAppItem(entry, DrawerLayout.GRID, isPinned = false, onLaunch, onTogglePin)
+    items(items = apps, key = { it.componentName.flattenToString() }) { entry ->
+        DrawerAppItem(
+            entry = entry,
+            layout = DrawerLayout.GRID,
+            dimensions = dimensions,
+            isPinned = entry.componentName.flattenToString() in pinnedSet,
+            onLaunch = onLaunch,
+            onTogglePin = onTogglePin,
+        )
     }
 }
 
 @Composable
 private fun ListApps(
-    pinnedApps: List<AppEntry>,
-    otherApps: List<AppEntry>,
+    apps: List<AppEntry>,
+    pinnedSet: Set<String>,
+    dimensions: DrawerDimensions,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
 ) = LazyColumn(modifier = modifier, contentPadding = PaddingValues(vertical = FemtoDimens.GridGutter)) {
-    if (pinnedApps.isNotEmpty()) {
-        item { SectionHeader(stringResource(R.string.drawer_section_pinned)) }
-        items(items = pinnedApps, key = { it.componentName.flattenToString() }) { entry ->
-            DrawerAppItem(entry, DrawerLayout.LIST, isPinned = true, onLaunch, onTogglePin)
-        }
-        item { SectionHeader(stringResource(R.string.drawer_section_apps)) }
-    }
-    // otherApps are non-pinned by construction (filterNot), so isPinned = false.
-    items(items = otherApps, key = { it.componentName.flattenToString() }) { entry ->
-        DrawerAppItem(entry, DrawerLayout.LIST, isPinned = false, onLaunch, onTogglePin)
+    items(items = apps, key = { it.componentName.flattenToString() }) { entry ->
+        DrawerAppItem(
+            entry = entry,
+            layout = DrawerLayout.LIST,
+            dimensions = dimensions,
+            isPinned = entry.componentName.flattenToString() in pinnedSet,
+            onLaunch = onLaunch,
+            onTogglePin = onTogglePin,
+        )
     }
 }
 
@@ -245,6 +272,7 @@ private fun ListApps(
 private fun DrawerAppItem(
     entry: AppEntry,
     layout: DrawerLayout,
+    dimensions: DrawerDimensions,
     isPinned: Boolean,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
@@ -258,6 +286,8 @@ private fun DrawerAppItem(
                     entry = entry,
                     onClick = { onLaunch(entry.componentName) },
                     onLongClick = { menuOpen = true },
+                    iconSize = dimensions.gridIconSize,
+                    isPinned = isPinned,
                 )
             }
 
@@ -266,6 +296,8 @@ private fun DrawerAppItem(
                     entry = entry,
                     onClick = { onLaunch(entry.componentName) },
                     onLongClick = { menuOpen = true },
+                    iconSize = dimensions.listIconSize,
+                    isPinned = isPinned,
                 )
             }
         }
@@ -285,17 +317,6 @@ private fun DrawerAppItem(
         }
     }
 }
-
-@Composable
-private fun SectionHeader(
-    text: String,
-    modifier: Modifier = Modifier,
-) = Text(
-    text = text.uppercase(),
-    style = MaterialTheme.typography.titleSmall,
-    color = MaterialTheme.colorScheme.primary,
-    modifier = modifier.padding(horizontal = FemtoDimens.ScreenPadding, vertical = 8.dp),
-)
 
 @Composable
 private fun ErrorState(
@@ -360,7 +381,8 @@ private fun AppDrawerContentPreview() {
                         ),
                 ),
             layout = DrawerLayout.GRID,
-            pinned = setOf("com.maps/.Main"),
+            iconSize = DrawerIconSize.MEDIUM,
+            pinned = listOf("com.maps/.Main"),
             onLaunch = {},
             onTogglePin = {},
             onToggleLayout = {},
