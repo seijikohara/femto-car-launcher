@@ -36,3 +36,10 @@ local.properties
 *.p12
 *.b64
 keystore.properties
+# CocoIndex Code (ccc)
+/.cocoindex_code/
+
+# Web map payload (webmap/) — installed deps and the Vite build output that
+# Gradle wires into assets; only the TypeScript sources are committed
+/webmap/node_modules/
+/webmap/dist/

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <style>
+      html, body { margin: 0; padding: 0; background: #eaeaea; }
+      /* height:100% resolves to 0 inside an Android WebView (the container measures
+         0 px tall); fixed/inset fills the WebView viewport reliably. */
+      #map { position: fixed; inset: 0; }
+      .maplibregl-ctrl-attrib, .maplibregl-ctrl-logo { display: none; }
+      /* Self-location chevron pinned at a fixed screen spot (centre X, markerPos
+         height). The camera brings the location to it, so the chevron stays put and
+         the map slides / rotates beneath it (car-nav style) instead of the marker
+         sliding to catch the eased camera. */
+      #self-marker {
+        position: fixed; left: 50%; top: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: none; display: none; will-change: top, transform;
+      }
+      /* Style-swap cross-fade: a frozen capture of the outgoing style pinned over
+         the map, faded out once the incoming style has rendered. */
+      #style-fade {
+        position: fixed; inset: 0; z-index: 10;
+        pointer-events: none; display: none; opacity: 0;
+      }
+      #style-fade img { width: 100%; height: 100%; }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="style-fade"><img alt="" /></div>
+    <div id="self-marker">
+      <svg width="34" height="34" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+        <path d="M15 0 L30 30 L15 21.6 L0 30 Z" fill="#3367D6" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

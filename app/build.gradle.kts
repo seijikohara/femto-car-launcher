@@ -1,10 +1,48 @@
+import com.github.gradle.node.pnpm.task.PnpmTask
 import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.node.gradle)
     alias(libs.plugins.spotless)
+}
+
+// The LIVE map page is TypeScript under webmap/ (the web-payload SSOT), built
+// with pnpm + Vite into webmap/dist/web and wired into the assets source set
+// below — nothing under src/main/assets/web is committed. download = true makes
+// the build hermetic: Gradle provisions Node + pnpm, so neither local builds
+// nor CI need a system Node.
+node {
+    download = true
+    version = "22.13.1"
+    // null suppresses the plugin's own repository registration; the Node.js
+    // ivy repository lives in settings.gradle.kts (FAIL_ON_PROJECT_REPOS).
+    distBaseUrl = null
+    // Mirrors webmap/package.json "packageManager" (the pin pnpm itself reads
+    // when invoked directly); this copy provisions the Gradle-managed install.
+    pnpmVersion = "11.5.2"
+    nodeProjectDir = file("../webmap")
+}
+
+val buildWebMap =
+    tasks.register<PnpmTask>("buildWebMap") {
+        dependsOn(tasks.named("pnpmInstall"))
+        pnpmCommand.set(listOf("run", "build"))
+        inputs.dir("../webmap/src")
+        inputs.files(
+            "../webmap/map.html",
+            "../webmap/package.json",
+            "../webmap/pnpm-lock.yaml",
+            "../webmap/tsconfig.json",
+            "../webmap/vite.config.ts",
+        )
+        outputs.dir("../webmap/dist")
+    }
+
+tasks.named("preBuild") {
+    dependsOn(buildWebMap)
 }
 
 // Production geocoder and weather hosts are threaded in via gitignored
@@ -107,6 +145,13 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+    sourceSets {
+        getByName("main") {
+            // Serve the built web payload (webmap/dist/web/...) as assets/web/...;
+            // see the node {} block above.
+            assets.srcDir(rootProject.file("webmap/dist"))
+        }
     }
     testOptions {
         unitTests {

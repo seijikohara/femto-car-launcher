@@ -26,6 +26,10 @@ when markets diverge.
 - AndroidX: `core-ktx`, `core-splashscreen`, `activity-compose`,
   `lifecycle-runtime-compose`, `lifecycle-viewmodel-compose`,
   `datastore-preferences`.
+- Web map page (`webmap/`): TypeScript + Vite + `maplibre-gl`, managed
+  with pnpm (pinned via `packageManager`). Vite's `build.target` is
+  `chrome109` — the Android 13 factory WebView; aftermarket AI boxes
+  may never update it, so never raise it without revisiting that floor.
 
 ## Source layout
 
@@ -49,8 +53,14 @@ app/src/main/
     └── values{,-night}/themes.xml
 ```
 
-`assets/licenses/` holds OFL/equivalent texts for every bundled font.
-`gradle/libs.versions.toml` is the dependency catalog SSOT.
+`webmap/` (top level) is the TypeScript source of the LIVE map WebView
+page. Gradle builds it into `assets/web/` via the node-gradle plugin —
+the `node {}` block in `app/build.gradle.kts` is the wiring SSOT, and
+nothing under `src/main/assets/web/` is committed. `assets/licenses/`
+holds OFL/equivalent texts for every bundled font plus the licenses of
+the bundled map styles and MapLibre GL JS.
+`gradle/libs.versions.toml` is the dependency catalog SSOT (the web
+page's npm dependencies live in `webmap/package.json` + lockfile).
 
 Trivial screens without ViewModel state need only `<Area>Screen.kt`;
 the other files appear when state arrives. See

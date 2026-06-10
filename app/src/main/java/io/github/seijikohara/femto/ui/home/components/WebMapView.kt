@@ -58,8 +58,10 @@ import kotlinx.coroutines.delay
  * a smooth, animated map *inside Compose*. The native live `MapView` is grey in a
  * Compose `AndroidView` on the head unit (its GL surface is not composited), and the
  * SNAPSHOT backend is a still bitmap; a WebView composites inline through HWUI and
- * MapLibre GL JS animates the camera. The page ([assets/web/map.html]) is served via
- * [WebViewAssetLoader] from the real https origin appassets.androidplatform.net so
+ * MapLibre GL JS animates the camera. The page (TypeScript under `webmap/`, built by
+ * Gradle into `assets/web/map.html` — see the node block in app/build.gradle.kts) is
+ * served via [WebViewAssetLoader] from the real https origin
+ * appassets.androidplatform.net so
  * MapLibre's tile-processing Web Worker can fetch tiles. GPS fixes drive
  * `map.easeTo()` for heading-up smooth follow — this is how #2 smooth movement is
  * delivered (the JS eases between sparse fixes). A `maplibregl.Marker` chevron rides
@@ -180,8 +182,9 @@ internal fun WebMapView(
                             request: WebResourceRequest,
                         ): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
 
-                        // The inline page script runs synchronously during parse, so by
-                        // onPageFinished the bridge functions are registered.
+                        // The page script is a module (deferred), but module scripts
+                        // execute before the load event, so by onPageFinished the
+                        // bridge functions are registered.
                         override fun onPageFinished(
                             view: WebView,
                             url: String,
