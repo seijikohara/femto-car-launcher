@@ -110,9 +110,6 @@ sideloading on the head unit.
   geocoding (OpenStreetMap Nominatim) default to public endpoints and
   accept configurable production hosts (see [Configuration](#configuration)).
 
-Project rules, the design system, and coding conventions live in
-[`CLAUDE.md`](CLAUDE.md).
-
 ## Tech stack
 
 - Kotlin and Jetpack Compose (Material 3), built with the Android Gradle
@@ -127,8 +124,7 @@ Project rules, the design system, and coding conventions live in
 
 [`gradle/libs.versions.toml`](gradle/libs.versions.toml) is the single
 source of truth for Gradle dependency versions
-([`webmap/package.json`](webmap/package.json) for the web page); see
-[`CLAUDE.md#tech-stack`](CLAUDE.md#tech-stack) for the resolved list.
+([`webmap/package.json`](webmap/package.json) for the web page).
 
 ## Project layout
 
@@ -208,11 +204,3 @@ The nightly APK is **release-signed**; local and contributor
 config is registered only when the keystore environment variables are
 present. Maintainer setup for the signing secrets lives in
 [`docs/release-signing.md`](docs/release-signing.md).
-
-## Contributing
-
-Project rules, code style, and design-system policies live in
-[`CLAUDE.md`](CLAUDE.md); read it before contributing. Key sections:
-[design system](CLAUDE.md#design-system),
-[Compose architecture](CLAUDE.md#compose-architecture),
-[Kotlin style](CLAUDE.md#kotlin-style), and [testing](CLAUDE.md#testing).
