@@ -18,6 +18,7 @@ ktlintComposeRules = "0.6.0"
 lifecycle = "2.10.0"
 maplibre = "13.3.0"
 material = "1.14.0"
+nodeGradle = "7.1.0"
 materialKolor = "4.1.1"
 okhttp = "5.4.0"
 robolectric = "4.16.1"
@@ -65,5 +66,6 @@ turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+node-gradle = { id = "com.github.node-gradle.node", version.ref = "nodeGradle" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 version-catalog-update = { id = "nl.littlerobots.version-catalog-update", version.ref = "versionCatalogUpdate" }
