@@ -21,6 +21,7 @@
     <!-- Calendar card -->
     <string name="calendar_permission_denied">Calendar access not granted</string>
     <string name="calendar_all_day">All day</string>
+    <string name="calendar_no_events">No events</string>
 
     <!-- Weather card -->
     <string name="weather_unavailable">Weather unavailable</string>

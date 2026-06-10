@@ -7,19 +7,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -27,9 +25,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import com.composables.icons.lucide.Clock
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.Sun
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.CalendarSnapshot
 import io.github.seijikohara.femto.data.DayCell
@@ -49,8 +44,9 @@ import java.time.format.DateTimeFormatter
  *
  *  1. Head — big day number (primary tint) + weekday + month label, always today.
  *  2. Days — a scrollable vertical list of the coming days (today first), each row
- *     showing that day's full set of events. Days with no events are shown too,
- *     with a muted placeholder, so the list reads as a continuous agenda.
+ *     showing that day's full set of events. Days with no events are omitted so
+ *     the short card spends every row on real entries; only today stays when
+ *     free, carrying an explicit no-events line.
  *
  * Typography and spacing originated in the retired dashboard-v2 design mockup;
  * the dashboard's 18sp body-size floor is intentionally relaxed here so the
@@ -97,11 +93,19 @@ private fun CalendarContent(
     verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
 ) {
     Head(snapshot)
+    // Free days are dropped rather than rendered as placeholder rows: the
+    // glance question is "what is coming up", and on the short head-unit card
+    // a six-row continuous agenda clipped before reaching the real entries.
+    // Today is the one exception — it stays visible even when free.
+    val visibleDays =
+        remember(snapshot) {
+            snapshot.days.filter { it.hasEvent || it.date == snapshot.today }
+        }
     LazyColumn(
         modifier = Modifier.fillMaxWidth().weight(1f),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        items(items = snapshot.days, key = { it.date.toString() }) { day ->
+        items(items = visibleDays, key = { it.date.toString() }) { day ->
             DayRow(day = day, isToday = day.date == snapshot.today, is24Hour = is24Hour)
         }
     }
@@ -202,8 +206,10 @@ private fun DayRow(
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         if (day.events.isEmpty()) {
+            // Only today can reach here (free days are filtered out upstream);
+            // an explicit line beats a bare dash for the one row that stays.
             Text(
-                text = NO_EVENTS_PLACEHOLDER,
+                text = stringResource(R.string.calendar_no_events),
                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 18.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 maxLines = 1,
@@ -211,11 +217,9 @@ private fun DayRow(
         } else {
             day.events.forEach { event ->
                 EventRow(
-                    // A timed event leads with a clock; an all-day event (null time)
-                    // leads with a sun so it reads as "all day" at a glance.
-                    icon = if (event.time != null) Lucide.Clock else Lucide.Sun,
                     // Event times honour the user's 12/24-hour clock setting, matching
-                    // the dashboard clock rather than always printing 24-hour.
+                    // the dashboard clock rather than always printing 24-hour; "All
+                    // day" in the same slot marks the untimed events.
                     time =
                         event.time?.format(eventTimeFormatter(is24Hour))
                             ?: stringResource(R.string.calendar_all_day),
@@ -226,9 +230,11 @@ private fun DayRow(
     }
 }
 
+// No leading glyph: the time slot ("14:00" / "All day") already states the
+// event kind, and on the ~165 dp head-unit card every glyph-width goes to the
+// title instead.
 @Composable
 private fun EventRow(
-    icon: ImageVector,
     time: String,
     title: String,
 ) = Row(
@@ -236,12 +242,6 @@ private fun EventRow(
     horizontalArrangement = Arrangement.spacedBy(6.dp),
     verticalAlignment = Alignment.Top,
 ) {
-    Icon(
-        imageVector = icon,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = 3.dp).size(12.dp),
-    )
     Text(
         text = time,
         style =
@@ -279,8 +279,6 @@ private fun CenteredHint(text: String) =
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-
-private const val NO_EVENTS_PLACEHOLDER = "—"
 
 // 24-hour "14:30" or compact 12-hour "2:30 PM"; the latter stays short enough to
 // keep the narrow agenda row from clipping the event title.

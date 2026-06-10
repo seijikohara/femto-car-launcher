@@ -29,16 +29,39 @@ class CalendarCardTest {
     }
 
     @Test
-    fun shows_a_placeholder_for_days_without_events() {
+    fun omits_days_without_events_from_the_agenda() {
         rule.setContent {
             FemtoTheme {
                 CalendarCard(snapshot = fakeCalendarSnapshot(), is24Hour = true)
             }
         }
-        // The fixture has free days (e.g. 2026-05-02), each shown with the em-dash
-        // placeholder, so at least one renders.
-        val placeholders = rule.onAllNodesWithText("—").fetchSemanticsNodes()
-        assert(placeholders.isNotEmpty()) { "expected at least one free-day placeholder" }
+        // The fixture's 2026-05-02 is a free day (and not today), so its gutter
+        // day number must not render — free days no longer occupy agenda rows.
+        val freeDayGutters = rule.onAllNodesWithText("2").fetchSemanticsNodes()
+        assert(freeDayGutters.isEmpty()) { "expected the free day '2' to be omitted from the agenda" }
+    }
+
+    @Test
+    fun shows_no_events_line_when_today_is_free() {
+        rule.setContent {
+            FemtoTheme {
+                CalendarCard(
+                    snapshot =
+                        fakeCalendarSnapshot(
+                            days = fakeCalendarSnapshot().days.map { it.copy(events = emptyList()) },
+                        ),
+                    is24Hour = true,
+                )
+            }
+        }
+        // Today stays in the agenda even with no events, carrying an explicit
+        // no-events line instead of silently vanishing.
+        val noEvents =
+            InstrumentationRegistry
+                .getInstrumentation()
+                .targetContext
+                .getString(R.string.calendar_no_events)
+        rule.onNodeWithText(noEvents).assertIsDisplayed()
     }
 
     @Test
