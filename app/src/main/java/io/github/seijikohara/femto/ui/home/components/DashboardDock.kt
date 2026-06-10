@@ -442,11 +442,20 @@ private fun StatusIcon(
     )
 }
 
+// The 13sp metric readout under the GPS / battery icons. It sits below the
+// dashboard's 18sp body floor under the dock glance-metadata allowance
+// (CLAUDE.md#automotive-overrides); tabular figures keep the digits steady.
+@Composable
+private fun statusMetricStyle() =
+    MaterialTheme.typography.labelLarge.copy(
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        fontFeatureSettings = TabularFigures,
+    )
+
 // Satellite icon stacked over the count of satellites used in the current fix,
 // mirroring BatteryIndicator. The icon and count dim together while searching
 // (no fresh GPS fix) so a parked / tunnelled cold start reads as "0 locked".
-// The 13sp count uses the same dock glance-metadata allowance as the battery
-// percent (CLAUDE.md#automotive-overrides).
 @Composable
 private fun GpsIndicator(
     fixed: Boolean,
@@ -469,21 +478,14 @@ private fun GpsIndicator(
     )
     Text(
         text = stringResource(R.string.status_gps_satellites, satelliteCount),
-        style =
-            MaterialTheme.typography.labelLarge.copy(
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFeatureSettings = TabularFigures,
-            ),
+        style = statusMetricStyle(),
         color = tint,
         maxLines = 1,
     )
 }
 
 // Battery icon stacked over its percent. Charging is conveyed by the bolt glyph
-// and the accent tint alone — no caption. The 13sp percent sits below the
-// dashboard's 18sp body floor under the same dock glance-metadata allowance
-// the cluster already uses (CLAUDE.md#automotive-overrides).
+// and the accent tint alone — no caption.
 @Composable
 private fun BatteryIndicator(
     percent: Int?,
@@ -504,12 +506,7 @@ private fun BatteryIndicator(
         // Render an em-dash while the percent is unknown (cold start / battery-less
         // unit) so the cluster never reads as a dead 0% battery.
         text = if (percent == null) "—" else stringResource(R.string.battery_percent, percent),
-        style =
-            MaterialTheme.typography.labelLarge.copy(
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFeatureSettings = TabularFigures,
-            ),
+        style = statusMetricStyle(),
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
     )
