@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.SearchManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -36,6 +37,7 @@ import io.github.seijikohara.femto.data.DisplaySettings
 import io.github.seijikohara.femto.data.FontRepository
 import io.github.seijikohara.femto.data.FontSlot
 import io.github.seijikohara.femto.data.FullscreenSetting
+import io.github.seijikohara.femto.data.OrientationSetting
 import io.github.seijikohara.femto.data.SystemPermissionSignals
 import io.github.seijikohara.femto.data.ThemeMode
 import io.github.seijikohara.femto.data.hasBluetoothConnectPermission
@@ -115,6 +117,9 @@ class MainActivity : ComponentActivity() {
             }
             LaunchedEffect(display.keepScreenOn) {
                 applyKeepScreenOn(display.keepScreenOn)
+            }
+            LaunchedEffect(display.orientation) {
+                applyOrientation(display.orientation)
             }
             FemtoTheme(fontFamily = fontFamily, accent = display.accentColor, darkTheme = darkTheme) {
                 // The dashboard stays composed; the app drawer, assistant, and
@@ -238,6 +243,17 @@ class MainActivity : ComponentActivity() {
         } else {
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
+    }
+
+    // SENSOR_* variants (not the plain LANDSCAPE/PORTRAIT) so a forced axis still
+    // follows 180-degree flips — some head units are mounted inverted.
+    private fun applyOrientation(setting: OrientationSetting) {
+        requestedOrientation =
+            when (setting) {
+                OrientationSetting.AUTO -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                OrientationSetting.LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                OrientationSetting.PORTRAIT -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            }
     }
 
     private fun handleHomeEvent(

@@ -118,6 +118,9 @@
     <string name="settings_group_glass_opacity">Glass opacity</string>
     <string name="settings_glass_blur_value">%1$d dp</string>
     <string name="settings_glass_opacity_value">%1$d%%</string>
+    <string name="settings_group_orientation">Orientation</string>
+    <string name="settings_orientation_landscape">Landscape</string>
+    <string name="settings_orientation_portrait">Portrait</string>
     <string name="settings_group_dock_position">Dock position</string>
     <string name="settings_dock_bottom">Bottom</string>
     <string name="settings_dock_top">Top</string>

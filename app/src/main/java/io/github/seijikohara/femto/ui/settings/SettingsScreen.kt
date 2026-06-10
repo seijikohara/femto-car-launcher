@@ -61,6 +61,7 @@ import io.github.seijikohara.femto.data.LocationQualitySetting
 import io.github.seijikohara.femto.data.MapColorScheme
 import io.github.seijikohara.femto.data.MapRenderMode
 import io.github.seijikohara.femto.data.MapStyleSetting
+import io.github.seijikohara.femto.data.OrientationSetting
 import io.github.seijikohara.femto.data.SpeedUnitSetting
 import io.github.seijikohara.femto.data.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.ThemeMode
@@ -124,6 +125,17 @@ internal fun SettingsScreen(
                 onSelect = { onAction(SettingsAction.SetAccentColor(it)) },
             )
             SettingsSubheader(stringResource(R.string.settings_subheader_screen))
+            ChoiceRow(
+                title = stringResource(R.string.settings_group_orientation),
+                options =
+                    listOf(
+                        OrientationSetting.AUTO to stringResource(R.string.settings_option_auto),
+                        OrientationSetting.LANDSCAPE to stringResource(R.string.settings_orientation_landscape),
+                        OrientationSetting.PORTRAIT to stringResource(R.string.settings_orientation_portrait),
+                    ),
+                selected = uiState.orientation,
+                onSelect = { onAction(SettingsAction.SetOrientation(it)) },
+            )
             SwitchRow(
                 title = stringResource(R.string.settings_group_fullscreen),
                 checked = uiState.fullscreen == FullscreenSetting.ON,
