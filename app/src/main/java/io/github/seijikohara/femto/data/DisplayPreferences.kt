@@ -1,16 +1,24 @@
 package io.github.seijikohara.femto.data
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import java.io.IOException
 import kotlin.enums.enumEntries
+
+private const val TAG = "DisplayPreferences"
 
 /** Light / dark / follow-system theme choice. */
 internal enum class ThemeMode { SYSTEM, LIGHT, DARK }
@@ -239,133 +247,133 @@ internal class DisplayPreferences(
     private val context: Context,
 ) : DisplaySettingsStore {
     override val settings: Flow<DisplaySettings> =
-        context.displayDataStore.data.map { prefs ->
-            DisplaySettings(
-                themeMode = prefs[THEME_KEY].toEnumOr(ThemeMode.SYSTEM),
-                accentColor = prefs[ACCENT_KEY].toEnumOr(AccentColor.DYNAMIC),
-                speedUnit = prefs[SPEED_KEY].toEnumOr(SpeedUnitSetting.AUTO),
-                temperatureUnit = prefs[TEMPERATURE_KEY].toEnumOr(TemperatureUnitSetting.AUTO),
-                clock = prefs[CLOCK_KEY].toEnumOr(ClockSetting.AUTO),
-                showClockSeconds = prefs[SHOW_CLOCK_SECONDS_KEY] ?: false,
-                fullscreen = prefs[FULLSCREEN_KEY].toEnumOr(FullscreenSetting.ON),
-                keepScreenOn = prefs[KEEP_SCREEN_ON_KEY] ?: true,
-                mapStyle = prefs[MAP_STYLE_KEY].toEnumOr(MapStyleSetting.AUTO),
-                mapSchemeLight = prefs[MAP_SCHEME_LIGHT_KEY].toEnumOr(MapColorScheme.ACCENT),
-                mapSchemeDark = prefs[MAP_SCHEME_DARK_KEY].toEnumOr(MapColorScheme.ACCENT),
-                mapTiltDeg = prefs[MAP_TILT_KEY] ?: DEFAULT_MAP_TILT_DEG,
-                mapZoom = prefs[MAP_ZOOM_KEY] ?: DEFAULT_MAP_ZOOM,
-                mapRenderPercent = prefs[MAP_QUALITY_KEY] ?: DEFAULT_MAP_RENDER_PERCENT,
-                mapRenderMode = prefs[MAP_RENDER_MODE_KEY].toMapRenderModeOr(MapRenderMode.LIVE),
-                mapMarkerPos = prefs[MAP_MARKER_POS_KEY] ?: DEFAULT_MAP_MARKER_POS,
-                map3dBuildings = prefs[MAP_3D_BUILDINGS_KEY] ?: true,
-                mapTerrain = prefs[MAP_TERRAIN_KEY] ?: true,
-                glassBlurRadius = prefs[GLASS_BLUR_KEY] ?: DEFAULT_GLASS_BLUR_DP,
-                glassTintScale = prefs[GLASS_TINT_KEY] ?: DEFAULT_GLASS_TINT_SCALE,
-                showCalendar = prefs[SHOW_CALENDAR_KEY] ?: true,
-                showWeather = prefs[SHOW_WEATHER_KEY] ?: true,
-                showMusic = prefs[SHOW_MUSIC_KEY] ?: true,
-            )
-        }
+        context.displayDataStore.data
+            .catchIoAsDefaults(TAG)
+            .map { prefs ->
+                DisplaySettings(
+                    themeMode = prefs[THEME_KEY].toEnumOr(ThemeMode.SYSTEM),
+                    accentColor = prefs[ACCENT_KEY].toEnumOr(AccentColor.DYNAMIC),
+                    speedUnit = prefs[SPEED_KEY].toEnumOr(SpeedUnitSetting.AUTO),
+                    temperatureUnit = prefs[TEMPERATURE_KEY].toEnumOr(TemperatureUnitSetting.AUTO),
+                    clock = prefs[CLOCK_KEY].toEnumOr(ClockSetting.AUTO),
+                    showClockSeconds = prefs[SHOW_CLOCK_SECONDS_KEY] ?: false,
+                    fullscreen = prefs[FULLSCREEN_KEY].toEnumOr(FullscreenSetting.ON),
+                    keepScreenOn = prefs[KEEP_SCREEN_ON_KEY] ?: true,
+                    mapStyle = prefs[MAP_STYLE_KEY].toEnumOr(MapStyleSetting.AUTO),
+                    mapSchemeLight = prefs[MAP_SCHEME_LIGHT_KEY].toEnumOr(MapColorScheme.ACCENT),
+                    mapSchemeDark = prefs[MAP_SCHEME_DARK_KEY].toEnumOr(MapColorScheme.ACCENT),
+                    mapTiltDeg = prefs[MAP_TILT_KEY] ?: DEFAULT_MAP_TILT_DEG,
+                    mapZoom = prefs[MAP_ZOOM_KEY] ?: DEFAULT_MAP_ZOOM,
+                    mapRenderPercent = prefs[MAP_QUALITY_KEY] ?: DEFAULT_MAP_RENDER_PERCENT,
+                    mapRenderMode = prefs[MAP_RENDER_MODE_KEY].toMapRenderModeOr(MapRenderMode.LIVE),
+                    mapMarkerPos = prefs[MAP_MARKER_POS_KEY] ?: DEFAULT_MAP_MARKER_POS,
+                    map3dBuildings = prefs[MAP_3D_BUILDINGS_KEY] ?: true,
+                    mapTerrain = prefs[MAP_TERRAIN_KEY] ?: true,
+                    glassBlurRadius = prefs[GLASS_BLUR_KEY] ?: DEFAULT_GLASS_BLUR_DP,
+                    glassTintScale = prefs[GLASS_TINT_KEY] ?: DEFAULT_GLASS_TINT_SCALE,
+                    showCalendar = prefs[SHOW_CALENDAR_KEY] ?: true,
+                    showWeather = prefs[SHOW_WEATHER_KEY] ?: true,
+                    showMusic = prefs[SHOW_MUSIC_KEY] ?: true,
+                )
+            }
 
-    // Block bodies (returning Unit): edit() yields Preferences, which the
-    // DisplaySettingsStore contract intentionally discards.
     override suspend fun setThemeMode(value: ThemeMode) {
-        context.displayDataStore.edit { it[THEME_KEY] = value.name }
+        context.displayDataStore.editOrLog(TAG) { it[THEME_KEY] = value.name }
     }
 
     override suspend fun setAccentColor(value: AccentColor) {
-        context.displayDataStore.edit { it[ACCENT_KEY] = value.name }
+        context.displayDataStore.editOrLog(TAG) { it[ACCENT_KEY] = value.name }
     }
 
     override suspend fun setSpeedUnit(value: SpeedUnitSetting) {
-        context.displayDataStore.edit { it[SPEED_KEY] = value.name }
+        context.displayDataStore.editOrLog(TAG) { it[SPEED_KEY] = value.name }
     }
 
     override suspend fun setTemperatureUnit(value: TemperatureUnitSetting) {
-        context.displayDataStore.edit { it[TEMPERATURE_KEY] = value.name }
+        context.displayDataStore.editOrLog(TAG) { it[TEMPERATURE_KEY] = value.name }
     }
 
     override suspend fun setClock(value: ClockSetting) {
-        context.displayDataStore.edit { it[CLOCK_KEY] = value.name }
+        context.displayDataStore.editOrLog(TAG) { it[CLOCK_KEY] = value.name }
     }
 
     override suspend fun setShowClockSeconds(value: Boolean) {
-        context.displayDataStore.edit { it[SHOW_CLOCK_SECONDS_KEY] = value }
+        context.displayDataStore.editOrLog(TAG) { it[SHOW_CLOCK_SECONDS_KEY] = value }
     }
 
     override suspend fun setFullscreen(value: FullscreenSetting) {
-        context.displayDataStore.edit { it[FULLSCREEN_KEY] = value.name }
+        context.displayDataStore.editOrLog(TAG) { it[FULLSCREEN_KEY] = value.name }
     }
 
     override suspend fun setKeepScreenOn(value: Boolean) {
-        context.displayDataStore.edit { it[KEEP_SCREEN_ON_KEY] = value }
+        context.displayDataStore.editOrLog(TAG) { it[KEEP_SCREEN_ON_KEY] = value }
     }
 
     override suspend fun setMapStyle(value: MapStyleSetting) {
-        context.displayDataStore.edit { it[MAP_STYLE_KEY] = value.name }
+        context.displayDataStore.editOrLog(TAG) { it[MAP_STYLE_KEY] = value.name }
     }
 
     override suspend fun setMapSchemeLight(value: MapColorScheme) {
-        context.displayDataStore.edit { it[MAP_SCHEME_LIGHT_KEY] = value.name }
+        context.displayDataStore.editOrLog(TAG) { it[MAP_SCHEME_LIGHT_KEY] = value.name }
     }
 
     override suspend fun setMapSchemeDark(value: MapColorScheme) {
-        context.displayDataStore.edit { it[MAP_SCHEME_DARK_KEY] = value.name }
+        context.displayDataStore.editOrLog(TAG) { it[MAP_SCHEME_DARK_KEY] = value.name }
     }
 
     override suspend fun setMapTilt(value: Int) {
-        context.displayDataStore.edit { it[MAP_TILT_KEY] = value }
+        context.displayDataStore.editOrLog(TAG) { it[MAP_TILT_KEY] = value }
     }
 
     override suspend fun setMapZoom(value: Int) {
-        context.displayDataStore.edit { it[MAP_ZOOM_KEY] = value }
+        context.displayDataStore.editOrLog(TAG) { it[MAP_ZOOM_KEY] = value }
     }
 
     override suspend fun setMapRenderPercent(value: Int) {
-        context.displayDataStore.edit { it[MAP_QUALITY_KEY] = value }
+        context.displayDataStore.editOrLog(TAG) { it[MAP_QUALITY_KEY] = value }
     }
 
     override suspend fun setMapRenderMode(value: MapRenderMode) {
-        context.displayDataStore.edit { it[MAP_RENDER_MODE_KEY] = value.name }
+        context.displayDataStore.editOrLog(TAG) { it[MAP_RENDER_MODE_KEY] = value.name }
     }
 
     override suspend fun setMapMarkerPos(value: Int) {
-        context.displayDataStore.edit { it[MAP_MARKER_POS_KEY] = value }
+        context.displayDataStore.editOrLog(TAG) { it[MAP_MARKER_POS_KEY] = value }
     }
 
     override suspend fun setMap3dBuildings(value: Boolean) {
-        context.displayDataStore.edit { it[MAP_3D_BUILDINGS_KEY] = value }
+        context.displayDataStore.editOrLog(TAG) { it[MAP_3D_BUILDINGS_KEY] = value }
     }
 
     override suspend fun setMapTerrain(value: Boolean) {
-        context.displayDataStore.edit { it[MAP_TERRAIN_KEY] = value }
+        context.displayDataStore.editOrLog(TAG) { it[MAP_TERRAIN_KEY] = value }
     }
 
     override suspend fun setGlassBlurRadius(value: Int) {
-        context.displayDataStore.edit { it[GLASS_BLUR_KEY] = value }
+        context.displayDataStore.editOrLog(TAG) { it[GLASS_BLUR_KEY] = value }
     }
 
     override suspend fun setGlassTintScale(value: Int) {
-        context.displayDataStore.edit { it[GLASS_TINT_KEY] = value }
+        context.displayDataStore.editOrLog(TAG) { it[GLASS_TINT_KEY] = value }
     }
 
     override suspend fun setShowCalendar(value: Boolean) {
-        context.displayDataStore.edit { it[SHOW_CALENDAR_KEY] = value }
+        context.displayDataStore.editOrLog(TAG) { it[SHOW_CALENDAR_KEY] = value }
     }
 
     override suspend fun setShowWeather(value: Boolean) {
-        context.displayDataStore.edit { it[SHOW_WEATHER_KEY] = value }
+        context.displayDataStore.editOrLog(TAG) { it[SHOW_WEATHER_KEY] = value }
     }
 
     override suspend fun setShowMusic(value: Boolean) {
-        context.displayDataStore.edit { it[SHOW_MUSIC_KEY] = value }
+        context.displayDataStore.editOrLog(TAG) { it[SHOW_MUSIC_KEY] = value }
     }
 
     // Clearing every key makes the read path above fall back to its per-field
     // defaults, which are kept identical to DisplaySettings.Default — so a reset
     // restores the defaults without duplicating the default literals here.
     override suspend fun resetToDefaults() {
-        context.displayDataStore.edit { it.clear() }
+        context.displayDataStore.editOrLog(TAG) { it.clear() }
     }
 
     private companion object {
@@ -408,3 +416,32 @@ private fun String?.toMapRenderModeOr(fallback: MapRenderMode): MapRenderMode =
         "LIVE_HARDWARE", "LIVE_SOFTWARE" -> MapRenderMode.LIVE
         else -> toEnumOr(fallback)
     }
+
+// DataStore surfaces an unreadable prefs file as an IOException on the read
+// flow. The launcher is the HOME app, so a corrupted file (e.g. after a power
+// loss mid-write) must degrade to defaults instead of crash-looping every cold
+// start. Shared by every preferences accessor in this package.
+internal fun Flow<Preferences>.catchIoAsDefaults(tag: String): Flow<Preferences> =
+    catch { e ->
+        if (e is IOException) {
+            Log.e(tag, "preferences read failed; falling back to defaults", e)
+            emit(emptyPreferences())
+        } else {
+            throw e
+        }
+    }
+
+// Preference writes are launched fire-and-forget, so an IOException thrown by
+// edit() would otherwise escape the launching coroutine and kill the HOME
+// process. Losing one write is acceptable; crashing the launcher is not.
+// Cancellation is rethrown to keep structured concurrency intact.
+internal suspend fun DataStore<Preferences>.editOrLog(
+    tag: String,
+    transform: suspend (MutablePreferences) -> Unit,
+) {
+    runCatching { edit(transform) }
+        .onFailure { e ->
+            if (e is CancellationException) throw e
+            Log.e(tag, "preferences write failed", e)
+        }
+}

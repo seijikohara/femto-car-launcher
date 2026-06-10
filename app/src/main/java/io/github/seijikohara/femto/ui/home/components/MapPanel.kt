@@ -7,6 +7,7 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.location.Location
+import android.util.Log
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
@@ -299,7 +300,10 @@ private suspend fun MapSnapshotter.render(camera: CameraPosition): Bitmap? =
         setCameraPosition(camera)
         start(
             { snapshot -> if (cont.isActive) cont.resume(snapshot.bitmap) },
-            { _ -> if (cont.isActive) cont.resume(null) },
+            { error ->
+                Log.w(TAG, "snapshot render failed: $error")
+                if (cont.isActive) cont.resume(null)
+            },
         )
         cont.invokeOnCancellation { cancel() }
     }
@@ -549,6 +553,8 @@ internal const val MAP_ZOOM = 16.5
 // produced when the fix actually moves (shouldRerender), so this just bounds the
 // re-check cadence, not the render rate.
 private const val SNAPSHOT_POLL_INTERVAL_MS = 200L
+
+private const val TAG = "MapPanel"
 
 // Re-render once a fix moves at least this far; below it the last frame is held.
 // Kept small so the map follows movement in smaller steps (smoother panning); the

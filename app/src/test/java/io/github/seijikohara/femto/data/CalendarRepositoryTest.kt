@@ -6,6 +6,7 @@ import android.content.ContentProvider
 import android.content.ContentValues
 import android.database.Cursor
 import android.database.MatrixCursor
+import android.database.sqlite.SQLiteException
 import android.net.Uri
 import android.provider.CalendarContract
 import android.text.format.DateFormat
@@ -62,10 +63,12 @@ class CalendarRepositoryTest {
         runTest {
             // Grant the permission so the repository attempts the provider
             // query, then make the registered provider throw to simulate a
-            // mid-stream revoke / OEM provider fault. The snapshot must still
-            // resolve with an empty events list rather than tearing down the
-            // dashboard StateFlow.
+            // mid-stream revoke. The snapshot must still resolve with an empty
+            // events list rather than tearing down the dashboard StateFlow —
+            // and a revoke is the documented permission-degradation path, so
+            // it must NOT be flagged as a provider fault.
             shadowOf(application).grantPermissions(Manifest.permission.READ_CALENDAR)
+            ThrowingCalendarProvider.failure = SecurityException("calendar permission revoked")
             Robolectric
                 .buildContentProvider(ThrowingCalendarProvider::class.java)
                 .create(CalendarContract.AUTHORITY)
@@ -79,8 +82,38 @@ class CalendarRepositoryTest {
             val snapshot = repository.snapshotFlow().first()
 
             assertNotNull(snapshot)
+            assertFalse(snapshot.queryFailed)
             assertTrue(snapshot.days.all { it.events.isEmpty() })
             assertEquals(30, snapshot.days.size)
+        }
+
+    @Test
+    fun `flags queryFailed when the provider throws an unexpected exception`() =
+        runTest {
+            // An OEM provider fault (anything other than the SecurityException
+            // revoke) must surface in-band: the empty events list is a read
+            // failure, not "granted but nothing scheduled", so the snapshot
+            // carries queryFailed = true for the card to render the failure hint.
+            shadowOf(application).grantPermissions(Manifest.permission.READ_CALENDAR)
+            ThrowingCalendarProvider.failure = SQLiteException("disk I/O error")
+            Robolectric
+                .buildContentProvider(ThrowingCalendarProvider::class.java)
+                .create(CalendarContract.AUTHORITY)
+
+            val repository =
+                CalendarRepository(
+                    application,
+                    clockFlow = flowOf(ClockTick(LocalTime.NOON, LocalDate.of(2026, 6, 3))),
+                )
+
+            val snapshot = repository.snapshotFlow().first()
+
+            assertNotNull(snapshot)
+            assertTrue(snapshot.queryFailed)
+            // Access itself is still granted: queryFailed is the orthogonal
+            // provider-fault axis, not a second denial flag.
+            assertTrue(snapshot.hasCalendarAccess)
+            assertTrue(snapshot.days.all { it.events.isEmpty() })
         }
 
     @Test
@@ -353,8 +386,10 @@ class CalendarRepositoryTest {
     }
 
     /**
-     * Stand-in calendar provider whose [query] throws [SecurityException], the
-     * fault the repository's `runCatching` guards must absorb.
+     * Stand-in calendar provider whose [query] throws [failure], the fault the
+     * repository's `runCatching` guards must absorb. [failure] is set explicitly
+     * by each test (rather than relying on a default) because Robolectric can
+     * share the companion across test methods.
      */
     class ThrowingCalendarProvider : ContentProvider() {
         override fun onCreate(): Boolean = true
@@ -365,7 +400,13 @@ class CalendarRepositoryTest {
             selection: String?,
             selectionArgs: Array<out String>?,
             sortOrder: String?,
-        ): Cursor = throw SecurityException("calendar provider unavailable")
+        ): Cursor = throw failure
+
+        companion object {
+            // SecurityException exercises the permission-degradation path;
+            // any other exception exercises the queryFailed provider-fault path.
+            var failure: RuntimeException = SecurityException("calendar provider unavailable")
+        }
 
         override fun getType(uri: Uri): String? = null
 

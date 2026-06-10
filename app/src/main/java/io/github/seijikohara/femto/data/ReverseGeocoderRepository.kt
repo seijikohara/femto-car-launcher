@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.data
 
 import android.location.Location
+import android.util.Log
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -8,7 +9,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.roundToLong
+
+private const val TAG = "ReverseGeocoder"
 
 /**
  * Reverse-geocode the current location through OSM Nominatim and expose a
@@ -43,32 +49,47 @@ internal class ReverseGeocoderRepository(
     private var lastResult: ShortAddress? = null
     private var lastRequestAtMs = 0L
 
+    // Serialises resolve: the flow runs on the IO pool where overlapping
+    // collections are possible, and the throttle's read-then-update pair must
+    // be atomic or two callers can both pass the spacing check and violate
+    // Nominatim's 1 request/second policy. The lock also covers the LRU map,
+    // which is not safe under concurrent mutation.
+    private val mutex = Mutex()
+
     fun addressFlow(): Flow<ShortAddress?> =
         locationFlow
             .distinctUntilChangedByBucket()
             .map { location -> location?.let { resolve(it) } }
             .flowOn(ioDispatcher)
 
-    private suspend fun resolve(location: Location): ShortAddress? {
-        val key = bucketKey(location.latitude, location.longitude)
-        cachedAddress(key)?.let { return it }
+    private suspend fun resolve(location: Location): ShortAddress? =
+        mutex.withLock {
+            val key = bucketKey(location.latitude, location.longitude)
+            cachedAddress(key)?.let { return it }
 
-        // Nominatim's usage policy caps callers at 1 request per second; the
-        // 100 m bucket already collapses most calls, and this spacing guards
-        // the remaining boundary crossings.
-        throttle()
+            // Nominatim's usage policy caps callers at 1 request per second; the
+            // 100 m bucket already collapses most calls, and this spacing guards
+            // the remaining boundary crossings. Holding the lock across the delay
+            // and the request keeps the spacing global, not per-caller.
+            throttle()
 
-        return runCatching {
-            api.reverse(location.latitude, location.longitude)?.address?.let {
-                AddressComposer.composeAddress(it)
-            }
-        }.getOrNull()
-            ?.also {
-                cache[key] = CacheEntry(it, nowMs())
-                lastResult = it
-            }
-            ?: lastResult
-    }
+            runCatching {
+                api.reverse(location.latitude, location.longitude)?.address?.let {
+                    AddressComposer.composeAddress(it)
+                }
+            }.onFailure {
+                // runCatching also traps cancellation; rethrow so a cancelled
+                // collector propagates instead of being misread as a lookup
+                // failure that falls back to lastResult.
+                if (it is CancellationException) throw it
+                Log.w(TAG, "reverse geocode resolve failed", it)
+            }.getOrNull()
+                ?.also {
+                    cache[key] = CacheEntry(it, nowMs())
+                    lastResult = it
+                }
+                ?: lastResult
+        }
 
     // Return the cached address only while it is within the TTL window. A
     // stale entry is dropped so the next visit re-queries and can recover from

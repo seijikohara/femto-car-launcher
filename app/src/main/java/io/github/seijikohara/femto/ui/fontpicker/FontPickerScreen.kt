@@ -48,8 +48,8 @@ private const val STATUS_KEY = "__status__"
  * Google Fonts picker for one slot. A search field filters the full catalog
  * (CJK-capable families only for the fallback slot); the leading "system
  * default" entry needs no download. Selecting a family downloads it in the
- * background — the row shows a spinner until the cache is ready and a check
- * once it backs the live theme.
+ * background — the row shows a spinner until the cache is ready, a check once
+ * it backs the live theme, and a retry hint when the download failed.
  */
 @Composable
 internal fun FontPickerScreen(
@@ -96,6 +96,7 @@ internal fun FontPickerScreen(
                     family = family,
                     selected = family.family == uiState.selectedFamily,
                     downloading = family.family in uiState.downloading,
+                    failed = family.family in uiState.downloadFailed,
                     onClick = { onAction(FontPickerAction.Choose(family.family)) },
                 )
             }
@@ -190,6 +191,7 @@ private fun SystemRow(
     subtitle = stringResource(R.string.font_picker_system_desc),
     selected = selected,
     downloading = false,
+    failed = false,
     onClick = onClick,
     modifier = modifier,
 )
@@ -199,6 +201,7 @@ private fun FontRow(
     family: GoogleFontFamily,
     selected: Boolean,
     downloading: Boolean,
+    failed: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) = PickerRow(
@@ -211,19 +214,22 @@ private fun FontRow(
         },
     selected = selected,
     downloading = downloading,
+    failed = failed,
     onClick = onClick,
     modifier = modifier,
 )
 
 // Shared row: a >= MinTouchTarget tap target with the family name, a category /
 // CJK subtitle, and a trailing slot that shows the download spinner then the
-// selected check.
+// selected check. A failed download replaces the subtitle with a retry hint:
+// tapping re-chooses the family, which routes through the repository's retry.
 @Composable
 private fun PickerRow(
     title: String,
     subtitle: String,
     selected: Boolean,
     downloading: Boolean,
+    failed: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Row(
@@ -249,9 +255,14 @@ private fun PickerRow(
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            text = subtitle,
+            text = if (failed) stringResource(R.string.font_download_failed) else subtitle,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color =
+                if (failed) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -265,7 +276,10 @@ private fun PickerRow(
             )
         }
 
-        selected -> {
+        // A failed family may still be the persisted selection, but its face is
+        // not live — suppress the check so the row does not claim a font the
+        // theme is not rendering.
+        selected && !failed -> {
             Icon(
                 imageVector = Lucide.Check,
                 contentDescription = stringResource(R.string.font_picker_selected),
@@ -343,6 +357,7 @@ private fun FontPickerScreenPreview() {
                             GoogleFontFamily("Noto Sans JP", "Sans Serif", listOf("latin", "japanese")),
                         ),
                     downloading = setOf("Roboto"),
+                    downloadFailed = setOf("Noto Sans JP"),
                     status = PickerStatus.READY,
                 ),
             onAction = {},

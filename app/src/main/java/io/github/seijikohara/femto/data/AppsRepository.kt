@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.pm.LauncherActivityInfo
 import android.content.pm.LauncherApps
 import android.os.Process
+import android.util.Log
 import androidx.core.content.getSystemService
 import androidx.core.graphics.drawable.toBitmap
 import kotlinx.coroutines.Dispatchers
@@ -45,8 +46,12 @@ internal class AppsRepository(
                 // Isolate per-app resolution: getIcon() can throw
                 // Resources.NotFoundException or OOM on a pathological adaptive
                 // icon. One bad package must not blank the whole grid.
-                .mapNotNull { runCatching { it.toAppEntry() }.getOrNull() }
-                .sortedBy { it.label.lowercase() }
+                .mapNotNull { info ->
+                    runCatching { info.toAppEntry() }
+                        .onFailure {
+                            Log.w(TAG, "dropping ${info.componentName.flattenToShortString()} from app grid", it)
+                        }.getOrNull()
+                }.sortedBy { it.label.lowercase() }
         }
 
     /**
@@ -79,6 +84,8 @@ internal class AppsRepository(
                 ?.componentName
         }.getOrNull()
 }
+
+private const val TAG = "AppsRepository"
 
 private const val ICON_PIXELS = 192
 

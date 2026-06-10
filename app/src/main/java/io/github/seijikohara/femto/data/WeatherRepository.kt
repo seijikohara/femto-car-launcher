@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -23,6 +25,10 @@ internal class WeatherRepository(
     private val clockFlow: Flow<ClockTick>,
     private val clock: Clock = Clock.systemUTC(),
 ) {
+    // Serialises refresh: merge() lets the location and clock upstreams reach
+    // refresh concurrently on the IO pool, and an unguarded check-fetch-write
+    // sequence could double-fetch or bypass the outage throttle.
+    private val mutex = Mutex()
     private var cached: WeatherSnapshot? = null
     private var lastFetchLocation: Location? = null
 
@@ -47,6 +53,12 @@ internal class WeatherRepository(
 
     private suspend fun refresh(location: Location?): WeatherSnapshot? {
         location ?: return null
+        return mutex.withLock { refreshLocked(location) }
+    }
+
+    // Runs under [mutex]: the throttle read, network call, and cache write must
+    // be one atomic step or two near-simultaneous ticks both pass shouldRefetch.
+    private suspend fun refreshLocked(location: Location): WeatherSnapshot? {
         if (!shouldRefetch(location)) return cached
         // Record the attempt before the network call so a failing call still throttles
         // subsequent outage retries via MIN_RETRY_INTERVAL.

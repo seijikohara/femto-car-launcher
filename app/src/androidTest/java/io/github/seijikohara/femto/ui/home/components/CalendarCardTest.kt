@@ -71,4 +71,21 @@ class CalendarCardTest {
                 .getString(R.string.calendar_permission_denied)
         rule.onNodeWithText(denied).assertIsDisplayed()
     }
+
+    @Test
+    fun shows_query_failed_message_when_the_provider_query_failed() {
+        rule.setContent {
+            FemtoTheme {
+                CalendarCard(snapshot = fakeCalendarSnapshot(queryFailed = true), is24Hour = true)
+            }
+        }
+        // Resolve the copy from resources so the literal stays the SSOT in
+        // strings.xml ("Calendar couldn't be read").
+        val failed =
+            InstrumentationRegistry
+                .getInstrumentation()
+                .targetContext
+                .getString(R.string.calendar_query_failed)
+        rule.onNodeWithText(failed).assertIsDisplayed()
+    }
 }

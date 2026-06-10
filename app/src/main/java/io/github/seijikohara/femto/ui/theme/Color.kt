@@ -55,6 +55,22 @@ internal val LightFallback =
         outlineVariant = InkHairline,
     )
 
+// Rainbow stops for the Settings DYNAMIC accent swatch's sweep gradient; the
+// first hue repeats at the end so the sweep closes seamlessly. Decorative only
+// (signals "automatic / wallpaper-derived"), not theme color roles — they live
+// here because hardcoded hex is confined to this file and AccentColors.kt
+// (CLAUDE.md#design-system).
+internal val DynamicAccentSweep =
+    listOf(
+        Color(0xFFEF5350),
+        Color(0xFFFFCA28),
+        Color(0xFF66BB6A),
+        Color(0xFF26C6DA),
+        Color(0xFF42A5F5),
+        Color(0xFFAB47BC),
+        Color(0xFFEF5350),
+    )
+
 internal val DarkFallback =
     darkColorScheme(
         primary = Bone,

@@ -19,13 +19,13 @@ import kotlinx.coroutines.flow.stateIn
  * Binds the shared [FontRepository] to one [slot]'s picker: triggers the catalog
  * load, filters it to the slot and the live search query, and forwards the
  * choice back to the repository (which downloads, swaps the theme, and evicts
- * the old font).
+ * the old font). Re-choosing a failed family routes through the same path and
+ * retries its download.
  */
 internal class FontPickerViewModel(
-    application: Application,
+    private val repository: FontRepository,
     private val slot: FontSlot,
 ) : ViewModel() {
-    private val repository = FontRepository.get(application)
     private val query = MutableStateFlow("")
 
     val uiState: StateFlow<FontPickerUiState> =
@@ -33,8 +33,9 @@ internal class FontPickerViewModel(
             repository.catalog,
             repository.selection,
             repository.downloading,
+            repository.downloadFailed,
             query,
-        ) { catalog, selection, downloading, currentQuery ->
+        ) { catalog, selection, downloading, downloadFailed, currentQuery ->
             val (families, status) = filterCatalog(catalog, currentQuery)
             FontPickerUiState(
                 slot = slot,
@@ -42,6 +43,7 @@ internal class FontPickerViewModel(
                 selectedFamily = selection.familyFor(slot),
                 families = families,
                 downloading = downloading,
+                downloadFailed = downloadFailed,
                 status = status,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FontPickerUiState(slot))
@@ -90,6 +92,6 @@ internal class FontPickerViewModelFactory(
         extras: CreationExtras,
     ): T {
         @Suppress("UNCHECKED_CAST")
-        return FontPickerViewModel(application, slot) as T
+        return FontPickerViewModel(FontRepository.get(application), slot) as T
     }
 }

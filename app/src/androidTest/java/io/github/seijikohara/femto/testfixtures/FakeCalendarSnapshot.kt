@@ -27,6 +27,7 @@ internal fun fakeCalendarSnapshot(
             DayCell(LocalDate.of(2026, 5, 6), "Wed", listOf(EventItem(null, "Holiday"))),
         ),
     hasCalendarAccess: Boolean = true,
+    queryFailed: Boolean = false,
 ): CalendarSnapshot =
     CalendarSnapshot(
         today = today,
@@ -34,4 +35,5 @@ internal fun fakeCalendarSnapshot(
         monthLabel = monthLabel,
         days = days,
         hasCalendarAccess = hasCalendarAccess,
+        queryFailed = queryFailed,
     )

@@ -12,6 +12,10 @@ import io.github.seijikohara.femto.data.WeatherSnapshot
 import java.time.LocalDate
 import java.time.LocalTime
 
+// @Immutable despite android.location.Location being a mutable Java type:
+// LocationRepository emits each Location instance once and never mutates it
+// afterwards, so the immutability promise holds and Compose can skip
+// recomposition on reference equality.
 @Immutable
 internal data class HomeUiState(
     val clock: ClockTick,

@@ -53,4 +53,16 @@ class FontCacheTest {
         assertTrue(File(root, "roboto").isDirectory)
         assertFalse(File(root, "lobster").exists())
     }
+
+    @Test
+    fun `evictExcept spares a protected family outside the keep set`() {
+        File(root, "roboto").mkdirs()
+        File(root, "roboto/variable.ttf").writeText("ttf")
+        File(root, "lobster").mkdirs()
+        File(root, "lobster/variable.ttf").writeText("ttf")
+
+        cache.evictExcept(listOf("Roboto"), alsoProtect = listOf("Lobster"))
+
+        assertTrue(File(root, "lobster").isDirectory)
+    }
 }
