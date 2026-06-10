@@ -430,6 +430,7 @@ manually invocable as `/<skill-name>`. Manual-only skills are marked
 | `add-bundled-font` | Add a new variable-font pair (`FontTheme`). |
 | `add-launcher-permission` | Discipline for new `<uses-permission>` entries. |
 | `update-gradle-dependency` | Version-catalog discipline. |
+| `update-launcher-icon` | Re-derive the adaptive launcher icon from `/logo.svg` (the brand-mark SSOT). |
 | `verify-android-build` | Build + lint verification. |
 | `build` | **Manual.** `/build [task]` — runs `./gradlew <task>`. |
 | `lint` | **Manual.** `/lint [task]` — Android Lint with parsed summary. |
