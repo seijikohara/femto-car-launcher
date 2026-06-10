@@ -1,29 +1,36 @@
-// LIVE map page logic, bundled into assets/web/ and hosted in the launcher's
+// LIVE map page wiring, bundled into assets/web/ and hosted in the launcher's
 // WebView (see WebMapView.kt for the host side of every contract in this file).
+// Pure style logic lives in style.ts; this module owns the DOM, the MapLibre
+// instance, and the Android bridge.
 import maplibregl from "maplibre-gl";
-import type { LayerSpecification, StyleSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import {
+	type AccentColors,
+	injectFeatures,
+	MAX_MARKER_DROP,
+	markerPadTop,
+} from "./style";
 
 // Android -> JS surface, called by the host through evaluateJavascript. Every
 // function is feature-detected on the Kotlin side (`window.updateCamera && ...`),
 // so the names below are a compatibility contract — never rename without
 // updating WebMapView.kt.
 declare global {
-  interface Window {
-    femtoBridge?: { onMapEvent(kind: string, detail: string): void };
-    updateCamera: (
-      lat: number,
-      lon: number,
-      bearing: number,
-      zoom: number,
-      tilt: number,
-      markerPos: number,
-      markerColor: string,
-    ) => void;
-    setStyleUrl: (url: string, bg: string, water: string, land: string) => void;
-    setFeatures: (buildings: boolean, terrain: boolean) => void;
-    onHostResume: () => void;
-  }
+	interface Window {
+		femtoBridge?: { onMapEvent(kind: string, detail: string): void };
+		updateCamera: (
+			lat: number,
+			lon: number,
+			bearing: number,
+			zoom: number,
+			tilt: number,
+			markerPos: number,
+			markerColor: string,
+		) => void;
+		setStyleUrl: (url: string, bg: string, water: string, land: string) => void;
+		setFeatures: (buildings: boolean, terrain: boolean) => void;
+		onHostResume: () => void;
+	}
 }
 
 // Diagnostic logging only (visible via chrome://inspect or the debug PoC's
@@ -31,11 +38,11 @@ declare global {
 // is kept as-is, and MapLibre's own context-loss restore handles transient
 // WebGL drops, so the page never asks the host to switch away.
 function log(msg: string): void {
-  try {
-    console.log("[map] " + msg);
-  } catch {
-    // Logging must never break the page.
-  }
+	try {
+		console.log(`[map] ${msg}`);
+	} catch {
+		// Logging must never break the page.
+	}
 }
 
 // JS -> Android error channel (window.femtoBridge, injected by the host via
@@ -44,112 +51,39 @@ function log(msg: string): void {
 // failures (tile / style / DEM fetch), log-only on the host. Neither kind
 // triggers a backend switch — the no-fallback rule above still holds.
 function report(kind: "fatal" | "error", detail: unknown): void {
-  try {
-    window.femtoBridge?.onMapEvent(kind, String(detail ?? ""));
-  } catch {
-    // The bridge may be absent outside the launcher (e.g. desktop dev server).
-  }
+	try {
+		window.femtoBridge?.onMapEvent(kind, String(detail ?? ""));
+	} catch {
+		// The bridge may be absent outside the launcher (e.g. desktop dev server).
+	}
 }
 
-// LIVE-only feature toggles, merged into the style via MapLibre transformStyle
-// (the official "hybrid satellite map with terrain elevation" approach, minus
-// satellite). DEM = Mapterhorn (free, no key); 3D buildings reuse the
-// OpenMapTiles building layer's render_height. The terrain provider's required
-// credit is shown by the host's Compose attribution overlay when active.
-const MAPTERHORN_DEM_URL = "https://tiles.mapterhorn.com/tilejson.json";
-
-interface AccentColors {
-  background: string;
-  water: string;
-  land: string;
-}
-
-let featureState = { buildings: false, terrain: false };
-let currentStyleUrl = "https://tiles.openfreemap.org/styles/positron";
-// Set by setStyleUrl for the ACCENT scheme, or null for a plain style.
-// Recoloured in injectFeatures (mirrors the Kotlin recolorAccent in
-// MapPanel.kt — keep the layer groups in sync).
-let accentColors: AccentColors | null = null;
-const ACCENT_LAND = ["landcover", "landuse", "park"];
-
-let map: maplibregl.Map | undefined;
-
-// The first vector source id in a style (the OpenMapTiles source), so 3D
-// buildings work across positron / the bundled dark.json without hard-coding.
-function vectorSourceId(style: StyleSpecification): string | undefined {
-  const sources = style.sources ?? {};
-  return Object.keys(sources).find((id) => sources[id].type === "vector");
-}
-
-// Style-spec paint maps are per-layer-type unions; this helper funnels the few
-// dynamic recolour writes through one narrow cast.
-function setPaint(layer: LayerSpecification, key: string, value: unknown): void {
-  const mutable = layer as { paint?: Record<string, unknown> };
-  mutable.paint = mutable.paint ?? {};
-  mutable.paint[key] = value;
-}
-
-// MapLibre transformStyle: merge the active feature layers/sources into a
-// freshly-loaded base style. OFF features are simply not injected, so toggling
-// off and re-setting the style removes them cleanly.
-function injectFeatures(
-  _previousStyle: StyleSpecification | undefined,
-  nextStyle: StyleSpecification,
-): StyleSpecification {
-  nextStyle.sources = nextStyle.sources ?? {};
-  nextStyle.layers = nextStyle.layers ?? [];
-  // Idempotent: strip any of OUR previously-injected layers/sources first, so a
-  // re-applied style (toggle change, or a setStyle that races the initial load
-  // and reuses the current style) never produces a duplicate-id error.
-  nextStyle.layers = nextStyle.layers.filter((l) => l.id !== "femto-3d-buildings");
-  // Only strip terrain if WE injected it (terrainSource present), so a base
-  // style that ever ships its own terrain is left intact.
-  if (nextStyle.sources.terrainSource) {
-    delete nextStyle.sources.terrainSource;
-    delete nextStyle.terrain;
-  }
-  // ACCENT scheme: recolour background / water / land fills with the accent
-  // palette, leaving roads + labels legible against the base.
-  const accent = accentColors;
-  if (accent) {
-    nextStyle.layers.forEach((l) => {
-      const sourceLayer = (l as { "source-layer"?: string })["source-layer"];
-      if (l.type === "background") setPaint(l, "background-color", accent.background);
-      else if (l.type === "fill" && sourceLayer === "water") setPaint(l, "fill-color", accent.water);
-      else if (l.type === "fill" && sourceLayer !== undefined && ACCENT_LAND.includes(sourceLayer))
-        setPaint(l, "fill-color", accent.land);
-    });
-  }
-  const src = vectorSourceId(nextStyle);
-  if (featureState.buildings && src) {
-    // Insert beneath the first label (symbol) layer so labels stay on top.
-    const firstSymbol = nextStyle.layers.find((l) => l.type === "symbol");
-    const buildings = {
-      id: "femto-3d-buildings",
-      source: src,
-      "source-layer": "building",
-      type: "fill-extrusion",
-      minzoom: 14,
-      filter: ["!=", ["get", "hide_3d"], true],
-      paint: {
-        "fill-extrusion-color": "#c2c8d0",
-        "fill-extrusion-height": ["interpolate", ["linear"], ["zoom"], 14, 0, 16, ["get", "render_height"]],
-        "fill-extrusion-base": ["interpolate", ["linear"], ["zoom"], 14, 0, 16, ["get", "render_min_height"]],
-        "fill-extrusion-opacity": 0.85,
-      },
-    } as LayerSpecification;
-    if (firstSymbol) nextStyle.layers.splice(nextStyle.layers.indexOf(firstSymbol), 0, buildings);
-    else nextStyle.layers.push(buildings);
-  }
-  if (featureState.terrain) {
-    nextStyle.sources.terrainSource = { type: "raster-dem", url: MAPTERHORN_DEM_URL };
-    nextStyle.terrain = { source: "terrainSource", exaggeration: 1.0 };
-  }
-  return nextStyle;
-}
+// Mutable page state in one const holder (let/var are banned — see biome.json
+// and no-let.grit). Camera pushes, style swaps, and error throttling all read
+// and write through here.
+const state = {
+	map: undefined as maplibregl.Map | undefined,
+	currentStyleUrl: "https://tiles.openfreemap.org/styles/positron",
+	// Set by setStyleUrl for the ACCENT scheme, or null for a plain style.
+	accentColors: null as AccentColors | null,
+	buildings: false,
+	terrain: false,
+	styleFadeGen: 0,
+	firstCamera: true,
+	lastErrorReportMs: 0,
+};
 
 function applyStyle(): void {
-  if (map && currentStyleUrl) map.setStyle(currentStyleUrl, { transformStyle: injectFeatures });
+	if (state.map && state.currentStyleUrl) {
+		state.map.setStyle(state.currentStyleUrl, {
+			transformStyle: (_previous, next) =>
+				injectFeatures(next, {
+					buildings: state.buildings,
+					terrain: state.terrain,
+					accent: state.accentColors,
+				}),
+		});
+	}
 }
 
 // Cross-fade a style swap: capture the outgoing style's last frame from the
@@ -160,193 +94,195 @@ function applyStyle(): void {
 // swap's pending callbacks.
 const STYLE_FADE_MS = 500;
 const STYLE_FADE_MAX_WAIT_MS = 4000;
-let styleFadeGen = 0;
 function applyStyleWithFade(): void {
-  const liveMap = map;
-  if (!liveMap) return;
-  // Nothing rendered yet (initial load): swap without a fade.
-  if (!liveMap.isStyleLoaded()) {
-    applyStyle();
-    return;
-  }
-  const gen = ++styleFadeGen;
-  const el = document.getElementById("style-fade") as HTMLElement;
-  const img = el.querySelector("img") as HTMLImageElement;
-  // The GL buffer is only valid synchronously inside a render event, so the
-  // capture happens there (no preserveDrawingBuffer cost) — but the style
-  // swap itself is deferred OUT of the render loop: a setStyle issued
-  // mid-render leaves the presented frame stale on a static camera, so the
-  // new scheme only appeared as the camera moved.
-  liveMap.once("render", () => {
-    if (gen !== styleFadeGen) return;
-    try {
-      img.src = liveMap.getCanvas().toDataURL("image/jpeg", 0.85);
-      el.style.transition = "none";
-      el.style.opacity = "1";
-      el.style.display = "block";
-    } catch (e) {
-      log("style-fade capture failed: " + (e instanceof Error ? e.message : e));
-    }
-    setTimeout(() => {
-      if (gen !== styleFadeGen) return;
-      applyStyle();
-      let faded = false;
-      const fadeOut = (): void => {
-        if (faded || gen !== styleFadeGen) return;
-        faded = true;
-        el.style.transition = "opacity " + STYLE_FADE_MS + "ms ease";
-        el.style.opacity = "0";
-        setTimeout(() => {
-          if (gen === styleFadeGen) el.style.display = "none";
-        }, STYLE_FADE_MS + 100);
-      };
-      // Fade once the swapped-in style has loaded and a frame with it has
-      // been rendered (the same readiness signal the host uses); "idle"
-      // would be nicer but never fires while the GPS camera keeps easing.
-      const check = (): void => {
-        if (gen !== styleFadeGen) {
-          liveMap.off("render", check);
-          return;
-        }
-        if (liveMap.isStyleLoaded()) {
-          liveMap.off("render", check);
-          fadeOut();
-        }
-      };
-      liveMap.on("render", check);
-      setTimeout(fadeOut, STYLE_FADE_MAX_WAIT_MS);
-      liveMap.triggerRepaint();
-    }, 0);
-  });
-  liveMap.triggerRepaint();
+	const liveMap = state.map;
+	if (!liveMap) return;
+	// Nothing rendered yet (initial load): swap without a fade.
+	if (!liveMap.isStyleLoaded()) {
+		applyStyle();
+		return;
+	}
+	state.styleFadeGen += 1;
+	const gen = state.styleFadeGen;
+	const el = document.getElementById("style-fade") as HTMLElement;
+	const img = el.querySelector("img") as HTMLImageElement;
+	// The GL buffer is only valid synchronously inside a render event, so the
+	// capture happens there (no preserveDrawingBuffer cost) — but the style
+	// swap itself is deferred OUT of the render loop: a setStyle issued
+	// mid-render leaves the presented frame stale on a static camera, so the
+	// new scheme only appeared as the camera moved.
+	liveMap.once("render", () => {
+		if (gen !== state.styleFadeGen) return;
+		try {
+			img.src = liveMap.getCanvas().toDataURL("image/jpeg", 0.85);
+			el.style.transition = "none";
+			el.style.opacity = "1";
+			el.style.display = "block";
+		} catch (e) {
+			log(`style-fade capture failed: ${e instanceof Error ? e.message : e}`);
+		}
+		setTimeout(() => {
+			if (gen !== state.styleFadeGen) return;
+			applyStyle();
+			const fade = { done: false };
+			const fadeOut = (): void => {
+				if (fade.done || gen !== state.styleFadeGen) return;
+				fade.done = true;
+				el.style.transition = `opacity ${STYLE_FADE_MS}ms ease`;
+				el.style.opacity = "0";
+				setTimeout(() => {
+					if (gen === state.styleFadeGen) el.style.display = "none";
+				}, STYLE_FADE_MS + 100);
+			};
+			// Fade once the swapped-in style has loaded and a frame with it has
+			// been rendered (the same readiness signal the host uses); "idle"
+			// would be nicer but never fires while the GPS camera keeps easing.
+			const check = (): void => {
+				if (gen !== state.styleFadeGen) {
+					liveMap.off("render", check);
+					return;
+				}
+				if (liveMap.isStyleLoaded()) {
+					liveMap.off("render", check);
+					fadeOut();
+				}
+			};
+			liveMap.on("render", check);
+			setTimeout(fadeOut, STYLE_FADE_MAX_WAIT_MS);
+			liveMap.triggerRepaint();
+		}, 0);
+	});
+	liveMap.triggerRepaint();
 }
 
 (() => {
-  const c = document.createElement("canvas");
-  if (!(c.getContext("webgl2") || c.getContext("webgl"))) {
-    log("no-webgl-context");
-    report("fatal", "no-webgl-context");
-  }
+	const c = document.createElement("canvas");
+	if (!(c.getContext("webgl2") || c.getContext("webgl"))) {
+		log("no-webgl-context");
+		report("fatal", "no-webgl-context");
+	}
 })();
 
 try {
-  const liveMap = new maplibregl.Map({
-    container: "map",
-    style: "https://tiles.openfreemap.org/styles/positron",
-    center: [0, 0],
-    zoom: 1,
-    attributionControl: false,
-  });
-  map = liveMap;
-  liveMap.on("render", () => {
-    if (liveMap.isStyleLoaded()) log("rendered");
-  });
-  liveMap.on("load", () => log("load"));
+	const liveMap = new maplibregl.Map({
+		container: "map",
+		style: "https://tiles.openfreemap.org/styles/positron",
+		center: [0, 0],
+		zoom: 1,
+		attributionControl: false,
+	});
+	state.map = liveMap;
+	liveMap.on("render", () => {
+		if (liveMap.isStyleLoaded()) log("rendered");
+	});
+	liveMap.on("load", () => log("load"));
 
-  // WebGL context loss is usually TRANSIENT on mobile / WebView GPUs, and
-  // MapLibre auto-recovers: it preventDefault()s the loss, saves the style,
-  // and on webglcontextrestored rebuilds the painter and re-renders (see
-  // map.ts _contextLost / _contextRestored, re-fired as Map events). We rely
-  // on that built-in restore and do not fall back to another backend.
-  liveMap.on("webglcontextlost", () => log("webglcontextlost (awaiting MapLibre restore)"));
-  liveMap.on("webglcontextrestored", () => log("webglcontextrestored"));
+	// WebGL context loss is usually TRANSIENT on mobile / WebView GPUs, and
+	// MapLibre auto-recovers: it preventDefault()s the loss, saves the style,
+	// and on webglcontextrestored rebuilds the painter and re-renders (see
+	// map.ts _contextLost / _contextRestored, re-fired as Map events). We rely
+	// on that built-in restore and do not fall back to another backend.
+	liveMap.on("webglcontextlost", () =>
+		log("webglcontextlost (awaiting MapLibre restore)"),
+	);
+	liveMap.on("webglcontextrestored", () => log("webglcontextrestored"));
 
-  // Tile / style / DEM fetch failures surface here. A flaky link can fire
-  // this once per tile, so reports to the host are throttled to one per
-  // ERROR_REPORT_INTERVAL_MS; the host only logs them (transient by
-  // definition — never UI, never a backend switch).
-  const ERROR_REPORT_INTERVAL_MS = 10000;
-  let lastErrorReportMs = 0;
-  liveMap.on("error", (e) => {
-    const detail = e?.error?.message || "unknown map error";
-    log("error: " + detail);
-    const now = Date.now();
-    if (now - lastErrorReportMs >= ERROR_REPORT_INTERVAL_MS) {
-      lastErrorReportMs = now;
-      report("error", String(detail).slice(0, 200));
-    }
-  });
+	// Tile / style / DEM fetch failures surface here. A flaky link can fire
+	// this once per tile, so reports to the host are throttled to one per
+	// ERROR_REPORT_INTERVAL_MS; the host only logs them (transient by
+	// definition — never UI, never a backend switch).
+	const ERROR_REPORT_INTERVAL_MS = 10000;
+	liveMap.on("error", (e) => {
+		const detail = e?.error?.message || "unknown map error";
+		log(`error: ${detail}`);
+		const now = Date.now();
+		if (now - state.lastErrorReportMs >= ERROR_REPORT_INTERVAL_MS) {
+			state.lastErrorReportMs = now;
+			report("error", String(detail).slice(0, 200));
+		}
+	});
 
-  // Self-location chevron: a fixed-on-screen DOM overlay (see #self-marker CSS).
-  // The camera brings the location to the chevron's spot, so the chevron stays
-  // still and the map slides + rotates beneath it (car-nav style) rather than a
-  // geo-anchored marker sliding to catch the eased camera. It is heading-UP: the
-  // chevron always points to the top of the frame and the map rotates to the
-  // travel bearing; rotateX lays it onto the tilted ground plane.
-  const markerEl = document.getElementById("self-marker") as HTMLElement;
-  const markerPath = markerEl.querySelector("path");
+	// Self-location chevron: a fixed-on-screen DOM overlay (see #self-marker CSS).
+	// The camera brings the location to the chevron's spot, so the chevron stays
+	// still and the map slides + rotates beneath it (car-nav style) rather than a
+	// geo-anchored marker sliding to catch the eased camera. It is heading-UP: the
+	// chevron always points to the top of the frame and the map rotates to the
+	// travel bearing; rotateX lays it onto the tilted ground plane.
+	const markerEl = document.getElementById("self-marker") as HTMLElement;
+	const markerPath = markerEl.querySelector("path");
 
-  // The lowest the marker drops below centre, as a fraction of map height, at
-  // markerPos = 100 (mirrors MAX_MARKER_DROP in MapPanel.kt).
-  const MAX_MARKER_DROP = 0.32;
-
-  // Top camera padding (px) that places the centred location at the height the
-  // marker-position setting asks for. padTop shifts the focal point down, so
-  // the location (and its marker) sits lower in the frame; markerPos 0 keeps it
-  // centred, 100 drops it MAX_MARKER_DROP of the height toward the speed panel.
-  function markerPadTop(markerPos: number): number {
-    const pos = Math.max(0, Math.min(100, markerPos || 0));
-    const drop = (pos / 100) * MAX_MARKER_DROP;
-    return 2 * drop * (liveMap.getContainer().clientHeight || 0);
-  }
-
-  // Android -> JS: smooth heading-up camera follow (easeTo interpolates between
-  // sparse GPS fixes). The first fix jumps (no fly-in from [0,0]); the rest ease.
-  // The chevron is pinned on screen (not geo-anchored), so only the camera moves
-  // and the chevron stays put while the map slides + rotates beneath it. The map
-  // rotates to the travel bearing, so the fixed chevron always reads as forward;
-  // rotateX lays it onto the tilted ground plane to match the map pitch. The
-  // chevron's screen height tracks markerPos, matching the camera padding so the
-  // location renders right under it. [markerColor] (Material primary) self-heals
-  // if the first push raced page load.
-  let firstCamera = true;
-  window.updateCamera = (lat, lon, bearing, zoom, tilt, markerPos, markerColor) => {
-    if (!map) return;
-    const heading = bearing || 0;
-    if (markerColor && markerPath) markerPath.setAttribute("fill", markerColor);
-    const pos = Math.max(0, Math.min(100, markerPos || 0));
-    markerEl.style.top = 50 + (pos / 100) * MAX_MARKER_DROP * 100 + "%";
-    markerEl.style.transform = "translate(-50%, -50%) perspective(600px) rotateX(" + (tilt || 0) + "deg)";
-    markerEl.style.display = "block";
-    const opts = {
-      center: [lon, lat] as [number, number],
-      bearing: heading,
-      zoom: zoom || 16,
-      pitch: tilt || 0,
-      padding: { top: markerPadTop(markerPos), bottom: 0, left: 0, right: 0 },
-    };
-    if (firstCamera) {
-      firstCamera = false;
-      liveMap.jumpTo(opts);
-    } else {
-      liveMap.easeTo({ ...opts, duration: 1000, essential: true });
-    }
-  };
-  // Android -> JS: switch the base style and (for the ACCENT scheme) its
-  // recolour palette; empty colour args mean a plain, non-accent style.
-  window.setStyleUrl = (url, bg, water, land) => {
-    if (!url) return;
-    currentStyleUrl = url;
-    accentColors = bg ? { background: bg, water: water, land: land } : null;
-    applyStyleWithFade();
-  };
-  // Android -> JS: flip the LIVE feature toggles, then re-apply the style so
-  // transformStyle injects (or omits) the matching layers/sources.
-  window.setFeatures = (buildings, terrain) => {
-    featureState = { buildings: !!buildings, terrain: !!terrain };
-    applyStyleWithFade();
-  };
-  // Host (Android) calls this on lifecycle resume so the map re-measures and
-  // repaints after the WebView was paused / not visible (guards a stale GL
-  // surface): map.resize() + triggerRepaint().
-  window.onHostResume = () => {
-    if (map) {
-      liveMap.resize();
-      liveMap.triggerRepaint();
-    }
-  };
+	// Android -> JS: smooth heading-up camera follow (easeTo interpolates between
+	// sparse GPS fixes). The first fix jumps (no fly-in from [0,0]); the rest ease.
+	// The chevron is pinned on screen (not geo-anchored), so only the camera moves
+	// and the chevron stays put while the map slides + rotates beneath it. The map
+	// rotates to the travel bearing, so the fixed chevron always reads as forward;
+	// rotateX lays it onto the tilted ground plane to match the map pitch. The
+	// chevron's screen height tracks markerPos, matching the camera padding so the
+	// location renders right under it. [markerColor] (Material primary) self-heals
+	// if the first push raced page load.
+	window.updateCamera = (
+		lat,
+		lon,
+		bearing,
+		zoom,
+		tilt,
+		markerPos,
+		markerColor,
+	) => {
+		if (!state.map) return;
+		const heading = bearing || 0;
+		if (markerColor && markerPath) markerPath.setAttribute("fill", markerColor);
+		const pos = Math.max(0, Math.min(100, markerPos || 0));
+		markerEl.style.top = `${50 + (pos / 100) * MAX_MARKER_DROP * 100}%`;
+		markerEl.style.transform = `translate(-50%, -50%) perspective(600px) rotateX(${tilt || 0}deg)`;
+		markerEl.style.display = "block";
+		const opts = {
+			center: [lon, lat] as [number, number],
+			bearing: heading,
+			zoom: zoom || 16,
+			pitch: tilt || 0,
+			padding: {
+				top: markerPadTop(markerPos, liveMap.getContainer().clientHeight || 0),
+				bottom: 0,
+				left: 0,
+				right: 0,
+			},
+		};
+		if (state.firstCamera) {
+			state.firstCamera = false;
+			liveMap.jumpTo(opts);
+		} else {
+			liveMap.easeTo({ ...opts, duration: 1000, essential: true });
+		}
+	};
+	// Android -> JS: switch the base style and (for the ACCENT scheme) its
+	// recolour palette; empty colour args mean a plain, non-accent style.
+	window.setStyleUrl = (url, bg, water, land) => {
+		if (!url) return;
+		state.currentStyleUrl = url;
+		state.accentColors = bg
+			? { background: bg, water: water, land: land }
+			: null;
+		applyStyleWithFade();
+	};
+	// Android -> JS: flip the LIVE feature toggles, then re-apply the style so
+	// transformStyle injects (or omits) the matching layers/sources.
+	window.setFeatures = (buildings, terrain) => {
+		state.buildings = !!buildings;
+		state.terrain = !!terrain;
+		applyStyleWithFade();
+	};
+	// Host (Android) calls this on lifecycle resume so the map re-measures and
+	// repaints after the WebView was paused / not visible (guards a stale GL
+	// surface): map.resize() + triggerRepaint().
+	window.onHostResume = () => {
+		if (state.map) {
+			liveMap.resize();
+			liveMap.triggerRepaint();
+		}
+	};
 } catch (e) {
-  log("exception:" + (e instanceof Error ? e.message : e));
-  // The map object never came up; this page will stay blank forever.
-  report("fatal", "map-init-exception: " + (e instanceof Error ? e.message : e));
+	log(`exception:${e instanceof Error ? e.message : e}`);
+	// The map object never came up; this page will stay blank forever.
+	report("fatal", `map-init-exception: ${e instanceof Error ? e.message : e}`);
 }
