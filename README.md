@@ -4,7 +4,7 @@
 
 # Femto Car Launcher
 
-**A glanceable Android home launcher for car head units.**
+**A glanceable Android home launcher for in-car displays.**
 
 [![CI](https://github.com/seijikohara/femto-car-launcher/actions/workflows/ci.yml/badge.svg)](https://github.com/seijikohara/femto-car-launcher/actions/workflows/ci.yml)
 [![Download nightly APK](https://img.shields.io/badge/download-nightly_APK-3BE0AE?logo=android&logoColor=white)](https://github.com/seijikohara/femto-car-launcher/releases/tag/nightly)
@@ -15,11 +15,13 @@
 </div>
 
 Femto Car Launcher is an Android home-screen replacement (launcher) for
-in-car head units. It targets two hardware classes: aftermarket CarPlay /
-Android Auto AI boxes that inject Android into a factory display, and
-built-in Android head units. The launcher replaces the stock home screen
-with a single glanceable dashboard tuned for automotive viewing distances
-and touch accuracy.
+in-car displays. It targets three hardware classes: aftermarket CarPlay /
+Android Auto AI boxes that inject Android into a factory display,
+built-in Android head units, and smartphones mounted as a car-navigation
+display. The launcher replaces the stock home screen with a single
+glanceable dashboard tuned for automotive viewing distances and touch
+accuracy. On a phone it also runs as a regular app — becoming the
+default home screen is optional.
 
 The minimum supported platform is Android 13 (Application Programming
 Interface (API) level 33). The launcher is built for multi-region
@@ -166,7 +168,8 @@ The debug Android Package (APK) is written to
 `app/build/outputs/apk/debug/app-debug.apk`. Install it with
 `adb install -r <apk>` or run the app from Android Studio. To smoke-test on
 an emulator, create an AVD that approximates a head-unit display (a wide
-landscape profile) and launch the app as the home activity.
+landscape profile) and launch the app as the home activity, or use a
+regular phone AVD in portrait — the dashboard adapts to both.
 
 ## Configuration
 

@@ -1,8 +1,9 @@
 # Femto Car Launcher
 
-Android home launcher for car head units (aftermarket CarPlay /
-Android Auto AI boxes and built-in Android units). MVP targets
-Android 13 (API 33).
+Android home launcher for in-car displays across three device
+classes: aftermarket CarPlay / Android Auto AI boxes, built-in
+Android head units, and smartphones mounted as a car-navigation
+display. MVP targets Android 13 (API 33).
 
 The launcher is designed for **multi-region distribution**. No
 single market is privileged in design, code, or documentation;
@@ -29,7 +30,8 @@ when markets diverge.
 - Web map page (`webmap/`): TypeScript + Vite + `maplibre-gl`, managed
   with pnpm (pinned via `packageManager`). Vite's `build.target` is
   `chrome109` — the Android 13 factory WebView; aftermarket AI boxes
-  may never update it, so never raise it without revisiting that floor.
+  may never update it, so never raise it without revisiting that floor
+  (phone WebViews stay current, but the strictest device class governs).
 
 ## Source layout
 
@@ -154,8 +156,13 @@ family per slot, downloaded on demand and cached on disk.
 - `MainActivity` is registered with categories `HOME`, `DEFAULT`,
   and `LAUNCHER`, `launchMode="singleTask"`,
   `stateNotNeeded="true"`.
-- Orientation is **not** locked — both portrait and landscape head
-  units must work.
+- Orientation is **not** locked — portrait and landscape must both
+  work (landscape head units, portrait phone mounts, and everything
+  between).
+- On a smartphone the launcher also runs as a **regular app** via the
+  `LAUNCHER` category; becoming the default HOME screen is optional
+  there. Never assume the app owns the device — a phone is a shared,
+  daily-use device that happens to spend time in a car mount.
 - Aftermarket AI boxes lock the default-launcher slot; the app
   launches via a host-side "boot-up app" hook with a ~30 s delay. That
   is outside our control, but cold start inside the process is a key
