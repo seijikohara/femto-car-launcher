@@ -109,6 +109,9 @@ class NominatimApiTest {
             client = client,
             baseUrl = server.url("/").toString(),
             userAgent = USER_AGENT,
+            // Pinned explicitly: the production default follows the JVM locale,
+            // which would make the accept-language assertion machine-dependent.
+            language = "ja",
         )
 
     private companion object {
