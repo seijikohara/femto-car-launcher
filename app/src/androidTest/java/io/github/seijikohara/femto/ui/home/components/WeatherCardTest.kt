@@ -11,6 +11,8 @@ import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 
 class WeatherCardTest {
     @get:Rule
@@ -97,7 +99,27 @@ class WeatherCardTest {
                 )
             }
         }
-        // The fixture's first hourly entry is 12:00, rendered via "%02dh".
-        rule.onNodeWithText("12h").assertIsDisplayed()
+        // The fixture's first hourly entry is 12:00, rendered in the 24-hour
+        // clock notation so the 12/24-hour setting is visibly honoured.
+        rule.onNodeWithText("12:00").assertIsDisplayed()
+    }
+
+    @Test
+    fun renders_forecast_hours_in_12_hour_notation_when_configured() {
+        rule.setContent {
+            FemtoTheme {
+                WeatherCard(
+                    snapshot = fakeWeatherSnapshot(),
+                    temperatureUnit = TemperatureUnit.CELSIUS,
+                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    is24Hour = false,
+                )
+            }
+        }
+        // The same 12:00 entry switches to the meridiem notation when the
+        // clock setting is 12-hour. The expected text is built with the same
+        // pattern because the meridiem word is locale-dependent ("PM" / "午後").
+        val expected = LocalTime.of(12, 0).format(DateTimeFormatter.ofPattern("h a"))
+        rule.onNodeWithText(expected).assertIsDisplayed()
     }
 }
