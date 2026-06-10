@@ -278,6 +278,43 @@ class WeatherRepositoryTest {
         }
 
     @Test
+    fun `keeps the floor after a successful fetch even when the fix moves far`() =
+        runTest {
+            server.enqueue(MockResponse().setBody(FORECAST_BODY))
+            server.enqueue(MockResponse().setResponseCode(500))
+
+            // The second fix arrives 30s after the successful fetch, 10 km away —
+            // beyond REFRESH_DISTANCE_M but inside MIN_RETRY_INTERVAL. The floor
+            // wins: a real vehicle cannot cover 5 km inside the one-minute floor,
+            // so the distance trigger never needs to bypass it.
+            val clock =
+                RequestCountClock(
+                    Instant.parse("2026-05-01T05:32:00Z"),
+                    server,
+                    listOf(Duration.ZERO, Duration.ofSeconds(30)),
+                )
+            val repo =
+                WeatherRepository(
+                    api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
+                    locationFlow =
+                        flow {
+                            emit(fakeLocation())
+                            emit(fakeLocation(latitude = 35.7480))
+                        },
+                    clockFlow = emptyFlow(),
+                    clock = clock,
+                )
+
+            repo.snapshotFlow().test {
+                assertNotNull(awaitItem())
+                assertNotNull(awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            assertEquals(1, server.requestCount)
+        }
+
+    @Test
     fun `yields a snapshot from temperature and code when secondary current fields are missing`() =
         runTest {
             // A current block lacking apparent_temperature, windspeed_10m, and is_day

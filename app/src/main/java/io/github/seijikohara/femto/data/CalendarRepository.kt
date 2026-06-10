@@ -76,16 +76,21 @@ internal class CalendarRepository(
                 .map { Triple(it.date, hasPermission(), zoneProvider()) }
                 .distinctUntilChanged(),
             calendarChangeFlow().onStart { emit(Unit) },
-        ) { (date, _, _), _ ->
-            buildSnapshot(date)
+        ) { (date, granted, zone), _ ->
+            // The build consumes the key's own values (not fresh provider
+            // reads) so the snapshot always matches the key that produced it.
+            buildSnapshot(date, granted, zone)
         }.distinctUntilChanged().flowOn(Dispatchers.IO)
 
-    private fun buildSnapshot(today: LocalDate): CalendarSnapshot {
-        val granted = hasPermission()
+    private fun buildSnapshot(
+        today: LocalDate,
+        granted: Boolean,
+        zone: ZoneId,
+    ): CalendarSnapshot {
         val locale = localeProvider()
         // null marks a provider fault (see readWindow); the days still build
         // from the clock alone so the strip never disappears.
-        val eventsByDay = if (granted) readWindow(today) else emptyMap()
+        val eventsByDay = if (granted) readWindow(today, zone) else emptyMap()
         val days = (0 until WINDOW_DAYS).map { offset ->
             val date = today.plusDays(offset.toLong())
             DayCell(
@@ -163,11 +168,11 @@ internal class CalendarRepository(
      * "granted but nothing scheduled".
      */
     @SuppressLint("MissingPermission") // Caller checks READ_CALENDAR before subscribing.
-    private fun readWindow(today: LocalDate): Map<LocalDate, List<EventItem>>? =
+    private fun readWindow(
+        today: LocalDate,
+        zone: ZoneId,
+    ): Map<LocalDate, List<EventItem>>? =
         runCatching {
-            // One zone for the whole scan: begin/end bounds and per-row day
-            // bucketing must agree even if the device zone changes mid-build.
-            val zone = zoneProvider()
             val byDay = linkedMapOf<LocalDate, MutableList<EventItem>>()
             context.contentResolver
                 .query(

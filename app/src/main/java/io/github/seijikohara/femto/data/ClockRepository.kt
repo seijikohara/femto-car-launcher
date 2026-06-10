@@ -25,7 +25,10 @@ internal class ClockRepository(
     // process dies.
     private val zoneProvider: () -> ZoneId = ZoneId::systemDefault,
     // Owns the single shared receiver subscription (mirrors LocationRepository);
-    // tests inject their own scope to drive shareIn deterministically.
+    // tests inject their own scope to drive shareIn deterministically. The
+    // default scope is process-lifetime by design — it is never cancelled;
+    // WhileSubscribed parks the upstream (and unregisters the receiver) when
+    // no collector is live.
     scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
     // One receiver serves every collector: tickFlow() feeds the ViewModel, the
