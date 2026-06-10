@@ -47,6 +47,7 @@ class DashboardScaffoldTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     mapConfig = MapConfig(),
                     panels = PanelVisibility(),
+                    glassConfig = GlassConfig(),
                     onAction = {},
                 )
             }
@@ -76,6 +77,7 @@ class DashboardScaffoldTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     mapConfig = MapConfig(),
                     panels = PanelVisibility(calendar = false, weather = false, music = false),
+                    glassConfig = GlassConfig(),
                     onAction = {},
                 )
             }
