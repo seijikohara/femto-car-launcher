@@ -1,0 +1,49 @@
+// Renovate configuration, in JSON5 so each policy can be annotated in place.
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    // Maintainer-recommended superset of config:recommended: pins GitHub Action
+    // digests, enables config migration, and keeps dependencies pinned where
+    // the ecosystem supports it.
+    'config:best-practices',
+    // Conventional Commits subjects (fix(deps)/chore(deps)) to match the repo.
+    ':semanticCommits',
+  ],
+  timezone: 'Asia/Tokyo',
+  // Keep update branches rebased whenever they fall behind main.
+  rebaseWhen: 'behind-base-branch',
+  // Renovate merges by itself (squash, matching the repo's linear history) on
+  // the first run after the Validate check passes. Platform auto-merge stays
+  // off so the merge method never depends on the repository's GitHub merge
+  // settings.
+  platformAutomerge: false,
+  automergeStrategy: 'squash',
+  // Weekly pnpm-lock.yaml refresh for webmap/, automerged like any other
+  // non-major update.
+  lockFileMaintenance: {
+    enabled: true,
+    automerge: true,
+  },
+  packageRules: [
+    {
+      description: 'Automerge non-major updates once CI is green; majors stay manual',
+      matchUpdateTypes: ['minor', 'patch', 'pin', 'pinDigest', 'digest'],
+      automerge: true,
+    },
+    {
+      description: 'Cooldown so a hijacked npm release cannot ride automerge on day zero',
+      matchDatasources: ['npm'],
+      minimumReleaseAge: '3 days',
+    },
+  ],
+  customManagers: [
+    {
+      customType: 'regex',
+      description: 'Node / pnpm pins in the node-gradle block, annotated with renovate comments',
+      managerFilePatterns: ['/(^|/)build\\.gradle\\.kts$/'],
+      matchStrings: [
+        '// renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)\\s*\\n\\s*\\w+ = "(?<currentValue>[^"]+)"',
+      ],
+    },
+  ],
+}

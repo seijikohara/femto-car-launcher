@@ -16,12 +16,14 @@ plugins {
 // nor CI need a system Node.
 node {
     download = true
+    // renovate: datasource=node-version depName=node
     version = "22.13.1"
     // null suppresses the plugin's own repository registration; the Node.js
     // ivy repository lives in settings.gradle.kts (FAIL_ON_PROJECT_REPOS).
     distBaseUrl = null
     // Mirrors webmap/package.json "packageManager" (the pin pnpm itself reads
     // when invoked directly); this copy provisions the Gradle-managed install.
+    // renovate: datasource=npm depName=pnpm
     pnpmVersion = "11.5.2"
     nodeProjectDir = file("../webmap")
 }
