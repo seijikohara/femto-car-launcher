@@ -108,6 +108,11 @@
     <string name="settings_section_map">Map</string>
     <string name="settings_section_panels">Panels</string>
     <string name="settings_subheader_screen">Screen</string>
+    <string name="settings_subheader_glass">Glass</string>
+    <string name="settings_group_glass_blur">Blur radius</string>
+    <string name="settings_group_glass_opacity">Glass opacity</string>
+    <string name="settings_glass_blur_value">%1$d dp</string>
+    <string name="settings_glass_opacity_value">%1$d%%</string>
     <string name="settings_subheader_fonts">Fonts</string>
     <string name="settings_subheader_map_rendering">Rendering</string>
     <string name="settings_subheader_map_appearance">Appearance</string>

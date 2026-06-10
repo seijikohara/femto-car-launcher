@@ -32,6 +32,7 @@ class SettingsScreenTest {
     private val keepScreenOnLabel = context.getString(R.string.settings_keep_screen_on)
     private val lightSchemeLabel = context.getString(R.string.settings_group_map_scheme_light)
     private val darkSchemeLabel = context.getString(R.string.settings_group_map_scheme_dark)
+    private val glassBlurLabel = context.getString(R.string.settings_group_glass_blur)
 
     @Test
     fun renders_fullscreen_row() {
@@ -95,6 +96,12 @@ class SettingsScreenTest {
     fun keep_screen_on_row_is_shown() {
         setScreen()
         rule.onNodeWithText(keepScreenOnLabel).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun glass_blur_row_is_shown() {
+        setScreen()
+        rule.onNodeWithText(glassBlurLabel).performScrollTo().assertIsDisplayed()
     }
 
     @Test
