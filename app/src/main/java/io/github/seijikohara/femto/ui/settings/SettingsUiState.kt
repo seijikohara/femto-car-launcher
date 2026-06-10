@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.ui.settings
 import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.ClockSetting
 import io.github.seijikohara.femto.data.DisplaySettings
+import io.github.seijikohara.femto.data.DockPosition
 import io.github.seijikohara.femto.data.DrawerIconSize
 import io.github.seijikohara.femto.data.FullscreenSetting
 import io.github.seijikohara.femto.data.LocationQualitySetting
@@ -23,6 +24,7 @@ internal data class SettingsUiState(
     val clock: ClockSetting,
     val showClockSeconds: Boolean,
     val fullscreen: FullscreenSetting,
+    val dockPosition: DockPosition,
     val keepScreenOn: Boolean,
     val mapStyle: MapStyleSetting,
     val mapSchemeLight: MapColorScheme,
@@ -59,6 +61,7 @@ internal data class SettingsUiState(
                 clock = DisplaySettings.Default.clock,
                 showClockSeconds = DisplaySettings.Default.showClockSeconds,
                 fullscreen = DisplaySettings.Default.fullscreen,
+                dockPosition = DisplaySettings.Default.dockPosition,
                 keepScreenOn = DisplaySettings.Default.keepScreenOn,
                 mapStyle = DisplaySettings.Default.mapStyle,
                 mapSchemeLight = DisplaySettings.Default.mapSchemeLight,
@@ -113,6 +116,10 @@ internal sealed interface SettingsAction {
 
     data class SetFullscreen(
         val value: FullscreenSetting,
+    ) : SettingsAction
+
+    data class SetDockPosition(
+        val value: DockPosition,
     ) : SettingsAction
 
     data class SetKeepScreenOn(

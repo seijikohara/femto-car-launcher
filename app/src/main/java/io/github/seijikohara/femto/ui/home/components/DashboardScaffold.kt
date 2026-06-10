@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
+import io.github.seijikohara.femto.data.DockPosition
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
@@ -42,8 +43,11 @@ internal data class PanelVisibility(
 }
 
 /**
- * Top-level dashboard layout. Two panes plus a fixed footer, arranged
- * responsively from the available viewport rather than a fixed canvas:
+ * Top-level dashboard layout. Two panes plus a fixed dock, arranged
+ * responsively from the available viewport rather than a fixed canvas.
+ * [dockPosition] picks the dock's hosting edge: bottom/top as a horizontal
+ * bar, left/right as a vertical rail; the panes reflow into the remaining space
+ * because their portrait/landscape split reads its own constraints:
  *
  * ```
  * Landscape (wide)                    Portrait (tall)
@@ -53,9 +57,9 @@ internal data class PanelVisibility(
  * |  + SpeedOverlay   |  + Weather|    +-----------------------+
  * |                   |  MusicCard|    | InfoPane (1)          |
  * +-------------------+-----------+    |  Calendar + Weather   |
- * | DashboardFooter               |    |  MusicCard            |
+ * | DashboardDock                 |    |  MusicCard            |
  * +-------------------------------+    +-----------------------+
- *                                      | DashboardFooter       |
+ *                                      | DashboardDock         |
  *                                      +-----------------------+
  * ```
  *
@@ -69,7 +73,7 @@ internal data class PanelVisibility(
  *
  * `enableEdgeToEdge()` lets the activity paint under the system bars; the
  * scaffold reserves them back with [windowInsetsPadding] so nothing tap-able
- * (the footer especially) hides behind the navigation bar.
+ * (the dock especially) hides behind the navigation bar.
  *
  * The scaffold owns no state of its own; everything reads from [uiState] and
  * reports back through [onAction].
@@ -86,91 +90,148 @@ internal fun DashboardScaffold(
     glassConfig: GlassConfig,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
-) = Column(
-    modifier =
+    dockPosition: DockPosition = DockPosition.BOTTOM,
+) {
+    val rootModifier =
         modifier
             .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.systemBars),
-) {
-    BoxWithConstraints(
-        modifier =
-            Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-    ) {
-        val compact = maxHeight < CompactHeightBreakpoint || maxWidth < CompactWidthBreakpoint
-        val portrait = maxHeight > maxWidth
-        val screenPadding = if (compact) CompactScreenPadding else FemtoDimens.ScreenPadding
-        val paneGap = if (compact) CompactPaneGap else FemtoDimens.PaneGap
-        if (portrait) {
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .padding(screenPadding),
-                verticalArrangement = Arrangement.spacedBy(paneGap),
-            ) {
-                MapPane(
-                    uiState = uiState,
-                    is24Hour = is24Hour,
-                    showClockSeconds = showClockSeconds,
-                    speedUnit = speedUnit,
-                    mapConfig = mapConfig,
-                    glassConfig = glassConfig,
-                    onAction = onAction,
-                    modifier = Modifier.weight(MAP_PANE_PORTRAIT_WEIGHT).fillMaxWidth(),
-                )
-                if (panels.anyInfoPanel) {
-                    InfoPane(
-                        uiState = uiState,
-                        temperatureUnit = temperatureUnit,
-                        speedUnit = speedUnit,
-                        panels = panels,
-                        paneGap = paneGap,
-                        is24Hour = is24Hour,
-                        onAction = onAction,
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                    )
-                }
+            .windowInsetsPadding(WindowInsets.systemBars)
+    val panes: @Composable (Modifier) -> Unit = { panesModifier ->
+        DashboardPanes(
+            uiState = uiState,
+            is24Hour = is24Hour,
+            showClockSeconds = showClockSeconds,
+            speedUnit = speedUnit,
+            temperatureUnit = temperatureUnit,
+            mapConfig = mapConfig,
+            panels = panels,
+            glassConfig = glassConfig,
+            onAction = onAction,
+            modifier = panesModifier,
+        )
+    }
+    val dock: @Composable (Modifier) -> Unit = { dockModifier ->
+        DashboardDock(
+            systemStatus = uiState.systemStatus,
+            onAction = onAction,
+            position = dockPosition,
+            modifier = dockModifier,
+        )
+    }
+    when (dockPosition) {
+        DockPosition.BOTTOM -> {
+            Column(rootModifier) {
+                panes(Modifier.weight(1f).fillMaxWidth())
+                dock(Modifier.fillMaxWidth())
             }
-        } else {
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .padding(screenPadding),
-                horizontalArrangement = Arrangement.spacedBy(paneGap),
-            ) {
-                MapPane(
-                    uiState = uiState,
-                    is24Hour = is24Hour,
-                    showClockSeconds = showClockSeconds,
-                    speedUnit = speedUnit,
-                    mapConfig = mapConfig,
-                    glassConfig = glassConfig,
-                    onAction = onAction,
-                    modifier = Modifier.weight(MAP_PANE_LANDSCAPE_WEIGHT).fillMaxHeight(),
-                )
-                if (panels.anyInfoPanel) {
-                    InfoPane(
-                        uiState = uiState,
-                        temperatureUnit = temperatureUnit,
-                        speedUnit = speedUnit,
-                        panels = panels,
-                        paneGap = paneGap,
-                        is24Hour = is24Hour,
-                        onAction = onAction,
-                        modifier = Modifier.weight(1f).fillMaxHeight(),
-                    )
-                }
+        }
+
+        DockPosition.TOP -> {
+            Column(rootModifier) {
+                dock(Modifier.fillMaxWidth())
+                panes(Modifier.weight(1f).fillMaxWidth())
+            }
+        }
+
+        DockPosition.LEFT -> {
+            Row(rootModifier) {
+                dock(Modifier.fillMaxHeight())
+                panes(Modifier.weight(1f).fillMaxHeight())
+            }
+        }
+
+        DockPosition.RIGHT -> {
+            Row(rootModifier) {
+                panes(Modifier.weight(1f).fillMaxHeight())
+                dock(Modifier.fillMaxHeight())
             }
         }
     }
-    DashboardFooter(
-        systemStatus = uiState.systemStatus,
-        onAction = onAction,
-        modifier = Modifier.fillMaxWidth(),
-    )
+}
+
+// The responsive two-pane dashboard body: everything except the dock. Reads
+// the available viewport itself so the portrait/landscape split keys off the
+// space the dock placement leaves, not the raw screen.
+@Composable
+private fun DashboardPanes(
+    uiState: HomeUiState,
+    is24Hour: Boolean,
+    showClockSeconds: Boolean,
+    speedUnit: SpeedUnit,
+    temperatureUnit: TemperatureUnit,
+    mapConfig: MapConfig,
+    panels: PanelVisibility,
+    glassConfig: GlassConfig,
+    onAction: (HomeAction) -> Unit,
+    modifier: Modifier = Modifier,
+) = BoxWithConstraints(modifier = modifier) {
+    val compact = maxHeight < CompactHeightBreakpoint || maxWidth < CompactWidthBreakpoint
+    val portrait = maxHeight > maxWidth
+    val screenPadding = if (compact) CompactScreenPadding else FemtoDimens.ScreenPadding
+    val paneGap = if (compact) CompactPaneGap else FemtoDimens.PaneGap
+    if (portrait) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(screenPadding),
+            verticalArrangement = Arrangement.spacedBy(paneGap),
+        ) {
+            MapPane(
+                uiState = uiState,
+                is24Hour = is24Hour,
+                showClockSeconds = showClockSeconds,
+                speedUnit = speedUnit,
+                mapConfig = mapConfig,
+                glassConfig = glassConfig,
+                onAction = onAction,
+                modifier = Modifier.weight(MAP_PANE_PORTRAIT_WEIGHT).fillMaxWidth(),
+            )
+            if (panels.anyInfoPanel) {
+                InfoPane(
+                    uiState = uiState,
+                    temperatureUnit = temperatureUnit,
+                    speedUnit = speedUnit,
+                    panels = panels,
+                    paneGap = paneGap,
+                    is24Hour = is24Hour,
+                    onAction = onAction,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+            }
+        }
+    } else {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(screenPadding),
+            horizontalArrangement = Arrangement.spacedBy(paneGap),
+        ) {
+            MapPane(
+                uiState = uiState,
+                is24Hour = is24Hour,
+                showClockSeconds = showClockSeconds,
+                speedUnit = speedUnit,
+                mapConfig = mapConfig,
+                glassConfig = glassConfig,
+                onAction = onAction,
+                modifier = Modifier.weight(MAP_PANE_LANDSCAPE_WEIGHT).fillMaxHeight(),
+            )
+            if (panels.anyInfoPanel) {
+                InfoPane(
+                    uiState = uiState,
+                    temperatureUnit = temperatureUnit,
+                    speedUnit = speedUnit,
+                    panels = panels,
+                    paneGap = paneGap,
+                    is24Hour = is24Hour,
+                    onAction = onAction,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -375,6 +436,28 @@ private fun DashboardScaffoldPortraitPreview() {
             panels = PanelVisibility(),
             glassConfig = GlassConfig(),
             onAction = {},
+        )
+    }
+}
+
+// Dock as a left rail on the 5:3 head unit: the panes reflow into the
+// remaining width and the nav buttons share the rail height.
+@PreviewLightDark
+@Preview(name = "Dashboard - left rail dock", widthDp = 853, heightDp = 512)
+@Composable
+private fun DashboardScaffoldLeftRailPreview() {
+    FemtoTheme {
+        DashboardScaffold(
+            uiState = HomeUiState.Initial,
+            is24Hour = true,
+            showClockSeconds = true,
+            speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+            temperatureUnit = TemperatureUnit.CELSIUS,
+            mapConfig = MapConfig(),
+            panels = PanelVisibility(),
+            glassConfig = GlassConfig(),
+            onAction = {},
+            dockPosition = DockPosition.LEFT,
         )
     }
 }

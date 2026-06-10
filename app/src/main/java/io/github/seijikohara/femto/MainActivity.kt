@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
     private var fullscreenSetting = FullscreenSetting.OFF
 
     // Emit on the process-wide refresh signal so permission-gated flows (e.g.
-    // the Bluetooth footer indicator) re-read after a late runtime grant.
+    // the Bluetooth dock indicator) re-read after a late runtime grant.
     private val permissionsLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
             SystemPermissionSignals.refreshes.tryEmit(Unit)
@@ -127,6 +127,7 @@ class MainActivity : ComponentActivity() {
                 HomeRoute(
                     is24Hour = resolveIs24Hour(display.clock),
                     showClockSeconds = display.showClockSeconds,
+                    dockPosition = display.dockPosition,
                     speedUnit = display.speedUnit.resolved(),
                     temperatureUnit = display.temperatureUnit.resolved(),
                     mapConfig =

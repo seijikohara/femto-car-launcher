@@ -48,7 +48,7 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.transformLatest
 
 /**
- * Footer status cluster — Wi-Fi connectivity / signal strength, cellular
+ * Dock status cluster — Wi-Fi connectivity / signal strength, cellular
  * connectivity / signal strength, Bluetooth connectivity, battery percent
  * and charging state.
  *
@@ -58,7 +58,7 @@ import kotlinx.coroutines.flow.transformLatest
  * (the connected-device APIs throw without the grant), so a paired head unit
  * still reads as BT-on rather than a misleading "disconnected". Cellular
  * signal strength requires `READ_PHONE_STATE`; when
- * denied the level flow emits null and the footer degrades to the binary
+ * denied the level flow emits null and the dock degrades to the binary
  * connected/disconnected icon.
  *
  * GPS reception is derived from the shared [locationFlow]: a fresh GPS_PROVIDER
@@ -162,7 +162,7 @@ internal class SystemStatusRepository(
     /**
      * Mobile-data connectivity, connectivity-only (no SIM / signal-strength
      * read, so no READ_PHONE_STATE). Emits null on a device with no telephony
-     * feature so the footer hides the indicator rather than showing a
+     * feature so the dock hides the indicator rather than showing a
      * permanently-disconnected one. Mirrors [wifiFlow] for the validated check.
      */
     private fun cellularFlow(): Flow<Boolean?> {
@@ -247,7 +247,7 @@ internal class SystemStatusRepository(
             awaitClose { tm.unregisterTelephonyCallback(callback) }
         }
 
-    // Combine the reception flag with the satellite count so the footer renders
+    // Combine the reception flag with the satellite count so the dock renders
     // both from one [SystemStatus] slot. combine emits once both sources have
     // seeded (gpsFixedFlow via onStart, gnssSatelliteFlow via its leading 0).
     private fun gpsFlow(): Flow<GpsReading> =
@@ -258,7 +258,7 @@ internal class SystemStatusRepository(
     /**
      * GPS reception flag. Emits true on each fresh GPS_PROVIDER fix, then false
      * once that fix ages past [GPS_FIX_FRESHNESS_MS] with no follow-up — so the
-     * footer reads "searching" when reception drops (tunnel, parked cold start).
+     * dock reads "searching" when reception drops (tunnel, parked cold start).
      *
      * The provider predicate mirrors [TripRepository]'s GPS-only gate; NETWORK
      * fixes (cell-tower / Wi-Fi) centre the map but do not represent a GPS lock,
@@ -279,7 +279,7 @@ internal class SystemStatusRepository(
 
     /**
      * Count of satellites used in the current GPS fix, via [GnssStatus]. Emits 0
-     * to start and whenever GNSS reports none used (searching), so the footer's
+     * to start and whenever GNSS reports none used (searching), so the dock's
      * satellite readout reflects the no-fix case. Needs ACCESS_FINE_LOCATION; the
      * map already gates on that grant, and without it this stays 0.
      */
@@ -413,7 +413,7 @@ internal class SystemStatusRepository(
         val level: Int,
     )
 
-    // [enabled] = adapter powered on (lights the footer icon); [connected] = a
+    // [enabled] = adapter powered on (lights the dock icon); [connected] = a
     // device is actively connected (selects the connected glyph). They diverge when
     // BT is on with nothing paired/connected.
     private data class BluetoothReading(
@@ -429,7 +429,7 @@ internal class SystemStatusRepository(
     )
 
     // Pairs the GPS freshness flag (from locationFlow) with the GnssStatus
-    // satellite count so the footer renders both from one combined slot.
+    // satellite count so the dock renders both from one combined slot.
     private data class GpsReading(
         val fixed: Boolean,
         val satellites: Int,
@@ -438,7 +438,7 @@ internal class SystemStatusRepository(
     internal companion object {
         // Top index of the shared 0..4 graduated signal range used by both the
         // Wi-Fi level and the cellular SignalStrength.level (which already reports
-        // 0 (NONE) .. 4 (GREAT)). The DashboardFooter icon ramp keys off the same
+        // 0 (NONE) .. 4 (GREAT)). The DashboardDock icon ramp keys off the same
         // range.
         private const val MAX_SIGNAL_LEVEL = 4
 

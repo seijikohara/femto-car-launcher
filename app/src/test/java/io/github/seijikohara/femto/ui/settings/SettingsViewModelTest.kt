@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.DisplaySettings
+import io.github.seijikohara.femto.data.DockPosition
 import io.github.seijikohara.femto.data.DrawerIconSize
 import io.github.seijikohara.femto.data.FontPreferences
 import io.github.seijikohara.femto.data.FullscreenSetting
@@ -212,6 +213,14 @@ class SettingsViewModelTest {
             advanceUntilIdle()
             assertEquals(12, store.settings.first().glassBlurRadius)
             assertEquals(60, store.settings.first().glassTintScale)
+        }
+
+    @Test
+    fun `SetDockPosition writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetDockPosition(DockPosition.LEFT))
+            advanceUntilIdle()
+            assertEquals(DockPosition.LEFT, store.settings.first().dockPosition)
         }
 
     @Test

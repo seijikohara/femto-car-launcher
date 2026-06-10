@@ -74,7 +74,7 @@ class SystemStatusRepositoryTest {
     fun `bluetoothEnabled tracks the adapter power state`() =
         runTest {
             // isEnabled() needs no permission, so the enabled flag is readable even
-            // without BLUETOOTH_CONNECT; the footer lights the icon on it.
+            // without BLUETOOTH_CONNECT; the dock lights the icon on it.
             setBluetoothEnabled(true)
 
             val status = firstStatusMatching(SystemStatusRepository(application)) { it.bluetoothEnabled }
@@ -112,7 +112,7 @@ class SystemStatusRepositoryTest {
     fun `batteryPercent is null when the sticky reports an unknown level`() =
         runTest {
             // level = -1 / scale = -1 is the framework's "unknown" sentinel; the
-            // flow maps it to null so the footer never reads it as a dead 0%. The
+            // flow maps it to null so the dock never reads it as a dead 0%. The
             // seeded default is also null, so collecting the first emission is
             // sufficient and there is no later non-null reading to wait for.
             application.sendStickyBroadcast(batteryIntent(level = -1, scale = -1))
@@ -194,7 +194,7 @@ class SystemStatusRepositoryTest {
         runTest {
             // Telephony is present, but Robolectric grants no runtime permissions on
             // sdk 33, so telephonySignalFlow cannot register the callback and emits
-            // null — the footer degrades to the binary cellular icon.
+            // null — the dock degrades to the binary cellular icon.
             shadowOf(application.packageManager).setSystemFeature(PackageManager.FEATURE_TELEPHONY, true)
 
             val status = SystemStatusRepository(application).statusFlow().first()

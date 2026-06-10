@@ -39,6 +39,7 @@ internal class SettingsViewModel(
                 clock = display.clock,
                 showClockSeconds = display.showClockSeconds,
                 fullscreen = display.fullscreen,
+                dockPosition = display.dockPosition,
                 keepScreenOn = display.keepScreenOn,
                 mapStyle = display.mapStyle,
                 mapSchemeLight = display.mapSchemeLight,
@@ -94,6 +95,10 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetFullscreen -> {
                     displayPreferences.setFullscreen(action.value)
+                }
+
+                is SettingsAction.SetDockPosition -> {
+                    displayPreferences.setDockPosition(action.value)
                 }
 
                 is SettingsAction.SetKeepScreenOn -> {

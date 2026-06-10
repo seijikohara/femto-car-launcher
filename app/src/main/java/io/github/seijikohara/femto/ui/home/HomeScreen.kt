@@ -5,6 +5,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import io.github.seijikohara.femto.data.DockPosition
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
@@ -26,6 +27,7 @@ internal fun HomeScreen(
     glassConfig: GlassConfig,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
+    dockPosition: DockPosition = DockPosition.BOTTOM,
 ) = Surface(
     modifier = modifier.fillMaxSize(),
     color = MaterialTheme.colorScheme.background,
@@ -41,6 +43,7 @@ internal fun HomeScreen(
         glassConfig = glassConfig,
         onAction = onAction,
         modifier = Modifier.fillMaxSize(),
+        dockPosition = dockPosition,
     )
 }
 

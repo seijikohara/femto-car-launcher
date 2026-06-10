@@ -53,6 +53,7 @@ import com.composables.icons.lucide.RotateCcw
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.AccentColor
 import io.github.seijikohara.femto.data.ClockSetting
+import io.github.seijikohara.femto.data.DockPosition
 import io.github.seijikohara.femto.data.DrawerIconSize
 import io.github.seijikohara.femto.data.FontSlot
 import io.github.seijikohara.femto.data.FullscreenSetting
@@ -132,6 +133,18 @@ internal fun SettingsScreen(
                 title = stringResource(R.string.settings_keep_screen_on),
                 checked = uiState.keepScreenOn,
                 onCheckedChange = { onAction(SettingsAction.SetKeepScreenOn(it)) },
+            )
+            ChoiceRow(
+                title = stringResource(R.string.settings_group_dock_position),
+                options =
+                    listOf(
+                        DockPosition.BOTTOM to stringResource(R.string.settings_dock_bottom),
+                        DockPosition.TOP to stringResource(R.string.settings_dock_top),
+                        DockPosition.LEFT to stringResource(R.string.settings_dock_left),
+                        DockPosition.RIGHT to stringResource(R.string.settings_dock_right),
+                    ),
+                selected = uiState.dockPosition,
+                onSelect = { onAction(SettingsAction.SetDockPosition(it)) },
             )
             SettingsSubheader(stringResource(R.string.settings_subheader_glass))
             SliderRow(

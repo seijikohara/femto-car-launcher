@@ -40,7 +40,7 @@ internal fun Context.hasReadCalendarPermission(): Boolean =
 
 /**
  * `READ_PHONE_STATE` gates the cellular `SignalStrength` read. It is a runtime
- * grant on every supported API level; without it the footer's cellular
+ * grant on every supported API level; without it the dock's cellular
  * indicator degrades to the binary connected/disconnected icon.
  */
 internal fun Context.hasReadPhoneStatePermission(): Boolean =

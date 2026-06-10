@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.seijikohara.femto.data.DockPosition
 import io.github.seijikohara.femto.data.hasFineLocationPermission
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
@@ -30,6 +31,7 @@ internal fun HomeRoute(
     glassConfig: GlassConfig,
     onEvent: (HomeEvent) -> Unit,
     modifier: Modifier = Modifier,
+    dockPosition: DockPosition = DockPosition.BOTTOM,
 ) {
     val context = LocalContext.current
     val viewModel: HomeViewModel =
@@ -51,6 +53,7 @@ internal fun HomeRoute(
         glassConfig = glassConfig,
         onAction = viewModel::onAction,
         modifier = modifier,
+        dockPosition = dockPosition,
     )
 }
 

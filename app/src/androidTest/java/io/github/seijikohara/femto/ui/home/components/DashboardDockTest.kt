@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import io.github.seijikohara.femto.data.DockPosition
 import io.github.seijikohara.femto.testfixtures.fakeSystemStatus
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -14,7 +15,7 @@ import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
 
-class DashboardFooterTest {
+class DashboardDockTest {
     @get:Rule
     val rule = createComposeRule()
 
@@ -22,7 +23,7 @@ class DashboardFooterTest {
     fun renders_apps_and_settings_nav_buttons() {
         rule.setContent {
             FemtoTheme {
-                DashboardFooter(
+                DashboardDock(
                     systemStatus = fakeSystemStatus(),
                     onAction = {},
                 )
@@ -38,7 +39,7 @@ class DashboardFooterTest {
         var lastAction: HomeAction? = null
         rule.setContent {
             FemtoTheme {
-                DashboardFooter(
+                DashboardDock(
                     systemStatus = fakeSystemStatus(),
                     onAction = { lastAction = it },
                 )
@@ -53,7 +54,7 @@ class DashboardFooterTest {
         var lastAction: HomeAction? = null
         rule.setContent {
             FemtoTheme {
-                DashboardFooter(
+                DashboardDock(
                     systemStatus = fakeSystemStatus(),
                     onAction = { lastAction = it },
                 )
@@ -67,7 +68,7 @@ class DashboardFooterTest {
     fun shows_wifi_connected_description_when_wifi_connected() {
         rule.setContent {
             FemtoTheme {
-                DashboardFooter(
+                DashboardDock(
                     systemStatus = fakeSystemStatus(wifiConnected = true),
                     onAction = {},
                 )
@@ -80,7 +81,7 @@ class DashboardFooterTest {
     fun shows_bluetooth_on_description_when_enabled_but_not_connected() {
         rule.setContent {
             FemtoTheme {
-                DashboardFooter(
+                DashboardDock(
                     systemStatus = fakeSystemStatus(bluetoothEnabled = true, bluetoothConnected = false),
                     onAction = {},
                 )
@@ -93,7 +94,7 @@ class DashboardFooterTest {
     fun shows_bluetooth_off_description_when_adapter_disabled() {
         rule.setContent {
             FemtoTheme {
-                DashboardFooter(
+                DashboardDock(
                     systemStatus = fakeSystemStatus(bluetoothEnabled = false, bluetoothConnected = false),
                     onAction = {},
                 )
@@ -106,7 +107,7 @@ class DashboardFooterTest {
     fun shows_cellular_connected_description_when_connected() {
         rule.setContent {
             FemtoTheme {
-                DashboardFooter(
+                DashboardDock(
                     systemStatus = fakeSystemStatus(cellularConnected = true),
                     onAction = {},
                 )
@@ -119,7 +120,7 @@ class DashboardFooterTest {
     fun shows_graduated_cellular_icon_when_level_is_known() {
         rule.setContent {
             FemtoTheme {
-                DashboardFooter(
+                DashboardDock(
                     systemStatus = fakeSystemStatus(cellularConnected = true, cellularSignalLevel = 3),
                     onAction = {},
                 )
@@ -134,7 +135,7 @@ class DashboardFooterTest {
     fun degrades_cellular_to_binary_icon_when_level_is_null() {
         rule.setContent {
             FemtoTheme {
-                DashboardFooter(
+                DashboardDock(
                     // Connected but level unknown (READ_PHONE_STATE withheld): the
                     // indicator still renders, falling back to the binary glyph.
                     systemStatus = fakeSystemStatus(cellularConnected = true, cellularSignalLevel = null),
@@ -149,7 +150,7 @@ class DashboardFooterTest {
     fun shows_cellular_disconnected_when_signal_level_is_zero() {
         rule.setContent {
             FemtoTheme {
-                DashboardFooter(
+                DashboardDock(
                     // A known level drives the lit state off signal presence, not the
                     // validated-route flag: zero bars reads as disconnected even while
                     // the cellular network momentarily holds NET_CAPABILITY_VALIDATED.
@@ -165,7 +166,7 @@ class DashboardFooterTest {
     fun shows_graduated_wifi_icon_when_connected_with_a_level() {
         rule.setContent {
             FemtoTheme {
-                DashboardFooter(
+                DashboardDock(
                     systemStatus = fakeSystemStatus(wifiConnected = true, wifiSignalLevel = 1),
                     onAction = {},
                 )
@@ -178,7 +179,7 @@ class DashboardFooterTest {
     fun hides_cellular_icon_on_telephony_less_unit() {
         rule.setContent {
             FemtoTheme {
-                DashboardFooter(
+                DashboardDock(
                     systemStatus = fakeSystemStatus(cellularConnected = null),
                     onAction = {},
                 )
@@ -192,7 +193,7 @@ class DashboardFooterTest {
     fun shows_gps_fixed_description_when_gps_is_fixed() {
         rule.setContent {
             FemtoTheme {
-                DashboardFooter(
+                DashboardDock(
                     systemStatus = fakeSystemStatus(gpsFixed = true),
                     onAction = {},
                 )
@@ -205,7 +206,7 @@ class DashboardFooterTest {
     fun shows_gps_searching_description_when_gps_is_not_fixed() {
         rule.setContent {
             FemtoTheme {
-                DashboardFooter(
+                DashboardDock(
                     systemStatus = fakeSystemStatus(gpsFixed = false),
                     onAction = {},
                 )
@@ -218,7 +219,7 @@ class DashboardFooterTest {
     fun renders_gps_satellite_count_text() {
         rule.setContent {
             FemtoTheme {
-                DashboardFooter(
+                DashboardDock(
                     systemStatus = fakeSystemStatus(gpsFixed = true, gpsSatelliteCount = 9),
                     onAction = {},
                 )
@@ -231,7 +232,7 @@ class DashboardFooterTest {
     fun renders_battery_percent_text() {
         rule.setContent {
             FemtoTheme {
-                DashboardFooter(
+                DashboardDock(
                     systemStatus = fakeSystemStatus(batteryPercent = 78),
                     onAction = {},
                 )
@@ -241,15 +242,32 @@ class DashboardFooterTest {
     }
 
     @Test
-    fun shows_charging_caption_when_charging() {
+    fun does_not_render_a_charging_caption() {
         rule.setContent {
             FemtoTheme {
-                DashboardFooter(
+                DashboardDock(
                     systemStatus = fakeSystemStatus(charging = true),
                     onAction = {},
                 )
             }
         }
-        rule.onNodeWithText("Charging").assertIsDisplayed()
+        // Charging reads from the bolt glyph and tint alone; no text caption.
+        rule.onNodeWithText("Charging").assertDoesNotExist()
+    }
+
+    @Test
+    fun vertical_rail_renders_all_nav_buttons() {
+        rule.setContent {
+            FemtoTheme {
+                DashboardDock(
+                    systemStatus = fakeSystemStatus(),
+                    onAction = {},
+                    position = DockPosition.LEFT,
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("Apps").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Settings").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Phone").assertIsDisplayed()
     }
 }

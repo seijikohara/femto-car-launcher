@@ -28,7 +28,7 @@ class DashboardScaffoldTest {
         // exercises the scaffold layout without standing up a MapLibre GL surface.
         // The clock overlay self-times from the wall clock, so the dashboard has
         // no deterministic time string to assert; the map fallback, weather,
-        // music, and footer panels carry the stable assertions instead.
+        // music, and dock panels carry the stable assertions instead.
         val uiState =
             HomeUiState.Initial.copy(
                 clock = ClockTick(LocalTime.of(14, 32), LocalDate.of(2026, 5, 1)),
@@ -60,7 +60,7 @@ class DashboardScaffoldTest {
     @Test
     fun hides_info_panels_disabled_by_visibility_flags() {
         // Disabling every info-pane panel drops the whole info pane, so none of
-        // their content renders while the map and footer stay put.
+        // their content renders while the map and dock stay put.
         val uiState =
             HomeUiState.Initial.copy(
                 location = null,
