@@ -52,9 +52,9 @@ import java.time.format.DateTimeFormatter
  *     showing that day's full set of events. Days with no events are shown too,
  *     with a muted placeholder, so the list reads as a continuous agenda.
  *
- * Typography and spacing follow `docs/design/dashboard-v2-mockup.html`; the
- * dashboard's 18sp body-size floor is intentionally relaxed here so the agenda
- * fits the short head-unit info-pane card.
+ * Typography and spacing originated in the retired dashboard-v2 design mockup;
+ * the dashboard's 18sp body-size floor is intentionally relaxed here so the
+ * agenda fits the short head-unit info-pane card.
  */
 @Composable
 internal fun CalendarCard(

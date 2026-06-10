@@ -17,8 +17,9 @@ private const val TAG = "NominatimApi"
 /**
  * Reverse-geocode a coordinate through an OSM Nominatim-compatible endpoint.
  *
- * The PoC targets the public Nominatim service; production swaps in LocationIQ,
- * which returns the same jsonv2 shape — only [baseUrl] and [apiKey] change.
+ * Development builds target the public Nominatim service; production swaps in
+ * LocationIQ, which returns the same jsonv2 shape — only [baseUrl] and [apiKey]
+ * change.
  * Nominatim blocks stock HTTP User-Agents, so [userAgent] is mandatory.
  */
 internal class NominatimApi(

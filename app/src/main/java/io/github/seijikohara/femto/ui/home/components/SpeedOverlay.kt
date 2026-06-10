@@ -58,8 +58,8 @@ import io.github.seijikohara.femto.ui.theme.sectionLabel
 import kotlin.math.roundToInt
 
 /**
- * Glass overlay anchored to the map pane's bottom-centre, per
- * `docs/design/dashboard-v2-mockup.html` `.speed-overlay`:
+ * Glass overlay anchored to the map pane's bottom-centre (layout inherited
+ * from the `.speed-overlay` of the retired dashboard-v2 design mockup):
  *
  *  - Metric row: hero current speed | separator | distance | separator |
  *    average speed | separator | reset-trip button (top-right).

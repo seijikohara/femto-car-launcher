@@ -33,7 +33,7 @@ declare global {
 	}
 }
 
-// Diagnostic logging only (visible via chrome://inspect or the debug PoC's
+// Diagnostic logging only (visible via chrome://inspect or the debug build's
 // WebChromeClient). There is NO host fallback path: the chosen render backend
 // is kept as-is, and MapLibre's own context-loss restore handles transient
 // WebGL drops, so the page never asks the host to switch away.

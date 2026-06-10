@@ -1,10 +1,10 @@
 # Release signing
 
-The nightly job in [`ci.yml`](../.github/workflows/ci.yml) signs the
-release APK with an upload keystore supplied through repository
-secrets. Local `./gradlew assembleRelease` builds stay unsigned: the
-signing config is registered only when `RELEASE_KEYSTORE_PATH` is set,
-so contributor builds keep working with no keystore.
+The nightly job in [`ci.yml`](workflows/ci.yml) signs the release APK
+with an upload keystore supplied through repository secrets. Local
+`./gradlew assembleRelease` builds stay unsigned: the signing config is
+registered only when `RELEASE_KEYSTORE_PATH` is set, so contributor
+builds keep working with no keystore.
 
 ## Signing secrets
 

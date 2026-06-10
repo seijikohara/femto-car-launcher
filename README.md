@@ -173,9 +173,9 @@ landscape profile) and launch the app as the home activity.
 The launcher runs with no configuration: `./gradlew assembleDebug`
 produces a working build, and the map needs no API key.
 
-Two network services default to shared public endpoints that are suitable
-for a proof of concept but are rate-limited and unsuitable for production
-traffic. Override them for a release build through the git-ignored
+Two network services default to shared public endpoints that are fine for
+development and evaluation but are rate-limited and unsuitable for
+production traffic. Override them for a release build through the git-ignored
 `local.properties` file, which feeds `BuildConfig` at build time:
 
 | Property | Purpose | Default |
@@ -203,4 +203,4 @@ The nightly APK is **release-signed**; local and contributor
 `./gradlew assembleRelease` builds stay **unsigned**, because the signing
 config is registered only when the keystore environment variables are
 present. Maintainer setup for the signing secrets lives in
-[`docs/release-signing.md`](docs/release-signing.md).
+[`.github/RELEASING.md`](.github/RELEASING.md).

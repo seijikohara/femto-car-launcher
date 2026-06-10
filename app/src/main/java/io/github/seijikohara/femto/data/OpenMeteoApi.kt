@@ -14,7 +14,7 @@ internal class OpenMeteoApi(
     private val client: OkHttpClient,
     private val baseUrl: String = "https://api.open-meteo.com/",
     // Optional Open-Meteo API key. When set, baseUrl points at the keyed customer
-    // host and the request appends &apikey=; the public PoC endpoint needs none.
+    // host and the request appends &apikey=; the public endpoint needs none.
     // Request-only secret — never logged (the failure log records the status code,
     // not the key-bearing URL).
     private val apiKey: String? = null,
