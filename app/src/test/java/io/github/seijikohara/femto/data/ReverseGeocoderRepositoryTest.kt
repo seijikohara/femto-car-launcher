@@ -4,6 +4,9 @@ package io.github.seijikohara.femto.data
 
 import android.location.Location
 import app.cash.turbine.test
+import io.github.seijikohara.femto.data.ReverseGeocoderRepository.Companion.MAX_ENTRIES
+import io.github.seijikohara.femto.data.ReverseGeocoderRepository.Companion.NETWORK_PACING_MS
+import io.github.seijikohara.femto.data.ReverseGeocoderRepository.Companion.TTL_MS
 import io.github.seijikohara.femto.testfixtures.fakeLocation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
@@ -80,8 +83,10 @@ class ReverseGeocoderRepositoryTest {
             val near = fakeLocation()
             val far = fakeLocation(latitude = 35.7000)
             // Drain all three fixes (near, far, near) so the cached revisit is
-            // exercised before the request count is asserted.
-            newRepo(flowOf(near, far, near)).addressFlow().test {
+            // exercised before the request count is asserted. The clock
+            // advances one pacing window per issued request so the far bucket
+            // clears the pacing gate.
+            newRepo(flowOf(near, far, near), nowMs = pacedClock()).addressFlow().test {
                 assertEquals("新宿区", awaitItem()?.locality)
                 awaitItem()
                 assertEquals("新宿区", awaitItem()?.locality)
@@ -99,12 +104,51 @@ class ReverseGeocoderRepositoryTest {
             server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
             server.enqueue(MockResponse().setResponseCode(429))
 
+            // The far fix sits ~4.7 km from the resolved address — inside the
+            // fallback distance bound, so the rate-limited lookup still serves
+            // the last value.
             val flow = flowOf(fakeLocation(), fakeLocation(latitude = 35.7000))
-            newRepo(flow).addressFlow().test {
+            newRepo(flow, nowMs = pacedClock()).addressFlow().test {
                 assertEquals("新宿区", awaitItem()?.locality)
                 // The throttled second bucket returns the cached value, not null.
                 assertEquals("新宿区", awaitItem()?.locality)
                 cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `skips the network lookup for a new bucket inside the pacing window`() =
+        runTest {
+            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
+            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
+
+            // The clock never advances, so the far bucket arrives inside the
+            // pacing window and must reuse the last address with no request.
+            val flow = flowOf(fakeLocation(), fakeLocation(latitude = 35.7000))
+            newRepo(flow, nowMs = { 0L }).addressFlow().test {
+                assertEquals("新宿区", awaitItem()?.locality)
+                assertEquals("新宿区", awaitItem()?.locality)
+                awaitComplete()
+            }
+
+            assertEquals(1, server.requestCount)
+        }
+
+    @Test
+    fun `drops the stale fallback once the fix moves beyond the distance bound`() =
+        runTest {
+            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
+            server.enqueue(MockResponse().setResponseCode(429))
+
+            // Advance the clock one pacing window per issued request so the
+            // failing far lookup is actually sent; the far fix is ~115 km from
+            // the last resolved address, far past the fallback distance bound.
+            val flow = flowOf(fakeLocation(), fakeLocation(latitude = 36.7000))
+            newRepo(flow, nowMs = pacedClock()).addressFlow().test {
+                assertEquals("新宿区", awaitItem()?.locality)
+                // A stale address from 115 km away is worse than no address.
+                assertNull(awaitItem())
+                awaitComplete()
             }
         }
 
@@ -149,7 +193,7 @@ class ReverseGeocoderRepositoryTest {
                 }
             val fixes = listOf(eldest) + newer + eldest
 
-            newRepo(fixes.asFlow()).addressFlow().test {
+            newRepo(fixes.asFlow(), nowMs = pacedClock()).addressFlow().test {
                 repeat(fixes.size) { assertEquals("新宿区", awaitItem()?.locality) }
                 awaitComplete()
             }
@@ -173,7 +217,17 @@ class ReverseGeocoderRepositoryTest {
             // request count makes the TTL crossing deterministic regardless of
             // when the eager flow drains, where a variable mutated between
             // awaitItem() calls would race the buffered emissions.
-            val nowMs = { if (server.requestCount >= 2) TTL_MS + 1 else 0L }
+            // Before the TTL crossing the clock advances one pacing window per
+            // request so the far bucket clears the pacing gate; the crossing
+            // adds that pacing offset because the near entry was stamped at
+            // one window past zero.
+            val nowMs = {
+                if (server.requestCount >= 2) {
+                    TTL_MS + NETWORK_PACING_MS + 1
+                } else {
+                    server.requestCount * NETWORK_PACING_MS
+                }
+            }
             // near -> far -> near: the far fix between the two near visits keeps
             // distinctUntilChangedByBucket from collapsing them, so the second
             // near visit actually reaches resolve().
@@ -196,6 +250,11 @@ class ReverseGeocoderRepositoryTest {
             assertEquals(3, server.requestCount)
         }
 
+    // Advance the clock one pacing window per issued request so multi-bucket
+    // scenarios clear the pacing gate deterministically, mirroring the
+    // request-count-tied clock the TTL test uses.
+    private fun pacedClock(): () -> Long = { server.requestCount * NETWORK_PACING_MS }
+
     private fun TestScope.newRepo(
         locationFlow: Flow<Location?>,
         nowMs: () -> Long = { testScheduler.currentTime },
@@ -211,18 +270,14 @@ class ReverseGeocoderRepositoryTest {
                     ioDispatcher = dispatcher,
                 ),
             ioDispatcher = dispatcher,
-            // Tie the throttle clock to the scheduler so delay() advances it.
+            // The injected clock keeps the pacing gate and the cache TTL
+            // deterministic under the test scheduler.
             nowMs = nowMs,
         )
     }
 
     private companion object {
         const val USER_AGENT = "femto-car-launcher/1.0 (test)"
-
-        // Mirrors ReverseGeocoderRepository.MAX_ENTRIES / TTL_MS, which are
-        // private; keep these in sync if the production bounds change.
-        const val MAX_ENTRIES = 256
-        const val TTL_MS = 24L * 60L * 60L * 1_000L
 
         // A starting latitude and a step large enough that each fix lands in a
         // distinct 100 m bucket (~0.001 deg ~= 111 m).

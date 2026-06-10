@@ -4,7 +4,6 @@ import android.location.Location
 import android.util.Log
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
@@ -46,13 +45,13 @@ internal class ReverseGeocoderRepository(
         object : LinkedHashMap<String, CacheEntry>(MAX_ENTRIES, LOAD_FACTOR, true) {
             override fun removeEldestEntry(eldest: Map.Entry<String, CacheEntry>): Boolean = size > MAX_ENTRIES
         }
-    private var lastResult: ShortAddress? = null
-    private var lastRequestAtMs = 0L
+    private var lastResult: ResolvedFallback? = null
+    private var lastRequestAtMs: Long? = null
 
     // Serialises resolve: the flow runs on the IO pool where overlapping
-    // collections are possible, and the throttle's read-then-update pair must
-    // be atomic or two callers can both pass the spacing check and violate
-    // Nominatim's 1 request/second policy. The lock also covers the LRU map,
+    // collections are possible, and the pacing gate's read-then-update pair
+    // must be atomic or two callers can both pass the spacing check and
+    // violate Nominatim's usage policy. The lock also covers the LRU map,
     // which is not safe under concurrent mutation.
     private val mutex = Mutex()
 
@@ -67,11 +66,24 @@ internal class ReverseGeocoderRepository(
             val key = bucketKey(location.latitude, location.longitude)
             cachedAddress(key)?.let { return it }
 
-            // Nominatim's usage policy caps callers at 1 request per second; the
-            // 100 m bucket already collapses most calls, and this spacing guards
-            // the remaining boundary crossings. Holding the lock across the delay
-            // and the request keeps the spacing global, not per-caller.
-            throttle()
+            // Pace network lookups: Nominatim's usage policy sets 1 request per
+            // second as an absolute ceiling, but sustained 1 Hz traffic from a
+            // moving vehicle still reads as bulk use, so unresolved buckets only
+            // reach the network once per pacing window. A bucket inside the
+            // window reuses the last resolved address instead of waiting —
+            // adjacent 100 m buckets share their locality-level address, and
+            // skipping (rather than delaying) keeps the flow from queueing
+            // stale fixes behind a timer. A null lastRequestAtMs means no
+            // lookup has been issued yet, so the first fix resolves
+            // immediately.
+            val sinceLastRequestMs = lastRequestAtMs?.let { nowMs() - it }
+            if (sinceLastRequestMs != null && sinceLastRequestMs < NETWORK_PACING_MS) {
+                return fallbackFor(location)
+            }
+            // Stamped before the call on purpose: a failed request still spent
+            // the server's goodwill (and a dead network gains nothing from a
+            // tight retry loop), so failures consume the pacing window too.
+            lastRequestAtMs = nowMs()
 
             runCatching {
                 api.reverse(location.latitude, location.longitude)?.address?.let {
@@ -86,10 +98,20 @@ internal class ReverseGeocoderRepository(
             }.getOrNull()
                 ?.also {
                     cache[key] = CacheEntry(it, nowMs())
-                    lastResult = it
+                    lastResult = ResolvedFallback(it, location)
                 }
-                ?: lastResult
+                ?: fallbackFor(location)
         }
+
+    // Serve the last resolved address only while the new fix is still near
+    // where that address was true. Beyond the bound (e.g. a long network
+    // outage while driving) a stale address is worse than none, so the row
+    // degrades to its placeholder instead. The entry is kept — not cleared —
+    // so driving back into range restores it.
+    private fun fallbackFor(location: Location): ShortAddress? =
+        lastResult
+            ?.takeIf { it.resolvedAt.distanceTo(location) <= FALLBACK_MAX_DISTANCE_M }
+            ?.address
 
     // Return the cached address only while it is within the TTL window. A
     // stale entry is dropped so the next visit re-queries and can recover from
@@ -103,12 +125,6 @@ internal class ReverseGeocoderRepository(
                 null
             }
         }
-
-    private suspend fun throttle() {
-        val elapsed = nowMs() - lastRequestAtMs
-        if (elapsed < MIN_REQUEST_SPACING_MS) delay(MIN_REQUEST_SPACING_MS - elapsed)
-        lastRequestAtMs = nowMs()
-    }
 
     private fun bucketKey(
         lat: Double,
@@ -128,9 +144,31 @@ internal class ReverseGeocoderRepository(
         val resolvedAtMs: Long,
     )
 
-    private companion object {
+    // The last successfully resolved address paired with the fix it was
+    // resolved for, so the fallback can refuse to serve it once the vehicle
+    // has moved far from where the address was true.
+    private data class ResolvedFallback(
+        val address: ShortAddress,
+        val resolvedAt: Location,
+    )
+
+    // Internal (not private) so tests reference these bounds directly instead
+    // of mirroring the values (CLAUDE.md#ssot-dry).
+    internal companion object {
         const val BUCKET_M = 100f
-        const val MIN_REQUEST_SPACING_MS = 1_000L
+
+        // Minimum spacing between network lookups. Far above Nominatim's
+        // 1 req/s ceiling on purpose: the policy treats sustained high-rate
+        // traffic as bulk use, and at motorway speed a 15 s window still
+        // refreshes the address every few hundred metres — finer than the
+        // locality-level line the overlay renders.
+        const val NETWORK_PACING_MS = 15_000L
+
+        // Drop the failure fallback once the fix is this far from where the
+        // last address was resolved. Inside the bound a slightly stale
+        // neighbouring address is still truthful at the displayed
+        // granularity; beyond it the row shows its placeholder instead.
+        const val FALLBACK_MAX_DISTANCE_M = 5_000f
 
         // Cap the per-bucket cache so a long drive cannot grow it without
         // bound; ~256 buckets covers a large daily travel envelope while
