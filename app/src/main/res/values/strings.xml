@@ -5,6 +5,12 @@
     <!-- Map panel -->
     <string name="map_unavailable">Map unavailable</string>
     <string name="map_permission_cta">Grant location access to enable the map and overlays.</string>
+    <string name="map_live_renderer_gone">Live map stopped</string>
+    <string name="map_live_renderer_gone_hint">The map renderer keeps crashing on this device. Switch the map mode to Snapshot in Settings.</string>
+    <string name="map_live_init_failed">Live map can\'t start</string>
+    <string name="map_live_init_failed_hint">This device can\'t render the live map. Switch the map mode to Snapshot in Settings.</string>
+    <string name="calendar_query_failed">Calendar couldn\'t be read</string>
+    <string name="font_download_failed">Download failed — tap to retry</string>
     <string name="map_attribution">© OpenStreetMap · OpenMapTiles · OpenFreeMap</string>
     <string name="map_attribution_terrain">Terrain © Mapterhorn</string>
 

@@ -6,10 +6,13 @@ import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.util.Log
 import io.github.seijikohara.femto.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+
+private const val TAG = "VoiceRecognizer"
 
 /**
  * One step of the in-launcher voice flow. [Unavailable] means the device has no
@@ -106,6 +109,9 @@ internal class VoiceRecognizer(
             }
 
             override fun onError(error: Int) {
+                // messageFor collapses codes into three strings; keep the raw
+                // platform code for diagnosis.
+                Log.w(TAG, "speech recognition error=$error")
                 _state.value = VoiceState.Failed(messageRes = messageFor(error))
             }
 
@@ -123,10 +129,10 @@ internal class VoiceRecognizer(
             ) = Unit
         }
 
-    private fun firstText(bundle: Bundle?): String? =
+    internal fun firstText(bundle: Bundle?): String? =
         bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
 
-    private fun messageFor(error: Int): Int =
+    internal fun messageFor(error: Int): Int =
         when (error) {
             SpeechRecognizer.ERROR_NO_MATCH,
             SpeechRecognizer.ERROR_SPEECH_TIMEOUT,

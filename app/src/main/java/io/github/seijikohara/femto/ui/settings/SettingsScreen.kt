@@ -39,7 +39,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -62,6 +61,7 @@ import io.github.seijikohara.femto.data.MapStyleSetting
 import io.github.seijikohara.femto.data.SpeedUnitSetting
 import io.github.seijikohara.femto.data.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.ThemeMode
+import io.github.seijikohara.femto.ui.theme.DynamicAccentSweep
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
@@ -783,19 +783,6 @@ private fun AccentColor.labelRes(): Int =
         AccentColor.VIOLET -> R.string.settings_accent_violet
         AccentColor.PINK -> R.string.settings_accent_pink
     }
-
-// Rainbow stops for the DYNAMIC swatch's sweep gradient; the first hue repeats at
-// the end so the sweep closes seamlessly. Signals "automatic / wallpaper-derived".
-private val DynamicAccentSweep =
-    listOf(
-        Color(0xFFEF5350),
-        Color(0xFFFFCA28),
-        Color(0xFF66BB6A),
-        Color(0xFF26C6DA),
-        Color(0xFF42A5F5),
-        Color(0xFFAB47BC),
-        Color(0xFFEF5350),
-    )
 
 // A font-slot row: the current family (or "System default") under the title,
 // opening the full Google Fonts picker on tap.

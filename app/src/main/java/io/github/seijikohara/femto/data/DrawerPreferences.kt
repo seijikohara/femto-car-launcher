@@ -3,7 +3,6 @@ package io.github.seijikohara.femto.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -30,23 +29,31 @@ internal interface DrawerSettingsStore {
 
 private val Context.drawerDataStore: DataStore<Preferences> by preferencesDataStore(name = "drawer_preferences")
 
+private const val TAG = "DrawerPreferences"
+
 internal class DrawerPreferences(
     private val context: Context,
 ) : DrawerSettingsStore {
     override val layout: Flow<DrawerLayout> =
-        context.drawerDataStore.data.map { prefs ->
-            prefs[LAYOUT_KEY]?.let { name -> DrawerLayout.entries.firstOrNull { it.name == name } } ?: DrawerLayout.GRID
-        }
+        context.drawerDataStore.data
+            .catchIoAsDefaults(TAG)
+            .map { prefs ->
+                prefs[LAYOUT_KEY]
+                    ?.let { name -> DrawerLayout.entries.firstOrNull { it.name == name } }
+                    ?: DrawerLayout.GRID
+            }
 
     override val pinned: Flow<Set<String>> =
-        context.drawerDataStore.data.map { prefs -> prefs[PINNED_KEY] ?: emptySet() }
+        context.drawerDataStore.data
+            .catchIoAsDefaults(TAG)
+            .map { prefs -> prefs[PINNED_KEY] ?: emptySet() }
 
     override suspend fun setLayout(value: DrawerLayout) {
-        context.drawerDataStore.edit { it[LAYOUT_KEY] = value.name }
+        context.drawerDataStore.editOrLog(TAG) { it[LAYOUT_KEY] = value.name }
     }
 
     override suspend fun togglePinned(flattenedComponent: String) {
-        context.drawerDataStore.edit { prefs ->
+        context.drawerDataStore.editOrLog(TAG) { prefs ->
             val current = prefs[PINNED_KEY] ?: emptySet()
             prefs[PINNED_KEY] =
                 if (flattenedComponent in current) current - flattenedComponent else current + flattenedComponent

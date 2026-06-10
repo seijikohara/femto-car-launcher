@@ -61,9 +61,17 @@ internal class FontCache(
             }
         }
 
-    /** Delete the cached directories of every family outside [keep]. */
-    fun evictExcept(keep: Collection<String>) {
-        val keepDirs = keep.map { dirFor(it).name }.toSet()
+    /**
+     * Delete the cached directories of every family outside [keep].
+     * [alsoProtect] shields families whose download is still in flight — a fast
+     * re-selection cancels the previous resolve pass mid-download, and evicting
+     * its directory here would delete the file the cancelled pass is writing.
+     */
+    fun evictExcept(
+        keep: Collection<String>,
+        alsoProtect: Collection<String> = emptySet(),
+    ) {
+        val keepDirs = (keep + alsoProtect).map { dirFor(it).name }.toSet()
         root.listFiles().orEmpty().forEach { dir ->
             if (dir.isDirectory && dir.name !in keepDirs) dir.deleteRecursively()
         }

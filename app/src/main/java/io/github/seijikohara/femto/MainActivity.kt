@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.text.format.DateFormat
+import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -379,6 +380,7 @@ class MainActivity : ComponentActivity() {
             startActivity(intent)
             true
         } catch (_: ActivityNotFoundException) {
+            Log.w(TAG, "no handler for ${intent.component?.flattenToShortString() ?: intent.action}")
             false
         }
 
@@ -410,6 +412,8 @@ private fun isProbablyEmulator(): Boolean =
         Build.PRODUCT.startsWith("sdk") ||
         Build.PRODUCT.contains("sdk_gphone") ||
         Build.BRAND.startsWith("generic")
+
+private const val TAG = "MainActivity"
 
 private const val QEMU_PROPERTY = "ro.kernel.qemu"
 

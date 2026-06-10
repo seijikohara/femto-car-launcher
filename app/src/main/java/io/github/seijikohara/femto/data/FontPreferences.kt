@@ -3,13 +3,14 @@ package io.github.seijikohara.femto.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 private val Context.fontDataStore: DataStore<Preferences> by preferencesDataStore(name = "font_preferences")
+
+private const val TAG = "FontPreferences"
 
 /**
  * DataStore-backed accessor for the user's [FontSelection].
@@ -22,9 +23,11 @@ internal class FontPreferences(
     private val context: Context,
 ) {
     val selection: Flow<FontSelection> =
-        context.fontDataStore.data.map { prefs ->
-            FontSelection(latinFamily = prefs[LATIN_KEY], cjkFamily = prefs[CJK_KEY])
-        }
+        context.fontDataStore.data
+            .catchIoAsDefaults(TAG)
+            .map { prefs ->
+                FontSelection(latinFamily = prefs[LATIN_KEY], cjkFamily = prefs[CJK_KEY])
+            }
 
     /** Persist [family] for [slot]; a null family clears the slot to system. */
     suspend fun setFamily(
@@ -32,7 +35,7 @@ internal class FontPreferences(
         family: String?,
     ) {
         val key = keyFor(slot)
-        context.fontDataStore.edit { prefs ->
+        context.fontDataStore.editOrLog(TAG) { prefs ->
             if (family == null) prefs.remove(key) else prefs[key] = family
         }
     }
@@ -40,7 +43,7 @@ internal class FontPreferences(
     // Clearing the keys makes the read path fall back to the system font,
     // mirroring DisplayPreferences.resetToDefaults.
     suspend fun resetToDefaults() {
-        context.fontDataStore.edit { it.clear() }
+        context.fontDataStore.editOrLog(TAG) { it.clear() }
     }
 
     private fun keyFor(slot: FontSlot): Preferences.Key<String> =

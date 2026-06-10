@@ -23,9 +23,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -106,17 +103,24 @@ internal fun SpeedOverlay(
     //
     // The EMA accumulator is keyed off the latest fix so a new sample
     // advances the average and a null fix (no location) resets it; the
-    // first non-null sample seeds the accumulator with itself.
-    val smoothedSpeedMs = remember { mutableStateOf<Float?>(null) }
-    smoothedSpeedMs.value =
-        location?.let { emaStep(smoothedSpeedMs.value, tripState.currentSpeedMs.toFloat(), SPEED_OVERLAY_EMA_ALPHA) }
-    val currentSpeedText by remember(speedUnit) {
-        derivedStateOf {
-            smoothedSpeedMs.value
-                ?.let { "${speedUnit.fromMetersPerSecond(it).roundToInt()}" }
-                ?: NO_SPEED_PLACEHOLDER
+    // first non-null sample seeds the accumulator with itself. The
+    // accumulator lives in a remembered plain holder (cf. MapPanel's
+    // bearingHolder) rather than MutableState because writing state during
+    // composition would invalidate the composition computing it;
+    // remember(location) advances the average exactly once per fix.
+    val emaAccumulator = remember { arrayOfNulls<Float>(1) }
+    val smoothedSpeedMs =
+        remember(location) {
+            emaAccumulator[0] =
+                location?.let {
+                    emaStep(emaAccumulator[0], tripState.currentSpeedMs.toFloat(), SPEED_OVERLAY_EMA_ALPHA)
+                }
+            emaAccumulator[0]
         }
-    }
+    val currentSpeedText =
+        smoothedSpeedMs
+            ?.let { "${speedUnit.fromMetersPerSecond(it).roundToInt()}" }
+            ?: NO_SPEED_PLACEHOLDER
     val distance = speedUnit.tripDistanceFromMeters(tripState.distanceMeters)
     val avgSpeed = speedUnit.fromMetersPerSecond(tripState.avgSpeedMs.toFloat()).roundToInt()
     val shortAddress = address?.displayString().orEmpty()

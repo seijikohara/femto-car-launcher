@@ -5,6 +5,7 @@ import android.content.Context
 import android.location.Location
 import android.location.LocationManager
 import android.os.Looper
+import android.util.Log
 import androidx.core.content.getSystemService
 import androidx.core.location.LocationListenerCompat
 import androidx.core.location.LocationManagerCompat
@@ -19,6 +20,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.shareIn
+
+private const val TAG = "LocationRepository"
 
 internal class LocationRepository(
     private val context: Context,
@@ -54,6 +57,7 @@ internal class LocationRepository(
                 runCatching {
                     locationManager.getLastKnownLocation(provider)
                 }.onSuccess { trySend(it) }
+                    .onFailure { logProviderFailure("getLastKnownLocation", provider, it) }
 
                 runCatching {
                     LocationManagerCompat.requestLocationUpdates(
@@ -63,7 +67,7 @@ internal class LocationRepository(
                         listener,
                         Looper.getMainLooper(),
                     )
-                }
+                }.onFailure { logProviderFailure("register", provider, it) }
             }
 
             awaitClose { locationManager.removeUpdates(listener) }
@@ -82,6 +86,17 @@ internal class LocationRepository(
     // The repository factory already builds one LocationRepository and passes the single flow
     // instance to all consumers, so returning the shared flow makes that sharing real.
     fun locationFlow(): Flow<Location?> = shared
+
+    private fun logProviderFailure(
+        stage: String,
+        provider: String,
+        error: Throwable,
+    ) = when (error) {
+        // A coarse-only grant makes GPS_PROVIDER throw SecurityException by design.
+        is SecurityException -> Log.d(TAG, "$stage $provider denied", error)
+
+        else -> Log.w(TAG, "$stage $provider failed", error)
+    }
 
     private companion object {
         const val LOCATION_INTERVAL_MS = 1_000L

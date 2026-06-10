@@ -98,7 +98,15 @@ internal class GoogleFontsApi(
                     // never leaves a truncated TTF that Typeface loading would reject.
                     val tmp = File(target.parentFile, target.name + ".part")
                     tmp.outputStream().use { out -> body.byteStream().use { it.copyTo(out) } }
-                    tmp.renameTo(target)
+                    // A silently ignored rename failure would report success while the
+                    // target never appears, sending the caller into an endless
+                    // re-download loop with no log trail.
+                    tmp.renameTo(target).also { renamed ->
+                        if (!renamed) {
+                            Log.w(TAG, "rename to ${target.name} failed for $url")
+                            tmp.delete()
+                        }
+                    }
                 }
             }.onFailure { Log.w(TAG, "download failed for $url", it) }
                 .getOrDefault(false)

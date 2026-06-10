@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.ComponentName
 import android.content.Intent
 import android.location.Location
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -28,16 +29,20 @@ import io.github.seijikohara.femto.data.TripState
 import io.github.seijikohara.femto.data.WeatherRepository
 import io.github.seijikohara.femto.data.WeatherSnapshot
 import io.github.seijikohara.femto.ui.home.components.MusicCommand
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import okhttp3.OkHttpClient
 import java.util.Locale
+
+private const val TAG = "HomeViewModel"
 
 internal class HomeViewModel(
     private val clockFlow: Flow<ClockTick>,
@@ -56,13 +61,18 @@ internal class HomeViewModel(
     // sources through a typed intermediate (CoreSignals) so the compiler enforces
     // arity and per-slot types end-to-end: a future reorder fails to compile
     // instead of silently mismapping a positional values[i] cast.
+    //
+    // Each source is caught individually: an uncaught exception in any one flow
+    // (e.g. a SecurityException when a permission is revoked between check and
+    // register) would otherwise cancel the shared combine and crash the HOME
+    // process. Catching per source degrades only that card to its initial value.
     private val coreSignals: Flow<CoreSignals> =
         combine(
-            clockFlow,
-            locationFlow,
-            addressFlow,
-            weatherFlow,
-            musicStateFlow,
+            clockFlow.catchAsDefault("clock", HomeUiState.Initial.clock),
+            locationFlow.catchAsDefault("location", HomeUiState.Initial.location),
+            addressFlow.catchAsDefault("address", HomeUiState.Initial.address),
+            weatherFlow.catchAsDefault("weather", HomeUiState.Initial.weather),
+            musicStateFlow.catchAsDefault("music", HomeUiState.Initial.musicState),
         ) { clock, location, address, weather, music ->
             CoreSignals(clock, location, address, weather, music)
         }
@@ -70,9 +80,9 @@ internal class HomeViewModel(
     val uiState: StateFlow<HomeUiState> =
         combine(
             coreSignals,
-            calendarFlow,
-            systemStatusFlow,
-            tripStateFlow,
+            calendarFlow.catchAsDefault("calendar", HomeUiState.Initial.calendar),
+            systemStatusFlow.catchAsDefault("system status", HomeUiState.Initial.systemStatus),
+            tripStateFlow.catchAsDefault("trip state", HomeUiState.Initial.tripState),
         ) { core, calendar, systemStatus, tripState ->
             HomeUiState(
                 clock = core.clock,
@@ -151,6 +161,19 @@ internal class HomeViewModel(
         }
     }
 }
+
+// Replace a source failure with that source's neutral value so one broken
+// repository degrades its own card instead of killing the launcher process.
+// Cancellation is rethrown to keep structured concurrency intact.
+private fun <T> Flow<T>.catchAsDefault(
+    source: String,
+    default: T,
+): Flow<T> =
+    catch { e ->
+        if (e is CancellationException) throw e
+        Log.e(TAG, "$source flow failed", e)
+        emit(default)
+    }
 
 // File-private holder that groups the first five sources so the two-stage
 // combine stays within Kotlin's typed (max-arity-5) combine overloads.

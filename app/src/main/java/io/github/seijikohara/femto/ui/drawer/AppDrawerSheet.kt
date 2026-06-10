@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.drawer
 
 import android.content.ComponentName
+import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,6 +25,9 @@ import io.github.seijikohara.femto.data.DrawerLayout
 import io.github.seijikohara.femto.data.DrawerPreferences
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
+
+private const val TAG = "AppDrawerSheet"
 
 /**
  * App drawer presented as a Material 3 [ModalBottomSheet] over the dashboard.
@@ -60,7 +64,14 @@ internal fun AppDrawerSheet(
         uiState = AppDrawerUiState.Loading
         runCatching { AppsRepository(context).queryApps() }
             .onSuccess { apps -> uiState = AppDrawerUiState.Content(apps) }
-            .onFailure { uiState = AppDrawerUiState.Error }
+            .onFailure {
+                // runCatching also traps the cancellation thrown when the sheet
+                // is dismissed or retryKey restarts the effect; rethrow so
+                // cancellation never renders as the Error state.
+                if (it is CancellationException) throw it
+                Log.e(TAG, "app query failed", it)
+                uiState = AppDrawerUiState.Error
+            }
     }
 
     // Drawer layout + pinned apps are persisted; collect them and write changes back.

@@ -15,6 +15,8 @@ import java.time.LocalTime
  * in-band by [hasCalendarAccess]: a non-null snapshot with
  * [hasCalendarAccess] == false tells the card to render the denial message
  * instead of an empty list plus a misleading "no upcoming events".
+ * [queryFailed] carries the third state — access granted but the provider
+ * query faulted — so an OEM provider error is never presented as a free week.
  */
 @Immutable
 data class CalendarSnapshot(
@@ -25,6 +27,10 @@ data class CalendarSnapshot(
     // false means READ_CALENDAR is denied, so the list carries no real data
     // and the card shows the denial message instead.
     val hasCalendarAccess: Boolean,
+    // true means the provider query failed unexpectedly (e.g. SQLiteException),
+    // so the empty list is a fault, not "nothing scheduled"; the card shows the
+    // failure message instead of a hollow agenda.
+    val queryFailed: Boolean = false,
 )
 
 @Immutable

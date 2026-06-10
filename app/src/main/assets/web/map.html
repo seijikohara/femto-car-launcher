@@ -36,6 +36,17 @@
       // WebGL drops, so the page never asks the host to switch away.
       function log(msg) { try { console.log("[map] " + msg); } catch (e) {} }
 
+      // JS -> Android error channel (window.femtoBridge, injected by the host via
+      // addJavascriptInterface). "fatal" = definitive never-going-to-render facts
+      // (no WebGL context, map construction threw); "error" = transient resource
+      // failures (tile / style / DEM fetch), log-only on the host. Neither kind
+      // triggers a backend switch — the no-fallback rule above still holds.
+      function report(kind, detail) {
+        try {
+          if (window.femtoBridge) window.femtoBridge.onMapEvent(kind, String(detail || ""));
+        } catch (e) {}
+      }
+
       // LIVE-only feature toggles, merged into the style via MapLibre transformStyle
       // (the official "hybrid satellite map with terrain elevation" approach, minus
       // satellite). DEM = Mapterhorn (free, no key); 3D buildings reuse the
@@ -120,7 +131,10 @@
       }
       (function () {
         const c = document.createElement("canvas");
-        if (!(c.getContext("webgl2") || c.getContext("webgl"))) log("no-webgl-context");
+        if (!(c.getContext("webgl2") || c.getContext("webgl"))) {
+          log("no-webgl-context");
+          report("fatal", "no-webgl-context");
+        }
       })();
 
       let map;
@@ -142,6 +156,22 @@
         // on that built-in restore and do not fall back to another backend.
         map.on("webglcontextlost", () => log("webglcontextlost (awaiting MapLibre restore)"));
         map.on("webglcontextrestored", () => log("webglcontextrestored"));
+
+        // Tile / style / DEM fetch failures surface here. A flaky link can fire
+        // this once per tile, so reports to the host are throttled to one per
+        // ERROR_REPORT_INTERVAL_MS; the host only logs them (transient by
+        // definition — never UI, never a backend switch).
+        var ERROR_REPORT_INTERVAL_MS = 10000;
+        var lastErrorReportMs = 0;
+        map.on("error", (e) => {
+          var detail = (e && e.error && e.error.message) || "unknown map error";
+          log("error: " + detail);
+          var now = Date.now();
+          if (now - lastErrorReportMs >= ERROR_REPORT_INTERVAL_MS) {
+            lastErrorReportMs = now;
+            report("error", String(detail).slice(0, 200));
+          }
+        });
 
         // Self-location chevron: a fixed-on-screen DOM overlay (see #self-marker CSS).
         // The camera brings the location to the chevron's spot, so the chevron stays
@@ -215,6 +245,8 @@
         window.onHostResume = function () { if (map) { map.resize(); map.triggerRepaint(); } };
       } catch (e) {
         log("exception:" + (e && e.message));
+        // The map object never came up; this page will stay blank forever.
+        report("fatal", "map-init-exception: " + (e && e.message));
       }
     </script>
   </body>

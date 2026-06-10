@@ -73,7 +73,11 @@ internal fun CalendarCard(
 
         // A non-null snapshot with access denied carries no real data, so show the
         // denial message instead of a hollow agenda.
-        !snapshot.hasCalendarAccess -> PermissionDenied()
+        !snapshot.hasCalendarAccess -> CenteredHint(stringResource(R.string.calendar_permission_denied))
+
+        // Access is granted but the provider query faulted: the empty agenda is
+        // a read failure, not a free month, so say so rather than fake it.
+        snapshot.queryFailed -> CenteredHint(stringResource(R.string.calendar_query_failed))
 
         else -> CalendarContent(snapshot, is24Hour)
     }
@@ -260,15 +264,17 @@ private fun EventRow(
     )
 }
 
+// Shared centred hint for the no-data states (permission denied / provider
+// fault): one muted line in place of the agenda.
 @Composable
-private fun PermissionDenied() =
+private fun CenteredHint(text: String) =
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = stringResource(R.string.calendar_permission_denied),
+            text = text,
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

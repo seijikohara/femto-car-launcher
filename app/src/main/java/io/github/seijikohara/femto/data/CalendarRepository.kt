@@ -12,6 +12,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.CalendarContract
 import android.text.format.DateFormat
+import android.util.Log
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
@@ -31,6 +32,8 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
+private const val TAG = "CalendarRepository"
+
 /**
  * Calendar surface for the dashboard.
  *
@@ -45,7 +48,10 @@ import java.util.Locale
  * alone, but with `hasCalendarAccess = false` so the card renders the denial
  * message rather than a hollow strip. The calling UI treats a null snapshot
  * as "loading"; a non-null snapshot with `hasCalendarAccess = true` and an
- * empty events list means "granted but nothing scheduled".
+ * empty events list means "granted but nothing scheduled". An unexpected
+ * provider fault (anything other than the mid-stream `SecurityException`
+ * revoke) sets `queryFailed = true` so an empty list never fakes that
+ * "nothing scheduled" contract.
  */
 internal class CalendarRepository(
     private val context: Context,
@@ -63,13 +69,15 @@ internal class CalendarRepository(
 
     private fun buildSnapshot(today: LocalDate): CalendarSnapshot {
         val granted = hasPermission()
+        // null marks a provider fault (see readWindow); the days still build
+        // from the clock alone so the strip never disappears.
         val eventsByDay = if (granted) readWindow(today) else emptyMap()
         val days = (0 until WINDOW_DAYS).map { offset ->
             val date = today.plusDays(offset.toLong())
             DayCell(
                 date = date,
                 weekdayLetter = date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale),
-                events = eventsByDay[date].orEmpty(),
+                events = eventsByDay?.get(date).orEmpty(),
             )
         }
         return CalendarSnapshot(
@@ -78,6 +86,7 @@ internal class CalendarRepository(
             monthLabel = monthLabelOf(today),
             days = days,
             hasCalendarAccess = granted,
+            queryFailed = eventsByDay == null,
         )
     }
 
@@ -129,10 +138,13 @@ internal class CalendarRepository(
      *
      * A mid-stream permission revoke (SecurityException) or an OEM provider
      * fault (SQLiteException) must not tear down the dashboard StateFlow, so the
-     * whole scan is guarded.
+     * whole scan is guarded. The two faults degrade differently: a revoke is the
+     * documented permission path and yields an empty map, while any other fault
+     * returns null so [buildSnapshot] can flag `queryFailed` instead of faking
+     * "granted but nothing scheduled".
      */
     @SuppressLint("MissingPermission") // Caller checks READ_CALENDAR before subscribing.
-    private fun readWindow(today: LocalDate): Map<LocalDate, List<EventItem>> =
+    private fun readWindow(today: LocalDate): Map<LocalDate, List<EventItem>>? =
         runCatching {
             val byDay = linkedMapOf<LocalDate, MutableList<EventItem>>()
             context.contentResolver
@@ -164,7 +176,15 @@ internal class CalendarRepository(
                     }
                 }
             byDay.mapValues { (_, events) -> events.toList() }
-        }.getOrDefault(emptyMap())
+        }.onFailure {
+            when (it) {
+                // Mid-stream revoke is the expected degradation path (see KDoc);
+                // anything else is a real provider fault and must be visible.
+                is SecurityException -> Log.d(TAG, "calendar window query denied", it)
+
+                else -> Log.e(TAG, "calendar window query failed", it)
+            }
+        }.getOrElse { if (it is SecurityException) emptyMap() else null }
 
     /**
      * Resolve an Instances.BEGIN epoch-millis to the local calendar day.

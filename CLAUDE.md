@@ -17,9 +17,9 @@ when markets diverge.
 
 ## Tech stack
 
-- Kotlin (auto-applied by AGP 9), Jetpack Compose (BOM `2026.03.00`),
+- Kotlin (auto-applied by AGP 9), Jetpack Compose (BOM `2026.05.01`),
   Material 3.
-- AGP 9.1.1, Gradle 9.3.1, JDK 21 toolchain, Java 11 source/target.
+- AGP 9.2.1, Gradle 9.5.1, JDK 21 toolchain, Java 11 source/target.
 - `minSdk = 33`, `targetSdk = 36` with `compileSdk { release(37) }`
   (compile against API 37 as `androidx.core` 1.19+ requires; the
   supported-device floor stays Android 13 / API 33).

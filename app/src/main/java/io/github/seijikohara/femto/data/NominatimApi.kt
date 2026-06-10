@@ -10,6 +10,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.util.Locale
 
 private const val TAG = "NominatimApi"
 
@@ -24,7 +25,9 @@ internal class NominatimApi(
     private val client: OkHttpClient,
     private val baseUrl: String = "https://nominatim.openstreetmap.org/",
     private val userAgent: String,
-    private val language: String = "ja",
+    // Follow the device locale by default: the launcher is multi-region and no
+    // single language may be privileged (CLAUDE.md, "multi-region distribution").
+    private val language: String = Locale.getDefault().language,
     // Token for a keyed Nominatim-compatible host (e.g. LocationIQ). Null for the
     // public keyless Nominatim service; when set it is appended as `key`.
     private val apiKey: String? = null,
@@ -57,7 +60,12 @@ internal class NominatimApi(
                         .header("User-Agent", userAgent)
                         .build()
                 client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) return@use null
+                    if (!response.isSuccessful) {
+                        // 429 in particular signals a Nominatim usage-policy
+                        // violation and must leave a trail, not a silent null.
+                        Log.w(TAG, "reverse geocode HTTP ${response.code}")
+                        return@use null
+                    }
                     response.body?.string()?.let { body ->
                         json.decodeFromString<NominatimResponse>(body)
                     }

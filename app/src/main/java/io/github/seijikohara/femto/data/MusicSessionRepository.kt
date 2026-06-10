@@ -10,6 +10,7 @@ import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.app.NotificationManagerCompat
@@ -24,6 +25,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 
+private const val TAG = "MusicSessionRepo"
+
 internal class MusicSessionRepository(
     private val context: Context,
 ) {
@@ -32,25 +35,16 @@ internal class MusicSessionRepository(
 
     // Source-app icons keyed by package. Resolved once per package: the icon is
     // stable for the process lifetime, while the session flow re-emits on every
-    // playback tick. Touched only from the single sequential icon-resolution map
-    // (see stateFlow); coroutine dispatch provides the happens-before, so a plain
-    // map is safe even though the resolution runs on the Default pool.
+    // playback tick. The icon-resolution map runs on the Default pool, where a
+    // collector restart can land on a different thread mid-resolution, so all
+    // access is synchronized (see sourceIconOf). A plain map under a monitor is
+    // used instead of ConcurrentHashMap because a failed resolution stores null
+    // and ConcurrentHashMap forbids null values.
     private val sourceIconCache = mutableMapOf<String, ImageBitmap?>()
 
     fun stateFlow(): Flow<MusicCardState> =
         combine(permissionFlow(), activeControllersFlow()) { hasPermission, controllers ->
-            when {
-                !hasPermission -> {
-                    MusicCardState.NeedsPermission
-                }
-
-                else -> {
-                    controllers
-                        .toNowPlaying()
-                        ?.let(MusicCardState::Playing)
-                        ?: MusicCardState.NoActiveSession
-                }
-            }
+            musicCardStateOf(hasPermission) { controllers.toNowPlaying() }
         }.flowOn(Dispatchers.Main.immediate)
             // Resolve the source-app icon off Main: the PackageManager icon decode
             // is too heavy for the frame thread. The session logic stays on Main
@@ -70,7 +64,8 @@ internal class MusicSessionRepository(
         val controller =
             runCatching {
                 selectPrimaryController(sessionManager.getActiveSessions(componentName))
-            }.getOrNull() ?: return
+            }.onFailure { Log.w(TAG, "dropping $command: active-session query failed", it) }
+                .getOrNull() ?: return
         val transport = controller.transportControls
         when (command) {
             MusicCommand.PlayPause -> {
@@ -158,7 +153,12 @@ internal class MusicSessionRepository(
                 rewatch(sessionManager.getActiveSessions(componentName))
                 trySend(current)
                 sessionManager.addOnActiveSessionsChangedListener(sessionsListener, componentName)
-            }.onFailure { trySend(emptyList()) }
+            }.onFailure {
+                // Typically a SecurityException before the notification-listener
+                // grant; surface it so a silent "no music" card is diagnosable.
+                Log.w(TAG, "active-session enumeration failed; emitting empty list", it)
+                trySend(emptyList())
+            }
 
             awaitClose {
                 runCatching { watched?.unregisterCallback(watcher) }
@@ -175,29 +175,14 @@ internal class MusicSessionRepository(
                 // A granted session can briefly expose no metadata (just connected,
                 // or a metadata-less stream). Degrade to NoActiveSession upstream
                 // rather than render a blank, broken-looking card.
-                val metadata = controller.metadata ?: return@let null
-                val playbackState = controller.playbackState
-                NowPlaying(
-                    // METADATA_KEY_TITLE is empty for many podcast / radio / stream
-                    // sessions; fall back to the display title and finally the source
-                    // label so the 23sp title line is never blank.
-                    title =
-                        metadata.getString(MediaMetadata.METADATA_KEY_TITLE)?.takeIf { it.isNotBlank() }
-                            ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)?.takeIf { it.isNotBlank() }
-                            ?: sourceLabel(controller.packageName),
-                    artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST),
-                    album = metadata.getString(MediaMetadata.METADATA_KEY_ALBUM),
-                    albumArt = metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)?.asImageBitmap(),
-                    // sourceIcon is resolved downstream off Main (see stateFlow).
-                    // A paused controller renders with isPlaying=false (Play icon,
-                    // resumable), but stays on screen via selectPrimaryController.
-                    isPlaying = playbackState?.state == PlaybackState.STATE_PLAYING,
-                    positionMs = playbackState?.position ?: 0L,
-                    durationMs = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION),
-                    packageName = controller.packageName,
-                    playbackSpeed = playbackState?.playbackSpeed ?: 1f,
-                    positionUpdateTimeMs = playbackState?.lastPositionUpdateTime ?: 0L,
-                )
+                controller.metadata?.let { metadata ->
+                    nowPlayingOf(
+                        metadata = metadata,
+                        playbackState = controller.playbackState,
+                        packageName = controller.packageName,
+                        fallbackTitle = { sourceLabel(controller.packageName) },
+                    )
+                }
             }
 
     // Attach the source-app icon to a Playing state, leaving the other variants
@@ -216,13 +201,18 @@ internal class MusicSessionRepository(
      * restricted), in which case the card shows a generic launch glyph.
      */
     private fun sourceIconOf(packageName: String): ImageBitmap? =
-        sourceIconCache.getOrPut(packageName) {
-            runCatching {
-                context.packageManager
-                    .getApplicationIcon(packageName)
-                    .toBitmap(width = SOURCE_ICON_PIXELS, height = SOURCE_ICON_PIXELS)
-                    .asImageBitmap()
-            }.getOrNull()
+        // The monitor spans the decode so two concurrent first lookups of the
+        // same package resolve once; the decode is small (96 px) and runs at
+        // most once per package, so the hold time is negligible.
+        synchronized(sourceIconCache) {
+            sourceIconCache.getOrPut(packageName) {
+                runCatching {
+                    context.packageManager
+                        .getApplicationIcon(packageName)
+                        .toBitmap(width = SOURCE_ICON_PIXELS, height = SOURCE_ICON_PIXELS)
+                        .asImageBitmap()
+                }.getOrNull()
+            }
         }
 
     private companion object {
@@ -233,19 +223,79 @@ internal class MusicSessionRepository(
         const val SOURCE_ICON_PIXELS = 96
 
         /**
-         * Return `true` when the state is PLAYING or PAUSED. A paused session is
-         * still resumable and must stay on the card, so the plain [isActive] check
-         * (which excludes STATE_PAUSED) is not enough here.
-         */
-        private fun PlaybackState?.isPlayingOrPaused(): Boolean =
-            this != null && (isActive() || state == PlaybackState.STATE_PAUSED)
-
-        /**
          * Pick the highest-priority controller that is playing or paused.
          * [MediaSessionManager.getActiveSessions] is priority-ordered, so the
          * first match is the session the user is most likely interacting with.
          */
         private fun selectPrimaryController(controllers: List<MediaController>): MediaController? =
-            controllers.firstOrNull { it.playbackState.isPlayingOrPaused() }
+            selectPrimarySession(controllers) { it.playbackState }
     }
 }
+
+/**
+ * Return `true` when the state is PLAYING or PAUSED. A paused session is
+ * still resumable and must stay on the card, so the plain [PlaybackState.isActive]
+ * check (which excludes STATE_PAUSED) is not enough here.
+ */
+internal fun PlaybackState?.isPlayingOrPaused(): Boolean =
+    this != null && (isActive() || state == PlaybackState.STATE_PAUSED)
+
+/**
+ * Pick the first session whose playback state is playing or paused; the caller
+ * passes sessions in priority order. Generic over the session type so the
+ * selection policy is unit-testable with plain value holders instead of
+ * [MediaController] instances, which cannot be constructed in JVM tests.
+ */
+internal fun <T> selectPrimarySession(
+    sessions: List<T>,
+    playbackStateOf: (T) -> PlaybackState?,
+): T? = sessions.firstOrNull { playbackStateOf(it).isPlayingOrPaused() }
+
+/**
+ * Collapse the permission gate and the resolved session into the card state.
+ * [nowPlaying] is a lambda so session inspection is skipped while the
+ * notification-listener permission is missing.
+ */
+internal fun musicCardStateOf(
+    hasPermission: Boolean,
+    nowPlaying: () -> NowPlaying?,
+): MusicCardState =
+    if (hasPermission) {
+        nowPlaying()?.let(MusicCardState::Playing) ?: MusicCardState.NoActiveSession
+    } else {
+        MusicCardState.NeedsPermission
+    }
+
+/**
+ * Map one session's extracted fields to the card's [NowPlaying]. Operates on
+ * plain values so the fallback branches are unit-testable without a
+ * [MediaController]; [fallbackTitle] is a lambda so the source-label lookup
+ * runs only when both metadata titles are blank.
+ */
+internal fun nowPlayingOf(
+    metadata: MediaMetadata,
+    playbackState: PlaybackState?,
+    packageName: String,
+    fallbackTitle: () -> String,
+): NowPlaying =
+    NowPlaying(
+        // METADATA_KEY_TITLE is empty for many podcast / radio / stream
+        // sessions; fall back to the display title and finally the source
+        // label so the 23sp title line is never blank.
+        title =
+            metadata.getString(MediaMetadata.METADATA_KEY_TITLE)?.takeIf { it.isNotBlank() }
+                ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)?.takeIf { it.isNotBlank() }
+                ?: fallbackTitle(),
+        artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST),
+        album = metadata.getString(MediaMetadata.METADATA_KEY_ALBUM),
+        albumArt = metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)?.asImageBitmap(),
+        // sourceIcon is resolved downstream off Main (see stateFlow).
+        // A paused controller renders with isPlaying=false (Play icon,
+        // resumable), but stays on screen via selectPrimaryController.
+        isPlaying = playbackState?.state == PlaybackState.STATE_PLAYING,
+        positionMs = playbackState?.position ?: 0L,
+        durationMs = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION),
+        packageName = packageName,
+        playbackSpeed = playbackState?.playbackSpeed ?: 1f,
+        positionUpdateTimeMs = playbackState?.lastPositionUpdateTime ?: 0L,
+    )

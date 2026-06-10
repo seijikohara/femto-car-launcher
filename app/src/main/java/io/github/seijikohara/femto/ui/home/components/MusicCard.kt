@@ -376,7 +376,7 @@ private fun Progress(
         Text(
             text = formatMillis(livePosition),
             style =
-                MaterialTheme.typography.labelSmall.copy(
+                MaterialTheme.typography.labelMedium.copy(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     fontFeatureSettings = TabularFigures,
@@ -404,7 +404,7 @@ private fun Progress(
         Text(
             text = formatMillis(durationMs),
             style =
-                MaterialTheme.typography.labelSmall.copy(
+                MaterialTheme.typography.labelMedium.copy(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     fontFeatureSettings = TabularFigures,
@@ -561,7 +561,7 @@ private fun EmptyState() =
         Text(
             text = stringResource(R.string.music_nothing_hint),
             style =
-                MaterialTheme.typography.bodySmall.copy(
+                MaterialTheme.typography.bodyMedium.copy(
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
                 ),

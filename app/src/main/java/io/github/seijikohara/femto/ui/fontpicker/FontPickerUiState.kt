@@ -21,6 +21,7 @@ internal data class FontPickerUiState(
     val selectedFamily: String? = null,
     val families: List<GoogleFontFamily> = emptyList(),
     val downloading: Set<String> = emptySet(),
+    val downloadFailed: Set<String> = emptySet(),
     val status: PickerStatus = PickerStatus.LOADING,
 )
 
