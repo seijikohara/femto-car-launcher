@@ -118,8 +118,20 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(display.keepScreenOn) {
                 applyKeepScreenOn(display.keepScreenOn)
             }
-            LaunchedEffect(display.orientation) {
-                applyOrientation(display.orientation)
+            // A forced-portrait choice rotates the (naturally landscape)
+            // panel, which recreates the Activity; the first composition
+            // after that recreation would briefly apply the AUTO default,
+            // request a rotation back, then rotate again when the persisted
+            // choice arrives — relaunching the Activity every ~1 s forever
+            // (reproduced on the 800x480 head-unit emulator). A null initial
+            // value skips the apply until the persisted choice lands; in the
+            // meantime the recreated Activity keeps the requestedOrientation
+            // its previous instance set, so the orientation never flaps.
+            val orientation by remember {
+                displayPreferences.settings.map { it.orientation }.distinctUntilChanged()
+            }.collectAsStateWithLifecycle(initialValue = null)
+            LaunchedEffect(orientation) {
+                orientation?.let { applyOrientation(it) }
             }
             FemtoTheme(fontFamily = fontFamily, accent = display.accentColor, darkTheme = darkTheme) {
                 // The dashboard stays composed; the app drawer, assistant, and
