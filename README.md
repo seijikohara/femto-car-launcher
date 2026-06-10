@@ -141,7 +141,7 @@ app/src/main/
 │       ├── fontpicker/   # per-slot Google Fonts picker
 │       ├── locale/       # unit and locale formatting
 │       └── theme/        # FemtoTheme, design tokens, previews
-└── res/                  # themes, strings (per-locale variants)
+└── res/                  # themes, strings (per-locale), launcher icon
 webmap/                   # TypeScript source of the live map page
                           # (built into app assets by Gradle)
 ```

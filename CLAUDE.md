@@ -47,7 +47,7 @@ app/src/
 │   │       │   ├── <Area>ViewModel.kt# StateFlow<UiState>; handles Action
 │   │       │   └── components/       # Area-private widgets
 │   │       └── theme/                # FemtoTheme + tokens + PreviewLightDark
-│   └── res/                          # themes.xml (values{,-night}/), strings (per-locale)
+│   └── res/                          # themes (values{,-night}/), strings (per-locale), icon drawables, xml/
 ├── test/...                          # JVM unit tests (runTest + TestDispatcher)
 └── androidTest/...                   # Compose UI tests (createComposeRule)
 ```

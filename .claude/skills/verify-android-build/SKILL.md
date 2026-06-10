@@ -10,8 +10,7 @@ paths:
   - app/src/main/AndroidManifest.xml
   - app/build.gradle.kts
   - gradle/libs.versions.toml
-  - app/src/main/res/values/themes.xml
-  - app/src/main/res/values-night/themes.xml
+  - app/src/main/res/**
   - webmap/**
 ---
 
