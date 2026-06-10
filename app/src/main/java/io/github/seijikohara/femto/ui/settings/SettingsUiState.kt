@@ -31,6 +31,8 @@ internal data class SettingsUiState(
     val mapMarkerPos: Int,
     val map3dBuildings: Boolean,
     val mapTerrain: Boolean,
+    val glassBlurRadius: Int,
+    val glassTintScale: Int,
     val showCalendar: Boolean,
     val showWeather: Boolean,
     val showMusic: Boolean,
@@ -61,6 +63,8 @@ internal data class SettingsUiState(
                 mapMarkerPos = DisplaySettings.Default.mapMarkerPos,
                 map3dBuildings = DisplaySettings.Default.map3dBuildings,
                 mapTerrain = DisplaySettings.Default.mapTerrain,
+                glassBlurRadius = DisplaySettings.Default.glassBlurRadius,
+                glassTintScale = DisplaySettings.Default.glassTintScale,
                 showCalendar = DisplaySettings.Default.showCalendar,
                 showWeather = DisplaySettings.Default.showWeather,
                 showMusic = DisplaySettings.Default.showMusic,
@@ -142,6 +146,14 @@ internal sealed interface SettingsAction {
 
     data class SetMapTerrain(
         val value: Boolean,
+    ) : SettingsAction
+
+    data class SetGlassBlurRadius(
+        val value: Int,
+    ) : SettingsAction
+
+    data class SetGlassTintScale(
+        val value: Int,
     ) : SettingsAction
 
     data class SetShowCalendar(
