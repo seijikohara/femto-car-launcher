@@ -157,5 +157,16 @@ class SettingsViewModelTest {
             assertEquals(DisplaySettings.Default, store.settings.first())
         }
 
+    @Test
+    fun `defaults reflect the revised values`() =
+        runTest(dispatcher) {
+            val defaults = DisplaySettings.Default
+            assertEquals(FullscreenSetting.ON, defaults.fullscreen)
+            assertEquals(MapRenderMode.LIVE, defaults.mapRenderMode)
+            assertEquals(true, defaults.map3dBuildings)
+            assertEquals(true, defaults.mapTerrain)
+            assertEquals(false, defaults.showClockSeconds)
+        }
+
     private fun viewModel() = SettingsViewModel(store, FontPreferences(application))
 }
