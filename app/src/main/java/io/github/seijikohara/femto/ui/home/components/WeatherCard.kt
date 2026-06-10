@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -64,7 +65,8 @@ import kotlin.math.roundToInt
  *
  *  1. Head — big temperature + a hero per-condition glyph.
  *  2. Metrics — Feels / Wind / Humid row.
- *  3. Forecast — three hourly chips.
+ *  3. Forecast — hourly chips on a horizontal timeline (three on the
+ *     head-unit card, more when the card is wide enough).
  *
  * Typography and spacing originated in the `.weather-card` rules of the
  * retired dashboard-v2 design mockup — the same intentional relaxation of
@@ -219,14 +221,19 @@ private fun Forecast(
     temperatureUnit: TemperatureUnit,
     is24Hour: Boolean,
 ) {
-    val next = hourly.take(3)
-    if (next.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact)) {
+    if (hourly.isEmpty()) return
+    // Hours read left-to-right as a timeline (deliberately not a vertical list
+    // like the calendar agenda — the forecast answers "how does it trend", and
+    // the horizontal axis carries that). The chip count derives from the card
+    // width: never fewer than the three the head-unit card was designed
+    // around, gaining hours on wider panels instead of stretching three chips.
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val chipCount = (maxWidth / FemtoDimens.ForecastChipMinWidth).toInt().coerceIn(3, 6)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            next.forEach { hour ->
+            hourly.take(chipCount).forEach { hour ->
                 ForecastChip(hour, sunrise, sunset, temperatureUnit, is24Hour, modifier = Modifier.weight(1f))
             }
         }
