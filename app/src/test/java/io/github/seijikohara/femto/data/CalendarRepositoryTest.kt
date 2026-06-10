@@ -133,7 +133,7 @@ class CalendarRepositoryTest {
                 CalendarRepository(
                     application,
                     clockFlow = flowOf(ClockTick(LocalTime.NOON, AllDayCalendarProvider.TODAY)),
-                    zone = newYork,
+                    zoneProvider = { newYork },
                 )
 
             val snapshot = repository.snapshotFlow().first()
@@ -178,7 +178,7 @@ class CalendarRepositoryTest {
                 CalendarRepository(
                     application,
                     clockFlow = flowOf(ClockTick(LocalTime.NOON, MultiDayCalendarProvider.TODAY)),
-                    zone = ZoneOffset.UTC,
+                    zoneProvider = { ZoneOffset.UTC },
                 )
 
             val snapshot = repository.snapshotFlow().first()
@@ -199,6 +199,37 @@ class CalendarRepositoryTest {
         }
 
     @Test
+    fun `scans the events window once for ticks sharing the same date`() =
+        runTest {
+            shadowOf(application).grantPermissions(Manifest.permission.READ_CALENDAR)
+            CountingCalendarProvider.queryCount = 0
+            Robolectric
+                .buildContentProvider(CountingCalendarProvider::class.java)
+                .create(CalendarContract.AUTHORITY)
+
+            val date = LocalDate.of(2026, 6, 3)
+            val repository =
+                CalendarRepository(
+                    application,
+                    // Three ticks a minute apart on the same calendar date — the
+                    // production cadence between midnights.
+                    clockFlow =
+                        flowOf(
+                            ClockTick(LocalTime.of(12, 0), date),
+                            ClockTick(LocalTime.of(12, 1), date),
+                            ClockTick(LocalTime.of(12, 2), date),
+                        ),
+                )
+
+            val snapshot = repository.snapshotFlow().first()
+
+            assertNotNull(snapshot)
+            // Same-date ticks collapse to one rebuild key, so the 30-day
+            // Instances window is scanned once — not once per minute.
+            assertEquals(1, CountingCalendarProvider.queryCount)
+        }
+
+    @Test
     fun `month label follows the locale field order`() =
         runTest {
             // The label is produced from getBestDateTimePattern(locale, "yMMMM").
@@ -212,7 +243,7 @@ class CalendarRepositoryTest {
                     CalendarRepository(
                         application,
                         clockFlow = flowOf(ClockTick(LocalTime.NOON, today)),
-                        locale = locale,
+                        localeProvider = { locale },
                     )
 
                 val snapshot = repository.snapshotFlow().first()
@@ -235,13 +266,13 @@ class CalendarRepositoryTest {
                 CalendarRepository(
                     application,
                     clockFlow = flowOf(ClockTick(LocalTime.NOON, today)),
-                    locale = Locale.ENGLISH,
+                    localeProvider = { Locale.ENGLISH },
                 ).snapshotFlow().first()!!.monthLabel
             val jaLabel =
                 CalendarRepository(
                     application,
                     clockFlow = flowOf(ClockTick(LocalTime.NOON, today)),
-                    locale = Locale.JAPANESE,
+                    localeProvider = { Locale.JAPANESE },
                 ).snapshotFlow().first()!!.monthLabel
             assertTrue(enLabel != jaLabel)
         }
@@ -382,6 +413,50 @@ class CalendarRepositoryTest {
                     at(TODAY, 12) to "D",
                     at(TODAY.plusDays(2), 14) to "E",
                 )
+        }
+    }
+
+    /**
+     * Stand-in calendar provider that counts [query] invocations and returns an
+     * empty cursor. [queryCount] is reset explicitly by each test because
+     * Robolectric can share the companion across test methods.
+     */
+    class CountingCalendarProvider : ContentProvider() {
+        override fun onCreate(): Boolean = true
+
+        override fun query(
+            uri: Uri,
+            projection: Array<out String>?,
+            selection: String?,
+            selectionArgs: Array<out String>?,
+            sortOrder: String?,
+        ): Cursor {
+            queryCount += 1
+            return MatrixCursor(projection ?: arrayOf(CalendarContract.Instances.BEGIN))
+        }
+
+        override fun getType(uri: Uri): String? = null
+
+        override fun insert(
+            uri: Uri,
+            values: ContentValues?,
+        ): Uri? = null
+
+        override fun delete(
+            uri: Uri,
+            selection: String?,
+            selectionArgs: Array<out String>?,
+        ): Int = 0
+
+        override fun update(
+            uri: Uri,
+            values: ContentValues?,
+            selection: String?,
+            selectionArgs: Array<out String>?,
+        ): Int = 0
+
+        companion object {
+            var queryCount: Int = 0
         }
     }
 
