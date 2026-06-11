@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
+import io.github.seijikohara.femto.ui.common.ImmersiveSheetEffect
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 
 /**
@@ -32,6 +33,7 @@ internal fun AssistantSheet(
     onLaunchOption: (AssistantOption) -> Unit,
     onSubmitQuery: (String) -> Unit,
     onDismiss: () -> Unit,
+    fullscreen: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val sheetHeight = (LocalConfiguration.current.screenHeightDp * FemtoDimens.DrawerSheetHeightFraction).dp
@@ -39,6 +41,7 @@ internal fun AssistantSheet(
         onDismissRequest = onDismiss,
         modifier = modifier,
     ) {
+        ImmersiveSheetEffect(fullscreen)
         Box(
             modifier =
                 Modifier
