@@ -1,6 +1,7 @@
 ---
 name: add-compose-screen
-description: Use when adding a new Jetpack Compose screen to femto-car-launcher. Triggers on requests like "add a screen for X", "create a Settings screen", "new HomeScreen variant". Scaffolds the file from the canonical template; rules for theming, sizing, and previews live in CLAUDE.md.
+description: Scaffold a new Jetpack Compose screen for femto-car-launcher from the canonical template. Rules for theming, sizing, and previews live in CLAUDE.md and .claude/rules/design-system.md.
+when_to_use: Adding a new Compose screen; "add a screen for X", "create a Settings screen", "new HomeScreen variant".
 argument-hint: "[ScreenName] [package-area]"
 allowed-tools:
   - Read
@@ -9,18 +10,21 @@ allowed-tools:
   - Glob
   - Grep
   - Bash
+  - Skill
 paths:
   - app/src/main/java/io/github/seijikohara/femto/ui/**/*.kt
 ---
 
 # Adding a Compose screen
 
-Rules: see `CLAUDE.md#design-system` and
+Rules: see `.claude/rules/design-system.md` and
 `CLAUDE.md#automotive-overrides`. This skill is the **procedure
-SSOT**; the rules SSOT is `CLAUDE.md`. Do not restate rules here.
+SSOT**; the rules SSOT is `CLAUDE.md` and `.claude/rules/`. Do not
+restate rules here.
 
 The screen scaffold SSOT is
-[references/screen-template.md](references/screen-template.md).
+[references/screen-template.md](references/screen-template.md) —
+read it at `${CLAUDE_SKILL_DIR}/references/screen-template.md`.
 Copy from it; do not invent a different shape.
 
 When invoked manually as `/add-compose-screen <ScreenName> <area>`,
@@ -34,7 +38,8 @@ prompt the caller for both values.
    One Composable per file; file name matches the Composable name.
 
 2. **Copy the template** from
-   [references/screen-template.md](references/screen-template.md).
+   `${CLAUDE_SKILL_DIR}/references/screen-template.md`
+   ([references/screen-template.md](references/screen-template.md)).
    Replace the `<Name>` and `<area>` placeholders.
 
 3. **Replace the TODO** with real content. Use only:
@@ -42,7 +47,16 @@ prompt the caller for both values.
    - `MaterialTheme.typography.*`
    - `FemtoDimens.*`
    - shapes from M3 default `Shapes`
-   See `CLAUDE.md#design-system` for the rationale.
+   - the named `Typography` extensions in `ui/theme/Type.kt`
+     (`bigNumber`, `sectionLabel`, `cardTitle`, `cardMeta`,
+     `cardCta`, `cardCtaHint`)
+   - `FemtoDimens.GlanceTextSize` where
+     `CLAUDE.md#automotive-overrides` sanctions the glance relaxation
+   See `.claude/rules/design-system.md` for the rationale.
+   `.claude/rules/design-system.md` and
+   `CLAUDE.md#automotive-overrides` are the SSOT for this list; if
+   they and this list ever disagree, `CLAUDE.md` and
+   `.claude/rules/` win and this list needs updating.
 
 4. **Hoist state.** State lives in a `ViewModel` or hoisted
    parameters. The Composable takes plain values plus callbacks.

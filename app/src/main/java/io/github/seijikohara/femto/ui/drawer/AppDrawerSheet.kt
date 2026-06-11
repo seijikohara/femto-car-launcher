@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
  * fraction of the available screen so the dashboard stays visible behind it; the
  * fraction keys off the viewport, never a specific device.
  *
- * This composable plays the Route role of CLAUDE.md#compose-architecture (the
+ * This composable plays the Route role of `.claude/rules/compose.md` (the
  * AssistantSheet / FontPickerSheet precedent): it wires [AppDrawerViewModel],
  * which owns the app-query state. The activity-scoped view-model outlives sheet
  * dismissal, so a [AppDrawerAction.Refresh] is dispatched on every open to keep

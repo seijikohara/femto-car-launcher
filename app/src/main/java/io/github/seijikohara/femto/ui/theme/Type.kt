@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.sp
  * Display anchors stay confident (ExtraBold/Bold) for editorial impact but no
  * longer reach Black; headlines drop to SemiBold and titles to Medium. Body and
  * label roles are unchanged (already Normal/Medium) and body sizes still clear
- * the 18sp automotive minimum. See `CLAUDE.md#design-system`.
+ * the 18sp automotive minimum. See `.claude/rules/design-system.md`.
  *
  * [family] is the resolved font family — the system default, or the user's
  * downloaded Google Fonts pair (Latin + CJK fallback). See [buildFontFamily].

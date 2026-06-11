@@ -10,11 +10,8 @@ allowed-tools:
 
 # Lint
 
-Default task is `lint`. Override with `$ARGUMENTS`.
-
-```!
-./gradlew ${ARGUMENTS:-lint}
-```
+Run `./gradlew $ARGUMENTS` via Bash. If no argument was given, run
+`./gradlew lint`.
 
 After the run, read the lint XML / HTML output (lives at
 `app/build/reports/lint-results-*.{xml,html}`) and summarise:
@@ -23,5 +20,8 @@ After the run, read the lint XML / HTML output (lives at
 - New warnings, grouped by category.
 - Any baseline regressions.
 
-Do not auto-suppress findings. Fix the underlying issue or surface
-it to the user for a decision.
+This section is the SSOT for lint-report interpretation;
+verify-android-build step 3 cites it.
+
+Never suppress; fix at source (CLAUDE.md#no-suppress) or surface
+the finding to the user for a decision.

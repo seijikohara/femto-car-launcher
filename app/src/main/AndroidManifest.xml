@@ -6,7 +6,7 @@
         ACCESS_COARSE_LOCATION: paired with ACCESS_FINE_LOCATION per
         Android 12+ runtime model — users may grant only coarse;
         the dashboard renders with degraded precision in that case.
-        Justification mirrored in CLAUDE.md#permissions.
+        Justification mirrored in .claude/rules/permissions.md.
     -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
@@ -15,7 +15,7 @@
         location-driven surfaces — map centring, speed / altitude /
         address overlays, and current-location weather lookup.
         Justification is mirrored in the audit log at
-        CLAUDE.md#permissions.
+        .claude/rules/permissions.md.
     -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
@@ -34,7 +34,7 @@
     <!--
         ACCESS_NETWORK_STATE: MapLibre connectivity probe before
         OpenFreeMap vector-tile fetch. Justification mirrored in
-        CLAUDE.md#permissions.
+        .claude/rules/permissions.md.
     -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
@@ -42,7 +42,7 @@
         ACCESS_WIFI_STATE: read Wi-Fi transport / validation state so
         the footer status cluster reports a live Wi-Fi indicator.
         Normal protection; auto-granted at install.
-        Justification mirrored in CLAUDE.md#permissions.
+        Justification mirrored in .claude/rules/permissions.md.
     -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
@@ -53,14 +53,14 @@
         an audio device. Dangerous on Android 12+; runtime grant.
         Without it the BT indicator stays dimmed but the rest of the
         launcher remains functional. Justification mirrored in
-        CLAUDE.md#permissions.
+        .claude/rules/permissions.md.
     -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <!--
         INTERNET: Open-Meteo weather API + OpenFreeMap vector-tile
         fetch (MapLibre) + Nominatim/OSM reverse geocoding.
-        Justification mirrored in CLAUDE.md#permissions.
+        Justification mirrored in .claude/rules/permissions.md.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
 
@@ -69,7 +69,7 @@
         Calendar card's 6-day strip and upcoming event list.
         Dangerous; runtime grant required. Without it the card
         still shows today's date and an empty event list.
-        Justification mirrored in CLAUDE.md#permissions.
+        Justification mirrored in .claude/rules/permissions.md.
     -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
 
@@ -78,7 +78,7 @@
         TelephonyCallback so the footer status cluster shows graduated
         cellular signal bars. Dangerous; runtime grant. Without it the
         cellular indicator degrades to the binary connected/disconnected
-        icon. Justification mirrored in CLAUDE.md#permissions.
+        icon. Justification mirrored in .claude/rules/permissions.md.
     -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
 
@@ -100,7 +100,7 @@
         runtime only when the user taps the mic, never at startup. When
         denied — or when no recognizer is available — the assistant sheet
         degrades to the system-intent delegation rows.
-        Justification mirrored in CLAUDE.md#permissions.
+        Justification mirrored in .claude/rules/permissions.md.
     -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 

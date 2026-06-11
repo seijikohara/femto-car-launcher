@@ -5,15 +5,13 @@ disable-model-invocation: true
 argument-hint: "[gradle-task]"
 allowed-tools:
   - Bash
+effort: low
 ---
 
 # Build
 
-Default task is `assembleDebug`. Override with `$ARGUMENTS`.
-
-```!
-./gradlew ${ARGUMENTS:-assembleDebug}
-```
+Run `./gradlew $ARGUMENTS` via Bash. If no argument was given, run
+`./gradlew assembleDebug`.
 
 Report:
 

@@ -1,20 +1,26 @@
 ---
 name: update-gradle-dependency
-description: Use when adding or upgrading any Gradle dependency or plugin in femto-car-launcher. Triggers on "add Coil", "upgrade Compose BOM", "bump kotlin to X". This skill is the version-catalog procedure SSOT; the project rule (catalog first, BOM precedence, Kotlin/Compose-Compiler lock-step) lives at CLAUDE.md#dependencies.
+description: Version-catalog procedure for adding or upgrading Gradle dependencies and plugins, plus the webmap (pnpm) dependency path, in femto-car-launcher. This skill is the dependency-update procedure SSOT; the project rule (catalog first, BOM precedence, Kotlin/Compose-Compiler lock-step) lives at .claude/rules/dependencies.md.
+when_to_use: Use when adding or upgrading any Gradle dependency or plugin, or any webmap npm dependency. Triggers on "add Coil", "upgrade Compose BOM", "bump kotlin to X", "bump maplibre-gl", "upgrade vite".
 argument-hint: "[group:artifact:version | bom-update]"
 allowed-tools:
   - Read
   - Edit
   - Bash
+  - Skill
 paths:
   - gradle/libs.versions.toml
+  - gradle/wrapper/gradle-wrapper.properties
   - app/build.gradle.kts
   - build.gradle.kts
+  - settings.gradle.kts
+  - webmap/package.json
+  - webmap/pnpm-lock.yaml
 ---
 
 # Updating a Gradle dependency
 
-Rules: see `CLAUDE.md#dependencies`.
+Rules: see `.claude/rules/dependencies.md`.
 
 ## Procedure
 
@@ -49,6 +55,33 @@ Rules: see `CLAUDE.md#dependencies`.
 5. **Verify** with the
    [`verify-android-build`](../verify-android-build/SKILL.md) skill.
 
+6. **Document in the commit body** when:
+   - Bumping a major version of any library.
+   - Overriding a Compose BOM-managed artifact.
+   - Adding an annotation processor / KSP plugin.
+   - Bumping Kotlin (must include the matching Compose Compiler
+     plugin bump).
+
+## Webmap (pnpm) dependencies
+
+Renovate automerges routine (non-major) webmap bumps — this path is
+for manual or major bumps (`maplibre-gl`, Vite, TypeScript).
+
+1. Edit `webmap/package.json`, then run `pnpm install` under
+   `webmap/` to refresh `pnpm-lock.yaml`.
+2. For Vite or `maplibre-gl` majors, confirm Vite's `build.target`
+   stays at the WebView floor defined in `CLAUDE.md#tech-stack`.
+3. For TypeScript majors, run `pnpm run check` under `webmap/` and
+   treat compiler deprecation warnings as failures in the same
+   bump. Never adopt a pre-stable compiler preview package (e.g. a
+   native-compiler preview) as a build dependency. A TypeScript
+   bump cannot move Vite's `build.target` (Vite ignores the
+   tsconfig target), so the WebView-floor check in step 2 stays
+   scoped to Vite / `maplibre-gl` bumps. Readiness criteria:
+   `.claude/rules/webmap.md`.
+4. Verify with `./gradlew assembleDebug` — the `:app:buildWebMap`
+   task runs the pnpm build as part of it.
+
 ## Bulk-updating to latest versions
 
 For routine version maintenance across the whole catalog, the
@@ -69,27 +102,22 @@ Workflow:
 
 Review every diff before committing. Major-version bumps still
 need the per-bump justification rule from
-`CLAUDE.md#dependencies`. Two project-specific gotchas:
+`.claude/rules/dependencies.md`. Two project-specific gotchas:
 
 - **Toolchain coupling.** Bumping AGP can raise the required Gradle
-  version (e.g. AGP 9.2 needs Gradle >= 9.4.1). Update the Wrapper to
-  match first: `./gradlew wrapper --gradle-version <v>
+  version — check the AGP release notes for the minimum required
+  Gradle version before bumping, and update
+  `gradle-wrapper.properties` in the same change:
+  `./gradlew wrapper --gradle-version <v>
   --gradle-distribution-sha256-sum <sha> --distribution-type bin`.
-  Kotlin and the `kotlin.plugin.compose` / `kotlin.plugin.serialization`
-  plugins move in lock-step automatically (shared `version.ref =
-  "kotlin"`).
+  Kotlin and the `kotlin-compose` / `kotlin-serialization` plugin
+  aliases move in lock-step automatically (shared `version.ref =
+  "kotlin"` in the catalog).
 - **MapLibre renders but cannot be seen on the emulator** (the emulator
   GLES translator never presents the live map surface). After any
   MapLibre bump, run `MapSnapshotRenderTest` (`./gradlew
   connectedAndroidTest`) — its off-screen `MapSnapshotter` is the guard
   that the map still rasterises real tiles; a grey screenshot is not.
-
-6. **Document in the commit body** when:
-   - Bumping a major version of any library.
-   - Overriding a Compose BOM-managed artifact.
-   - Adding an annotation processor / KSP plugin.
-   - Bumping Kotlin (must include the matching Compose Compiler
-     plugin bump).
 
 ## Skill-specific anti-patterns
 

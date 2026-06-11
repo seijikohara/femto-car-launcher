@@ -32,6 +32,7 @@ jobs:
           # read-only fallback explicit so feature branches never pollute it.
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
+      # Mirrors .claude/skills/verify-android-build (the verification SSOT); change both together.
       - name: Run checks
         run: ./gradlew spotlessCheck test lint assembleDebug --stacktrace
 

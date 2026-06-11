@@ -1,20 +1,24 @@
 ---
 name: add-launcher-permission
-description: Use when adding a new <uses-permission> to AndroidManifest.xml. Triggers on "add SYSTEM_ALERT_WINDOW", "request notifications", "need to query installed apps". This skill is the per-permission procedure SSOT; the project rule (justify in commit body, update audit log) lives at CLAUDE.md#permissions.
+description: Procedure for adding a new <uses-permission> to AndroidManifest.xml. This skill is the per-permission procedure SSOT; the project rule (justify in commit body, update audit log) lives at .claude/rules/permissions.md.
+when_to_use: Any new <uses-permission> — "add SYSTEM_ALERT_WINDOW", "request notifications", "need to query installed apps".
 argument-hint: "[android.permission.NAME]"
 allowed-tools:
   - Read
   - Edit
+  - Write
   - Grep
+  - Bash
+  - Skill
 paths:
   - app/src/main/AndroidManifest.xml
 ---
 
 # Adding a launcher permission
 
-Rules: see `CLAUDE.md#permissions`. The permission audit log table
-in `CLAUDE.md` is the SSOT for which permissions the app declares;
-keep it in sync with `AndroidManifest.xml`.
+Rules: see `.claude/rules/permissions.md`. Its audit log table is
+the SSOT for which permissions the app declares; keep it in sync
+with `AndroidManifest.xml`.
 
 ## Procedure
 
@@ -41,24 +45,36 @@ keep it in sync with `AndroidManifest.xml`.
 
 3. **Edit `app/src/main/AndroidManifest.xml`.** Place
    `<uses-permission>` tags before `<application>`, grouped
-   logically.
+   logically. Write the pointer comment
+   `<!-- Justification: .claude/rules/permissions.md -->` above the tag —
+   never mirror the justification prose into the manifest; the audit
+   log is the SSOT and the comment is a pointer only.
+
+   > Note: the existing `INTERNET` / `BLUETOOTH_CONNECT` comments
+   > predate the pointer form and have drifted; collapse them to the
+   > pointer in a separate small app-code PR (the manifest is app
+   > code, outside `.claude/` restructures).
 
 4. **Wire runtime requests** for dangerous / special permissions
    in the appropriate `ViewModel` / Composable. Never call dangerous
    APIs without checking `ContextCompat.checkSelfPermission(...)`
-   first.
+   first. Request dangerous permissions at the interaction point,
+   never at startup; design the denied-state degradation first.
 
-5. **Update the audit log** in `CLAUDE.md#permissions`. Alphabetised
-   by permission name.
+5. **Update the audit log** in `.claude/rules/permissions.md`.
+   Alphabetised by permission name.
 
 6. **Verify** with the
    [`verify-android-build`](../verify-android-build/SKILL.md) skill.
 
-## Per-permission cheat sheet
+## Common not-yet-declared cases
 
-This table is launcher-specific and lives here (not in CLAUDE.md)
-because it captures *how* to handle each common case, which is
-procedural detail.
+This table is launcher-specific and lives here (not in the
+audit-log home, `.claude/rules/permissions.md`) because it captures
+*how* to handle each common case, which is procedural detail.
+Already-declared permissions are NOT listed here — their use case
+and degradation behaviour live in the audit log at
+`.claude/rules/permissions.md`.
 
 | Permission | Use case | Caveats |
 | --- | --- | --- |
@@ -66,8 +82,6 @@ procedural detail.
 | `SYSTEM_ALERT_WINDOW` | Map / music PiP overlays | User-grantable but visually scary; explain in onboarding. |
 | `POST_NOTIFICATIONS` | User-facing alerts raised by a launcher feature | API 33+; runtime grant required. |
 | `BIND_NOTIFICATION_LISTENER_SERVICE` | Read music MediaSession metadata | User must enable via Settings → Notifications → Notification access. |
-| `READ_PHONE_STATE` | Graduated cellular signal bars (`SignalStrength.level` via `TelephonyCallback`) | Already declared — see the audit log at `CLAUDE.md#permissions`. Dangerous; degrade to a binary connectivity icon when denied. |
-| `ACCESS_FINE_LOCATION` | Map centring, speed / altitude / address overlays, current-location weather lookup | Dangerous; runtime grant required. Without it, the dependent dashboard panels render empty placeholders. |
 
 ## Skill-specific anti-patterns
 
