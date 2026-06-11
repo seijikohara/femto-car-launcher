@@ -129,7 +129,7 @@ with automotive overrides on top.
 | Concern | M3 default | Femto rule | Symbol |
 | --- | --- | --- | --- |
 | Tap target | 48 dp | **≥ 64 dp** | `FemtoDimens.MinTouchTarget` |
-| Body text on the head-unit dashboard | flexible | **≥ 18 sp**, never `bodySmall` / `labelSmall`. Cards may deliberately relax this for glance metadata, metrics, and progress captions — always via `FemtoDimens.GlanceTextSize` (13 sp), never a literal; the shipped card components under `ui/home/components/` are the reference for where the relaxation applies (inherited from the retired dashboard-v2 mockup, whose KDoc notes mark each spot) | `FemtoDimens.MinBodyTextSize` / `FemtoDimens.GlanceTextSize` |
+| Body text on the head-unit dashboard | flexible | **≥ 18 sp**, never `bodySmall` / `labelSmall`. Cards may deliberately relax this for glance metadata, metrics, and progress captions — never as a literal in component code: the size lives in `FemtoDimens.GlanceTextSize` (13 sp) or inside a named `Type.kt` extension (e.g. `cardMeta`). The shipped card components under `ui/home/components/` are the reference for where the relaxation applies (inherited from the retired dashboard-v2 mockup, whose KDoc notes mark each spot) | `FemtoDimens.MinBodyTextSize` / `FemtoDimens.GlanceTextSize` |
 
 When the value lives in code, the symbol on the right is the SSOT —
 not a magic number in another file.
