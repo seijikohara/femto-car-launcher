@@ -179,16 +179,14 @@ internal fun Meta(
             style = secondaryStyle,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        // Album is absent for many radio / stream sessions; drop the whole line
-        // rather than show a placeholder, so the block stays compact without it.
-        if (!album.isNullOrBlank()) {
-            MetaLine(
-                icon = Lucide.Disc,
-                text = album,
-                style = secondaryStyle,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        MetaLine(
+            icon = Lucide.Disc,
+            // Album is absent for many radio / stream sessions; show an em dash
+            // rather than substituting another field, matching the artist line.
+            text = album?.takeUnless { it.isBlank() } ?: "—",
+            style = secondaryStyle,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
