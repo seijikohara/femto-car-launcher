@@ -10,6 +10,12 @@ import okhttp3.Request
 
 private const val TAG = "OpenMeteoApi"
 
+private const val FORECAST_PATH = "/v1/forecast"
+
+// Five daily entries feed the weather card's fixed 5-day strip; the value is a
+// layout contract, not an ops tunable.
+private const val FORECAST_DAYS = 5
+
 internal class OpenMeteoApi(
     private val client: OkHttpClient,
     private val baseUrl: String = "https://api.open-meteo.com/",
@@ -20,6 +26,8 @@ internal class OpenMeteoApi(
     private val apiKey: String? = null,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
+
+    private fun apiUrl(path: String): String = baseUrl.trimEnd('/') + path
 
     suspend fun forecast(
         latitude: Double,
@@ -32,14 +40,14 @@ internal class OpenMeteoApi(
                     Request
                         .Builder()
                         .url(
-                            baseUrl.trimEnd('/') +
-                                "/v1/forecast?latitude=$latitude&longitude=$longitude" +
+                            apiUrl(FORECAST_PATH) +
+                                "?latitude=$latitude&longitude=$longitude" +
                                 "&current=temperature_2m,apparent_temperature,weathercode," +
                                 "windspeed_10m,relative_humidity_2m,uv_index,is_day" +
                                 "&hourly=temperature_2m,weathercode" +
                                 "&daily=sunrise,sunset,weathercode," +
                                 "temperature_2m_max,temperature_2m_min" +
-                                "&forecast_days=5&timezone=auto" +
+                                "&forecast_days=$FORECAST_DAYS&timezone=auto" +
                                 apiKeyParam,
                         ).build()
                 client.newCall(request).execute().use { response ->

@@ -15,6 +15,14 @@ object FemtoDimens {
     /** Minimum body text size for any driver-visible screen. */
     val MinBodyTextSize = 18.sp
 
+    /**
+     * Glance-metadata text size for the sanctioned card relaxations of
+     * [MinBodyTextSize] — secondary captions, metrics, and progress labels
+     * inside dashboard cards (CLAUDE.md#automotive-overrides). One token so
+     * every card relaxes to the same size.
+     */
+    val GlanceTextSize = 13.sp
+
     /** Outer padding for top-level screens. */
     val ScreenPadding = 24.dp
 

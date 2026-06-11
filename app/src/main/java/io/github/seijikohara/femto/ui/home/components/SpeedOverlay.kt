@@ -292,7 +292,7 @@ private fun AddressRow(
         text = text,
         style =
             MaterialTheme.typography.bodyMedium.copy(
-                fontSize = 13.sp,
+                fontSize = FemtoDimens.GlanceTextSize,
                 fontWeight = FontWeight.Medium,
                 lineHeight = 16.sp,
             ),

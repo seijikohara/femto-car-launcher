@@ -11,6 +11,10 @@ import java.io.File
 
 private const val TAG = "GoogleFontsApi"
 
+private const val METADATA_PATH = "/metadata/fonts"
+
+private const val DOWNLOAD_LIST_PATH = "/download/list"
+
 // Google's metadata endpoints guard JSON responses with an XSSI prefix
 // (`)]}'`) on some routes and omit it on others. Strip it defensively so both
 // `/metadata/fonts` (no prefix) and `/download/list` (prefixed) decode.
@@ -30,11 +34,13 @@ internal class GoogleFontsApi(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
+    private fun apiUrl(path: String): String = metadataBaseUrl.trimEnd('/') + path
+
     /** Fetch the full catalog (~1.9k families), popularity-sorted. */
     suspend fun catalog(): List<GoogleFontFamily>? =
         withContext(Dispatchers.IO) {
             runCatching {
-                val request = Request.Builder().url(metadataBaseUrl.trimEnd('/') + "/metadata/fonts").build()
+                val request = Request.Builder().url(apiUrl(METADATA_PATH)).build()
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
                         Log.w(TAG, "catalog HTTP ${response.code}")
@@ -61,7 +67,7 @@ internal class GoogleFontsApi(
             runCatching {
                 val encoded = family.replace(" ", "%20")
                 val request =
-                    Request.Builder().url(metadataBaseUrl.trimEnd('/') + "/download/list?family=$encoded").build()
+                    Request.Builder().url(apiUrl(DOWNLOAD_LIST_PATH) + "?family=$encoded").build()
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
                         Log.w(TAG, "manifest HTTP ${response.code} for $family")

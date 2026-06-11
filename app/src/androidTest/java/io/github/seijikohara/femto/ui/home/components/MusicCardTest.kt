@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import io.github.seijikohara.femto.data.music.MusicCardState
+import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule

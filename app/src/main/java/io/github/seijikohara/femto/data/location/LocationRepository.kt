@@ -12,6 +12,7 @@ import androidx.core.content.getSystemService
 import androidx.core.location.LocationListenerCompat
 import androidx.core.location.LocationManagerCompat
 import androidx.core.location.LocationRequestCompat
+import io.github.seijikohara.femto.data.common.WhileUiSubscribed
 import io.github.seijikohara.femto.data.system.SystemStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -85,7 +86,7 @@ internal class LocationRepository(
     // Single hot fan-out of the cold raw flow. On an always-on head unit the consumers
     // (ViewModel combine, ReverseGeocoder, Weather, Trip, SystemStatus) collect the same
     // instance, so they share one platform GPS registration + one getLastKnownLocation
-    // instead of one each. WhileSubscribed(5_000) gates that single registration: it starts
+    // instead of one each. [WhileUiSubscribed] gates that single registration: it starts
     // on the first collector, and stops ~5s after the last collector leaves (the grace
     // window avoids tearing down and re-registering GPS across brief recomposition /
     // config-change gaps). replay = 1 hands a late subscriber the most recent fix
@@ -99,7 +100,7 @@ internal class LocationRepository(
         settings
             .distinctUntilChanged()
             .flatMapLatest { rawLocationFlow(it) }
-            .shareIn(scope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+            .shareIn(scope, WhileUiSubscribed, replay = 1)
 
     // The repository factory already builds one LocationRepository and passes the single flow
     // instance to all consumers, so returning the shared flow makes that sharing real.

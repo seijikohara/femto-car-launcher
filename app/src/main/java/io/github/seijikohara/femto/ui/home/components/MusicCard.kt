@@ -57,25 +57,19 @@ import com.composables.icons.lucide.SkipForward
 import com.composables.icons.lucide.User
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.music.MusicCardState
+import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.NowPlaying
 import io.github.seijikohara.femto.data.music.sourceLabel
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.TabularFigures
+import io.github.seijikohara.femto.ui.theme.cardCta
+import io.github.seijikohara.femto.ui.theme.cardCtaHint
+import io.github.seijikohara.femto.ui.theme.cardMeta
+import io.github.seijikohara.femto.ui.theme.cardTitle
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import kotlinx.coroutines.delay
-
-/**
- * Transport commands the dashboard can dispatch to the music session.
- */
-internal sealed interface MusicCommand {
-    data object PlayPause : MusicCommand
-
-    data object SkipNext : MusicCommand
-
-    data object SkipPrevious : MusicCommand
-}
 
 /**
  * Music card. Vertical layout inherited from the `.music-card` rules of the
@@ -225,23 +219,8 @@ private fun Meta(
     // Title, artist and album styles derive from the M3 type roles once and are
     // remembered so a track-change recomposition doesn't reallocate them.
     val typography = MaterialTheme.typography
-    val titleStyle =
-        remember(typography) {
-            typography.titleLarge.copy(
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = (-0.02f).em,
-                lineHeight = 23.sp,
-            )
-        }
-    val secondaryStyle =
-        remember(typography) {
-            typography.bodyMedium.copy(
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                lineHeight = 16.sp,
-            )
-        }
+    val titleStyle = remember(typography) { typography.cardTitle() }
+    val secondaryStyle = remember(typography) { typography.cardMeta() }
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.Start,
@@ -499,11 +478,7 @@ private fun ConnectState(onConnect: () -> Unit) =
             Box(modifier = Modifier.height(12.dp))
             Text(
                 text = stringResource(R.string.music_connect_cta),
-                style =
-                    MaterialTheme.typography.titleMedium.copy(
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    ),
+                style = MaterialTheme.typography.cardCta(),
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
             )
@@ -513,11 +488,7 @@ private fun ConnectState(onConnect: () -> Unit) =
                 // the head-unit glance floor (CLAUDE.md#automotive-overrides),
                 // unlike the sanctioned 13sp NoActiveSession EmptyState hint.
                 text = stringResource(R.string.music_connect_hint),
-                style =
-                    MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = FemtoDimens.MinBodyTextSize,
-                        lineHeight = FemtoDimens.MinBodyTextSize * 1.33f,
-                    ),
+                style = MaterialTheme.typography.cardCtaHint(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 maxLines = 2,
@@ -549,11 +520,7 @@ private fun EmptyState() =
         Box(modifier = Modifier.height(4.dp))
         Text(
             text = stringResource(R.string.music_nothing_playing),
-            style =
-                MaterialTheme.typography.titleMedium.copy(
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                ),
+            style = MaterialTheme.typography.cardCta(),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
         )
@@ -562,7 +529,7 @@ private fun EmptyState() =
             text = stringResource(R.string.music_nothing_hint),
             style =
                 MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 13.sp,
+                    fontSize = FemtoDimens.GlanceTextSize,
                     lineHeight = 18.sp,
                 ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,

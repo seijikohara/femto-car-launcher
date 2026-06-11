@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.data.fonts
 
 import android.content.Context
 import android.util.Log
+import io.github.seijikohara.femto.BuildConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -238,7 +239,7 @@ internal class FontRepository internal constructor(
         private fun create(context: Context): FontRepository {
             val app = context.applicationContext
             val client = OkHttpClient()
-            val api = GoogleFontsApi(client)
+            val api = GoogleFontsApi(client, metadataBaseUrl = BuildConfig.FONTS_METADATA_BASE_URL)
             val cacheRoot = File(app.filesDir, "google_fonts")
             return FontRepository(
                 api = FontCatalogSource(api::catalog),

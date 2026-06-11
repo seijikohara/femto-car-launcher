@@ -16,7 +16,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.getSystemService
 import androidx.core.graphics.drawable.toBitmap
-import io.github.seijikohara.femto.ui.home.components.MusicCommand
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow

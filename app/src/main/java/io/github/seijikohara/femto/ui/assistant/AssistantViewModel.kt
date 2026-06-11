@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import io.github.seijikohara.femto.data.common.WhileUiSubscribed
 import io.github.seijikohara.femto.data.voice.VoiceRecognizer
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +28,7 @@ internal class AssistantViewModel(
             .map { AssistantUiState(voice = it) }
             .stateIn(
                 viewModelScope,
-                SharingStarted.WhileSubscribed(5_000),
+                WhileUiSubscribed,
                 AssistantUiState(voice = recognizer.state.value),
             )
 

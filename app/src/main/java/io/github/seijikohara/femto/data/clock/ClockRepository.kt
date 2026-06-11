@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import androidx.core.content.ContextCompat
+import io.github.seijikohara.femto.data.common.WhileUiSubscribed
 import io.github.seijikohara.femto.data.location.LocationRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,7 +29,7 @@ internal class ClockRepository(
     // Owns the single shared receiver subscription (mirrors LocationRepository);
     // tests inject their own scope to drive shareIn deterministically. The
     // default scope is process-lifetime by design — it is never cancelled;
-    // WhileSubscribed parks the upstream (and unregisters the receiver) when
+    // [WhileUiSubscribed] parks the upstream (and unregisters the receiver) when
     // no collector is live.
     scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
@@ -60,7 +61,7 @@ internal class ClockRepository(
             )
             awaitClose { context.unregisterReceiver(receiver) }
         }.flowOn(Dispatchers.Main.immediate)
-            .shareIn(scope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+            .shareIn(scope, WhileUiSubscribed, replay = 1)
 
     fun tickFlow(): Flow<ClockTick> = shared
 

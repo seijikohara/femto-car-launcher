@@ -448,7 +448,7 @@ private fun StatusIcon(
 @Composable
 private fun statusMetricStyle() =
     MaterialTheme.typography.labelLarge.copy(
-        fontSize = 13.sp,
+        fontSize = FemtoDimens.GlanceTextSize,
         fontWeight = FontWeight.SemiBold,
         fontFeatureSettings = TabularFigures,
     )

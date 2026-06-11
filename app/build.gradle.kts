@@ -55,6 +55,9 @@ tasks.named("preBuild") {
 // WEATHER_BASE_URL (and the matching *_API_KEY when the host requires one) to a
 // non-public host; absent values fall back to the public Nominatim / Open-Meteo
 // endpoints, which are rate-limited and unsuitable for production traffic.
+// FONTS_METADATA_BASE_URL overrides the Google Fonts catalog host (e.g. a
+// caching proxy); the TTF bytes still come from the URLs the per-family
+// manifest supplies, so no download host field exists.
 val localProperties =
     Properties().apply {
         rootProject
@@ -67,6 +70,7 @@ val geocoderBaseUrl = localProperties.getProperty("GEOCODER_BASE_URL", "https://
 val geocoderApiKey = localProperties.getProperty("GEOCODER_API_KEY", "")
 val weatherBaseUrl = localProperties.getProperty("WEATHER_BASE_URL", "https://api.open-meteo.com/")
 val weatherApiKey = localProperties.getProperty("WEATHER_API_KEY", "")
+val fontsMetadataBaseUrl = localProperties.getProperty("FONTS_METADATA_BASE_URL", "https://fonts.google.com/")
 
 // Release signing is driven entirely by environment variables so CI can sign the
 // nightly APK without committing a keystore, while local `assembleRelease` stays
@@ -110,6 +114,7 @@ android {
         buildConfigField("String", "GEOCODER_API_KEY", "\"${geocoderApiKey}\"")
         buildConfigField("String", "WEATHER_BASE_URL", "\"${weatherBaseUrl}\"")
         buildConfigField("String", "WEATHER_API_KEY", "\"${weatherApiKey}\"")
+        buildConfigField("String", "FONTS_METADATA_BASE_URL", "\"${fontsMetadataBaseUrl}\"")
     }
 
     signingConfigs {
