@@ -20,6 +20,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
 import io.github.seijikohara.femto.data.apps.DrawerLayout
 import io.github.seijikohara.femto.data.apps.DrawerPreferences
+import io.github.seijikohara.femto.ui.common.ImmersiveSheetEffect
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import kotlinx.coroutines.launch
 
@@ -50,6 +51,7 @@ import kotlinx.coroutines.launch
 internal fun AppDrawerSheet(
     onLaunch: (ComponentName) -> Unit,
     onDismiss: () -> Unit,
+    fullscreen: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -69,6 +71,7 @@ internal fun AppDrawerSheet(
         onDismissRequest = onDismiss,
         modifier = modifier,
     ) {
+        ImmersiveSheetEffect(fullscreen)
         Box(
             modifier =
                 Modifier

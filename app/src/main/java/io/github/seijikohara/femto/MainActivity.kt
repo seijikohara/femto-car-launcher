@@ -183,6 +183,10 @@ class MainActivity : ComponentActivity() {
                         )
                     },
                 )
+                // The modal sheets render in their own windows, which do not inherit
+                // the Activity's immersive flags; pass the fullscreen choice so each
+                // re-applies it to its window (see ImmersiveSheetEffect).
+                val fullscreen = display.fullscreen == FullscreenSetting.ON
                 if (showDrawer) {
                     AppDrawerSheet(
                         onLaunch = { component ->
@@ -190,6 +194,7 @@ class MainActivity : ComponentActivity() {
                             showDrawer = false
                         },
                         onDismiss = { showDrawer = false },
+                        fullscreen = fullscreen,
                     )
                 }
                 if (showAssistant) {
@@ -203,6 +208,7 @@ class MainActivity : ComponentActivity() {
                             showAssistant = false
                         },
                         onDismiss = { showAssistant = false },
+                        fullscreen = fullscreen,
                     )
                 }
                 if (showSettings) {
@@ -211,12 +217,14 @@ class MainActivity : ComponentActivity() {
                         onOpenSystemSettings = ::openSystemSettings,
                         onOpenFontPicker = { fontPickerSlot = it },
                         onDismiss = { showSettings = false },
+                        fullscreen = fullscreen,
                     )
                 }
                 fontPickerSlot?.let { slot ->
                     FontPickerSheet(
                         slot = slot,
                         onDismiss = { fontPickerSlot = null },
+                        fullscreen = fullscreen,
                     )
                 }
             }
