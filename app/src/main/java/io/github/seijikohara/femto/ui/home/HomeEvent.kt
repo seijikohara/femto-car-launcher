@@ -45,6 +45,9 @@ internal sealed interface HomeEvent {
     /** Open the in-app settings screen (units, theme, font, system links). */
     data object OpenInAppSettings : HomeEvent
 
-    /** Open the voice-assistant bottom sheet so the user picks which assistant intent to fire. */
-    data object OpenAssistantSheet : HomeEvent
+    /**
+     * Open the assistant. The host resolves the user's assistant-launch setting:
+     * the system assistant overlay, or the in-launcher voice sheet.
+     */
+    data object OpenAssistant : HomeEvent
 }

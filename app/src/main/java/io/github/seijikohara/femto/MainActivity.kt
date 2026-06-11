@@ -5,6 +5,7 @@ import android.app.SearchManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -31,6 +32,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import io.github.seijikohara.femto.data.apps.AppsRepository
+import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.DisplaySettings
@@ -174,6 +176,7 @@ class MainActivity : ComponentActivity() {
                     onEvent = { event ->
                         handleHomeEvent(
                             event = event,
+                            assistantLaunch = display.assistantLaunch,
                             setShowDrawer = { showDrawer = it },
                             setShowAssistant = { showAssistant = it },
                             setShowSettings = { showSettings = it },
@@ -270,6 +273,7 @@ class MainActivity : ComponentActivity() {
 
     private fun handleHomeEvent(
         event: HomeEvent,
+        assistantLaunch: AssistantLaunchSetting,
         setShowDrawer: (Boolean) -> Unit,
         setShowAssistant: (Boolean) -> Unit,
         setShowSettings: (Boolean) -> Unit,
@@ -302,26 +306,47 @@ class MainActivity : ComponentActivity() {
                 setShowSettings(true)
             }
 
-            HomeEvent.OpenAssistantSheet -> {
+            HomeEvent.OpenAssistant -> {
                 // Close the drawer overlay so the two bottom sheets never stack.
                 setShowDrawer(false)
-                setShowAssistant(true)
+                // SYSTEM hands off to the default assistant's overlay; the sheet
+                // is the fallback when none resolves (e.g. no assistant installed).
+                if (assistantLaunch != AssistantLaunchSetting.SYSTEM || !launchSystemAssistant()) {
+                    setShowAssistant(true)
+                }
             }
         }
     }
+
+    /**
+     * Launch the device's default assistant (`ACTION_ASSIST`). Assistants such
+     * as the stock voice assistant render as an overlay above the dashboard, so
+     * the launcher stays visible underneath and needs no in-app UI. Returns
+     * false when no assistant resolves (e.g. a head unit without one) so the
+     * caller falls back to the in-launcher voice sheet.
+     */
+    private fun launchSystemAssistant(): Boolean =
+        assistantIntent(AssistantOption.ASSISTANT).let { intent ->
+            packageManager.resolveActivity(intent, PackageManager.ResolveInfoFlags.of(0)) != null &&
+                tryStartActivity(intent)
+        }
 
     // Fire the intent matching the user's elected assistant option. No package is
     // hard-coded, so each action defers to whichever app the user has elected and
     // works across markets and OEM assistants. A missing handler is a silent
     // no-op (tryStartActivity swallows ActivityNotFoundException).
     private fun launchAssistantOption(option: AssistantOption) {
+        tryStartActivity(assistantIntent(option))
+    }
+
+    private fun assistantIntent(option: AssistantOption): Intent {
         val action =
             when (option) {
                 AssistantOption.ASSISTANT -> Intent.ACTION_ASSIST
                 AssistantOption.VOICE_COMMAND -> Intent.ACTION_VOICE_COMMAND
                 AssistantOption.VOICE_SEARCH -> Intent.ACTION_WEB_SEARCH
             }
-        tryStartActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        return Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 
     // Dispatch a phrase the user spoke into the in-launcher voice surface. The

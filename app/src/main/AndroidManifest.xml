@@ -125,6 +125,14 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!--
+            Resolve the device's default assistant so the dock mic can hand
+            off to its overlay directly (and fall back to the in-launcher
+            voice sheet when nothing resolves).
+        -->
+        <intent>
+            <action android:name="android.intent.action.ASSIST" />
+        </intent>
     </queries>
 
     <application

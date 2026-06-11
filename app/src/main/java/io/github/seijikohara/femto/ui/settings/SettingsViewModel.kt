@@ -43,6 +43,7 @@ internal class SettingsViewModel(
                 dockPosition = display.dockPosition,
                 orientation = display.orientation,
                 keepScreenOn = display.keepScreenOn,
+                assistantLaunch = display.assistantLaunch,
                 mapStyle = display.mapStyle,
                 mapSchemeLight = display.mapSchemeLight,
                 mapSchemeDark = display.mapSchemeDark,
@@ -109,6 +110,10 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetKeepScreenOn -> {
                     displayPreferences.setKeepScreenOn(action.value)
+                }
+
+                is SettingsAction.SetAssistantLaunch -> {
+                    displayPreferences.setAssistantLaunch(action.value)
                 }
 
                 is SettingsAction.SetMapStyle -> {

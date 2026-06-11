@@ -177,6 +177,9 @@
     <string name="settings_group_clock_seconds">Show seconds</string>
     <string name="settings_group_fullscreen">Fullscreen</string>
     <string name="settings_keep_screen_on">Keep screen on</string>
+    <string name="settings_group_assistant">Assistant</string>
+    <string name="settings_assistant_system">System</string>
+    <string name="settings_assistant_in_app">Built-in</string>
     <string name="settings_group_map_rendering">Map rendering</string>
     <string name="settings_map_mode_live">Live</string>
     <string name="settings_map_mode_snapshot">Snapshot</string>

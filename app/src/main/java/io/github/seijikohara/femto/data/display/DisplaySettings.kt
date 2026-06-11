@@ -27,6 +27,15 @@ enum class AccentColor { DYNAMIC, BLUE, TEAL, GREEN, AMBER, ORANGE, RED, VIOLET,
 internal enum class FullscreenSetting { OFF, ON }
 
 /**
+ * Assistant entry: [SYSTEM] hands the dock mic to the device's default
+ * assistant, which draws its own overlay above the dashboard (the launcher
+ * stays visible underneath); [IN_APP] opens the in-launcher voice sheet.
+ * [SYSTEM] is the default — the host falls back to the sheet when no
+ * assistant resolves (e.g. a head unit without one installed).
+ */
+internal enum class AssistantLaunchSetting { SYSTEM, IN_APP }
+
+/**
  * Which screen edge hosts the dashboard dock. [BOTTOM] and [TOP] render the
  * horizontal bar; [LEFT] and [RIGHT] render it as a vertical rail.
  */
@@ -113,6 +122,9 @@ internal data class DisplaySettings(
     // Whether to keep the screen awake while the launcher is foreground. Defaults
     // to true: the head unit runs on vehicle power, so the dashboard should stay lit.
     val keepScreenOn: Boolean,
+    // Whether the dock mic launches the system assistant overlay or the
+    // in-launcher voice sheet.
+    val assistantLaunch: AssistantLaunchSetting,
     val mapStyle: MapStyleSetting,
     // Independent colour schemes for the light and dark map contexts (which one
     // applies follows [mapStyle] / the system theme). Both default to ACCENT.
@@ -156,6 +168,7 @@ internal data class DisplaySettings(
                 dockPosition = DockPosition.BOTTOM,
                 orientation = OrientationSetting.AUTO,
                 keepScreenOn = true,
+                assistantLaunch = AssistantLaunchSetting.SYSTEM,
                 mapStyle = MapStyleSetting.AUTO,
                 mapSchemeLight = MapColorScheme.ACCENT,
                 mapSchemeDark = MapColorScheme.ACCENT,

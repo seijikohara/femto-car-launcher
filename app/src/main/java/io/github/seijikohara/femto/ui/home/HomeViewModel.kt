@@ -154,7 +154,7 @@ internal class HomeViewModel(
             }
 
             HomeAction.OpenAssistant -> {
-                mutableEvents.tryEmit(HomeEvent.OpenAssistantSheet)
+                mutableEvents.tryEmit(HomeEvent.OpenAssistant)
             }
 
             HomeAction.ResetTrip -> {

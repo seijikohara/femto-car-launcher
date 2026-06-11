@@ -171,11 +171,11 @@ class HomeViewModelTest {
         }
 
     @Test
-    fun `onAction OpenAssistant emits OpenAssistantSheet`() =
+    fun `onAction OpenAssistant emits OpenAssistant`() =
         runTest {
             stubViewModel().assertEvent(
                 action = HomeAction.OpenAssistant,
-                expected = HomeEvent.OpenAssistantSheet,
+                expected = HomeEvent.OpenAssistant,
             )
         }
 

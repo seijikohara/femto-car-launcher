@@ -53,6 +53,7 @@ import com.composables.icons.lucide.RotateCcw
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
 import io.github.seijikohara.femto.data.display.AccentColor
+import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.FullscreenSetting
@@ -157,6 +158,16 @@ internal fun SettingsScreen(
                     ),
                 selected = uiState.dockPosition,
                 onSelect = { onAction(SettingsAction.SetDockPosition(it)) },
+            )
+            ChoiceRow(
+                title = stringResource(R.string.settings_group_assistant),
+                options =
+                    listOf(
+                        AssistantLaunchSetting.SYSTEM to stringResource(R.string.settings_assistant_system),
+                        AssistantLaunchSetting.IN_APP to stringResource(R.string.settings_assistant_in_app),
+                    ),
+                selected = uiState.assistantLaunch,
+                onSelect = { onAction(SettingsAction.SetAssistantLaunch(it)) },
             )
             SettingsSubheader(stringResource(R.string.settings_subheader_glass))
             SliderRow(

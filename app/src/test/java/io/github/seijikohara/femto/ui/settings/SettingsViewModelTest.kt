@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
 import io.github.seijikohara.femto.data.display.AccentColor
+import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.FullscreenSetting
@@ -69,6 +70,14 @@ class SettingsViewModelTest {
             viewModel().onAction(SettingsAction.SetKeepScreenOn(false))
             advanceUntilIdle()
             assertEquals(false, store.settings.first().keepScreenOn)
+        }
+
+    @Test
+    fun `SetAssistantLaunch writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetAssistantLaunch(AssistantLaunchSetting.IN_APP))
+            advanceUntilIdle()
+            assertEquals(AssistantLaunchSetting.IN_APP, store.settings.first().assistantLaunch)
         }
 
     @Test
