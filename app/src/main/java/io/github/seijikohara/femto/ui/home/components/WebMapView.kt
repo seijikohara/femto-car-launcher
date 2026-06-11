@@ -270,7 +270,7 @@ internal fun WebMapView(
     // the bundled base with these Material colours (in map.html's transformStyle);
     // the others are plain hosted / bundled styles.
     val styleRef = mapStyleRefFor(if (isDark) mapConfig.schemeDark else mapConfig.schemeLight, isDark)
-    val accentColors = accentMapColors()
+    val accentColors = accentMapColors(isDark)
 
     // Each effect keys on [pageReady] (so it fires once the page is ready) and on
     // [webView] (so a rebuilt WebView gets the state re-pushed), then pushes the
@@ -312,16 +312,23 @@ internal fun WebMapView(
         val accent = (styleRef as? MapStyleRef.Accent)?.let { accentColors }
         webView.evaluateJavascript(
             "window.setStyleUrl && setStyleUrl('$url', " +
-                "'${accent?.background ?: ""}', '${accent?.water ?: ""}', '${accent?.land ?: ""}')",
+                "'${accent?.background ?: ""}', '${accent?.water ?: ""}', '${accent?.land ?: ""}', " +
+                "'${accent?.roadMajor ?: ""}', '${accent?.roadMinor ?: ""}', '${accent?.roadCasing ?: ""}', " +
+                "'${accent?.building ?: ""}')",
             null,
         )
     }
-    // LIVE-only feature toggles (3D buildings / terrain). The page merges them into
+    // LIVE-only feature toggles (3D buildings / terrain) plus the theme-tracked
+    // extrusion colour, which applies to EVERY scheme. The page merges them into
     // the style via MapLibre transformStyle, so this re-applies the style.
-    LaunchedEffect(webView, pageReady.value, mapConfig.buildings3d, mapConfig.terrain) {
+    LaunchedEffect(webView, pageReady.value, mapConfig.buildings3d, mapConfig.terrain, accentColors.building) {
         if (!pageReady.value) return@LaunchedEffect
+        // Same debounce as the style push above: the theme cross-fade churns the
+        // building colour once per frame after a theme change.
+        delay(STYLE_PUSH_DEBOUNCE_MS)
         webView.evaluateJavascript(
-            "window.setFeatures && setFeatures(${mapConfig.buildings3d}, ${mapConfig.terrain})",
+            "window.setFeatures && setFeatures(" +
+                "${mapConfig.buildings3d}, ${mapConfig.terrain}, '${accentColors.building}')",
             null,
         )
     }

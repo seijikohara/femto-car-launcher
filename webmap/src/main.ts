@@ -27,8 +27,21 @@ declare global {
 			markerPos: number,
 			markerColor: string,
 		) => void;
-		setStyleUrl: (url: string, bg: string, water: string, land: string) => void;
-		setFeatures: (buildings: boolean, terrain: boolean) => void;
+		setStyleUrl: (
+			url: string,
+			bg: string,
+			water: string,
+			land: string,
+			roadMajor: string,
+			roadMinor: string,
+			roadCasing: string,
+			building: string,
+		) => void;
+		setFeatures: (
+			buildings: boolean,
+			terrain: boolean,
+			buildingColor: string,
+		) => void;
 		onHostResume: () => void;
 	}
 }
@@ -75,6 +88,8 @@ const state = {
 	accentColors: null as AccentColors | null,
 	buildings: false,
 	terrain: false,
+	// Theme-tracked 3D extrusion colour, set by setFeatures alongside the toggle.
+	buildingColor: "",
 	styleFadeGen: 0,
 	firstCamera: true,
 	lastErrorReportMs: 0,
@@ -91,6 +106,7 @@ function applyStyle(): void {
 					buildings: state.buildings,
 					terrain: state.terrain,
 					accent: state.accentColors,
+					buildingColor: state.buildingColor,
 				}),
 		});
 	}
@@ -282,20 +298,39 @@ try {
 		}
 	};
 	// Android -> JS: switch the base style and (for the ACCENT scheme) its
-	// recolour palette; empty colour args mean a plain, non-accent style.
-	window.setStyleUrl = (url, bg, water, land) => {
+	// recolour palette; an empty bg means a plain, non-accent style.
+	window.setStyleUrl = (
+		url,
+		bg,
+		water,
+		land,
+		roadMajor,
+		roadMinor,
+		roadCasing,
+		building,
+	) => {
 		if (!url) return;
 		state.currentStyleUrl = url;
 		state.accentColors = bg
-			? { background: bg, water: water, land: land }
+			? {
+					background: bg,
+					water: water,
+					land: land,
+					roadMajor: roadMajor,
+					roadMinor: roadMinor,
+					roadCasing: roadCasing,
+					building: building,
+				}
 			: null;
 		applyStyleWithFade();
 	};
-	// Android -> JS: flip the LIVE feature toggles, then re-apply the style so
-	// transformStyle injects (or omits) the matching layers/sources.
-	window.setFeatures = (buildings, terrain) => {
+	// Android -> JS: flip the LIVE feature toggles (plus the theme-tracked
+	// extrusion colour), then re-apply the style so transformStyle injects
+	// (or omits) the matching layers/sources.
+	window.setFeatures = (buildings, terrain, buildingColor) => {
 		state.buildings = !!buildings;
 		state.terrain = !!terrain;
+		state.buildingColor = buildingColor || "";
 		applyStyleWithFade();
 	};
 	// Host (Android) calls this on lifecycle resume so the map re-measures and

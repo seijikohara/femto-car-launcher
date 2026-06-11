@@ -71,7 +71,6 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.suspendCancellableCoroutine
-import org.json.JSONObject
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -107,7 +106,7 @@ internal fun SnapshotMap(
             MapStyleSetting.DARK -> true
         }
     val styleRef = mapStyleRefFor(if (isDark) mapConfig.schemeDark else mapConfig.schemeLight, isDark)
-    val accentColors = accentMapColors()
+    val accentColors = accentMapColors(isDark)
     val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
     val heightPx = with(LocalDensity.current) { maxHeight.roundToPx() }
     // Render at a fraction of the panel resolution; the Image upscales it to fill,
@@ -363,39 +362,6 @@ private fun styleBuilderFor(
     }
 
 private fun Context.readAsset(path: String): String = assets.open(path).bufferedReader().use { it.readText() }
-
-// Recolour the background, water, and landcover/landuse/park fills of a style JSON
-// with the accent palette, leaving roads and labels (legible against the base) as
-// they are. The same three layer groups are recoloured in map.html for the live
-// backend; keep the two in sync.
-private fun recolorAccent(
-    styleJson: String,
-    colors: AccentMapColors,
-): String {
-    val root = JSONObject(styleJson)
-    val layers = root.optJSONArray("layers") ?: return styleJson
-    for (i in 0 until layers.length()) {
-        val layer = layers.getJSONObject(i)
-        val paint = layer.optJSONObject("paint") ?: JSONObject().also { layer.put("paint", it) }
-        val sourceLayer = layer.optString("source-layer")
-        when {
-            layer.optString("type") == "background" -> {
-                paint.put("background-color", colors.background)
-            }
-
-            layer.optString("type") == "fill" && sourceLayer == "water" -> {
-                paint.put("fill-color", colors.water)
-            }
-
-            layer.optString("type") == "fill" && sourceLayer in ACCENT_LAND_LAYERS -> {
-                paint.put("fill-color", colors.land)
-            }
-        }
-    }
-    return root.toString()
-}
-
-private val ACCENT_LAND_LAYERS = setOf("landcover", "landuse", "park")
 
 // How often the snapshot loop polls the current fix for movement. A frame is only
 // produced when the fix actually moves (shouldRerender), so this just bounds the
