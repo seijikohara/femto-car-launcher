@@ -73,7 +73,6 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapRenderMode
 import io.github.seijikohara.femto.data.display.MapStyleSetting
-import io.github.seijikohara.femto.data.location.LOCATION_STALE_THRESHOLD_MS
 import io.github.seijikohara.femto.data.location.isFresh
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import kotlinx.coroutines.delay
@@ -236,15 +235,7 @@ internal fun LocationMarker(
     // the arrow; the chevron is drawn centred at its own size inside it.
     val half = with(LocalDensity.current) { MARKER_BOX_SIZE.toPx() } / 2f
     val fill = if (fresh) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    val rippleColor = MaterialTheme.colorScheme.primary
     val outlinePx = with(LocalDensity.current) { 1.5.dp.toPx() }
-    val ripple = rememberInfiniteTransition(label = "marker-ripple")
-    val rippleProgress by ripple.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(MARKER_RIPPLE_PERIOD_MS, easing = LinearEasing)),
-        label = "marker-ripple-progress",
-    )
     Box(
         modifier =
             modifier
@@ -259,26 +250,13 @@ internal fun LocationMarker(
                     transformOrigin = TransformOrigin(0.5f, 0.5f)
                 },
     ) {
+        // Composed only while fresh, so the infinite animation (and the
+        // recompositions it drives) stops entirely once the fix goes stale. Drawn
+        // before the chevron, so it sits behind the arrow.
+        if (fresh) {
+            MarkerRipple(color = MaterialTheme.colorScheme.primary, strokeWidthPx = outlinePx)
+        }
         Canvas(modifier = Modifier.fillMaxSize()) {
-            // An expanding disc that fades as it grows — drawn first so the chevron
-            // sits on top. Only while fresh; a stale fix shows no ripple. A faint
-            // ring on its leading edge sharpens the pulse so it reads clearly.
-            if (fresh) {
-                val maxRadius = size.minDimension / 2f
-                val radius = maxRadius * rippleProgress
-                val fade = 1f - rippleProgress
-                drawCircle(
-                    color = rippleColor.copy(alpha = MARKER_RIPPLE_MAX_ALPHA * fade),
-                    radius = radius,
-                    center = center,
-                )
-                drawCircle(
-                    color = rippleColor.copy(alpha = MARKER_RIPPLE_EDGE_ALPHA * fade),
-                    radius = radius,
-                    center = center,
-                    style = Stroke(width = outlinePx),
-                )
-            }
             // An upward arrowhead with a concave tail notch (the classic nav chevron):
             // tip at top-centre, the two base corners, and a notch rising from the base.
             // Centred at MARKER_ARROW_SIZE within the larger ripple box.
@@ -296,6 +274,36 @@ internal fun LocationMarker(
             drawPath(chevron, color = fill)
             drawPath(chevron, color = Color.White, style = Stroke(width = outlinePx))
         }
+    }
+}
+
+// One fading pulse per period: an expanding disc with a ring on its leading edge
+// so it reads clearly. A separate composable so the host only places it while the
+// fix is fresh — keeping the infinite animation out of the tree when it would
+// draw nothing.
+@Composable
+private fun MarkerRipple(
+    color: Color,
+    strokeWidthPx: Float,
+    modifier: Modifier = Modifier,
+) {
+    val ripple = rememberInfiniteTransition(label = "marker-ripple")
+    val progress by ripple.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(MARKER_RIPPLE_PERIOD_MS, easing = LinearEasing)),
+        label = "marker-ripple-progress",
+    )
+    Canvas(modifier = modifier.fillMaxSize()) {
+        val radius = (size.minDimension / 2f) * progress
+        val fade = 1f - progress
+        drawCircle(color = color.copy(alpha = MARKER_RIPPLE_MAX_ALPHA * fade), radius = radius, center = center)
+        drawCircle(
+            color = color.copy(alpha = MARKER_RIPPLE_EDGE_ALPHA * fade),
+            radius = radius,
+            center = center,
+            style = Stroke(width = strokeWidthPx),
+        )
     }
 }
 
@@ -330,6 +338,9 @@ internal fun Fallback(modifier: Modifier = Modifier) =
 // expand past the arrow, and the graphicsLayer camera distance (multiplied by
 // density) that softens the perspective when the chevron is laid onto the tilt.
 private val MARKER_ARROW_SIZE = 30.dp
+
+// Ripple headroom around the arrow; its 64 dp equality with
+// FemtoDimens.MinTouchTarget is coincidental — this is not a tap target.
 private val MARKER_BOX_SIZE = 64.dp
 private const val MARKER_CAMERA_DISTANCE = 12f
 

@@ -63,7 +63,7 @@ function report(kind: "fatal" | "error", detail: unknown): void {
 // a fix per update and stops on signal loss, so the page ages the last push
 // rather than waiting for a null. Mirrors LOCATION_STALE_THRESHOLD_MS in the
 // Kotlin data layer (LocationFreshness.kt) and the SNAPSHOT chevron.
-const LOCATION_STALE_THRESHOLD_MS = 10000;
+const LOCATION_STALE_THRESHOLD_MS = 10_000;
 
 // Mutable page state in one const holder (let/var are banned — see biome.json
 // and no-let.grit). Camera pushes, style swaps, and error throttling all read
