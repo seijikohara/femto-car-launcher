@@ -20,7 +20,7 @@ internal sealed interface CachedFont {
  * Disk cache for downloaded Google Fonts under `<filesDir>/google_fonts/`.
  *
  * Each family owns one slug directory holding either `variable.ttf` or a set of
- * `w<weight>.ttf` files. The layout lets [cached] rebuild a family offline on
+ * `w<weight>.ttf` files. The layout lets [cachedFontOrNull] rebuild a family offline on
  * the next launch with no network round-trip, and lets [evictExcept] drop the
  * directories of families the user no longer selects.
  */
@@ -29,7 +29,7 @@ internal class FontCache(
     private val api: GoogleFontsApi,
 ) {
     /** Return the on-disk font for [family] without touching the network. */
-    fun cached(family: String): CachedFont? {
+    fun cachedFontOrNull(family: String): CachedFont? {
         val dir = dirFor(family)
         if (!dir.isDirectory) return null
         val variable = File(dir, VARIABLE_FILE)
@@ -53,7 +53,7 @@ internal class FontCache(
      * download yields null so the caller falls back to the system font.
      */
     suspend fun ensure(family: String): CachedFont? =
-        cached(family) ?: run {
+        cachedFontOrNull(family) ?: run {
             when (val plan = api.plan(family)) {
                 is FontDownloadPlan.Variable -> downloadVariable(family, plan)
                 is FontDownloadPlan.Static -> downloadStatic(family, plan)

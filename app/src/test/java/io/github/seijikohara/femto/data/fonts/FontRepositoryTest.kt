@@ -83,7 +83,7 @@ class FontRepositoryTest {
 
             val resolved = repository.resolved.first { it.latin != null }
 
-            assertEquals(cache.cached("Inter"), resolved.latin)
+            assertEquals(cache.cachedFontOrNull("Inter"), resolved.latin)
             assertTrue(cache.downloads.isEmpty())
         }
 

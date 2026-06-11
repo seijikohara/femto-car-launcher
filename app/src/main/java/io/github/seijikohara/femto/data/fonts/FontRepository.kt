@@ -56,7 +56,7 @@ internal fun interface FontCatalogSource {
 
 /** The slice of [FontCache] the repository consumes; a seam for JVM tests. */
 internal interface FontFaceStore {
-    fun cached(family: String): CachedFont?
+    fun cachedFontOrNull(family: String): CachedFont?
 
     suspend fun ensure(family: String): CachedFont?
 
@@ -195,7 +195,7 @@ internal class FontRepository internal constructor(
 
     private suspend fun resolveSlot(family: String?): CachedFont? {
         if (family == null) return null
-        cache.cached(family)?.let { font ->
+        cache.cachedFontOrNull(family)?.let { font ->
             _downloadFailed.update { it - family }
             return font
         }
@@ -257,7 +257,7 @@ internal class FontRepository internal constructor(
 // unchanged while the repository remains constructible from fakes in JVM tests.
 private fun FontCache.asFaceStore(): FontFaceStore =
     object : FontFaceStore {
-        override fun cached(family: String): CachedFont? = this@asFaceStore.cached(family)
+        override fun cachedFontOrNull(family: String): CachedFont? = this@asFaceStore.cachedFontOrNull(family)
 
         override suspend fun ensure(family: String): CachedFont? = this@asFaceStore.ensure(family)
 

@@ -64,7 +64,7 @@ internal class ReverseGeocoderRepository(
     private suspend fun resolve(location: Location): ShortAddress? =
         mutex.withLock {
             val key = bucketKey(location.latitude, location.longitude)
-            cachedAddress(key)?.let { return it }
+            cachedAddressOrNull(key)?.let { return it }
 
             // Pace network lookups: Nominatim's usage policy sets 1 request per
             // second as an absolute ceiling, but sustained 1 Hz traffic from a
@@ -116,7 +116,7 @@ internal class ReverseGeocoderRepository(
     // Return the cached address only while it is within the TTL window. A
     // stale entry is dropped so the next visit re-queries and can recover from
     // a low-quality first geocode.
-    private fun cachedAddress(key: String): ShortAddress? =
+    private fun cachedAddressOrNull(key: String): ShortAddress? =
         cache[key]?.let { entry ->
             if (nowMs() - entry.resolvedAtMs < TTL_MS) {
                 entry.address

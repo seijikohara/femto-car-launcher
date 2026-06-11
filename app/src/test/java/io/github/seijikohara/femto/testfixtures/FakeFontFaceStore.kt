@@ -37,7 +37,7 @@ internal class FakeFontFaceStore : FontFaceStore {
     fun gateDownload(family: String): CompletableDeferred<Unit> =
         CompletableDeferred<Unit>().also { gates[family] = it }
 
-    override fun cached(family: String): CachedFont? = store[family]
+    override fun cachedFontOrNull(family: String): CachedFont? = store[family]
 
     override suspend fun ensure(family: String): CachedFont? {
         store[family]?.let { return it }

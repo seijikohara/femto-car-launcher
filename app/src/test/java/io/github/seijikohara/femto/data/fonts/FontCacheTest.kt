@@ -10,7 +10,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-// cached() and evictExcept() are pure filesystem operations, so the API is never
+// cachedFontOrNull() and evictExcept() are pure filesystem operations, so the API is never
 // invoked here — a real instance is supplied only to satisfy the constructor.
 class FontCacheTest {
     @get:Rule
@@ -21,14 +21,14 @@ class FontCacheTest {
 
     @Test
     fun `cached returns null for an absent family`() {
-        assertNull(cache.cached("Roboto"))
+        assertNull(cache.cachedFontOrNull("Roboto"))
     }
 
     @Test
     fun `cached reads a variable font directory`() {
         File(root, "roboto").mkdirs()
         File(root, "roboto/variable.ttf").writeText("ttf")
-        assertTrue(cache.cached("Roboto") is CachedFont.Variable)
+        assertTrue(cache.cachedFontOrNull("Roboto") is CachedFont.Variable)
     }
 
     @Test
@@ -36,7 +36,7 @@ class FontCacheTest {
         File(root, "roboto").mkdirs()
         File(root, "roboto/w400.ttf").writeText("ttf")
         File(root, "roboto/w700.ttf").writeText("ttf")
-        val cached = cache.cached("Roboto")
+        val cached = cache.cachedFontOrNull("Roboto")
         assertTrue(cached is CachedFont.Static)
         assertEquals(setOf(400, 700), cached.fileByWeight.keys)
     }
