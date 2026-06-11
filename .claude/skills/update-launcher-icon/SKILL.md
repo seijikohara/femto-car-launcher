@@ -1,13 +1,13 @@
 ---
 name: update-launcher-icon
 description: Use when /logo.svg changes or when asked to update, replace, or apply the Android launcher app icon in femto-car-launcher. Triggers on "update the app icon", "apply the new logo", "make logo.svg the launcher icon". Covers deriving the adaptive-icon background / foreground / monochrome VectorDrawables from logo.svg, including the 66/108 safe-zone scaling math that raw SVG coordinates always violate.
-argument-hint: "(no arguments — reads /logo.svg)"
 allowed-tools:
   - Read
   - Write
   - Edit
   - Bash
   - Glob
+  - Skill
 paths:
   - logo.svg
   - app/src/main/res/drawable/ic_launcher_background.xml

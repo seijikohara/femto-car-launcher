@@ -59,7 +59,7 @@ internal val LightFallback =
 // first hue repeats at the end so the sweep closes seamlessly. Decorative only
 // (signals "automatic / wallpaper-derived"), not theme color roles — they live
 // here because hardcoded hex is confined to this file and AccentColors.kt
-// (CLAUDE.md#design-system).
+// (.claude/rules/design-system.md).
 internal val DynamicAccentSweep =
     listOf(
         Color(0xFFEF5350),

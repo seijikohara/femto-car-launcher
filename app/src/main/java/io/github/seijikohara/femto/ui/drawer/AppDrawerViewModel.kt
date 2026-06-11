@@ -17,7 +17,7 @@ import kotlin.coroutines.cancellation.CancellationException
 private const val TAG = "AppDrawerViewModel"
 
 /**
- * Owns the drawer's app-query state per CLAUDE.md#compose-architecture.
+ * Owns the drawer's app-query state per `.claude/rules/compose.md`.
  *
  * [queryApps] is injected as a plain suspend seam so JVM tests exercise the
  * Loading/Content/Error transitions without Android types; production wires

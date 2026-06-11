@@ -23,9 +23,9 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
 @Composable
-fun <Name>Screen(
+internal fun <Name>Screen(
+    // required hoisted state and callbacks go here, first
     modifier: Modifier = Modifier,
-    // additional hoisted state and callbacks go here
 ) {
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -60,13 +60,21 @@ private fun <Name>ScreenPreview() {
 
 ## Notes
 
-- The `modifier: Modifier = Modifier` parameter is mandatory on
-  every Composable that emits content. The first thing the body
-  does with it is apply layout constraints (`modifier.fillMaxSize()`,
-  `modifier.padding(...)`, etc.). Compose Lint enforces this via
-  the `compose:modifier-missing-check` rule.
+- `modifier` is the first non-state parameter (after required
+  state/callbacks), applied before internal modifiers
+  (`modifier.fillMaxSize()`, `modifier.padding(...)`, etc.) —
+  ktlint `compose:modifier-missing-check` enforces presence;
+  shipped screens fix the order.
+- Declarations are `internal` (the preview stays `private`) —
+  prefer `internal` until export is needed. Rule:
+  `.claude/rules/kotlin-style.md`.
+- `color = MaterialTheme.colorScheme.background` is for top-level
+  screens. Sheet-hosted screens (Settings, FontPicker) use
+  `surfaceContainerLow` — match the shipped component for your
+  container type; see `.claude/rules/design-system.md`.
 - `FemtoTheme { ... }` only appears inside the preview — production
-  callers wrap once at `MainActivity`. Rule: `CLAUDE.md#design-system`.
+  callers wrap once at `MainActivity`. Rule:
+  `.claude/rules/design-system.md`.
 - For interactive elements set
   `Modifier.defaultMinSize(minWidth = FemtoDimens.MinTouchTarget,
   minHeight = FemtoDimens.MinTouchTarget)`. Rule:
@@ -74,7 +82,7 @@ private fun <Name>ScreenPreview() {
 - For longer text passages prefer `bodyLarge`. Reserve `bodyMedium`
   for secondary content. Never `bodySmall` / `labelSmall` on the
   head-unit dashboard. Rule: `CLAUDE.md#automotive-overrides`.
-- Per `CLAUDE.md#kotlin-style`, prefer expression chains: when a
+- Per `.claude/rules/kotlin-style.md`, prefer expression chains: when a
   Composable's body simply forwards parameters to a single emitter,
   use an expression body
   (`@Composable fun Foo() = Surface { ... }`); collapse

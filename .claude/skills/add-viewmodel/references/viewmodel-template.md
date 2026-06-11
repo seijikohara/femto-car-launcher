@@ -1,22 +1,21 @@
 # ViewModel + UiState scaffold
 
-Shape SSOT for the four-file UDF pattern. Replace `<Area>` and
-`<area>` placeholders. Do not change the structure (read-only
-exposed `StateFlow`, single `onAction` entry, `Route` separate from
-`Screen`) without a documented reason. Rule:
-`CLAUDE.md#compose-architecture`.
+Shape SSOT for the UDF pattern: UiState, ViewModel (+ factory), and
+Route. Replace `<Area>` and `<area>` placeholders. Do not change the
+structure (read-only exposed `StateFlow`, single `onAction` entry,
+`Route` separate from `Screen`) without a documented reason. Rule:
+`.claude/rules/compose.md`. The `Screen` body shape lives in
+[../../add-compose-screen/references/screen-template.md](../../add-compose-screen/references/screen-template.md)
+— only the signature delta is shown here.
 
 ## `<Area>UiState.kt`
 
 ```kotlin
 package io.github.seijikohara.femto.ui.<area>
 
-import androidx.compose.runtime.Immutable
-
-@Immutable
-data class <Area>UiState(
-    // Add stable fields. Use kotlinx.collections.immutable.ImmutableList
-    // for lists where stability matters for skippability.
+// Strong skipping covers stability — annotate @Stable/@Immutable
+// only per .claude/rules/compose.md.
+internal data class <Area>UiState(
     val isLoading: Boolean = false,
     val items: List<String> = emptyList(),
 ) {
@@ -25,44 +24,53 @@ data class <Area>UiState(
     }
 }
 
-sealed interface <Area>Action {
+internal sealed interface <Area>Action {
     data object Refresh : <Area>Action
-    data class Select(val id: String) : <Area>Action
+
+    data class Select(
+        val id: String,
+    ) : <Area>Action
 }
 ```
 
-## `<Area>ViewModel.kt`
+## `<Area>ViewModel.kt` — primary shape (flow-derived state)
+
+Use when the state derives from repository flows — most shipped
+VMs do (reference: `ui/home/HomeViewModel.kt`).
 
 ```kotlin
 package io.github.seijikohara.femto.ui.<area>
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import io.github.seijikohara.femto.data.common.WhileUiSubscribed
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 
-class <Area>ViewModel(
-    // Inject repositories / dispatchers here. Keep the VM
+internal class <Area>ViewModel(
+    // Inject repositories / flows / dispatchers. Keep the VM
     // testable in a plain JVM unit test — no Android types.
+    private val itemsFlow: Flow<List<String>>,
+    private val loadingFlow: Flow<Boolean>,
 ) : ViewModel() {
+    val uiState: StateFlow<<Area>UiState> =
+        combine(itemsFlow, loadingFlow) { items, isLoading ->
+            <Area>UiState(isLoading = isLoading, items = items)
+        }.stateIn(viewModelScope, WhileUiSubscribed, <Area>UiState.Initial)
 
-    private val _uiState = MutableStateFlow(<Area>UiState.Initial)
-    val uiState: StateFlow<<Area>UiState> = _uiState.asStateFlow()
-
-    fun onAction(action: <Area>Action) = when (action) {
-        <Area>Action.Refresh -> refresh()
-        is <Area>Action.Select -> select(action.id)
-    }
+    fun onAction(action: <Area>Action) =
+        when (action) {
+            <Area>Action.Refresh -> refresh()
+            is <Area>Action.Select -> select(action.id)
+        }
 
     private fun refresh() {
-        _uiState.update { it.copy(isLoading = true) }
-        viewModelScope.launch {
-            // ... do the work, then:
-            _uiState.update { it.copy(isLoading = false) }
-        }
+        // ... delegate to the repository; the flows above carry the result back
     }
 
     private fun select(id: String) {
@@ -70,6 +78,71 @@ class <Area>ViewModel(
     }
 }
 ```
+
+`WhileUiSubscribed` comes from `data/common/FlowSharing.kt` — never
+an inline `WhileSubscribed(...)` literal
+(`.claude/rules/compose.md`).
+
+### Variant — when state has no upstream flows
+
+Action-driven state: `private val _uiState = MutableStateFlow(...)`
+exposed via `asStateFlow()`. Two sanctioned mutations:
+
+- `_uiState.value = NewState` — whole-state replacement of a sealed
+  `UiState` (shipped reference: `ui/drawer/AppDrawerViewModel.kt`):
+
+  ```kotlin
+  private val _uiState = MutableStateFlow<<Area>UiState>(<Area>UiState.Loading)
+  val uiState: StateFlow<<Area>UiState> = _uiState.asStateFlow()
+
+  private fun refresh() {
+      _uiState.value = <Area>UiState.Loading
+      viewModelScope.launch {
+          // ... do the work, then:
+          _uiState.value = <Area>UiState.Content(result)
+      }
+  }
+  ```
+
+- `_uiState.update { it.copy(...) }` — partial mutation of a
+  data-class `UiState` (atomic read-modify-write; no shipped
+  reference yet):
+
+  ```kotlin
+  private val _uiState = MutableStateFlow(<Area>UiState.Initial)
+  val uiState: StateFlow<<Area>UiState> = _uiState.asStateFlow()
+
+  private fun refresh() {
+      _uiState.update { it.copy(isLoading = true) }
+      viewModelScope.launch {
+          // ... do the work, then:
+          _uiState.update { it.copy(isLoading = false) }
+      }
+  }
+  ```
+
+## Factory (same file as the ViewModel)
+
+`viewModelFactory { initializer { ... } }` DSL — the shipped shape,
+transcribed from `ui/drawer/AppDrawerViewModel.kt`. No standalone
+factory class, no `@Suppress("UNCHECKED_CAST")`.
+
+```kotlin
+internal val <Area>ViewModelFactory: ViewModelProvider.Factory =
+    viewModelFactory {
+        initializer {
+            val application = checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
+            <Area>ViewModel(
+                // Build repositories from application here.
+            )
+        }
+    }
+```
+
+Four older VMs (`ui/home`, `ui/settings`, `ui/fontpicker`,
+`ui/assistant`) still use the standalone
+`ViewModelProvider.Factory` class shape; they migrate to this DSL
+opportunistically. New code always uses the DSL.
 
 ## `<Area>Route.kt`
 
@@ -83,10 +156,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
-fun <Area>Route(
-    modifier: Modifier = Modifier,
-    viewModel: <Area>ViewModel = viewModel(),
-) {
+internal fun <Area>Route(modifier: Modifier = Modifier) {
+    val viewModel: <Area>ViewModel = viewModel(factory = <Area>ViewModelFactory)
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     <Area>Screen(
         uiState = uiState,
@@ -96,50 +167,40 @@ fun <Area>Route(
 }
 ```
 
-## `<Area>Screen.kt`
+With only `modifier`, ktlint keeps the signature on one line. Once
+the Route takes callbacks (shipped Routes all do — e.g.
+`ui/settings/SettingsRoute.kt`), list parameters one per line with a
+trailing comma.
+
+For parameterised instances declare the factory as a function of
+the parameter (`internal fun <Area>ViewModelFactory(slot: Slot):
+ViewModelProvider.Factory = viewModelFactory { ... }`) and pass a
+per-instance `key` so each parameter value keeps its own VM
+(per-instance `key` shipped shape: `ui/fontpicker/FontPickerRoute.kt`):
 
 ```kotlin
-package io.github.seijikohara.femto.ui.<area>
+viewModel(
+    key = "font-picker-$slot",
+    factory = FontPickerViewModelFactory(slot),
+)
+```
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import io.github.seijikohara.femto.ui.theme.FemtoDimens
-import io.github.seijikohara.femto.ui.theme.FemtoTheme
-import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+Bare `viewModel()` is correct only for a no-arg constructor.
 
+## `<Area>Screen.kt` — signature delta only
+
+Body shape: see
+[../../add-compose-screen/references/screen-template.md](../../add-compose-screen/references/screen-template.md)
+— the single Screen-shape SSOT. Promotion changes only the signature
+and the preview:
+
+```kotlin
 @Composable
-fun <Area>Screen(
+internal fun <Area>Screen(
     uiState: <Area>UiState,
     onAction: (<Area>Action) -> Unit,
     modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
-    ) {
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(FemtoDimens.ScreenPadding),
-            contentAlignment = Alignment.Center,
-        ) {
-            // TODO: render uiState; emit user events via onAction.
-            Text(
-                text = "<Area>",
-                style = MaterialTheme.typography.displayMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-        }
-    }
-}
+) { ... }
 
 @PreviewLightDark
 @Composable
@@ -160,13 +221,18 @@ private fun <Area>ScreenPreview() {
   preview-friendly.
 - `MutableStateFlow` is `private`. Only `StateFlow` leaves the
   class. This is enforced by the reviewer agent against
-  `CLAUDE.md#compose-architecture`.
+  `.claude/rules/compose.md`.
 - `onAction` is a `when` expression with `Unit` inferred return
   type. Per the expression-chain rule in
-  `CLAUDE.md#kotlin-style`, prefer this shape over a statement
-  body that wraps the same `when`.
-- Use `_uiState.update { it.copy(...) }` for mutations — atomic,
-  no read-modify-write race.
+  `.claude/rules/kotlin-style.md`, prefer this shape over a
+  statement body that wraps the same `when`.
+- Mutate `_uiState` only through the two sanctioned shapes in the
+  variant section above (whole-state `.value` replacement, partial
+  `update {}`) — never `_uiState.value = _uiState.value.copy(...)`.
 - For events that should fire once (navigation, snackbars), use a
-  `Channel<Event>` exposed as `Flow<Event>` rather than
-  `StateFlow`. Add to the same VM.
+  private `MutableSharedFlow` exposed via `asSharedFlow()`,
+  collected in the Route with `LaunchedEffect` (see
+  `ui/home/HomeViewModel.kt` — the shipped pattern).
+- `internal` on every declaration except the `private` preview —
+  `.claude/rules/kotlin-style.md`: prefer `internal` until export
+  is needed.

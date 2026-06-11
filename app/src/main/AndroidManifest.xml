@@ -3,20 +3,12 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-        ACCESS_COARSE_LOCATION: paired with ACCESS_FINE_LOCATION per
-        Android 12+ runtime model — users may grant only coarse;
-        the dashboard renders with degraded precision in that case.
-        Justification mirrored in CLAUDE.md#permissions.
+        Per-permission justifications and denied-state degradation live
+        in the audit log at .claude/rules/permissions.md (the SSOT,
+        kept in sync by the add-launcher-permission skill). Comments
+        below cover only manifest mechanics (e.g. optional hardware).
     -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-
-    <!--
-        ACCESS_FINE_LOCATION: powers the head-unit dashboard's
-        location-driven surfaces — map centring, speed / altitude /
-        address overlays, and current-location weather lookup.
-        Justification is mirrored in the audit log at
-        CLAUDE.md#permissions.
-    -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <!--
@@ -31,55 +23,11 @@
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <uses-feature android:name="android.hardware.location.network" android:required="false" />
 
-    <!--
-        ACCESS_NETWORK_STATE: MapLibre connectivity probe before
-        OpenFreeMap vector-tile fetch. Justification mirrored in
-        CLAUDE.md#permissions.
-    -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
-    <!--
-        ACCESS_WIFI_STATE: read Wi-Fi transport / validation state so
-        the footer status cluster reports a live Wi-Fi indicator.
-        Normal protection; auto-granted at install.
-        Justification mirrored in CLAUDE.md#permissions.
-    -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-
-    <!--
-        BLUETOOTH_CONNECT: read the set of currently-connected
-        Bluetooth devices (HEADSET / A2DP / GATT) so the footer status
-        cluster reflects whether the head unit is paired to a phone or
-        an audio device. Dangerous on Android 12+; runtime grant.
-        Without it the BT indicator stays dimmed but the rest of the
-        launcher remains functional. Justification mirrored in
-        CLAUDE.md#permissions.
-    -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-
-    <!--
-        INTERNET: Open-Meteo weather API + OpenFreeMap vector-tile
-        fetch (MapLibre) + Nominatim/OSM reverse geocoding.
-        Justification mirrored in CLAUDE.md#permissions.
-    -->
     <uses-permission android:name="android.permission.INTERNET" />
-
-    <!--
-        READ_CALENDAR: query CalendarContract.Instances for the
-        Calendar card's 6-day strip and upcoming event list.
-        Dangerous; runtime grant required. Without it the card
-        still shows today's date and an empty event list.
-        Justification mirrored in CLAUDE.md#permissions.
-    -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
-
-    <!--
-        READ_PHONE_STATE: read the cellular SignalStrength.level via
-        TelephonyCallback so the footer status cluster shows graduated
-        cellular signal bars. Dangerous; runtime grant. Without it the
-        cellular indicator degrades to the binary connected/disconnected
-        icon. Justification mirrored in CLAUDE.md#permissions.
-    -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
 
     <!--
@@ -93,15 +41,6 @@
     -->
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
-    <!--
-        RECORD_AUDIO: capture speech for the in-launcher voice assistant
-        (android.speech.SpeechRecognizer) so the user can talk to the
-        assistant without leaving the launcher. Dangerous; requested at
-        runtime only when the user taps the mic, never at startup. When
-        denied — or when no recognizer is available — the assistant sheet
-        degrades to the system-intent delegation rows.
-        Justification mirrored in CLAUDE.md#permissions.
-    -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <!--
