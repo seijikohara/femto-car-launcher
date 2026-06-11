@@ -21,3 +21,12 @@ internal sealed interface AppDrawerUiState {
 
     data object Error : AppDrawerUiState
 }
+
+/**
+ * Drawer events handled by [AppDrawerViewModel]. [Refresh] re-runs the app
+ * query: dispatched on every sheet open (so installs/uninstalls since the
+ * last open appear) and from the error state's retry affordance.
+ */
+internal sealed interface AppDrawerAction {
+    data object Refresh : AppDrawerAction
+}
