@@ -43,23 +43,23 @@ with `AndroidManifest.xml`.
    - **Signature / system** — generally **off-limits** without root
      or system signing. Stop and discuss before adding.
 
-3. **Edit `app/src/main/AndroidManifest.xml`.** Place
-   `<uses-permission>` tags before `<application>`, grouped
-   logically. Write the pointer comment
-   `<!-- Justification: .claude/rules/permissions.md -->` above the tag —
-   never mirror the justification prose into the manifest; the audit
-   log is the SSOT and the comment is a pointer only.
-
-   > Note: the existing `INTERNET` / `BLUETOOTH_CONNECT` comments
-   > predate the pointer form and have drifted; collapse them to the
-   > pointer in a separate small app-code PR (the manifest is app
-   > code, outside `.claude/` restructures).
+3. **Edit `app/src/main/AndroidManifest.xml`.** Add the
+   `<uses-permission>` tag to the alphabetised block before
+   `<application>`. Do **not** write a per-permission comment — the
+   block-header comment already points at the audit log, and the
+   audit log is the justification SSOT. Manifest comments are
+   reserved for manifest mechanics (e.g. the optional
+   `<uses-feature>` declarations).
 
 4. **Wire runtime requests** for dangerous / special permissions
    in the appropriate `ViewModel` / Composable. Never call dangerous
    APIs without checking `ContextCompat.checkSelfPermission(...)`
-   first. Request dangerous permissions at the interaction point,
-   never at startup; design the denied-state degradation first.
+   first. Prefer requesting at the interaction point over startup —
+   the launcher's sanctioned startup exception is the dashboard's
+   core location set (`MainActivity.requestRuntimePermissions()`),
+   which gates most of the home surface; everything else (e.g.
+   `RECORD_AUDIO` on mic tap) requests on interaction. Design the
+   denied-state degradation first either way.
 
 5. **Update the audit log** in `.claude/rules/permissions.md`.
    Alphabetised by permission name.

@@ -17,8 +17,11 @@ convention wins.
 - **Unidirectional data flow**: state flows down through
   `UiState`; events flow up through `(Action) -> Unit`.
 - Three-Composable shape for stateful screens:
-  - `<Area>Route(viewModel = viewModel())` wires the VM and
-    collects `StateFlow<UiState>`.
+  - `<Area>Route` obtains the ViewModel internally —
+    `viewModel(factory = <Area>ViewModelFactory)`, plus a
+    per-instance `key` for parameterised VMs — and collects
+    `StateFlow<UiState>` (never a `viewModel` parameter in the
+    Route signature).
   - `<Area>Screen(uiState, onAction)` is pure UI — previewable,
     testable in isolation.
   - `<Area>ViewModel` exposes `StateFlow<UiState>` and a single
