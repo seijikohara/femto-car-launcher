@@ -6,7 +6,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.VoiceState
+import io.github.seijikohara.femto.data.voice.VoiceState
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule

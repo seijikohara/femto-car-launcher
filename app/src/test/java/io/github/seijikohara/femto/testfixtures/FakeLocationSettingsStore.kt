@@ -1,8 +1,8 @@
 package io.github.seijikohara.femto.testfixtures
 
-import io.github.seijikohara.femto.data.LocationQualitySetting
-import io.github.seijikohara.femto.data.LocationSettings
-import io.github.seijikohara.femto.data.LocationSettingsStore
+import io.github.seijikohara.femto.data.location.LocationQualitySetting
+import io.github.seijikohara.femto.data.location.LocationSettings
+import io.github.seijikohara.femto.data.location.LocationSettingsStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update

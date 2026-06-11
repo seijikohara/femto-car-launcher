@@ -1,8 +1,8 @@
 package io.github.seijikohara.femto.testfixtures
 
-import io.github.seijikohara.femto.data.CalendarSnapshot
-import io.github.seijikohara.femto.data.DayCell
-import io.github.seijikohara.femto.data.EventItem
+import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
+import io.github.seijikohara.femto.data.calendar.DayCell
+import io.github.seijikohara.femto.data.calendar.EventItem
 import java.time.LocalDate
 import java.time.LocalTime
 

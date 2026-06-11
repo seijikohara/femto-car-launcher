@@ -7,7 +7,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
-import io.github.seijikohara.femto.data.CachedFont
+import io.github.seijikohara.femto.data.fonts.CachedFont
 
 // The weights the M3 type scale renders at, requested from every variable font
 // so the wght axis is exercised across the whole scale rather than synthesised.

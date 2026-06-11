@@ -1,7 +1,7 @@
 package io.github.seijikohara.femto.testfixtures
 
-import io.github.seijikohara.femto.data.CachedFont
-import io.github.seijikohara.femto.data.FontFaceStore
+import io.github.seijikohara.femto.data.fonts.CachedFont
+import io.github.seijikohara.femto.data.fonts.FontFaceStore
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext

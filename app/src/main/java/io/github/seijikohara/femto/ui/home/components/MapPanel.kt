@@ -64,9 +64,9 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPinOff
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.MapColorScheme
-import io.github.seijikohara.femto.data.MapRenderMode
-import io.github.seijikohara.femto.data.MapStyleSetting
+import io.github.seijikohara.femto.data.display.MapColorScheme
+import io.github.seijikohara.femto.data.display.MapRenderMode
+import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive

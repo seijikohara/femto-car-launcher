@@ -8,10 +8,10 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.AccentColor
-import io.github.seijikohara.femto.data.FullscreenSetting
-import io.github.seijikohara.femto.data.MapStyleSetting
-import io.github.seijikohara.femto.data.ThemeMode
+import io.github.seijikohara.femto.data.display.AccentColor
+import io.github.seijikohara.femto.data.display.FullscreenSetting
+import io.github.seijikohara.femto.data.display.MapStyleSetting
+import io.github.seijikohara.femto.data.display.ThemeMode
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule

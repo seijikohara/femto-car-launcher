@@ -1,6 +1,6 @@
 package io.github.seijikohara.femto.ui.drawer
 
-import io.github.seijikohara.femto.data.AppEntry
+import io.github.seijikohara.femto.data.apps.AppEntry
 
 /**
  * Render state for the app drawer.

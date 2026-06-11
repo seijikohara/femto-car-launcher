@@ -4,7 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import io.github.seijikohara.femto.data.MapColorScheme
+import io.github.seijikohara.femto.data.display.MapColorScheme
 
 // "#rrggbb" for a map style / CSS, dropping the alpha (style colours are opaque).
 internal fun Color.toCssHex(): String = "#%06X".format(0xFFFFFF and toArgb())

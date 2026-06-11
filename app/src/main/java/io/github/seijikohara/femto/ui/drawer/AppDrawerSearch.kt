@@ -1,6 +1,6 @@
 package io.github.seijikohara.femto.ui.drawer
 
-import io.github.seijikohara.femto.data.DrawerLayout
+import io.github.seijikohara.femto.data.apps.DrawerLayout
 
 /**
  * Filter [items] by [query] against [labelOf], ranking prefix matches before

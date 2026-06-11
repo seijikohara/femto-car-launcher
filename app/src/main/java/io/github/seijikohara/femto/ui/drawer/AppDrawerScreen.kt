@@ -47,9 +47,9 @@ import com.composables.icons.lucide.PinOff
 import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.X
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.AppEntry
-import io.github.seijikohara.femto.data.DrawerIconSize
-import io.github.seijikohara.femto.data.DrawerLayout
+import io.github.seijikohara.femto.data.apps.AppEntry
+import io.github.seijikohara.femto.data.apps.DrawerIconSize
+import io.github.seijikohara.femto.data.apps.DrawerLayout
 import io.github.seijikohara.femto.ui.drawer.components.PinnedDock
 import io.github.seijikohara.femto.ui.home.components.AppListRow
 import io.github.seijikohara.femto.ui.home.components.AppTile

@@ -8,7 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import io.github.seijikohara.femto.data.FontSlot
+import io.github.seijikohara.femto.data.fonts.FontSlot
 
 /**
  * Settings entry point: binds [SettingsViewModel], collects its state, and

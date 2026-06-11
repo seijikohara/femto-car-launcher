@@ -1,6 +1,6 @@
 package io.github.seijikohara.femto.testfixtures
 
-import io.github.seijikohara.femto.data.TripState
+import io.github.seijikohara.femto.data.location.TripState
 
 internal fun fakeTripState(
     distanceMeters: Double = 24_400.0,

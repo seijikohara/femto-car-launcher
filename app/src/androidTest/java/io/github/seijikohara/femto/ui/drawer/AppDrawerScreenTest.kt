@@ -12,8 +12,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
-import io.github.seijikohara.femto.data.DrawerIconSize
-import io.github.seijikohara.femto.data.DrawerLayout
+import io.github.seijikohara.femto.data.apps.DrawerIconSize
+import io.github.seijikohara.femto.data.apps.DrawerLayout
 import io.github.seijikohara.femto.testfixtures.fakeAppEntry
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Assert.assertEquals

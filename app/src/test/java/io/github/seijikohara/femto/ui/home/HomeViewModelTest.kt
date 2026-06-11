@@ -3,8 +3,8 @@ package io.github.seijikohara.femto.ui.home
 import android.content.ComponentName
 import android.content.Intent
 import app.cash.turbine.test
-import io.github.seijikohara.femto.data.ClockTick
-import io.github.seijikohara.femto.data.MusicCardState
+import io.github.seijikohara.femto.data.clock.ClockTick
+import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
 import io.github.seijikohara.femto.testfixtures.fakeLocation

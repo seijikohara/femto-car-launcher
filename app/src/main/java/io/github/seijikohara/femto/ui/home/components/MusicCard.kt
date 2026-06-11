@@ -56,9 +56,9 @@ import com.composables.icons.lucide.SkipBack
 import com.composables.icons.lucide.SkipForward
 import com.composables.icons.lucide.User
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.MusicCardState
-import io.github.seijikohara.femto.data.NowPlaying
-import io.github.seijikohara.femto.data.sourceLabel
+import io.github.seijikohara.femto.data.music.MusicCardState
+import io.github.seijikohara.femto.data.music.NowPlaying
+import io.github.seijikohara.femto.data.music.sourceLabel
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark

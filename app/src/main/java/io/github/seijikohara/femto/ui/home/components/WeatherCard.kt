@@ -38,9 +38,9 @@ import com.composables.icons.lucide.Sun
 import com.composables.icons.lucide.Thermometer
 import com.composables.icons.lucide.Wind
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.HourlyForecast
-import io.github.seijikohara.femto.data.WeatherCode
-import io.github.seijikohara.femto.data.WeatherSnapshot
+import io.github.seijikohara.femto.data.weather.HourlyForecast
+import io.github.seijikohara.femto.data.weather.WeatherCode
+import io.github.seijikohara.femto.data.weather.WeatherSnapshot
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.locale.fromCelsius

@@ -9,7 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
-import io.github.seijikohara.femto.data.FontSlot
+import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 
 /**

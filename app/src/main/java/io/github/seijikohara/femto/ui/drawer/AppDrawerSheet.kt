@@ -20,10 +20,10 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.github.seijikohara.femto.data.AppsRepository
-import io.github.seijikohara.femto.data.DrawerIconSize
-import io.github.seijikohara.femto.data.DrawerLayout
-import io.github.seijikohara.femto.data.DrawerPreferences
+import io.github.seijikohara.femto.data.apps.AppsRepository
+import io.github.seijikohara.femto.data.apps.DrawerIconSize
+import io.github.seijikohara.femto.data.apps.DrawerLayout
+import io.github.seijikohara.femto.data.apps.DrawerPreferences
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException

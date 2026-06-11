@@ -1,8 +1,8 @@
 package io.github.seijikohara.femto.testfixtures
 
-import io.github.seijikohara.femto.data.FontSelection
-import io.github.seijikohara.femto.data.FontSelectionStore
-import io.github.seijikohara.femto.data.FontSlot
+import io.github.seijikohara.femto.data.fonts.FontSelection
+import io.github.seijikohara.femto.data.fonts.FontSelectionStore
+import io.github.seijikohara.femto.data.fonts.FontSlot
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update

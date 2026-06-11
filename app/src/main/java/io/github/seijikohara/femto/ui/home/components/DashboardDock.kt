@@ -60,8 +60,8 @@ import com.composables.icons.lucide.WifiHigh
 import com.composables.icons.lucide.WifiLow
 import com.composables.icons.lucide.WifiZero
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.DockPosition
-import io.github.seijikohara.femto.data.SystemStatus
+import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.system.SystemStatus
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme

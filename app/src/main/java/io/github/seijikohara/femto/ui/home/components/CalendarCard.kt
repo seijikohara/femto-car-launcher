@@ -26,9 +26,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.CalendarSnapshot
-import io.github.seijikohara.femto.data.DayCell
-import io.github.seijikohara.femto.data.EventItem
+import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
+import io.github.seijikohara.femto.data.calendar.DayCell
+import io.github.seijikohara.femto.data.calendar.EventItem
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark

@@ -1,8 +1,8 @@
 package io.github.seijikohara.femto.ui.locale
 
 import androidx.core.text.util.LocalePreferences
-import io.github.seijikohara.femto.data.SpeedUnitSetting
-import io.github.seijikohara.femto.data.TemperatureUnitSetting
+import io.github.seijikohara.femto.data.display.SpeedUnitSetting
+import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
 import java.util.Locale
 import kotlin.math.roundToInt
 
