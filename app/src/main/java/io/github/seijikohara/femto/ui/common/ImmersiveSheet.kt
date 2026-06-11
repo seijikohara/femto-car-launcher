@@ -27,13 +27,22 @@ import androidx.core.view.WindowInsetsControllerCompat
 internal fun ImmersiveSheetEffect(fullscreen: Boolean) {
     if (!fullscreen) return
     val view = LocalView.current
-    LaunchedEffect(view) {
+    // Key on fullscreen too so a toggle while the sheet is open re-applies.
+    LaunchedEffect(view, fullscreen) {
         val window = view.dialogWindowOrNull() ?: return@LaunchedEffect
-        WindowCompat.getInsetsController(window, view).apply {
-            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            hide(WindowInsetsCompat.Type.systemBars())
-        }
+        WindowCompat.getInsetsController(window, view).hideSystemBarsTransiently()
     }
+}
+
+/**
+ * Hide the status and navigation bars with the transient-swipe behaviour (a swipe
+ * reveals them briefly, then they auto-hide). The launcher's fullscreen SSOT,
+ * shared between the Activity window ([MainActivity][io.github.seijikohara.femto.MainActivity])
+ * and the modal-sheet windows ([ImmersiveSheetEffect]) so both stay in step.
+ */
+internal fun WindowInsetsControllerCompat.hideSystemBarsTransiently() {
+    systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    hide(WindowInsetsCompat.Type.systemBars())
 }
 
 // Walk up to the modal-sheet / dialog window host, which exposes its Window

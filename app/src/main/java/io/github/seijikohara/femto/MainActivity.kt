@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.dp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import io.github.seijikohara.femto.data.apps.AppsRepository
@@ -48,6 +47,7 @@ import io.github.seijikohara.femto.data.location.hasReadPhoneStatePermission
 import io.github.seijikohara.femto.data.system.SystemPermissionSignals
 import io.github.seijikohara.femto.ui.assistant.AssistantOption
 import io.github.seijikohara.femto.ui.assistant.AssistantSheet
+import io.github.seijikohara.femto.ui.common.hideSystemBarsTransiently
 import io.github.seijikohara.femto.ui.drawer.AppDrawerSheet
 import io.github.seijikohara.femto.ui.fontpicker.FontPickerSheet
 import io.github.seijikohara.femto.ui.home.HomeEvent
@@ -246,15 +246,8 @@ class MainActivity : ComponentActivity() {
     private fun applyFullscreen(setting: FullscreenSetting) {
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         when (setting) {
-            FullscreenSetting.ON -> {
-                controller.systemBarsBehavior =
-                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                controller.hide(WindowInsetsCompat.Type.systemBars())
-            }
-
-            FullscreenSetting.OFF -> {
-                controller.show(WindowInsetsCompat.Type.systemBars())
-            }
+            FullscreenSetting.ON -> controller.hideSystemBarsTransiently()
+            FullscreenSetting.OFF -> controller.show(WindowInsetsCompat.Type.systemBars())
         }
     }
 
