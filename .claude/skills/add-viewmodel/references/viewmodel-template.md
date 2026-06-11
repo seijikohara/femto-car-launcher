@@ -15,8 +15,9 @@ import androidx.compose.runtime.Immutable
 
 @Immutable
 data class <Area>UiState(
-    // Add stable fields. Use kotlinx.collections.immutable.ImmutableList
-    // for lists where stability matters for skippability.
+    // Add stable fields. Keep collections read-only (List<T>) per
+    // CLAUDE.md#kotlin-style; @Immutable above declares the class
+    // stable to the Compose compiler despite the List fields.
     val isLoading: Boolean = false,
     val items: List<String> = emptyList(),
 ) {

@@ -26,7 +26,10 @@ when markets diverge.
   supported-device floor stays Android 13 / API 33).
 - AndroidX: `core-ktx`, `core-splashscreen`, `activity-compose`,
   `lifecycle-runtime-compose`, `lifecycle-viewmodel-compose`,
-  `datastore-preferences`.
+  `datastore-preferences`, `webkit`.
+- Key third-party libraries: MapLibre Android SDK (SNAPSHOT map
+  rendering), OkHttp (HTTP clients), MaterialKolor (preset-accent
+  scheme generation), Lucide icons, Haze (blur effects).
 - Web map page (`webmap/`): TypeScript + Vite + `maplibre-gl`, managed
   with pnpm (pinned via `packageManager`). Vite's `build.target` is
   `chrome109` — the Android 13 factory WebView; aftermarket AI boxes
@@ -61,7 +64,7 @@ app/src/
 │   │       │   ├── <Area>ViewModel.kt# StateFlow<UiState>; handles Action
 │   │       │   └── components/       # Area-private widgets
 │   │       └── theme/                # FemtoTheme + tokens + PreviewLightDark
-│   └── res/                          # themes (values{,-night}/), strings (per-locale), icon drawables, xml/
+│   └── res/                          # themes (values{,-night}/), strings, icon drawables, xml/
 ├── test/...                          # JVM unit tests (runTest + TestDispatcher)
 └── androidTest/...                   # Compose UI tests (createComposeRule)
 ```

@@ -87,4 +87,4 @@ task. Default is `assembleDebug`.
 | `Unresolved reference: libs.<x>` | Forgot to add the alias in `libs.versions.toml` | Add to `[libraries]` (and `[plugins]` for plugins), then re-sync. See `CLAUDE.md#dependencies`. |
 | `Theme.Material3.DayNight.NoActionBar` not found | `com.google.android.material:material` removed | Re-add it in `libs.versions.toml` and `app/build.gradle.kts` |
 | `:app:buildWebMap` fails | TypeScript / Vite error under `webmap/` | Fix the webmap source; Gradle provisions Node and pnpm itself. Keep Vite's `build.target` at `chrome109` (CLAUDE.md, Tech stack) |
-| Compose Compiler version mismatch | Kotlin updated but `kotlin-compose` plugin pinned | Bump `kotlin` and `compose-compiler` plugin in lock-step (see `CLAUDE.md#dependencies`) |
+| Compose Compiler version mismatch | `kotlin-compose` plugin pinned to its own version instead of `version.ref = "kotlin"` | Point the plugin back at the shared `kotlin` version ref — the lock-step is automatic when both share it (see `CLAUDE.md#dependencies`) |
