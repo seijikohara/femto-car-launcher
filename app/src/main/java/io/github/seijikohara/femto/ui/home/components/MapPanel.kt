@@ -7,11 +7,16 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.location.Location
+import android.os.SystemClock
 import android.util.Log
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -37,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -67,6 +73,7 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapRenderMode
 import io.github.seijikohara.femto.data.display.MapStyleSetting
+import io.github.seijikohara.femto.data.location.isFresh
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -189,27 +196,51 @@ internal fun Attribution(
     )
 }
 
+/**
+ * Re-evaluate [location] freshness on a 1 s tick so the marker can grey out when
+ * fixes stop arriving (a tunnel): the location flow forwards each fix verbatim
+ * and never emits null on signal loss, so a stale fix would otherwise read as
+ * live forever. A new fix restarts the tick (the key changes) and re-greens the
+ * marker. Once stale, the loop stops — nothing changes until the next fix.
+ */
+@Composable
+internal fun rememberLocationFresh(location: Location): Boolean =
+    produceState(initialValue = true, location) {
+        while (true) {
+            value = location.isFresh(SystemClock.elapsedRealtimeNanos())
+            if (!value) break
+            delay(1_000L)
+        }
+    }.value
+
 // Current-location puck: a heading-up navigation chevron at a fixed on-screen spot
 // (the camera look-ahead keeps the location there, so the chevron stays still while
 // the map slides beneath it). The map is heading-up, so the chevron always points
 // toward the top of the frame (forward); rotationX lays it onto the oblique ground
 // plane so it matches the map's tilt and reads as a nav arrow resting on the road
 // rather than a flat sticker.
+//
+// While [fresh] the chevron is the Material primary and emits a restrained ripple
+// (a live-position cue); once the fix is stale it greys out and the ripple stops,
+// matching the LIVE chevron's `.stale` state in webmap (main.ts).
 @Composable
 internal fun LocationMarker(
     xPx: Float,
     yPx: Float,
     tiltDeg: Int,
+    fresh: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val half = with(LocalDensity.current) { MARKER_ARROW_SIZE.toPx() } / 2f
-    val fill = MaterialTheme.colorScheme.primary
+    // The box is larger than the chevron so the ripple has room to expand beyond
+    // the arrow; the chevron is drawn centred at its own size inside it.
+    val half = with(LocalDensity.current) { MARKER_BOX_SIZE.toPx() } / 2f
+    val fill = if (fresh) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     val outlinePx = with(LocalDensity.current) { 1.5.dp.toPx() }
     Box(
         modifier =
             modifier
                 .offset { IntOffset((xPx - half).roundToInt(), (yPx - half).roundToInt()) }
-                .size(MARKER_ARROW_SIZE)
+                .size(MARKER_BOX_SIZE)
                 .graphicsLayer {
                     // Lay the chevron back onto the tilted ground plane so it sits in
                     // the same perspective as the map. transformOrigin centres the
@@ -219,22 +250,60 @@ internal fun LocationMarker(
                     transformOrigin = TransformOrigin(0.5f, 0.5f)
                 },
     ) {
+        // Composed only while fresh, so the infinite animation (and the
+        // recompositions it drives) stops entirely once the fix goes stale. Drawn
+        // before the chevron, so it sits behind the arrow.
+        if (fresh) {
+            MarkerRipple(color = MaterialTheme.colorScheme.primary, strokeWidthPx = outlinePx)
+        }
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
             // An upward arrowhead with a concave tail notch (the classic nav chevron):
             // tip at top-centre, the two base corners, and a notch rising from the base.
+            // Centred at MARKER_ARROW_SIZE within the larger ripple box.
+            val arrow = MARKER_ARROW_SIZE.toPx()
+            val left = (size.width - arrow) / 2f
+            val top = (size.height - arrow) / 2f
             val chevron =
                 Path().apply {
-                    moveTo(w / 2f, 0f)
-                    lineTo(w, h)
-                    lineTo(w / 2f, h * 0.72f)
-                    lineTo(0f, h)
+                    moveTo(left + arrow / 2f, top)
+                    lineTo(left + arrow, top + arrow)
+                    lineTo(left + arrow / 2f, top + arrow * 0.72f)
+                    lineTo(left, top + arrow)
                     close()
                 }
             drawPath(chevron, color = fill)
             drawPath(chevron, color = Color.White, style = Stroke(width = outlinePx))
         }
+    }
+}
+
+// One fading pulse per period: an expanding disc with a ring on its leading edge
+// so it reads clearly. A separate composable so the host only places it while the
+// fix is fresh — keeping the infinite animation out of the tree when it would
+// draw nothing.
+@Composable
+private fun MarkerRipple(
+    color: Color,
+    strokeWidthPx: Float,
+    modifier: Modifier = Modifier,
+) {
+    val ripple = rememberInfiniteTransition(label = "marker-ripple")
+    val progress by ripple.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(MARKER_RIPPLE_PERIOD_MS, easing = LinearEasing)),
+        label = "marker-ripple-progress",
+    )
+    Canvas(modifier = modifier.fillMaxSize()) {
+        val radius = (size.minDimension / 2f) * progress
+        val fade = 1f - progress
+        drawCircle(color = color.copy(alpha = MARKER_RIPPLE_MAX_ALPHA * fade), radius = radius, center = center)
+        drawCircle(
+            color = color.copy(alpha = MARKER_RIPPLE_EDGE_ALPHA * fade),
+            radius = radius,
+            center = center,
+            style = Stroke(width = strokeWidthPx),
+        )
     }
 }
 
@@ -265,10 +334,22 @@ internal fun Fallback(modifier: Modifier = Modifier) =
         )
     }
 
-// Heading-up nav chevron size and the graphicsLayer camera distance (multiplied by
+// Heading-up nav chevron size, the larger box that gives the ripple room to
+// expand past the arrow, and the graphicsLayer camera distance (multiplied by
 // density) that softens the perspective when the chevron is laid onto the tilt.
 private val MARKER_ARROW_SIZE = 30.dp
+
+// Ripple headroom around the arrow; its 64 dp equality with
+// FemtoDimens.MinTouchTarget is coincidental — this is not a tap target.
+private val MARKER_BOX_SIZE = 64.dp
 private const val MARKER_CAMERA_DISTANCE = 12f
+
+// Live-position ripple: one disc per period expanding to the box edge, with a
+// faint ring on its leading edge so the pulse stays legible. Peak opacity is
+// kept moderate — a clear pulse, not a beacon. Mirrored in webmap (main.ts).
+private const val MARKER_RIPPLE_PERIOD_MS = 2_800
+private const val MARKER_RIPPLE_MAX_ALPHA = 0.38f
+private const val MARKER_RIPPLE_EDGE_ALPHA = 0.55f
 
 // Small attribution type: legal credit only, deliberately tiny so the centred
 // speed overlay does not bury it on a narrow map pane.
