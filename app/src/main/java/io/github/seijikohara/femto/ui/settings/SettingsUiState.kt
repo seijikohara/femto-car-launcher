@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.ui.settings
 
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
 import io.github.seijikohara.femto.data.display.AccentColor
+import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DockPosition
@@ -28,6 +29,7 @@ internal data class SettingsUiState(
     val dockPosition: DockPosition,
     val orientation: OrientationSetting,
     val keepScreenOn: Boolean,
+    val assistantLaunch: AssistantLaunchSetting,
     val mapStyle: MapStyleSetting,
     val mapSchemeLight: MapColorScheme,
     val mapSchemeDark: MapColorScheme,
@@ -66,6 +68,7 @@ internal data class SettingsUiState(
                 dockPosition = DisplaySettings.Default.dockPosition,
                 orientation = DisplaySettings.Default.orientation,
                 keepScreenOn = DisplaySettings.Default.keepScreenOn,
+                assistantLaunch = DisplaySettings.Default.assistantLaunch,
                 mapStyle = DisplaySettings.Default.mapStyle,
                 mapSchemeLight = DisplaySettings.Default.mapSchemeLight,
                 mapSchemeDark = DisplaySettings.Default.mapSchemeDark,
@@ -131,6 +134,10 @@ internal sealed interface SettingsAction {
 
     data class SetKeepScreenOn(
         val value: Boolean,
+    ) : SettingsAction
+
+    data class SetAssistantLaunch(
+        val value: AssistantLaunchSetting,
     ) : SettingsAction
 
     data class SetMapStyle(

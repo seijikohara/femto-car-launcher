@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.testfixtures
 
 import io.github.seijikohara.femto.data.display.AccentColor
+import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DisplaySettingsStore
@@ -50,6 +51,11 @@ internal class FakeDisplaySettingsStore(
     override suspend fun setOrientation(value: OrientationSetting) = state.update { it.copy(orientation = value) }
 
     override suspend fun setKeepScreenOn(value: Boolean) = state.update { it.copy(keepScreenOn = value) }
+
+    override suspend fun setAssistantLaunch(value: AssistantLaunchSetting) =
+        state.update {
+            it.copy(assistantLaunch = value)
+        }
 
     override suspend fun setMapStyle(value: MapStyleSetting) = state.update { it.copy(mapStyle = value) }
 
