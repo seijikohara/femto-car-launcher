@@ -58,6 +58,13 @@ function report(kind: "fatal" | "error", detail: unknown): void {
 	}
 }
 
+// How long after the last camera push (i.e. the last GPS fix) the chevron greys
+// out and stops rippling, marking the position lost (a tunnel). The host pushes
+// a fix per update and stops on signal loss, so the page ages the last push
+// rather than waiting for a null. Mirrors LOCATION_STALE_THRESHOLD_MS in the
+// Kotlin data layer (LocationFreshness.kt) and the SNAPSHOT chevron.
+const LOCATION_STALE_THRESHOLD_MS = 10000;
+
 // Mutable page state in one const holder (let/var are banned — see biome.json
 // and no-let.grit). Camera pushes, style swaps, and error throttling all read
 // and write through here.
@@ -71,6 +78,9 @@ const state = {
 	styleFadeGen: 0,
 	firstCamera: true,
 	lastErrorReportMs: 0,
+	// Wall-clock ms of the last camera push; 0 until the first fix. The stale
+	// timer ages this to decide when the chevron greys out.
+	lastFixMs: 0,
 };
 
 function applyStyle(): void {
@@ -211,6 +221,17 @@ try {
 	const markerEl = document.getElementById("self-marker") as HTMLElement;
 	const markerPath = markerEl.querySelector("path");
 
+	// Grey the chevron and stop its ripple once fixes stop arriving (signal lost
+	// in a tunnel): the host pushes a fix per update and goes quiet on loss, so
+	// the page itself ages the last push. The .stale CSS class greyscales the
+	// chevron and hides the ripple; updateCamera clears it on the next fix.
+	setInterval(() => {
+		const stale =
+			state.lastFixMs > 0 &&
+			Date.now() - state.lastFixMs > LOCATION_STALE_THRESHOLD_MS;
+		markerEl.classList.toggle("stale", stale);
+	}, 1000);
+
 	// Android -> JS: smooth heading-up camera follow (easeTo interpolates between
 	// sparse GPS fixes). The first fix jumps (no fly-in from [0,0]); the rest ease.
 	// The chevron is pinned on screen (not geo-anchored), so only the camera moves
@@ -231,7 +252,12 @@ try {
 	) => {
 		if (!state.map) return;
 		const heading = bearing || 0;
+		// A fresh fix: re-colour the chevron, feed the ripple the same colour, and
+		// clear any stale greyout from a prior signal gap.
 		if (markerColor && markerPath) markerPath.setAttribute("fill", markerColor);
+		if (markerColor) markerEl.style.setProperty("--marker-color", markerColor);
+		state.lastFixMs = Date.now();
+		markerEl.classList.remove("stale");
 		const pos = Math.max(0, Math.min(100, markerPos || 0));
 		markerEl.style.top = `${50 + (pos / 100) * MAX_MARKER_DROP * 100}%`;
 		markerEl.style.transform = `translate(-50%, -50%) perspective(600px) rotateX(${tilt || 0}deg)`;

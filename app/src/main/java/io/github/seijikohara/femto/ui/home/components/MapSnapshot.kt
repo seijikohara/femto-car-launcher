@@ -239,7 +239,12 @@ internal fun SnapshotMap(
                         .graphicsLayer { alpha = fadeIn.value }
                         .clickable { onTap() },
             )
-            LocationMarker(xPx = markerXPx, yPx = markerYPx, tiltDeg = mapConfig.tiltDeg)
+            LocationMarker(
+                xPx = markerXPx,
+                yPx = markerYPx,
+                tiltDeg = mapConfig.tiltDeg,
+                fresh = rememberLocationFresh(location),
+            )
         }
 
         failed -> {
