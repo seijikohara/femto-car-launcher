@@ -10,26 +10,27 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.seijikohara.femto.BuildConfig
-import io.github.seijikohara.femto.data.AppsRepository
-import io.github.seijikohara.femto.data.CalendarRepository
-import io.github.seijikohara.femto.data.CalendarSnapshot
-import io.github.seijikohara.femto.data.ClockRepository
-import io.github.seijikohara.femto.data.ClockTick
-import io.github.seijikohara.femto.data.LocationPreferences
-import io.github.seijikohara.femto.data.LocationRepository
-import io.github.seijikohara.femto.data.MusicCardState
-import io.github.seijikohara.femto.data.MusicSessionRepository
-import io.github.seijikohara.femto.data.NominatimApi
-import io.github.seijikohara.femto.data.OpenMeteoApi
-import io.github.seijikohara.femto.data.ReverseGeocoderRepository
-import io.github.seijikohara.femto.data.ShortAddress
-import io.github.seijikohara.femto.data.SystemStatus
-import io.github.seijikohara.femto.data.SystemStatusRepository
-import io.github.seijikohara.femto.data.TripRepository
-import io.github.seijikohara.femto.data.TripState
-import io.github.seijikohara.femto.data.WeatherRepository
-import io.github.seijikohara.femto.data.WeatherSnapshot
-import io.github.seijikohara.femto.ui.home.components.MusicCommand
+import io.github.seijikohara.femto.data.apps.AppsRepository
+import io.github.seijikohara.femto.data.calendar.CalendarRepository
+import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
+import io.github.seijikohara.femto.data.clock.ClockRepository
+import io.github.seijikohara.femto.data.clock.ClockTick
+import io.github.seijikohara.femto.data.common.WhileUiSubscribed
+import io.github.seijikohara.femto.data.geocoding.NominatimApi
+import io.github.seijikohara.femto.data.geocoding.ReverseGeocoderRepository
+import io.github.seijikohara.femto.data.geocoding.ShortAddress
+import io.github.seijikohara.femto.data.location.LocationPreferences
+import io.github.seijikohara.femto.data.location.LocationRepository
+import io.github.seijikohara.femto.data.location.TripRepository
+import io.github.seijikohara.femto.data.location.TripState
+import io.github.seijikohara.femto.data.music.MusicCardState
+import io.github.seijikohara.femto.data.music.MusicCommand
+import io.github.seijikohara.femto.data.music.MusicSessionRepository
+import io.github.seijikohara.femto.data.system.SystemStatus
+import io.github.seijikohara.femto.data.system.SystemStatusRepository
+import io.github.seijikohara.femto.data.weather.OpenMeteoApi
+import io.github.seijikohara.femto.data.weather.WeatherRepository
+import io.github.seijikohara.femto.data.weather.WeatherSnapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -95,7 +96,7 @@ internal class HomeViewModel(
                 systemStatus = systemStatus,
                 tripState = tripState,
             )
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState.Initial)
+        }.stateIn(viewModelScope, WhileUiSubscribed, HomeUiState.Initial)
 
     // extraBufferCapacity = 1 lets a single tryEmit succeed without a live collector,
     // matching the semantics of a one-shot navigation request that is dropped if the

@@ -43,8 +43,8 @@ import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.ShortAddress
-import io.github.seijikohara.femto.data.TripState
+import io.github.seijikohara.femto.data.geocoding.ShortAddress
+import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.distanceLabel
 import io.github.seijikohara.femto.ui.locale.fromMetersPerSecond
@@ -292,7 +292,7 @@ private fun AddressRow(
         text = text,
         style =
             MaterialTheme.typography.bodyMedium.copy(
-                fontSize = 13.sp,
+                fontSize = FemtoDimens.GlanceTextSize,
                 fontWeight = FontWeight.Medium,
                 lineHeight = 16.sp,
             ),

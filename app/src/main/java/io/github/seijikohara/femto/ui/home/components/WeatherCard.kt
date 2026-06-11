@@ -38,9 +38,9 @@ import com.composables.icons.lucide.Sun
 import com.composables.icons.lucide.Thermometer
 import com.composables.icons.lucide.Wind
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.HourlyForecast
-import io.github.seijikohara.femto.data.WeatherCode
-import io.github.seijikohara.femto.data.WeatherSnapshot
+import io.github.seijikohara.femto.data.weather.HourlyForecast
+import io.github.seijikohara.femto.data.weather.WeatherCode
+import io.github.seijikohara.femto.data.weather.WeatherSnapshot
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.locale.fromCelsius
@@ -277,7 +277,7 @@ private fun ForecastChip(
             text = "${temperatureUnit.fromCelsius(forecast.tempC).roundToInt()}°",
             style =
                 MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 13.sp,
+                    fontSize = FemtoDimens.GlanceTextSize,
                     fontWeight = FontWeight.SemiBold,
                     lineHeight = 15.sp,
                     fontFeatureSettings = TabularFigures,
@@ -318,9 +318,13 @@ private fun forecastHourLabel(
     is24Hour: Boolean,
 ): String = time.format(if (is24Hour) ForecastHourFormatter24 else ForecastHourFormatter12)
 
+// Fixed daylight window used only when the snapshot carries no sunrise/sunset
+// bounds, so a forecast hour past sunset still reads as night.
+private val FallbackDaylightHours = 6..18
+
 // Day/night drives the sun-vs-moon glyph for CLEAR. Use the snapshot's real
-// sunrise/sunset when present; fall back to a fixed 6..18 window only when either
-// bound is missing, so a forecast hour past sunset reads as night.
+// sunrise/sunset when present; fall back to [FallbackDaylightHours] only when
+// either bound is missing.
 private fun isDaylight(
     time: LocalTime,
     sunrise: LocalTime?,
@@ -329,7 +333,7 @@ private fun isDaylight(
     if (sunrise != null && sunset != null) {
         time >= sunrise && time < sunset
     } else {
-        time.hour in 6..18
+        time.hour in FallbackDaylightHours
     }
 
 private fun glyphIconFor(

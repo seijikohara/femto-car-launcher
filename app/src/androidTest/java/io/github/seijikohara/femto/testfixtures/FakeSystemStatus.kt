@@ -1,6 +1,6 @@
 package io.github.seijikohara.femto.testfixtures
 
-import io.github.seijikohara.femto.data.SystemStatus
+import io.github.seijikohara.femto.data.system.SystemStatus
 
 internal fun fakeSystemStatus(
     cellularConnected: Boolean? = null,

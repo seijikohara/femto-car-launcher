@@ -1,8 +1,8 @@
 package io.github.seijikohara.femto.ui.home
 
 import android.content.ComponentName
+import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
-import io.github.seijikohara.femto.ui.home.components.MusicCommand
 
 internal sealed interface HomeAction {
     data class LaunchApp(

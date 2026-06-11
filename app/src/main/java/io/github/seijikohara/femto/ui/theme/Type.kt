@@ -89,3 +89,49 @@ internal fun Typography.sectionLabel(
         letterSpacing = trackingEm.em,
         fontFeatureSettings = TabularFigures,
     )
+
+/**
+ * Return the dashboard-card primary line style (e.g. the now-playing track
+ * title). Derived from [Typography.titleLarge] with the tighter 20sp/23sp
+ * metrics the cards inherit from the retired dashboard-v2 mockup.
+ */
+internal fun Typography.cardTitle(): TextStyle =
+    titleLarge.copy(
+        fontSize = 20.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = (-0.02f).em,
+        lineHeight = 23.sp,
+    )
+
+/**
+ * Return the dashboard-card secondary metadata line style (artist / album
+ * rows). 14sp glance metadata — one of the sanctioned card relaxations of the
+ * 18sp floor (CLAUDE.md#automotive-overrides).
+ */
+internal fun Typography.cardMeta(): TextStyle =
+    bodyMedium.copy(
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Medium,
+        lineHeight = 16.sp,
+    )
+
+/**
+ * Return the card call-to-action / empty-state headline style. Sized at the
+ * 18sp automotive glance floor ([FemtoDimens.MinBodyTextSize]) because the
+ * user must be able to read it at a glance to unlock or interpret the card.
+ */
+internal fun Typography.cardCta(): TextStyle =
+    titleMedium.copy(
+        fontSize = FemtoDimens.MinBodyTextSize,
+        fontWeight = FontWeight.SemiBold,
+    )
+
+/**
+ * Return the card call-to-action hint body style. The ~4/3 leading (1.33)
+ * keeps the two-line hint readable at the 18sp glance floor.
+ */
+internal fun Typography.cardCtaHint(): TextStyle =
+    bodyMedium.copy(
+        fontSize = FemtoDimens.MinBodyTextSize,
+        lineHeight = FemtoDimens.MinBodyTextSize * 1.33f,
+    )

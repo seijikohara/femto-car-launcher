@@ -1,6 +1,6 @@
 package io.github.seijikohara.femto.ui.drawer
 
-import io.github.seijikohara.femto.data.DrawerLayout
+import io.github.seijikohara.femto.data.apps.DrawerLayout
 import org.junit.Test
 import kotlin.test.assertEquals
 

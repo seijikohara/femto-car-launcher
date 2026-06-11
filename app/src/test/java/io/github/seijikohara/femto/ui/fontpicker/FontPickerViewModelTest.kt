@@ -2,10 +2,10 @@ package io.github.seijikohara.femto.ui.fontpicker
 
 import app.cash.turbine.ReceiveTurbine
 import app.cash.turbine.test
-import io.github.seijikohara.femto.data.FontCatalogSource
-import io.github.seijikohara.femto.data.FontRepository
-import io.github.seijikohara.femto.data.FontSlot
-import io.github.seijikohara.femto.data.GoogleFontFamily
+import io.github.seijikohara.femto.data.fonts.FontCatalogSource
+import io.github.seijikohara.femto.data.fonts.FontRepository
+import io.github.seijikohara.femto.data.fonts.FontSlot
+import io.github.seijikohara.femto.data.fonts.GoogleFontFamily
 import io.github.seijikohara.femto.testfixtures.FakeFontFaceStore
 import io.github.seijikohara.femto.testfixtures.FakeFontSelectionStore
 import kotlinx.coroutines.Dispatchers

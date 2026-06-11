@@ -26,9 +26,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.CalendarSnapshot
-import io.github.seijikohara.femto.data.DayCell
-import io.github.seijikohara.femto.data.EventItem
+import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
+import io.github.seijikohara.femto.data.calendar.DayCell
+import io.github.seijikohara.femto.data.calendar.EventItem
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
@@ -210,7 +210,10 @@ private fun DayRow(
             // an explicit line beats a bare dash for the one row that stays.
             Text(
                 text = stringResource(R.string.calendar_no_events),
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 18.sp),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = FemtoDimens.GlanceTextSize,
+                    lineHeight = 18.sp,
+                ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 maxLines = 1,
             )
@@ -248,7 +251,7 @@ private fun EventRow(
         text = time,
         style =
             MaterialTheme.typography.labelLarge.copy(
-                fontSize = 13.sp,
+                fontSize = FemtoDimens.GlanceTextSize,
                 fontWeight = FontWeight.SemiBold,
                 lineHeight = 18.sp,
                 fontFeatureSettings = TabularFigures,
@@ -259,7 +262,7 @@ private fun EventRow(
     )
     Text(
         text = title,
-        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 18.sp),
+        style = MaterialTheme.typography.bodyMedium.copy(fontSize = FemtoDimens.GlanceTextSize, lineHeight = 18.sp),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,

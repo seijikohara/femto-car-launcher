@@ -1,6 +1,6 @@
 package io.github.seijikohara.femto.testfixtures
 
-import io.github.seijikohara.femto.data.NowPlaying
+import io.github.seijikohara.femto.data.music.NowPlaying
 
 internal fun fakeNowPlaying(
     title: String = "Strobe",

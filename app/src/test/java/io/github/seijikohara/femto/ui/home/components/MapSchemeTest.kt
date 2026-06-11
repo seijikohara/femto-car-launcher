@@ -1,6 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
-import io.github.seijikohara.femto.data.MapColorScheme
+import io.github.seijikohara.femto.data.display.MapColorScheme
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

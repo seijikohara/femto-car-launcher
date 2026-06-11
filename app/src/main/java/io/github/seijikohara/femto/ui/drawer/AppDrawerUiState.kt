@@ -1,6 +1,6 @@
 package io.github.seijikohara.femto.ui.drawer
 
-import io.github.seijikohara.femto.data.AppEntry
+import io.github.seijikohara.femto.data.apps.AppEntry
 
 /**
  * Render state for the app drawer.
@@ -20,4 +20,13 @@ internal sealed interface AppDrawerUiState {
     ) : AppDrawerUiState
 
     data object Error : AppDrawerUiState
+}
+
+/**
+ * Drawer events handled by [AppDrawerViewModel]. [Refresh] re-runs the app
+ * query: dispatched on every sheet open (so installs/uninstalls since the
+ * last open appear) and from the error state's retry affordance.
+ */
+internal sealed interface AppDrawerAction {
+    data object Refresh : AppDrawerAction
 }

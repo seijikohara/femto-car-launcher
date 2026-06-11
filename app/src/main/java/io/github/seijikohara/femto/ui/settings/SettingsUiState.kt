@@ -1,20 +1,20 @@
 package io.github.seijikohara.femto.ui.settings
 
-import io.github.seijikohara.femto.data.AccentColor
-import io.github.seijikohara.femto.data.ClockSetting
-import io.github.seijikohara.femto.data.DisplaySettings
-import io.github.seijikohara.femto.data.DockPosition
-import io.github.seijikohara.femto.data.DrawerIconSize
-import io.github.seijikohara.femto.data.FullscreenSetting
-import io.github.seijikohara.femto.data.LocationQualitySetting
-import io.github.seijikohara.femto.data.LocationSettings
-import io.github.seijikohara.femto.data.MapColorScheme
-import io.github.seijikohara.femto.data.MapRenderMode
-import io.github.seijikohara.femto.data.MapStyleSetting
-import io.github.seijikohara.femto.data.OrientationSetting
-import io.github.seijikohara.femto.data.SpeedUnitSetting
-import io.github.seijikohara.femto.data.TemperatureUnitSetting
-import io.github.seijikohara.femto.data.ThemeMode
+import io.github.seijikohara.femto.data.apps.DrawerIconSize
+import io.github.seijikohara.femto.data.display.AccentColor
+import io.github.seijikohara.femto.data.display.ClockSetting
+import io.github.seijikohara.femto.data.display.DisplaySettings
+import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.FullscreenSetting
+import io.github.seijikohara.femto.data.display.MapColorScheme
+import io.github.seijikohara.femto.data.display.MapRenderMode
+import io.github.seijikohara.femto.data.display.MapStyleSetting
+import io.github.seijikohara.femto.data.display.OrientationSetting
+import io.github.seijikohara.femto.data.display.SpeedUnitSetting
+import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
+import io.github.seijikohara.femto.data.display.ThemeMode
+import io.github.seijikohara.femto.data.location.LocationQualitySetting
+import io.github.seijikohara.femto.data.location.LocationSettings
 
 /** State for the in-app settings screen: the persisted display + font choices. */
 internal data class SettingsUiState(

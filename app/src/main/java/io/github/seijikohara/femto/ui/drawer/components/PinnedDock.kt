@@ -40,7 +40,7 @@ import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.PinOff
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.AppEntry
+import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark

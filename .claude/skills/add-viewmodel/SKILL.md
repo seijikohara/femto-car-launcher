@@ -44,8 +44,9 @@ arguments, prompt the caller for both values.
    - Single entry point `fun onAction(action: <Area>Action)` with a
      `when` over the sealed type.
    - Constructor takes only what is testable in plain unit tests
-     (repositories, dispatchers); avoid `Context` unless absolutely
-     required (use `AndroidViewModel` if so).
+     (repositories from `data/<domain>/`, dispatchers, or plain
+     function seams); avoid `Context` unless absolutely required
+     (use `AndroidViewModel` if so).
 
 4. **Refactor `<Area>Screen.kt`** to take state and callback:
    ```kotlin

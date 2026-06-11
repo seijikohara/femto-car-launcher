@@ -1,8 +1,8 @@
 package io.github.seijikohara.femto.testfixtures
 
-import io.github.seijikohara.femto.data.DrawerIconSize
-import io.github.seijikohara.femto.data.DrawerLayout
-import io.github.seijikohara.femto.data.DrawerSettingsStore
+import io.github.seijikohara.femto.data.apps.DrawerIconSize
+import io.github.seijikohara.femto.data.apps.DrawerLayout
+import io.github.seijikohara.femto.data.apps.DrawerSettingsStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update

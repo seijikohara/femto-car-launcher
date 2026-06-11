@@ -5,10 +5,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
-import io.github.seijikohara.femto.data.CatalogState
-import io.github.seijikohara.femto.data.FontRepository
-import io.github.seijikohara.femto.data.FontSlot
-import io.github.seijikohara.femto.data.GoogleFontFamily
+import io.github.seijikohara.femto.data.common.WhileUiSubscribed
+import io.github.seijikohara.femto.data.fonts.CatalogState
+import io.github.seijikohara.femto.data.fonts.FontRepository
+import io.github.seijikohara.femto.data.fonts.FontSlot
+import io.github.seijikohara.femto.data.fonts.GoogleFontFamily
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -46,7 +47,7 @@ internal class FontPickerViewModel(
                 downloadFailed = downloadFailed,
                 status = status,
             )
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FontPickerUiState(slot))
+        }.stateIn(viewModelScope, WhileUiSubscribed, FontPickerUiState(slot))
 
     init {
         repository.ensureCatalog()

@@ -1,6 +1,6 @@
 package io.github.seijikohara.femto.ui.assistant
 
-import io.github.seijikohara.femto.data.VoiceState
+import io.github.seijikohara.femto.data.voice.VoiceState
 
 /** State for the assistant sheet: the in-launcher voice recognition step. */
 internal data class AssistantUiState(

@@ -1,7 +1,7 @@
 package io.github.seijikohara.femto.ui.theme
 
 import androidx.compose.ui.graphics.Color
-import io.github.seijikohara.femto.data.AccentColor
+import io.github.seijikohara.femto.data.display.AccentColor
 
 /**
  * Seed color for each [AccentColor] preset, or null for [AccentColor.DYNAMIC]

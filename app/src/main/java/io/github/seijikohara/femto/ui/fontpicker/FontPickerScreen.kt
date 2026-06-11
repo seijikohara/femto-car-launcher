@@ -35,8 +35,8 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.X
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.FontSlot
-import io.github.seijikohara.femto.data.GoogleFontFamily
+import io.github.seijikohara.femto.data.fonts.FontSlot
+import io.github.seijikohara.femto.data.fonts.GoogleFontFamily
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark

@@ -37,7 +37,7 @@ import com.composables.icons.lucide.Mic
 import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.Sparkles
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.VoiceState
+import io.github.seijikohara.femto.data.voice.VoiceState
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark

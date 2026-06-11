@@ -48,7 +48,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPinOff
 import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.MapStyleSetting
+import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import kotlinx.coroutines.delay

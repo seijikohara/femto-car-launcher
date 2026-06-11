@@ -1,7 +1,7 @@
 package io.github.seijikohara.femto.testfixtures
 
-import io.github.seijikohara.femto.data.CachedFont
-import io.github.seijikohara.femto.data.FontFaceStore
+import io.github.seijikohara.femto.data.fonts.CachedFont
+import io.github.seijikohara.femto.data.fonts.FontFaceStore
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -37,7 +37,7 @@ internal class FakeFontFaceStore : FontFaceStore {
     fun gateDownload(family: String): CompletableDeferred<Unit> =
         CompletableDeferred<Unit>().also { gates[family] = it }
 
-    override fun cached(family: String): CachedFont? = store[family]
+    override fun cachedFontOrNull(family: String): CachedFont? = store[family]
 
     override suspend fun ensure(family: String): CachedFont? {
         store[family]?.let { return it }

@@ -1,7 +1,7 @@
 package io.github.seijikohara.femto.ui.fontpicker
 
-import io.github.seijikohara.femto.data.FontSlot
-import io.github.seijikohara.femto.data.GoogleFontFamily
+import io.github.seijikohara.femto.data.fonts.FontSlot
+import io.github.seijikohara.femto.data.fonts.GoogleFontFamily
 
 /** Catalog load state for the picker list. */
 internal enum class PickerStatus {

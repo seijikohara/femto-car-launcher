@@ -1,9 +1,9 @@
 package io.github.seijikohara.femto.testfixtures
 
-import io.github.seijikohara.femto.data.DailyForecast
-import io.github.seijikohara.femto.data.HourlyForecast
-import io.github.seijikohara.femto.data.WeatherCode
-import io.github.seijikohara.femto.data.WeatherSnapshot
+import io.github.seijikohara.femto.data.weather.DailyForecast
+import io.github.seijikohara.femto.data.weather.HourlyForecast
+import io.github.seijikohara.femto.data.weather.WeatherCode
+import io.github.seijikohara.femto.data.weather.WeatherSnapshot
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime

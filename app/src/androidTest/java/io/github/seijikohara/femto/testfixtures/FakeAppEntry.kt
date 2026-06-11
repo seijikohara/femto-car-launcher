@@ -2,7 +2,7 @@ package io.github.seijikohara.femto.testfixtures
 
 import android.content.ComponentName
 import android.graphics.Bitmap
-import io.github.seijikohara.femto.data.AppEntry
+import io.github.seijikohara.femto.data.apps.AppEntry
 
 /**
  * Build an [AppEntry] for UI tests with a 1x1 placeholder icon.

@@ -12,8 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import io.github.seijikohara.femto.data.DockPosition
-import io.github.seijikohara.femto.data.hasFineLocationPermission
+import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.location.hasFineLocationPermission
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
 import io.github.seijikohara.femto.ui.home.components.PanelVisibility

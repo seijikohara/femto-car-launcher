@@ -40,7 +40,19 @@ app/src/
 ├── main/
 │   ├── java/io/github/seijikohara/femto/
 │   │   ├── MainActivity.kt           # ComponentActivity, single launcher entry
-│   │   ├── data/                     # Repositories, DataStore stores, network APIs (flat package)
+│   │   ├── data/                     # One sub-package per domain; data/ never imports ui/
+│   │   │   ├── apps/                 # App query + drawer preferences
+│   │   │   ├── calendar/             # CalendarContract snapshot
+│   │   │   ├── clock/                # Tick flow + zone/format signals
+│   │   │   ├── common/               # Cross-store helpers (PreferencesSupport, FlowSharing)
+│   │   │   ├── display/              # DisplaySettings model + DataStore store
+│   │   │   ├── fonts/                # Google Fonts catalog, cache, repository
+│   │   │   ├── geocoding/            # Nominatim client + address composition
+│   │   │   ├── location/             # Location/trip repositories + permissions
+│   │   │   ├── music/                # Media session repository + commands
+│   │   │   ├── system/               # Connectivity/battery status cluster
+│   │   │   ├── voice/                # SpeechRecognizer wrapper
+│   │   │   └── weather/              # Open-Meteo client + snapshot
 │   │   └── ui/
 │   │       ├── <area>/               # One area per top-level surface
 │   │       │   ├── <Area>Route.kt    # VM-binding entry point (when stateful)
@@ -99,18 +111,25 @@ with automotive overrides on top.
   heavy display/headline weights too dense on the head unit (display
   ExtraBold/Bold, headline SemiBold, title Medium; body Normal, label
   Medium — `ui/theme/Type.kt` is the SSOT). Use
-  `MaterialTheme.typography.*` styles; never construct ad-hoc
-  `TextStyle` literals.
+  `MaterialTheme.typography.*` styles or the named `Typography`
+  extensions in `Type.kt` (`bigNumber`, `sectionLabel`, `cardTitle`,
+  `cardMeta`, `cardCta`, `cardCtaHint`); never construct ad-hoc
+  `TextStyle` literals — a recurring `.copy(fontSize = ...)` becomes a
+  new named extension in `Type.kt`.
 - Sizing: read from `FemtoDimens` (e.g. `FemtoDimens.MinTouchTarget`).
 - Previews use `@PreviewLightDark` from `ui/theme/PreviewLightDark.kt` — never
-  write the two `@Preview` annotations by hand.
+  hand-write the light/dark `@Preview` pair. Additional single-mode
+  geometry previews (`@Preview(name = ..., widthDp = ..., heightDp =
+  ...)`) beside it are sanctioned responsive test cases: annotation
+  classes cannot parameterise dimensions, and the geometries differ
+  per component.
 
 ### Automotive overrides <a id="automotive-overrides"></a>
 
 | Concern | M3 default | Femto rule | Symbol |
 | --- | --- | --- | --- |
 | Tap target | 48 dp | **≥ 64 dp** | `FemtoDimens.MinTouchTarget` |
-| Body text on the head-unit dashboard | flexible | **≥ 18 sp**, never `bodySmall` / `labelSmall`. Cards may deliberately relax this for glance metadata, metrics, and progress captions; the shipped card components under `ui/home/components/` are the reference for where the relaxation applies (inherited from the retired dashboard-v2 mockup, whose KDoc notes mark each spot) | `FemtoDimens.MinBodyTextSize` |
+| Body text on the head-unit dashboard | flexible | **≥ 18 sp**, never `bodySmall` / `labelSmall`. Cards may deliberately relax this for glance metadata, metrics, and progress captions — never as a literal in component code: the size lives in `FemtoDimens.GlanceTextSize` (13 sp) or inside a named `Type.kt` extension (e.g. `cardMeta`). The shipped card components under `ui/home/components/` are the reference for where the relaxation applies (inherited from the retired dashboard-v2 mockup, whose KDoc notes mark each spot) | `FemtoDimens.MinBodyTextSize` / `FemtoDimens.GlanceTextSize` |
 
 When the value lives in code, the symbol on the right is the SSOT —
 not a magic number in another file.
@@ -292,6 +311,10 @@ convention differ, the project convention wins for this repo.
   for value containers; `data object` for stateless markers.
 - Immutability: prefer `val` and read-only collections (`List<T>`,
   `Map<K, V>`) over mutable variants in public API.
+- Nullable lookups are named `<noun>OrNull` after the stdlib
+  vocabulary (`firstOrNull`, `getOrNull`) — e.g. `cachedFontOrNull`,
+  `cachedAddressOrNull`. No Java-flavored `get` prefix, and no
+  past-participle names (`cached()`) that read as state predicates.
 
 ### Compose architecture <a id="compose-architecture"></a>
 
@@ -317,6 +340,12 @@ convention differ, the project convention wins for this repo.
 - `FemtoTheme` is wrapped exactly once at the entry point
   (`MainActivity` for production, the preview block for previews).
   See `CLAUDE.md#design-system`.
+- **Layering**: `data/` never imports `ui/`. A type a repository
+  consumes (e.g. `MusicCommand`) lives in the repository's
+  `data/<domain>/` package, not beside the Composable that emits it.
+- `stateIn` / `shareIn` use the shared `WhileUiSubscribed` policy
+  from `data/common/FlowSharing.kt` — never an inline
+  `WhileSubscribed(...)` literal.
 - Use the `add-viewmodel` skill to scaffold the VM + UiState.
 
 ### Compose performance <a id="compose-performance"></a>
@@ -399,6 +428,12 @@ cite the SSOT — they do not restate it.
 | `./gradlew spotlessCheck` | Format / lint check (Kotlin via ktlint, Gradle DSL, Markdown EOL) |
 | `./gradlew spotlessApply` | Auto-fix format violations in place |
 | `./gradlew versionCatalogUpdate` | Update `gradle/libs.versions.toml` to the latest stable versions (`nl.littlerobots.version-catalog-update`) |
+
+Build-time endpoints: `GEOCODER_BASE_URL` / `GEOCODER_API_KEY`,
+`WEATHER_BASE_URL` / `WEATHER_API_KEY`, and `FONTS_METADATA_BASE_URL`
+are `BuildConfig` fields fed from the gitignored `local.properties`,
+falling back to the public hosts. The mechanism (and the per-field
+comments) in `app/build.gradle.kts` is the wiring SSOT.
 
 The
 [`verify-android-build`](.claude/skills/verify-android-build/SKILL.md)

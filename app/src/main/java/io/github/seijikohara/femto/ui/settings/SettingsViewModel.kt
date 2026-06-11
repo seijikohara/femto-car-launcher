@@ -5,13 +5,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
-import io.github.seijikohara.femto.data.DisplayPreferences
-import io.github.seijikohara.femto.data.DisplaySettingsStore
-import io.github.seijikohara.femto.data.DrawerPreferences
-import io.github.seijikohara.femto.data.DrawerSettingsStore
-import io.github.seijikohara.femto.data.FontPreferences
-import io.github.seijikohara.femto.data.LocationPreferences
-import io.github.seijikohara.femto.data.LocationSettingsStore
+import io.github.seijikohara.femto.data.apps.DrawerPreferences
+import io.github.seijikohara.femto.data.apps.DrawerSettingsStore
+import io.github.seijikohara.femto.data.common.WhileUiSubscribed
+import io.github.seijikohara.femto.data.display.DisplayPreferences
+import io.github.seijikohara.femto.data.display.DisplaySettingsStore
+import io.github.seijikohara.femto.data.fonts.FontPreferences
+import io.github.seijikohara.femto.data.location.LocationPreferences
+import io.github.seijikohara.femto.data.location.LocationSettingsStore
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -64,7 +65,7 @@ internal class SettingsViewModel(
                 locationIntervalMillis = location.intervalMillis,
                 locationMinDistanceMeters = location.minUpdateDistanceMeters,
             )
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState.Initial)
+        }.stateIn(viewModelScope, WhileUiSubscribed, SettingsUiState.Initial)
 
     fun onAction(action: SettingsAction) {
         // Each branch is a single suspending write; launch once and dispatch.
