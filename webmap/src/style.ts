@@ -6,15 +6,26 @@ export interface AccentColors {
 	background: string;
 	water: string;
 	land: string;
+	roadMajor: string;
+	roadMinor: string;
+	roadCasing: string;
+	building: string;
 }
 
 // The feature merge is parameterised on the page state instead of reading it,
 // so a test can exercise every combination without touching globals.
+// [buildingColor] is the theme-tracked 3D extrusion colour, applied for EVERY
+// scheme (not just ACCENT) so the buildings stay subdued on any base style.
 export interface MapFeatures {
 	buildings: boolean;
 	terrain: boolean;
 	accent: AccentColors | null;
+	buildingColor: string;
 }
+
+// Subdued, see-through buildings: the extrusion must never outshout the roads
+// (the car-nav priority), so it renders semi-transparent in its theme colour.
+export const BUILDING_EXTRUSION_OPACITY = 0.5;
 
 // DEM = Mapterhorn (free, no key); the provider's required credit is shown by
 // the host's Compose attribution overlay when terrain is active.
@@ -44,6 +55,25 @@ export function markerPadTop(
 export function vectorSourceId(style: StyleSpecification): string | undefined {
 	const sources = style.sources ?? {};
 	return Object.keys(sources).find((id) => sources[id].type === "vector");
+}
+
+// Road classification by layer id, shared between the bundled light/dark styles.
+// "subtle" (the low-zoom motorway representation) classifies as minor: in the dark
+// base its colour is identical to highway_minor, and as "major" it would render a
+// casing-less dark hairline on the dark background. Railways, piers, oneway
+// arrows, and aeroways fall outside the highway_/tunnel_ prefixes and keep their
+// base colours. Mirrors roadColorOrNull in MapStyleRecolor.kt — keep in sync.
+export function roadClassOrNull(
+	layer: LayerSpecification,
+): "casing" | "minor" | "major" | null {
+	const sourceLayer = (layer as { "source-layer"?: string })["source-layer"];
+	if (layer.type !== "line" || sourceLayer !== "transportation") return null;
+	if (!layer.id.startsWith("highway_") && !layer.id.startsWith("tunnel_"))
+		return null;
+	if (layer.id.includes("casing")) return "casing";
+	if (["minor", "path", "subtle"].some((k) => layer.id.includes(k)))
+		return "minor";
+	return "major";
 }
 
 // Style-spec paint maps are per-layer-type unions; this helper funnels the few
@@ -79,13 +109,16 @@ export function injectFeatures(
 		delete nextStyle.sources.terrainSource;
 		delete nextStyle.terrain;
 	}
-	// ACCENT scheme: recolour background / water / land fills with the accent
-	// palette, leaving roads + labels legible against the base. Mirrors the
-	// Kotlin recolorAccent in MapPanel.kt — keep the layer groups in sync.
+	// ACCENT scheme: recolour background / water / land / building fills and the
+	// transportation lines with the accent palette. Roads keep their base widths,
+	// so the motorway/major/minor hierarchy survives; labels stay untouched.
+	// Mirrors the Kotlin recolorAccent in MapStyleRecolor.kt — keep the layer
+	// groups and the road classification in sync.
 	const accent = features.accent;
 	if (accent) {
 		for (const l of nextStyle.layers) {
 			const sourceLayer = (l as { "source-layer"?: string })["source-layer"];
+			const roadClass = roadClassOrNull(l);
 			if (l.type === "background")
 				setPaint(l, "background-color", accent.background);
 			else if (l.type === "fill" && sourceLayer === "water")
@@ -96,10 +129,20 @@ export function injectFeatures(
 				ACCENT_LAND.includes(sourceLayer)
 			)
 				setPaint(l, "fill-color", accent.land);
+			else if (l.type === "fill" && sourceLayer === "building")
+				setPaint(l, "fill-color", accent.building);
+			else if (roadClass === "casing")
+				setPaint(l, "line-color", accent.roadCasing);
+			else if (roadClass === "minor")
+				setPaint(l, "line-color", accent.roadMinor);
+			else if (roadClass === "major")
+				setPaint(l, "line-color", accent.roadMajor);
 		}
 	}
 	const src = vectorSourceId(nextStyle);
-	if (features.buildings && src) {
+	// An empty colour would fail MapLibre's style validation, so buildings wait
+	// for the first features push (which always carries the theme colour).
+	if (features.buildings && features.buildingColor && src) {
 		// Insert beneath the first label (symbol) layer so labels stay on top.
 		const firstSymbol = nextStyle.layers.find((l) => l.type === "symbol");
 		const buildings = {
@@ -110,7 +153,7 @@ export function injectFeatures(
 			minzoom: 14,
 			filter: ["!=", ["get", "hide_3d"], true],
 			paint: {
-				"fill-extrusion-color": "#c2c8d0",
+				"fill-extrusion-color": features.buildingColor,
 				"fill-extrusion-height": [
 					"interpolate",
 					["linear"],
@@ -129,7 +172,7 @@ export function injectFeatures(
 					16,
 					["get", "render_min_height"],
 				],
-				"fill-extrusion-opacity": 0.85,
+				"fill-extrusion-opacity": BUILDING_EXTRUSION_OPACITY,
 			},
 		} as LayerSpecification;
 		if (firstSymbol)

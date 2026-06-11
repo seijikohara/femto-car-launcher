@@ -1,14 +1,30 @@
-import type { StyleSpecification } from "maplibre-gl";
+import type { LayerSpecification, StyleSpecification } from "maplibre-gl";
 import { describe, expect, it } from "vitest";
 import {
+	BUILDING_EXTRUSION_OPACITY,
 	injectFeatures,
 	MAPTERHORN_DEM_URL,
 	MAX_MARKER_DROP,
 	markerPadTop,
+	roadClassOrNull,
 	vectorSourceId,
 } from "./style";
 
-const OFF = { buildings: false, terrain: false, accent: null };
+const OFF = {
+	buildings: false,
+	terrain: false,
+	accent: null,
+	buildingColor: "",
+};
+
+function roadLine(id: string): LayerSpecification {
+	return {
+		id,
+		type: "line",
+		source: "openmaptiles",
+		"source-layer": "transportation",
+	} as LayerSpecification;
+}
 
 function baseStyle(): StyleSpecification {
 	return {
@@ -32,10 +48,24 @@ function baseStyle(): StyleSpecification {
 				"source-layer": "park",
 			},
 			{
-				id: "road",
+				id: "building",
 				type: "fill",
 				source: "openmaptiles",
-				"source-layer": "transportation",
+				"source-layer": "building",
+			},
+			roadLine("highway_motorway_casing"),
+			roadLine("highway_motorway_inner"),
+			roadLine("highway_major_subtle"),
+			roadLine("highway_minor"),
+			roadLine("highway_path"),
+			roadLine("tunnel_motorway_casing"),
+			roadLine("railway_minor"),
+			roadLine("road_pier"),
+			{
+				id: "aeroway-runway",
+				type: "line",
+				source: "openmaptiles",
+				"source-layer": "aeroway",
 			},
 			{
 				id: "labels",
@@ -60,8 +90,10 @@ describe("vectorSourceId", () => {
 });
 
 describe("injectFeatures: 3D buildings", () => {
+	const BUILDINGS = { ...OFF, buildings: true, buildingColor: "#404040" };
+
 	it("inserts the extrusion layer beneath the first symbol layer", () => {
-		const style = injectFeatures(baseStyle(), { ...OFF, buildings: true });
+		const style = injectFeatures(baseStyle(), BUILDINGS);
 		const ids = style.layers.map((l) => l.id);
 		expect(ids.indexOf("femto-3d-buildings")).toBe(ids.indexOf("labels") - 1);
 	});
@@ -69,27 +101,47 @@ describe("injectFeatures: 3D buildings", () => {
 	it("appends the extrusion layer when the style has no symbol layer", () => {
 		const style = baseStyle();
 		style.layers = style.layers.filter((l) => l.type !== "symbol");
-		const out = injectFeatures(style, { ...OFF, buildings: true });
+		const out = injectFeatures(style, BUILDINGS);
 		expect(out.layers.at(-1)?.id).toBe("femto-3d-buildings");
+	});
+
+	it("paints the extrusion with the pushed theme colour, semi-transparent", () => {
+		const style = injectFeatures(baseStyle(), BUILDINGS);
+		const paint = (
+			style.layers.find((l) => l.id === "femto-3d-buildings") as {
+				paint?: Record<string, unknown>;
+			}
+		).paint;
+		expect(paint?.["fill-extrusion-color"]).toBe(BUILDINGS.buildingColor);
+		expect(paint?.["fill-extrusion-opacity"]).toBe(BUILDING_EXTRUSION_OPACITY);
 	});
 
 	it("does not inject without a vector source", () => {
 		const style = baseStyle();
 		style.sources = {};
-		const out = injectFeatures(style, { ...OFF, buildings: true });
+		const out = injectFeatures(style, BUILDINGS);
+		expect(out.layers.some((l) => l.id === "femto-3d-buildings")).toBe(false);
+	});
+
+	it("does not inject before the theme colour arrives", () => {
+		const out = injectFeatures(baseStyle(), {
+			...OFF,
+			buildings: true,
+			buildingColor: "",
+		});
 		expect(out.layers.some((l) => l.id === "femto-3d-buildings")).toBe(false);
 	});
 
 	it("is idempotent across re-application", () => {
-		const once = injectFeatures(baseStyle(), { ...OFF, buildings: true });
-		const twice = injectFeatures(once, { ...OFF, buildings: true });
+		const once = injectFeatures(baseStyle(), BUILDINGS);
+		const twice = injectFeatures(once, BUILDINGS);
 		expect(
 			twice.layers.filter((l) => l.id === "femto-3d-buildings"),
 		).toHaveLength(1);
 	});
 
 	it("removes a previously injected layer when toggled off", () => {
-		const on = injectFeatures(baseStyle(), { ...OFF, buildings: true });
+		const on = injectFeatures(baseStyle(), BUILDINGS);
 		const off = injectFeatures(on, OFF);
 		expect(off.layers.some((l) => l.id === "femto-3d-buildings")).toBe(false);
 	});
@@ -118,27 +170,59 @@ describe("injectFeatures: terrain", () => {
 });
 
 describe("injectFeatures: accent recolour", () => {
-	const accent = { background: "#101010", water: "#202020", land: "#303030" };
+	const accent = {
+		background: "#101010",
+		water: "#202020",
+		land: "#303030",
+		roadMajor: "#404040",
+		roadMinor: "#505050",
+		roadCasing: "#606060",
+		building: "#707070",
+	};
 
-	it("recolours background, water, and land fills", () => {
+	function paintOf(style: StyleSpecification, id: string) {
+		return (
+			style.layers.find((l) => l.id === id) as {
+				paint?: Record<string, unknown>;
+			}
+		).paint;
+	}
+
+	it("recolours background, water, land, and building fills", () => {
 		const style = injectFeatures(baseStyle(), { ...OFF, accent });
-		const paintOf = (id: string) =>
-			(
-				style.layers.find((l) => l.id === id) as {
-					paint?: Record<string, unknown>;
-				}
-			).paint;
-		expect(paintOf("bg")?.["background-color"]).toBe(accent.background);
-		expect(paintOf("water")?.["fill-color"]).toBe(accent.water);
-		expect(paintOf("park")?.["fill-color"]).toBe(accent.land);
+		expect(paintOf(style, "bg")?.["background-color"]).toBe(accent.background);
+		expect(paintOf(style, "water")?.["fill-color"]).toBe(accent.water);
+		expect(paintOf(style, "park")?.["fill-color"]).toBe(accent.land);
+		expect(paintOf(style, "building")?.["fill-color"]).toBe(accent.building);
 	});
 
-	it("leaves road fills untouched", () => {
+	it("recolours roads by class: casing, minor (incl. path/subtle), major", () => {
 		const style = injectFeatures(baseStyle(), { ...OFF, accent });
-		const road = style.layers.find((l) => l.id === "road") as {
-			paint?: Record<string, unknown>;
-		};
-		expect(road.paint?.["fill-color"]).toBeUndefined();
+		expect(paintOf(style, "highway_motorway_casing")?.["line-color"]).toBe(
+			accent.roadCasing,
+		);
+		expect(paintOf(style, "tunnel_motorway_casing")?.["line-color"]).toBe(
+			accent.roadCasing,
+		);
+		expect(paintOf(style, "highway_minor")?.["line-color"]).toBe(
+			accent.roadMinor,
+		);
+		expect(paintOf(style, "highway_path")?.["line-color"]).toBe(
+			accent.roadMinor,
+		);
+		expect(paintOf(style, "highway_major_subtle")?.["line-color"]).toBe(
+			accent.roadMinor,
+		);
+		expect(paintOf(style, "highway_motorway_inner")?.["line-color"]).toBe(
+			accent.roadMajor,
+		);
+	});
+
+	it("leaves railways, piers, and aeroways untouched", () => {
+		const style = injectFeatures(baseStyle(), { ...OFF, accent });
+		expect(paintOf(style, "railway_minor")?.["line-color"]).toBeUndefined();
+		expect(paintOf(style, "road_pier")?.["line-color"]).toBeUndefined();
+		expect(paintOf(style, "aeroway-runway")?.["line-color"]).toBeUndefined();
 	});
 
 	it("applies no recolour for a plain (non-accent) style", () => {
@@ -147,6 +231,40 @@ describe("injectFeatures: accent recolour", () => {
 			paint?: Record<string, unknown>;
 		};
 		expect(bg.paint).toBeUndefined();
+		expect(paintOf(style, "building")?.["fill-color"]).toBeUndefined();
+	});
+});
+
+describe("roadClassOrNull", () => {
+	it("classifies highway_/tunnel_ transportation lines", () => {
+		expect(roadClassOrNull(roadLine("highway_motorway_casing"))).toBe("casing");
+		expect(roadClassOrNull(roadLine("highway_minor"))).toBe("minor");
+		expect(roadClassOrNull(roadLine("highway_path"))).toBe("minor");
+		expect(roadClassOrNull(roadLine("highway_major_subtle"))).toBe("minor");
+		expect(roadClassOrNull(roadLine("highway_major_inner"))).toBe("major");
+		expect(roadClassOrNull(roadLine("tunnel_motorway_inner"))).toBe("major");
+	});
+
+	it("returns null outside the highway_/tunnel_ prefixes", () => {
+		expect(roadClassOrNull(roadLine("railway_minor"))).toBeNull();
+		expect(roadClassOrNull(roadLine("road_pier"))).toBeNull();
+	});
+
+	it("returns null for non-line or non-transportation layers", () => {
+		expect(
+			roadClassOrNull({
+				id: "highway_minor",
+				type: "fill",
+				"source-layer": "transportation",
+			} as LayerSpecification),
+		).toBeNull();
+		expect(
+			roadClassOrNull({
+				id: "highway_minor",
+				type: "line",
+				"source-layer": "aeroway",
+			} as LayerSpecification),
+		).toBeNull();
 	});
 });
 

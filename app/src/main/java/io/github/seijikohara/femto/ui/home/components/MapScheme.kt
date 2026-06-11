@@ -55,22 +55,56 @@ internal fun mapStyleRefFor(
 /**
  * The Material colours the ACCENT scheme paints onto the map, as "#rrggbb" hex.
  * [background] tints the map background, [water] the water bodies, [land] the
- * landcover / landuse / parks. Derived from the theme so they track light/dark and
- * the user's accent. The same three layers are recoloured in both backends.
+ * landcover / landuse / parks, [roadMajor] / [roadMinor] / [roadCasing] the
+ * transportation lines, and [building] the 2D building fills. Derived from the
+ * theme so they track light/dark and the user's accent. The same layer groups are
+ * recoloured in both backends.
+ *
+ * [building] doubles as the 3D fill-extrusion colour for EVERY scheme (not just
+ * ACCENT): the LIVE backend's injected buildings are theme-tracked so they stay
+ * subdued on any base style (see the features push in WebMapView.kt).
  */
 internal data class AccentMapColors(
     val background: String,
     val water: String,
     val land: String,
+    val roadMajor: String,
+    val roadMinor: String,
+    val roadCasing: String,
+    val building: String,
 )
 
 // The accent palette both backends paint onto the ACCENT scheme, mapped from the
-// Material roles in one place: background = surface, water = primaryContainer,
-// land = surfaceVariant. Derived from the theme, so it tracks light/dark + accent.
+// Material roles in one place. Both modes follow the same readability rule —
+// roads float above the ground — but reach it from opposite directions, so the
+// role mapping is mode-dependent:
+//  - Light: near-white roads on a slightly darker ground (the classic light
+//    car-nav look), with a visible casing edge; background = surfaceContainer
+//    also matches the map card surface (MapPanel), so the pre-first-frame card
+//    and the map read as one plane.
+//  - Dark: the ground drops to the darkest surface tone and roads brighten
+//    above it (ground < buildings < minor < major), so the road network — not
+//    the buildings — is the brightest shape on the panel.
 @Composable
-internal fun accentMapColors(): AccentMapColors =
-    AccentMapColors(
-        background = MaterialTheme.colorScheme.surface.toCssHex(),
-        water = MaterialTheme.colorScheme.primaryContainer.toCssHex(),
-        land = MaterialTheme.colorScheme.surfaceVariant.toCssHex(),
-    )
+internal fun accentMapColors(isDark: Boolean): AccentMapColors =
+    if (isDark) {
+        AccentMapColors(
+            background = MaterialTheme.colorScheme.surface.toCssHex(),
+            water = MaterialTheme.colorScheme.primaryContainer.toCssHex(),
+            land = MaterialTheme.colorScheme.surfaceContainerLow.toCssHex(),
+            roadMajor = MaterialTheme.colorScheme.outlineVariant.toCssHex(),
+            roadMinor = MaterialTheme.colorScheme.surfaceContainerHighest.toCssHex(),
+            roadCasing = MaterialTheme.colorScheme.surfaceContainer.toCssHex(),
+            building = MaterialTheme.colorScheme.surfaceContainerHigh.toCssHex(),
+        )
+    } else {
+        AccentMapColors(
+            background = MaterialTheme.colorScheme.surfaceContainer.toCssHex(),
+            water = MaterialTheme.colorScheme.primaryContainer.toCssHex(),
+            land = MaterialTheme.colorScheme.surfaceContainerHigh.toCssHex(),
+            roadMajor = MaterialTheme.colorScheme.surface.toCssHex(),
+            roadMinor = MaterialTheme.colorScheme.surfaceContainerHighest.toCssHex(),
+            roadCasing = MaterialTheme.colorScheme.outlineVariant.toCssHex(),
+            building = MaterialTheme.colorScheme.surfaceContainerHighest.toCssHex(),
+        )
+    }
