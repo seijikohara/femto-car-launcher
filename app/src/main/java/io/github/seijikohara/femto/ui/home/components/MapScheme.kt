@@ -72,6 +72,12 @@ internal data class AccentMapColors(
     val roadMinor: String,
     val roadCasing: String,
     val building: String,
+    // Label text colour ([label]); the halo reuses [background], so labels stay
+    // separated from whatever they overlap. The bundled bases' label colours
+    // are tuned to their own backgrounds and go illegible on the Material
+    // surface (verified on TBox-Mock: dark-base grey-101 text on the near-black
+    // dark surface), so ACCENT recolours them like every other layer group.
+    val label: String,
 )
 
 // The accent palette both backends paint onto the ACCENT scheme, mapped from the
@@ -84,7 +90,10 @@ internal data class AccentMapColors(
 //    and the map read as one plane.
 //  - Dark: the ground drops to the darkest surface tone and roads brighten
 //    above it (ground < buildings < minor < major), so the road network — not
-//    the buildings — is the brightest shape on the panel.
+//    the buildings — is the brightest shape on the panel. The road roles sit
+//    deliberately high (outline / outlineVariant): the surfaceContainer* tones
+//    used before measured ~2:1 against the surface ground on the head-unit
+//    panel and the network disappeared (user report, 2026-06-12).
 @Composable
 internal fun accentMapColors(isDark: Boolean): AccentMapColors =
     if (isDark) {
@@ -92,10 +101,11 @@ internal fun accentMapColors(isDark: Boolean): AccentMapColors =
             background = MaterialTheme.colorScheme.surface.toCssHex(),
             water = MaterialTheme.colorScheme.primaryContainer.toCssHex(),
             land = MaterialTheme.colorScheme.surfaceContainerLow.toCssHex(),
-            roadMajor = MaterialTheme.colorScheme.outlineVariant.toCssHex(),
-            roadMinor = MaterialTheme.colorScheme.surfaceContainerHighest.toCssHex(),
+            roadMajor = MaterialTheme.colorScheme.onSurfaceVariant.toCssHex(),
+            roadMinor = MaterialTheme.colorScheme.outline.toCssHex(),
             roadCasing = MaterialTheme.colorScheme.surfaceContainer.toCssHex(),
             building = MaterialTheme.colorScheme.surfaceContainerHigh.toCssHex(),
+            label = MaterialTheme.colorScheme.onSurface.toCssHex(),
         )
     } else {
         AccentMapColors(
@@ -104,7 +114,8 @@ internal fun accentMapColors(isDark: Boolean): AccentMapColors =
             land = MaterialTheme.colorScheme.surfaceContainerHigh.toCssHex(),
             roadMajor = MaterialTheme.colorScheme.surface.toCssHex(),
             roadMinor = MaterialTheme.colorScheme.surfaceContainerHighest.toCssHex(),
-            roadCasing = MaterialTheme.colorScheme.outlineVariant.toCssHex(),
+            roadCasing = MaterialTheme.colorScheme.outline.toCssHex(),
             building = MaterialTheme.colorScheme.surfaceContainerHighest.toCssHex(),
+            label = MaterialTheme.colorScheme.onSurface.toCssHex(),
         )
     }

@@ -1,7 +1,5 @@
 package io.github.seijikohara.femto.ui.home.components
 
-import androidx.compose.foundation.border
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -10,15 +8,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.HazeTint
-import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -89,13 +84,8 @@ internal fun ClockOverlay(
         color = MaterialTheme.colorScheme.onSurface,
         modifier =
             modifier
-                .clip(RoundedCornerShape(FemtoDimens.OverlayCorner))
-                .glassEffect(hazeState, glassConfig.blurRadius, glassConfig.tintScale)
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.GlassBorderAlpha),
-                    shape = RoundedCornerShape(FemtoDimens.OverlayCorner),
-                ).padding(horizontal = 16.dp, vertical = 6.dp),
+                .glassChrome(RoundedCornerShape(FemtoDimens.OverlayCorner), hazeState, glassConfig)
+                .padding(horizontal = 16.dp, vertical = 6.dp),
     )
 }
 

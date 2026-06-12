@@ -45,6 +45,7 @@ internal class SettingsViewModel(
                 mapSchemeDark = display.mapSchemeDark,
                 mapTiltDeg = display.mapTiltDeg,
                 mapZoom = display.mapZoom,
+                mapNorthUp = display.mapNorthUp,
                 mapRenderPercent = display.mapRenderPercent,
                 mapRenderMode = display.mapRenderMode,
                 mapMarkerPos = display.mapMarkerPos,
@@ -130,6 +131,10 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetMapZoom -> {
                     displayPreferences.setMapZoom(action.value)
+                }
+
+                is SettingsAction.SetMapNorthUp -> {
+                    displayPreferences.setMapNorthUp(action.value)
                 }
 
                 is SettingsAction.SetMapRenderPercent -> {

@@ -2,9 +2,7 @@ package io.github.seijikohara.femto.ui.home.components
 
 import android.location.Location
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,8 +37,6 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPin
 import com.composables.icons.lucide.RotateCcw
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.HazeTint
-import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
@@ -156,13 +152,8 @@ internal fun SpeedOverlay(
                 // IntrinsicSize.Max still hugs short content; this only bounds the
                 // maximum, and the address row ellipsizes within it.
                 .widthIn(max = FemtoDimens.SpeedOverlayMaxWidth)
-                .clip(RoundedCornerShape(FemtoDimens.SpeedOverlayCorner))
-                .glassEffect(hazeState, glassConfig.blurRadius, glassConfig.tintScale)
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.GlassBorderAlpha),
-                    shape = RoundedCornerShape(FemtoDimens.SpeedOverlayCorner),
-                ).padding(horizontal = 18.dp, vertical = 6.dp),
+                .glassChrome(RoundedCornerShape(FemtoDimens.SpeedOverlayCorner), hazeState, glassConfig)
+                .padding(horizontal = 18.dp, vertical = 6.dp),
     ) {
         MetricRow(
             currentSpeed = currentSpeedText,

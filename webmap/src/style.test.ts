@@ -73,6 +73,13 @@ function baseStyle(): StyleSpecification {
 				source: "openmaptiles",
 				"source-layer": "place",
 			},
+			{
+				id: "labels_haloed",
+				type: "symbol",
+				source: "openmaptiles",
+				"source-layer": "place",
+				paint: { "text-halo-width": 1.4 },
+			},
 		],
 	} as StyleSpecification;
 }
@@ -178,6 +185,7 @@ describe("injectFeatures: accent recolour", () => {
 		roadMinor: "#505050",
 		roadCasing: "#606060",
 		building: "#707070",
+		label: "#808080",
 	};
 
 	function paintOf(style: StyleSpecification, id: string) {
@@ -216,6 +224,19 @@ describe("injectFeatures: accent recolour", () => {
 		expect(paintOf(style, "highway_motorway_inner")?.["line-color"]).toBe(
 			accent.roadMajor,
 		);
+	});
+
+	it("recolours labels with a background halo, seeding a missing halo width", () => {
+		const style = injectFeatures(baseStyle(), { ...OFF, accent });
+		const paint = paintOf(style, "labels");
+		expect(paint?.["text-color"]).toBe(accent.label);
+		expect(paint?.["text-halo-color"]).toBe(accent.background);
+		expect(paint?.["text-halo-width"]).toBe(1);
+	});
+
+	it("keeps an existing halo width", () => {
+		const style = injectFeatures(baseStyle(), { ...OFF, accent });
+		expect(paintOf(style, "labels_haloed")?.["text-halo-width"]).toBe(1.4);
 	});
 
 	it("leaves railways, piers, and aeroways untouched", () => {

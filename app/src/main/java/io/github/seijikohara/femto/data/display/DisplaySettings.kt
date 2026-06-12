@@ -82,6 +82,13 @@ internal const val DEFAULT_MAP_TILT_DEG = 55
 internal const val DEFAULT_MAP_ZOOM = 16
 
 /**
+ * Zoom bounds shared by the settings slider and the on-map zoom buttons.
+ * 12 keeps a usable overview; 19 is the densest the bundled styles render well.
+ */
+internal const val MIN_MAP_ZOOM = 12
+internal const val MAX_MAP_ZOOM = 19
+
+/**
  * Default snapshot render resolution, as a percentage of the panel's pixel size.
  * 100 renders at full resolution; lower values render a smaller bitmap (upscaled
  * to fill), trading sharpness for a faster render and a smoother frame rate.
@@ -132,6 +139,10 @@ internal data class DisplaySettings(
     val mapSchemeDark: MapColorScheme,
     val mapTiltDeg: Int,
     val mapZoom: Int,
+    // Live-map camera orientation: true pins the camera to north, false rotates
+    // it with the travel heading (the driving default everywhere; the compass
+    // overlay toggles this). Locale-neutral by design — no market prefers one.
+    val mapNorthUp: Boolean,
     // Snapshot render resolution as a percent of the panel pixel size; lower is
     // blurrier but renders faster (a smaller bitmap to upscale).
     val mapRenderPercent: Int,
@@ -179,6 +190,7 @@ internal data class DisplaySettings(
                 mapSchemeDark = MapColorScheme.ACCENT,
                 mapTiltDeg = DEFAULT_MAP_TILT_DEG,
                 mapZoom = DEFAULT_MAP_ZOOM,
+                mapNorthUp = false,
                 mapRenderPercent = DEFAULT_MAP_RENDER_PERCENT,
                 mapRenderMode = MapRenderMode.LIVE,
                 mapMarkerPos = DEFAULT_MAP_MARKER_POS,

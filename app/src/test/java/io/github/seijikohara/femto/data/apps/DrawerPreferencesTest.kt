@@ -27,6 +27,12 @@ class DrawerPreferencesTest {
             store.togglePinned(COMPONENT)
             assertEquals(listOf(OTHER, COMPONENT), store.pinned.first())
 
+            // A wholesale reorder (drag commit) replaces the order verbatim.
+            store.setPinnedOrder(listOf(COMPONENT, OTHER))
+            assertEquals(listOf(COMPONENT, OTHER), store.pinned.first())
+            store.setPinnedOrder(listOf(OTHER, COMPONENT))
+            assertEquals(listOf(OTHER, COMPONENT), store.pinned.first())
+
             store.togglePinned(COMPONENT)
             assertEquals(listOf(OTHER), store.pinned.first())
 

@@ -21,6 +21,7 @@ class MapStyleRecolorTest {
             roadMinor = "#505050",
             roadCasing = "#606060",
             building = "#707070",
+            label = "#808080",
         )
 
     private fun layer(
@@ -51,7 +52,8 @@ class MapStyleRecolorTest {
             ${layer("railway_minor", "line", "transportation")},
             ${layer("road_pier", "line", "transportation")},
             ${layer("aeroway-runway", "line", "aeroway")},
-            ${layer("labels", "symbol", "place")}
+            ${layer("labels", "symbol", "place")},
+            {"id":"labels_haloed","type":"symbol","source-layer":"place","paint":{"text-halo-width":1.4}}
         ]}
         """.trimIndent()
 
@@ -88,6 +90,19 @@ class MapStyleRecolorTest {
     fun recolors_inner_roads_with_the_major_color() {
         assertEquals(colors.roadMajor, recoloredPaintOrNull("highway_motorway_inner")?.getString("line-color"))
         assertEquals(colors.roadMajor, recoloredPaintOrNull("tunnel_motorway_inner")?.getString("line-color"))
+    }
+
+    @Test
+    fun recolors_labels_with_a_background_halo_and_seeds_a_missing_halo_width() {
+        val paint = recoloredPaintOrNull("labels")
+        assertEquals(colors.label, paint?.getString("text-color"))
+        assertEquals(colors.background, paint?.getString("text-halo-color"))
+        assertEquals(1, paint?.getInt("text-halo-width"))
+    }
+
+    @Test
+    fun keeps_an_existing_halo_width() {
+        assertEquals(1.4, recoloredPaintOrNull("labels_haloed")?.getDouble("text-halo-width"))
     }
 
     @Test

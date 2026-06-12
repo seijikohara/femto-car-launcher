@@ -182,6 +182,24 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun `onAction AdjustMapZoom emits the delta for the host to persist`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.AdjustMapZoom(-1),
+                expected = HomeEvent.AdjustMapZoom(-1),
+            )
+        }
+
+    @Test
+    fun `onAction ToggleMapNorthUp emits ToggleMapNorthUp`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.ToggleMapNorthUp,
+                expected = HomeEvent.ToggleMapNorthUp,
+            )
+        }
+
+    @Test
     fun `onAction OpenSettings emits OpenInAppSettings`() =
         runTest {
             stubViewModel().assertEvent(

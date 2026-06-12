@@ -35,6 +35,13 @@ internal interface DrawerSettingsStore {
 
     /** Append the component if absent, remove it if present. */
     suspend fun togglePinned(flattenedComponent: String)
+
+    /**
+     * Replace the pin order wholesale (drag-reorder commit). Entries not
+     * currently pinned are persisted as-is — the caller derives [value] from
+     * the rendered dock, which is itself resolved from the persisted order.
+     */
+    suspend fun setPinnedOrder(value: List<String>)
 }
 
 // A flattened ComponentName ("package/class") can never contain a newline, so it
@@ -99,6 +106,13 @@ internal class DrawerPreferences(
                 if (flattenedComponent in current) current - flattenedComponent else current + flattenedComponent
             prefs[PINNED_ORDER_KEY] = updated.joinToString(PIN_SEPARATOR)
             // The ordered key is authoritative from the first write on.
+            prefs.remove(LEGACY_PINNED_KEY)
+        }
+    }
+
+    override suspend fun setPinnedOrder(value: List<String>) {
+        context.drawerDataStore.editOrLog(TAG) { prefs ->
+            prefs[PINNED_ORDER_KEY] = value.joinToString(PIN_SEPARATOR)
             prefs.remove(LEGACY_PINNED_KEY)
         }
     }

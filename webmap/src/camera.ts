@@ -64,3 +64,15 @@ export function smoothedBearing(
 function normalizeBearing(bearing: number): number {
 	return ((bearing % 360) + 360) % 360;
 }
+
+// How long after the user's last gesture the camera re-attaches to the
+// location follow on its own. Long enough to read the map after a scroll,
+// short enough that a driver who forgets the map is detached gets the
+// car-nav-standard automatic recovery.
+export const AUTO_REFOLLOW_MS = 15_000;
+
+// The bearing the follow camera applies: north-up pins the map to north and
+// leaves orientation to the chevron; heading-up rotates the map itself.
+export function appliedBearing(northUp: boolean, heading: number): number {
+	return northUp ? 0 : heading;
+}

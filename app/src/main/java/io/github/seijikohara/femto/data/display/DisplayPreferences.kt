@@ -66,6 +66,20 @@ internal interface DisplaySettingsStore {
 
     suspend fun setMapZoom(value: Int)
 
+    /**
+     * Step the persisted map zoom by [delta], clamped to
+     * [MIN_MAP_ZOOM]..[MAX_MAP_ZOOM] — the same bounds the settings slider
+     * uses, so the on-map buttons and the slider stay in lock-step. Atomic
+     * read-modify-write: rapid taps must not recompute from a stale UI
+     * snapshot and lose steps.
+     */
+    suspend fun adjustMapZoom(delta: Int)
+
+    suspend fun setMapNorthUp(value: Boolean)
+
+    /** Flip north-up ⇄ heading-up atomically (the on-map compass tap). */
+    suspend fun toggleMapNorthUp()
+
     suspend fun setMapRenderPercent(value: Int)
 
     suspend fun setMapRenderMode(value: MapRenderMode)
@@ -123,6 +137,7 @@ internal class DisplayPreferences(
                     mapSchemeDark = prefs[MAP_SCHEME_DARK_KEY].toEnumOr(MapColorScheme.ACCENT),
                     mapTiltDeg = prefs[MAP_TILT_KEY] ?: DEFAULT_MAP_TILT_DEG,
                     mapZoom = prefs[MAP_ZOOM_KEY] ?: DEFAULT_MAP_ZOOM,
+                    mapNorthUp = prefs[MAP_NORTH_UP_KEY] ?: false,
                     mapRenderPercent = prefs[MAP_QUALITY_KEY] ?: DEFAULT_MAP_RENDER_PERCENT,
                     mapRenderMode = prefs[MAP_RENDER_MODE_KEY].toMapRenderModeOr(MapRenderMode.LIVE),
                     mapMarkerPos = prefs[MAP_MARKER_POS_KEY] ?: DEFAULT_MAP_MARKER_POS,
@@ -201,6 +216,20 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[MAP_ZOOM_KEY] = value }
     }
 
+    override suspend fun adjustMapZoom(delta: Int) {
+        context.displayDataStore.editOrLog(TAG) {
+            it[MAP_ZOOM_KEY] = ((it[MAP_ZOOM_KEY] ?: DEFAULT_MAP_ZOOM) + delta).coerceIn(MIN_MAP_ZOOM, MAX_MAP_ZOOM)
+        }
+    }
+
+    override suspend fun setMapNorthUp(value: Boolean) {
+        context.displayDataStore.editOrLog(TAG) { it[MAP_NORTH_UP_KEY] = value }
+    }
+
+    override suspend fun toggleMapNorthUp() {
+        context.displayDataStore.editOrLog(TAG) { it[MAP_NORTH_UP_KEY] = !(it[MAP_NORTH_UP_KEY] ?: false) }
+    }
+
     override suspend fun setMapRenderPercent(value: Int) {
         context.displayDataStore.editOrLog(TAG) { it[MAP_QUALITY_KEY] = value }
     }
@@ -269,6 +298,7 @@ internal class DisplayPreferences(
         val MAP_SCHEME_DARK_KEY = stringPreferencesKey("map_scheme_dark")
         val MAP_TILT_KEY = intPreferencesKey("map_tilt_deg")
         val MAP_ZOOM_KEY = intPreferencesKey("map_zoom")
+        val MAP_NORTH_UP_KEY = booleanPreferencesKey("map_north_up")
         val MAP_QUALITY_KEY = intPreferencesKey("map_render_percent")
         val MAP_RENDER_MODE_KEY = stringPreferencesKey("map_render_mode")
         val MAP_MARKER_POS_KEY = intPreferencesKey("map_marker_pos")

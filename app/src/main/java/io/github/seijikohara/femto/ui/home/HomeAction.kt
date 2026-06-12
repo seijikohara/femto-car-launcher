@@ -34,6 +34,14 @@ internal sealed interface HomeAction {
 
     data object OpenWeather : HomeAction
 
+    /** Step the persisted map zoom by [delta] (the on-map +/- buttons; clamped by the host). */
+    data class AdjustMapZoom(
+        val delta: Int,
+    ) : HomeAction
+
+    /** Flip the persisted north-up ⇄ heading-up camera orientation (the compass tap). */
+    data object ToggleMapNorthUp : HomeAction
+
     data object OpenSettings : HomeAction
 
     data object OpenAssistant : HomeAction
