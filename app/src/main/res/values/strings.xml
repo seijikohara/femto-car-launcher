@@ -87,6 +87,8 @@
     <string name="drawer_layout_list">List layout</string>
     <string name="drawer_pin">Pin</string>
     <string name="drawer_unpin">Unpin</string>
+    <string name="drawer_move_left">Move left</string>
+    <string name="drawer_move_right">Move right</string>
     <string name="drawer_search_hint">Search apps</string>
     <string name="drawer_search_clear">Clear search</string>
     <string name="drawer_no_matches">No apps match your search</string>

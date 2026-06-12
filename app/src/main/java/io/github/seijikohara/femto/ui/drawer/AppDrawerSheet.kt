@@ -111,6 +111,9 @@ internal fun AppDrawerSheet(
                     onSelectIconSize = { size ->
                         scope.launch { drawerPreferences.setIconSize(size) }
                     },
+                    onReorderPins = { order ->
+                        scope.launch { drawerPreferences.setPinnedOrder(order) }
+                    },
                     onRetry = { viewModel.onAction(AppDrawerAction.Refresh) },
                     compact = compact,
                     onExpand = { expanded = true },

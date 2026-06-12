@@ -37,6 +37,7 @@ class AppDrawerScreenTest {
                     onTogglePin = {},
                     onToggleLayout = {},
                     onSelectIconSize = {},
+                    onReorderPins = {},
                     onRetry = {},
                 )
             }
@@ -59,6 +60,7 @@ class AppDrawerScreenTest {
                     onTogglePin = {},
                     onToggleLayout = {},
                     onSelectIconSize = {},
+                    onReorderPins = {},
                     onRetry = {},
                 )
             }
@@ -82,6 +84,7 @@ class AppDrawerScreenTest {
                     onTogglePin = { pinned = it },
                     onToggleLayout = {},
                     onSelectIconSize = {},
+                    onReorderPins = {},
                     onRetry = {},
                 )
             }
@@ -106,6 +109,7 @@ class AppDrawerScreenTest {
                     onTogglePin = {},
                     onToggleLayout = { toggled = true },
                     onSelectIconSize = {},
+                    onReorderPins = {},
                     onRetry = {},
                 )
             }
@@ -128,6 +132,7 @@ class AppDrawerScreenTest {
                     onTogglePin = {},
                     onToggleLayout = {},
                     onSelectIconSize = {},
+                    onReorderPins = {},
                     onRetry = {},
                 )
             }
@@ -150,6 +155,7 @@ class AppDrawerScreenTest {
                     onTogglePin = {},
                     onToggleLayout = {},
                     onSelectIconSize = {},
+                    onReorderPins = {},
                     onRetry = {},
                 )
             }
@@ -173,6 +179,7 @@ class AppDrawerScreenTest {
                     onTogglePin = {},
                     onToggleLayout = {},
                     onSelectIconSize = {},
+                    onReorderPins = {},
                     onRetry = {},
                 )
             }
@@ -197,6 +204,7 @@ class AppDrawerScreenTest {
                     onTogglePin = {},
                     onToggleLayout = {},
                     onSelectIconSize = {},
+                    onReorderPins = {},
                     onRetry = {},
                 )
             }
@@ -221,6 +229,7 @@ class AppDrawerScreenTest {
                     onTogglePin = {},
                     onToggleLayout = {},
                     onSelectIconSize = {},
+                    onReorderPins = {},
                     onRetry = { retried = true },
                 )
             }
@@ -246,6 +255,7 @@ class AppDrawerScreenTest {
                     onTogglePin = {},
                     onToggleLayout = {},
                     onSelectIconSize = {},
+                    onReorderPins = {},
                     onRetry = {},
                     compact = true,
                     onExpand = { expanded = true },
@@ -274,6 +284,7 @@ class AppDrawerScreenTest {
                     onTogglePin = {},
                     onToggleLayout = {},
                     onSelectIconSize = {},
+                    onReorderPins = {},
                     onRetry = {},
                     compact = true,
                     onExpand = { expanded = true },
@@ -299,6 +310,7 @@ class AppDrawerScreenTest {
                     onTogglePin = {},
                     onToggleLayout = {},
                     onSelectIconSize = { selected = it },
+                    onReorderPins = {},
                     onRetry = {},
                 )
             }
