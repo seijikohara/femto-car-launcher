@@ -1,10 +1,10 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import io.github.seijikohara.femto.data.weather.WeatherCode
 import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
@@ -145,7 +145,7 @@ class WeatherCardTest {
                 )
             }
         }
-        rule.onRoot().performClick()
+        rule.onNode(hasClickAction()).performClick()
         assert(opened) { "expected the card tap to dispatch onOpen" }
     }
 }

@@ -1,10 +1,10 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.seijikohara.femto.R
@@ -89,7 +89,7 @@ class CalendarCardTest {
                 CalendarCard(snapshot = fakeCalendarSnapshot(), is24Hour = true, onOpen = { opened = true })
             }
         }
-        rule.onRoot().performClick()
+        rule.onNode(hasClickAction()).performClick()
         assert(opened) { "expected the card tap to dispatch onOpen" }
     }
 
