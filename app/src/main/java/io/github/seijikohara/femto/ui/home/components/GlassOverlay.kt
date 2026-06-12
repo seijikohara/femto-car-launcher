@@ -1,10 +1,14 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
@@ -43,6 +47,25 @@ internal fun Modifier.glassEffect(
         this.blurRadius = blurRadius
     }
 }
+
+/**
+ * The complete glass-chrome recipe shared by every map overlay (clock, speed,
+ * map controls): clip to [shape], frost the backdrop via [glassEffect], and
+ * draw the hairline outline in the same shape.
+ */
+@Composable
+internal fun Modifier.glassChrome(
+    shape: Shape,
+    hazeState: HazeState,
+    glassConfig: GlassConfig,
+): Modifier =
+    clip(shape)
+        .glassEffect(hazeState, glassConfig.blurRadius, glassConfig.tintScale)
+        .border(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.GlassBorderAlpha),
+            shape = shape,
+        )
 
 /**
  * Resolve the effective tint alpha from a [baseAlpha] and the user's percent

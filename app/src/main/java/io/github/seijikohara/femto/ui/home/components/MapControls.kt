@@ -1,7 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,7 +12,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
@@ -166,13 +164,8 @@ private fun GlassControl(
     modifier =
         modifier
             .size(FemtoDimens.MinTouchTarget)
-            .clip(CircleShape)
-            .glassEffect(hazeState, glassConfig.blurRadius, glassConfig.tintScale)
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.GlassBorderAlpha),
-                shape = CircleShape,
-            ).clickable(onClick = onClick)
+            .glassChrome(CircleShape, hazeState, glassConfig)
+            .clickable(onClick = onClick)
             .semantics { this.contentDescription = contentDescription },
     contentAlignment = Alignment.Center,
 ) {

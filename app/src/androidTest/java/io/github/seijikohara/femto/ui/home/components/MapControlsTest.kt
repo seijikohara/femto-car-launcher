@@ -41,7 +41,7 @@ class MapControlsTest {
     }
 
     @Test
-    fun locate_button_dispatches_and_hides_when_disabled() {
+    fun locate_button_dispatches_on_tap() {
         var located = 0
         rule.setContent { Controls(showLocate = true, onLocate = { located++ }) }
         rule.onNodeWithContentDescription("Return to current position").performClick()
