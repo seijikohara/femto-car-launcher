@@ -1,6 +1,12 @@
 package io.github.seijikohara.femto.ui.theme
 
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material3.Typography
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -92,10 +98,27 @@ internal fun Typography.sectionLabel(
         fontFeatureSettings = TabularFigures,
     )
 
+// Shared line-box policy for the styles whose rows aim at a stable height:
+// centred, untrimmed, Fixed mode. NOTE measured on-device: this alone does
+// NOT pin a line that renders through a FALLBACK face — Android applies
+// fallback line spacing after the line-height machinery, so a CJK line still
+// grows to the fallback's taller metrics. Single-line slots that must be
+// script-independent additionally clamp their layout height with
+// [singleLineBox]; this style keeps the primary-face behaviour consistent.
+private val FixedLineBox =
+    LineHeightStyle(
+        alignment = LineHeightStyle.Alignment.Center,
+        trim = LineHeightStyle.Trim.None,
+        mode = LineHeightStyle.Mode.Fixed,
+    )
+private val NoFontPadding = PlatformTextStyle(includeFontPadding = false)
+
 /**
  * Return the dashboard-card primary line style (e.g. the now-playing track
  * title). Derived from [Typography.titleLarge] with the tighter 20sp/23sp
- * metrics the cards inherit from the retired dashboard-v2 mockup.
+ * metrics the cards inherit from the retired dashboard-v2 mockup. The line
+ * box is fixed ([FixedLineBox]) so a vertically-centred meta block does not
+ * shift when consecutive tracks switch between Latin and CJK titles.
  */
 internal fun Typography.cardTitle(): TextStyle =
     titleLarge.copy(
@@ -103,18 +126,23 @@ internal fun Typography.cardTitle(): TextStyle =
         fontWeight = FontWeight.Bold,
         letterSpacing = (-0.02f).em,
         lineHeight = 23.sp,
+        lineHeightStyle = FixedLineBox,
+        platformStyle = NoFontPadding,
     )
 
 /**
  * Return the dashboard-card secondary metadata line style (artist / album
  * rows). 14sp glance metadata — one of the sanctioned card relaxations of the
- * 18sp floor (CLAUDE.md#automotive-overrides).
+ * 18sp floor (CLAUDE.md#automotive-overrides). Fixed line box for the same
+ * script-independence reason as [cardTitle].
  */
 internal fun Typography.cardMeta(): TextStyle =
     bodyMedium.copy(
         fontSize = 14.sp,
         fontWeight = FontWeight.Medium,
         lineHeight = 16.sp,
+        lineHeightStyle = FixedLineBox,
+        platformStyle = NoFontPadding,
     )
 
 /**
@@ -150,9 +178,26 @@ internal fun Typography.cardCtaHint(): TextStyle =
 internal fun Typography.tileLabel(): TextStyle =
     labelLarge.copy(
         lineHeight = 26.sp,
-        lineHeightStyle = LineHeightStyle(
-            alignment = LineHeightStyle.Alignment.Center,
-            trim = LineHeightStyle.Trim.None,
-        ),
-        platformStyle = PlatformTextStyle(includeFontPadding = false),
+        lineHeightStyle = FixedLineBox,
+        platformStyle = NoFontPadding,
     )
+
+/**
+ * Constrain a single-line [androidx.compose.material3.Text] to exactly its
+ * [style]'s `lineHeight`, regardless of which font face renders it.
+ *
+ * Why a layout clamp and not a text style: Android applies *fallback line
+ * spacing* after the line-height machinery, so a line whose glyphs resolve
+ * through a fallback face (e.g. CJK over a Latin primary) grows to the
+ * fallback's taller metrics even under [LineHeightStyle.Mode.Fixed] —
+ * measured on-device. The fixed-height slot pins the row's measured height;
+ * `wrapContentHeight(unbounded)` lets the taller text measure freely and
+ * centres it in the slot, and since CJK ink stays within the em box the
+ * overflow is metric air, not visible clipping.
+ */
+@Composable
+internal fun Modifier.singleLineBox(style: TextStyle): Modifier =
+    with(LocalDensity.current) {
+        height(style.lineHeight.toDp())
+            .wrapContentHeight(align = Alignment.CenterVertically, unbounded = true)
+    }
