@@ -126,32 +126,33 @@ internal class PerformanceProbe(
     private suspend fun sampleFrameStats(): FrameStats? =
         withContext(Dispatchers.Main) {
             val intervals = mutableListOf<Long>()
-            runCatching {
-                suspendCancellableCoroutine { continuation ->
-                    val choreographer = Choreographer.getInstance()
-                    val callback =
-                        object : Choreographer.FrameCallback {
-                            var previousNanos = 0L
+            suspendCancellableCoroutine { continuation ->
+                val choreographer = Choreographer.getInstance()
+                val callback =
+                    object : Choreographer.FrameCallback {
+                        var previousNanos = 0L
 
-                            override fun doFrame(frameTimeNanos: Long) {
-                                if (previousNanos != 0L) {
-                                    intervals += (frameTimeNanos - previousNanos) / NANOS_PER_MS
-                                }
-                                previousNanos = frameTimeNanos
-                                if (intervals.size < FRAME_SAMPLE_COUNT) {
-                                    choreographer.postFrameCallback(this)
-                                } else {
-                                    continuation.resume(Unit)
-                                }
+                        override fun doFrame(frameTimeNanos: Long) {
+                            if (previousNanos != 0L) {
+                                intervals += (frameTimeNanos - previousNanos) / NANOS_PER_MS
+                            }
+                            previousNanos = frameTimeNanos
+                            if (intervals.size < FRAME_SAMPLE_COUNT) {
+                                choreographer.postFrameCallback(this)
+                            } else {
+                                continuation.resume(Unit)
                             }
                         }
-                    choreographer.postFrameCallback(callback)
-                    continuation.invokeOnCancellation { choreographer.removeFrameCallback(callback) }
-                }
+                    }
+                choreographer.postFrameCallback(callback)
+                continuation.invokeOnCancellation { choreographer.removeFrameCallback(callback) }
             }
             computeFrameStats(intervals)
         }
 
+    // Labels stay English on the SCREEN as well as in the report: the entry
+    // list is a debug artifact shared verbatim with the unlocalized Markdown
+    // report, where stable machine-greppable wording is the contract.
     private suspend fun mapSettingEntries(): List<DiagnosticEntry> {
         val display = DisplayPreferences(context).settings.first()
         val location = LocationPreferences(context).settings.first()

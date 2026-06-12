@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.ui.diagnostics
 
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.system.PerformanceSnapshot
+import java.util.Locale
 
 /**
  * Render the diagnostics state as a Markdown report for the clipboard.
@@ -66,7 +67,12 @@ private fun StringBuilder.appendPerformance(performance: PerformanceSnapshot) {
     appendLine()
     appendLine("## Performance")
     appendLine()
-    val headroom = performance.thermalHeadroom?.let { " (headroom %.2f)".format(it) }.orEmpty()
+    // Locale.ROOT keeps the decimal point: the report's grep-stable wording
+    // contract must hold on comma-decimal devices too.
+    val headroom =
+        performance.thermalHeadroom
+            ?.let { " (headroom %.2f)".format(Locale.ROOT, it) }
+            .orEmpty()
     appendLine("- Thermal: ${performance.thermal.name}$headroom")
     appendLine("- Power save: ${if (performance.powerSaveMode) "ON" else "off"}")
     appendLine(

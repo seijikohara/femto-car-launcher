@@ -31,6 +31,7 @@ import io.github.seijikohara.femto.data.system.PerformanceSnapshot
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import java.util.Locale
 
 /**
  * Per-feature health readout: which gate (grant, listener, capture engine,
@@ -203,7 +204,7 @@ private fun PerformanceSection(performance: PerformanceSnapshot) {
             label = stringResource(R.string.diagnostics_thermal),
             value =
                 performance.thermal.name +
-                    (performance.thermalHeadroom?.let { " (%.2f)".format(it) }.orEmpty()),
+                    (performance.thermalHeadroom?.let { " (%.2f)".format(Locale.ROOT, it) }.orEmpty()),
             healthy = !performance.thermal.isThrottling,
         )
         StatusRow(
