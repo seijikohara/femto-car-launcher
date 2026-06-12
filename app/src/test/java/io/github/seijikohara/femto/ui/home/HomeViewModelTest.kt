@@ -6,6 +6,7 @@ import app.cash.turbine.test
 import io.github.seijikohara.femto.data.clock.ClockTick
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
+import io.github.seijikohara.femto.data.music.SPECTRUM_BAND_COUNT
 import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
 import io.github.seijikohara.femto.testfixtures.fakeLocation
@@ -245,7 +246,7 @@ class HomeViewModelTest {
     @Test
     fun `audioSpectrum emits bands while the spectrum is enabled and music is playing`() =
         runTest {
-            val bands = FloatArray(20) { 0.5f }
+            val bands = FloatArray(SPECTRUM_BAND_COUNT) { 0.5f }
             val viewModel =
                 spectrumViewModel(
                     enabled = true,
@@ -267,7 +268,7 @@ class HomeViewModelTest {
                 spectrumViewModel(
                     enabled = false,
                     musicState = MusicCardState.Playing(fakeNowPlaying(isPlaying = true)),
-                    bands = FloatArray(20) { 0.5f },
+                    bands = FloatArray(SPECTRUM_BAND_COUNT) { 0.5f },
                 )
             viewModel.audioSpectrum.test {
                 assertEquals(null, awaitItem())
@@ -283,7 +284,7 @@ class HomeViewModelTest {
                 spectrumViewModel(
                     enabled = true,
                     musicState = MusicCardState.Playing(fakeNowPlaying(isPlaying = false)),
-                    bands = FloatArray(20) { 0.5f },
+                    bands = FloatArray(SPECTRUM_BAND_COUNT) { 0.5f },
                 )
             viewModel.audioSpectrum.test {
                 assertEquals(null, awaitItem())
