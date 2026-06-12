@@ -48,6 +48,7 @@ import io.github.seijikohara.femto.data.system.SystemPermissionSignals
 import io.github.seijikohara.femto.ui.assistant.AssistantOption
 import io.github.seijikohara.femto.ui.assistant.AssistantSheet
 import io.github.seijikohara.femto.ui.common.hideSystemBarsTransiently
+import io.github.seijikohara.femto.ui.diagnostics.DiagnosticsSheet
 import io.github.seijikohara.femto.ui.drawer.AppDrawerSheet
 import io.github.seijikohara.femto.ui.fontpicker.FontPickerSheet
 import io.github.seijikohara.femto.ui.home.HomeEvent
@@ -143,6 +144,8 @@ class MainActivity : ComponentActivity() {
                 var showSettings by rememberSaveable { mutableStateOf(false) }
                 // The font picker opens over settings for one slot at a time; null = closed.
                 var fontPickerSlot by rememberSaveable { mutableStateOf<FontSlot?>(null) }
+                // Diagnostics opens over settings, like the font picker.
+                var showDiagnostics by rememberSaveable { mutableStateOf(false) }
                 HomeRoute(
                     is24Hour = resolveIs24Hour(display.clock),
                     showClockSeconds = display.showClockSeconds,
@@ -216,6 +219,7 @@ class MainActivity : ComponentActivity() {
                         onOpenNotificationAccess = ::openNotificationListenerSettings,
                         onOpenSystemSettings = ::openSystemSettings,
                         onOpenFontPicker = { fontPickerSlot = it },
+                        onOpenDiagnostics = { showDiagnostics = true },
                         onDismiss = { showSettings = false },
                         fullscreen = fullscreen,
                     )
@@ -224,6 +228,12 @@ class MainActivity : ComponentActivity() {
                     FontPickerSheet(
                         slot = slot,
                         onDismiss = { fontPickerSlot = null },
+                        fullscreen = fullscreen,
+                    )
+                }
+                if (showDiagnostics) {
+                    DiagnosticsSheet(
+                        onDismiss = { showDiagnostics = false },
                         fullscreen = fullscreen,
                     )
                 }

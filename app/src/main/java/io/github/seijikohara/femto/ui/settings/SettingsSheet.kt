@@ -32,6 +32,7 @@ internal fun SettingsSheet(
     onOpenNotificationAccess: () -> Unit,
     onOpenSystemSettings: () -> Unit,
     onOpenFontPicker: (FontSlot) -> Unit,
+    onOpenDiagnostics: () -> Unit,
     onDismiss: () -> Unit,
     fullscreen: Boolean,
     modifier: Modifier = Modifier,
@@ -53,6 +54,7 @@ internal fun SettingsSheet(
                 onOpenNotificationAccess = onOpenNotificationAccess,
                 onOpenSystemSettings = onOpenSystemSettings,
                 onOpenFontPicker = onOpenFontPicker,
+                onOpenDiagnostics = onOpenDiagnostics,
             )
         }
     }
