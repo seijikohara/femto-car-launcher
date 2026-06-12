@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -50,8 +51,12 @@ internal fun AppTile(
     iconSize: Dp = DefaultIconSize,
     isPinned: Boolean = false,
 ) = Column(
+    // fillMaxWidth claims the whole grid cell: a wrap-content tile measures to
+    // its label, so label width would shift each icon's centre and break the
+    // grid's columns. With the cell claimed, every icon centres identically.
     modifier =
         modifier
+            .fillMaxWidth()
             .defaultMinSize(minWidth = FemtoDimens.MinTouchTarget, minHeight = FemtoDimens.MinTouchTarget)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(TilePadding),
@@ -77,6 +82,7 @@ internal fun AppTile(
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
     )
 }
 
