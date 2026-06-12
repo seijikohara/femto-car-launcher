@@ -44,6 +44,7 @@ internal data class SettingsUiState(
     val showCalendar: Boolean,
     val showWeather: Boolean,
     val showMusic: Boolean,
+    val musicSpectrum: Boolean,
     // The chosen Google Fonts families per slot; null means the system font.
     val latinFont: String?,
     val cjkFont: String?,
@@ -82,6 +83,7 @@ internal data class SettingsUiState(
                 showCalendar = DisplaySettings.Default.showCalendar,
                 showWeather = DisplaySettings.Default.showWeather,
                 showMusic = DisplaySettings.Default.showMusic,
+                musicSpectrum = DisplaySettings.Default.musicSpectrum,
                 latinFont = null,
                 cjkFont = null,
                 locationQuality = LocationSettings.Default.quality,
@@ -194,6 +196,10 @@ internal sealed interface SettingsAction {
     ) : SettingsAction
 
     data class SetShowMusic(
+        val value: Boolean,
+    ) : SettingsAction
+
+    data class SetMusicSpectrum(
         val value: Boolean,
     ) : SettingsAction
 

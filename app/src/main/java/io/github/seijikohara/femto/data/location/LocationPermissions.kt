@@ -50,9 +50,11 @@ internal fun Context.hasReadPhoneStatePermission(): Boolean =
     ) == PackageManager.PERMISSION_GRANTED
 
 /**
- * `RECORD_AUDIO` gates the in-launcher voice assistant's microphone capture. It
- * is a runtime grant on every supported API level; when withheld the assistant
- * sheet falls back to the system-intent delegation rows.
+ * `RECORD_AUDIO` gates the in-launcher voice assistant's microphone capture
+ * and the music card's output-mix Visualizer (which never touches the mic but
+ * sits behind the same permission by platform contract). It is a runtime
+ * grant on every supported API level; when withheld the assistant sheet falls
+ * back to the system-intent delegation rows and the spectrum renders flat.
  */
 internal fun Context.hasRecordAudioPermission(): Boolean =
     ContextCompat.checkSelfPermission(

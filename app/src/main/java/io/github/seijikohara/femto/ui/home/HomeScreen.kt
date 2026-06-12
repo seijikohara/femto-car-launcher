@@ -14,6 +14,7 @@ import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import kotlinx.coroutines.flow.StateFlow
 
 @Composable
 internal fun HomeScreen(
@@ -28,6 +29,7 @@ internal fun HomeScreen(
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
     dockPosition: DockPosition = DockPosition.BOTTOM,
+    spectrum: StateFlow<FloatArray?>? = null,
 ) = Surface(
     modifier = modifier.fillMaxSize(),
     color = MaterialTheme.colorScheme.background,
@@ -44,6 +46,7 @@ internal fun HomeScreen(
         onAction = onAction,
         modifier = Modifier.fillMaxSize(),
         dockPosition = dockPosition,
+        spectrum = spectrum,
     )
 }
 

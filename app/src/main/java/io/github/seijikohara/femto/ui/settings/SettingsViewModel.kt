@@ -55,6 +55,7 @@ internal class SettingsViewModel(
                 showCalendar = display.showCalendar,
                 showWeather = display.showWeather,
                 showMusic = display.showMusic,
+                musicSpectrum = display.musicSpectrum,
                 latinFont = font.latinFamily,
                 cjkFont = font.cjkFamily,
                 locationQuality = location.quality,
@@ -169,6 +170,10 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetShowMusic -> {
                     displayPreferences.setShowMusic(action.value)
+                }
+
+                is SettingsAction.SetMusicSpectrum -> {
+                    displayPreferences.setMusicSpectrum(action.value)
                 }
 
                 is SettingsAction.SetLocationQuality -> {

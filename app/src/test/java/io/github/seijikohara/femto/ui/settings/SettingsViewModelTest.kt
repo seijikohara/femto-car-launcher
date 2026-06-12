@@ -94,6 +94,20 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `SetMusicSpectrum writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetMusicSpectrum(true))
+            advanceUntilIdle()
+            assertEquals(true, store.settings.first().musicSpectrum)
+        }
+
+    @Test
+    fun `music spectrum defaults to off`() =
+        runTest(dispatcher) {
+            assertEquals(false, store.settings.first().musicSpectrum)
+        }
+
+    @Test
     fun `SetShowClockSeconds writes the value to the store`() =
         runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetShowClockSeconds(false))

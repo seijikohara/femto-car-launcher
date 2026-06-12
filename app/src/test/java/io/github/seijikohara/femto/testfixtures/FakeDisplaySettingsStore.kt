@@ -87,5 +87,7 @@ internal class FakeDisplaySettingsStore(
 
     override suspend fun setShowMusic(value: Boolean) = state.update { it.copy(showMusic = value) }
 
+    override suspend fun setMusicSpectrum(value: Boolean) = state.update { it.copy(musicSpectrum = value) }
+
     override suspend fun resetToDefaults() = state.update { DisplaySettings.Default }
 }

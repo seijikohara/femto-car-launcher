@@ -70,6 +70,7 @@ import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.cardTitle
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Music card. Vertical layout inherited from the `.music-card` rules of the
@@ -91,6 +92,9 @@ internal fun MusicCard(
     onConnect: () -> Unit,
     onLaunchSource: (String) -> Unit,
     modifier: Modifier = Modifier,
+    // Spectrum band levels for the transport strip's background, or null when
+    // the visualization is absent (setting off, previews, tests).
+    spectrum: StateFlow<FloatArray?>? = null,
 ) = Surface(
     modifier = modifier,
     shape = MaterialTheme.shapes.large,
@@ -99,7 +103,7 @@ internal fun MusicCard(
     when (state) {
         MusicCardState.NeedsPermission -> MusicConnectState(onConnect = onConnect)
         MusicCardState.NoActiveSession -> MusicEmptyState()
-        is MusicCardState.Playing -> PlayingState(state.nowPlaying, onCommand, onLaunchSource)
+        is MusicCardState.Playing -> PlayingState(state.nowPlaying, onCommand, onLaunchSource, spectrum)
     }
 }
 
@@ -108,6 +112,7 @@ private fun PlayingState(
     nowPlaying: NowPlaying,
     onCommand: (MusicCommand) -> Unit,
     onLaunchSource: (String) -> Unit,
+    spectrum: StateFlow<FloatArray?>?,
 ) {
     // The whole card (except the transport controls, which consume their own taps)
     // opens the source app. The transport buttons are clickable children, so they
@@ -151,11 +156,19 @@ private fun PlayingState(
                 )
             }
         }
-        TransportRow(
-            isPlaying = nowPlaying.isPlaying,
-            onCommand = onCommand,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        // The spectrum paints behind the transport strip only: matchParentSize
+        // keeps the Box sized by the controls, and the buttons (drawn on top)
+        // keep their own tap handling — the canvas never consumes input.
+        Box(modifier = Modifier.fillMaxWidth()) {
+            spectrum?.let {
+                SpectrumBackground(spectrum = it, modifier = Modifier.matchParentSize())
+            }
+            TransportRow(
+                isPlaying = nowPlaying.isPlaying,
+                onCommand = onCommand,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 

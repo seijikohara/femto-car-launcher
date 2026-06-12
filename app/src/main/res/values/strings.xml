@@ -218,6 +218,8 @@
     <string name="settings_group_panel_calendar">Calendar panel</string>
     <string name="settings_group_panel_weather">Weather panel</string>
     <string name="settings_group_panel_music">Music panel</string>
+    <string name="settings_group_panel_music_spectrum">Music spectrum</string>
+    <string name="settings_panel_music_spectrum_desc">Show a spectrum of the playing audio behind the playback controls; uses the audio-capture (microphone) permission.</string>
     <string name="settings_open_notification_access">Notification access</string>
     <string name="settings_open_system_settings">System settings</string>
     <string name="settings_reset_to_defaults">Reset to defaults</string>
