@@ -44,6 +44,7 @@ declare global {
 			roadMinor: string,
 			roadCasing: string,
 			building: string,
+			label: string,
 		) => void;
 		setFeatures: (
 			buildings: boolean,
@@ -543,6 +544,7 @@ try {
 		roadMinor,
 		roadCasing,
 		building,
+		label,
 	) => {
 		if (!url) return;
 		state.currentStyleUrl = url;
@@ -555,6 +557,7 @@ try {
 					roadMinor: roadMinor,
 					roadCasing: roadCasing,
 					building: building,
+					label: label,
 				}
 			: null;
 		applyStyleWithFade();

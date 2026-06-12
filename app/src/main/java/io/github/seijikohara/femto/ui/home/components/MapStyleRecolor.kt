@@ -4,9 +4,11 @@ import org.json.JSONObject
 
 /**
  * Recolour a bundled base style's JSON with the ACCENT palette: background, water,
- * landcover / landuse / park fills, transportation lines, and 2D building fills.
- * Roads keep their zoom-interpolated widths from the base style, so the visual
- * hierarchy (motorway / major / minor) survives the recolour; labels stay untouched.
+ * landcover / landuse / park fills, transportation lines, 2D building fills, and
+ * label text (theme-tracked colour with a background-coloured halo — the bases'
+ * own label colours are tuned to their own backgrounds and go illegible on the
+ * Material surface). Roads keep their zoom-interpolated widths from the base
+ * style, so the visual hierarchy (motorway / major / minor) survives the recolour.
  *
  * Mirrors `injectFeatures` / `roadClassOrNull` in `webmap/src/style.ts` for the
  * live backend — keep the layer groups and the road classification in sync.
@@ -40,6 +42,17 @@ internal fun recolorAccent(
 
             type == "line" && sourceLayer == "transportation" -> {
                 roadColorOrNull(layer.optString("id"), colors)?.let { layer.paint().put("line-color", it) }
+            }
+
+            // Text-less symbol layers (oneway arrows) ignore the text-* keys.
+            // The halo width is only seeded where the base omits it (e.g. the
+            // motorway names); existing widths are the base's tuning, kept as-is.
+            type == "symbol" -> {
+                layer.paint().apply {
+                    put("text-color", colors.label)
+                    put("text-halo-color", colors.background)
+                    if (!has("text-halo-width")) put("text-halo-width", 1)
+                }
             }
         }
     }
