@@ -101,11 +101,11 @@ internal fun accentMapColors(isDark: Boolean): AccentMapColors =
             background = MaterialTheme.colorScheme.surface.toCssHex(),
             water = MaterialTheme.colorScheme.primaryContainer.toCssHex(),
             land = MaterialTheme.colorScheme.surfaceContainerLow.toCssHex(),
-            roadMajor = MaterialTheme.colorScheme.outline.toCssHex(),
-            roadMinor = MaterialTheme.colorScheme.outlineVariant.toCssHex(),
+            roadMajor = MaterialTheme.colorScheme.onSurfaceVariant.toCssHex(),
+            roadMinor = MaterialTheme.colorScheme.outline.toCssHex(),
             roadCasing = MaterialTheme.colorScheme.surfaceContainer.toCssHex(),
             building = MaterialTheme.colorScheme.surfaceContainerHigh.toCssHex(),
-            label = MaterialTheme.colorScheme.onSurfaceVariant.toCssHex(),
+            label = MaterialTheme.colorScheme.onSurface.toCssHex(),
         )
     } else {
         AccentMapColors(
@@ -114,8 +114,8 @@ internal fun accentMapColors(isDark: Boolean): AccentMapColors =
             land = MaterialTheme.colorScheme.surfaceContainerHigh.toCssHex(),
             roadMajor = MaterialTheme.colorScheme.surface.toCssHex(),
             roadMinor = MaterialTheme.colorScheme.surfaceContainerHighest.toCssHex(),
-            roadCasing = MaterialTheme.colorScheme.outlineVariant.toCssHex(),
+            roadCasing = MaterialTheme.colorScheme.outline.toCssHex(),
             building = MaterialTheme.colorScheme.surfaceContainerHighest.toCssHex(),
-            label = MaterialTheme.colorScheme.onSurfaceVariant.toCssHex(),
+            label = MaterialTheme.colorScheme.onSurface.toCssHex(),
         )
     }
