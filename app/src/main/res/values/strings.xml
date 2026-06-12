@@ -222,6 +222,36 @@
     <string name="settings_panel_music_spectrum_desc">Show a spectrum of the playing audio behind the playback controls; uses the audio-capture (microphone) permission.</string>
     <string name="settings_open_notification_access">Notification access</string>
     <string name="settings_open_system_settings">System settings</string>
+    <string name="settings_open_diagnostics">Diagnostics</string>
+
+    <!-- Diagnostics sheet -->
+    <string name="diagnostics_title">Diagnostics</string>
+    <string name="diagnostics_refresh">Refresh</string>
+    <string name="diagnostics_loading">Collecting…</string>
+    <string name="diagnostics_copy">Copy report</string>
+    <string name="diagnostics_unavailable">Diagnostics collection failed; see the app logs.</string>
+    <string name="diagnostics_section_build">Build</string>
+    <string name="diagnostics_section_permissions">Permissions</string>
+    <string name="diagnostics_section_music">Music</string>
+    <string name="diagnostics_section_network">Network</string>
+    <string name="diagnostics_section_logs">Recent warnings (%1$d)</string>
+    <string name="diagnostics_granted">Granted</string>
+    <string name="diagnostics_denied">Denied</string>
+    <string name="diagnostics_enabled">Enabled</string>
+    <string name="diagnostics_disabled">Disabled</string>
+    <string name="diagnostics_listener">Notification listener</string>
+    <string name="diagnostics_music_session">Session: %1$s</string>
+    <string name="diagnostics_spectrum">Spectrum capture</string>
+    <string name="diagnostics_spectrum_active">Signal detected</string>
+    <string name="diagnostics_spectrum_silent">Running, stream silent</string>
+    <string name="diagnostics_spectrum_engine">Engine unavailable</string>
+    <string name="diagnostics_spectrum_no_permission">No mic permission</string>
+    <string name="diagnostics_spectrum_not_probed">Not probed</string>
+    <string name="diagnostics_spectrum_hint">Probe the spectrum while music is playing: silence here with an active session means the player bypasses the audio mixer.</string>
+    <string name="diagnostics_network">Connectivity</string>
+    <string name="diagnostics_online">Online (%1$s)</string>
+    <string name="diagnostics_offline">Offline</string>
+    <string name="diagnostics_logs_empty">No recent warnings, or log access is restricted on this device.</string>
     <string name="settings_reset_to_defaults">Reset to defaults</string>
     <string name="settings_reset_confirm_title">Reset all settings?</string>
     <string name="settings_reset_confirm_message">This restores every display, unit, map, location, panel and font setting to its default value.</string>

@@ -11,13 +11,20 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.takeWhile
+import kotlinx.coroutines.withTimeoutOrNull
 
 private const val TAG = "AudioSpectrumRepo"
+
+// Probe window: at the typical 20 Hz capture rate this sees ~40 frames —
+// plenty to tell sustained silence from intermittent signal.
+private const val DIAGNOSIS_WINDOW_MS = 2_000L
 
 /**
  * Streams per-band spectrum levels of whatever audio the device is playing,
@@ -44,6 +51,26 @@ internal class AudioSpectrumRepository(
         activeFlow
             .distinctUntilChanged()
             .flatMapLatest { active -> if (active) captureFlow() else flowOf(null) }
+
+    /**
+     * Probe the capture path for a short window and classify what came back
+     * (see [SpectrumDiagnosis]). Runs its own short-lived Visualizer; safe
+     * to call while the rendering capture is active — multiple handles on
+     * the output mix coexist. Stops early on the first decisive emission
+     * (an engine failure or a clear signal).
+     */
+    suspend fun diagnose(): SpectrumDiagnosis {
+        if (!context.hasRecordAudioPermission()) return SpectrumDiagnosis.NO_PERMISSION
+        val emissions = mutableListOf<FloatArray?>()
+        withTimeoutOrNull(DIAGNOSIS_WINDOW_MS) {
+            captureFlow()
+                .takeWhile { bands ->
+                    emissions += bands
+                    bands != null && bands.none { it > DIAGNOSIS_SIGNAL_LEVEL }
+                }.collect()
+        }
+        return classifySpectrumProbe(emissions)
+    }
 
     private fun captureFlow(): Flow<FloatArray?> =
         callbackFlow {
