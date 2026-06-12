@@ -21,7 +21,7 @@ private const val TAG = "AudioSpectrumRepo"
 
 /**
  * Streams per-band spectrum levels of whatever audio the device is playing,
- * for the music card's equalizer background.
+ * for the music card's spectrum background.
  *
  * The source is an [android.media.audiofx.Visualizer] attached to audio
  * session 0 — the global output mix — so it visualizes other apps' playback
@@ -82,7 +82,7 @@ internal class AudioSpectrumRepository(
                 )
                 visualizer.enabled = true
             }.onFailure {
-                Log.w(TAG, "Visualizer capture setup failed; equalizer renders flat", it)
+                Log.w(TAG, "Visualizer capture setup failed; spectrum renders flat", it)
                 trySend(null)
             }
             awaitClose {
@@ -102,11 +102,11 @@ internal class AudioSpectrumRepository(
      */
     private fun visualizerOrNull(): Visualizer? =
         if (!context.hasRecordAudioPermission()) {
-            Log.w(TAG, "RECORD_AUDIO not granted; equalizer renders flat")
+            Log.w(TAG, "RECORD_AUDIO not granted; spectrum renders flat")
             null
         } else {
             runCatching { Visualizer(0) }
-                .onFailure { Log.w(TAG, "output-mix Visualizer unavailable; equalizer renders flat", it) }
+                .onFailure { Log.w(TAG, "output-mix Visualizer unavailable; spectrum renders flat", it) }
                 .getOrNull()
         }
 }

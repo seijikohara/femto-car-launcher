@@ -402,10 +402,10 @@ internal fun SettingsScreen(
                 onCheckedChange = { onAction(SettingsAction.SetShowMusic(it)) },
             )
             SwitchRow(
-                title = stringResource(R.string.settings_group_panel_music_equalizer),
-                checked = uiState.musicEqualizer,
-                onCheckedChange = { onAction(SettingsAction.SetMusicEqualizer(it)) },
-                summary = stringResource(R.string.settings_panel_music_equalizer_desc),
+                title = stringResource(R.string.settings_group_panel_music_spectrum),
+                checked = uiState.musicSpectrum,
+                onCheckedChange = { onAction(SettingsAction.SetMusicSpectrum(it)) },
+                summary = stringResource(R.string.settings_panel_music_spectrum_desc),
             )
         }
 

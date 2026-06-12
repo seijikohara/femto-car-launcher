@@ -94,17 +94,17 @@ class SettingsViewModelTest {
         }
 
     @Test
-    fun `SetMusicEqualizer writes the value to the store`() =
+    fun `SetMusicSpectrum writes the value to the store`() =
         runTest(dispatcher) {
-            viewModel().onAction(SettingsAction.SetMusicEqualizer(true))
+            viewModel().onAction(SettingsAction.SetMusicSpectrum(true))
             advanceUntilIdle()
-            assertEquals(true, store.settings.first().musicEqualizer)
+            assertEquals(true, store.settings.first().musicSpectrum)
         }
 
     @Test
-    fun `music equalizer defaults to off`() =
+    fun `music spectrum defaults to off`() =
         runTest(dispatcher) {
-            assertEquals(false, store.settings.first().musicEqualizer)
+            assertEquals(false, store.settings.first().musicSpectrum)
         }
 
     @Test

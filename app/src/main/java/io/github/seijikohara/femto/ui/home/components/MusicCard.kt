@@ -92,7 +92,7 @@ internal fun MusicCard(
     onConnect: () -> Unit,
     onLaunchSource: (String) -> Unit,
     modifier: Modifier = Modifier,
-    // Equalizer band levels for the transport strip's background, or null when
+    // Spectrum band levels for the transport strip's background, or null when
     // the visualization is absent (setting off, previews, tests).
     spectrum: StateFlow<FloatArray?>? = null,
 ) = Surface(
@@ -156,12 +156,12 @@ private fun PlayingState(
                 )
             }
         }
-        // The equalizer paints behind the transport strip only: matchParentSize
+        // The spectrum paints behind the transport strip only: matchParentSize
         // keeps the Box sized by the controls, and the buttons (drawn on top)
         // keep their own tap handling — the canvas never consumes input.
         Box(modifier = Modifier.fillMaxWidth()) {
             spectrum?.let {
-                EqualizerBackground(spectrum = it, modifier = Modifier.matchParentSize())
+                SpectrumBackground(spectrum = it, modifier = Modifier.matchParentSize())
             }
             TransportRow(
                 isPlaying = nowPlaying.isPlaying,

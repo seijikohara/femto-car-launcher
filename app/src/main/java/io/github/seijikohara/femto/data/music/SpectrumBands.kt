@@ -5,7 +5,7 @@ import kotlin.math.log10
 import kotlin.math.pow
 
 /**
- * Number of spectrum bands the equalizer visualization renders per
+ * Number of spectrum bands the spectrum visualization renders per
  * mirrored side. SSOT for the band count: the UI derives its slot
  * layout from the array size emitted here, never from its own constant.
  */

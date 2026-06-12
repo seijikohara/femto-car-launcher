@@ -33,7 +33,7 @@ internal fun SettingsRoute(
         viewModel(factory = SettingsViewModelFactory(context.applicationContext as Application))
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     BackHandler(onBack = onBack)
-    // The equalizer's Visualizer sits behind the RECORD_AUDIO runtime grant.
+    // The spectrum's Visualizer sits behind the RECORD_AUDIO runtime grant.
     // Prompt when the toggle turns on without it, but persist the setting
     // regardless of the result: on denial the visualization degrades to flat
     // (the READ_CALENDAR / BLUETOOTH_CONNECT precedent — setting and grant
@@ -43,7 +43,7 @@ internal fun SettingsRoute(
             contract = ActivityResultContracts.RequestPermission(),
         ) { /* The repository re-checks the grant on its next activation. */ }
     val onAction: (SettingsAction) -> Unit = { action ->
-        if (action is SettingsAction.SetMusicEqualizer && action.value && !context.hasRecordAudioPermission()) {
+        if (action is SettingsAction.SetMusicSpectrum && action.value && !context.hasRecordAudioPermission()) {
             recordAudioLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
         viewModel.onAction(action)

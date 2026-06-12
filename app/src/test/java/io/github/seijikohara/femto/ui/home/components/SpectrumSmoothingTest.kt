@@ -6,7 +6,7 @@ import org.junit.Test
 
 private const val FRAME_MS = 16L
 
-class EqualizerSmoothingTest {
+class SpectrumSmoothingTest {
     @Test
     fun `rising levels approach the target within a few attack windows`() {
         // ~12 frames at 16 ms ≈ 190 ms ≈ 3 attack time constants (60 ms).

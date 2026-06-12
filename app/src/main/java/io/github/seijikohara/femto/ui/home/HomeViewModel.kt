@@ -63,7 +63,7 @@ internal class HomeViewModel(
     private val sendMusicCommand: (MusicCommand) -> Unit = {},
     private val resetTrip: () -> Unit = {},
     private val resolveMusicSourceComponent: (String) -> ComponentName? = { null },
-    private val equalizerEnabledFlow: Flow<Boolean> = flowOf(false),
+    private val spectrumEnabledFlow: Flow<Boolean> = flowOf(false),
     private val spectrumBandsFor: (Flow<Boolean>) -> Flow<FloatArray?> = { flowOf(null) },
 ) : ViewModel() {
     // Kotlin's typed combine overloads cover at most 5 flows. Stage the eight
@@ -105,17 +105,17 @@ internal class HomeViewModel(
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, HomeUiState.Initial)
 
-    // Spectrum levels for the music card's equalizer background, or null while
+    // Spectrum levels for the music card's spectrum background, or null while
     // the visualization is off / unavailable. Kept OUT of HomeUiState: the
     // capture ticks at ~20 Hz and routing it through uiState would recompose
-    // the whole dashboard per tick; as a separate stream only the equalizer
+    // the whole dashboard per tick; as a separate stream only the spectrum
     // canvas observes it (side-channel precedent: events below). "Is playing"
     // derives from the shared uiState rather than a second collector on the
     // cold MusicSessionRepository flow, which would double-register its
     // MediaSessionManager listeners.
     val audioSpectrum: StateFlow<FloatArray?> =
         spectrumBandsFor(
-            combine(equalizerEnabledFlow, uiState) { enabled, state ->
+            combine(spectrumEnabledFlow, uiState) { enabled, state ->
                 enabled && (state.musicState as? MusicCardState.Playing)?.nowPlaying?.isPlaying == true
             }.distinctUntilChanged(),
         ).stateIn(viewModelScope, WhileUiSubscribed, null)
@@ -267,10 +267,10 @@ internal class HomeViewModelFactory(
             sendMusicCommand = music::send,
             resetTrip = trip::reset,
             resolveMusicSourceComponent = apps::launcherComponentFor,
-            equalizerEnabledFlow =
+            spectrumEnabledFlow =
                 DisplayPreferences(application)
                     .settings
-                    .map { it.musicEqualizer }
+                    .map { it.musicSpectrum }
                     .distinctUntilChanged(),
             spectrumBandsFor = audioSpectrum::bandsFlow,
         ) as T

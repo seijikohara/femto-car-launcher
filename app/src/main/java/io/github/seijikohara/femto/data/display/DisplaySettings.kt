@@ -154,11 +154,11 @@ internal data class DisplaySettings(
     val showCalendar: Boolean,
     val showWeather: Boolean,
     val showMusic: Boolean,
-    // Whether the music card renders the audio-reactive equalizer behind its
+    // Whether the music card renders the audio-reactive spectrum behind its
     // transport controls. Defaults to false: the visualization is decorative
     // and its Visualizer capture sits behind the RECORD_AUDIO runtime grant,
     // so a fresh install must never prompt for it.
-    val musicEqualizer: Boolean,
+    val musicSpectrum: Boolean,
 ) {
     companion object {
         val Default =
@@ -189,7 +189,7 @@ internal data class DisplaySettings(
                 showCalendar = true,
                 showWeather = true,
                 showMusic = true,
-                musicEqualizer = false,
+                musicSpectrum = false,
             )
     }
 }

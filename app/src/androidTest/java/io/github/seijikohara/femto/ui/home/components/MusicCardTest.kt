@@ -108,7 +108,7 @@ class MusicCardTest {
     }
 
     @Test
-    fun equalizer_background_does_not_intercept_transport_taps() {
+    fun spectrum_background_does_not_intercept_transport_taps() {
         var command: MusicCommand? = null
         rule.setContent {
             FemtoTheme {
@@ -121,7 +121,7 @@ class MusicCardTest {
                 )
             }
         }
-        // The equalizer canvas overlays the transport strip's bounds; the
+        // The spectrum canvas overlays the transport strip's bounds; the
         // buttons draw above it and must keep receiving their taps.
         rule.onNodeWithContentDescription("Play / pause").assertIsDisplayed().performClick()
         assertEquals(MusicCommand.PlayPause, command)

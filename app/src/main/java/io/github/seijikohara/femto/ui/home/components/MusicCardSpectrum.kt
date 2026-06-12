@@ -50,7 +50,7 @@ private const val BAR_WIDTH_FRACTION = 0.6f
 private const val MAX_BAR_HEIGHT_FRACTION = 0.9f
 
 /**
- * Audio-reactive equalizer strip drawn behind the music card's transport
+ * Audio-reactive spectrum strip drawn behind the music card's transport
  * controls.
  *
  * Layout is mirrored center-out: the horizontal centre is 0 Hz, and the
@@ -69,7 +69,7 @@ private const val MAX_BAR_HEIGHT_FRACTION = 0.9f
  *    data returns, so an idle card costs zero frames.
  */
 @Composable
-internal fun EqualizerBackground(
+internal fun SpectrumBackground(
     spectrum: StateFlow<FloatArray?>,
     modifier: Modifier = Modifier,
 ) {
@@ -94,9 +94,9 @@ internal fun EqualizerBackground(
             }
         }
     }
-    val brush = equalizerBrush()
+    val brush = spectrumBrush()
     Canvas(modifier = modifier) {
-        drawEqualizerBars(displayed, brush)
+        drawSpectrumBars(displayed, brush)
     }
 }
 
@@ -124,7 +124,7 @@ internal fun smoothedLevels(
 // One gradient shared by every bar (it spans the strip's draw bounds), in the
 // active scheme's accent so the strip tracks dynamic color and preset seeds.
 @Composable
-private fun equalizerBrush(): Brush {
+private fun spectrumBrush(): Brush {
     val accent = MaterialTheme.colorScheme.primary
     return remember(accent) {
         Brush.verticalGradient(
@@ -139,7 +139,7 @@ private fun equalizerBrush(): Brush {
 
 // Mirrored center-out bars: band 0 (lowest frequency) hugs the centre line,
 // the highest band sits at each edge; both sides draw the same mono levels.
-private fun DrawScope.drawEqualizerBars(
+private fun DrawScope.drawSpectrumBars(
     levels: FloatArray,
     brush: Brush,
 ) {
@@ -164,13 +164,13 @@ private fun DrawScope.drawEqualizerBars(
 // through the same DrawScope extension.
 @PreviewLightDark
 @Composable
-private fun EqualizerBackgroundPreview() {
+private fun SpectrumBackgroundPreview() {
     FemtoTheme {
         Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
             val levels = FloatArray(SPECTRUM_BAND_COUNT) { band -> 0.15f + 0.75f * (0.5f + 0.5f * sin(band * 0.7f)) }
-            val brush = equalizerBrush()
+            val brush = spectrumBrush()
             Canvas(modifier = Modifier.size(width = 320.dp, height = 64.dp)) {
-                drawEqualizerBars(levels, brush)
+                drawSpectrumBars(levels, brush)
             }
         }
     }

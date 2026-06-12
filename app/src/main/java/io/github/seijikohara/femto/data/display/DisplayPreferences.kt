@@ -86,7 +86,7 @@ internal interface DisplaySettingsStore {
 
     suspend fun setShowMusic(value: Boolean)
 
-    suspend fun setMusicEqualizer(value: Boolean)
+    suspend fun setMusicSpectrum(value: Boolean)
 
     /** Restore every display setting to [DisplaySettings.Default]. */
     suspend fun resetToDefaults()
@@ -133,7 +133,7 @@ internal class DisplayPreferences(
                     showCalendar = prefs[SHOW_CALENDAR_KEY] ?: true,
                     showWeather = prefs[SHOW_WEATHER_KEY] ?: true,
                     showMusic = prefs[SHOW_MUSIC_KEY] ?: true,
-                    musicEqualizer = prefs[MUSIC_EQUALIZER_KEY] ?: false,
+                    musicSpectrum = prefs[MUSIC_SPECTRUM_KEY] ?: false,
                 )
             }
 
@@ -241,8 +241,8 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[SHOW_MUSIC_KEY] = value }
     }
 
-    override suspend fun setMusicEqualizer(value: Boolean) {
-        context.displayDataStore.editOrLog(TAG) { it[MUSIC_EQUALIZER_KEY] = value }
+    override suspend fun setMusicSpectrum(value: Boolean) {
+        context.displayDataStore.editOrLog(TAG) { it[MUSIC_SPECTRUM_KEY] = value }
     }
 
     // Clearing every key makes the read path above fall back to its per-field
@@ -279,7 +279,7 @@ internal class DisplayPreferences(
         val SHOW_CALENDAR_KEY = booleanPreferencesKey("show_calendar")
         val SHOW_WEATHER_KEY = booleanPreferencesKey("show_weather")
         val SHOW_MUSIC_KEY = booleanPreferencesKey("show_music")
-        val MUSIC_EQUALIZER_KEY = booleanPreferencesKey("music_equalizer")
+        val MUSIC_SPECTRUM_KEY = booleanPreferencesKey("music_spectrum")
     }
 }
 

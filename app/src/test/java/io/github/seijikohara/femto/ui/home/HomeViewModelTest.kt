@@ -243,7 +243,7 @@ class HomeViewModelTest {
         }
 
     @Test
-    fun `audioSpectrum emits bands while the equalizer is enabled and music is playing`() =
+    fun `audioSpectrum emits bands while the spectrum is enabled and music is playing`() =
         runTest {
             val bands = FloatArray(20) { 0.5f }
             val viewModel =
@@ -261,7 +261,7 @@ class HomeViewModelTest {
         }
 
     @Test
-    fun `audioSpectrum stays null while the equalizer setting is off`() =
+    fun `audioSpectrum stays null while the spectrum setting is off`() =
         runTest {
             val viewModel =
                 spectrumViewModel(
@@ -314,7 +314,7 @@ class HomeViewModelTest {
             calendarFlow = flowOf(fakeCalendarSnapshot()),
             systemStatusFlow = flowOf(fakeSystemStatus()),
             tripStateFlow = flowOf(fakeTripState()),
-            equalizerEnabledFlow = flowOf(enabled),
+            spectrumEnabledFlow = flowOf(enabled),
             spectrumBandsFor = { active -> active.map { if (it) bands else null } },
         )
 

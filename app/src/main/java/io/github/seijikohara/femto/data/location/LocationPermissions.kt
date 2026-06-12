@@ -54,7 +54,7 @@ internal fun Context.hasReadPhoneStatePermission(): Boolean =
  * and the music card's output-mix Visualizer (which never touches the mic but
  * sits behind the same permission by platform contract). It is a runtime
  * grant on every supported API level; when withheld the assistant sheet falls
- * back to the system-intent delegation rows and the equalizer renders flat.
+ * back to the system-intent delegation rows and the spectrum renders flat.
  */
 internal fun Context.hasRecordAudioPermission(): Boolean =
     ContextCompat.checkSelfPermission(
