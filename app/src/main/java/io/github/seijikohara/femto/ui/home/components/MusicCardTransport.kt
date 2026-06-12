@@ -195,19 +195,20 @@ private fun TransportButton(
     primary: Boolean,
     onClick: () -> Unit,
 ) {
+    // All transport buttons are unfilled so the spectrum background stays
+    // visible across the whole strip; the primary action keeps its hierarchy
+    // through the accent tint, the larger glyph, and the centre position
+    // instead of a filled container (which hid the busiest centre bands).
     val width = if (primary) FemtoDimens.MusicPlayButton else FemtoDimens.MusicTransportButton
     val corner = if (primary) 16.dp else 14.dp
-    val container =
-        if (primary) MaterialTheme.colorScheme.primary else Color.Transparent
     val content =
-        if (primary) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+        if (primary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
     Box(
         modifier =
             Modifier
                 .height(FemtoDimens.MusicTransportButton)
                 .width(width)
                 .clip(RoundedCornerShape(corner))
-                .background(container)
                 .clickable(onClick = onClick)
                 .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
@@ -216,7 +217,7 @@ private fun TransportButton(
             imageVector = icon,
             contentDescription = null,
             tint = content,
-            modifier = Modifier.size(32.dp),
+            modifier = Modifier.size(if (primary) 40.dp else 32.dp),
         )
     }
 }
