@@ -116,9 +116,11 @@ private val NoFontPadding = PlatformTextStyle(includeFontPadding = false)
 /**
  * Return the dashboard-card primary line style (e.g. the now-playing track
  * title). Derived from [Typography.titleLarge] with the tighter 20sp/23sp
- * metrics the cards inherit from the retired dashboard-v2 mockup. The line
- * box is fixed ([FixedLineBox]) so a vertically-centred meta block does not
- * shift when consecutive tracks switch between Latin and CJK titles.
+ * metrics the cards inherit from the retired dashboard-v2 mockup. The fixed
+ * line box ([FixedLineBox]) keeps the primary-face metrics stable; it does
+ * NOT survive a fallback face on its own (see the [FixedLineBox] note) — a
+ * single-line slot that must hold its height across Latin↔CJK track
+ * switches additionally clamps with [singleLineBox].
  */
 internal fun Typography.cardTitle(): TextStyle =
     titleLarge.copy(
@@ -133,8 +135,9 @@ internal fun Typography.cardTitle(): TextStyle =
 /**
  * Return the dashboard-card secondary metadata line style (artist / album
  * rows). 14sp glance metadata — one of the sanctioned card relaxations of the
- * 18sp floor (CLAUDE.md#automotive-overrides). Fixed line box for the same
- * script-independence reason as [cardTitle].
+ * 18sp floor (CLAUDE.md#automotive-overrides). Fixed line box as in
+ * [cardTitle], with the same caveat: height stability across font fallbacks
+ * comes from the caller's [singleLineBox] clamp, not from the style alone.
  */
 internal fun Typography.cardMeta(): TextStyle =
     bodyMedium.copy(
@@ -196,8 +199,14 @@ internal fun Typography.tileLabel(): TextStyle =
  * overflow is metric air, not visible clipping.
  */
 @Composable
-internal fun Modifier.singleLineBox(style: TextStyle): Modifier =
-    with(LocalDensity.current) {
+internal fun Modifier.singleLineBox(style: TextStyle): Modifier {
+    // toDp() would throw a unitless IllegalStateException for em/unspecified;
+    // fail fast with the actual contract instead.
+    require(style.lineHeight.isSp) {
+        "singleLineBox needs a style with an sp lineHeight, got ${style.lineHeight}"
+    }
+    return with(LocalDensity.current) {
         height(style.lineHeight.toDp())
             .wrapContentHeight(align = Alignment.CenterVertically, unbounded = true)
     }
+}
