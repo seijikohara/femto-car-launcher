@@ -64,9 +64,12 @@ internal class DiagnosticsViewModel(
         viewModelScope.launch {
             // Each probe degrades to null independently so a broken collector
             // never hides the other one's findings — this screen exists to
-            // surface failure, not to add its own silent variety.
-            val snapshot = runCatchingOrNull("snapshot") { collectSnapshot() }
+            // surface failure, not to add its own silent variety. The spectrum
+            // probe runs FIRST: its failure detail lands in logcat, and the
+            // snapshot's log tail must be captured after it so the report
+            // carries the exact Visualizer error rather than predating it.
             val spectrum = runCatchingOrNull("spectrum probe") { probeSpectrum() }
+            val snapshot = runCatchingOrNull("snapshot") { collectSnapshot() }
             probes.update { it.copy(isLoading = false, snapshot = snapshot, spectrum = spectrum) }
         }
     }
