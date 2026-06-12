@@ -67,6 +67,8 @@ internal class FakeDisplaySettingsStore(
 
     override suspend fun setMapZoom(value: Int) = state.update { it.copy(mapZoom = value) }
 
+    override suspend fun setMapNorthUp(value: Boolean) = state.update { it.copy(mapNorthUp = value) }
+
     override suspend fun setMapRenderPercent(value: Int) = state.update { it.copy(mapRenderPercent = value) }
 
     override suspend fun setMapRenderMode(value: MapRenderMode) = state.update { it.copy(mapRenderMode = value) }

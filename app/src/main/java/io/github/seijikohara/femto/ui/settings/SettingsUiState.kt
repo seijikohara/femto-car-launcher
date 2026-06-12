@@ -34,6 +34,7 @@ internal data class SettingsUiState(
     val mapSchemeDark: MapColorScheme,
     val mapTiltDeg: Int,
     val mapZoom: Int,
+    val mapNorthUp: Boolean,
     val mapRenderPercent: Int,
     val mapRenderMode: MapRenderMode,
     val mapMarkerPos: Int,
@@ -73,6 +74,7 @@ internal data class SettingsUiState(
                 mapSchemeDark = DisplaySettings.Default.mapSchemeDark,
                 mapTiltDeg = DisplaySettings.Default.mapTiltDeg,
                 mapZoom = DisplaySettings.Default.mapZoom,
+                mapNorthUp = DisplaySettings.Default.mapNorthUp,
                 mapRenderPercent = DisplaySettings.Default.mapRenderPercent,
                 mapRenderMode = DisplaySettings.Default.mapRenderMode,
                 mapMarkerPos = DisplaySettings.Default.mapMarkerPos,
@@ -157,6 +159,10 @@ internal sealed interface SettingsAction {
 
     data class SetMapZoom(
         val value: Int,
+    ) : SettingsAction
+
+    data class SetMapNorthUp(
+        val value: Boolean,
     ) : SettingsAction
 
     data class SetMapRenderPercent(

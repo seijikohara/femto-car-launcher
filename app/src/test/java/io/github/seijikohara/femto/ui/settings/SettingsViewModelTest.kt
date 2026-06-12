@@ -116,6 +116,20 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `SetMapNorthUp writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetMapNorthUp(true))
+            advanceUntilIdle()
+            assertEquals(true, store.settings.first().mapNorthUp)
+        }
+
+    @Test
+    fun `map orientation defaults to heading-up`() =
+        runTest(dispatcher) {
+            assertEquals(false, store.settings.first().mapNorthUp)
+        }
+
+    @Test
     fun `SetMapRenderPercent writes the value to the store`() =
         runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetMapRenderPercent(50))
