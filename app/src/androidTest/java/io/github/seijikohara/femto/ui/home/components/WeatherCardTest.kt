@@ -1,9 +1,11 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import io.github.seijikohara.femto.data.weather.WeatherCode
 import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
@@ -27,6 +29,7 @@ class WeatherCardTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     is24Hour = true,
+                    onOpen = {},
                 )
             }
         }
@@ -43,6 +46,7 @@ class WeatherCardTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     is24Hour = true,
+                    onOpen = {},
                 )
             }
         }
@@ -60,6 +64,7 @@ class WeatherCardTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     is24Hour = true,
+                    onOpen = {},
                 )
             }
         }
@@ -77,6 +82,7 @@ class WeatherCardTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     is24Hour = true,
+                    onOpen = {},
                 )
             }
         }
@@ -96,6 +102,7 @@ class WeatherCardTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     is24Hour = true,
+                    onOpen = {},
                 )
             }
         }
@@ -113,6 +120,7 @@ class WeatherCardTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     is24Hour = false,
+                    onOpen = {},
                 )
             }
         }
@@ -121,5 +129,23 @@ class WeatherCardTest {
         // pattern because the meridiem word is locale-dependent ("PM" / "午後").
         val expected = LocalTime.of(12, 0).format(DateTimeFormatter.ofPattern("h a"))
         rule.onNodeWithText(expected).assertIsDisplayed()
+    }
+
+    @Test
+    fun tapping_the_card_dispatches_open() {
+        var opened = false
+        rule.setContent {
+            FemtoTheme {
+                WeatherCard(
+                    snapshot = fakeWeatherSnapshot(),
+                    temperatureUnit = TemperatureUnit.CELSIUS,
+                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    is24Hour = true,
+                    onOpen = { opened = true },
+                )
+            }
+        }
+        rule.onNode(hasClickAction()).performClick()
+        assert(opened) { "expected the card tap to dispatch onOpen" }
     }
 }

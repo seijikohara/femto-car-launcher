@@ -164,6 +164,24 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun `onAction OpenCalendar emits LaunchAppCategory APP_CALENDAR`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.OpenCalendar,
+                expected = HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_CALENDAR),
+            )
+        }
+
+    @Test
+    fun `onAction OpenWeather emits LaunchAppCategory APP_WEATHER`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.OpenWeather,
+                expected = HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_WEATHER),
+            )
+        }
+
+    @Test
     fun `onAction OpenSettings emits OpenInAppSettings`() =
         runTest {
             stubViewModel().assertEvent(

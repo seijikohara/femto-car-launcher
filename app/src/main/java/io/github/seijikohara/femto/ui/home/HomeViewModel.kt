@@ -171,6 +171,17 @@ internal class HomeViewModel(
                 mutableEvents.tryEmit(HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_BROWSER))
             }
 
+            HomeAction.OpenCalendar -> {
+                mutableEvents.tryEmit(HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_CALENDAR))
+            }
+
+            HomeAction.OpenWeather -> {
+                // CATEGORY_APP_WEATHER ships exactly at the minSdk (API 33).
+                // Devices without a weather app declaring the category no-op
+                // gracefully via the host's tryStartActivity.
+                mutableEvents.tryEmit(HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_WEATHER))
+            }
+
             HomeAction.OpenSettings -> {
                 mutableEvents.tryEmit(HomeEvent.OpenInAppSettings)
             }

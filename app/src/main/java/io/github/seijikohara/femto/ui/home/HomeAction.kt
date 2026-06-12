@@ -30,6 +30,10 @@ internal sealed interface HomeAction {
 
     data object OpenBrowser : HomeAction
 
+    data object OpenCalendar : HomeAction
+
+    data object OpenWeather : HomeAction
+
     data object OpenSettings : HomeAction
 
     data object OpenAssistant : HomeAction

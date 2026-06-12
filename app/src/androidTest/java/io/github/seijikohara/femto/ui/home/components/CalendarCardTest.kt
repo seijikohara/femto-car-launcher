@@ -1,9 +1,11 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
@@ -19,7 +21,7 @@ class CalendarCardTest {
     fun renders_each_days_events_in_the_agenda_list() {
         rule.setContent {
             FemtoTheme {
-                CalendarCard(snapshot = fakeCalendarSnapshot(), is24Hour = true)
+                CalendarCard(snapshot = fakeCalendarSnapshot(), is24Hour = true, onOpen = {})
             }
         }
         // The agenda lists every day, so events from different days all render
@@ -32,7 +34,7 @@ class CalendarCardTest {
     fun omits_days_without_events_from_the_agenda() {
         rule.setContent {
             FemtoTheme {
-                CalendarCard(snapshot = fakeCalendarSnapshot(), is24Hour = true)
+                CalendarCard(snapshot = fakeCalendarSnapshot(), is24Hour = true, onOpen = {})
             }
         }
         // The fixture's 2026-05-02 is a free day (and not today), so its gutter
@@ -51,6 +53,7 @@ class CalendarCardTest {
                             days = fakeCalendarSnapshot().days.map { it.copy(events = emptyList()) },
                         ),
                     is24Hour = true,
+                    onOpen = {},
                 )
             }
         }
@@ -68,7 +71,7 @@ class CalendarCardTest {
     fun shows_today_number_for_granted_snapshot() {
         rule.setContent {
             FemtoTheme {
-                CalendarCard(snapshot = fakeCalendarSnapshot(), is24Hour = true)
+                CalendarCard(snapshot = fakeCalendarSnapshot(), is24Hour = true, onOpen = {})
             }
         }
         // The hero head renders the day-of-month of the fixture's `today`
@@ -79,10 +82,22 @@ class CalendarCardTest {
     }
 
     @Test
+    fun tapping_the_card_dispatches_open() {
+        var opened = false
+        rule.setContent {
+            FemtoTheme {
+                CalendarCard(snapshot = fakeCalendarSnapshot(), is24Hour = true, onOpen = { opened = true })
+            }
+        }
+        rule.onNode(hasClickAction()).performClick()
+        assert(opened) { "expected the card tap to dispatch onOpen" }
+    }
+
+    @Test
     fun shows_permission_denied_message_when_access_is_denied() {
         rule.setContent {
             FemtoTheme {
-                CalendarCard(snapshot = fakeCalendarSnapshot(hasCalendarAccess = false), is24Hour = true)
+                CalendarCard(snapshot = fakeCalendarSnapshot(hasCalendarAccess = false), is24Hour = true, onOpen = {})
             }
         }
         // Resolve the copy from resources so the literal stays the SSOT in
@@ -99,7 +114,7 @@ class CalendarCardTest {
     fun shows_query_failed_message_when_the_provider_query_failed() {
         rule.setContent {
             FemtoTheme {
-                CalendarCard(snapshot = fakeCalendarSnapshot(queryFailed = true), is24Hour = true)
+                CalendarCard(snapshot = fakeCalendarSnapshot(queryFailed = true), is24Hour = true, onOpen = {})
             }
         }
         // Resolve the copy from resources so the literal stays the SSOT in
