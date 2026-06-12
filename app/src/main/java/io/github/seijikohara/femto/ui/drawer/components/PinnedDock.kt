@@ -82,11 +82,13 @@ private fun DrawerIconSize.dockDimensions(): DockDimensions =
  * scrolling row of icon + label tiles in pin order, visually separated from the
  * scrolling app grid by a divider on a raised container colour. Tap launches.
  *
- * Long-press starts a horizontal drag-reorder: the held tile follows the
- * finger and swaps places as it crosses its neighbours; lifting commits the
- * new order through [onReorder]. A long-press WITHOUT movement falls back to
- * the tile menu (Unpin, plus Move left / Move right — the precision-free
- * reorder path for a bumpy cabin or accessibility services).
+ * Long-press then drag reorders: the held tile follows the finger and swaps
+ * places as it crosses its neighbours; lifting commits the new order through
+ * [onReorder]. A long-press lifted WITHOUT travel opens the tile menu
+ * (Unpin, plus Move left / Move right — the precision-free reorder path for
+ * a bumpy cabin or accessibility services). The menu deliberately opens on
+ * lift, not at the long-press timeout: a focusable popup appearing mid-press
+ * cancels the pointer stream and would kill the drag.
  *
  * Callers skip composing the dock when [apps] is empty.
  */
@@ -171,14 +173,26 @@ internal fun PinnedDock(
                                         if (dragTravelled) {
                                             onReorder(order.map { it.componentName.flattenToString() })
                                         } else {
-                                            // A long-press that never moved is the
-                                            // menu gesture, exactly as before.
                                             menuKey = key
                                         }
                                         draggingKey = null
                                         dragDelta = 0f
                                     },
                                     onDragCancel = {
+                                        if (dragTravelled) {
+                                            // Revert the optimistic swaps: nothing
+                                            // was committed, so the dock falls back
+                                            // to the persisted order.
+                                            order.clear()
+                                            order.addAll(apps)
+                                        } else {
+                                            // A no-travel lift lands HERE, not in
+                                            // onDragEnd: the child clickable
+                                            // consumes the up (its tap), which the
+                                            // detector reports as a cancel. It is
+                                            // the menu gesture.
+                                            menuKey = key
+                                        }
                                         draggingKey = null
                                         dragDelta = 0f
                                     },
@@ -238,8 +252,11 @@ private fun DockTile(
             Modifier
                 .width(dimensions.tileWidth)
                 .defaultMinSize(minHeight = FemtoDimens.MinTouchTarget)
-                // Plain clickable: the long-press path belongs to the dock's
-                // drag detector (which falls back to the menu on a still press).
+                // Plain clickable launches on tap. The menu must NOT open at
+                // the long-press timeout: a focusable popup appearing mid-press
+                // cancels the original pointer stream and would make the
+                // reorder drag impossible — so the dock's drag detector opens
+                // it on lift instead.
                 .clickable(onClick = { onLaunch(entry.componentName) }),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
