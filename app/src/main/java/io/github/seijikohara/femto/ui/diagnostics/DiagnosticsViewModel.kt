@@ -13,6 +13,8 @@ import io.github.seijikohara.femto.data.music.MusicSessionRepository
 import io.github.seijikohara.femto.data.music.SpectrumDiagnosis
 import io.github.seijikohara.femto.data.system.DiagnosticsRepository
 import io.github.seijikohara.femto.data.system.DiagnosticsSnapshot
+import io.github.seijikohara.femto.data.system.PerformanceProbe
+import io.github.seijikohara.femto.data.system.PerformanceSnapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +37,7 @@ internal class DiagnosticsViewModel(
     private val collectSnapshot: suspend () -> DiagnosticsSnapshot,
     private val probeSpectrum: suspend () -> SpectrumDiagnosis,
     musicStateFlow: Flow<MusicCardState>,
+    private val collectPerformance: suspend () -> PerformanceSnapshot? = { null },
 ) : ViewModel() {
     private val probes = MutableStateFlow(DiagnosticsUiState.Initial)
 
@@ -69,8 +72,16 @@ internal class DiagnosticsViewModel(
             // snapshot's log tail must be captured after it so the report
             // carries the exact Visualizer error rather than predating it.
             val spectrum = runCatchingOrNull("spectrum probe") { probeSpectrum() }
+            val performance = runCatchingOrNull("performance probe") { collectPerformance() }
             val snapshot = runCatchingOrNull("snapshot") { collectSnapshot() }
-            probes.update { it.copy(isLoading = false, snapshot = snapshot, spectrum = spectrum) }
+            probes.update {
+                it.copy(
+                    isLoading = false,
+                    snapshot = snapshot,
+                    spectrum = spectrum,
+                    performance = performance,
+                )
+            }
         }
     }
 
@@ -96,6 +107,7 @@ internal val DiagnosticsViewModelFactory: ViewModelProvider.Factory =
                 collectSnapshot = DiagnosticsRepository(application)::snapshot,
                 probeSpectrum = AudioSpectrumRepository(application)::diagnose,
                 musicStateFlow = MusicSessionRepository(application).stateFlow(),
+                collectPerformance = PerformanceProbe(application)::snapshot,
             )
         }
     }

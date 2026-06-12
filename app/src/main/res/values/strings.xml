@@ -245,6 +245,17 @@
     <string name="diagnostics_section_music">Music</string>
     <string name="diagnostics_section_network">Network</string>
     <string name="diagnostics_section_logs">Recent warnings (%1$d)</string>
+    <string name="diagnostics_section_performance">Performance</string>
+    <string name="diagnostics_section_map_settings">Map settings</string>
+    <string name="diagnostics_thermal">Thermal status</string>
+    <string name="diagnostics_device_memory">Device memory free</string>
+    <string name="diagnostics_app_memory">App: PSS %1$d MB · Java heap %2$d/%3$d MB · native %4$d MB</string>
+    <string name="diagnostics_uptime">Uptime: process %1$dh %2$dm · device %3$dh %4$dm</string>
+    <string name="diagnostics_frames">UI frames</string>
+    <string name="diagnostics_frames_value">med %1$d ms · worst %2$d ms · delayed %3$d%%</string>
+    <string name="diagnostics_thermal_headroom">%1$s · headroom %2$s</string>
+    <string name="diagnostics_webview_value">WebView: %1$s</string>
+    <string name="diagnostics_webview_unknown">WebView: unknown provider</string>
     <string name="diagnostics_granted">Granted</string>
     <string name="diagnostics_denied">Denied</string>
     <string name="diagnostics_enabled">Enabled</string>

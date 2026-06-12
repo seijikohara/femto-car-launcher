@@ -27,9 +27,11 @@ import com.composables.icons.lucide.Lucide
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.music.SpectrumDiagnosis
 import io.github.seijikohara.femto.data.system.DiagnosticsSnapshot
+import io.github.seijikohara.femto.data.system.PerformanceSnapshot
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import java.util.Locale
 
 /**
  * Per-feature health readout: which gate (grant, listener, capture engine,
@@ -68,6 +70,7 @@ internal fun DiagnosticsScreen(
         PermissionsSection(snapshot)
         MusicSection(uiState)
         NetworkSection(snapshot)
+        uiState.performance?.let { PerformanceSection(it) }
         LogsSection(snapshot.recentWarningLogs)
     } ?: run {
         Text(
@@ -195,6 +198,74 @@ private fun NetworkSection(snapshot: DiagnosticsSnapshot) =
     }
 
 @Composable
+private fun PerformanceSection(performance: PerformanceSnapshot) {
+    Section(title = stringResource(R.string.diagnostics_section_performance)) {
+        StatusRow(
+            label = stringResource(R.string.diagnostics_thermal),
+            value =
+                performance.thermalHeadroom
+                    ?.let {
+                        stringResource(
+                            R.string.diagnostics_thermal_headroom,
+                            performance.thermal.name,
+                            "%.2f".format(Locale.ROOT, it),
+                        )
+                    } ?: performance.thermal.name,
+            healthy = !performance.thermal.isThrottling,
+        )
+        StatusRow(
+            label = stringResource(R.string.diagnostics_device_memory),
+            value = "${performance.availMemMb} / ${performance.totalMemMb} MB",
+            healthy = !performance.lowMemory,
+        )
+        ValueRow(
+            label =
+                stringResource(
+                    R.string.diagnostics_app_memory,
+                    performance.appPssMb,
+                    performance.javaHeapUsedMb,
+                    performance.javaHeapMaxMb,
+                    performance.nativeHeapMb,
+                ),
+        )
+        ValueRow(
+            label =
+                stringResource(
+                    R.string.diagnostics_uptime,
+                    performance.processUptimeMinutes / 60,
+                    performance.processUptimeMinutes % 60,
+                    performance.deviceUptimeMinutes / 60,
+                    performance.deviceUptimeMinutes % 60,
+                ),
+        )
+        performance.frameStats?.let { frames ->
+            StatusRow(
+                label = stringResource(R.string.diagnostics_frames),
+                value =
+                    stringResource(
+                        R.string.diagnostics_frames_value,
+                        frames.medianMs,
+                        frames.worstMs,
+                        frames.delayedPercent,
+                    ),
+                healthy = frames.delayedPercent < DELAYED_HEALTHY_MAX_PERCENT,
+            )
+        }
+        ValueRow(
+            label =
+                performance.webViewVersion
+                    ?.let { stringResource(R.string.diagnostics_webview_value, it) }
+                    ?: stringResource(R.string.diagnostics_webview_unknown),
+        )
+    }
+    Section(title = stringResource(R.string.diagnostics_section_map_settings)) {
+        performance.mapSettings.forEach { entry ->
+            ValueRow(label = "${entry.label}: ${entry.value}")
+        }
+    }
+}
+
+@Composable
 private fun LogsSection(logs: List<String>) =
     Section(title = stringResource(R.string.diagnostics_section_logs, logs.size)) {
         if (logs.isEmpty()) {
@@ -273,6 +344,10 @@ private fun spectrumLabel(diagnosis: SpectrumDiagnosis?): String =
             null -> R.string.diagnostics_spectrum_not_probed
         },
     )
+
+// A delayed-frame share below this reads as healthy on the status row; above
+// it the row flags the UI thread as a sluggishness suspect.
+private const val DELAYED_HEALTHY_MAX_PERCENT = 10
 
 @PreviewLightDark
 @Composable
