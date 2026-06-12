@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	appliedBearing,
 	BEARING_SNAP_DELTA_DEG,
 	easeDurationMs,
 	linearEase,
@@ -73,5 +74,15 @@ describe("smoothedBearing", () => {
 	it("normalizes the result into [0, 360)", () => {
 		expect(smoothedBearing(null, 370)).toBe(10);
 		expect(smoothedBearing(2, 354, 0.5)).toBe(358);
+	});
+});
+
+describe("appliedBearing", () => {
+	it("pins the camera to north when north-up is on", () => {
+		expect(appliedBearing(true, 137)).toBe(0);
+	});
+
+	it("follows the travel heading when north-up is off", () => {
+		expect(appliedBearing(false, 137)).toBe(137);
 	});
 });
