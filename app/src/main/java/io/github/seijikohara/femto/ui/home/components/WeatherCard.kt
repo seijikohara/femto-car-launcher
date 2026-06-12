@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.ui.home.components
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -79,9 +80,16 @@ internal fun WeatherCard(
     temperatureUnit: TemperatureUnit,
     speedUnit: SpeedUnit,
     is24Hour: Boolean,
+    onOpen: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Surface(
-    modifier = modifier,
+    modifier = modifier
+        // The whole card opens the default weather app (CATEGORY_APP_WEATHER,
+        // available exactly from the minSdk). clip keeps the ripple inside
+        // the rounded shape; the inner Column scrolls, so the clickable
+        // lives on the Surface rather than competing with the scroll.
+        .clip(MaterialTheme.shapes.large)
+        .clickable(onClickLabel = stringResource(R.string.weather_open_app)) { onOpen() },
     shape = MaterialTheme.shapes.large,
     color = MaterialTheme.colorScheme.surfaceContainer,
 ) {
@@ -419,6 +427,7 @@ private fun WeatherCardPreview() {
             temperatureUnit = TemperatureUnit.CELSIUS,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             is24Hour = true,
+            onOpen = {},
         )
     }
 }

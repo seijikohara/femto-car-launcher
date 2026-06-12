@@ -1,7 +1,9 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -56,26 +58,38 @@ import java.time.format.DateTimeFormatter
 internal fun CalendarCard(
     snapshot: CalendarSnapshot?,
     is24Hour: Boolean,
+    onOpen: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Surface(
     modifier = modifier,
     shape = MaterialTheme.shapes.large,
     color = MaterialTheme.colorScheme.surfaceContainer,
 ) {
-    when {
-        // null is the loading frame: render nothing rather than a denial the
-        // user has not earned yet.
-        snapshot == null -> Unit
+    // The whole card opens the default calendar app (CATEGORY_APP_CALENDAR),
+    // in every state: even the denial/failed hints lead somewhere useful.
+    // Inner clickable (not on the Surface modifier) so the ripple stays
+    // inside the rounded shape — the MusicCard pattern.
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .clickable(onClickLabel = stringResource(R.string.calendar_open_app)) { onOpen() },
+    ) {
+        when {
+            // null is the loading frame: render nothing rather than a denial the
+            // user has not earned yet.
+            snapshot == null -> Unit
 
-        // A non-null snapshot with access denied carries no real data, so show the
-        // denial message instead of a hollow agenda.
-        !snapshot.hasCalendarAccess -> CenteredHint(stringResource(R.string.calendar_permission_denied))
+            // A non-null snapshot with access denied carries no real data, so show the
+            // denial message instead of a hollow agenda.
+            !snapshot.hasCalendarAccess -> CenteredHint(stringResource(R.string.calendar_permission_denied))
 
-        // Access is granted but the provider query faulted: the empty agenda is
-        // a read failure, not a free month, so say so rather than fake it.
-        snapshot.queryFailed -> CenteredHint(stringResource(R.string.calendar_query_failed))
+            // Access is granted but the provider query faulted: the empty agenda is
+            // a read failure, not a free month, so say so rather than fake it.
+            snapshot.queryFailed -> CenteredHint(stringResource(R.string.calendar_query_failed))
 
-        else -> CalendarContent(snapshot, is24Hour)
+            else -> CalendarContent(snapshot, is24Hour)
+        }
     }
 }
 
@@ -333,6 +347,7 @@ private fun CalendarCardPreview() {
                     hasCalendarAccess = true,
                 ),
             is24Hour = true,
+            onOpen = {},
         )
     }
 }

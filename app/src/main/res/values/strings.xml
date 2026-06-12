@@ -21,10 +21,12 @@
     <!-- Calendar card -->
     <string name="calendar_permission_denied">Calendar access not granted</string>
     <string name="calendar_all_day">All day</string>
+    <string name="calendar_open_app">Open calendar</string>
     <string name="calendar_no_events">No events</string>
 
     <!-- Weather card -->
     <string name="weather_unavailable">Weather unavailable</string>
+    <string name="weather_open_app">Open weather</string>
     <string name="weather_metric_feels">FEELS</string>
     <string name="weather_metric_wind">WIND</string>
     <string name="weather_metric_humidity">HUMID.</string>

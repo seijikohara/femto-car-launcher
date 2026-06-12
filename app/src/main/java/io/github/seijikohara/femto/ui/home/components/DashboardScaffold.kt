@@ -317,6 +317,7 @@ private fun InfoPane(
                 CalendarCard(
                     snapshot = uiState.calendar,
                     is24Hour = is24Hour,
+                    onOpen = { onAction(HomeAction.OpenCalendar) },
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
             }
@@ -326,6 +327,7 @@ private fun InfoPane(
                     temperatureUnit = temperatureUnit,
                     speedUnit = speedUnit,
                     is24Hour = is24Hour,
+                    onOpen = { onAction(HomeAction.OpenWeather) },
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
             }
