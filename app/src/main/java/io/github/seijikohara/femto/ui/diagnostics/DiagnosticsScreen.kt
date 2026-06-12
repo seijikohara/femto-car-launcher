@@ -59,20 +59,27 @@ internal fun DiagnosticsScreen(
         onAction = onAction,
         onCopyReport = onCopyReport,
     )
+    // The music rows render outside the snapshot gate: the probes degrade
+    // independently in the ViewModel, and a broken snapshot collector must
+    // not hide the spectrum verdict — the broken device is exactly where
+    // this screen earns its keep.
     uiState.snapshot?.let { snapshot ->
         BuildSection(snapshot)
         PermissionsSection(snapshot)
         MusicSection(uiState)
         NetworkSection(snapshot)
         LogsSection(snapshot.recentWarningLogs)
-    } ?: Text(
-        text =
-            stringResource(
-                if (uiState.isLoading) R.string.diagnostics_loading else R.string.diagnostics_unavailable,
-            ),
-        style = MaterialTheme.typography.bodyLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+    } ?: run {
+        Text(
+            text =
+                stringResource(
+                    if (uiState.isLoading) R.string.diagnostics_loading else R.string.diagnostics_unavailable,
+                ),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        MusicSection(uiState)
+    }
 }
 
 @Composable

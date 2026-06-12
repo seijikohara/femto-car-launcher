@@ -103,7 +103,17 @@ internal class DiagnosticsRepository(
                 .start()
                 .inputStream
                 .bufferedReader()
-                .useLines { lines -> lines.toList().takeLast(MAX_LOG_LINES) }
+                // Stream into a bounded tail: the dump can run to megabytes
+                // on a chatty device, and only the newest lines matter.
+                .useLines { lines ->
+                    lines
+                        .fold(ArrayDeque<String>(MAX_LOG_LINES)) { tail, line ->
+                            tail.also {
+                                if (it.size == MAX_LOG_LINES) it.removeFirst()
+                                it.addLast(line)
+                            }
+                        }.toList()
+                }
         }.onFailure { Log.w(TAG, "self logcat read failed; diagnostics omit the log tail", it) }
             .getOrDefault(emptyList())
 }
