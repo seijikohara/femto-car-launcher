@@ -94,6 +94,20 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `SetMusicEqualizer writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetMusicEqualizer(true))
+            advanceUntilIdle()
+            assertEquals(true, store.settings.first().musicEqualizer)
+        }
+
+    @Test
+    fun `music equalizer defaults to off`() =
+        runTest(dispatcher) {
+            assertEquals(false, store.settings.first().musicEqualizer)
+        }
+
+    @Test
     fun `SetShowClockSeconds writes the value to the store`() =
         runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetShowClockSeconds(false))

@@ -7,8 +7,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
+import io.github.seijikohara.femto.data.music.SPECTRUM_BAND_COUNT
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -103,6 +105,26 @@ class MusicCardTest {
         rule.onNodeWithContentDescription("Play / pause").performClick()
         assertEquals(MusicCommand.PlayPause, command)
         assertEquals(null, launched)
+    }
+
+    @Test
+    fun equalizer_background_does_not_intercept_transport_taps() {
+        var command: MusicCommand? = null
+        rule.setContent {
+            FemtoTheme {
+                MusicCard(
+                    state = MusicCardState.Playing(fakeNowPlaying()),
+                    onCommand = { command = it },
+                    onConnect = {},
+                    onLaunchSource = {},
+                    spectrum = MutableStateFlow(FloatArray(SPECTRUM_BAND_COUNT) { 0.6f }),
+                )
+            }
+        }
+        // The equalizer canvas overlays the transport strip's bounds; the
+        // buttons draw above it and must keep receiving their taps.
+        rule.onNodeWithContentDescription("Play / pause").assertIsDisplayed().performClick()
+        assertEquals(MusicCommand.PlayPause, command)
     }
 
     @Test
