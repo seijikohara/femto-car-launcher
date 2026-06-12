@@ -88,6 +88,62 @@ class TripRepositoryTest {
         }
 
     @Test
+    fun `counts a parked gap toward the average time base`() =
+        runTest {
+            // Move for 10 s, stop, then a 120 s fix drought (distance-filtered
+            // updates stop while parked). The gap began at a standstill, so it
+            // must land in the average's time base: AVG drops sharply.
+            val flow =
+                flowOf(
+                    fakeLocation(latitude = ORIGIN_LAT, speedMps = 11f, elapsedRealtimeNanos = 0L),
+                    fakeLocation(latitude = ORIGIN_LAT + STEP, speedMps = 11f, elapsedRealtimeNanos = tenSeconds(1)),
+                    fakeLocation(latitude = ORIGIN_LAT + STEP, speedMps = 0.1f, elapsedRealtimeNanos = tenSeconds(2)),
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + STEP,
+                        speedMps = 0.1f,
+                        elapsedRealtimeNanos = tenSeconds(2) + 120_000_000_000L,
+                    ),
+                )
+
+            TripRepository(flow).stateFlow().test {
+                skipItems(3) // initial snapshot + first fix + second (moving) fix
+                val afterStop = awaitItem() // stopped fix: 20 s time base
+                val afterGap = awaitItem() // parked drought: 140 s time base
+                assertTrue(afterGap.avgSpeedMs > 0.0)
+                // 20 s -> 140 s of elapsed time over the same distance.
+                assertTrue(afterGap.avgSpeedMs < afterStop.avgSpeedMs / 5)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `skips a moving-onset gap from the average time base`() =
+        runTest {
+            // The anchor fix was moving (11 m/s) when the 61 s drought began —
+            // a tunnel / backgrounded-mid-drive case. Neither time nor distance
+            // may accrue across it, so the average is unchanged.
+            val flow =
+                flowOf(
+                    fakeLocation(latitude = ORIGIN_LAT, speedMps = 11f, elapsedRealtimeNanos = 0L),
+                    fakeLocation(latitude = ORIGIN_LAT + STEP, speedMps = 11f, elapsedRealtimeNanos = tenSeconds(1)),
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + 2 * STEP,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = tenSeconds(1) + 61_000_000_000L,
+                    ),
+                )
+
+            TripRepository(flow).stateFlow().test {
+                skipItems(2) // initial snapshot + first fix
+                val beforeGap = awaitItem()
+                val afterGap = awaitItem()
+                assertEquals(beforeGap.avgSpeedMs, afterGap.avgSpeedMs, 1e-9)
+                assertEquals(beforeGap.distanceMeters, afterGap.distanceMeters, 1e-9)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
     fun `drops pairs separated by a gap larger than the max window`() =
         runTest {
             // 61 s apart on the boot clock exceeds MAX_GAP_SECONDS (60 s).
