@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -28,6 +29,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Pin
 import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.tileLabel
 
 private val DefaultIconSize = 64.dp
 private val IconLabelGap = 8.dp
@@ -49,8 +51,12 @@ internal fun AppTile(
     iconSize: Dp = DefaultIconSize,
     isPinned: Boolean = false,
 ) = Column(
+    // fillMaxWidth claims the whole grid cell: a wrap-content tile measures to
+    // its label, so label width would shift each icon's centre and break the
+    // grid's columns. With the cell claimed, every icon centres identically.
     modifier =
         modifier
+            .fillMaxWidth()
             .defaultMinSize(minWidth = FemtoDimens.MinTouchTarget, minHeight = FemtoDimens.MinTouchTarget)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(TilePadding),
@@ -67,13 +73,16 @@ internal fun AppTile(
         if (isPinned) PinBadge(modifier = Modifier.align(Alignment.TopEnd))
     }
     Spacer(Modifier.height(IconLabelGap))
+    // tileLabel's deterministic line box keeps every tile the same height, so
+    // the drawer grid stays a regular lattice across scripts and fallbacks.
     Text(
         text = entry.label,
-        style = MaterialTheme.typography.labelLarge,
+        style = MaterialTheme.typography.tileLabel(),
         color = MaterialTheme.colorScheme.onBackground,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
     )
 }
 

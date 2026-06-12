@@ -2,7 +2,6 @@ package io.github.seijikohara.femto.ui.settings
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
-import io.github.seijikohara.femto.data.apps.DrawerIconSize
 import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.DisplaySettings
@@ -15,7 +14,6 @@ import io.github.seijikohara.femto.data.fonts.FontPreferences
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
 import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
-import io.github.seijikohara.femto.testfixtures.FakeDrawerSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeLocationSettingsStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -43,7 +41,6 @@ class SettingsViewModelTest {
     private val application: Application = ApplicationProvider.getApplicationContext()
     private val store = FakeDisplaySettingsStore()
     private val locationStore = FakeLocationSettingsStore()
-    private val drawerStore = FakeDrawerSettingsStore()
     private val dispatcher = StandardTestDispatcher()
 
     @Before
@@ -241,13 +238,5 @@ class SettingsViewModelTest {
             assertEquals(OrientationSetting.LANDSCAPE, store.settings.first().orientation)
         }
 
-    @Test
-    fun `SetDrawerIconSize writes the value to the store`() =
-        runTest(dispatcher) {
-            viewModel().onAction(SettingsAction.SetDrawerIconSize(DrawerIconSize.LARGE))
-            advanceUntilIdle()
-            assertEquals(DrawerIconSize.LARGE, drawerStore.iconSize.first())
-        }
-
-    private fun viewModel() = SettingsViewModel(store, FontPreferences(application), locationStore, drawerStore)
+    private fun viewModel() = SettingsViewModel(store, FontPreferences(application), locationStore)
 }
