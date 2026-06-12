@@ -5,6 +5,7 @@ import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.SpectrumDiagnosis
 import io.github.seijikohara.femto.testfixtures.fakeDiagnosticsSnapshot
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
+import io.github.seijikohara.femto.testfixtures.fakePerformanceSnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
@@ -51,6 +52,25 @@ class DiagnosticsViewModelTest {
                 assertEquals(snapshot, state.snapshot)
                 assertEquals(SpectrumDiagnosis.SILENT, state.spectrum)
                 assertEquals(MusicCardState.Playing(fakeNowPlaying()), state.musicState)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `refresh lands the performance snapshot independently`() =
+        runTest {
+            val performance = fakePerformanceSnapshot()
+            val viewModel =
+                DiagnosticsViewModel(
+                    collectSnapshot = { error("collector broke") },
+                    probeSpectrum = { SpectrumDiagnosis.SILENT },
+                    musicStateFlow = flowOf(MusicCardState.NoActiveSession),
+                    collectPerformance = { performance },
+                )
+            viewModel.uiState.test {
+                val state = awaitItem()
+                assertEquals(null, state.snapshot)
+                assertEquals(performance, state.performance)
                 cancelAndIgnoreRemainingEvents()
             }
         }
