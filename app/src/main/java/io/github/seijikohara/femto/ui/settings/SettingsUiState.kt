@@ -1,6 +1,5 @@
 package io.github.seijikohara.femto.ui.settings
 
-import io.github.seijikohara.femto.data.apps.DrawerIconSize
 import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
@@ -45,7 +44,6 @@ internal data class SettingsUiState(
     val showCalendar: Boolean,
     val showWeather: Boolean,
     val showMusic: Boolean,
-    val drawerIconSize: DrawerIconSize,
     // The chosen Google Fonts families per slot; null means the system font.
     val latinFont: String?,
     val cjkFont: String?,
@@ -84,7 +82,6 @@ internal data class SettingsUiState(
                 showCalendar = DisplaySettings.Default.showCalendar,
                 showWeather = DisplaySettings.Default.showWeather,
                 showMusic = DisplaySettings.Default.showMusic,
-                drawerIconSize = DrawerIconSize.MEDIUM,
                 latinFont = null,
                 cjkFont = null,
                 locationQuality = LocationSettings.Default.quality,
@@ -198,10 +195,6 @@ internal sealed interface SettingsAction {
 
     data class SetShowMusic(
         val value: Boolean,
-    ) : SettingsAction
-
-    data class SetDrawerIconSize(
-        val value: DrawerIconSize,
     ) : SettingsAction
 
     data class SetLocationQuality(

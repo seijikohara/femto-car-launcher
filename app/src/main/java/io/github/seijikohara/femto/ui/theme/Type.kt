@@ -1,9 +1,11 @@
 package io.github.seijikohara.femto.ui.theme
 
 import androidx.compose.material3.Typography
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
@@ -134,4 +136,23 @@ internal fun Typography.cardCtaHint(): TextStyle =
     bodyMedium.copy(
         fontSize = FemtoDimens.MinBodyTextSize,
         lineHeight = FemtoDimens.MinBodyTextSize * 1.33f,
+    )
+
+/**
+ * Return the app-tile label style: a single line with a deterministic line-box
+ * height. Different scripts resolve to different faces (the CJK fallback
+ * carries taller metrics than the Latin face), so an untrimmed one-line label
+ * measures taller for some apps than others and breaks the drawer grid's
+ * lattice. The fixed, centred, untrimmed-at-both-edges line height makes every
+ * label — and therefore every tile — measure identically regardless of which
+ * font renders it.
+ */
+internal fun Typography.tileLabel(): TextStyle =
+    labelLarge.copy(
+        lineHeight = 26.sp,
+        lineHeightStyle = LineHeightStyle(
+            alignment = LineHeightStyle.Alignment.Center,
+            trim = LineHeightStyle.Trim.None,
+        ),
+        platformStyle = PlatformTextStyle(includeFontPadding = false),
     )

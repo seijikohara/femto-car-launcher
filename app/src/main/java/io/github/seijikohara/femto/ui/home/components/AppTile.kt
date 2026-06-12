@@ -28,6 +28,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Pin
 import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.tileLabel
 
 private val DefaultIconSize = 64.dp
 private val IconLabelGap = 8.dp
@@ -67,9 +68,11 @@ internal fun AppTile(
         if (isPinned) PinBadge(modifier = Modifier.align(Alignment.TopEnd))
     }
     Spacer(Modifier.height(IconLabelGap))
+    // tileLabel's deterministic line box keeps every tile the same height, so
+    // the drawer grid stays a regular lattice across scripts and fallbacks.
     Text(
         text = entry.label,
-        style = MaterialTheme.typography.labelLarge,
+        style = MaterialTheme.typography.tileLabel(),
         color = MaterialTheme.colorScheme.onBackground,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
