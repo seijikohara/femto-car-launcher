@@ -10,6 +10,10 @@ export interface AccentColors {
 	roadMinor: string;
 	roadCasing: string;
 	building: string;
+	// Label text colour; the halo reuses background. The bundled bases' label
+	// colours are tuned to their own backgrounds and go illegible on the
+	// Material surface, so ACCENT recolours them like every other layer group.
+	label: string;
 }
 
 // The feature merge is parameterised on the page state instead of reading it,
@@ -109,9 +113,9 @@ export function injectFeatures(
 		delete nextStyle.sources.terrainSource;
 		delete nextStyle.terrain;
 	}
-	// ACCENT scheme: recolour background / water / land / building fills and the
-	// transportation lines with the accent palette. Roads keep their base widths,
-	// so the motorway/major/minor hierarchy survives; labels stay untouched.
+	// ACCENT scheme: recolour background / water / land / building fills, the
+	// transportation lines, and label text with the accent palette. Roads keep
+	// their base widths, so the motorway/major/minor hierarchy survives.
 	// Mirrors the Kotlin recolorAccent in MapStyleRecolor.kt — keep the layer
 	// groups and the road classification in sync.
 	const accent = features.accent;
@@ -137,6 +141,16 @@ export function injectFeatures(
 				setPaint(l, "line-color", accent.roadMinor);
 			else if (roadClass === "major")
 				setPaint(l, "line-color", accent.roadMajor);
+			else if (l.type === "symbol") {
+				// Text-less symbol layers (oneway arrows) ignore the text-* keys.
+				// The halo width is only seeded where the base omits it; existing
+				// widths are the base's tuning, kept as-is.
+				setPaint(l, "text-color", accent.label);
+				setPaint(l, "text-halo-color", accent.background);
+				const paint = (l as { paint?: Record<string, unknown> }).paint;
+				if (paint?.["text-halo-width"] === undefined)
+					setPaint(l, "text-halo-width", 1);
+			}
 		}
 	}
 	const src = vectorSourceId(nextStyle);

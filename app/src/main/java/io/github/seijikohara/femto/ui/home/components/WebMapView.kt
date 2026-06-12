@@ -338,7 +338,7 @@ internal fun WebMapView(
             "window.setStyleUrl && setStyleUrl('$url', " +
                 "'${accent?.background ?: ""}', '${accent?.water ?: ""}', '${accent?.land ?: ""}', " +
                 "'${accent?.roadMajor ?: ""}', '${accent?.roadMinor ?: ""}', '${accent?.roadCasing ?: ""}', " +
-                "'${accent?.building ?: ""}')",
+                "'${accent?.building ?: ""}', '${accent?.label ?: ""}')",
             null,
         )
     }
