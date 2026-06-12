@@ -54,6 +54,7 @@ internal fun HomeRoute(
         onAction = viewModel::onAction,
         modifier = modifier,
         dockPosition = dockPosition,
+        spectrum = viewModel.audioSpectrum,
     )
 }
 

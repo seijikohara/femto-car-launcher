@@ -28,6 +28,7 @@ import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import kotlinx.coroutines.flow.StateFlow
 
 // Which info-pane cards the dashboard renders. Each defaults to visible; hiding
 // one lets the remaining cards — or the map, when none remain — reflow into the
@@ -91,6 +92,7 @@ internal fun DashboardScaffold(
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
     dockPosition: DockPosition = DockPosition.BOTTOM,
+    spectrum: StateFlow<FloatArray?>? = null,
 ) {
     val rootModifier =
         modifier
@@ -108,6 +110,7 @@ internal fun DashboardScaffold(
             glassConfig = glassConfig,
             onAction = onAction,
             modifier = panesModifier,
+            spectrum = spectrum,
         )
     }
     val dock: @Composable (Modifier) -> Unit = { dockModifier ->
@@ -164,6 +167,7 @@ private fun DashboardPanes(
     glassConfig: GlassConfig,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
+    spectrum: StateFlow<FloatArray?>? = null,
 ) = BoxWithConstraints(modifier = modifier) {
     val compact = maxHeight < CompactHeightBreakpoint || maxWidth < CompactWidthBreakpoint
     val portrait = maxHeight > maxWidth
@@ -197,6 +201,7 @@ private fun DashboardPanes(
                     is24Hour = is24Hour,
                     onAction = onAction,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
+                    spectrum = spectrum,
                 )
             }
         }
@@ -228,6 +233,7 @@ private fun DashboardPanes(
                     is24Hour = is24Hour,
                     onAction = onAction,
                     modifier = Modifier.weight(1f).fillMaxHeight(),
+                    spectrum = spectrum,
                 )
             }
         }
@@ -290,6 +296,7 @@ private fun InfoPane(
     is24Hour: Boolean,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
+    spectrum: StateFlow<FloatArray?>? = null,
 ) = Column(
     modifier = modifier,
     verticalArrangement = Arrangement.spacedBy(paneGap),
@@ -331,6 +338,7 @@ private fun InfoPane(
             onConnect = { onAction(HomeAction.ConnectMusicPlayer) },
             onLaunchSource = { packageName -> onAction(HomeAction.LaunchMusicSource(packageName)) },
             modifier = Modifier.weight(MUSIC_CARD_WEIGHT).fillMaxWidth(),
+            spectrum = spectrum,
         )
     }
 }
