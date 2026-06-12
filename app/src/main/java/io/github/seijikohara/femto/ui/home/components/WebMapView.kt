@@ -32,6 +32,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,13 +76,15 @@ import kotlinx.coroutines.delay
  * SNAPSHOT backend instead.
  *
  * The page reports into the host over a one-method [JavascriptInterface] bridge
- * (`window.femtoBridge.onMapEvent(kind, detail)`). Only two kinds exist: `error`
+ * (`window.femtoBridge.onMapEvent(kind, detail)`). Four kinds exist: `error`
  * for transient resource failures (tile / style / DEM fetch — logged, never UI,
- * because the removed auto-downgrade misfired on exactly such ambiguous signals)
- * and `fatal` for definitive never-going-to-render facts (no WebGL context, map
- * construction threw). A `fatal` swaps the permanently-blank WebView for a static
- * notice pointing at the Settings render-mode switch — same posture as
- * renderer-death containment below: inform, never switch the persisted backend.
+ * because the removed auto-downgrade misfired on exactly such ambiguous signals),
+ * `fatal` for definitive never-going-to-render facts (no WebGL context, map
+ * construction threw), `follow` for camera-follow state flips, and `bearing`
+ * (throttled) for the compass overlay. A `fatal` swaps the permanently-blank
+ * WebView for a static notice pointing at the Settings render-mode switch — same
+ * posture as renderer-death containment below: inform, never switch the
+ * persisted backend.
  *
  * Renderer-death containment is the one exception to "do nothing": without an
  * [android.webkit.WebViewClient.onRenderProcessGone] override the platform kills
@@ -105,8 +108,15 @@ internal fun WebMapView(
     mapConfig: MapConfig,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
+    recenterNonce: Int = 0,
+    onFollowChange: (Boolean) -> Unit = {},
+    onBearingChange: (Float) -> Unit = {},
 ) {
     val context = LocalContext.current
+    // The bridge object below is registered once per WebView instance and would
+    // otherwise capture the first composition's lambdas forever.
+    val currentOnFollowChange by rememberUpdatedState(onFollowChange)
+    val currentOnBearingChange by rememberUpdatedState(onBearingChange)
     val bearingHolder = remember { floatArrayOf(0f) }
     val isDark =
         when (mapConfig.style) {
@@ -250,6 +260,20 @@ internal fun WebMapView(
                                     }
                                 }
 
+                                // Camera-follow state flips (a user drag detached
+                                // it, the auto-refollow re-attached it) so the
+                                // host's locate button can reflect the mode.
+                                "follow" -> {
+                                    mainHandler.post { currentOnFollowChange(detail.toBoolean()) }
+                                }
+
+                                // Throttled camera bearing for the compass overlay.
+                                "bearing" -> {
+                                    detail.toFloatOrNull()?.let { bearing ->
+                                        mainHandler.post { currentOnBearingChange(bearing) }
+                                    }
+                                }
+
                                 else -> {
                                     Log.w(TAG, "Unknown map event '$kind': $detail")
                                 }
@@ -317,6 +341,22 @@ internal fun WebMapView(
                 "'${accent?.building ?: ""}')",
             null,
         )
+    }
+    // Camera-orientation mode, pushed whenever the persisted setting flips (the
+    // compass tap or the settings switch) and re-pushed to a rebuilt page.
+    LaunchedEffect(webView, pageReady.value, mapConfig.northUp) {
+        if (!pageReady.value) return@LaunchedEffect
+        webView.evaluateJavascript("window.setNorthUp && setNorthUp(${mapConfig.northUp})", null)
+    }
+    // One-shot recenter: each locate-button tap bumps the nonce and re-attaches
+    // the follow camera. Nonce 0 (no tap yet) is skipped — a fresh page already
+    // starts attached; on a page (re)load the host's notion resets to match.
+    LaunchedEffect(webView, pageReady.value, recenterNonce) {
+        if (!pageReady.value) return@LaunchedEffect
+        currentOnFollowChange(true)
+        if (recenterNonce > 0) {
+            webView.evaluateJavascript("window.setFollow && setFollow(true)", null)
+        }
     }
     // LIVE-only feature toggles (3D buildings / terrain) plus the theme-tracked
     // extrusion colour, which applies to EVERY scheme. The page merges them into

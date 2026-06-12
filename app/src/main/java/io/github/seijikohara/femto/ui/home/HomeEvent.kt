@@ -39,6 +39,18 @@ internal sealed interface HomeEvent {
         val longitude: Double,
     ) : HomeEvent
 
+    /**
+     * Step the persisted map zoom by [delta] (from the on-map +/- buttons). The
+     * host owns the DataStore write and clamps to the shared zoom bounds, so the
+     * buttons and the settings slider stay in lock-step.
+     */
+    data class AdjustMapZoom(
+        val delta: Int,
+    ) : HomeEvent
+
+    /** Flip the persisted north-up ⇄ heading-up map orientation (from the compass tap). */
+    data object ToggleMapNorthUp : HomeEvent
+
     /** Open the system "Notification listener access" settings so the user can grant our NLS. */
     data object OpenNotificationListenerSettings : HomeEvent
 

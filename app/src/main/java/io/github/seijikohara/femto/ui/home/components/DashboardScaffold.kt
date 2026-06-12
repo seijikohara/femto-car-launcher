@@ -13,6 +13,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -21,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.MapRenderMode
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
@@ -255,12 +262,52 @@ private fun MapPane(
     // sample it for their backdrop blur. Only the snapshot backend (a Compose
     // Image) can be captured; the Live GL surface falls back to the opaque tint.
     val hazeState = rememberHazeState()
+    // Camera-follow state reported up from the LIVE page: whether the camera is
+    // attached to the fixes, the current bearing (for the compass), and a nonce
+    // whose bump asks the page to re-attach (the locate button).
+    val live = mapConfig.renderMode == MapRenderMode.LIVE
+    var following by remember { mutableStateOf(true) }
+    var bearingDeg by remember { mutableFloatStateOf(0f) }
+    var recenterNonce by remember { mutableIntStateOf(0) }
     MapPanel(
         location = uiState.location,
         mapConfig = mapConfig,
         onTap = { onAction(HomeAction.OpenMaps) },
         modifier = Modifier.fillMaxSize().hazeSource(hazeState),
+        recenterNonce = recenterNonce,
+        onFollowChange = { following = it },
+        onBearingChange = { bearingDeg = it },
     )
+    // Map controls render only when the map itself does (a fix exists). The
+    // compass and locate button are LIVE-only (SNAPSHOT has no free camera);
+    // the zoom pair works on both backends via the persisted setting.
+    if (uiState.location != null) {
+        if (live) {
+            MapCompass(
+                bearingDeg = bearingDeg,
+                onTap = { onAction(HomeAction.ToggleMapNorthUp) },
+                hazeState = hazeState,
+                glassConfig = glassConfig,
+                modifier =
+                    Modifier
+                        .align(Alignment.TopStart)
+                        .padding(16.dp),
+            )
+        }
+        MapControlColumn(
+            showLocate = live,
+            following = following,
+            onLocate = { recenterNonce++ },
+            onZoomIn = { onAction(HomeAction.AdjustMapZoom(1)) },
+            onZoomOut = { onAction(HomeAction.AdjustMapZoom(-1)) },
+            hazeState = hazeState,
+            glassConfig = glassConfig,
+            modifier =
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 16.dp),
+        )
+    }
     ClockOverlay(
         is24Hour = is24Hour,
         showSeconds = showClockSeconds,

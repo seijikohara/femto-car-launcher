@@ -56,6 +56,8 @@ import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.FullscreenSetting
+import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
+import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapRenderMode
 import io.github.seijikohara.femto.data.display.MapStyleSetting
@@ -337,6 +339,12 @@ internal fun SettingsScreen(
                 value = uiState.mapZoom,
                 range = MIN_MAP_ZOOM..MAX_MAP_ZOOM,
                 onValueChange = { onAction(SettingsAction.SetMapZoom(it)) },
+            )
+            SwitchRow(
+                title = stringResource(R.string.settings_group_map_north_up),
+                checked = uiState.mapNorthUp,
+                onCheckedChange = { onAction(SettingsAction.SetMapNorthUp(it)) },
+                summary = stringResource(R.string.settings_map_north_up_desc),
             )
             // Marker vertical position applies to both backends (0 = map centre,
             // 100 = just above the speed overlay).
@@ -832,8 +840,6 @@ private fun TrailingIcon(
 
 private const val MIN_MAP_TILT = 0
 private const val MAX_MAP_TILT = 60
-private const val MIN_MAP_ZOOM = 12
-private const val MAX_MAP_ZOOM = 19
 
 // Marker vertical-position band (percent): 0 centres the marker; 100 drops it to
 // just above the speed panel.
