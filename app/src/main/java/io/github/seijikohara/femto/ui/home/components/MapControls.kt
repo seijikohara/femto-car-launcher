@@ -2,11 +2,15 @@ package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -28,7 +32,6 @@ import com.composables.icons.lucide.Plus
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
@@ -49,12 +52,15 @@ internal fun MapCompass(
 ) {
     val north = MaterialTheme.colorScheme.primary
     val south = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = SOUTH_NEEDLE_ALPHA)
-    GlassControl(
-        onClick = onTap,
-        contentDescription = stringResource(R.string.map_compass_desc),
-        hazeState = hazeState,
-        glassConfig = glassConfig,
-        modifier = modifier,
+    val description = stringResource(R.string.map_compass_desc)
+    Box(
+        modifier =
+            modifier
+                .size(COMPASS_SIZE)
+                .glassChrome(CircleShape, hazeState, glassConfig)
+                .clickable(onClick = onTap)
+                .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
     ) {
         Canvas(
             modifier =
@@ -91,12 +97,17 @@ internal fun MapCompass(
 }
 
 /**
- * Vertical glass control column for the map pane's left-centre edge: an
- * optional locate (return-to-position) button above the zoom +/- pair. Zoom
- * steps write through the host into the persisted setting, so they work on
- * both render backends; locate only exists where a camera can detach
- * ([showLocate] = LIVE). The head unit has no multitouch, so the buttons are
- * the only zoom affordance there — never gate them on gesture support.
+ * Grouped glass control pill for the map pane's left-centre edge: an optional
+ * locate (return-to-position) segment above the zoom +/- pair, separated by
+ * hairline dividers inside one continuous frosted capsule. Zoom steps write
+ * through the host into the persisted setting, so they work on both render
+ * backends; locate only exists where a camera can detach ([showLocate] =
+ * LIVE). The head unit has no multitouch, so the buttons are the only zoom
+ * affordance there — never gate them on gesture support.
+ *
+ * Deliberately compact: the segments sit below the FemtoDimens.MinTouchTarget
+ * automotive floor as an explicit owner decision (the full-size discs
+ * crowded the map pane).
  */
 @Composable
 internal fun MapControlColumn(
@@ -109,15 +120,15 @@ internal fun MapControlColumn(
     glassConfig: GlassConfig,
     modifier: Modifier = Modifier,
 ) = Column(
-    modifier = modifier,
-    verticalArrangement = Arrangement.spacedBy(CONTROL_GAP),
+    modifier =
+        modifier
+            .width(GROUP_WIDTH)
+            .glassChrome(RoundedCornerShape(GROUP_CORNER), hazeState, glassConfig),
 ) {
     if (showLocate) {
-        GlassControl(
+        GroupSegment(
             onClick = onLocate,
             contentDescription = stringResource(R.string.map_recenter_desc),
-            hazeState = hazeState,
-            glassConfig = glassConfig,
         ) {
             // Accent while detached — the tap has an effect (the camera is off
             // wandering); muted while already following.
@@ -131,46 +142,50 @@ internal fun MapControlColumn(
                     },
             )
         }
+        GroupDivider()
     }
-    GlassControl(
+    GroupSegment(
         onClick = onZoomIn,
         contentDescription = stringResource(R.string.map_zoom_in_desc),
-        hazeState = hazeState,
-        glassConfig = glassConfig,
     ) {
         ControlIcon(imageVector = Lucide.Plus)
     }
-    GlassControl(
+    GroupDivider()
+    GroupSegment(
         onClick = onZoomOut,
         contentDescription = stringResource(R.string.map_zoom_out_desc),
-        hazeState = hazeState,
-        glassConfig = glassConfig,
     ) {
         ControlIcon(imageVector = Lucide.Minus)
     }
 }
 
-// One circular frosted-glass button, sized to the automotive tap floor and
-// styled like the clock / speed overlays (glassEffect + hairline border).
+// One tappable row of the grouped pill; the pill owns the glass chrome, the
+// segment only sizes and centres its glyph.
 @Composable
-private fun GlassControl(
+private fun GroupSegment(
     onClick: () -> Unit,
     contentDescription: String,
-    hazeState: HazeState,
-    glassConfig: GlassConfig,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) = Box(
     modifier =
         modifier
-            .size(FemtoDimens.MinTouchTarget)
-            .glassChrome(CircleShape, hazeState, glassConfig)
+            .fillMaxWidth()
+            .height(SEGMENT_HEIGHT)
             .clickable(onClick = onClick)
             .semantics { this.contentDescription = contentDescription },
     contentAlignment = Alignment.Center,
 ) {
     content()
 }
+
+// Hairline separator between segments, matching the speed overlay's divider.
+@Composable
+private fun GroupDivider(modifier: Modifier = Modifier) =
+    HorizontalDivider(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = GROUP_DIVIDER_ALPHA),
+    )
 
 @Composable
 private fun ControlIcon(
@@ -179,16 +194,21 @@ private fun ControlIcon(
     tint: Color = MaterialTheme.colorScheme.onSurface,
 ) = Icon(
     imageVector = imageVector,
-    // The tappable GlassControl wrapper carries the description.
+    // The tappable wrapper carries the description.
     contentDescription = null,
     tint = tint,
     modifier = modifier.size(CONTROL_ICON_SIZE),
 )
 
-// Control glyph size and the gap between stacked buttons. The glyph stays well
-// inside the 64 dp glass disc so the controls read as restrained map chrome.
-private val CONTROL_ICON_SIZE = 28.dp
-private val CONTROL_GAP = 10.dp
+// Compact control geometry (an explicit owner decision below the automotive
+// touch floor — see the MapControlColumn KDoc): the compass disc, the grouped
+// pill's width / per-segment height / corner radius, and the shared glyph size.
+private val COMPASS_SIZE = 48.dp
+private val GROUP_WIDTH = 48.dp
+private val SEGMENT_HEIGHT = 48.dp
+private val GROUP_CORNER = 24.dp
+private val CONTROL_ICON_SIZE = 22.dp
+private const val GROUP_DIVIDER_ALPHA = 0.5f
 
 // Compass needle: half-width of the waist as a fraction of the glyph width,
 // and the muted alpha of the south half.
@@ -196,17 +216,18 @@ private const val NEEDLE_WAIST_FRACTION = 0.22f
 private const val SOUTH_NEEDLE_ALPHA = 0.45f
 
 @PreviewLightDark
-@Preview(name = "Map controls", widthDp = 120, heightDp = 320)
+@Preview(name = "Map controls", widthDp = 100, heightDp = 280)
 @Composable
 private fun MapControlsPreview() {
     FemtoTheme {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column {
             MapCompass(
                 bearingDeg = 35f,
                 onTap = {},
                 hazeState = rememberHazeState(),
                 glassConfig = GlassConfig(),
             )
+            Box(modifier = Modifier.height(12.dp))
             MapControlColumn(
                 showLocate = true,
                 following = false,
