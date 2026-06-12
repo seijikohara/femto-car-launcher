@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 /**
@@ -126,26 +127,32 @@ internal class PerformanceProbe(
     private suspend fun sampleFrameStats(): FrameStats? =
         withContext(Dispatchers.Main) {
             val intervals = mutableListOf<Long>()
-            suspendCancellableCoroutine { continuation ->
-                val choreographer = Choreographer.getInstance()
-                val callback =
-                    object : Choreographer.FrameCallback {
-                        var previousNanos = 0L
+            // The Choreographer goes quiet when the display sleeps or the host
+            // is backgrounded; without a ceiling the whole snapshot() — and the
+            // Refresh button — would hang on it. On timeout the partial sample
+            // still reduces to stats (an empty one to null).
+            withTimeoutOrNull(FRAME_SAMPLE_TIMEOUT_MS) {
+                suspendCancellableCoroutine { continuation ->
+                    val choreographer = Choreographer.getInstance()
+                    val callback =
+                        object : Choreographer.FrameCallback {
+                            var previousNanos = 0L
 
-                        override fun doFrame(frameTimeNanos: Long) {
-                            if (previousNanos != 0L) {
-                                intervals += (frameTimeNanos - previousNanos) / NANOS_PER_MS
-                            }
-                            previousNanos = frameTimeNanos
-                            if (intervals.size < FRAME_SAMPLE_COUNT) {
-                                choreographer.postFrameCallback(this)
-                            } else {
-                                continuation.resume(Unit)
+                            override fun doFrame(frameTimeNanos: Long) {
+                                if (previousNanos != 0L) {
+                                    intervals += (frameTimeNanos - previousNanos) / NANOS_PER_MS
+                                }
+                                previousNanos = frameTimeNanos
+                                if (intervals.size < FRAME_SAMPLE_COUNT) {
+                                    choreographer.postFrameCallback(this)
+                                } else {
+                                    continuation.resume(Unit)
+                                }
                             }
                         }
-                    }
-                choreographer.postFrameCallback(callback)
-                continuation.invokeOnCancellation { choreographer.removeFrameCallback(callback) }
+                    choreographer.postFrameCallback(callback)
+                    continuation.invokeOnCancellation { choreographer.removeFrameCallback(callback) }
+                }
             }
             computeFrameStats(intervals)
         }
@@ -197,8 +204,11 @@ internal fun computeFrameStats(intervalsMs: List<Long>): FrameStats? {
 }
 
 // ~2 s of vsync callbacks at 60 Hz; long enough to catch periodic stalls,
-// short enough that Refresh stays snappy.
+// short enough that Refresh stays snappy. The timeout bounds a stalled or
+// silent Choreographer while leaving generous room for a janky device to
+// finish the full sample.
 private const val FRAME_SAMPLE_COUNT = 120
+private const val FRAME_SAMPLE_TIMEOUT_MS = 10_000L
 
 // One missed 60 Hz vsync (>2 frame periods) marks the interval as delayed.
 private const val DELAYED_FRAME_MS = 32L

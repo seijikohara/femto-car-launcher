@@ -203,8 +203,14 @@ private fun PerformanceSection(performance: PerformanceSnapshot) {
         StatusRow(
             label = stringResource(R.string.diagnostics_thermal),
             value =
-                performance.thermal.name +
-                    (performance.thermalHeadroom?.let { " (%.2f)".format(Locale.ROOT, it) }.orEmpty()),
+                performance.thermalHeadroom
+                    ?.let {
+                        stringResource(
+                            R.string.diagnostics_thermal_headroom,
+                            performance.thermal.name,
+                            "%.2f".format(Locale.ROOT, it),
+                        )
+                    } ?: performance.thermal.name,
             healthy = !performance.thermal.isThrottling,
         )
         StatusRow(
@@ -245,7 +251,12 @@ private fun PerformanceSection(performance: PerformanceSnapshot) {
                 healthy = frames.delayedPercent < DELAYED_HEALTHY_MAX_PERCENT,
             )
         }
-        ValueRow(label = performance.webViewVersion ?: stringResource(R.string.diagnostics_webview_unknown))
+        ValueRow(
+            label =
+                performance.webViewVersion
+                    ?.let { stringResource(R.string.diagnostics_webview_value, it) }
+                    ?: stringResource(R.string.diagnostics_webview_unknown),
+        )
     }
     Section(title = stringResource(R.string.diagnostics_section_map_settings)) {
         performance.mapSettings.forEach { entry ->
