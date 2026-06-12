@@ -148,6 +148,7 @@ class SettingsScreenTest {
                     onOpenNotificationAccess = {},
                     onOpenSystemSettings = {},
                     onOpenFontPicker = {},
+                    onOpenDiagnostics = {},
                 )
             }
         }

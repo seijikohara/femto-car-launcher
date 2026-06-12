@@ -31,13 +31,18 @@ import kotlinx.coroutines.flow.merge
  *    `MAX_PLAUSIBLE_SPEED_MS` (≈ 396 km/h) is treated as noise and
  *    dropped entirely — neither published as the current speed nor
  *    accrued — so one glitch can never poison the running totals.
- *  - Fixes whose *effective* speed is below `MIN_MOVING_SPEED_MS`
- *    (≈ 1.8 km/h) are treated as "not moving": distance and time both
- *    stop accruing, so the average does not collapse toward zero at long
- *    stops.
+ *  - Fixes whose *effective* speed is below [MIN_MOVING_SPEED_MS]
+ *    (≈ 1.8 km/h) are treated as "not moving": distance stops accruing,
+ *    but their time still counts toward the average's time base, so AVG
+ *    is the overall trip average (distance / elapsed incl. stops), not
+ *    a moving-only average.
  *  - Fixes whose elapsed-time delta is non-positive or larger than
- *    `MAX_GAP_SECONDS` (a missing-fix gap, e.g. a tunnel) are skipped —
- *    we do not interpolate across them.
+ *    `MAX_GAP_SECONDS` are not interpolated across. A long gap that
+ *    began at a standstill (distance-filtered updates stop while
+ *    parked) still counts as stopped time — the car verifiably sat
+ *    still — while a gap that began while moving (tunnel, backgrounded
+ *    mid-drive) is skipped entirely: its distance is unknowable, and
+ *    counting only its time would corrupt the average.
  *  - The delta is taken from `elapsedRealtimeNanos`, the monotonic boot
  *    clock, not `Location.time`. AI boxes routinely apply an NTP /
  *    system-clock correction mid-trip; the wall clock can jump
@@ -92,6 +97,12 @@ internal class TripRepository(
     private var totalMeters = 0.0
     private var totalSeconds = 0.0
     private var currentSpeedMs = 0.0
+
+    // Whether currentSpeedMs has been published at least once this trip.
+    // Distinguishes a real standstill (0.0 from a stationary fix) from the
+    // not-yet-established default 0.0 at trip start / after a reset, so the
+    // parked-gap rule never misreads an unknown-onset gap as parked.
+    private var speedEstablished = false
 
     // Push channel for an explicit trip reset. extraBufferCapacity = 1 lets a
     // single tryEmit from the UI thread land without a suspended collector. The
@@ -152,8 +163,28 @@ internal class TripRepository(
         val deltaSeconds =
             (current.elapsedRealtimeNanos - previous.elapsedRealtimeNanos) / NANOS_PER_SECOND
         if (deltaSeconds !in MIN_DELTA_SECONDS..MAX_GAP_SECONDS) {
-            // Non-advancing clock or a long gap (parked, lost fix, tunnel):
-            // re-anchor without accruing — we do not interpolate across it.
+            // Non-advancing clock or a long gap: re-anchor without
+            // interpolating distance across it. A gap that began at a
+            // standstill is the parked case (distance-filtered updates stop
+            // while stationary), so the gap itself counts as stopped time in
+            // the average's time base; a gap that began while moving
+            // (tunnel, backgrounded mid-drive) is skipped entirely — its
+            // distance is unknowable, and counting only its time would
+            // corrupt the average. The anchor fix's own reported speed is
+            // the most direct evidence of how the gap began; speed-less
+            // chips fall back to the last published effective speed, and an
+            // onset with no established speed at all (trip start / just
+            // after a reset) is treated as unknown and skipped — the old
+            // conservative behaviour.
+            val anchorStationary =
+                when {
+                    previous.hasSpeed() -> previous.speed < MIN_MOVING_SPEED_MS
+                    speedEstablished -> currentSpeedMs < MIN_MOVING_SPEED_MS
+                    else -> false
+                }
+            if (deltaSeconds > MAX_GAP_SECONDS && anchorStationary) {
+                totalSeconds += deltaSeconds
+            }
             lastLocation = current
             return
         }
@@ -167,6 +198,7 @@ internal class TripRepository(
         // but do not publish or accrue them.
         if (speed <= MAX_PLAUSIBLE_SPEED_MS) {
             currentSpeedMs = speed
+            speedEstablished = true
             // Count every tracked interval toward the average's time base,
             // including time spent stopped, so AVG is the overall trip
             // average (distance / elapsed) rather than a moving-only average.
@@ -208,6 +240,7 @@ internal class TripRepository(
         totalMeters = 0.0
         totalSeconds = 0.0
         currentSpeedMs = 0.0
+        speedEstablished = false
     }
 
     private fun snapshot(): TripState =
@@ -227,9 +260,6 @@ internal class TripRepository(
     }
 
     private companion object {
-        // ~1.8 km/h — below this the device is treated as stationary.
-        const val MIN_MOVING_SPEED_MS = 0.5
-
         const val NANOS_PER_SECOND = 1_000_000_000.0
 
         // Must be strictly positive; covers same-instant emissions where
@@ -249,3 +279,8 @@ internal class TripRepository(
         const val MAX_PLAUSIBLE_SPEED_MS = 110.0
     }
 }
+
+// ~1.8 km/h — below this the device is treated as stationary. Top-level so the
+// speed overlay's snap-to-zero shares the same definition of "stationary" as
+// the trip math (SSOT for the floor).
+internal const val MIN_MOVING_SPEED_MS = 0.5

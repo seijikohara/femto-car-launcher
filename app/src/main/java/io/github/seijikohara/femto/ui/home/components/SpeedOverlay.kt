@@ -44,6 +44,7 @@ import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
+import io.github.seijikohara.femto.data.location.MIN_MOVING_SPEED_MS
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.distanceLabel
@@ -55,6 +56,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.TabularFigures
 import io.github.seijikohara.femto.ui.theme.sectionLabel
+import kotlin.math.exp
 import kotlin.math.roundToInt
 
 /**
@@ -80,10 +82,12 @@ import kotlin.math.roundToInt
  *
  * Live speed honours the permissions contract: with no fix
  * (`location == null`) the hero cell shows an em-dash rather than "0",
- * so a missing/denied location reads as "unknown", not "standstill". A
- * 5-sample exponential moving average ([SPEED_OVERLAY_EMA_ALPHA])
- * smooths the raw 1 Hz speed so the numeral stops flickering between
- * adjacent integers on a steady cruise.
+ * so a missing/denied location reads as "unknown", not "standstill".
+ * The numeral is smoothed with a TIME-based exponential step
+ * ([speedSmoothingStep], τ = [SPEED_SMOOTHING_TAU_MS]) so its response
+ * is the same at any fix cadence, and it snaps straight to 0 the moment
+ * the raw reading drops below the stationary floor — a tick-based EMA
+ * here used to drag a multi-second phantom-crawl tail after every stop.
  */
 @Composable
 internal fun SpeedOverlay(
@@ -101,21 +105,33 @@ internal fun SpeedOverlay(
     // (hasSpeed() == false) while moving, which would pin the numeral to
     // zero. currentSpeedMs falls back to the position-derived speed.
     //
-    // The EMA accumulator is keyed off the latest fix so a new sample
-    // advances the average and a null fix (no location) resets it; the
-    // first non-null sample seeds the accumulator with itself. The
-    // accumulator lives in a remembered plain holder (cf. MapPanel's
-    // bearingHolder) rather than MutableState because writing state during
-    // composition would invalidate the composition computing it;
-    // remember(location) advances the average exactly once per fix.
-    val emaAccumulator = remember { arrayOfNulls<Float>(1) }
+    // The smoothing state is keyed off the latest fix so a new sample
+    // advances the estimate and a null fix (no location) resets it; the
+    // first non-null sample seeds the estimate with itself. It lives in a
+    // remembered plain holder (cf. MapPanel's bearingHolder) rather than
+    // MutableState because writing state during composition would
+    // invalidate the composition computing it; remember(location) advances
+    // the estimate exactly once per fix. dt comes from the fixes' own
+    // monotonic timestamps, so the time constant holds at any cadence.
+    val smoother = remember { SpeedSmoothState() }
     val smoothedSpeedMs =
         remember(location) {
-            emaAccumulator[0] =
-                location?.let {
-                    emaStep(emaAccumulator[0], tripState.currentSpeedMs.toFloat(), SPEED_OVERLAY_EMA_ALPHA)
+            smoother.estimateMs =
+                location?.let { fix ->
+                    // dt is meaningful only once an estimate exists (the seed
+                    // path ignores it); gating on the estimate rather than a
+                    // zero-timestamp sentinel keeps a legitimate
+                    // elapsedRealtimeNanos == 0 fix from stalling a tick.
+                    val dtMillis =
+                        if (smoother.estimateMs == null) {
+                            0L
+                        } else {
+                            (fix.elapsedRealtimeNanos - smoother.basisElapsedNanos) / 1_000_000L
+                        }
+                    smoother.basisElapsedNanos = fix.elapsedRealtimeNanos
+                    speedSmoothingStep(smoother.estimateMs, tripState.currentSpeedMs.toFloat(), dtMillis)
                 }
-            emaAccumulator[0]
+            smoother.estimateMs
         }
     val currentSpeedText =
         smoothedSpeedMs
@@ -339,27 +355,42 @@ private fun ResetButton(
 }
 
 /**
- * Advance an exponential moving average (EMA) by one sample.
+ * Advance the displayed speed by one fix using a TIME-based exponential
+ * step: `alpha = 1 - exp(-dt/τ)`, so the response settles in ~3·τ of real
+ * time at any fix cadence (a fixed-alpha tick EMA made the settle time
+ * scale with the location-interval setting). Two deliberate edges:
  *
- * Return [sample] when [previous] is null so the first reading seeds the
- * accumulator with itself; otherwise return the standard EMA update
- * `previous + alpha * (sample - previous)`. A larger [alpha] weights the
- * newest sample more heavily (faster response, less smoothing). The
- * function is pure so the smoothing math is JVM-unit-testable in
- * isolation from Compose.
+ *  - A [sampleMs] below [MIN_MOVING_SPEED_MS] returns 0 immediately — a
+ *    real speedometer reads a crisp 0 at a standstill, and smoothing the
+ *    decay below the stationary floor only manufactures a phantom crawl
+ *    (the on-device "takes seconds to reach 0" report).
+ *  - A null [previous] seeds the estimate with the sample itself.
+ *
+ * Pure so the smoothing math is JVM-unit-testable in isolation from
+ * Compose.
  */
-internal fun emaStep(
+internal fun speedSmoothingStep(
     previous: Float?,
-    sample: Float,
-    alpha: Float,
-): Float = previous?.let { it + alpha * (sample - it) } ?: sample
+    sampleMs: Float,
+    dtMillis: Long,
+): Float =
+    when {
+        sampleMs < MIN_MOVING_SPEED_MS -> 0f
+        previous == null -> sampleMs
+        else -> previous + (1f - exp(-dtMillis / SPEED_SMOOTHING_TAU_MS)) * (sampleMs - previous)
+    }
 
-/**
- * Roughly a 5-sample window: each sample retains `(1 - alpha)` of the
- * prior estimate, so 0.33 settles a steady reading within ~5 ticks of
- * the 1 Hz speed stream.
- */
-private const val SPEED_OVERLAY_EMA_ALPHA = 0.33f
+// Time constant of the speed numeral's smoothing: ~95% settled within ~1 s
+// (3·τ) of a step change, fast enough to track braking while still ironing
+// out per-fix jitter on a steady cruise.
+private const val SPEED_SMOOTHING_TAU_MS = 350f
+
+// Smoothing state for the hero numeral: the displayed estimate and the
+// monotonic timestamp of the fix it was last advanced by.
+private class SpeedSmoothState {
+    var estimateMs: Float? = null
+    var basisElapsedNanos: Long = 0L
+}
 
 // Em-dash stands in for the live speed when there is no fix, mirroring
 // the WeatherCard convention and the permissions contract (location
