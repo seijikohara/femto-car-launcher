@@ -5,8 +5,8 @@ import android.location.Location
 // How long after the last fix the position counts as lost (e.g. a tunnel). The
 // location flow forwards fixes verbatim and never emits null once seeded, so a
 // lost signal surfaces as a fix that stops ageing-out rather than a null — hence
-// an age threshold rather than a presence check. Mirrored in webmap (main.ts,
-// LOCATION_STALE_THRESHOLD_MS) for the LIVE chevron.
+// an age threshold rather than a presence check. Mirrored in webmap (camera.ts,
+// LOCATION_STALE_THRESHOLD_MS) for the LIVE chevron and camera snap-on-gap.
 internal const val LOCATION_STALE_THRESHOLD_MS = 10_000L
 
 /**

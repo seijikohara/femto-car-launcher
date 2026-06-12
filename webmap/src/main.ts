@@ -5,6 +5,12 @@
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
+	easeDurationMs,
+	LOCATION_STALE_THRESHOLD_MS,
+	linearEase,
+	smoothedBearing,
+} from "./camera";
+import {
 	type AccentColors,
 	injectFeatures,
 	MAX_MARKER_DROP,
@@ -71,13 +77,6 @@ function report(kind: "fatal" | "error", detail: unknown): void {
 	}
 }
 
-// How long after the last camera push (i.e. the last GPS fix) the chevron greys
-// out and stops rippling, marking the position lost (a tunnel). The host pushes
-// a fix per update and stops on signal loss, so the page ages the last push
-// rather than waiting for a null. Mirrors LOCATION_STALE_THRESHOLD_MS in the
-// Kotlin data layer (LocationFreshness.kt) and the SNAPSHOT chevron.
-const LOCATION_STALE_THRESHOLD_MS = 10_000;
-
 // Mutable page state in one const holder (let/var are banned — see biome.json
 // and no-let.grit). Camera pushes, style swaps, and error throttling all read
 // and write through here.
@@ -94,8 +93,12 @@ const state = {
 	firstCamera: true,
 	lastErrorReportMs: 0,
 	// Wall-clock ms of the last camera push; 0 until the first fix. The stale
-	// timer ages this to decide when the chevron greys out.
+	// timer ages this to decide when the chevron greys out, and updateCamera
+	// measures the inter-fix interval from it to match its ease duration.
 	lastFixMs: 0,
+	// The bearing last applied to the camera, for jitter smoothing; null until
+	// the first fix (and reset after a signal gap) so those adopt the raw value.
+	lastBearing: null as number | null,
 };
 
 function applyStyle(): void {
@@ -267,13 +270,23 @@ try {
 		markerColor,
 	) => {
 		if (!state.map) return;
-		const heading = bearing || 0;
+		// Measure the inter-fix interval BEFORE refreshing lastFixMs: the ease
+		// duration matches it so each ease finishes as the next fix lands.
+		const now = Date.now();
+		const sinceLastFixMs = state.lastFixMs > 0 ? now - state.lastFixMs : 0;
+		// A gap past the stale threshold means the position was lost (a tunnel);
+		// easing across it would glide through geometry, so snap instead and
+		// restart bearing smoothing from the raw value.
+		const signalGap = sinceLastFixMs > LOCATION_STALE_THRESHOLD_MS;
+		if (signalGap) state.lastBearing = null;
 		// A fresh fix: re-colour the chevron, feed the ripple the same colour, and
 		// clear any stale greyout from a prior signal gap.
 		if (markerColor && markerPath) markerPath.setAttribute("fill", markerColor);
 		if (markerColor) markerEl.style.setProperty("--marker-color", markerColor);
-		state.lastFixMs = Date.now();
+		state.lastFixMs = now;
 		markerEl.classList.remove("stale");
+		const heading = smoothedBearing(state.lastBearing, bearing || 0);
+		state.lastBearing = heading;
 		const pos = Math.max(0, Math.min(100, markerPos || 0));
 		markerEl.style.top = `${50 + (pos / 100) * MAX_MARKER_DROP * 100}%`;
 		markerEl.style.transform = `translate(-50%, -50%) perspective(600px) rotateX(${tilt || 0}deg)`;
@@ -290,11 +303,19 @@ try {
 				right: 0,
 			},
 		};
-		if (state.firstCamera) {
+		if (state.firstCamera || signalGap) {
 			state.firstCamera = false;
 			liveMap.jumpTo(opts);
 		} else {
-			liveMap.easeTo({ ...opts, duration: 1000, essential: true });
+			// Cadence-matched duration + linear easing: back-to-back segments
+			// compose into one continuous glide instead of the fixed-1000 ms
+			// cubic eases that restarted (accelerate-decelerate) on every fix.
+			liveMap.easeTo({
+				...opts,
+				duration: easeDurationMs(sinceLastFixMs),
+				easing: linearEase,
+				essential: true,
+			});
 		}
 	};
 	// Android -> JS: switch the base style and (for the ACCENT scheme) its
