@@ -19,7 +19,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import io.github.seijikohara.femto.data.music.SPECTRUM_BAND_COUNT
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
@@ -75,22 +78,31 @@ internal fun SpectrumBackground(
 ) {
     val target by spectrum.collectAsStateWithLifecycle()
     var displayed by remember { mutableStateOf(FloatArray(0)) }
+    // repeatOnLifecycle keeps the frame loop STARTED-only (precedent:
+    // MapSnapshot's render loop): in the background collectAsStateWithLifecycle
+    // parks `target` at its last non-null value, so without the lifecycle gate
+    // the loop could spin against a stale target. The restart also resets the
+    // frame basis, so the first frame after resume uses the fallback dt
+    // instead of one giant background-spanning delta.
+    val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(spectrum) {
-        var previousFrameNanos = 0L
-        while (true) {
-            withFrameNanos { frameNanos ->
-                val dtMillis =
-                    if (previousFrameNanos == 0L) {
-                        FALLBACK_FRAME_MS
-                    } else {
-                        (frameNanos - previousFrameNanos) / 1_000_000
-                    }
-                previousFrameNanos = frameNanos
-                displayed = smoothedLevels(displayed, target, dtMillis)
-            }
-            if (target == null && displayed.all { it < PARK_LEVEL }) {
-                previousFrameNanos = 0L
-                snapshotFlow { target }.first { it != null }
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            var previousFrameNanos = 0L
+            while (true) {
+                withFrameNanos { frameNanos ->
+                    val dtMillis =
+                        if (previousFrameNanos == 0L) {
+                            FALLBACK_FRAME_MS
+                        } else {
+                            (frameNanos - previousFrameNanos) / 1_000_000
+                        }
+                    previousFrameNanos = frameNanos
+                    displayed = smoothedLevels(displayed, target, dtMillis)
+                }
+                if (target == null && displayed.all { it < PARK_LEVEL }) {
+                    previousFrameNanos = 0L
+                    snapshotFlow { target }.first { it != null }
+                }
             }
         }
     }

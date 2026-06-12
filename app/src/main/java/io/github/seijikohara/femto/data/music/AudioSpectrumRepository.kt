@@ -84,6 +84,11 @@ internal class AudioSpectrumRepository(
             }.onFailure {
                 Log.w(TAG, "Visualizer capture setup failed; spectrum renders flat", it)
                 trySend(null)
+                // Complete the flow so awaitClose releases the dead engine
+                // right away instead of holding it until the gate flips; the
+                // downstream keeps the null it just received (no retry — the
+                // next gate activation re-attempts naturally).
+                close()
             }
             awaitClose {
                 runCatching { visualizer.enabled = false }
