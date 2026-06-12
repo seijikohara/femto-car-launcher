@@ -68,11 +68,13 @@ function log(msg: string): void {
 	}
 }
 
-// JS -> Android error channel (window.femtoBridge, injected by the host via
+// JS -> Android event channel (window.femtoBridge, injected by the host via
 // addJavascriptInterface). "fatal" = definitive never-going-to-render facts
 // (no WebGL context, map construction threw); "error" = transient resource
-// failures (tile / style / DEM fetch), log-only on the host. Neither kind
-// triggers a backend switch — the no-fallback rule above still holds.
+// failures (tile / style / DEM fetch), log-only on the host; "follow" =
+// camera-follow state flips; "bearing" = throttled camera bearing for the
+// compass overlay. No kind triggers a backend switch — the no-fallback rule
+// above still holds.
 function report(
 	kind: "fatal" | "error" | "follow" | "bearing",
 	detail: unknown,
@@ -280,6 +282,8 @@ try {
 			state.lastFixMs > 0 &&
 			Date.now() - state.lastFixMs > LOCATION_STALE_THRESHOLD_MS;
 		markerEl.classList.toggle("stale", stale);
+		// The geo-anchored clone shown while detached must grey out too.
+		state.geoMarker?.getElement().classList.toggle("stale", stale);
 	}, 1000);
 
 	// --- Camera-follow state machine -----------------------------------------
@@ -289,6 +293,9 @@ try {
 
 	function geoMarkerElement(): HTMLElement {
 		const el = document.createElement("div");
+		// The shared .self-marker class carries the ripple, colour, and stale
+		// styling; the screen-pinning rules stay on the #self-marker id only.
+		el.className = "self-marker";
 		el.innerHTML = markerEl.innerHTML;
 		el.style.width = "36px";
 		el.style.height = "36px";
@@ -309,6 +316,26 @@ try {
 			state.geoMarker.setLngLat([fix.lon, fix.lat]);
 		}
 		state.geoMarker.setRotation(fix.heading);
+		// Mirror the DOM chevron (the single source for marker colour and
+		// staleness) so an accent change or a signal loss while detached
+		// reaches the clone too.
+		const el = state.geoMarker.getElement();
+		const fill = markerPath?.getAttribute("fill");
+		const clonePath = el.querySelector("path");
+		if (fill && clonePath) clonePath.setAttribute("fill", fill);
+		el.style.setProperty(
+			"--marker-color",
+			markerEl.style.getPropertyValue("--marker-color"),
+		);
+		el.classList.toggle("stale", markerEl.classList.contains("stale"));
+	}
+
+	// North-up keeps the map pinned to north and rotates the chevron to the
+	// heading instead; heading-up rotates the map and the chevron points up.
+	// rotateX lays the chevron onto the tilted ground plane.
+	function syncChevronTransform(tilt: number, heading: number): void {
+		const turn = state.northUp ? heading : 0;
+		markerEl.style.transform = `translate(-50%, -50%) perspective(600px) rotateX(${tilt}deg) rotateZ(${turn}deg)`;
 	}
 
 	function easeHome(durationMs: number): void {
@@ -357,7 +384,9 @@ try {
 	window.setNorthUp = (enabled) => {
 		state.northUp = !!enabled;
 		// Re-orient immediately while following; a detached camera keeps the
-		// user's rotation until re-attach.
+		// user's rotation until re-attach. The chevron flips with the camera —
+		// waiting for the next fix would leave it pointing wrong for up to one
+		// GPS interval.
 		const fix = state.lastFix;
 		if (state.following && fix) {
 			liveMap.easeTo({
@@ -365,6 +394,7 @@ try {
 				duration: 400,
 				essential: true,
 			});
+			syncChevronTransform(fix.tilt, fix.heading);
 		}
 	};
 
@@ -396,17 +426,19 @@ try {
 	}
 
 	// Report the camera bearing (throttled) so the host's compass overlay can
-	// track the map orientation in either mode.
+	// track the map orientation in either mode. Dedupe on the rounded payload,
+	// not the raw float — getBearing() rarely returns bit-identical values, so
+	// a float compare would re-send visually identical bearings.
 	const BEARING_REPORT_INTERVAL_MS = 150;
-	const bearingReport = { lastMs: 0, lastSent: Number.NaN };
+	const bearingReport = { lastMs: 0, lastSent: "" };
 	liveMap.on("move", () => {
 		const now = Date.now();
 		if (now - bearingReport.lastMs < BEARING_REPORT_INTERVAL_MS) return;
-		const bearing = liveMap.getBearing();
+		const bearing = liveMap.getBearing().toFixed(1);
 		if (bearing === bearingReport.lastSent) return;
 		bearingReport.lastMs = now;
 		bearingReport.lastSent = bearing;
-		report("bearing", bearing.toFixed(1));
+		report("bearing", bearing);
 	});
 
 	// Android -> JS: smooth heading-up camera follow (easeTo interpolates between
@@ -471,10 +503,7 @@ try {
 		}
 		const pos = Math.max(0, Math.min(100, markerPos || 0));
 		markerEl.style.top = `${50 + (pos / 100) * MAX_MARKER_DROP * 100}%`;
-		// North-up keeps the map pinned to north and rotates the chevron to the
-		// heading instead; heading-up rotates the map and the chevron points up.
-		const chevronTurn = state.northUp ? heading : 0;
-		markerEl.style.transform = `translate(-50%, -50%) perspective(600px) rotateX(${tilt || 0}deg) rotateZ(${chevronTurn}deg)`;
+		syncChevronTransform(tilt || 0, heading);
 		markerEl.style.display = "block";
 		const opts = {
 			center: [lon, lat] as [number, number],

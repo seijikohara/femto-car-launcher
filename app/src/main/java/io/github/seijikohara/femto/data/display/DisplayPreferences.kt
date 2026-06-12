@@ -66,7 +66,19 @@ internal interface DisplaySettingsStore {
 
     suspend fun setMapZoom(value: Int)
 
+    /**
+     * Step the persisted map zoom by [delta], clamped to
+     * [MIN_MAP_ZOOM]..[MAX_MAP_ZOOM] — the same bounds the settings slider
+     * uses, so the on-map buttons and the slider stay in lock-step. Atomic
+     * read-modify-write: rapid taps must not recompute from a stale UI
+     * snapshot and lose steps.
+     */
+    suspend fun adjustMapZoom(delta: Int)
+
     suspend fun setMapNorthUp(value: Boolean)
+
+    /** Flip north-up ⇄ heading-up atomically (the on-map compass tap). */
+    suspend fun toggleMapNorthUp()
 
     suspend fun setMapRenderPercent(value: Int)
 
@@ -204,8 +216,18 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[MAP_ZOOM_KEY] = value }
     }
 
+    override suspend fun adjustMapZoom(delta: Int) {
+        context.displayDataStore.editOrLog(TAG) {
+            it[MAP_ZOOM_KEY] = ((it[MAP_ZOOM_KEY] ?: DEFAULT_MAP_ZOOM) + delta).coerceIn(MIN_MAP_ZOOM, MAX_MAP_ZOOM)
+        }
+    }
+
     override suspend fun setMapNorthUp(value: Boolean) {
         context.displayDataStore.editOrLog(TAG) { it[MAP_NORTH_UP_KEY] = value }
+    }
+
+    override suspend fun toggleMapNorthUp() {
+        context.displayDataStore.editOrLog(TAG) { it[MAP_NORTH_UP_KEY] = !(it[MAP_NORTH_UP_KEY] ?: false) }
     }
 
     override suspend fun setMapRenderPercent(value: Int) {

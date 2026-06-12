@@ -36,8 +36,6 @@ import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.FullscreenSetting
-import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
-import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
 import io.github.seijikohara.femto.data.fonts.FontRepository
@@ -310,14 +308,13 @@ class MainActivity : ComponentActivity() {
             }
 
             is HomeEvent.AdjustMapZoom -> {
-                // The on-map +/- buttons write the same persisted zoom the settings
-                // slider edits, clamped to the shared bounds — one zoom, two surfaces.
-                val zoom = (display.mapZoom + event.delta).coerceIn(MIN_MAP_ZOOM, MAX_MAP_ZOOM)
-                lifecycleScope.launch { displayPreferences.setMapZoom(zoom) }
+                // Atomic in the store: rapid taps must not recompute from the
+                // composition's display snapshot and lose steps.
+                lifecycleScope.launch { displayPreferences.adjustMapZoom(event.delta) }
             }
 
             HomeEvent.ToggleMapNorthUp -> {
-                lifecycleScope.launch { displayPreferences.setMapNorthUp(!display.mapNorthUp) }
+                lifecycleScope.launch { displayPreferences.toggleMapNorthUp() }
             }
 
             HomeEvent.OpenNotificationListenerSettings -> {

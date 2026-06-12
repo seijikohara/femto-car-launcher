@@ -76,13 +76,15 @@ import kotlinx.coroutines.delay
  * SNAPSHOT backend instead.
  *
  * The page reports into the host over a one-method [JavascriptInterface] bridge
- * (`window.femtoBridge.onMapEvent(kind, detail)`). Only two kinds exist: `error`
+ * (`window.femtoBridge.onMapEvent(kind, detail)`). Four kinds exist: `error`
  * for transient resource failures (tile / style / DEM fetch — logged, never UI,
- * because the removed auto-downgrade misfired on exactly such ambiguous signals)
- * and `fatal` for definitive never-going-to-render facts (no WebGL context, map
- * construction threw). A `fatal` swaps the permanently-blank WebView for a static
- * notice pointing at the Settings render-mode switch — same posture as
- * renderer-death containment below: inform, never switch the persisted backend.
+ * because the removed auto-downgrade misfired on exactly such ambiguous signals),
+ * `fatal` for definitive never-going-to-render facts (no WebGL context, map
+ * construction threw), `follow` for camera-follow state flips, and `bearing`
+ * (throttled) for the compass overlay. A `fatal` swaps the permanently-blank
+ * WebView for a static notice pointing at the Settings render-mode switch — same
+ * posture as renderer-death containment below: inform, never switch the
+ * persisted backend.
  *
  * Renderer-death containment is the one exception to "do nothing": without an
  * [android.webkit.WebViewClient.onRenderProcessGone] override the platform kills
