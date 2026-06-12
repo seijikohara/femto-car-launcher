@@ -118,8 +118,12 @@ internal fun SpeedOverlay(
         remember(location) {
             smoother.estimateMs =
                 location?.let { fix ->
+                    // dt is meaningful only once an estimate exists (the seed
+                    // path ignores it); gating on the estimate rather than a
+                    // zero-timestamp sentinel keeps a legitimate
+                    // elapsedRealtimeNanos == 0 fix from stalling a tick.
                     val dtMillis =
-                        if (smoother.basisElapsedNanos == 0L) {
+                        if (smoother.estimateMs == null) {
                             0L
                         } else {
                             (fix.elapsedRealtimeNanos - smoother.basisElapsedNanos) / 1_000_000L
@@ -127,7 +131,6 @@ internal fun SpeedOverlay(
                     smoother.basisElapsedNanos = fix.elapsedRealtimeNanos
                     speedSmoothingStep(smoother.estimateMs, tripState.currentSpeedMs.toFloat(), dtMillis)
                 }
-            if (location == null) smoother.basisElapsedNanos = 0L
             smoother.estimateMs
         }
     val currentSpeedText =

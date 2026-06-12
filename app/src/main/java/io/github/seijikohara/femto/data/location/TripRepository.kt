@@ -98,6 +98,12 @@ internal class TripRepository(
     private var totalSeconds = 0.0
     private var currentSpeedMs = 0.0
 
+    // Whether currentSpeedMs has been published at least once this trip.
+    // Distinguishes a real standstill (0.0 from a stationary fix) from the
+    // not-yet-established default 0.0 at trip start / after a reset, so the
+    // parked-gap rule never misreads an unknown-onset gap as parked.
+    private var speedEstablished = false
+
     // Push channel for an explicit trip reset. extraBufferCapacity = 1 lets a
     // single tryEmit from the UI thread land without a suspended collector. The
     // reset is applied inside the merged collect (below), on the same single
@@ -166,9 +172,17 @@ internal class TripRepository(
             // distance is unknowable, and counting only its time would
             // corrupt the average. The anchor fix's own reported speed is
             // the most direct evidence of how the gap began; speed-less
-            // chips fall back to the last published effective speed.
-            val anchorSpeedMs = if (previous.hasSpeed()) previous.speed.toDouble() else currentSpeedMs
-            if (deltaSeconds > MAX_GAP_SECONDS && anchorSpeedMs < MIN_MOVING_SPEED_MS) {
+            // chips fall back to the last published effective speed, and an
+            // onset with no established speed at all (trip start / just
+            // after a reset) is treated as unknown and skipped — the old
+            // conservative behaviour.
+            val anchorStationary =
+                when {
+                    previous.hasSpeed() -> previous.speed < MIN_MOVING_SPEED_MS
+                    speedEstablished -> currentSpeedMs < MIN_MOVING_SPEED_MS
+                    else -> false
+                }
+            if (deltaSeconds > MAX_GAP_SECONDS && anchorStationary) {
                 totalSeconds += deltaSeconds
             }
             lastLocation = current
@@ -184,6 +198,7 @@ internal class TripRepository(
         // but do not publish or accrue them.
         if (speed <= MAX_PLAUSIBLE_SPEED_MS) {
             currentSpeedMs = speed
+            speedEstablished = true
             // Count every tracked interval toward the average's time base,
             // including time spent stopped, so AVG is the overall trip
             // average (distance / elapsed) rather than a moving-only average.
@@ -225,6 +240,7 @@ internal class TripRepository(
         totalMeters = 0.0
         totalSeconds = 0.0
         currentSpeedMs = 0.0
+        speedEstablished = false
     }
 
     private fun snapshot(): TripState =
