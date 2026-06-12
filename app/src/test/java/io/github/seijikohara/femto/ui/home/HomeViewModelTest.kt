@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -240,6 +241,82 @@ class HomeViewModelTest {
                 received,
             )
         }
+
+    @Test
+    fun `audioSpectrum emits bands while the equalizer is enabled and music is playing`() =
+        runTest {
+            val bands = FloatArray(20) { 0.5f }
+            val viewModel =
+                spectrumViewModel(
+                    enabled = true,
+                    musicState = MusicCardState.Playing(fakeNowPlaying(isPlaying = true)),
+                    bands = bands,
+                )
+            viewModel.audioSpectrum.test {
+                // The unconfined dispatcher may run the upstream before the
+                // first collect, so the initial null is not always observed.
+                assertEquals(bands, awaitItem() ?: awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `audioSpectrum stays null while the equalizer setting is off`() =
+        runTest {
+            val viewModel =
+                spectrumViewModel(
+                    enabled = false,
+                    musicState = MusicCardState.Playing(fakeNowPlaying(isPlaying = true)),
+                    bands = FloatArray(20) { 0.5f },
+                )
+            viewModel.audioSpectrum.test {
+                assertEquals(null, awaitItem())
+                expectNoEvents()
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `audioSpectrum stays null while playback is paused`() =
+        runTest {
+            val viewModel =
+                spectrumViewModel(
+                    enabled = true,
+                    musicState = MusicCardState.Playing(fakeNowPlaying(isPlaying = false)),
+                    bands = FloatArray(20) { 0.5f },
+                )
+            viewModel.audioSpectrum.test {
+                assertEquals(null, awaitItem())
+                expectNoEvents()
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    /**
+     * Build a view-model whose spectrum source maps the derived active gate
+     * straight to [bands], so the assertions above pin the gating logic
+     * (enabled AND Playing AND isPlaying) without a real Visualizer.
+     */
+    private fun spectrumViewModel(
+        enabled: Boolean,
+        musicState: MusicCardState,
+        bands: FloatArray,
+    ): HomeViewModel =
+        // Every source must emit: the uiState combine (which the spectrum gate
+        // derives its music state from) holds Initial until all sources have a
+        // first value, and an emptyFlow source would keep the gate shut.
+        HomeViewModel(
+            clockFlow = flowOf(ClockTick(LocalTime.of(14, 32), LocalDate.of(2026, 5, 1))),
+            locationFlow = flowOf(fakeLocation()),
+            addressFlow = flowOf(fakeAddress()),
+            weatherFlow = flowOf(fakeWeatherSnapshot()),
+            musicStateFlow = flowOf(musicState),
+            calendarFlow = flowOf(fakeCalendarSnapshot()),
+            systemStatusFlow = flowOf(fakeSystemStatus()),
+            tripStateFlow = flowOf(fakeTripState()),
+            equalizerEnabledFlow = flowOf(enabled),
+            spectrumBandsFor = { active -> active.map { if (it) bands else null } },
+        )
 
     private suspend fun HomeViewModel.assertEvent(
         action: HomeAction,

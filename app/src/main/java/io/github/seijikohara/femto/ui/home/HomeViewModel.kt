@@ -16,6 +16,7 @@ import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.clock.ClockRepository
 import io.github.seijikohara.femto.data.clock.ClockTick
 import io.github.seijikohara.femto.data.common.WhileUiSubscribed
+import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.geocoding.NominatimApi
 import io.github.seijikohara.femto.data.geocoding.ReverseGeocoderRepository
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
@@ -23,6 +24,7 @@ import io.github.seijikohara.femto.data.location.LocationPreferences
 import io.github.seijikohara.femto.data.location.LocationRepository
 import io.github.seijikohara.femto.data.location.TripRepository
 import io.github.seijikohara.femto.data.location.TripState
+import io.github.seijikohara.femto.data.music.AudioSpectrumRepository
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.MusicSessionRepository
@@ -40,6 +42,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import okhttp3.OkHttpClient
 import java.util.Locale
@@ -58,6 +63,8 @@ internal class HomeViewModel(
     private val sendMusicCommand: (MusicCommand) -> Unit = {},
     private val resetTrip: () -> Unit = {},
     private val resolveMusicSourceComponent: (String) -> ComponentName? = { null },
+    private val equalizerEnabledFlow: Flow<Boolean> = flowOf(false),
+    private val spectrumBandsFor: (Flow<Boolean>) -> Flow<FloatArray?> = { flowOf(null) },
 ) : ViewModel() {
     // Kotlin's typed combine overloads cover at most 5 flows. Stage the eight
     // sources through a typed intermediate (CoreSignals) so the compiler enforces
@@ -97,6 +104,21 @@ internal class HomeViewModel(
                 tripState = tripState,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, HomeUiState.Initial)
+
+    // Spectrum levels for the music card's equalizer background, or null while
+    // the visualization is off / unavailable. Kept OUT of HomeUiState: the
+    // capture ticks at ~20 Hz and routing it through uiState would recompose
+    // the whole dashboard per tick; as a separate stream only the equalizer
+    // canvas observes it (side-channel precedent: events below). "Is playing"
+    // derives from the shared uiState rather than a second collector on the
+    // cold MusicSessionRepository flow, which would double-register its
+    // MediaSessionManager listeners.
+    val audioSpectrum: StateFlow<FloatArray?> =
+        spectrumBandsFor(
+            combine(equalizerEnabledFlow, uiState) { enabled, state ->
+                enabled && (state.musicState as? MusicCardState.Playing)?.nowPlaying?.isPlaying == true
+            }.distinctUntilChanged(),
+        ).stateIn(viewModelScope, WhileUiSubscribed, null)
 
     // extraBufferCapacity = 1 lets a single tryEmit succeed without a live collector,
     // matching the semantics of a one-shot navigation request that is dropped if the
@@ -226,6 +248,7 @@ internal class HomeViewModelFactory(
             )
         val weather = WeatherRepository(weatherApi, locationFlow, clockFlow)
         val music = MusicSessionRepository(application)
+        val audioSpectrum = AudioSpectrumRepository(application)
         val calendar = CalendarRepository(application, clockFlow)
         val systemStatus = SystemStatusRepository(application, locationFlow)
         val trip = TripRepository(locationFlow)
@@ -244,6 +267,12 @@ internal class HomeViewModelFactory(
             sendMusicCommand = music::send,
             resetTrip = trip::reset,
             resolveMusicSourceComponent = apps::launcherComponentFor,
+            equalizerEnabledFlow =
+                DisplayPreferences(application)
+                    .settings
+                    .map { it.musicEqualizer }
+                    .distinctUntilChanged(),
+            spectrumBandsFor = audioSpectrum::bandsFlow,
         ) as T
     }
 }
