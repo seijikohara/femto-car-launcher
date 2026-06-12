@@ -100,6 +100,7 @@ internal fun AppDrawerScreen(
     onTogglePin: (ComponentName) -> Unit,
     onToggleLayout: () -> Unit,
     onSelectIconSize: (DrawerIconSize) -> Unit,
+    onReorderPins: (List<String>) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
@@ -114,9 +115,11 @@ internal fun AppDrawerScreen(
         compact -> {
             CompactContent(
                 uiState = uiState,
+                iconSize = iconSize,
                 pinned = pinned,
                 onLaunch = onLaunch,
                 onTogglePin = onTogglePin,
+                onReorderPins = onReorderPins,
                 onExpand = onExpand,
             )
         }
@@ -131,6 +134,7 @@ internal fun AppDrawerScreen(
                 onTogglePin = onTogglePin,
                 onToggleLayout = onToggleLayout,
                 onSelectIconSize = onSelectIconSize,
+                onReorderPins = onReorderPins,
             )
         }
 
@@ -152,9 +156,11 @@ internal fun AppDrawerScreen(
 @Composable
 private fun CompactContent(
     uiState: AppDrawerUiState,
+    iconSize: DrawerIconSize,
     pinned: List<String>,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
+    onReorderPins: (List<String>) -> Unit,
     onExpand: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier.fillMaxWidth()) {
@@ -167,8 +173,10 @@ private fun CompactContent(
             LaunchedEffect(dockApps.isEmpty()) { if (dockApps.isEmpty()) currentOnExpand() }
             PinnedDock(
                 apps = dockApps,
+                iconSize = iconSize,
                 onLaunch = onLaunch,
                 onUnpin = onTogglePin,
+                onReorder = onReorderPins,
             )
         }
 
@@ -252,6 +260,7 @@ private fun ContentState(
     onTogglePin: (ComponentName) -> Unit,
     onToggleLayout: () -> Unit,
     onSelectIconSize: (DrawerIconSize) -> Unit,
+    onReorderPins: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier.fillMaxSize()) {
     var query by remember { mutableStateOf("") }
@@ -288,8 +297,10 @@ private fun ContentState(
     if (dockApps.isNotEmpty()) {
         PinnedDock(
             apps = dockApps,
+            iconSize = iconSize,
             onLaunch = onLaunch,
             onUnpin = onTogglePin,
+            onReorder = onReorderPins,
         )
     }
 }
@@ -557,6 +568,7 @@ private fun AppDrawerContentPreview() {
             onTogglePin = {},
             onToggleLayout = {},
             onSelectIconSize = {},
+            onReorderPins = {},
             onRetry = {},
         )
     }
