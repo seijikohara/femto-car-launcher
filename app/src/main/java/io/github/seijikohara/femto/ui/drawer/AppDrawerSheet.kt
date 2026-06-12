@@ -9,8 +9,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -60,11 +62,20 @@ internal fun AppDrawerSheet(
     LaunchedEffect(Unit) { viewModel.onAction(AppDrawerAction.Refresh) }
 
     // Drawer layout + pinned apps are persisted; collect them and write changes back.
+    // Pins start as null (not the empty-list default) so the compact-vs-full
+    // decision waits for the real persisted value — an empty-list initial would
+    // flash the full drawer before snapping compact (the Default-initialised
+    // replay trap).
     val drawerPreferences = remember { DrawerPreferences(context) }
     val layout by drawerPreferences.layout.collectAsStateWithLifecycle(initialValue = DrawerLayout.GRID)
     val iconSize by drawerPreferences.iconSize.collectAsStateWithLifecycle(initialValue = DrawerIconSize.MEDIUM)
-    val pinned by drawerPreferences.pinned.collectAsStateWithLifecycle(initialValue = emptyList())
+    val pinnedOrNull by drawerPreferences.pinned.collectAsStateWithLifecycle(initialValue = null)
     val scope = rememberCoroutineScope()
+
+    // The dock's apps button opens the quick pinned view first (when anything is
+    // pinned); the All-apps row expands to the full drawer. State resets on every
+    // open because the sheet recomposes from scratch.
+    var expanded by remember { mutableStateOf(false) }
 
     val sheetHeight = (LocalConfiguration.current.screenHeightDp * FemtoDimens.DrawerSheetHeightFraction).dp
     ModalBottomSheet(
@@ -72,30 +83,39 @@ internal fun AppDrawerSheet(
         modifier = modifier,
     ) {
         ImmersiveSheetEffect(fullscreen)
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .height(sheetHeight),
-        ) {
-            AppDrawerScreen(
-                uiState = uiState,
-                layout = layout,
-                iconSize = iconSize,
-                pinned = pinned,
-                onLaunch = onLaunch,
-                onTogglePin = { component ->
-                    scope.launch { drawerPreferences.togglePinned(component.flattenToString()) }
-                },
-                onToggleLayout = {
-                    scope.launch {
-                        drawerPreferences.setLayout(
-                            if (layout == DrawerLayout.GRID) DrawerLayout.LIST else DrawerLayout.GRID,
-                        )
-                    }
-                },
-                onRetry = { viewModel.onAction(AppDrawerAction.Refresh) },
-            )
+        val pinned = pinnedOrNull
+        if (pinned != null) {
+            val compact = !expanded && pinned.isNotEmpty()
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .then(if (compact) Modifier else Modifier.height(sheetHeight)),
+            ) {
+                AppDrawerScreen(
+                    uiState = uiState,
+                    layout = layout,
+                    iconSize = iconSize,
+                    pinned = pinned,
+                    onLaunch = onLaunch,
+                    onTogglePin = { component ->
+                        scope.launch { drawerPreferences.togglePinned(component.flattenToString()) }
+                    },
+                    onToggleLayout = {
+                        scope.launch {
+                            drawerPreferences.setLayout(
+                                if (layout == DrawerLayout.GRID) DrawerLayout.LIST else DrawerLayout.GRID,
+                            )
+                        }
+                    },
+                    onSelectIconSize = { size ->
+                        scope.launch { drawerPreferences.setIconSize(size) }
+                    },
+                    onRetry = { viewModel.onAction(AppDrawerAction.Refresh) },
+                    compact = compact,
+                    onExpand = { expanded = true },
+                )
+            }
         }
     }
 }

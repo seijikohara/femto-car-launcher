@@ -36,6 +36,7 @@ class AppDrawerScreenTest {
                     onLaunch = {},
                     onTogglePin = {},
                     onToggleLayout = {},
+                    onSelectIconSize = {},
                     onRetry = {},
                 )
             }
@@ -57,6 +58,7 @@ class AppDrawerScreenTest {
                     onLaunch = { launched = it },
                     onTogglePin = {},
                     onToggleLayout = {},
+                    onSelectIconSize = {},
                     onRetry = {},
                 )
             }
@@ -79,6 +81,7 @@ class AppDrawerScreenTest {
                     onLaunch = {},
                     onTogglePin = { pinned = it },
                     onToggleLayout = {},
+                    onSelectIconSize = {},
                     onRetry = {},
                 )
             }
@@ -102,6 +105,7 @@ class AppDrawerScreenTest {
                     onLaunch = {},
                     onTogglePin = {},
                     onToggleLayout = { toggled = true },
+                    onSelectIconSize = {},
                     onRetry = {},
                 )
             }
@@ -123,6 +127,7 @@ class AppDrawerScreenTest {
                     onLaunch = {},
                     onTogglePin = {},
                     onToggleLayout = {},
+                    onSelectIconSize = {},
                     onRetry = {},
                 )
             }
@@ -144,6 +149,7 @@ class AppDrawerScreenTest {
                     onLaunch = {},
                     onTogglePin = {},
                     onToggleLayout = {},
+                    onSelectIconSize = {},
                     onRetry = {},
                 )
             }
@@ -166,6 +172,7 @@ class AppDrawerScreenTest {
                     onLaunch = {},
                     onTogglePin = {},
                     onToggleLayout = {},
+                    onSelectIconSize = {},
                     onRetry = {},
                 )
             }
@@ -189,6 +196,7 @@ class AppDrawerScreenTest {
                     onLaunch = { launched = it },
                     onTogglePin = {},
                     onToggleLayout = {},
+                    onSelectIconSize = {},
                     onRetry = {},
                 )
             }
@@ -212,6 +220,7 @@ class AppDrawerScreenTest {
                     onLaunch = {},
                     onTogglePin = {},
                     onToggleLayout = {},
+                    onSelectIconSize = {},
                     onRetry = { retried = true },
                 )
             }
@@ -219,5 +228,83 @@ class AppDrawerScreenTest {
         rule.onNodeWithText("Couldn't load apps").assertIsDisplayed()
         rule.onNodeWithText("Retry").assertIsDisplayed().performClick()
         assert(retried)
+    }
+
+    @Test
+    fun compact_shows_pinned_dock_only_and_expands_via_all_apps_row() {
+        var expanded = false
+        val maps = fakeAppEntry(packageName = "com.maps", className = ".Main", label = "Maps")
+        val music = fakeAppEntry(packageName = "com.music", className = ".Main", label = "Music")
+        rule.setContent {
+            FemtoTheme {
+                AppDrawerScreen(
+                    uiState = AppDrawerUiState.Content(listOf(maps, music)),
+                    layout = DrawerLayout.GRID,
+                    iconSize = DrawerIconSize.MEDIUM,
+                    pinned = listOf("com.maps/.Main"),
+                    onLaunch = {},
+                    onTogglePin = {},
+                    onToggleLayout = {},
+                    onSelectIconSize = {},
+                    onRetry = {},
+                    compact = true,
+                    onExpand = { expanded = true },
+                )
+            }
+        }
+        // Only the pinned app renders; the unpinned one stays out of the quick view.
+        rule.onNodeWithText("Maps").assertIsDisplayed()
+        rule.onNodeWithText("Music").assertDoesNotExist()
+        rule.onNodeWithText("All apps").assertIsDisplayed().performClick()
+        assert(expanded)
+    }
+
+    @Test
+    fun compact_with_only_stale_pins_requests_expansion() {
+        var expanded = false
+        val maps = fakeAppEntry(packageName = "com.maps", className = ".Main", label = "Maps")
+        rule.setContent {
+            FemtoTheme {
+                AppDrawerScreen(
+                    uiState = AppDrawerUiState.Content(listOf(maps)),
+                    layout = DrawerLayout.GRID,
+                    iconSize = DrawerIconSize.MEDIUM,
+                    pinned = listOf("com.uninstalled/.Main"),
+                    onLaunch = {},
+                    onTogglePin = {},
+                    onToggleLayout = {},
+                    onSelectIconSize = {},
+                    onRetry = {},
+                    compact = true,
+                    onExpand = { expanded = true },
+                )
+            }
+        }
+        rule.waitForIdle()
+        assert(expanded)
+    }
+
+    @Test
+    fun icon_size_menu_dispatches_the_selected_preset() {
+        var selected: DrawerIconSize? = null
+        val maps = fakeAppEntry(packageName = "com.maps", className = ".Main", label = "Maps")
+        rule.setContent {
+            FemtoTheme {
+                AppDrawerScreen(
+                    uiState = AppDrawerUiState.Content(listOf(maps)),
+                    layout = DrawerLayout.GRID,
+                    iconSize = DrawerIconSize.MEDIUM,
+                    pinned = emptyList(),
+                    onLaunch = {},
+                    onTogglePin = {},
+                    onToggleLayout = {},
+                    onSelectIconSize = { selected = it },
+                    onRetry = {},
+                )
+            }
+        }
+        rule.onNodeWithTag(APP_DRAWER_ICON_SIZE_TEST_TAG).performClick()
+        rule.onNodeWithText("Large").assertIsDisplayed().performClick()
+        assertEquals(DrawerIconSize.LARGE, selected)
     }
 }

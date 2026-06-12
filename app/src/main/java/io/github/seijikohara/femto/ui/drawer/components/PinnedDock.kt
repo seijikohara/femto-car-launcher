@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -44,6 +45,7 @@ import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.tileLabel
 
 // Wide enough for a readable one-line 18 sp label while keeping several pins
 // visible at once on the 853 dp-wide reference head unit.
@@ -107,10 +109,11 @@ private fun DockTile(
                 modifier = Modifier.size(DockIconSize),
             )
             Spacer(Modifier.height(DockIconLabelGap))
+            // Same deterministic line box as the grid tiles (see tileLabel), so
+            // dock tiles measure identically across scripts and fallbacks.
             Text(
                 text = entry.label,
-                style = MaterialTheme.typography.bodyLarge,
-                fontSize = FemtoDimens.MinBodyTextSize,
+                style = MaterialTheme.typography.tileLabel(),
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -121,6 +124,8 @@ private fun DockTile(
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.drawer_unpin)) },
+                // M3's default menu-item height (48 dp) sits below the automotive floor.
+                modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
                 leadingIcon = { Icon(imageVector = Lucide.PinOff, contentDescription = null) },
                 onClick = {
                     onUnpin(entry.componentName)
