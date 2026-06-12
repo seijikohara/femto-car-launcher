@@ -123,6 +123,9 @@ internal fun MapPanel(
     mapConfig: MapConfig,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
+    recenterNonce: Int = 0,
+    onFollowChange: (Boolean) -> Unit = {},
+    onBearingChange: (Float) -> Unit = {},
 ) = Surface(
     modifier = modifier,
     shape = MaterialTheme.shapes.large,
@@ -139,6 +142,9 @@ internal fun MapPanel(
                         mapConfig = mapConfig,
                         onTap = onTap,
                         modifier = Modifier.fillMaxSize(),
+                        recenterNonce = recenterNonce,
+                        onFollowChange = onFollowChange,
+                        onBearingChange = onBearingChange,
                     )
                 }
 

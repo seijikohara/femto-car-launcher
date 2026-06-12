@@ -36,6 +36,8 @@ import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.FullscreenSetting
+import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
+import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
 import io.github.seijikohara.femto.data.fonts.FontRepository
@@ -159,6 +161,7 @@ class MainActivity : ComponentActivity() {
                             schemeDark = display.mapSchemeDark,
                             tiltDeg = display.mapTiltDeg,
                             zoom = display.mapZoom,
+                            northUp = display.mapNorthUp,
                             renderPercent = display.mapRenderPercent,
                             renderMode = display.mapRenderMode,
                             markerPos = display.mapMarkerPos,
@@ -179,7 +182,7 @@ class MainActivity : ComponentActivity() {
                     onEvent = { event ->
                         handleHomeEvent(
                             event = event,
-                            assistantLaunch = display.assistantLaunch,
+                            display = display,
                             setShowDrawer = { showDrawer = it },
                             setShowAssistant = { showAssistant = it },
                             setShowSettings = { showSettings = it },
@@ -284,7 +287,7 @@ class MainActivity : ComponentActivity() {
 
     private fun handleHomeEvent(
         event: HomeEvent,
-        assistantLaunch: AssistantLaunchSetting,
+        display: DisplaySettings,
         setShowDrawer: (Boolean) -> Unit,
         setShowAssistant: (Boolean) -> Unit,
         setShowSettings: (Boolean) -> Unit,
@@ -306,6 +309,17 @@ class MainActivity : ComponentActivity() {
                 launchGeo(event.latitude, event.longitude)
             }
 
+            is HomeEvent.AdjustMapZoom -> {
+                // The on-map +/- buttons write the same persisted zoom the settings
+                // slider edits, clamped to the shared bounds — one zoom, two surfaces.
+                val zoom = (display.mapZoom + event.delta).coerceIn(MIN_MAP_ZOOM, MAX_MAP_ZOOM)
+                lifecycleScope.launch { displayPreferences.setMapZoom(zoom) }
+            }
+
+            HomeEvent.ToggleMapNorthUp -> {
+                lifecycleScope.launch { displayPreferences.setMapNorthUp(!display.mapNorthUp) }
+            }
+
             HomeEvent.OpenNotificationListenerSettings -> {
                 openNotificationListenerSettings()
             }
@@ -322,7 +336,7 @@ class MainActivity : ComponentActivity() {
                 setShowDrawer(false)
                 // SYSTEM hands off to the default assistant's overlay; the sheet
                 // is the fallback when none resolves (e.g. no assistant installed).
-                if (assistantLaunch != AssistantLaunchSetting.SYSTEM || !launchSystemAssistant()) {
+                if (display.assistantLaunch != AssistantLaunchSetting.SYSTEM || !launchSystemAssistant()) {
                     setShowAssistant(true)
                 }
             }

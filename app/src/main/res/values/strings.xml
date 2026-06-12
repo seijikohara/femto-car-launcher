@@ -13,6 +13,10 @@
     <string name="font_download_failed">Download failed — tap to retry</string>
     <string name="map_attribution">© OpenStreetMap · OpenMapTiles · OpenFreeMap</string>
     <string name="map_attribution_terrain">Terrain © Mapterhorn</string>
+    <string name="map_compass_desc">Toggle north-up orientation</string>
+    <string name="map_recenter_desc">Return to current position</string>
+    <string name="map_zoom_in_desc">Zoom in</string>
+    <string name="map_zoom_out_desc">Zoom out</string>
 
     <!-- Speed overlay -->
     <string name="speed_reset_trip">Reset trip</string>
@@ -206,6 +210,8 @@
     <string name="settings_map_quality_desc">Lower renders the map faster but softer — useful on slow head units.</string>
     <string name="settings_group_map_marker_pos">Marker position</string>
     <string name="settings_map_marker_pos_value">%1$d%%</string>
+    <string name="settings_group_map_north_up">North up</string>
+    <string name="settings_map_north_up_desc">Keep north at the top of the map instead of rotating with the direction of travel. The on-map compass toggles this too.</string>
     <string name="settings_group_map_3d">3D buildings</string>
     <string name="settings_group_map_terrain">Terrain</string>
     <string name="settings_map_terrain_desc">3D elevation relief (Mapterhorn). Adds tile downloads; heavier on low-end GPUs.</string>

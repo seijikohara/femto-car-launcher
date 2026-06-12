@@ -102,6 +102,9 @@ internal data class MapConfig(
     val schemeDark: MapColorScheme = MapColorScheme.ACCENT,
     val tiltDeg: Int = 55,
     val zoom: Int = 16,
+    // North-up pins the LIVE camera to north (the chevron rotates to the heading
+    // instead); false is heading-up, the driving default.
+    val northUp: Boolean = false,
     val renderPercent: Int = 100,
     val renderMode: MapRenderMode = MapRenderMode.SNAPSHOT,
     val markerPos: Int = 70,

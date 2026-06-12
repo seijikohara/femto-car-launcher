@@ -182,6 +182,14 @@ internal class HomeViewModel(
                 mutableEvents.tryEmit(HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_WEATHER))
             }
 
+            is HomeAction.AdjustMapZoom -> {
+                mutableEvents.tryEmit(HomeEvent.AdjustMapZoom(action.delta))
+            }
+
+            HomeAction.ToggleMapNorthUp -> {
+                mutableEvents.tryEmit(HomeEvent.ToggleMapNorthUp)
+            }
+
             HomeAction.OpenSettings -> {
                 mutableEvents.tryEmit(HomeEvent.OpenInAppSettings)
             }

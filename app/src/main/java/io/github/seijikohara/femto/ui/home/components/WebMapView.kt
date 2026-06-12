@@ -32,6 +32,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -105,8 +106,15 @@ internal fun WebMapView(
     mapConfig: MapConfig,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
+    recenterNonce: Int = 0,
+    onFollowChange: (Boolean) -> Unit = {},
+    onBearingChange: (Float) -> Unit = {},
 ) {
     val context = LocalContext.current
+    // The bridge object below is registered once per WebView instance and would
+    // otherwise capture the first composition's lambdas forever.
+    val currentOnFollowChange by rememberUpdatedState(onFollowChange)
+    val currentOnBearingChange by rememberUpdatedState(onBearingChange)
     val bearingHolder = remember { floatArrayOf(0f) }
     val isDark =
         when (mapConfig.style) {
@@ -250,6 +258,20 @@ internal fun WebMapView(
                                     }
                                 }
 
+                                // Camera-follow state flips (a user drag detached
+                                // it, the auto-refollow re-attached it) so the
+                                // host's locate button can reflect the mode.
+                                "follow" -> {
+                                    mainHandler.post { currentOnFollowChange(detail.toBoolean()) }
+                                }
+
+                                // Throttled camera bearing for the compass overlay.
+                                "bearing" -> {
+                                    detail.toFloatOrNull()?.let { bearing ->
+                                        mainHandler.post { currentOnBearingChange(bearing) }
+                                    }
+                                }
+
                                 else -> {
                                     Log.w(TAG, "Unknown map event '$kind': $detail")
                                 }
@@ -317,6 +339,22 @@ internal fun WebMapView(
                 "'${accent?.building ?: ""}')",
             null,
         )
+    }
+    // Camera-orientation mode, pushed whenever the persisted setting flips (the
+    // compass tap or the settings switch) and re-pushed to a rebuilt page.
+    LaunchedEffect(webView, pageReady.value, mapConfig.northUp) {
+        if (!pageReady.value) return@LaunchedEffect
+        webView.evaluateJavascript("window.setNorthUp && setNorthUp(${mapConfig.northUp})", null)
+    }
+    // One-shot recenter: each locate-button tap bumps the nonce and re-attaches
+    // the follow camera. Nonce 0 (no tap yet) is skipped — a fresh page already
+    // starts attached; on a page (re)load the host's notion resets to match.
+    LaunchedEffect(webView, pageReady.value, recenterNonce) {
+        if (!pageReady.value) return@LaunchedEffect
+        currentOnFollowChange(true)
+        if (recenterNonce > 0) {
+            webView.evaluateJavascript("window.setFollow && setFollow(true)", null)
+        }
     }
     // LIVE-only feature toggles (3D buildings / terrain) plus the theme-tracked
     // extrusion colour, which applies to EVERY scheme. The page merges them into
