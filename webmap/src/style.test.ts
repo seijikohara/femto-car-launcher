@@ -2,6 +2,7 @@ import type { LayerSpecification, StyleSpecification } from "maplibre-gl";
 import { describe, expect, it } from "vitest";
 import {
 	BUILDING_EXTRUSION_OPACITY,
+	clampMarkerPos,
 	injectFeatures,
 	MAPTERHORN_DEM_URL,
 	MAX_MARKER_DROP,
@@ -301,5 +302,22 @@ describe("markerPadTop", () => {
 	it("clamps out-of-range positions", () => {
 		expect(markerPadTop(250, 480)).toBe(markerPadTop(100, 480));
 		expect(markerPadTop(-5, 480)).toBe(0);
+	});
+});
+
+describe("clampMarkerPos", () => {
+	it("passes in-range values through", () => {
+		expect(clampMarkerPos(0)).toBe(0);
+		expect(clampMarkerPos(50)).toBe(50);
+		expect(clampMarkerPos(100)).toBe(100);
+	});
+
+	it("clamps out-of-range values to 0..100", () => {
+		expect(clampMarkerPos(-5)).toBe(0);
+		expect(clampMarkerPos(250)).toBe(100);
+	});
+
+	it("treats a missing (NaN / falsy) value as 0", () => {
+		expect(clampMarkerPos(Number.NaN)).toBe(0);
 	});
 });

@@ -14,6 +14,7 @@ import {
 } from "./camera";
 import {
 	type AccentColors,
+	clampMarkerPos,
 	injectFeatures,
 	MAX_MARKER_DROP,
 	markerPadTop,
@@ -167,8 +168,16 @@ function applyStyleWithFade(): void {
 	}
 	state.styleFadeGen += 1;
 	const gen = state.styleFadeGen;
-	const el = document.getElementById("style-fade") as HTMLElement;
-	const img = el.querySelector("img") as HTMLImageElement;
+	const el = document.getElementById("style-fade");
+	const img = el?.querySelector("img");
+	if (!el || !(img instanceof HTMLImageElement)) {
+		// #style-fade and its <img> are committed in map.html; a missing node is
+		// a build error, not a runtime state. This function has no surrounding
+		// try, so skip the cross-fade (apply directly) rather than throw.
+		log("style-fade nodes missing; applying style without fade");
+		applyStyle();
+		return;
+	}
 	// The GL buffer is only valid synchronously inside a render event, so the
 	// capture happens there (no preserveDrawingBuffer cost) — but the style
 	// swap itself is deferred OUT of the render loop: a setStyle issued
@@ -191,6 +200,10 @@ function applyStyleWithFade(): void {
 			const fadeOut = (): void => {
 				if (fade.done || gen !== state.styleFadeGen) return;
 				fade.done = true;
+				// Detach here too: the MAX_WAIT timeout path reaches fadeOut without
+				// going through `check`, so the render listener would otherwise leak
+				// for the page lifetime when a style never loads (offline).
+				liveMap.off("render", check);
 				el.style.transition = `opacity ${STYLE_FADE_MS}ms ease`;
 				el.style.opacity = "0";
 				setTimeout(() => {
@@ -201,14 +214,9 @@ function applyStyleWithFade(): void {
 			// been rendered (the same readiness signal the host uses); "idle"
 			// would be nicer but never fires while the GPS camera keeps easing.
 			const check = (): void => {
-				if (gen !== state.styleFadeGen) {
-					liveMap.off("render", check);
-					return;
-				}
-				if (liveMap.isStyleLoaded()) {
-					liveMap.off("render", check);
-					fadeOut();
-				}
+				// Superseded swap, or the new style has presented a frame: fadeOut()
+				// runs the off("render", check) teardown in both cases.
+				if (gen !== state.styleFadeGen || liveMap.isStyleLoaded()) fadeOut();
 			};
 			liveMap.on("render", check);
 			setTimeout(fadeOut, STYLE_FADE_MAX_WAIT_MS);
@@ -217,6 +225,33 @@ function applyStyleWithFade(): void {
 	});
 	liveMap.triggerRepaint();
 }
+
+// Tile / style / DEM fetch failures (and any uncaught page error) can fire per
+// frame on a flaky link, so reports to the host are throttled to one per
+// interval. Date.now is the page clock; the host only logs these.
+const ERROR_REPORT_INTERVAL_MS = 10000;
+function reportErrorThrottled(detail: string): void {
+	const now = Date.now();
+	if (now - state.lastErrorReportMs >= ERROR_REPORT_INTERVAL_MS) {
+		state.lastErrorReportMs = now;
+		report("error", detail.slice(0, 200));
+	}
+}
+
+// A post-init exception inside a bridge call (updateCamera / setStyleUrl / ...)
+// or an unhandled rejection would otherwise reach only the JS console, invisible
+// on an adb-unreachable head unit. Route both through the throttled channel so
+// the in-app diagnostics tail sees them.
+window.addEventListener("error", (e) => {
+	log(`uncaught: ${e.message}`);
+	reportErrorThrottled(e.message || "uncaught error");
+});
+window.addEventListener("unhandledrejection", (e) => {
+	const reason =
+		e.reason instanceof Error ? e.reason.message : String(e.reason);
+	log(`unhandledrejection: ${reason}`);
+	reportErrorThrottled(reason);
+});
 
 (() => {
 	const c = document.createElement("canvas");
@@ -235,9 +270,16 @@ try {
 		attributionControl: false,
 	});
 	state.map = liveMap;
-	liveMap.on("render", () => {
-		if (liveMap.isStyleLoaded()) log("rendered");
-	});
+	// Log the first rendered frame once, then detach: "render" fires on every
+	// painted frame, so a persistent listener spews ~60 lines/sec into logcat
+	// (and the in-app diagnostics tail) during the GPS camera ease. Diagnostics
+	// only — the host detects readiness via onPageFinished, not this log.
+	const onFirstRender = (): void => {
+		if (!liveMap.isStyleLoaded()) return;
+		log("rendered");
+		liveMap.off("render", onFirstRender);
+	};
+	liveMap.on("render", onFirstRender);
 	liveMap.on("load", () => log("load"));
 
 	// WebGL context loss is usually TRANSIENT on mobile / WebView GPUs, and
@@ -250,19 +292,12 @@ try {
 	);
 	liveMap.on("webglcontextrestored", () => log("webglcontextrestored"));
 
-	// Tile / style / DEM fetch failures surface here. A flaky link can fire
-	// this once per tile, so reports to the host are throttled to one per
-	// ERROR_REPORT_INTERVAL_MS; the host only logs them (transient by
-	// definition — never UI, never a backend switch).
-	const ERROR_REPORT_INTERVAL_MS = 10000;
+	// Tile / style / DEM fetch failures surface here; the host only logs them
+	// (transient by definition — never UI, never a backend switch).
 	liveMap.on("error", (e) => {
 		const detail = e?.error?.message || "unknown map error";
 		log(`error: ${detail}`);
-		const now = Date.now();
-		if (now - state.lastErrorReportMs >= ERROR_REPORT_INTERVAL_MS) {
-			state.lastErrorReportMs = now;
-			report("error", String(detail).slice(0, 200));
-		}
+		reportErrorThrottled(String(detail));
 	});
 
 	// Self-location chevron: a fixed-on-screen DOM overlay (see #self-marker CSS).
@@ -460,7 +495,6 @@ try {
 		markerPos,
 		markerColor,
 	) => {
-		if (!state.map) return;
 		// Measure the inter-fix interval BEFORE refreshing lastFixMs: the ease
 		// duration matches it so each ease finishes as the next fix lands.
 		const now = Date.now();
@@ -479,12 +513,12 @@ try {
 		const heading = smoothedBearing(state.lastBearing, bearing || 0);
 		state.lastBearing = heading;
 		const previousZoom = state.lastPushedZoom;
-		state.lastPushedZoom = zoom || 16;
+		state.lastPushedZoom = Number.isFinite(zoom) ? zoom : 16;
 		state.lastFix = {
 			lon,
 			lat,
 			heading,
-			zoom: zoom || 16,
+			zoom: Number.isFinite(zoom) ? zoom : 16,
 			tilt: tilt || 0,
 			markerPos: markerPos || 0,
 		};
@@ -502,14 +536,14 @@ try {
 			}
 			return;
 		}
-		const pos = Math.max(0, Math.min(100, markerPos || 0));
+		const pos = clampMarkerPos(markerPos);
 		markerEl.style.top = `${50 + (pos / 100) * MAX_MARKER_DROP * 100}%`;
 		syncChevronTransform(tilt || 0, heading);
 		markerEl.style.display = "block";
 		const opts = {
 			center: [lon, lat] as [number, number],
 			bearing: appliedBearing(state.northUp, heading),
-			zoom: zoom || 16,
+			zoom: Number.isFinite(zoom) ? zoom : 16,
 			pitch: tilt || 0,
 			padding: {
 				top: markerPadTop(markerPos, liveMap.getContainer().clientHeight || 0),
@@ -575,13 +609,16 @@ try {
 	// repaints after the WebView was paused / not visible (guards a stale GL
 	// surface): map.resize() + triggerRepaint().
 	window.onHostResume = () => {
-		if (state.map) {
-			liveMap.resize();
-			liveMap.triggerRepaint();
-		}
+		// liveMap is captured and never nulled (the page never destroys the map),
+		// so no guard is needed.
+		liveMap.resize();
+		liveMap.triggerRepaint();
 	};
 } catch (e) {
 	log(`exception:${e instanceof Error ? e.message : e}`);
 	// The map object never came up; this page will stay blank forever.
-	report("fatal", `map-init-exception: ${e instanceof Error ? e.message : e}`);
+	report(
+		"fatal",
+		`map-init-exception: ${e instanceof Error ? e.message : e}`.slice(0, 200),
+	);
 }
