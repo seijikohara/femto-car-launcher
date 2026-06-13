@@ -1,6 +1,9 @@
 package io.github.seijikohara.femto.data.fonts
 
+import android.util.Log
 import java.io.File
+
+private const val TAG = "FontCache"
 
 /**
  * A downloaded typeface on disk. [Variable] is one file driving every weight via
@@ -73,7 +76,11 @@ internal class FontCache(
     ) {
         val keepDirs = (keep + alsoProtect).map { dirFor(it).name }.toSet()
         root.listFiles().orEmpty().forEach { dir ->
-            if (dir.isDirectory && dir.name !in keepDirs) dir.deleteRecursively()
+            // A failed delete silently leaks disk on a storage-constrained head
+            // unit; the next eviction pass retries, but leave a trail.
+            if (dir.isDirectory && dir.name !in keepDirs && !dir.deleteRecursively()) {
+                Log.w(TAG, "failed to evict font cache dir ${dir.name}")
+            }
         }
     }
 

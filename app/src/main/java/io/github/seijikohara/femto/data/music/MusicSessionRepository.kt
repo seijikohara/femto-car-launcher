@@ -138,7 +138,10 @@ internal class MusicSessionRepository(
                 if (next !== watched) {
                     runCatching { watched?.unregisterCallback(watcher) }
                     watched = next
+                    // A refused registration freezes the card on stale metadata
+                    // while it looks healthy; leave a trail.
                     runCatching { watched?.registerCallback(watcher) }
+                        .onFailure { Log.w(TAG, "registerCallback failed for ${next?.packageName}", it) }
                 }
             }
 

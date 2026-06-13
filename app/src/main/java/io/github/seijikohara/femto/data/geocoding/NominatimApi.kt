@@ -11,6 +11,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.Locale
+import kotlin.coroutines.cancellation.CancellationException
 
 private const val TAG = "NominatimApi"
 
@@ -67,12 +68,15 @@ internal class NominatimApi(
                         Log.w(TAG, "reverse geocode HTTP ${response.code}")
                         return@use null
                     }
-                    response.body?.string()?.let { body ->
-                        json.decodeFromString<NominatimResponse>(body)
-                    }
+                    json.decodeFromString<NominatimResponse>(response.body.string())
                 }
-            }.onFailure { Log.w(TAG, "reverse geocode failed", it) }
-                .getOrNull()
+            }.onFailure {
+                // runCatching also traps cancellation; rethrow so a cancelled
+                // call propagates instead of logging as a phantom outage
+                // (matches ReverseGeocoderRepository).
+                if (it is CancellationException) throw it
+                Log.w(TAG, "reverse geocode failed", it)
+            }.getOrNull()
         }
 
     @Serializable

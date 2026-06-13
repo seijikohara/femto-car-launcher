@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import kotlin.coroutines.cancellation.CancellationException
 
 private const val TAG = "OpenMeteoApi"
 
@@ -58,12 +59,15 @@ internal class OpenMeteoApi(
                         Log.w(TAG, "forecast HTTP ${response.code}")
                         return@use null
                     }
-                    response.body?.string()?.let { body ->
-                        json.decodeFromString<ForecastResponse>(body)
-                    }
+                    json.decodeFromString<ForecastResponse>(response.body.string())
                 }
-            }.onFailure { Log.w(TAG, "forecast failed", it) }
-                .getOrNull()
+            }.onFailure {
+                // runCatching also traps cancellation; rethrow so a cancelled
+                // call propagates instead of logging as a phantom outage
+                // (matches ReverseGeocoderRepository).
+                if (it is CancellationException) throw it
+                Log.w(TAG, "forecast failed", it)
+            }.getOrNull()
         }
 
     @Serializable

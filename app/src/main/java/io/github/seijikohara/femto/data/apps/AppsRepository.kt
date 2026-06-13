@@ -66,7 +66,14 @@ internal class AppsRepository(
             .fold(
                 onSuccess = { true },
                 onFailure = { error ->
-                    if (error is ActivityNotFoundException) false else throw error
+                    if (error is ActivityNotFoundException) {
+                        // The only field trail for a dead tap on a stale tile —
+                        // head units are typically adb-unreachable.
+                        Log.w(TAG, "activity not found for ${componentName.flattenToShortString()}")
+                        false
+                    } else {
+                        throw error
+                    }
                 },
             )
 
@@ -82,6 +89,10 @@ internal class AppsRepository(
                 .getActivityList(packageName, Process.myUserHandle())
                 .firstOrNull()
                 ?.componentName
+        }.onFailure {
+            // Distinguish a lookup fault from the legitimate "no launchable
+            // activity" null — both end in a no-op tap on the music card.
+            Log.w(TAG, "launcher lookup failed for $packageName", it)
         }.getOrNull()
 }
 

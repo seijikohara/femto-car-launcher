@@ -75,7 +75,12 @@ internal class VoiceRecognizer(
 
     /** Return to the ready state, discarding any result or error. */
     fun reset() {
-        if (isAvailable) _state.value = VoiceState.Idle
+        if (isAvailable) {
+            // Park the engine before the next start(): after onError some OEM
+            // recognizers silently no-op on a reused instance unless cancelled.
+            recognizer?.cancel()
+            _state.value = VoiceState.Idle
+        }
     }
 
     fun destroy() {
