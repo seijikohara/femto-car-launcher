@@ -18,6 +18,7 @@ import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -33,6 +34,7 @@ import org.robolectric.annotation.Config
 import java.time.LocalDate
 import java.time.LocalTime
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -85,6 +87,65 @@ class HomeViewModelTest {
                 assertEquals(calendar, state.calendar)
                 assertEquals(systemStatus, state.systemStatus)
                 assertEquals(tripState, state.tripState)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `a throwing source degrades only its own slot and never crashes the combine`() =
+        runTest {
+            // catchAsDefault must isolate a broken repository: a SecurityException
+            // (e.g. a permission revoked between check and register) in one source
+            // would otherwise cancel the shared combine and kill the HOME process.
+            val weather = fakeWeatherSnapshot()
+            val viewModel =
+                HomeViewModel(
+                    clockFlow = flow { throw SecurityException("clock source broke") },
+                    locationFlow = flowOf(fakeLocation()),
+                    addressFlow = flowOf(fakeAddress()),
+                    weatherFlow = flowOf(weather),
+                    musicStateFlow = flowOf(MusicCardState.Playing(fakeNowPlaying())),
+                    calendarFlow = flowOf(fakeCalendarSnapshot()),
+                    systemStatusFlow = flowOf(fakeSystemStatus()),
+                    tripStateFlow = flowOf(fakeTripState()),
+                )
+            viewModel.uiState.test {
+                val state = awaitItem()
+                // The broken clock holds its neutral Initial value...
+                assertEquals(HomeUiState.Initial.clock, state.clock)
+                // ...while every other card still shows its real value.
+                assertEquals(weather, state.weather)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `a source that fails after emitting falls back to its neutral value`() =
+        runTest {
+            // Documents the no-retry / no-hold-last-good policy: once a source that
+            // had been working throws, its card resets to the neutral default and
+            // stays there (until the process restarts), rather than freezing on the
+            // last good value.
+            val clock = ClockTick(LocalTime.of(14, 32), LocalDate.of(2026, 5, 1))
+            val viewModel =
+                HomeViewModel(
+                    clockFlow =
+                        flow {
+                            emit(clock)
+                            throw IllegalStateException("clock source broke after emitting")
+                        },
+                    locationFlow = flowOf(fakeLocation()),
+                    addressFlow = flowOf(fakeAddress()),
+                    weatherFlow = flowOf(fakeWeatherSnapshot()),
+                    musicStateFlow = flowOf(MusicCardState.Playing(fakeNowPlaying())),
+                    calendarFlow = flowOf(fakeCalendarSnapshot()),
+                    systemStatusFlow = flowOf(fakeSystemStatus()),
+                    tripStateFlow = flowOf(fakeTripState()),
+                )
+            viewModel.uiState.test {
+                val state = awaitItem()
+                assertNotEquals(clock, state.clock)
+                assertEquals(HomeUiState.Initial.clock, state.clock)
                 cancelAndIgnoreRemainingEvents()
             }
         }
