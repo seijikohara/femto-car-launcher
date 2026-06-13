@@ -36,7 +36,6 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowConnectivityManager
 import org.robolectric.shadows.ShadowNetwork
 import org.robolectric.shadows.ShadowNetworkCapabilities
-import org.robolectric.shadows.ShadowWifiManager
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
@@ -160,11 +159,9 @@ class SystemStatusRepositoryTest {
     @Test
     fun `wifiSignalLevel maps the capability RSSI onto a graduated level`() =
         runTest {
-            // ShadowWifiManager.calculateSignalLevel(rssi, numLevels) returns
-            // floor(percent * (numLevels - 1)); 0.75 over the 5-bucket range pins
-            // the top index to 3. The capability must carry a real (non-unspecified)
-            // RSSI for wifiLevelFrom to consult the level at all.
-            ShadowWifiManager.setSignalLevelInPercent(0.75f)
+            // wifiLevelFrom maps the RSSI linearly over the -100..-55 dBm window
+            // onto 0..4: -66 dBm sits at (34 * 4) / 45 = 3. The capability must
+            // carry a real (non-unspecified) RSSI for the level to be read at all.
             val connectivity = application.getSystemService<ConnectivityManager>()!!
             val shadowConnectivity = shadowOf(connectivity)
 
@@ -172,7 +169,7 @@ class SystemStatusRepositoryTest {
                 assertEquals(0, awaitItem().wifiSignalLevel)
 
                 val callback = awaitRegisteredNetworkCallback(shadowConnectivity)
-                callback.onCapabilitiesChanged(WIFI_NETWORK, validatedWifiCapabilities(rssiDbm = -55))
+                callback.onCapabilitiesChanged(WIFI_NETWORK, validatedWifiCapabilities(rssiDbm = -66))
 
                 assertEquals(3, awaitItem().wifiSignalLevel)
                 cancelAndIgnoreRemainingEvents()

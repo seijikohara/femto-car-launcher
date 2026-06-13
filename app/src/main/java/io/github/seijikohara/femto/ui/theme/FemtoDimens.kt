@@ -140,20 +140,17 @@ object FemtoDimens {
      * the Live map backend (no captured backdrop) the panel falls back to an opaque
      * surface base under this tint, so it stays legible there too.
      *
-     * The glass alpha tokens keep the PascalCase token vocabulary of this object
-     * rather than ktlint's SCREAMING_SNAKE_CASE for `const val`, so they read as
-     * siblings of the dp tokens above.
+     * The scalar tokens here are plain `val`, not `const val`: ktlint mandates
+     * SCREAMING_SNAKE_CASE for compile-time constants, and these must read as
+     * PascalCase siblings of the dp tokens above.
      */
-    @Suppress("ktlint:standard:property-naming")
-    const val GlassBgAlphaLight = 0.6f
+    val GlassBgAlphaLight = 0.6f
 
     /** Glass overlay tint opacity in dark theme — more translucent so the darker blurred map reads through. */
-    @Suppress("ktlint:standard:property-naming")
-    const val GlassBgAlphaDark = 0.42f
+    val GlassBgAlphaDark = 0.42f
 
     /** Glass overlay hairline border opacity, shared across light and dark themes. */
-    @Suppress("ktlint:standard:property-naming")
-    const val GlassBorderAlpha = 0.6f
+    val GlassBorderAlpha = 0.6f
 
     /** Backdrop blur radius for the glass overlays (clock / speed) over the map. */
     val GlassBlurRadius = 24.dp
@@ -163,14 +160,12 @@ object FemtoDimens {
      * dashboard stays visible behind the scrim. Keyed off screen height, never a
      * specific device.
      */
-    @Suppress("ktlint:standard:property-naming")
-    const val DrawerSheetHeightFraction = 0.72f
+    val DrawerSheetHeightFraction = 0.72f
 
     /**
      * Font-picker bottom-sheet height as a fraction of the viewport. Taller than
      * the drawer / settings sheets because the picker is a long, scrollable list
      * of every Google Fonts family and benefits from the extra rows.
      */
-    @Suppress("ktlint:standard:property-naming")
-    const val FontPickerSheetHeightFraction = 0.92f
+    val FontPickerSheetHeightFraction = 0.92f
 }
