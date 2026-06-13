@@ -24,6 +24,11 @@ ktlint_standard_function-naming = disabled
 # form, which is the opposite of the project's intent. Disable it so the
 # expression-chain style survives `./gradlew spotlessApply`.
 ktlint_standard_multiline-expression-wrapping = disabled
+# The one sanctioned CompositionLocal: FemtoTheme's resolved dark flag.
+# Consumers (weather glyphs, glass alpha, AUTO map style) must follow the
+# rendered theme, which only FemtoTheme knows once the user forces a
+# ThemeMode — isSystemInDarkTheme() would follow the system instead.
+compose_allowed_composition_locals = LocalFemtoDarkTheme
 
 [*.{xml,json,yml,yaml,toml}]
 indent_size = 2

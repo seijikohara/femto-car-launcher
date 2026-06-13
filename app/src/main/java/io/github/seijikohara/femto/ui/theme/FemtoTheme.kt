@@ -8,12 +8,27 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontFamily
 import com.materialkolor.rememberDynamicColorScheme
 import io.github.seijikohara.femto.data.display.AccentColor
+
+/**
+ * The dark flag FemtoTheme actually rendered with, as opposed to the system
+ * state [isSystemInDarkTheme] reports: when the user forces a ThemeMode in
+ * Settings the two diverge, and theme-dependent reads outside the color
+ * scheme (weather glyph palette, glass tint alpha, the AUTO map style) must
+ * follow the rendered theme. The error default enforces the FemtoTheme
+ * wrapping rule (design-system.md) instead of silently rendering light.
+ */
+internal val LocalFemtoDarkTheme =
+    staticCompositionLocalOf<Boolean> {
+        error("LocalFemtoDarkTheme read outside FemtoTheme — wrap the composable in FemtoTheme")
+    }
 
 /**
  * Root theme for the launcher.
@@ -57,11 +72,13 @@ fun FemtoTheme(
 
             else -> dynamicLightColorScheme(context)
         }
-    MaterialTheme(
-        colorScheme = target.animated(),
-        typography = femtoTypography(fontFamily),
-        content = content,
-    )
+    CompositionLocalProvider(LocalFemtoDarkTheme provides darkTheme) {
+        MaterialTheme(
+            colorScheme = target.animated(),
+            typography = femtoTypography(fontFamily),
+            content = content,
+        )
+    }
 }
 
 // How long a theme change (Light <-> Dark, accent, wallpaper) takes to cross-fade.

@@ -1,6 +1,5 @@
 package io.github.seijikohara.femto.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
@@ -39,11 +38,11 @@ internal val LightWeatherGlyphs =
 /**
  * Resolve the weather glyph palette for the current theme.
  *
- * Exposed as a `@Composable` function (rather than a `CompositionLocal`)
- * because ktlint's Compose rules discourage adding new CompositionLocals
- * unless they are unavoidable, and the dark / light selection is a single
- * `isSystemInDarkTheme()` check.
+ * Reads [LocalFemtoDarkTheme] (not `isSystemInDarkTheme()`) so the palette
+ * follows the rendered theme when the user forces a ThemeMode in Settings —
+ * the system flag would put light-palette glyphs on dark surfaces.
  */
 @Composable
 @ReadOnlyComposable
-internal fun weatherGlyphs(): WeatherGlyphColors = if (isSystemInDarkTheme()) DarkWeatherGlyphs else LightWeatherGlyphs
+internal fun weatherGlyphs(): WeatherGlyphColors =
+    if (LocalFemtoDarkTheme.current) DarkWeatherGlyphs else LightWeatherGlyphs

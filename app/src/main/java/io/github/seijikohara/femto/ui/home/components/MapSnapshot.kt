@@ -9,7 +9,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -32,6 +31,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.seijikohara.femto.data.display.MapStyleSetting
+import io.github.seijikohara.femto.ui.theme.LocalFemtoDarkTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -57,7 +57,7 @@ internal fun SnapshotMap(
     val context = LocalContext.current
     val isDark =
         when (mapConfig.style) {
-            MapStyleSetting.AUTO -> isSystemInDarkTheme()
+            MapStyleSetting.AUTO -> LocalFemtoDarkTheme.current
             MapStyleSetting.LIGHT -> false
             MapStyleSetting.DARK -> true
         }

@@ -1,7 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.border
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -13,6 +12,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.LocalFemtoDarkTheme
 
 /**
  * Glass blur strength for the map overlays, threaded from [DisplaySettings] down
@@ -36,7 +36,7 @@ internal fun Modifier.glassEffect(
     blurRadius: Dp,
     tintScale: Int,
 ): Modifier {
-    val baseAlpha = if (isSystemInDarkTheme()) FemtoDimens.GlassBgAlphaDark else FemtoDimens.GlassBgAlphaLight
+    val baseAlpha = if (LocalFemtoDarkTheme.current) FemtoDimens.GlassBgAlphaDark else FemtoDimens.GlassBgAlphaLight
     val tintAlpha = glassTintAlpha(baseAlpha, tintScale)
     // Capture the surface color outside the draw-time hazeEffect block, which
     // cannot read MaterialTheme.
