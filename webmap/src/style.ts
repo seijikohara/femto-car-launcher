@@ -41,6 +41,13 @@ const ACCENT_LAND = ["landcover", "landuse", "park"];
 // at markerPos = 100 (mirrors MAX_MARKER_DROP in MapPanel.kt).
 export const MAX_MARKER_DROP = 0.32;
 
+// Clamp a host-pushed markerPos into the valid 0..100 range (treating a missing
+// value as 0). The single SSOT for the clamp shared by markerPadTop and the
+// DOM-chevron `top` placement in main.ts.
+export function clampMarkerPos(markerPos: number): number {
+	return Math.max(0, Math.min(100, markerPos || 0));
+}
+
 // Top camera padding (px) that places the centred location at the height the
 // marker-position setting asks for. padTop shifts the focal point down, so the
 // location (and its marker) sits lower in the frame; markerPos 0 keeps it
@@ -49,8 +56,7 @@ export function markerPadTop(
 	markerPos: number,
 	containerHeight: number,
 ): number {
-	const pos = Math.max(0, Math.min(100, markerPos || 0));
-	const drop = (pos / 100) * MAX_MARKER_DROP;
+	const drop = (clampMarkerPos(markerPos) / 100) * MAX_MARKER_DROP;
 	return 2 * drop * containerHeight;
 }
 

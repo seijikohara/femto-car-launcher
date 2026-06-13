@@ -3,6 +3,9 @@
 	"private": true,
 	"type": "module",
 	"packageManager": "pnpm@11.5.2",
+	"engines": {
+		"node": ">=20.11"
+	},
 	"scripts": {
 		"dev": "vite",
 		"build": "pnpm run check && vite build",
