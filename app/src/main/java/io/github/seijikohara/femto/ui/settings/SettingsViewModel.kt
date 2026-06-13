@@ -11,7 +11,6 @@ import io.github.seijikohara.femto.data.display.DisplaySettingsStore
 import io.github.seijikohara.femto.data.fonts.FontPreferences
 import io.github.seijikohara.femto.data.location.LocationPreferences
 import io.github.seijikohara.femto.data.location.LocationSettingsStore
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn

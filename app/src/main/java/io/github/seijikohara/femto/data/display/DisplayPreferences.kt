@@ -1,13 +1,9 @@
 package io.github.seijikohara.femto.data.display
 
 import android.content.Context
-import android.util.Log
 import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -15,12 +11,8 @@ import io.github.seijikohara.femto.data.common.catchIoAsDefaults
 import io.github.seijikohara.femto.data.common.editOrLog
 import io.github.seijikohara.femto.data.common.toEnumOr
 import io.github.seijikohara.femto.data.fonts.FontPreferences
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
-import java.io.IOException
-import kotlin.enums.enumEntries
 
 private const val TAG = "DisplayPreferences"
 

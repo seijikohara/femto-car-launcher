@@ -8,7 +8,6 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.seijikohara.femto.data.common.catchIoAsDefaults
 import io.github.seijikohara.femto.data.common.editOrLog
-import io.github.seijikohara.femto.data.common.toEnumOr
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 

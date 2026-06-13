@@ -19,7 +19,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -29,19 +28,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.composables.icons.lucide.Battery
-import com.composables.icons.lucide.BatteryCharging
-import com.composables.icons.lucide.BatteryFull
-import com.composables.icons.lucide.BatteryLow
-import com.composables.icons.lucide.BatteryMedium
 import com.composables.icons.lucide.Bluetooth
-import com.composables.icons.lucide.BluetoothConnected
-import com.composables.icons.lucide.BluetoothOff
 import com.composables.icons.lucide.Globe
 import com.composables.icons.lucide.LayoutGrid
 import com.composables.icons.lucide.Lucide
@@ -49,16 +39,7 @@ import com.composables.icons.lucide.Mic
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Navigation
 import com.composables.icons.lucide.Phone
-import com.composables.icons.lucide.Satellite
 import com.composables.icons.lucide.Settings
-import com.composables.icons.lucide.Signal
-import com.composables.icons.lucide.SignalHigh
-import com.composables.icons.lucide.SignalLow
-import com.composables.icons.lucide.SignalMedium
-import com.composables.icons.lucide.Wifi
-import com.composables.icons.lucide.WifiHigh
-import com.composables.icons.lucide.WifiLow
-import com.composables.icons.lucide.WifiZero
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.system.SystemStatus
@@ -66,7 +47,6 @@ import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
-import io.github.seijikohara.femto.ui.theme.TabularFigures
 
 // Below this dock extent (width for the horizontal bar, height for the
 // vertical rail) the read-only status cluster is dropped so the seven nav

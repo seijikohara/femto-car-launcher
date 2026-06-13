@@ -12,12 +12,14 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.os.BatteryManager
+import android.os.Looper
 import androidx.core.content.getSystemService
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
 import io.github.seijikohara.femto.testfixtures.fakeLocation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -83,15 +85,12 @@ class SystemStatusRepositoryTest {
         }
 
     @Test
-    fun `batteryPercent is the level over scale ratio from the sticky broadcast`() =
+    fun `batteryPercent is the level over scale ratio from the battery broadcast`() =
         runTest {
-            // The sticky ACTION_BATTERY_CHANGED is the only place a battery reading
-            // arrives; registerReceiver replays it. statusFlow seeds a null default
-            // via onStart and runs the receiver on Dispatchers.Default, so the
-            // sticky-derived percent lands on the emission after the seed.
-            application.sendStickyBroadcast(batteryIntent(level = 50, scale = 100))
-
-            val status = firstStatusMatching(SystemStatusRepository(application)) { it.batteryPercent != null }
+            val status =
+                firstStatusAfterBatteryBroadcast(batteryIntent(level = 50, scale = 100)) {
+                    it.batteryPercent != null
+                }
 
             assertEquals(50, status.batteryPercent)
         }
@@ -101,35 +100,36 @@ class SystemStatusRepositoryTest {
         runTest {
             // A malformed reading where level exceeds scale must not exceed 100;
             // the coerceIn(0, 100) in batteryFlow is the single clamp SSOT.
-            application.sendStickyBroadcast(batteryIntent(level = 150, scale = 100))
-
-            val status = firstStatusMatching(SystemStatusRepository(application)) { it.batteryPercent != null }
+            val status =
+                firstStatusAfterBatteryBroadcast(batteryIntent(level = 150, scale = 100)) {
+                    it.batteryPercent != null
+                }
 
             assertEquals(100, status.batteryPercent)
         }
 
     @Test
-    fun `batteryPercent is null when the sticky reports an unknown level`() =
+    fun `batteryPercent is null when the broadcast reports an unknown level`() =
         runTest {
             // level = -1 / scale = -1 is the framework's "unknown" sentinel; the
             // flow maps it to null so the dock never reads it as a dead 0%. The
-            // seeded default is also null, so collecting the first emission is
-            // sufficient and there is no later non-null reading to wait for.
-            application.sendStickyBroadcast(batteryIntent(level = -1, scale = -1))
-
-            val status = SystemStatusRepository(application).statusFlow().first()
+            // AC plugged source marks the broadcast-derived emission, so waiting
+            // on charging asserts against that emission rather than the null seed.
+            val status =
+                firstStatusAfterBatteryBroadcast(
+                    batteryIntent(level = -1, scale = -1, plugged = BatteryManager.BATTERY_PLUGGED_AC),
+                ) { it.charging }
 
             assertNull(status.batteryPercent)
         }
 
     @Test
-    fun `charging is true when the sticky reports a non-zero plugged source`() =
+    fun `charging is true when the broadcast reports a non-zero plugged source`() =
         runTest {
-            application.sendStickyBroadcast(
-                batteryIntent(level = 50, scale = 100, plugged = BatteryManager.BATTERY_PLUGGED_AC),
-            )
-
-            val status = firstStatusMatching(SystemStatusRepository(application)) { it.charging }
+            val status =
+                firstStatusAfterBatteryBroadcast(
+                    batteryIntent(level = 50, scale = 100, plugged = BatteryManager.BATTERY_PLUGGED_AC),
+                ) { it.charging }
 
             assertTrue(status.charging)
         }
@@ -287,6 +287,50 @@ class SystemStatusRepositoryTest {
         repository: SystemStatusRepository,
         predicate: (SystemStatus) -> Boolean,
     ): SystemStatus = repository.statusFlow().first(predicate)
+
+    /**
+     * Deliver [intent] as a regular ACTION_BATTERY_CHANGED broadcast once
+     * statusFlow's battery receiver is registered, then collect the first
+     * [SystemStatus] satisfying [predicate]. Production reads the system's
+     * sticky broadcast replayed at registration, but Robolectric's only
+     * sticky-seeding API is the deprecated Context.sendStickyBroadcast; a
+     * post-registration broadcast exercises the same receiver path without
+     * the deprecated call.
+     */
+    private suspend fun TestScope.firstStatusAfterBatteryBroadcast(
+        intent: Intent,
+        predicate: (SystemStatus) -> Boolean,
+    ): SystemStatus {
+        val status =
+            async(Dispatchers.Default) {
+                SystemStatusRepository(application).statusFlow().first(predicate)
+            }
+        awaitRegisteredBatteryReceiver()
+        application.sendBroadcast(intent)
+        // The receiver was registered without a handler, so delivery is posted
+        // to the paused main looper; idle() runs it.
+        shadowOf(Looper.getMainLooper()).idle()
+        return status.await()
+    }
+
+    /**
+     * Wait until statusFlow has registered its battery receiver on the Default
+     * dispatcher. Same wall-clock poll rationale as
+     * [awaitRegisteredNetworkCallback].
+     */
+    private suspend fun awaitRegisteredBatteryReceiver() =
+        withContext(Dispatchers.Default) {
+            val deadline = System.nanoTime() + CALLBACK_POLL_TIMEOUT_NANOS
+            while (System.nanoTime() < deadline && !batteryReceiverRegistered()) {
+                Thread.sleep(CALLBACK_POLL_INTERVAL_MS)
+            }
+            check(batteryReceiverRegistered()) { "battery receiver never registered" }
+        }
+
+    private fun batteryReceiverRegistered(): Boolean =
+        shadowOf(application).registeredReceivers.any {
+            it.intentFilter.hasAction(Intent.ACTION_BATTERY_CHANGED)
+        }
 
     /**
      * Wait until statusFlow has registered its [ConnectivityManager.NetworkCallback]

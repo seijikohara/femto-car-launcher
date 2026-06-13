@@ -7,7 +7,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.seijikohara.femto.data.common.WhileUiSubscribed
 import io.github.seijikohara.femto.data.voice.VoiceRecognizer
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
