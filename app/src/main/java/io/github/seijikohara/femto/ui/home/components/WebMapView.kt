@@ -14,7 +14,6 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,6 +50,7 @@ import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.LocalFemtoDarkTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import kotlinx.coroutines.delay
 
@@ -120,7 +120,7 @@ internal fun WebMapView(
     val bearingHolder = remember { floatArrayOf(0f) }
     val isDark =
         when (mapConfig.style) {
-            MapStyleSetting.AUTO -> isSystemInDarkTheme()
+            MapStyleSetting.AUTO -> LocalFemtoDarkTheme.current
             MapStyleSetting.LIGHT -> false
             MapStyleSetting.DARK -> true
         }
