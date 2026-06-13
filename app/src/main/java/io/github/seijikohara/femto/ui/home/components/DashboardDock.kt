@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -130,7 +131,9 @@ private fun HorizontalDock(
     dividerAtBottom: Boolean,
     modifier: Modifier = Modifier,
 ) = Surface(
-    modifier = modifier.height(FemtoDimens.DockThickness),
+    // The hairline divider draws inside the Surface; oversize by its thickness
+    // so the button row keeps the full DockThickness (= the tap-target floor).
+    modifier = modifier.height(FemtoDimens.DockThickness + DividerDefaults.Thickness),
     color = MaterialTheme.colorScheme.surface,
 ) {
     Column {
@@ -196,7 +199,8 @@ private fun VerticalDock(
     dividerAtStart: Boolean,
     modifier: Modifier = Modifier,
 ) = Surface(
-    modifier = modifier.width(FemtoDimens.DockThickness),
+    // Same divider-thickness oversize as HorizontalDock, on the width.
+    modifier = modifier.width(FemtoDimens.DockThickness + DividerDefaults.Thickness),
     color = MaterialTheme.colorScheme.surface,
 ) {
     Row {

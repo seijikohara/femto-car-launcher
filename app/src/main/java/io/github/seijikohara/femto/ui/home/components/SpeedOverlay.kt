@@ -50,7 +50,8 @@ import io.github.seijikohara.femto.ui.locale.tripDistanceFromMeters
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
-import io.github.seijikohara.femto.ui.theme.TabularFigures
+import io.github.seijikohara.femto.ui.theme.glanceMetric
+import io.github.seijikohara.femto.ui.theme.heroNumeral
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import kotlin.math.exp
 import kotlin.math.roundToInt
@@ -213,14 +214,7 @@ private fun NowMetric(
 ) {
     Text(
         text = value,
-        style =
-            MaterialTheme.typography.displayMedium.copy(
-                fontSize = 40.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = (-0.03f).em,
-                lineHeight = 40.sp,
-                fontFeatureSettings = TabularFigures,
-            ),
+        style = MaterialTheme.typography.heroNumeral(trackingEm = -0.03f),
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
         // Reserve a stable width sized for the clamped 3-digit range and
@@ -266,13 +260,7 @@ private fun SecondaryMetric(
     )
     Text(
         text = value,
-        style =
-            MaterialTheme.typography.titleSmall.copy(
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = (-0.01f).em,
-                fontFeatureSettings = TabularFigures,
-            ),
+        style = MaterialTheme.typography.glanceMetric().copy(letterSpacing = (-0.01f).em),
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
     )
@@ -321,10 +309,9 @@ private fun AddressRow(
 }
 
 // Trailing reset control for the trip metrics, anchored to the overlay's
-// top-right (the end of the metric row). Sized below MinTouchTarget so it does
-// not crowd the metric cells on a narrow overlay — a deliberate in-overlay
-// exception (CLAUDE.md#automotive-overrides keeps 64 dp the default), the same
-// relaxation the calendar strip takes; also trims the metric row's height.
+// top-right (the end of the metric row). Full MinTouchTarget size: the
+// tap-target floor (CLAUDE.md#automotive-overrides) has no persisted exception
+// for this control, and a mis-tap while driving resets the trip.
 @Composable
 private fun ResetButton(
     onReset: () -> Unit,
@@ -332,7 +319,7 @@ private fun ResetButton(
 ) = Box(
     modifier =
         modifier
-            .size(RESET_BUTTON_SIZE)
+            .size(FemtoDimens.MinTouchTarget)
             .clip(CircleShape)
             .clickable(onClick = onReset),
     contentAlignment = Alignment.Center,
@@ -391,10 +378,6 @@ private const val NO_SPEED_PLACEHOLDER = "—"
 // Shown in the address row until a fix / reverse-geocode resolves, so the overlay
 // reserves the row instead of collapsing (and the MapPin still reads as "location").
 private const val NO_ADDRESS_PLACEHOLDER = "—"
-
-// Reset control size: narrower than MinTouchTarget so it leaves the metric cells
-// more room on a compact overlay and shortens the metric row (see ResetButton).
-private val RESET_BUTTON_SIZE = 48.dp
 
 @PreviewLightDark
 @Preview(name = "Speed overlay", widthDp = 560, heightDp = 160)

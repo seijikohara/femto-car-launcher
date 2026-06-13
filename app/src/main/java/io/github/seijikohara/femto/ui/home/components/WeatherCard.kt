@@ -52,6 +52,7 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.TabularFigures
 import io.github.seijikohara.femto.ui.theme.WeatherGlyphColors
 import io.github.seijikohara.femto.ui.theme.bigNumber
+import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import io.github.seijikohara.femto.ui.theme.weatherGlyphs
 import java.time.Instant
@@ -135,7 +136,7 @@ private fun Head(
         Row(verticalAlignment = Alignment.Top) {
             Text(
                 text = tempLabel,
-                style = MaterialTheme.typography.bigNumber().copy(fontSize = 46.sp, lineHeight = 42.sp),
+                style = MaterialTheme.typography.bigNumber(size = 46.sp),
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
             )
@@ -210,10 +211,8 @@ private fun Metric(
     Text(
         text = value,
         style =
-            MaterialTheme.typography.bodyMedium.copy(
-                fontSize = 14.sp,
+            MaterialTheme.typography.cardMeta().copy(
                 fontWeight = FontWeight.SemiBold,
-                lineHeight = 16.sp,
                 fontFeatureSettings = TabularFigures,
             ),
         color = MaterialTheme.colorScheme.onSurface,

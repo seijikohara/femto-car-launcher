@@ -141,14 +141,14 @@ private fun MusicCardPlayingPreview() {
                 MusicCardState.Playing(
                     nowPlaying =
                         NowPlaying(
-                            title = "Sunset Lover",
-                            artist = "Petit Biscuit",
-                            album = "Petit Biscuit",
+                            title = "Midnight Drive",
+                            artist = "The Wayfinders",
+                            album = "Night Routes",
                             albumArt = null,
                             isPlaying = true,
                             positionMs = 98_000,
                             durationMs = 168_000,
-                            packageName = "com.spotify.music",
+                            packageName = "com.example.music",
                         ),
                 ),
             onCommand = {},

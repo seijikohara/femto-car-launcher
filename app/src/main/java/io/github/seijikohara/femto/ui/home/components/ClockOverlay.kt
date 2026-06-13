@@ -8,17 +8,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
-import io.github.seijikohara.femto.ui.theme.TabularFigures
+import io.github.seijikohara.femto.ui.theme.heroNumeral
 import kotlinx.coroutines.delay
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -73,14 +70,7 @@ internal fun ClockOverlay(
         }
     Text(
         text = now.format(formatter),
-        style =
-            MaterialTheme.typography.displayMedium.copy(
-                fontSize = 40.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = (-0.04f).em,
-                lineHeight = 40.sp,
-                fontFeatureSettings = TabularFigures,
-            ),
+        style = MaterialTheme.typography.heroNumeral(trackingEm = -0.04f),
         color = MaterialTheme.colorScheme.onSurface,
         modifier =
             modifier

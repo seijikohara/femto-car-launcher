@@ -25,9 +25,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Pause
 import com.composables.icons.lucide.Play
@@ -36,7 +34,7 @@ import com.composables.icons.lucide.SkipForward
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
-import io.github.seijikohara.femto.ui.theme.TabularFigures
+import io.github.seijikohara.femto.ui.theme.progressCaption
 import kotlinx.coroutines.delay
 
 @Composable
@@ -46,6 +44,7 @@ internal fun Progress(
     positionUpdateTimeMs: Long,
     isPlaying: Boolean,
     playbackSpeed: Float,
+    modifier: Modifier = Modifier,
 ) {
     // Interpolate the displayed position from the PlaybackState basis while
     // playing, so the bar and elapsed label advance smoothly without waiting for
@@ -80,18 +79,13 @@ internal fun Progress(
             0f
         }
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(
             text = formatMillis(livePosition),
-            style =
-                MaterialTheme.typography.labelMedium.copy(
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    fontFeatureSettings = TabularFigures,
-                ),
+            style = MaterialTheme.typography.progressCaption(),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
         )
@@ -114,12 +108,7 @@ internal fun Progress(
         }
         Text(
             text = formatMillis(durationMs),
-            style =
-                MaterialTheme.typography.labelMedium.copy(
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    fontFeatureSettings = TabularFigures,
-                ),
+            style = MaterialTheme.typography.progressCaption(),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
         )

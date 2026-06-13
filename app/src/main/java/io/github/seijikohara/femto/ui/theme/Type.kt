@@ -12,6 +12,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
@@ -68,14 +69,58 @@ internal val TabularFigures = "tnum"
  * Return the shared big-number display style used for the calendar big-day and
  * the weather big-temperature anchors. Derived from [Typography.displayLarge]
  * with the Bold Minimal tuning the cards apply verbatim, plus tabular figures
- * so the large numeral never reflows the row beside it.
+ * so the large numeral never reflows the row beside it. [size] defaults to the
+ * [FemtoDimens.BigNumberFontSize] anchor; a card with tighter geometry (the
+ * weather hero temperature) passes its own size and inherits the same 0.92
+ * leading ratio.
  */
-internal fun Typography.bigNumber(): TextStyle =
+internal fun Typography.bigNumber(size: TextUnit = FemtoDimens.BigNumberFontSize): TextStyle =
     displayLarge.copy(
-        fontSize = FemtoDimens.BigNumberFontSize,
+        fontSize = size,
         fontWeight = FontWeight.Bold,
         letterSpacing = (-0.045f).em,
-        lineHeight = (FemtoDimens.BigNumberFontSize.value * 0.92f).sp,
+        lineHeight = (size.value * 0.92f).sp,
+        fontFeatureSettings = TabularFigures,
+    )
+
+/**
+ * Return the glass-overlay hero numeral style (the clock readout, the speed
+ * value). 40sp Bold tabular digits on a fixed 40sp line; callers pass the
+ * tracking their glyph run needs (the clock's colon tolerates tighter
+ * tracking than the speed's digit run).
+ */
+internal fun Typography.heroNumeral(trackingEm: Float): TextStyle =
+    displayMedium.copy(
+        fontSize = 40.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = trackingEm.em,
+        lineHeight = 40.sp,
+        fontFeatureSettings = TabularFigures,
+    )
+
+/**
+ * Return the 16sp glance metric-value style (speed-overlay trip metrics, the
+ * calendar day-gutter numeral) — a sanctioned card relaxation of the 18sp
+ * floor (CLAUDE.md#automotive-overrides), with tabular figures so ticking
+ * values keep a fixed digit advance.
+ */
+internal fun Typography.glanceMetric(): TextStyle =
+    titleSmall.copy(
+        fontSize = 16.sp,
+        fontWeight = FontWeight.SemiBold,
+        fontFeatureSettings = TabularFigures,
+    )
+
+/**
+ * Return the music transport's position / duration caption style. Sized at
+ * the [FemtoDimens.GlanceTextSize] glance floor — the progress-caption
+ * relaxation CLAUDE.md#automotive-overrides routes through that token — with
+ * tabular figures so the ticking position never reflows the progress row.
+ */
+internal fun Typography.progressCaption(): TextStyle =
+    labelMedium.copy(
+        fontSize = FemtoDimens.GlanceTextSize,
+        fontWeight = FontWeight.Medium,
         fontFeatureSettings = TabularFigures,
     )
 

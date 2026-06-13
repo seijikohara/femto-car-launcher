@@ -2,7 +2,6 @@ package io.github.seijikohara.femto.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
 
@@ -14,7 +13,6 @@ import androidx.compose.ui.graphics.Color
  * accent. The dashboard relies on those distinctions being immediately
  * readable at a glance, so the glyph palette is curated separately.
  */
-@Immutable
 data class WeatherGlyphColors(
     val sun: Color,
     val moon: Color,
