@@ -157,9 +157,11 @@ internal class HomeViewModel(
             is HomeAction.LaunchMusicSource -> {
                 // Resolve to the source app's launcher activity and reuse the app
                 // grid's launch path. A package with no launchable activity (a
-                // background-only media service) resolves to null and no-ops.
+                // background-only media service) resolves to null and no-ops —
+                // logged so the deliberate dead tap stays diagnosable in the field.
                 resolveMusicSourceComponent(action.packageName)
                     ?.let { mutableEvents.tryEmit(HomeEvent.LaunchComponent(it)) }
+                    ?: Log.d(TAG, "no launcher activity for ${action.packageName}; ignoring tap")
             }
 
             is HomeAction.Music -> {

@@ -25,6 +25,7 @@ import android.os.Build
 import android.telephony.SignalStrength
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
+import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import io.github.seijikohara.femto.data.location.LocationRepository
@@ -50,6 +51,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.transformLatest
+
+private const val TAG = "SystemStatusRepo"
 
 /**
  * Dock status cluster — Wi-Fi connectivity / signal strength, cellular
@@ -302,7 +305,12 @@ internal class SystemStatusRepository(
                     trySend(usedInFix)
                 }
             }
-            lm.registerGnssStatusCallback(context.mainExecutor, callback)
+            // Registration refusal is reported via the Boolean, not an exception,
+            // so no upstream catch ever sees it — the dock would read "searching"
+            // forever despite a working fix. Some head-unit GNSS HALs do refuse.
+            if (!lm.registerGnssStatusCallback(context.mainExecutor, callback)) {
+                Log.w(TAG, "GnssStatus callback registration refused; satellite count stays 0")
+            }
             awaitClose { lm.unregisterGnssStatusCallback(callback) }
         }
     }

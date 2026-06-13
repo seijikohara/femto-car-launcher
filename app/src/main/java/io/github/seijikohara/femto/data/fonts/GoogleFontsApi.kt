@@ -8,6 +8,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import kotlin.coroutines.cancellation.CancellationException
 
 private const val TAG = "GoogleFontsApi"
 
@@ -53,8 +54,13 @@ internal class GoogleFontsApi(
                             .sortedBy { it.popularity }
                     }
                 }
-            }.onFailure { Log.w(TAG, "catalog failed", it) }
-                .getOrNull()
+            }.onFailure {
+                // runCatching also traps cancellation; rethrow so a cancelled
+                // call propagates instead of logging as a phantom outage
+                // (matches ReverseGeocoderRepository).
+                if (it is CancellationException) throw it
+                Log.w(TAG, "catalog failed", it)
+            }.getOrNull()
         }
 
     /**
@@ -81,8 +87,10 @@ internal class GoogleFontsApi(
                             .let(::planFrom)
                     }
                 }
-            }.onFailure { Log.w(TAG, "manifest failed for $family", it) }
-                .getOrNull()
+            }.onFailure {
+                if (it is CancellationException) throw it
+                Log.w(TAG, "manifest failed for $family", it)
+            }.getOrNull()
         }
 
     /** Download [url] into [target], replacing any partial file. Returns success. */
@@ -114,8 +122,10 @@ internal class GoogleFontsApi(
                         }
                     }
                 }
-            }.onFailure { Log.w(TAG, "download failed for $url", it) }
-                .getOrDefault(false)
+            }.onFailure {
+                if (it is CancellationException) throw it
+                Log.w(TAG, "download failed for $url", it)
+            }.getOrDefault(false)
         }
 
     private fun planFrom(refs: List<FileRef>): FontDownloadPlan? {

@@ -264,6 +264,11 @@ internal class CalendarRepository(
                             true,
                             observer,
                         )
+                    }.onFailure {
+                        // Mirror readWindow's split: the revoke race is expected and
+                        // silent, but any other fault leaves the card stale until the
+                        // next rebuild-key change — that needs a trail.
+                        if (it !is SecurityException) Log.e(TAG, "calendar observer registration failed", it)
                     }.isSuccess
             awaitClose {
                 if (registered) context.contentResolver.unregisterContentObserver(observer)
