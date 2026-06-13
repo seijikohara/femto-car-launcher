@@ -36,6 +36,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.TabularFigures
 import io.github.seijikohara.femto.ui.theme.bigNumber
+import io.github.seijikohara.femto.ui.theme.glanceMetric
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import java.time.LocalDate
 import java.time.LocalTime
@@ -203,13 +204,7 @@ private fun DayRow(
         )
         Text(
             text = "${day.date.dayOfMonth}",
-            style =
-                MaterialTheme.typography.titleSmall.copy(
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    lineHeight = 18.sp,
-                    fontFeatureSettings = TabularFigures,
-                ),
+            style = MaterialTheme.typography.glanceMetric().copy(lineHeight = 18.sp),
             color = accent,
             maxLines = 1,
             softWrap = false,

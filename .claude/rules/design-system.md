@@ -26,7 +26,9 @@ with automotive overrides on top.
   (`AccentColor` + `accentSeedColor` + MaterialKolor's
   `rememberDynamicColorScheme`); `FemtoTheme(accent = ...)` selects
   between them. Either way, pull from `MaterialTheme.colorScheme.*`;
-  the seed colors in `ui/theme/AccentColors.kt` are the only hardcoded
+  the seed colors in `ui/theme/AccentColors.kt` and the curated
+  weather-glyph palette in `ui/theme/WeatherGlyphColors.kt` (warm/cool
+  distinctions dynamic color cannot produce) are the only hardcoded
   hex outside `Color.kt`.
 - Shape: M3 default `Shapes` (squircles). Do not customise.
 - Elevation: M3 standard — express surface hierarchy with the
