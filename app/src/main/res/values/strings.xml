@@ -31,6 +31,8 @@
     <!-- Weather card -->
     <string name="weather_unavailable">Weather unavailable</string>
     <string name="weather_open_app">Open weather</string>
+    <!-- Shown on the weather card when the data is stale (a refresh outage); %1$s is the local fetch time. -->
+    <string name="weather_as_of">as of %1$s</string>
     <string name="weather_metric_feels">FEELS</string>
     <string name="weather_metric_wind">WIND</string>
     <string name="weather_metric_humidity">HUMID.</string>

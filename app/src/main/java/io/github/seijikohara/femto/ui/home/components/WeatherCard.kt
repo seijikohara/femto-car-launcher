@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +42,7 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.weather.HourlyForecast
 import io.github.seijikohara.femto.data.weather.WeatherCode
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
+import io.github.seijikohara.femto.data.weather.isStale
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.locale.fromCelsius
@@ -55,8 +57,10 @@ import io.github.seijikohara.femto.ui.theme.bigNumber
 import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import io.github.seijikohara.femto.ui.theme.weatherGlyphs
+import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
@@ -94,6 +98,16 @@ internal fun WeatherCard(
     color = MaterialTheme.colorScheme.surfaceContainer,
 ) {
     if (snapshot != null) {
+        // During a refresh outage the repository serves the same cached snapshot
+        // (identical fetchedAt, conflated by the StateFlow), so the card ages it
+        // locally: past WEATHER_STALE_THRESHOLD it surfaces an "as of HH:mm"
+        // caption rather than presenting hours-old data as current.
+        val asOf =
+            if (rememberWeatherFresh(snapshot)) {
+                null
+            } else {
+                stringResource(R.string.weather_as_of, asOfTimeLabel(snapshot.fetchedAt, is24Hour))
+            }
         // verticalScroll is a safety net: fillMaxWidth (not fillMaxSize) lets the
         // content keep its intrinsic height, so on a card too short for the full
         // head + metrics + forecast it scrolls instead of clipping; on a tall
@@ -108,7 +122,7 @@ internal fun WeatherCard(
                     .padding(FemtoDimens.CardPaddingCompact),
             verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
         ) {
-            Head(snapshot, temperatureUnit)
+            Head(snapshot, temperatureUnit, asOf)
             Metrics(snapshot, temperatureUnit, speedUnit)
             Forecast(snapshot.hourly, snapshot.sunrise, snapshot.sunset, temperatureUnit, is24Hour)
         }
@@ -117,10 +131,45 @@ internal fun WeatherCard(
     }
 }
 
+/**
+ * Re-evaluate [snapshot] freshness on a tick so the card surfaces an "as of"
+ * caption once the data ages past [WEATHER_STALE_THRESHOLD] during an outage.
+ * The cached snapshot's `fetchedAt` does not change while the repository keeps
+ * serving it (and the StateFlow conflates the identical value), so without this
+ * local tick the card would show hours-old data as current. Mirrors
+ * [rememberLocationFresh]; once stale, the loop stops until a new snapshot.
+ */
+@Composable
+private fun rememberWeatherFresh(snapshot: WeatherSnapshot): Boolean =
+    produceState(initialValue = !snapshot.isStale(Instant.now()), snapshot) {
+        while (value) {
+            delay(STALE_RECHECK_INTERVAL_MS)
+            value = !snapshot.isStale(Instant.now())
+        }
+    }.value
+
+// Cadence of the staleness re-check; the threshold is an hour, so a minute's
+// granularity flips the caption within a minute of crossing it.
+private const val STALE_RECHECK_INTERVAL_MS = 60_000L
+
+private val AsOfFormatter12: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
+
+// "as of" needs minute precision, so it cannot reuse the forecast's hour-only
+// 12h formatter; the 24h "HH:mm" formatter already carries minutes.
+private fun asOfTimeLabel(
+    fetchedAt: Instant,
+    is24Hour: Boolean,
+): String =
+    fetchedAt
+        .atZone(ZoneId.systemDefault())
+        .toLocalTime()
+        .format(if (is24Hour) ForecastHourFormatter24 else AsOfFormatter12)
+
 @Composable
 private fun Head(
     snapshot: WeatherSnapshot,
     temperatureUnit: TemperatureUnit,
+    asOfLabel: String?,
 ) {
     val tempLabel = "${temperatureUnit.fromCelsius(snapshot.tempC).roundToInt()}"
     val glyphs = weatherGlyphs()
@@ -133,24 +182,36 @@ private fun Head(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Row(verticalAlignment = Alignment.Top) {
-            Text(
-                text = tempLabel,
-                style = MaterialTheme.typography.bigNumber(size = 46.sp),
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-            )
-            Text(
-                text = temperatureUnit.label(),
-                style =
-                    MaterialTheme.typography.titleMedium.copy(
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        lineHeight = 20.sp,
-                    ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp, start = 2.dp),
-            )
+        Column {
+            // Stale-data eyebrow: only present once the snapshot ages past the
+            // staleness threshold, so fresh readings carry no extra chrome.
+            if (asOfLabel != null) {
+                Text(
+                    text = asOfLabel,
+                    style = MaterialTheme.typography.sectionLabel(10, 0.08f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+            Row(verticalAlignment = Alignment.Top) {
+                Text(
+                    text = tempLabel,
+                    style = MaterialTheme.typography.bigNumber(size = 46.sp),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                )
+                Text(
+                    text = temperatureUnit.label(),
+                    style =
+                        MaterialTheme.typography.titleMedium.copy(
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            lineHeight = 20.sp,
+                        ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp, start = 2.dp),
+                )
+            }
         }
         Icon(
             imageVector = glyphIconFor(snapshot.code, snapshot.isDay),

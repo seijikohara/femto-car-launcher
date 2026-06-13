@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.data.weather
 
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -18,6 +19,22 @@ internal data class WeatherSnapshot(
     val daily: List<DailyForecast>,
     val fetchedAt: Instant,
 )
+
+// A snapshot older than this reads as stale. Under normal operation the weather
+// refreshes every REFRESH_INTERVAL (30 min), so crossing 2x that means at least
+// two missed refresh windows — a real outage (e.g. a 429 on the shared public
+// Open-Meteo endpoint), not a routine gap. The card surfaces an "as of HH:mm"
+// caption past this age so hours-old data is never shown as current.
+internal val WEATHER_STALE_THRESHOLD: Duration = Duration.ofMinutes(60)
+
+/**
+ * Return whether this snapshot is older than [WEATHER_STALE_THRESHOLD] at [now].
+ * `abs()` tolerates a clock that moved backwards between fetch and read (NTP
+ * correction, manual time change) rather than reporting a future fetch as fresh
+ * forever.
+ */
+internal fun WeatherSnapshot.isStale(now: Instant): Boolean =
+    Duration.between(fetchedAt, now).abs() >= WEATHER_STALE_THRESHOLD
 
 internal data class HourlyForecast(
     val time: LocalTime,

@@ -13,7 +13,9 @@ import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
+import java.time.Instant
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 class WeatherCardTest {
@@ -129,6 +131,46 @@ class WeatherCardTest {
         // pattern because the meridiem word is locale-dependent ("PM" / "午後").
         val expected = LocalTime.of(12, 0).format(DateTimeFormatter.ofPattern("h a"))
         rule.onNodeWithText(expected).assertIsDisplayed()
+    }
+
+    @Test
+    fun shows_as_of_caption_when_data_is_stale() {
+        // The fixture's default fetchedAt is weeks old, so the snapshot reads as
+        // stale against the wall clock and the card surfaces the "as of" eyebrow.
+        val fetchedAt = Instant.parse("2026-05-01T05:32:00Z")
+        val expectedTime =
+            fetchedAt
+                .atZone(ZoneId.systemDefault())
+                .toLocalTime()
+                .format(DateTimeFormatter.ofPattern("HH:mm"))
+        rule.setContent {
+            FemtoTheme {
+                WeatherCard(
+                    snapshot = fakeWeatherSnapshot(fetchedAt = fetchedAt),
+                    temperatureUnit = TemperatureUnit.CELSIUS,
+                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    is24Hour = true,
+                    onOpen = {},
+                )
+            }
+        }
+        rule.onNodeWithText("as of $expectedTime").assertIsDisplayed()
+    }
+
+    @Test
+    fun hides_as_of_caption_when_data_is_fresh() {
+        rule.setContent {
+            FemtoTheme {
+                WeatherCard(
+                    snapshot = fakeWeatherSnapshot(fetchedAt = Instant.now()),
+                    temperatureUnit = TemperatureUnit.CELSIUS,
+                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    is24Hour = true,
+                    onOpen = {},
+                )
+            }
+        }
+        rule.onNodeWithText("as of ", substring = true).assertDoesNotExist()
     }
 
     @Test
