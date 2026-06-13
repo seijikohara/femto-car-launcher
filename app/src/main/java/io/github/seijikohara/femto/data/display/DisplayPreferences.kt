@@ -307,8 +307,9 @@ internal class DisplayPreferences(
 
 // Decode the render mode, migrating the short-lived three-mode values
 // (LIVE_HARDWARE / LIVE_SOFTWARE) back to LIVE, so anyone who picked a live map
-// keeps it after the software backend was removed.
-private fun String?.toMapRenderModeOr(fallback: MapRenderMode): MapRenderMode =
+// keeps it after the software backend was removed. internal so the migration is
+// unit-testable without a raw write to the private DataStore.
+internal fun String?.toMapRenderModeOr(fallback: MapRenderMode): MapRenderMode =
     when (this) {
         "LIVE_HARDWARE", "LIVE_SOFTWARE" -> MapRenderMode.LIVE
         else -> toEnumOr(fallback)
