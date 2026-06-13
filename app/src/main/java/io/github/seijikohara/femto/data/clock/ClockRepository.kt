@@ -12,7 +12,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.shareIn
@@ -27,7 +26,7 @@ internal class ClockRepository(
     // process dies.
     private val zoneProvider: () -> ZoneId = ZoneId::systemDefault,
     // Owns the single shared receiver subscription (mirrors LocationRepository);
-    // tests inject their own scope to drive shareIn deterministically. The
+    // injectable so a test can drive shareIn deterministically. The
     // default scope is process-lifetime by design — it is never cancelled;
     // [WhileUiSubscribed] parks the upstream (and unregisters the receiver) when
     // no collector is live.

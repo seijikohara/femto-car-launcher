@@ -10,14 +10,14 @@ class MapSchemeTest {
     fun `accent resolves to the light base in the light context`() {
         val ref = mapStyleRefFor(MapColorScheme.ACCENT, isDark = false)
         assertTrue(ref is MapStyleRef.Accent)
-        assertEquals(LIGHT_STYLE_ASSET, (ref as MapStyleRef.Accent).baseAsset)
+        assertEquals(LIGHT_STYLE_ASSET, ref.baseAsset)
     }
 
     @Test
     fun `accent resolves to the dark base in the dark context`() {
         val ref = mapStyleRefFor(MapColorScheme.ACCENT, isDark = true)
         assertTrue(ref is MapStyleRef.Accent)
-        assertEquals(DARK_STYLE_ASSET, (ref as MapStyleRef.Accent).baseAsset)
+        assertEquals(DARK_STYLE_ASSET, ref.baseAsset)
     }
 
     @Test
