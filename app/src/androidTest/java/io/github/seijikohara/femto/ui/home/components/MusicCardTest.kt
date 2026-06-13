@@ -110,6 +110,13 @@ class MusicCardTest {
     @Test
     fun spectrum_background_does_not_intercept_transport_taps() {
         var command: MusicCommand? = null
+        // A non-null spectrum drives SpectrumBackground's continuous
+        // withFrameNanos loop, which keeps the Compose frame clock perpetually
+        // busy and times out Espresso's idle wait at setContent. Pausing the
+        // clock parks the loop on its next-frame suspension, so waitForIdle no
+        // longer sees pending frame work; the static transport layout still
+        // composes and lays out, which is all this tap test needs.
+        rule.mainClock.autoAdvance = false
         rule.setContent {
             FemtoTheme {
                 MusicCard(
