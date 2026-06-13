@@ -58,11 +58,11 @@ internal fun femtoTypography(family: FontFamily): Typography =
  * advance width so changing numbers (clock, speed, temperature, day) do not
  * shift surrounding layout as their glyphs change.
  *
- * Keeps its PascalCase SSOT name across callers rather than ktlint's
- * SCREAMING_SNAKE_CASE for `const val`.
+ * A plain `val`, not `const val`: ktlint mandates SCREAMING_SNAKE_CASE for
+ * compile-time constants, and this keeps its PascalCase SSOT name across
+ * callers.
  */
-@Suppress("ktlint:standard:property-naming")
-internal const val TabularFigures = "tnum"
+internal val TabularFigures = "tnum"
 
 /**
  * Return the shared big-number display style used for the calendar big-day and

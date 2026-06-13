@@ -19,7 +19,6 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
-import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import android.os.Build
 import android.telephony.SignalStrength
@@ -154,16 +153,19 @@ internal class SystemStatusRepository(
 
     // NetworkCapabilities.getSignalStrength() (API 30) returns the Wi-Fi RSSI in
     // dBm reactively via onCapabilitiesChanged, so no RSSI_CHANGED_ACTION poll is
-    // needed. WifiManager.calculateSignalLevel(rssi, numLevels) maps it onto
-    // 0..numLevels-1; SIGNAL_LEVEL_COUNT keeps that aligned with the shared
-    // 0..MAX_SIGNAL_LEVEL graduated icon range so no rescale is required.
-    @Suppress("DEPRECATION") // The numLevels overload is the only one that pins a fixed 0..4 range.
+    // needed. The level map is computed locally over the same -100..-55 dBm
+    // window the platform's legacy calculateSignalLevel(rssi, numLevels) used:
+    // that overload is deprecated, and its replacement instance overload reads
+    // an OEM-configurable ceiling through the Wi-Fi service, which neither pins
+    // the dock's fixed 0..MAX_SIGNAL_LEVEL range nor runs under Robolectric.
     private fun wifiLevelFrom(caps: NetworkCapabilities): Int {
         val rssi = caps.signalStrength
         if (rssi == Int.MIN_VALUE) return 0
-        return WifiManager
-            .calculateSignalLevel(rssi, SIGNAL_LEVEL_COUNT)
-            .coerceIn(0, MAX_SIGNAL_LEVEL)
+        return when {
+            rssi <= WIFI_MIN_RSSI_DBM -> 0
+            rssi >= WIFI_MAX_RSSI_DBM -> MAX_SIGNAL_LEVEL
+            else -> (rssi - WIFI_MIN_RSSI_DBM) * MAX_SIGNAL_LEVEL / (WIFI_MAX_RSSI_DBM - WIFI_MIN_RSSI_DBM)
+        }
     }
 
     /**
@@ -454,10 +456,11 @@ internal class SystemStatusRepository(
         // range.
         private const val MAX_SIGNAL_LEVEL = 4
 
-        // Number of buckets WifiManager.calculateSignalLevel(rssi, numLevels) maps
-        // the RSSI onto; numLevels - 1 is the top index, so this pins the Wi-Fi
-        // output to the same 0..MAX_SIGNAL_LEVEL range as cellular.
-        private const val SIGNAL_LEVEL_COUNT = MAX_SIGNAL_LEVEL + 1
+        // Bounds of the linear RSSI→level window used by wifiLevelFrom; the same
+        // -100..-55 dBm range the platform's legacy
+        // calculateSignalLevel(rssi, numLevels) mapped onto its buckets.
+        private const val WIFI_MIN_RSSI_DBM = -100
+        private const val WIFI_MAX_RSSI_DBM = -55
 
         // How long a GPS fix counts as "fresh" before gpsFlow flips back to
         // searching. A live LocationRepository fix arrives roughly every second,
