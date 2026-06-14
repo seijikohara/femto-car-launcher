@@ -25,11 +25,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import io.github.seijikohara.femto.data.apps.AppsRepository
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
@@ -40,7 +43,9 @@ import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
 import io.github.seijikohara.femto.data.fonts.FontRepository
 import io.github.seijikohara.femto.data.fonts.FontSlot
+import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.hasBluetoothConnectPermission
+import io.github.seijikohara.femto.data.location.hasCoarseLocationPermission
 import io.github.seijikohara.femto.data.location.hasFineLocationPermission
 import io.github.seijikohara.femto.data.location.hasReadCalendarPermission
 import io.github.seijikohara.femto.data.location.hasReadPhoneStatePermission
@@ -88,6 +93,7 @@ class MainActivity : ComponentActivity() {
         enableEmulatorMapRendering()
         enableEdgeToEdge()
         requestRuntimePermissions()
+        observeBackgroundRanging()
         // Keep the cached fullscreen choice in sync so onWindowFocusChanged can
         // re-hide the bars after focus returns from another Activity.
         lifecycleScope.launch {
@@ -443,6 +449,55 @@ class MainActivity : ComponentActivity() {
                 }
             }
         if (needed.isNotEmpty()) permissionsLauncher.launch(needed.toTypedArray())
+    }
+
+    /**
+     * Start or stop the background-ranging foreground service to track the
+     * persisted opt-in toggle. The collection runs only in the STARTED state, so
+     * the service is always *started* from the foreground (Android forbids a
+     * background foreground-service start); when the launcher backgrounds the
+     * collection pauses without stopping a running service, which is the point —
+     * the trip keeps accruing behind a navigation app. Returning to the
+     * foreground re-asserts the toggle, restarting tracking after any
+     * out-of-process stop.
+     */
+    private fun observeBackgroundRanging() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                LocationGraph.get(this@MainActivity).backgroundRangingEnabled.collect { enabled ->
+                    // A location-typed foreground service throws on Android 14+ if
+                    // started without a location grant, so gate on it. The toggle
+                    // then takes effect on the next foreground once the user grants
+                    // location, rather than crashing the launcher here.
+                    if (enabled && (hasFineLocationPermission() || hasCoarseLocationPermission())) {
+                        ensurePostNotificationsPermission()
+                        startBackgroundRanging()
+                    } else if (!enabled) {
+                        TripTrackingService.stop(this@MainActivity)
+                    }
+                }
+            }
+        }
+    }
+
+    // The platform can still reject a foreground-service start in rare timing
+    // windows (e.g. a race with the app leaving the foreground); a failed start
+    // must degrade to no background tracking, never crash the launcher.
+    private fun startBackgroundRanging() {
+        runCatching { TripTrackingService.start(this) }
+            .onFailure { Log.w(TAG, "background ranging service start rejected", it) }
+    }
+
+    // The foreground service runs without it, but the ongoing trip notification
+    // only shows once granted. Request at the opt-in point, never at startup.
+    // POST_NOTIFICATIONS is a runtime grant at the minSdk-33 floor, so no
+    // SDK_INT guard is needed.
+    private fun ensurePostNotificationsPermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            permissionsLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+        }
     }
 
     /**

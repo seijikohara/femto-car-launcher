@@ -227,6 +227,8 @@
     <string name="settings_group_location_min_distance">Minimum distance</string>
     <string name="settings_location_min_distance_value">%1$d m</string>
     <string name="settings_location_min_distance_desc">Skip updates closer than this to the last position; 0 delivers every fix.</string>
+    <string name="settings_group_background_ranging">Background ranging</string>
+    <string name="settings_background_ranging_desc">Keep measuring distance and average speed while you use another app, such as navigation. Runs continuous GPS with an ongoing notification, so it uses more power.</string>
     <string name="settings_group_panel_calendar">Calendar panel</string>
     <string name="settings_group_panel_weather">Weather panel</string>
     <string name="settings_group_panel_music">Music panel</string>
@@ -279,4 +281,11 @@
     <string name="settings_reset_confirm_title">Reset all settings?</string>
     <string name="settings_reset_confirm_message">This restores every display, unit, map, location, panel and font setting to its default value.</string>
     <string name="settings_reset_confirm">Reset</string>
+
+    <!-- Background-ranging foreground-service notification -->
+    <string name="notification_trip_channel_name">Trip tracking</string>
+    <string name="notification_trip_channel_desc">Ongoing notification shown while distance and average speed are measured in the background.</string>
+    <string name="notification_trip_title">Trip tracking</string>
+    <!-- %1$s = current speed, %2$s = distance, %3$s = average speed -->
+    <string name="notification_trip_text">%1$s · %2$s · avg %3$s</string>
 </resources>

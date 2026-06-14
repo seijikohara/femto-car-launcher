@@ -20,9 +20,7 @@ import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.geocoding.NominatimApi
 import io.github.seijikohara.femto.data.geocoding.ReverseGeocoderRepository
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
-import io.github.seijikohara.femto.data.location.LocationPreferences
-import io.github.seijikohara.femto.data.location.LocationRepository
-import io.github.seijikohara.femto.data.location.TripRepository
+import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.music.AudioSpectrumRepository
 import io.github.seijikohara.femto.data.music.MusicCardState
@@ -239,8 +237,11 @@ internal class HomeViewModelFactory(
         modelClass: Class<T>,
         extras: CreationExtras,
     ): T {
-        val location = LocationRepository(application, LocationPreferences(application).settings)
-        val locationFlow = location.locationFlow()
+        // The location pipeline (GPS registration + trip accumulators) is an
+        // app-scoped singleton so the dashboard and the background-ranging
+        // foreground service share one registration and one running total.
+        val locationGraph = LocationGraph.get(application)
+        val locationFlow = locationGraph.locationFlow()
         val clock = ClockRepository(application)
         val clockFlow = clock.tickFlow()
         // Share one OkHttpClient across the weather and geocoding APIs so the
@@ -271,7 +272,6 @@ internal class HomeViewModelFactory(
         val audioSpectrum = AudioSpectrumRepository(application)
         val calendar = CalendarRepository(application, clockFlow)
         val systemStatus = SystemStatusRepository(application, locationFlow)
-        val trip = TripRepository(locationFlow)
         val apps = AppsRepository(application)
 
         @Suppress("UNCHECKED_CAST")
@@ -283,9 +283,9 @@ internal class HomeViewModelFactory(
             musicStateFlow = music.stateFlow(),
             calendarFlow = calendar.snapshotFlow(),
             systemStatusFlow = systemStatus.statusFlow(),
-            tripStateFlow = trip.stateFlow(),
+            tripStateFlow = locationGraph.tripState,
             sendMusicCommand = music::send,
-            resetTrip = trip::reset,
+            resetTrip = locationGraph::resetTrip,
             resolveMusicSourceComponent = apps::launcherComponentFor,
             spectrumEnabledFlow =
                 DisplayPreferences(application)

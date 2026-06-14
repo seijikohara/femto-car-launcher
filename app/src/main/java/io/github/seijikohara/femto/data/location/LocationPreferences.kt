@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.data.location
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -35,6 +36,14 @@ internal const val DEFAULT_LOCATION_INTERVAL_MS = 250L
 internal const val DEFAULT_LOCATION_MIN_DISTANCE_M = 0
 
 /**
+ * Background ranging is opt-in (default off): it starts a location foreground
+ * service so the trip distance / average keep accruing while another app (e.g. a
+ * navigation app) is in front. Off by default because it runs continuous GPS and
+ * posts an ongoing notification — a deliberate user choice, not a silent default.
+ */
+internal const val DEFAULT_BACKGROUND_RANGING_ENABLED = false
+
+/**
  * User-tunable location request parameters. The defaults ask for maximum
  * precision; Settings exposes each knob so the user can dial the request back
  * when the head-unit hardware struggles at chip-native rates.
@@ -43,6 +52,7 @@ internal data class LocationSettings(
     val quality: LocationQualitySetting,
     val intervalMillis: Long,
     val minUpdateDistanceMeters: Int,
+    val backgroundRangingEnabled: Boolean,
 ) {
     companion object {
         val Default =
@@ -50,6 +60,7 @@ internal data class LocationSettings(
                 quality = LocationQualitySetting.HIGH_ACCURACY,
                 intervalMillis = DEFAULT_LOCATION_INTERVAL_MS,
                 minUpdateDistanceMeters = DEFAULT_LOCATION_MIN_DISTANCE_M,
+                backgroundRangingEnabled = DEFAULT_BACKGROUND_RANGING_ENABLED,
             )
     }
 }
@@ -67,6 +78,8 @@ internal interface LocationSettingsStore {
     suspend fun setIntervalMillis(value: Long)
 
     suspend fun setMinUpdateDistanceMeters(value: Int)
+
+    suspend fun setBackgroundRangingEnabled(value: Boolean)
 
     /** Restore every location setting to [LocationSettings.Default]. */
     suspend fun resetToDefaults()
@@ -86,6 +99,8 @@ internal class LocationPreferences(
                     quality = prefs[QUALITY_KEY].toEnumOr(LocationQualitySetting.HIGH_ACCURACY),
                     intervalMillis = prefs[INTERVAL_KEY] ?: DEFAULT_LOCATION_INTERVAL_MS,
                     minUpdateDistanceMeters = prefs[MIN_DISTANCE_KEY] ?: DEFAULT_LOCATION_MIN_DISTANCE_M,
+                    backgroundRangingEnabled =
+                        prefs[BACKGROUND_RANGING_KEY] ?: DEFAULT_BACKGROUND_RANGING_ENABLED,
                 )
             }
 
@@ -101,6 +116,10 @@ internal class LocationPreferences(
         context.locationDataStore.editOrLog(TAG) { it[MIN_DISTANCE_KEY] = value }
     }
 
+    override suspend fun setBackgroundRangingEnabled(value: Boolean) {
+        context.locationDataStore.editOrLog(TAG) { it[BACKGROUND_RANGING_KEY] = value }
+    }
+
     // Clearing every key makes the read path fall back to its per-field defaults,
     // which are kept identical to LocationSettings.Default — so a reset restores
     // the defaults without duplicating the default literals here.
@@ -112,5 +131,6 @@ internal class LocationPreferences(
         val QUALITY_KEY = stringPreferencesKey("location_quality")
         val INTERVAL_KEY = longPreferencesKey("location_interval_ms")
         val MIN_DISTANCE_KEY = intPreferencesKey("location_min_distance_m")
+        val BACKGROUND_RANGING_KEY = booleanPreferencesKey("background_ranging_enabled")
     }
 }

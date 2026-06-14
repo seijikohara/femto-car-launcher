@@ -27,5 +27,10 @@ internal class FakeLocationSettingsStore(
             it.copy(minUpdateDistanceMeters = value)
         }
 
+    override suspend fun setBackgroundRangingEnabled(value: Boolean) =
+        state.update {
+            it.copy(backgroundRangingEnabled = value)
+        }
+
     override suspend fun resetToDefaults() = state.update { LocationSettings.Default }
 }

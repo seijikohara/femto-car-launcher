@@ -210,6 +210,20 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `SetBackgroundRanging writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetBackgroundRanging(true))
+            advanceUntilIdle()
+            assertEquals(true, locationStore.settings.first().backgroundRangingEnabled)
+        }
+
+    @Test
+    fun `background ranging defaults to off`() =
+        runTest(dispatcher) {
+            assertEquals(false, locationStore.settings.first().backgroundRangingEnabled)
+        }
+
+    @Test
     fun `ResetToDefaults restores display settings to their defaults`() =
         runTest(dispatcher) {
             val vm = viewModel()

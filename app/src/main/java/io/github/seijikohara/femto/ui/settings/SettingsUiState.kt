@@ -52,6 +52,7 @@ internal data class SettingsUiState(
     val locationQuality: LocationQualitySetting,
     val locationIntervalMillis: Long,
     val locationMinDistanceMeters: Int,
+    val backgroundRangingEnabled: Boolean,
 ) {
     companion object {
         // Seeded from the persistence defaults so the default values live in one
@@ -91,6 +92,7 @@ internal data class SettingsUiState(
                 locationQuality = LocationSettings.Default.quality,
                 locationIntervalMillis = LocationSettings.Default.intervalMillis,
                 locationMinDistanceMeters = LocationSettings.Default.minUpdateDistanceMeters,
+                backgroundRangingEnabled = LocationSettings.Default.backgroundRangingEnabled,
             )
     }
 }
@@ -219,6 +221,10 @@ internal sealed interface SettingsAction {
 
     data class SetLocationMinDistance(
         val value: Int,
+    ) : SettingsAction
+
+    data class SetBackgroundRanging(
+        val value: Boolean,
     ) : SettingsAction
 
     /** Restore every display + font + location setting to its default value. */
