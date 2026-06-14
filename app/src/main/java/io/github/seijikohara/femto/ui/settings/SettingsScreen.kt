@@ -392,6 +392,12 @@ internal fun SettingsScreen(
                 onValueChange = { onAction(SettingsAction.SetLocationMinDistance(it)) },
                 description = stringResource(R.string.settings_location_min_distance_desc),
             )
+            SwitchRow(
+                title = stringResource(R.string.settings_group_background_ranging),
+                checked = uiState.backgroundRangingEnabled,
+                onCheckedChange = { onAction(SettingsAction.SetBackgroundRanging(it)) },
+                summary = stringResource(R.string.settings_background_ranging_desc),
+            )
         }
 
         SettingsSection(title = stringResource(R.string.settings_section_panels)) {

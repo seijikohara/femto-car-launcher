@@ -61,6 +61,7 @@ internal class SettingsViewModel(
                 locationQuality = location.quality,
                 locationIntervalMillis = location.intervalMillis,
                 locationMinDistanceMeters = location.minUpdateDistanceMeters,
+                backgroundRangingEnabled = location.backgroundRangingEnabled,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, SettingsUiState.Initial)
 
@@ -190,6 +191,10 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetLocationMinDistance -> {
                     locationPreferences.setMinUpdateDistanceMeters(action.value)
+                }
+
+                is SettingsAction.SetBackgroundRanging -> {
+                    locationPreferences.setBackgroundRangingEnabled(action.value)
                 }
 
                 is SettingsAction.ResetToDefaults -> {
