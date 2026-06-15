@@ -3,6 +3,7 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.aboutlibraries)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.node.gradle)
@@ -173,6 +174,16 @@ android {
     }
 }
 
+// AboutLibraries collects each Gradle dependency's license at build time into
+// res/raw/aboutlibraries.json (bundled, so the licenses screen works offline on
+// the head unit). Non-Gradle components shipped in the app (the webmap
+// maplibre-gl JS bundle) are declared as manual entries under app/config.
+aboutLibraries {
+    collect {
+        configPath = file("config")
+    }
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
@@ -186,6 +197,7 @@ dependencies {
     implementation(platform(libs.okhttp.bom))
     implementation(libs.okhttp)
     implementation(libs.maplibre.android)
+    implementation(libs.aboutlibraries.core)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.material3)

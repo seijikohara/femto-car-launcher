@@ -27,6 +27,7 @@ internal fun SettingsRoute(
     onOpenSystemSettings: () -> Unit,
     onOpenFontPicker: (FontSlot) -> Unit,
     onOpenDiagnostics: () -> Unit,
+    onOpenLicenses: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -63,6 +64,7 @@ internal fun SettingsRoute(
         onOpenSystemSettings = onOpenSystemSettings,
         onOpenFontPicker = onOpenFontPicker,
         onOpenDiagnostics = onOpenDiagnostics,
+        onOpenLicenses = onOpenLicenses,
         modifier = modifier,
     )
 }

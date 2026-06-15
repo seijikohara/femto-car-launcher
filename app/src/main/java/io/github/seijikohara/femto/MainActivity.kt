@@ -61,6 +61,7 @@ import io.github.seijikohara.femto.ui.home.HomeRoute
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
 import io.github.seijikohara.femto.ui.home.components.PanelVisibility
+import io.github.seijikohara.femto.ui.licenses.LicensesSheet
 import io.github.seijikohara.femto.ui.locale.resolved
 import io.github.seijikohara.femto.ui.settings.SettingsSheet
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -152,6 +153,8 @@ class MainActivity : ComponentActivity() {
                 var fontPickerSlot by rememberSaveable { mutableStateOf<FontSlot?>(null) }
                 // Diagnostics opens over settings, like the font picker.
                 var showDiagnostics by rememberSaveable { mutableStateOf(false) }
+                // The open-source licenses sheet opens over settings, like diagnostics.
+                var showLicenses by rememberSaveable { mutableStateOf(false) }
                 HomeRoute(
                     is24Hour = resolveIs24Hour(display.clock),
                     showClockSeconds = display.showClockSeconds,
@@ -227,6 +230,7 @@ class MainActivity : ComponentActivity() {
                         onOpenSystemSettings = ::openSystemSettings,
                         onOpenFontPicker = { fontPickerSlot = it },
                         onOpenDiagnostics = { showDiagnostics = true },
+                        onOpenLicenses = { showLicenses = true },
                         onDismiss = { showSettings = false },
                         fullscreen = fullscreen,
                     )
@@ -241,6 +245,12 @@ class MainActivity : ComponentActivity() {
                 if (showDiagnostics) {
                     DiagnosticsSheet(
                         onDismiss = { showDiagnostics = false },
+                        fullscreen = fullscreen,
+                    )
+                }
+                if (showLicenses) {
+                    LicensesSheet(
+                        onDismiss = { showLicenses = false },
                         fullscreen = fullscreen,
                     )
                 }

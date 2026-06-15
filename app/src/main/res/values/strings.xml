@@ -237,6 +237,7 @@
     <string name="settings_open_notification_access">Notification access</string>
     <string name="settings_open_system_settings">System settings</string>
     <string name="settings_open_diagnostics">Diagnostics</string>
+    <string name="settings_open_licenses">Open source licenses</string>
 
     <!-- Diagnostics sheet -->
     <string name="diagnostics_title">Diagnostics</string>
@@ -281,6 +282,16 @@
     <string name="settings_reset_confirm_title">Reset all settings?</string>
     <string name="settings_reset_confirm_message">This restores every display, unit, map, location, panel and font setting to its default value.</string>
     <string name="settings_reset_confirm">Reset</string>
+
+    <!-- Open source licenses sheet -->
+    <string name="licenses_title">Open source licenses</string>
+    <string name="licenses_loading">Loading…</string>
+    <string name="licenses_unavailable">License information is unavailable.</string>
+    <string name="licenses_section_libraries">Libraries</string>
+    <string name="licenses_section_map_data">Map &amp; data</string>
+    <string name="licenses_section_fonts">Fonts</string>
+    <string name="licenses_map_data_note">Map data and tiles are provided under the Open Database License (ODbL) and CC BY 4.0. See each project for full terms.</string>
+    <string name="licenses_fonts_note">Typography is provided on demand by Google Fonts, each family under its own SIL Open Font License (OFL) or Apache License 2.0. Fonts are downloaded and cached on the device; none are bundled in the app.</string>
 
     <!-- Background-ranging foreground-service notification -->
     <string name="notification_trip_channel_name">Trip tracking</string>
