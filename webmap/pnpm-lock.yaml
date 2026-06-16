@@ -13,16 +13,16 @@ importers:
         version: 5.24.0
     devDependencies:
       '@biomejs/biome':
-        specifier: ^2.4.16
+        specifier: 2.5.0
         version: 2.5.0
       typescript:
-        specifier: ~6.0.3
+        specifier: 6.0.3
         version: 6.0.3
       vite:
-        specifier: ^8.0.16
+        specifier: 8.0.16
         version: 8.0.16
       vitest:
-        specifier: ^4.1.8
+        specifier: 4.1.8
         version: 4.1.8(vite@8.0.16)
 
 packages:
