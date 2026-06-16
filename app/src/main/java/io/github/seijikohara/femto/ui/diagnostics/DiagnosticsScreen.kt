@@ -31,6 +31,7 @@ import io.github.seijikohara.femto.data.system.PerformanceSnapshot
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.monoReference
 import java.util.Locale
 
 /**
@@ -280,11 +281,7 @@ private fun LogsSection(logs: List<String>) =
                 // they take the sanctioned GlanceTextSize relaxation.
                 Text(
                     text = line,
-                    style =
-                        MaterialTheme.typography.bodySmall.copy(
-                            fontSize = FemtoDimens.GlanceTextSize,
-                            fontFamily = FontFamily.Monospace,
-                        ),
+                    style = MaterialTheme.typography.monoReference(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
