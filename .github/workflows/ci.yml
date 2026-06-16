@@ -95,7 +95,7 @@ jobs:
           # Write outside the checked-out tree; $RUNNER_TEMP is auto-cleaned.
           echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
 
-      - name: Build signed release APK
+      - name: Build signed release APK and AAB
         env:
           RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
@@ -103,10 +103,14 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
           NIGHTLY_VERSION_CODE: ${{ github.run_number }}
           NIGHTLY_VERSION_NAME: nightly-${{ github.run_number }}-${{ github.sha }}
-        run: ./gradlew assembleRelease --stacktrace
+        # AAB is the Play upload format (required for new apps); APK stays for
+        # direct sideload onto AI boxes / head units off the GitHub release.
+        run: ./gradlew assembleRelease bundleRelease --stacktrace
 
-      - name: Stage APK with a meaningful asset name
-        run: cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/femto-car-launcher-nightly.apk"
+      - name: Stage artifacts with meaningful asset names
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/femto-car-launcher-nightly.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/femto-car-launcher-nightly.aab"
 
       - name: Publish rolling nightly prerelease
         env:
@@ -118,6 +122,7 @@ jobs:
           gh release delete nightly --yes --cleanup-tag || true
           gh release create nightly \
             "$RUNNER_TEMP/femto-car-launcher-nightly.apk" \
+            "$RUNNER_TEMP/femto-car-launcher-nightly.aab" \
             --target "$GITHUB_SHA" \
             --title "Nightly ${{ github.run_number }}" \
             --notes "Automated nightly build from ${GITHUB_SHA:0:7} (run #${{ github.run_number }}) on $(date -u +%Y-%m-%d)." \

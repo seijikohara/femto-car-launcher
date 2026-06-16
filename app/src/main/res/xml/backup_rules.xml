@@ -1,13 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Legacy Auto Backup rules (devices on API <= 30; minSdk is 33 so
+   data_extraction_rules.xml governs in practice). Kept consistent with it:
+   exclude location-related settings from backup.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <exclude domain="file" path="datastore/location_preferences.preferences_pb" />
 </full-backup-content>

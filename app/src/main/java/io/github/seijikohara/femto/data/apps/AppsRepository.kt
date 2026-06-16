@@ -57,22 +57,29 @@ internal class AppsRepository(
     /**
      * Launch the given activity and report whether it resolved.
      *
-     * Return `false` for [ActivityNotFoundException] — a stale shortcut
-     * after an uninstall must not crash the HOME launcher. Other errors
-     * still propagate (matches `MainActivity#startActivityIfResolved`).
+     * Return `false` for the two failures a HOME launcher must survive when
+     * tapping a third-party tile: [ActivityNotFoundException] (a stale shortcut
+     * after an uninstall) and [SecurityException] (an OEM activity that turns
+     * out to be non-exported or permission-guarded). Either would otherwise
+     * crash the launcher process. Other errors still propagate
+     * (matches `MainActivity#tryStartActivity`).
      */
     fun launch(componentName: ComponentName): Boolean =
         runCatching { startActivity(componentName) }
             .fold(
                 onSuccess = { true },
                 onFailure = { error ->
-                    if (error is ActivityNotFoundException) {
-                        // The only field trail for a dead tap on a stale tile —
-                        // head units are typically adb-unreachable.
-                        Log.w(TAG, "activity not found for ${componentName.flattenToShortString()}")
-                        false
-                    } else {
-                        throw error
+                    when (error) {
+                        is ActivityNotFoundException, is SecurityException -> {
+                            // The only field trail for a dead tap — head units
+                            // are typically adb-unreachable.
+                            Log.w(TAG, "could not launch ${componentName.flattenToShortString()}", error)
+                            false
+                        }
+
+                        else -> {
+                            throw error
+                        }
                     }
                 },
             )

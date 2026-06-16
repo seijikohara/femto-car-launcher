@@ -231,6 +231,7 @@ class MainActivity : ComponentActivity() {
                         onOpenFontPicker = { fontPickerSlot = it },
                         onOpenDiagnostics = { showDiagnostics = true },
                         onOpenLicenses = { showLicenses = true },
+                        onOpenPrivacyPolicy = ::openPrivacyPolicy,
                         onDismiss = { showSettings = false },
                         fullscreen = fullscreen,
                     )
@@ -413,6 +414,13 @@ class MainActivity : ComponentActivity() {
         tryStartActivity(intent)
     }
 
+    private fun openPrivacyPolicy() {
+        val intent =
+            Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_POLICY_URL))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        tryStartActivity(intent)
+    }
+
     private fun launchAppCategory(category: String) {
         // makeMainSelectorActivity defers picker to whichever app the user has
         // elected as the default for the given semantic category — works
@@ -512,16 +520,21 @@ class MainActivity : ComponentActivity() {
 
     /**
      * Start [intent], returning whether an activity handled it. Fire-and-forget
-     * callers ignore the result. [ActivityNotFoundException] means the head unit
-     * has no app for the target — a silent no-op rather than a dead-click crash;
-     * any other failure (e.g. `SecurityException`) propagates.
+     * callers ignore the result. The two failures a HOME launcher must survive
+     * are swallowed as a silent no-op rather than a dead-click crash:
+     * [ActivityNotFoundException] (the head unit has no app for the target) and
+     * [SecurityException] (the target activity is non-exported or
+     * permission-guarded — common on OEM head units). Other failures propagate.
      */
     private fun tryStartActivity(intent: Intent): Boolean =
         try {
             startActivity(intent)
             true
-        } catch (_: ActivityNotFoundException) {
-            Log.w(TAG, "no handler for ${intent.component?.flattenToShortString() ?: intent.action}")
+        } catch (e: ActivityNotFoundException) {
+            Log.w(TAG, "no handler for ${intent.component?.flattenToShortString() ?: intent.action}", e)
+            false
+        } catch (e: SecurityException) {
+            Log.w(TAG, "not permitted to launch ${intent.component?.flattenToShortString() ?: intent.action}", e)
             false
         }
 
@@ -561,3 +574,7 @@ private const val QEMU_PROPERTY = "ro.kernel.qemu"
 // Street-level zoom for the geo: handoff — close enough to read nearby roads
 // without dropping below neighbourhood context.
 private const val MAPS_ZOOM_LEVEL = 15
+
+// Hosted privacy policy (PRIVACY.md rendered on GitHub); also set as the Play
+// listing privacy-policy URL. Opened from Settings -> System -> Privacy policy.
+private const val PRIVACY_POLICY_URL = "https://github.com/seijikohara/femto-car-launcher/blob/main/PRIVACY.md"
