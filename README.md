@@ -44,8 +44,8 @@ The home screen is a fixed dashboard rather than a scrolling grid of apps.
   derived from the Global Positioning System (GPS), plus the
   reverse-geocoded address of the current position.
 - **Weather card** — current conditions, apparent ("feels-like")
-  temperature, wind, humidity, and an hourly forecast from the Open-Meteo
-  service.
+  temperature, wind, humidity, and an hourly forecast from MET Norway
+  (`api.met.no`).
 - **Calendar card** — a six-day strip and the upcoming events read from the
   device calendar.
 - **Now-playing card** — the active media session (title, artist, source
@@ -108,9 +108,10 @@ sideloading on the head unit.
   [`webmap/`](webmap/) (Vite + MapLibre GL JS). Gradle builds it with a
   self-provisioned Node.js + pnpm toolchain and embeds the output in the
   app's assets; the launcher loads it in a WebView.
-- **Network:** the map is keyless. Weather (Open-Meteo) and reverse
-  geocoding (OpenStreetMap Nominatim) default to public endpoints and
-  accept configurable production hosts (see [Configuration](#configuration)).
+- **Network:** the map is keyless. Weather uses MET Norway
+  (`api.met.no`, free for commercial use); reverse geocoding uses the
+  on-device platform geocoder by default. Both accept a configurable
+  self-hosted host (see [Configuration](#configuration)).
 
 ## Tech stack
 
@@ -183,13 +184,14 @@ production traffic. Override them for a release build through the git-ignored
 
 | Property | Purpose | Default |
 | --- | --- | --- |
-| `WEATHER_BASE_URL` | Open-Meteo host | public Open-Meteo endpoint |
-| `WEATHER_API_KEY` | Open-Meteo key (keyed/self-hosted) | empty |
-| `GEOCODER_BASE_URL` | Nominatim reverse-geocoding host | public Nominatim endpoint |
+| `WEATHER_BASE_URL` | MET Norway host (or a self-hosted proxy) | `https://api.met.no/` |
+| `GEOCODER_BASE_URL` | Self-hosted Nominatim-compatible reverse-geocoding host | empty (on-device platform geocoder) |
 | `GEOCODER_API_KEY` | Geocoder key (when the host requires one) | empty |
 
-When a key is absent, the corresponding service falls back to its public
-endpoint.
+Weather defaults to the public MET Norway endpoint (free for commercial use,
+ToS-compliant). Reverse geocoding has **no** public default: when
+`GEOCODER_BASE_URL` is empty the launcher uses the on-device platform geocoder;
+set it to a self-hosted host to use network geocoding instead.
 
 ## Continuous integration
 
