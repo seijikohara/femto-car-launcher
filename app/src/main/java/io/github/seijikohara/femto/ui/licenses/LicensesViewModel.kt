@@ -71,7 +71,7 @@ internal val LicensesViewModelFactory: ViewModelProvider.Factory =
 // the app/config manual entries) with no network. Off the main thread: the parse
 // touches disk and JSON on screen open.
 private suspend fun loadAboutLibraries(context: Context): List<LicenseItem> =
-    kotlinx.coroutines.withContext(Dispatchers.Default) {
+    kotlinx.coroutines.withContext(Dispatchers.IO) {
         Libs
             .Builder()
             .withContext(context)

@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
@@ -59,47 +61,52 @@ internal fun LicensesScreen(
     }
 }
 
+// The library list runs to ~150 rows. A LazyColumn with stable keys (the
+// AboutLibraries uniqueId) composes only the visible rows instead of all of
+// them up front; the curated map/font credits ride along as fixed items.
 @Composable
 private fun LicensesList(
     uiState: LicensesUiState,
     onSelect: (LicenseItem) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-) = Column(
+) = LazyColumn(
     modifier =
         modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp, vertical = 12.dp),
     verticalArrangement = Arrangement.spacedBy(10.dp),
 ) {
-    Header(title = stringResource(R.string.licenses_title), onBack = onBack)
-    Section(title = stringResource(R.string.licenses_section_libraries)) {
-        when {
-            uiState.libraries.isNotEmpty() -> {
-                uiState.libraries.forEach { item ->
-                    LibraryRow(item = item, onClick = { onSelect(item) })
-                }
-            }
-
-            uiState.isLoading -> {
-                BodyText(stringResource(R.string.licenses_loading))
-            }
-
-            else -> {
-                BodyText(stringResource(R.string.licenses_unavailable))
+    item { Header(title = stringResource(R.string.licenses_title), onBack = onBack) }
+    item { SectionTitle(stringResource(R.string.licenses_section_libraries)) }
+    when {
+        uiState.libraries.isNotEmpty() -> {
+            items(uiState.libraries, key = { it.id }) { item ->
+                LibraryRow(item = item, onClick = { onSelect(item) })
             }
         }
+
+        uiState.isLoading -> {
+            item { BodyText(stringResource(R.string.licenses_loading)) }
+        }
+
+        else -> {
+            item { BodyText(stringResource(R.string.licenses_unavailable)) }
+        }
     }
-    Section(title = stringResource(R.string.licenses_section_map_data)) {
-        // Reuse the on-map attribution strings (their SSOT) and add only the
-        // license-name note here, rather than restating the provider list.
-        BodyText(stringResource(R.string.map_attribution))
-        BodyText(stringResource(R.string.map_attribution_terrain))
-        BodyText(stringResource(R.string.licenses_map_data_note))
+    item {
+        Section(title = stringResource(R.string.licenses_section_map_data)) {
+            // Reuse the on-map attribution strings (their SSOT) and add only the
+            // license-name note here, rather than restating the provider list.
+            BodyText(stringResource(R.string.map_attribution))
+            BodyText(stringResource(R.string.map_attribution_terrain))
+            BodyText(stringResource(R.string.licenses_map_data_note))
+        }
     }
-    Section(title = stringResource(R.string.licenses_section_fonts)) {
-        BodyText(stringResource(R.string.licenses_fonts_note))
+    item {
+        Section(title = stringResource(R.string.licenses_section_fonts)) {
+            BodyText(stringResource(R.string.licenses_fonts_note))
+        }
     }
 }
 
@@ -169,13 +176,17 @@ private fun Section(
     title: String,
     content: @Composable () -> Unit,
 ) = Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    SectionTitle(title)
+    content()
+}
+
+@Composable
+private fun SectionTitle(title: String) =
     Text(
         text = title,
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
     )
-    content()
-}
 
 @Composable
 private fun LibraryRow(
