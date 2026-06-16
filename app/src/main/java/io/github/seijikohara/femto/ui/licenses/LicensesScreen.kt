@@ -30,6 +30,7 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.monoReference
 
 /**
  * Open-source attribution surface: the auto-collected library list (tap a row to
@@ -142,11 +143,7 @@ private fun LicenseDetail(
         text = item.licenseText ?: stringResource(R.string.licenses_unavailable),
         // Dense legal reference text in a sub-sheet: the same GlanceTextSize +
         // monospace relaxation the diagnostics log tail uses.
-        style =
-            MaterialTheme.typography.bodySmall.copy(
-                fontSize = FemtoDimens.GlanceTextSize,
-                fontFamily = FontFamily.Monospace,
-            ),
+        style = MaterialTheme.typography.monoReference(),
         color = MaterialTheme.colorScheme.onSurface,
     )
 }

@@ -136,6 +136,18 @@ internal fun Typography.progressCaption(): TextStyle =
     )
 
 /**
+ * Return the dense monospace reference-text style for legal / log content shown
+ * in sub-sheets (the open-source licenses body and the diagnostics log tail).
+ * Relaxed to the [FemtoDimens.GlanceTextSize] glance floor per
+ * CLAUDE.md#automotive-overrides.
+ */
+internal fun Typography.monoReference(): TextStyle =
+    bodySmall.copy(
+        fontSize = FemtoDimens.GlanceTextSize,
+        fontFamily = FontFamily.Monospace,
+    )
+
+/**
  * Return an uppercase eyebrow / section-label style derived from
  * [Typography.labelSmall]. Callers pass the explicit size and tracking the
  * design SSOT specifies for each strip, so the relaxed sub-18sp eyebrow sizes
