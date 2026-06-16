@@ -16,7 +16,7 @@ private val Context.fontDataStore: DataStore<Preferences> by preferencesDataStor
 private const val TAG = "FontPreferences"
 
 /**
- * DataStore-backed accessor for the user's [FontSelection].
+ * DataStore-backed [FontSelectionStore].
  *
  * Each slot stores a Google Fonts family name; an absent key means the system
  * font (the default), so a fresh install and a reset both fall back to the
@@ -24,8 +24,8 @@ private const val TAG = "FontPreferences"
  */
 internal class FontPreferences(
     private val context: Context,
-) {
-    val selection: Flow<FontSelection> =
+) : FontSelectionStore {
+    override val selection: Flow<FontSelection> =
         context.fontDataStore.data
             .catchIoAsDefaults(TAG)
             .map { prefs ->
@@ -33,7 +33,7 @@ internal class FontPreferences(
             }
 
     /** Persist [family] for [slot]; a null family clears the slot to system. */
-    suspend fun setFamily(
+    override suspend fun setFamily(
         slot: FontSlot,
         family: String?,
     ) {
@@ -45,7 +45,7 @@ internal class FontPreferences(
 
     // Clearing the keys makes the read path fall back to the system font,
     // mirroring DisplayPreferences.resetToDefaults.
-    suspend fun resetToDefaults() {
+    override suspend fun resetToDefaults() {
         context.fontDataStore.editOrLog(TAG) { it.clear() }
     }
 

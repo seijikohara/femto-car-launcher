@@ -244,7 +244,7 @@ internal class FontRepository internal constructor(
             return FontRepository(
                 api = FontCatalogSource(api::catalog),
                 cache = FontCache(cacheRoot, api).asFaceStore(),
-                preferences = FontPreferences(app).asSelectionStore(),
+                preferences = FontPreferences(app),
                 catalogFile = File(app.filesDir, "google_fonts_catalog.json"),
                 scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
             )
@@ -265,16 +265,4 @@ private fun FontCache.asFaceStore(): FontFaceStore =
             keep: Collection<String>,
             alsoProtect: Collection<String>,
         ) = this@asFaceStore.evictExcept(keep, alsoProtect)
-    }
-
-private fun FontPreferences.asSelectionStore(): FontSelectionStore =
-    object : FontSelectionStore {
-        override val selection: Flow<FontSelection> = this@asSelectionStore.selection
-
-        override suspend fun setFamily(
-            slot: FontSlot,
-            family: String?,
-        ) = this@asSelectionStore.setFamily(slot, family)
-
-        override suspend fun resetToDefaults() = this@asSelectionStore.resetToDefaults()
     }

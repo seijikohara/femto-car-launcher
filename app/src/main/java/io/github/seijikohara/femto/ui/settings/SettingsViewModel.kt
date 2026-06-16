@@ -9,6 +9,7 @@ import io.github.seijikohara.femto.data.common.WhileUiSubscribed
 import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.DisplaySettingsStore
 import io.github.seijikohara.femto.data.fonts.FontPreferences
+import io.github.seijikohara.femto.data.fonts.FontSelectionStore
 import io.github.seijikohara.femto.data.location.LocationPreferences
 import io.github.seijikohara.femto.data.location.LocationSettingsStore
 import kotlinx.coroutines.flow.StateFlow
@@ -18,7 +19,7 @@ import kotlinx.coroutines.launch
 
 internal class SettingsViewModel(
     private val displayPreferences: DisplaySettingsStore,
-    private val fontPreferences: FontPreferences,
+    private val fontPreferences: FontSelectionStore,
     private val locationPreferences: LocationSettingsStore,
 ) : ViewModel() {
     val uiState: StateFlow<SettingsUiState> =

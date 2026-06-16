@@ -14,6 +14,7 @@ import io.github.seijikohara.femto.data.fonts.FontPreferences
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
 import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
+import io.github.seijikohara.femto.testfixtures.FakeFontSelectionStore
 import io.github.seijikohara.femto.testfixtures.FakeLocationSettingsStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -31,15 +32,12 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 
-// Robolectric only to obtain an Application for the (inert) FontPreferences; the
-// settings under test go through an in-memory FakeDisplaySettingsStore, so there
-// is no DataStore IO and the test is fully driven by the StandardTestDispatcher.
+// Pure JVM: every collaborator is an in-memory fake, so there is no DataStore IO
+// and the test is fully driven by the StandardTestDispatcher.
 @OptIn(ExperimentalCoroutinesApi::class)
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33])
 class SettingsViewModelTest {
-    private val application: Application = ApplicationProvider.getApplicationContext()
     private val store = FakeDisplaySettingsStore()
+    private val fontStore = FakeFontSelectionStore()
     private val locationStore = FakeLocationSettingsStore()
     private val dispatcher = StandardTestDispatcher()
 
@@ -280,5 +278,5 @@ class SettingsViewModelTest {
             assertEquals(OrientationSetting.LANDSCAPE, store.settings.first().orientation)
         }
 
-    private fun viewModel() = SettingsViewModel(store, FontPreferences(application), locationStore)
+    private fun viewModel() = SettingsViewModel(store, fontStore, locationStore)
 }
