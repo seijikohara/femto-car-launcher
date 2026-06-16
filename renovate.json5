@@ -3,11 +3,15 @@
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   extends: [
     // Maintainer-recommended superset of config:recommended: pins GitHub Action
-    // digests, enables config migration, and keeps dependencies pinned where
-    // the ecosystem supports it.
+    // digests (kept for supply-chain safety) and enables config migration.
     'config:best-practices',
     // Conventional Commits subjects (fix(deps)/chore(deps)) to match the repo.
     ':semanticCommits',
+    // Do not pin npm package versions: keep the existing semver ranges and just
+    // upgrade in place. Overrides best-practices' :pinDevDependencies. GitHub
+    // Action digest pinning is unaffected (it is governed by pinDigests, not
+    // rangeStrategy) and intentionally stays on.
+    ':preserveSemverRanges',
   ],
   timezone: 'Asia/Tokyo',
   // Keep update branches rebased whenever they fall behind main.
@@ -18,16 +22,15 @@
   // settings.
   platformAutomerge: false,
   automergeStrategy: 'squash',
-  // Weekly pnpm-lock.yaml refresh for webmap/, automerged like any other
-  // non-major update.
+  // Weekly pnpm-lock.yaml refresh for webmap/, automerged like any other update.
   lockFileMaintenance: {
     enabled: true,
     automerge: true,
   },
   packageRules: [
     {
-      description: 'Automerge non-major updates once CI is green; majors stay manual',
-      matchUpdateTypes: ['minor', 'patch', 'pin', 'pinDigest', 'digest'],
+      description: 'Automerge every update once CI is green, majors included',
+      matchUpdateTypes: ['major', 'minor', 'patch', 'pinDigest', 'digest'],
       automerge: true,
     },
     {
