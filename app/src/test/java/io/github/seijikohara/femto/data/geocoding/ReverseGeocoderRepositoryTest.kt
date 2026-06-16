@@ -14,11 +14,6 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import okhttp3.OkHttpClient
-import okhttp3.mockwebserver.MockResponse
-import okhttp3.mockwebserver.MockWebServer
-import org.junit.After
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -29,26 +24,12 @@ import kotlin.test.assertNull
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class ReverseGeocoderRepositoryTest {
-    private lateinit var server: MockWebServer
-    private lateinit var client: OkHttpClient
-
-    @Before
-    fun setUp() {
-        server = MockWebServer().apply { start() }
-        client = OkHttpClient()
-    }
-
-    @After
-    fun tearDown() {
-        server.shutdown()
-    }
-
     @Test
-    fun `emits the composed short address for a fix`() =
+    fun `emits the resolved short address for a fix`() =
         runTest {
-            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
+            val geocoder = FakeReverseGeocoder()
 
-            newRepo(flowOf(fakeLocation())).addressFlow().test {
+            newRepo(flowOf(fakeLocation()), geocoder).addressFlow().test {
                 val address = awaitItem()
                 assertEquals("新宿区", address?.locality)
                 assertEquals("東京都新宿区新宿三丁目", address?.displayString())
@@ -57,94 +38,82 @@ class ReverseGeocoderRepositoryTest {
         }
 
     @Test
-    fun `dedupes consecutive near locations to a single network call`() =
+    fun `dedupes consecutive near locations to a single lookup`() =
         runTest {
-            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
+            val geocoder = FakeReverseGeocoder()
 
-            // Two fixes within the 100 m bucket collapse to one emission and
-            // one request.
+            // Two fixes within the 100 m bucket collapse to one emission and one
+            // lookup.
             val flow = flowOf(fakeLocation(), fakeLocation(latitude = 35.65805))
-            newRepo(flow).addressFlow().test {
+            newRepo(flow, geocoder).addressFlow().test {
                 assertEquals("新宿区", awaitItem()?.locality)
                 cancelAndIgnoreRemainingEvents()
             }
 
-            assertEquals(1, server.requestCount)
+            assertEquals(1, geocoder.callCount)
         }
 
     @Test
-    fun `does not issue a second request when revisiting a cached bucket`() =
+    fun `does not issue a second lookup when revisiting a cached bucket`() =
         runTest {
-            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
-            // The far fix gets its own response so the near-bucket revisit is
-            // the only call that must hit the cache instead of the network.
-            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
-
+            val geocoder = FakeReverseGeocoder()
             val near = fakeLocation()
             val far = fakeLocation(latitude = 35.7000)
             // Drain all three fixes (near, far, near) so the cached revisit is
-            // exercised before the request count is asserted. The clock
-            // advances one pacing window per issued request so the far bucket
-            // clears the pacing gate.
-            newRepo(flowOf(near, far, near), nowMs = pacedClock()).addressFlow().test {
+            // exercised. The clock advances one pacing window per lookup so the
+            // far bucket clears the pacing gate.
+            newRepo(flowOf(near, far, near), geocoder, nowMs = pacedClock(geocoder)).addressFlow().test {
                 assertEquals("新宿区", awaitItem()?.locality)
                 awaitItem()
                 assertEquals("新宿区", awaitItem()?.locality)
                 awaitComplete()
             }
 
-            // One request for the near bucket, one for the far bucket; the
-            // revisit of the near bucket is served from the cache.
-            assertEquals(2, server.requestCount)
+            // One lookup for the near bucket, one for the far; the revisit of the
+            // near bucket is served from the cache.
+            assertEquals(2, geocoder.callCount)
         }
 
     @Test
-    fun `falls back to the last cached value on a rate-limit response`() =
+    fun `falls back to the last cached value on a failed lookup`() =
         runTest {
-            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
-            server.enqueue(MockResponse().setResponseCode(429))
-
             // The far fix sits ~4.7 km from the resolved address — inside the
-            // fallback distance bound, so the rate-limited lookup still serves
-            // the last value.
+            // fallback distance bound, so the failed lookup still serves the last
+            // value.
+            val geocoder = FakeReverseGeocoder(listOf(SHINJUKU, null))
             val flow = flowOf(fakeLocation(), fakeLocation(latitude = 35.7000))
-            newRepo(flow, nowMs = pacedClock()).addressFlow().test {
+            newRepo(flow, geocoder, nowMs = pacedClock(geocoder)).addressFlow().test {
                 assertEquals("新宿区", awaitItem()?.locality)
-                // The throttled second bucket returns the cached value, not null.
+                // The failed second bucket returns the cached value, not null.
                 assertEquals("新宿区", awaitItem()?.locality)
                 cancelAndIgnoreRemainingEvents()
             }
         }
 
     @Test
-    fun `skips the network lookup for a new bucket inside the pacing window`() =
+    fun `skips the lookup for a new bucket inside the pacing window`() =
         runTest {
-            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
-            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
-
+            val geocoder = FakeReverseGeocoder()
             // The clock never advances, so the far bucket arrives inside the
-            // pacing window and must reuse the last address with no request.
+            // pacing window and must reuse the last address with no lookup.
             val flow = flowOf(fakeLocation(), fakeLocation(latitude = 35.7000))
-            newRepo(flow, nowMs = { 0L }).addressFlow().test {
+            newRepo(flow, geocoder, nowMs = { 0L }).addressFlow().test {
                 assertEquals("新宿区", awaitItem()?.locality)
                 assertEquals("新宿区", awaitItem()?.locality)
                 awaitComplete()
             }
 
-            assertEquals(1, server.requestCount)
+            assertEquals(1, geocoder.callCount)
         }
 
     @Test
     fun `drops the stale fallback once the fix moves beyond the distance bound`() =
         runTest {
-            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
-            server.enqueue(MockResponse().setResponseCode(429))
-
-            // Advance the clock one pacing window per issued request so the
-            // failing far lookup is actually sent; the far fix is ~115 km from
-            // the last resolved address, far past the fallback distance bound.
+            // The far fix is ~115 km from the last resolved address, far past the
+            // fallback distance bound.
+            val geocoder = FakeReverseGeocoder(listOf(SHINJUKU, null))
             val flow = flowOf(fakeLocation(), fakeLocation(latitude = 36.7000))
-            newRepo(flow, nowMs = pacedClock()).addressFlow().test {
+            newRepo(flow, geocoder, nowMs = pacedClock(geocoder)).addressFlow().test {
                 assertEquals("新宿区", awaitItem()?.locality)
                 // A stale address from 115 km away is worse than no address.
                 assertNull(awaitItem())
@@ -155,9 +124,9 @@ class ReverseGeocoderRepositoryTest {
     @Test
     fun `emits null when the first lookup fails with no cached value`() =
         runTest {
-            server.enqueue(MockResponse().setResponseCode(429))
+            val geocoder = FakeReverseGeocoder(listOf(null))
 
-            newRepo(flowOf(fakeLocation())).addressFlow().test {
+            newRepo(flowOf(fakeLocation()), geocoder).addressFlow().test {
                 assertNull(awaitItem())
                 cancelAndIgnoreRemainingEvents()
             }
@@ -166,7 +135,7 @@ class ReverseGeocoderRepositoryTest {
     @Test
     fun `emits null when location flow yields null`() =
         runTest {
-            newRepo(flowOf(null)).addressFlow().test {
+            newRepo(flowOf(null), FakeReverseGeocoder()).addressFlow().test {
                 assertNull(awaitItem())
                 cancelAndIgnoreRemainingEvents()
             }
@@ -175,17 +144,11 @@ class ReverseGeocoderRepositoryTest {
     @Test
     fun `evicts the eldest bucket once the cache exceeds its bound`() =
         runTest {
+            val geocoder = FakeReverseGeocoder()
             // The eldest fill, MAX_ENTRIES newer fills that push the eldest out,
-            // and the eldest re-query after its eviction each hit the network.
-            val totalRequests = MAX_ENTRIES + 2
-            repeat(totalRequests) { server.enqueue(MockResponse().setBody(SHINJUKU_BODY)) }
+            // and the eldest re-query after its eviction each hit the source.
+            val totalLookups = MAX_ENTRIES + 2
 
-            // Distinct buckets spaced well beyond the 100 m bucket so each fix is
-            // its own cache key. The eldest bucket is filled first, never
-            // re-read while the newer buckets arrive, then revisited last to
-            // prove it was evicted rather than served from the cache. Inserting
-            // the eldest plus MAX_ENTRIES newer buckets overflows the cap by one,
-            // so the eldest is the entry that the LRU drops.
             val eldest = fakeLocation(latitude = BASE_LATITUDE)
             val newer =
                 (1..MAX_ENTRIES).map { index ->
@@ -193,49 +156,38 @@ class ReverseGeocoderRepositoryTest {
                 }
             val fixes = listOf(eldest) + newer + eldest
 
-            newRepo(fixes.asFlow(), nowMs = pacedClock()).addressFlow().test {
+            newRepo(fixes.asFlow(), geocoder, nowMs = pacedClock(geocoder)).addressFlow().test {
                 repeat(fixes.size) { assertEquals("新宿区", awaitItem()?.locality) }
                 awaitComplete()
             }
 
-            // If the eldest were still cached the revisit would be a cache hit
-            // and the count would be MAX_ENTRIES + 1.
-            assertEquals(totalRequests, server.requestCount)
+            // If the eldest were still cached the revisit would be a cache hit and
+            // the count would be MAX_ENTRIES + 1.
+            assertEquals(totalLookups, geocoder.callCount)
         }
 
     @Test
     fun `re-queries a bucket once its cached value passes the TTL`() =
         runTest {
-            // One body per network call: near bucket, far bucket, then the near
-            // bucket again after the TTL expires.
-            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
-            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
-            server.enqueue(MockResponse().setBody(SHINJUKU_BODY))
-
+            val geocoder = FakeReverseGeocoder()
             // The clock crosses the near entry's TTL once the near and far fills
-            // (the first two network calls) have landed. Tying the clock to the
-            // request count makes the TTL crossing deterministic regardless of
-            // when the eager flow drains, where a variable mutated between
-            // awaitItem() calls would race the buffered emissions.
-            // Before the TTL crossing the clock advances one pacing window per
-            // request so the far bucket clears the pacing gate; the crossing
-            // adds that pacing offset because the near entry was stamped at
-            // one window past zero.
+            // (the first two lookups) have landed. Tying the clock to the call
+            // count makes the TTL crossing deterministic regardless of when the
+            // eager flow drains. Before the crossing the clock advances one pacing
+            // window per lookup so the far bucket clears the pacing gate; the
+            // crossing adds that pacing offset because the near entry was stamped
+            // at one window past zero.
             val nowMs = {
-                if (server.requestCount >= 2) {
+                if (geocoder.callCount >= 2) {
                     TTL_MS + NETWORK_PACING_MS + 1
                 } else {
-                    server.requestCount * NETWORK_PACING_MS
+                    geocoder.callCount * NETWORK_PACING_MS
                 }
             }
-            // near -> far -> near: the far fix between the two near visits keeps
-            // distinctUntilChangedByBucket from collapsing them, so the second
-            // near visit actually reaches resolve().
             val near = fakeLocation()
             val far = fakeLocation(latitude = 35.7000)
-            val repo = newRepo(flowOf(near, far, near), nowMs = nowMs)
 
-            repo.addressFlow().test {
+            newRepo(flowOf(near, far, near), geocoder, nowMs = nowMs).addressFlow().test {
                 assertEquals("新宿区", awaitItem()?.locality)
                 assertEquals("新宿区", awaitItem()?.locality)
                 // Past the TTL: the near bucket re-queries instead of hitting the
@@ -244,59 +196,48 @@ class ReverseGeocoderRepositoryTest {
                 awaitComplete()
             }
 
-            // Near (fill), far (fill), near (re-query after the TTL): the
-            // sibling cache test asserts this same sequence is two requests when
-            // the clock stays inside the TTL.
-            assertEquals(3, server.requestCount)
+            assertEquals(3, geocoder.callCount)
         }
 
-    // Advance the clock one pacing window per issued request so multi-bucket
-    // scenarios clear the pacing gate deterministically, mirroring the
-    // request-count-tied clock the TTL test uses.
-    private fun pacedClock(): () -> Long = { server.requestCount * NETWORK_PACING_MS }
+    // Advance the clock one pacing window per issued lookup so multi-bucket
+    // scenarios clear the pacing gate deterministically.
+    private fun pacedClock(geocoder: FakeReverseGeocoder): () -> Long = { geocoder.callCount * NETWORK_PACING_MS }
 
     private fun TestScope.newRepo(
         locationFlow: Flow<Location?>,
+        geocoder: ReverseGeocoder,
         nowMs: () -> Long = { testScheduler.currentTime },
-    ): ReverseGeocoderRepository {
-        val dispatcher = UnconfinedTestDispatcher(testScheduler)
-        return ReverseGeocoderRepository(
+    ): ReverseGeocoderRepository =
+        ReverseGeocoderRepository(
             locationFlow = locationFlow,
-            api =
-                NominatimApi(
-                    client = client,
-                    baseUrl = server.url("/").toString(),
-                    userAgent = USER_AGENT,
-                    ioDispatcher = dispatcher,
-                ),
-            ioDispatcher = dispatcher,
+            geocoder = geocoder,
+            ioDispatcher = UnconfinedTestDispatcher(testScheduler),
             // The injected clock keeps the pacing gate and the cache TTL
             // deterministic under the test scheduler.
             nowMs = nowMs,
         )
+
+    // Returns the canned results in order, clamping to the last entry once
+    // exhausted, and counts every call so the pacing / cache assertions can read
+    // it the way they previously read MockWebServer.requestCount.
+    private class FakeReverseGeocoder(
+        private val results: List<ShortAddress?> = listOf(SHINJUKU),
+    ) : ReverseGeocoder {
+        var callCount = 0
+            private set
+
+        override suspend fun reverse(
+            latitude: Double,
+            longitude: Double,
+        ): ShortAddress? = results[callCount.coerceAtMost(results.size - 1)].also { callCount++ }
     }
 
     private companion object {
-        const val USER_AGENT = "femto-car-launcher/1.0 (test)"
+        val SHINJUKU = ShortAddress(locality = "新宿区", region = "東京都", line = "東京都新宿区新宿三丁目")
 
         // A starting latitude and a step large enough that each fix lands in a
         // distinct 100 m bucket (~0.001 deg ~= 111 m).
         const val BASE_LATITUDE = 35.0
         const val BUCKET_STEP_DEG = 0.01
-
-        const val SHINJUKU_BODY = """
-            {
-              "display_name": "..., 新宿三丁目, 新宿, 新宿区, 東京都, 160-0022, 日本",
-              "address": {
-                "neighbourhood": "新宿三丁目",
-                "quarter": "新宿",
-                "city": "新宿区",
-                "ISO3166-2-lvl4": "JP-13",
-                "postcode": "160-0022",
-                "country": "日本",
-                "country_code": "jp"
-              }
-            }
-        """
     }
 }

@@ -50,12 +50,13 @@ tasks.named("preBuild") {
     dependsOn(buildWebMap)
 }
 
-// Production geocoder and weather hosts are threaded in via gitignored
-// local.properties so the shared public endpoints are never the implicit
-// production default. Production builds should set GEOCODER_BASE_URL /
-// WEATHER_BASE_URL (and the matching *_API_KEY when the host requires one) to a
-// non-public host; absent values fall back to the public Nominatim / Open-Meteo
-// endpoints, which are rate-limited and unsuitable for production traffic.
+// Geocoder and weather hosts are threaded in via gitignored local.properties so
+// a self-hosted proxy can be substituted without a code change. GEOCODER_BASE_URL
+// is EMPTY by default: the launcher then uses the on-device platform geocoder,
+// because no public reverse-geocoding endpoint is ToS-compliant to ship. Set it
+// to a self-hosted Nominatim-compatible host (with GEOCODER_API_KEY when keyed)
+// to use network geocoding. WEATHER_BASE_URL falls back to the public Open-Meteo
+// endpoint, which is rate-limited and unsuitable for production traffic.
 // FONTS_METADATA_BASE_URL overrides the Google Fonts catalog host (e.g. a
 // caching proxy); the TTF bytes still come from the URLs the per-family
 // manifest supplies, so no download host field exists.
@@ -67,7 +68,7 @@ val localProperties =
             ?.inputStream()
             ?.use { load(it) }
     }
-val geocoderBaseUrl = localProperties.getProperty("GEOCODER_BASE_URL", "https://nominatim.openstreetmap.org/")
+val geocoderBaseUrl = localProperties.getProperty("GEOCODER_BASE_URL", "")
 val geocoderApiKey = localProperties.getProperty("GEOCODER_API_KEY", "")
 val weatherBaseUrl = localProperties.getProperty("WEATHER_BASE_URL", "https://api.open-meteo.com/")
 val weatherApiKey = localProperties.getProperty("WEATHER_API_KEY", "")
