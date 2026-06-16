@@ -14,7 +14,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -23,6 +22,7 @@ import io.github.seijikohara.femto.data.apps.DrawerIconSize
 import io.github.seijikohara.femto.data.apps.DrawerLayout
 import io.github.seijikohara.femto.data.apps.DrawerPreferences
 import io.github.seijikohara.femto.ui.common.ImmersiveSheetEffect
+import io.github.seijikohara.femto.ui.common.rememberSheetHeight
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import kotlinx.coroutines.launch
 
@@ -77,7 +77,7 @@ internal fun AppDrawerSheet(
     // open because the sheet recomposes from scratch.
     var expanded by remember { mutableStateOf(false) }
 
-    val sheetHeight = (LocalConfiguration.current.screenHeightDp * FemtoDimens.DrawerSheetHeightFraction).dp
+    val sheetHeight = rememberSheetHeight(FemtoDimens.DrawerSheetHeightFraction)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = modifier,
