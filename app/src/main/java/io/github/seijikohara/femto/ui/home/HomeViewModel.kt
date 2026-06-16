@@ -31,7 +31,7 @@ import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.MusicSessionRepository
 import io.github.seijikohara.femto.data.system.SystemStatus
 import io.github.seijikohara.femto.data.system.SystemStatusRepository
-import io.github.seijikohara.femto.data.weather.OpenMeteoApi
+import io.github.seijikohara.femto.data.weather.MetNorwayApi
 import io.github.seijikohara.femto.data.weather.WeatherRepository
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
 import kotlinx.coroutines.CancellationException
@@ -250,8 +250,8 @@ internal class HomeViewModelFactory(
         // Share one OkHttpClient across the weather and geocoding APIs so the
         // connection pool and dispatcher are reused instead of duplicated.
         val httpClient = OkHttpClient()
-        // Nominatim blocks stock HTTP User-Agents; identify the launcher with a
-        // contact URL per the OSM usage policy.
+        // Both api.met.no and Nominatim reject stock/generic User-Agents and
+        // require an identifying app name plus a contact URL in the header.
         val userAgent =
             "FemtoCarLauncher/" + BuildConfig.VERSION_NAME +
                 " (+https://github.com/seijikohara/femto-car-launcher)"
@@ -275,10 +275,10 @@ internal class HomeViewModelFactory(
                 } ?: PlatformReverseGeocoder(application)
         val geocoder = ReverseGeocoderRepository(locationFlow, reverseGeocoder)
         val weatherApi =
-            OpenMeteoApi(
+            MetNorwayApi(
                 client = httpClient,
                 baseUrl = BuildConfig.WEATHER_BASE_URL,
-                apiKey = BuildConfig.WEATHER_API_KEY.takeIf { it.isNotBlank() },
+                userAgent = userAgent,
             )
         val weather = WeatherRepository(weatherApi, locationFlow, clockFlow)
         val music = MusicSessionRepository(application)

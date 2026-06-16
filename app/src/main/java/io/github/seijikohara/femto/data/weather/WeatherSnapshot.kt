@@ -22,9 +22,9 @@ internal data class WeatherSnapshot(
 
 // A snapshot older than this reads as stale. Under normal operation the weather
 // refreshes every REFRESH_INTERVAL (30 min), so crossing 2x that means at least
-// two missed refresh windows — a real outage (e.g. a 429 on the shared public
-// Open-Meteo endpoint), not a routine gap. The card surfaces an "as of HH:mm"
-// caption past this age so hours-old data is never shown as current.
+// two missed refresh windows — a real outage (e.g. a 429 throttle from
+// api.met.no), not a routine gap. The card surfaces an "as of HH:mm" caption past
+// this age so hours-old data is never shown as current.
 internal val WEATHER_STALE_THRESHOLD: Duration = Duration.ofMinutes(60)
 
 /**
@@ -66,22 +66,58 @@ internal enum class WeatherCode {
     ;
 
     companion object {
-        internal fun fromWmo(code: Int): WeatherCode =
-            when (code) {
-                0 -> CLEAR
-                1, 2 -> PARTLY_CLOUDY
-                3 -> CLOUDY
-                45, 48 -> FOG
-                51, 53, 55 -> DRIZZLE
-                56, 57 -> FREEZING_RAIN
-                61, 63, 65 -> RAIN
-                66, 67 -> FREEZING_RAIN
-                71, 73, 75 -> SNOW
-                77 -> SNOW_GRAINS
-                80, 81, 82 -> RAIN_SHOWERS
-                85, 86 -> SNOW_SHOWERS
-                95, 96, 99 -> THUNDERSTORM
-                else -> UNKNOWN
+        // MET Norway symbol codes are concatenated word tokens with an optional
+        // _day / _night / _polartwilight suffix, e.g. "lightrainshowers_day".
+        // Match the base token by precedence: thunder > frozen (sleet/snow) >
+        // liquid (rain) > sky condition. SNOW_GRAINS / DRIZZLE have no exact MET
+        // equivalent — light rain maps to DRIZZLE; snow grains never occur.
+        internal fun fromMetSymbol(symbolCode: String?): WeatherCode {
+            val base = symbolCode?.substringBefore('_').orEmpty()
+            return when {
+                base.isEmpty() -> {
+                    UNKNOWN
+                }
+
+                base.contains("thunder") -> {
+                    THUNDERSTORM
+                }
+
+                base.contains("sleet") -> {
+                    FREEZING_RAIN
+                }
+
+                base.contains("snow") -> {
+                    if (base.contains("showers")) SNOW_SHOWERS else SNOW
+                }
+
+                base.contains("rain") -> {
+                    when {
+                        base.contains("showers") -> RAIN_SHOWERS
+                        base.startsWith("light") -> DRIZZLE
+                        else -> RAIN
+                    }
+                }
+
+                base == "fog" -> {
+                    FOG
+                }
+
+                base == "cloudy" -> {
+                    CLOUDY
+                }
+
+                base == "partlycloudy" || base == "fair" -> {
+                    PARTLY_CLOUDY
+                }
+
+                base == "clearsky" -> {
+                    CLEAR
+                }
+
+                else -> {
+                    UNKNOWN
+                }
             }
+        }
     }
 }

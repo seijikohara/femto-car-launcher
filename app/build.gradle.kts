@@ -51,15 +51,16 @@ tasks.named("preBuild") {
 }
 
 // Geocoder and weather hosts are threaded in via gitignored local.properties so
-// a self-hosted proxy can be substituted without a code change. GEOCODER_BASE_URL
-// is EMPTY by default: the launcher then uses the on-device platform geocoder,
-// because no public reverse-geocoding endpoint is ToS-compliant to ship. Set it
-// to a self-hosted Nominatim-compatible host (with GEOCODER_API_KEY when keyed)
-// to use network geocoding. WEATHER_BASE_URL falls back to the public Open-Meteo
-// endpoint, which is rate-limited and unsuitable for production traffic.
-// FONTS_METADATA_BASE_URL overrides the Google Fonts catalog host (e.g. a
-// caching proxy); the TTF bytes still come from the URLs the per-family
-// manifest supplies, so no download host field exists.
+// a self-hosted caching proxy can be substituted without a code change.
+// GEOCODER_BASE_URL is EMPTY by default: the launcher then uses the on-device
+// platform geocoder, because no public reverse-geocoding endpoint is
+// ToS-compliant to ship. Set it to a self-hosted Nominatim-compatible host (with
+// GEOCODER_API_KEY when keyed) to use network geocoding. The weather default
+// (api.met.no) is free for commercial use and ToS-compliant — it needs no API
+// key, only the identifying User-Agent the client sets. FONTS_METADATA_BASE_URL
+// overrides the Google Fonts catalog host (e.g. a caching proxy); the TTF bytes
+// still come from the URLs the per-family manifest supplies, so no download host
+// field exists.
 val localProperties =
     Properties().apply {
         rootProject
@@ -70,8 +71,7 @@ val localProperties =
     }
 val geocoderBaseUrl = localProperties.getProperty("GEOCODER_BASE_URL", "")
 val geocoderApiKey = localProperties.getProperty("GEOCODER_API_KEY", "")
-val weatherBaseUrl = localProperties.getProperty("WEATHER_BASE_URL", "https://api.open-meteo.com/")
-val weatherApiKey = localProperties.getProperty("WEATHER_API_KEY", "")
+val weatherBaseUrl = localProperties.getProperty("WEATHER_BASE_URL", "https://api.met.no/")
 val fontsMetadataBaseUrl = localProperties.getProperty("FONTS_METADATA_BASE_URL", "https://fonts.google.com/")
 
 // Release signing is driven entirely by environment variables so CI can sign the
@@ -115,7 +115,6 @@ android {
         buildConfigField("String", "GEOCODER_BASE_URL", "\"${geocoderBaseUrl}\"")
         buildConfigField("String", "GEOCODER_API_KEY", "\"${geocoderApiKey}\"")
         buildConfigField("String", "WEATHER_BASE_URL", "\"${weatherBaseUrl}\"")
-        buildConfigField("String", "WEATHER_API_KEY", "\"${weatherApiKey}\"")
         buildConfigField("String", "FONTS_METADATA_BASE_URL", "\"${fontsMetadataBaseUrl}\"")
     }
 

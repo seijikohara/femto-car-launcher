@@ -49,10 +49,19 @@ class AppsRepositoryTest {
     }
 
     @Test
-    fun `launch rethrows non-ActivityNotFoundException errors`() {
+    fun `launch returns false and does not throw on SecurityException`() {
+        // A non-exported or permission-guarded OEM activity must not crash HOME.
         val repo = AppsRepository(application, launcher = { throw SecurityException() })
 
-        assertFailsWith<SecurityException> { repo.launch(STALE_COMPONENT) }
+        assertFalse(repo.launch(STALE_COMPONENT))
+    }
+
+    @Test
+    fun `launch rethrows unexpected errors`() {
+        // Failures outside the known dead-tap cases still surface as bugs.
+        val repo = AppsRepository(application, launcher = { throw IllegalStateException() })
+
+        assertFailsWith<IllegalStateException> { repo.launch(STALE_COMPONENT) }
     }
 
     @Test
