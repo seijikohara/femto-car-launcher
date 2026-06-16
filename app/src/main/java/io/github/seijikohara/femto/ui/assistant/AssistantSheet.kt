@@ -7,9 +7,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.ui.common.ImmersiveSheetEffect
+import io.github.seijikohara.femto.ui.common.rememberSheetHeight
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 
 /**
@@ -36,7 +36,7 @@ internal fun AssistantSheet(
     fullscreen: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val sheetHeight = (LocalConfiguration.current.screenHeightDp * FemtoDimens.DrawerSheetHeightFraction).dp
+    val sheetHeight = rememberSheetHeight(FemtoDimens.DrawerSheetHeightFraction)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = modifier,

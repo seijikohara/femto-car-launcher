@@ -8,10 +8,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.ui.common.ImmersiveSheetEffect
+import io.github.seijikohara.femto.ui.common.rememberSheetHeight
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 
 /**
@@ -29,7 +29,7 @@ internal fun FontPickerSheet(
     fullscreen: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val sheetHeight = (LocalConfiguration.current.screenHeightDp * FemtoDimens.FontPickerSheetHeightFraction).dp
+    val sheetHeight = rememberSheetHeight(FemtoDimens.FontPickerSheetHeightFraction)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = modifier,
