@@ -82,7 +82,6 @@
     <!-- Count of satellites used in the current GPS fix, shown under the footer's satellite icon. -->
     <string name="status_gps_satellites">%1$d</string>
     <string name="status_battery">Battery</string>
-    <string name="status_charging">Charging</string>
     <string name="battery_percent">%1$d%%</string>
 
     <!-- App drawer -->

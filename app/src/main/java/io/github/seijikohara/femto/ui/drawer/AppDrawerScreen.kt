@@ -1,7 +1,6 @@
 package io.github.seijikohara.femto.ui.drawer
 
 import android.content.ComponentName
-import android.graphics.Bitmap
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,6 +44,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.createBitmap
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.LayoutGrid
 import com.composables.icons.lucide.LayoutList
@@ -549,7 +549,7 @@ private fun CenteredMessage(
 @PreviewLightDark
 @Composable
 private fun AppDrawerContentPreview() {
-    val icon = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+    val icon = createBitmap(1, 1)
     FemtoTheme {
         AppDrawerScreen(
             uiState =

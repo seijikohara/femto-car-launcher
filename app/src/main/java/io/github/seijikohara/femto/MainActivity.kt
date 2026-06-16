@@ -6,7 +6,6 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -26,6 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -416,7 +416,7 @@ class MainActivity : ComponentActivity() {
 
     private fun openPrivacyPolicy() {
         val intent =
-            Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_POLICY_URL))
+            Intent(Intent.ACTION_VIEW, PRIVACY_POLICY_URL.toUri())
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         tryStartActivity(intent)
     }
@@ -439,7 +439,7 @@ class MainActivity : ComponentActivity() {
         // A bare geo: URI lets whichever maps app the user has elected resolve
         // the position — no provider or package is hard-coded.
         val intent =
-            Intent(Intent.ACTION_VIEW, Uri.parse("geo:$latitude,$longitude?z=$MAPS_ZOOM_LEVEL"))
+            Intent(Intent.ACTION_VIEW, "geo:$latitude,$longitude?z=$MAPS_ZOOM_LEVEL".toUri())
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         tryStartActivity(intent)
     }
@@ -462,9 +462,7 @@ class MainActivity : ComponentActivity() {
                 if (!hasFineLocationPermission()) add(Manifest.permission.ACCESS_FINE_LOCATION)
                 if (!hasReadCalendarPermission()) add(Manifest.permission.READ_CALENDAR)
                 if (!hasReadPhoneStatePermission()) add(Manifest.permission.READ_PHONE_STATE)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !hasBluetoothConnectPermission()) {
-                    add(Manifest.permission.BLUETOOTH_CONNECT)
-                }
+                if (!hasBluetoothConnectPermission()) add(Manifest.permission.BLUETOOTH_CONNECT)
             }
         if (needed.isNotEmpty()) permissionsLauncher.launch(needed.toTypedArray())
     }
