@@ -1,7 +1,6 @@
 package io.github.seijikohara.femto.ui.drawer.components
 
 import android.content.ComponentName
-import android.graphics.Bitmap
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
@@ -45,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.core.graphics.createBitmap
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ArrowRight
 import com.composables.icons.lucide.Lucide
@@ -318,7 +318,7 @@ private fun DockTile(
 @PreviewLightDark
 @Composable
 private fun PinnedDockPreview() {
-    val icon = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+    val icon = createBitmap(1, 1)
     FemtoTheme {
         PinnedDock(
             apps =

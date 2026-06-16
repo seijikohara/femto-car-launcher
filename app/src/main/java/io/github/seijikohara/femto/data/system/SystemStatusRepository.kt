@@ -2,7 +2,6 @@
 
 package io.github.seijikohara.femto.data.system
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
@@ -20,7 +19,6 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.BatteryManager
-import android.os.Build
 import android.telephony.SignalStrength
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
@@ -29,6 +27,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import io.github.seijikohara.femto.data.location.LocationRepository
 import io.github.seijikohara.femto.data.location.TripRepository
+import io.github.seijikohara.femto.data.location.hasBluetoothConnectPermission
 import io.github.seijikohara.femto.data.location.hasFineLocationPermission
 import io.github.seijikohara.femto.data.location.hasReadPhoneStatePermission
 import kotlinx.coroutines.CoroutineDispatcher
@@ -359,7 +358,7 @@ internal class SystemStatusRepository(
             awaitClose { context.unregisterReceiver(receiver) }
         }
 
-    @SuppressLint("MissingPermission") // Permission is checked inside hasBluetoothConnect().
+    @SuppressLint("MissingPermission") // Permission is checked via hasBluetoothConnectPermission().
     private fun readBluetooth(adapter: BluetoothAdapter?): BluetoothReading {
         val enabled = adapter?.isEnabled == true
         if (!enabled) return BluetoothReading(enabled = false, connected = false)
@@ -367,7 +366,7 @@ internal class SystemStatusRepository(
         // pairing state is unknowable; treat an enabled adapter as connected so a
         // head unit paired to a phone is not under-reported.
         val connected =
-            if (!hasBluetoothConnect()) {
+            if (!context.hasBluetoothConnectPermission()) {
                 true
             } else {
                 val devices = bluetoothManager?.getConnectedDevices(BluetoothProfile.GATT) ?: emptyList()
@@ -378,14 +377,6 @@ internal class SystemStatusRepository(
                     BluetoothAdapter.STATE_CONNECTED
             }
         return BluetoothReading(enabled = true, connected = connected)
-    }
-
-    private fun hasBluetoothConnect(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
-        return ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.BLUETOOTH_CONNECT,
-        ) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun batteryFlow(): Flow<BatteryReading> =

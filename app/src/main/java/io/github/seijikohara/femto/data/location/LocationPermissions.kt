@@ -3,7 +3,6 @@ package io.github.seijikohara.femto.data.location
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
 import androidx.core.content.ContextCompat
 
 /**
@@ -63,13 +62,11 @@ internal fun Context.hasRecordAudioPermission(): Boolean =
     ) == PackageManager.PERMISSION_GRANTED
 
 /**
- * `BLUETOOTH_CONNECT` is a runtime grant only on Android 12+ (API 31).
- * Below that, the permission is install-time and always considered granted.
+ * `BLUETOOTH_CONNECT` is a runtime grant on Android 12+ (API 31); the app's
+ * minSdk is 33, so it is always a runtime grant and never auto-granted.
  */
-internal fun Context.hasBluetoothConnectPermission(): Boolean {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
-    return ContextCompat.checkSelfPermission(
+internal fun Context.hasBluetoothConnectPermission(): Boolean =
+    ContextCompat.checkSelfPermission(
         this,
         Manifest.permission.BLUETOOTH_CONNECT,
     ) == PackageManager.PERMISSION_GRANTED
-}
