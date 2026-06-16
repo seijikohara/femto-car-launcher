@@ -1,10 +1,15 @@
 # Release signing
 
-The nightly job in [`ci.yml`](workflows/ci.yml) signs the release APK
-with an upload keystore supplied through repository secrets. Local
-`./gradlew assembleRelease` builds stay unsigned: the signing config is
-registered only when `RELEASE_KEYSTORE_PATH` is set, so contributor
-builds keep working with no keystore.
+The nightly job in [`ci.yml`](workflows/ci.yml) signs the release
+artifacts with an upload keystore supplied through repository secrets.
+It builds both an **APK** (`assembleRelease`, attached to the GitHub
+nightly release for direct sideload onto AI boxes / head units) and an
+**App Bundle** (`bundleRelease`, `femto-car-launcher-nightly.aab`) — the
+**AAB is the format Google Play requires** for new apps; upload it under
+Play Console -> Testing/Production -> Create release. Local
+`./gradlew assembleRelease` / `bundleRelease` builds stay unsigned: the
+signing config is registered only when `RELEASE_KEYSTORE_PATH` is set, so
+contributor builds keep working with no keystore.
 
 ## Signing secrets
 
