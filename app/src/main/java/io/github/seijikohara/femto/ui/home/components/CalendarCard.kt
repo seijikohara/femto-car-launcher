@@ -36,6 +36,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.TabularFigures
 import io.github.seijikohara.femto.ui.theme.bigNumber
+import io.github.seijikohara.femto.ui.theme.glanceBody
 import io.github.seijikohara.femto.ui.theme.glanceMetric
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import java.time.LocalDate
@@ -219,10 +220,7 @@ private fun DayRow(
             // an explicit line beats a bare dash for the one row that stays.
             Text(
                 text = stringResource(R.string.calendar_no_events),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = FemtoDimens.GlanceTextSize,
-                    lineHeight = 18.sp,
-                ),
+                style = MaterialTheme.typography.glanceBody(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 maxLines = 1,
             )
@@ -271,7 +269,7 @@ private fun EventRow(
     )
     Text(
         text = title,
-        style = MaterialTheme.typography.bodyMedium.copy(fontSize = FemtoDimens.GlanceTextSize, lineHeight = 18.sp),
+        style = MaterialTheme.typography.glanceBody(),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,

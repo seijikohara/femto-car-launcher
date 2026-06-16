@@ -27,6 +27,7 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.cardCta
 import io.github.seijikohara.femto.ui.theme.cardCtaHint
+import io.github.seijikohara.femto.ui.theme.glanceBody
 
 @Composable
 internal fun MusicConnectState(onConnect: () -> Unit) =
@@ -44,7 +45,7 @@ internal fun MusicConnectState(onConnect: () -> Unit) =
                 imageVector = Lucide.Music,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(36.dp),
+                modifier = Modifier.size(FemtoDimens.HeroIconSize),
             )
             Box(modifier = Modifier.height(12.dp))
             Text(
@@ -86,7 +87,7 @@ internal fun MusicEmptyState() =
             imageVector = Lucide.Music,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            modifier = Modifier.size(36.dp),
+            modifier = Modifier.size(FemtoDimens.HeroIconSize),
         )
         Box(modifier = Modifier.height(4.dp))
         Text(
@@ -98,11 +99,7 @@ internal fun MusicEmptyState() =
         Box(modifier = Modifier.height(4.dp))
         Text(
             text = stringResource(R.string.music_nothing_hint),
-            style =
-                MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = FemtoDimens.GlanceTextSize,
-                    lineHeight = 18.sp,
-                ),
+            style = MaterialTheme.typography.glanceBody(),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             maxLines = 2,

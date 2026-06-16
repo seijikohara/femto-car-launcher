@@ -112,6 +112,17 @@ internal fun Typography.glanceMetric(): TextStyle =
     )
 
 /**
+ * Return body text relaxed to the [FemtoDimens.GlanceTextSize] glance floor for
+ * dense card metadata — the calendar "no events" / event-title lines and the
+ * music "nothing playing" hint, per CLAUDE.md#automotive-overrides.
+ */
+internal fun Typography.glanceBody(): TextStyle =
+    bodyMedium.copy(
+        fontSize = FemtoDimens.GlanceTextSize,
+        lineHeight = 18.sp,
+    )
+
+/**
  * Return the music transport's position / duration caption style. Sized at
  * the [FemtoDimens.GlanceTextSize] glance floor — the progress-caption
  * relaxation CLAUDE.md#automotive-overrides routes through that token — with
