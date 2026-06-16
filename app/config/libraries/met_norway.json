@@ -1,0 +1,17 @@
+{
+  "uniqueId": "no.met:locationforecast",
+  "name": "MET Norway Weather Data",
+  "description": "Current conditions and forecasts from the Norwegian Meteorological Institute (api.met.no Locationforecast 2.0). Data © MET Norway, licensed under CC BY 4.0 and NLOD 2.0.",
+  "website": "https://api.met.no/",
+  "developers": [
+    {
+      "name": "Norwegian Meteorological Institute (MET Norway)"
+    }
+  ],
+  "scm": {
+    "url": "https://api.met.no/doc/License"
+  },
+  "licenses": [
+    "cc_by_4_0"
+  ]
+}

@@ -50,15 +50,14 @@ tasks.named("preBuild") {
     dependsOn(buildWebMap)
 }
 
-// Production geocoder and weather hosts are threaded in via gitignored
-// local.properties so the shared public endpoints are never the implicit
-// production default. Production builds should set GEOCODER_BASE_URL /
-// WEATHER_BASE_URL (and the matching *_API_KEY when the host requires one) to a
-// non-public host; absent values fall back to the public Nominatim / Open-Meteo
-// endpoints, which are rate-limited and unsuitable for production traffic.
-// FONTS_METADATA_BASE_URL overrides the Google Fonts catalog host (e.g. a
-// caching proxy); the TTF bytes still come from the URLs the per-family
-// manifest supplies, so no download host field exists.
+// Geocoder and weather hosts are threaded in via gitignored local.properties so
+// a self-hosted caching proxy can be substituted without a code change. The
+// weather default (api.met.no) is free for commercial use and ToS-compliant —
+// it needs no API key, only the identifying User-Agent the client sets.
+// GEOCODER_BASE_URL still defaults to the public Nominatim endpoint, which is
+// rate-limited and DEV-ONLY. FONTS_METADATA_BASE_URL overrides the Google Fonts
+// catalog host (e.g. a caching proxy); the TTF bytes still come from the URLs
+// the per-family manifest supplies, so no download host field exists.
 val localProperties =
     Properties().apply {
         rootProject
@@ -69,8 +68,7 @@ val localProperties =
     }
 val geocoderBaseUrl = localProperties.getProperty("GEOCODER_BASE_URL", "https://nominatim.openstreetmap.org/")
 val geocoderApiKey = localProperties.getProperty("GEOCODER_API_KEY", "")
-val weatherBaseUrl = localProperties.getProperty("WEATHER_BASE_URL", "https://api.open-meteo.com/")
-val weatherApiKey = localProperties.getProperty("WEATHER_API_KEY", "")
+val weatherBaseUrl = localProperties.getProperty("WEATHER_BASE_URL", "https://api.met.no/")
 val fontsMetadataBaseUrl = localProperties.getProperty("FONTS_METADATA_BASE_URL", "https://fonts.google.com/")
 
 // Release signing is driven entirely by environment variables so CI can sign the
@@ -114,7 +112,6 @@ android {
         buildConfigField("String", "GEOCODER_BASE_URL", "\"${geocoderBaseUrl}\"")
         buildConfigField("String", "GEOCODER_API_KEY", "\"${geocoderApiKey}\"")
         buildConfigField("String", "WEATHER_BASE_URL", "\"${weatherBaseUrl}\"")
-        buildConfigField("String", "WEATHER_API_KEY", "\"${weatherApiKey}\"")
         buildConfigField("String", "FONTS_METADATA_BASE_URL", "\"${fontsMetadataBaseUrl}\"")
     }
 
