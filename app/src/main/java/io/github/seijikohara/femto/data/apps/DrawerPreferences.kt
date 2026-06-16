@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.seijikohara.femto.data.common.catchIoAsDefaults
 import io.github.seijikohara.femto.data.common.editOrLog
+import io.github.seijikohara.femto.data.common.toEnumOr
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -70,20 +71,12 @@ internal class DrawerPreferences(
     override val layout: Flow<DrawerLayout> =
         context.drawerDataStore.data
             .catchIoAsDefaults(TAG)
-            .map { prefs ->
-                prefs[LAYOUT_KEY]
-                    ?.let { name -> DrawerLayout.entries.firstOrNull { it.name == name } }
-                    ?: DrawerLayout.GRID
-            }
+            .map { prefs -> prefs[LAYOUT_KEY].toEnumOr(DrawerLayout.GRID) }
 
     override val iconSize: Flow<DrawerIconSize> =
         context.drawerDataStore.data
             .catchIoAsDefaults(TAG)
-            .map { prefs ->
-                prefs[ICON_SIZE_KEY]
-                    ?.let { name -> DrawerIconSize.entries.firstOrNull { it.name == name } }
-                    ?: DrawerIconSize.MEDIUM
-            }
+            .map { prefs -> prefs[ICON_SIZE_KEY].toEnumOr(DrawerIconSize.MEDIUM) }
 
     override val pinned: Flow<List<String>> =
         context.drawerDataStore.data
