@@ -512,16 +512,21 @@ class MainActivity : ComponentActivity() {
 
     /**
      * Start [intent], returning whether an activity handled it. Fire-and-forget
-     * callers ignore the result. [ActivityNotFoundException] means the head unit
-     * has no app for the target — a silent no-op rather than a dead-click crash;
-     * any other failure (e.g. `SecurityException`) propagates.
+     * callers ignore the result. The two failures a HOME launcher must survive
+     * are swallowed as a silent no-op rather than a dead-click crash:
+     * [ActivityNotFoundException] (the head unit has no app for the target) and
+     * [SecurityException] (the target activity is non-exported or
+     * permission-guarded — common on OEM head units). Other failures propagate.
      */
     private fun tryStartActivity(intent: Intent): Boolean =
         try {
             startActivity(intent)
             true
-        } catch (_: ActivityNotFoundException) {
-            Log.w(TAG, "no handler for ${intent.component?.flattenToShortString() ?: intent.action}")
+        } catch (e: ActivityNotFoundException) {
+            Log.w(TAG, "no handler for ${intent.component?.flattenToShortString() ?: intent.action}", e)
+            false
+        } catch (e: SecurityException) {
+            Log.w(TAG, "not permitted to launch ${intent.component?.flattenToShortString() ?: intent.action}", e)
             false
         }
 
