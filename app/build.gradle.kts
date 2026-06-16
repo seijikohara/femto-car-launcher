@@ -51,13 +51,16 @@ tasks.named("preBuild") {
 }
 
 // Geocoder and weather hosts are threaded in via gitignored local.properties so
-// a self-hosted caching proxy can be substituted without a code change. The
-// weather default (api.met.no) is free for commercial use and ToS-compliant —
-// it needs no API key, only the identifying User-Agent the client sets.
-// GEOCODER_BASE_URL still defaults to the public Nominatim endpoint, which is
-// rate-limited and DEV-ONLY. FONTS_METADATA_BASE_URL overrides the Google Fonts
-// catalog host (e.g. a caching proxy); the TTF bytes still come from the URLs
-// the per-family manifest supplies, so no download host field exists.
+// a self-hosted caching proxy can be substituted without a code change.
+// GEOCODER_BASE_URL is EMPTY by default: the launcher then uses the on-device
+// platform geocoder, because no public reverse-geocoding endpoint is
+// ToS-compliant to ship. Set it to a self-hosted Nominatim-compatible host (with
+// GEOCODER_API_KEY when keyed) to use network geocoding. The weather default
+// (api.met.no) is free for commercial use and ToS-compliant — it needs no API
+// key, only the identifying User-Agent the client sets. FONTS_METADATA_BASE_URL
+// overrides the Google Fonts catalog host (e.g. a caching proxy); the TTF bytes
+// still come from the URLs the per-family manifest supplies, so no download host
+// field exists.
 val localProperties =
     Properties().apply {
         rootProject
@@ -66,7 +69,7 @@ val localProperties =
             ?.inputStream()
             ?.use { load(it) }
     }
-val geocoderBaseUrl = localProperties.getProperty("GEOCODER_BASE_URL", "https://nominatim.openstreetmap.org/")
+val geocoderBaseUrl = localProperties.getProperty("GEOCODER_BASE_URL", "")
 val geocoderApiKey = localProperties.getProperty("GEOCODER_API_KEY", "")
 val weatherBaseUrl = localProperties.getProperty("WEATHER_BASE_URL", "https://api.met.no/")
 val fontsMetadataBaseUrl = localProperties.getProperty("FONTS_METADATA_BASE_URL", "https://fonts.google.com/")

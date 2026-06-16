@@ -18,6 +18,9 @@ import io.github.seijikohara.femto.data.clock.ClockTick
 import io.github.seijikohara.femto.data.common.WhileUiSubscribed
 import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.geocoding.NominatimApi
+import io.github.seijikohara.femto.data.geocoding.NominatimReverseGeocoder
+import io.github.seijikohara.femto.data.geocoding.PlatformReverseGeocoder
+import io.github.seijikohara.femto.data.geocoding.ReverseGeocoder
 import io.github.seijikohara.femto.data.geocoding.ReverseGeocoderRepository
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.LocationGraph
@@ -252,15 +255,25 @@ internal class HomeViewModelFactory(
         val userAgent =
             "FemtoCarLauncher/" + BuildConfig.VERSION_NAME +
                 " (+https://github.com/seijikohara/femto-car-launcher)"
-        val nominatimApi =
-            NominatimApi(
-                client = httpClient,
-                baseUrl = BuildConfig.GEOCODER_BASE_URL,
-                userAgent = userAgent,
-                language = Locale.getDefault().language,
-                apiKey = BuildConfig.GEOCODER_API_KEY.takeIf { it.isNotBlank() },
-            )
-        val geocoder = ReverseGeocoderRepository(locationFlow, nominatimApi)
+        // Default to the on-device platform geocoder: free, no ToS surface, and
+        // degrades gracefully where no backend exists. A self-hosted
+        // Nominatim-compatible host is opt-in via GEOCODER_BASE_URL (empty by
+        // default — the public Nominatim endpoint is not ToS-compliant to ship).
+        val reverseGeocoder: ReverseGeocoder =
+            BuildConfig.GEOCODER_BASE_URL
+                .takeIf { it.isNotBlank() }
+                ?.let { baseUrl ->
+                    NominatimReverseGeocoder(
+                        NominatimApi(
+                            client = httpClient,
+                            baseUrl = baseUrl,
+                            userAgent = userAgent,
+                            language = Locale.getDefault().language,
+                            apiKey = BuildConfig.GEOCODER_API_KEY.takeIf { it.isNotBlank() },
+                        ),
+                    )
+                } ?: PlatformReverseGeocoder(application)
+        val geocoder = ReverseGeocoderRepository(locationFlow, reverseGeocoder)
         val weatherApi =
             MetNorwayApi(
                 client = httpClient,

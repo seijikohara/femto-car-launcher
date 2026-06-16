@@ -16,16 +16,18 @@ import kotlin.math.roundToLong
 private const val TAG = "ReverseGeocoder"
 
 /**
- * Reverse-geocode the current location through OSM Nominatim and expose a
- * readable [ShortAddress].
+ * Reverse-geocode the current location through a pluggable [ReverseGeocoder] and
+ * expose a readable [ShortAddress]. The default source is the on-device platform
+ * geocoder; a self-hosted Nominatim-compatible host is substituted via
+ * GEOCODER_BASE_URL.
  *
- * The OSM geocoding data is licensed under "© OpenStreetMap contributors";
- * the map surface already renders the OSM/MapLibre attribution that covers
- * this data, so no extra attribution UI is required here.
+ * When the source is OSM-backed, the map surface already renders the
+ * "© OpenStreetMap contributors" attribution that covers the geocoding data, so
+ * no extra attribution UI is required here.
  */
 internal class ReverseGeocoderRepository(
     private val locationFlow: Flow<Location?>,
-    private val api: NominatimApi,
+    private val geocoder: ReverseGeocoder,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     // Injectable clock so the request throttle is deterministic under a test
     // dispatcher's virtual time. Production reads the wall clock.
@@ -50,9 +52,8 @@ internal class ReverseGeocoderRepository(
 
     // Serialises resolve: the flow runs on the IO pool where overlapping
     // collections are possible, and the pacing gate's read-then-update pair
-    // must be atomic or two callers can both pass the spacing check and
-    // violate Nominatim's usage policy. The lock also covers the LRU map,
-    // which is not safe under concurrent mutation.
+    // must be atomic or two callers can both pass the spacing check. The lock
+    // also covers the LRU map, which is not safe under concurrent mutation.
     private val mutex = Mutex()
 
     fun addressFlow(): Flow<ShortAddress?> =
@@ -66,29 +67,27 @@ internal class ReverseGeocoderRepository(
             val key = bucketKey(location.latitude, location.longitude)
             cachedAddressOrNull(key)?.let { return it }
 
-            // Pace network lookups: Nominatim's usage policy sets 1 request per
-            // second as an absolute ceiling, but sustained 1 Hz traffic from a
-            // moving vehicle still reads as bulk use, so unresolved buckets only
-            // reach the network once per pacing window. A bucket inside the
-            // window reuses the last resolved address instead of waiting —
-            // adjacent 100 m buckets share their locality-level address, and
-            // skipping (rather than delaying) keeps the flow from queueing
-            // stale fixes behind a timer. A null lastRequestAtMs means no
-            // lookup has been issued yet, so the first fix resolves
+            // Pace lookups: sustained 1 Hz traffic from a moving vehicle reads
+            // as bulk use to any geocoding backend (a self-hosted Nominatim's
+            // usage policy, or the platform backend's own throttle), so
+            // unresolved buckets only reach the source once per pacing window. A
+            // bucket inside the window reuses the last resolved address instead
+            // of waiting — adjacent 100 m buckets share their locality-level
+            // address, and skipping (rather than delaying) keeps the flow from
+            // queueing stale fixes behind a timer. A null lastRequestAtMs means
+            // no lookup has been issued yet, so the first fix resolves
             // immediately.
             val sinceLastRequestMs = lastRequestAtMs?.let { nowMs() - it }
             if (sinceLastRequestMs != null && sinceLastRequestMs < NETWORK_PACING_MS) {
                 return fallbackFor(location)
             }
-            // Stamped before the call on purpose: a failed request still spent
-            // the server's goodwill (and a dead network gains nothing from a
+            // Stamped before the call on purpose: a failed lookup still spent
+            // the backend's goodwill (and a dead source gains nothing from a
             // tight retry loop), so failures consume the pacing window too.
             lastRequestAtMs = nowMs()
 
             runCatching {
-                api.reverse(location.latitude, location.longitude)?.address?.let {
-                    AddressComposer.composeAddress(it)
-                }
+                geocoder.reverse(location.latitude, location.longitude)
             }.onFailure {
                 // runCatching also traps cancellation; rethrow so a cancelled
                 // collector propagates instead of being misread as a lookup
@@ -157,11 +156,11 @@ internal class ReverseGeocoderRepository(
     internal companion object {
         const val BUCKET_M = 100f
 
-        // Minimum spacing between network lookups. Far above Nominatim's
-        // 1 req/s ceiling on purpose: the policy treats sustained high-rate
-        // traffic as bulk use, and at motorway speed a 15 s window still
-        // refreshes the address every few hundred metres — finer than the
-        // locality-level line the overlay renders.
+        // Minimum spacing between lookups. Kept generous on purpose: any
+        // geocoding backend treats sustained high-rate traffic as bulk use, and
+        // at motorway speed a 15 s window still refreshes the address every few
+        // hundred metres — finer than the locality-level line the overlay
+        // renders.
         const val NETWORK_PACING_MS = 15_000L
 
         // Drop the failure fallback once the fix is this far from where the
