@@ -43,30 +43,41 @@ class WeatherRepositoryTest {
         server.shutdown()
     }
 
+    private fun newApi(): MetNorwayApi =
+        MetNorwayApi(
+            client = client,
+            baseUrl = server.url("/").toString(),
+            userAgent = "FemtoCarLauncher/test (+https://example.com)",
+        )
+
     @Test
-    fun `parses Open-Meteo forecast response with current, hourly, and daily blocks`() =
+    fun `maps current conditions from the first timeseries entry`() =
         runTest {
             server.enqueue(MockResponse().setBody(FORECAST_BODY))
 
             val repo =
                 WeatherRepository(
-                    api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
+                    api = newApi(),
                     locationFlow = flowOf(fakeLocation()),
                     clockFlow = emptyFlow(),
-                    clock = Clock.fixed(Instant.parse("2026-05-01T05:32:00Z"), ZoneOffset.UTC),
+                    clock = Clock.fixed(NOW, ZoneOffset.UTC),
+                    zone = ZoneOffset.UTC,
                 )
 
             repo.snapshotFlow().test {
-                val snapshot = awaitItem()
-                assertNotNull(snapshot)
-                assertEquals(18.5, snapshot.tempC, 0.0)
-                assertEquals(17.0, snapshot.apparentTempC, 0.0)
+                val snapshot = assertNotNull(awaitItem())
+                assertEquals(16.0, snapshot.tempC, 0.0)
+                // MET has no "feels like": apparent falls back to the air temperature.
+                assertEquals(16.0, snapshot.apparentTempC, 0.0)
                 assertEquals(WeatherCode.CLEAR, snapshot.code)
-                assertEquals(12.6, snapshot.windKmh, 0.0)
+                // 3.5 m/s -> 12.6 km/h.
+                assertEquals(12.6, snapshot.windKmh, 1e-9)
                 assertEquals(4.5, snapshot.uvIndex)
+                assertEquals(60, snapshot.humidityPercent)
                 assertTrue(snapshot.isDay)
-                assertEquals(LocalTime.of(5, 42), snapshot.sunrise)
-                assertEquals(LocalTime.of(19, 14), snapshot.sunset)
+                // Sun times are computed on-device, not delivered by MET.
+                assertNotNull(snapshot.sunrise)
+                assertNotNull(snapshot.sunset)
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -78,44 +89,46 @@ class WeatherRepositoryTest {
 
             val repo =
                 WeatherRepository(
-                    api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
+                    api = newApi(),
                     locationFlow = flowOf(fakeLocation()),
                     clockFlow = emptyFlow(),
-                    clock = Clock.fixed(Instant.parse("2026-05-01T05:32:00Z"), ZoneOffset.UTC),
+                    clock = Clock.fixed(NOW, ZoneOffset.UTC),
+                    zone = ZoneOffset.UTC,
                 )
 
             repo.snapshotFlow().test {
                 val snapshot = assertNotNull(awaitItem())
                 assertEquals(5, snapshot.hourly.size)
-                assertEquals(LocalTime.of(11, 0), snapshot.hourly[0].time)
-                assertEquals(LocalTime.of(15, 0), snapshot.hourly[4].time)
-                assertEquals(20.0, snapshot.hourly[1].tempC, 0.0)
+                assertEquals(LocalTime.of(5, 0), snapshot.hourly[0].time)
+                assertEquals(LocalTime.of(9, 0), snapshot.hourly[4].time)
+                assertEquals(17.5, snapshot.hourly[1].tempC, 0.0)
                 assertEquals(WeatherCode.PARTLY_CLOUDY, snapshot.hourly[2].code)
                 cancelAndIgnoreRemainingEvents()
             }
         }
 
     @Test
-    fun `parses daily max min and code into DailyForecast list`() =
+    fun `aggregates the timeseries into daily max min and a midday symbol`() =
         runTest {
             server.enqueue(MockResponse().setBody(FORECAST_BODY))
 
             val repo =
                 WeatherRepository(
-                    api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
+                    api = newApi(),
                     locationFlow = flowOf(fakeLocation()),
                     clockFlow = emptyFlow(),
-                    clock = Clock.fixed(Instant.parse("2026-05-01T05:32:00Z"), ZoneOffset.UTC),
+                    clock = Clock.fixed(NOW, ZoneOffset.UTC),
+                    zone = ZoneOffset.UTC,
                 )
 
             repo.snapshotFlow().test {
                 val snapshot = assertNotNull(awaitItem())
                 assertEquals(3, snapshot.daily.size)
                 assertEquals(22.0, snapshot.daily[0].tempMaxC, 0.0)
-                assertEquals(14.0, snapshot.daily[0].tempMinC, 0.0)
-                assertEquals(WeatherCode.CLEAR, snapshot.daily[0].code)
+                assertEquals(16.0, snapshot.daily[0].tempMinC, 0.0)
+                assertEquals(WeatherCode.RAIN, snapshot.daily[0].code)
                 assertEquals(WeatherCode.PARTLY_CLOUDY, snapshot.daily[1].code)
-                assertEquals(WeatherCode.RAIN, snapshot.daily[2].code)
+                assertEquals(WeatherCode.RAIN_SHOWERS, snapshot.daily[2].code)
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -127,10 +140,11 @@ class WeatherRepositoryTest {
 
             val repo =
                 WeatherRepository(
-                    api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
+                    api = newApi(),
                     locationFlow = flowOf(fakeLocation()),
                     clockFlow = emptyFlow(),
                     clock = Clock.systemUTC(),
+                    zone = ZoneOffset.UTC,
                 )
 
             repo.snapshotFlow().test {
@@ -144,10 +158,11 @@ class WeatherRepositoryTest {
         runTest {
             val repo =
                 WeatherRepository(
-                    api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
+                    api = newApi(),
                     locationFlow = flowOf(null),
                     clockFlow = emptyFlow(),
                     clock = Clock.systemUTC(),
+                    zone = ZoneOffset.UTC,
                 )
 
             repo.snapshotFlow().test {
@@ -169,13 +184,13 @@ class WeatherRepositoryTest {
             // merge scheduling that made a manually-advanced clock flaky on CI.
             val clock =
                 RequestCountClock(
-                    Instant.parse("2026-05-01T05:32:00Z"),
+                    NOW,
                     server,
                     listOf(Duration.ZERO, Duration.ofSeconds(10)),
                 )
             val repo =
                 WeatherRepository(
-                    api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
+                    api = newApi(),
                     locationFlow =
                         flow {
                             emit(fakeLocation())
@@ -183,6 +198,7 @@ class WeatherRepositoryTest {
                         },
                     clockFlow = emptyFlow(),
                     clock = clock,
+                    zone = ZoneOffset.UTC,
                 )
 
             repo.snapshotFlow().test {
@@ -207,13 +223,13 @@ class WeatherRepositoryTest {
             // wall time, to stay deterministic under flowOn(IO) / merge.
             val clock =
                 RequestCountClock(
-                    Instant.parse("2026-05-01T05:32:00Z"),
+                    NOW,
                     server,
                     listOf(Duration.ZERO, Duration.ofSeconds(61)),
                 )
             val repo =
                 WeatherRepository(
-                    api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
+                    api = newApi(),
                     locationFlow =
                         flow {
                             emit(fakeLocation())
@@ -221,6 +237,7 @@ class WeatherRepositoryTest {
                         },
                     clockFlow = emptyFlow(),
                     clock = clock,
+                    zone = ZoneOffset.UTC,
                 )
 
             repo.snapshotFlow().test {
@@ -248,13 +265,13 @@ class WeatherRepositoryTest {
             // though the fix has moved far enough to warrant a refresh.
             val clock =
                 RequestCountClock(
-                    Instant.parse("2026-05-01T05:32:00Z"),
+                    NOW,
                     server,
                     listOf(Duration.ZERO, Duration.ofMinutes(2), Duration.ofMinutes(2).plusSeconds(10)),
                 )
             val repo =
                 WeatherRepository(
-                    api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
+                    api = newApi(),
                     locationFlow =
                         flow {
                             emit(fakeLocation())
@@ -263,6 +280,7 @@ class WeatherRepositoryTest {
                         },
                     clockFlow = emptyFlow(),
                     clock = clock,
+                    zone = ZoneOffset.UTC,
                 )
 
             repo.snapshotFlow().test {
@@ -289,13 +307,13 @@ class WeatherRepositoryTest {
             // so the distance trigger never needs to bypass it.
             val clock =
                 RequestCountClock(
-                    Instant.parse("2026-05-01T05:32:00Z"),
+                    NOW,
                     server,
                     listOf(Duration.ZERO, Duration.ofSeconds(30)),
                 )
             val repo =
                 WeatherRepository(
-                    api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
+                    api = newApi(),
                     locationFlow =
                         flow {
                             emit(fakeLocation())
@@ -303,6 +321,7 @@ class WeatherRepositoryTest {
                         },
                     clockFlow = emptyFlow(),
                     clock = clock,
+                    zone = ZoneOffset.UTC,
                 )
 
             repo.snapshotFlow().test {
@@ -315,19 +334,20 @@ class WeatherRepositoryTest {
         }
 
     @Test
-    fun `yields a snapshot from temperature and code when secondary current fields are missing`() =
+    fun `yields a snapshot from temperature and code when secondary instant fields are missing`() =
         runTest {
-            // A current block lacking apparent_temperature, windspeed_10m, and is_day
-            // must still decode (no MissingFieldException) and fall back to the air
-            // temperature and sensible defaults instead of discarding the reading.
+            // An instant block lacking wind_speed, relative_humidity, and UV must
+            // still decode and fall back to sensible defaults instead of discarding
+            // the reading.
             server.enqueue(MockResponse().setBody(CURRENT_MINIMAL_BODY))
 
             val repo =
                 WeatherRepository(
-                    api = OpenMeteoApi(client = client, baseUrl = server.url("/").toString()),
+                    api = newApi(),
                     locationFlow = flowOf(fakeLocation()),
                     clockFlow = emptyFlow(),
-                    clock = Clock.fixed(Instant.parse("2026-05-01T05:32:00Z"), ZoneOffset.UTC),
+                    clock = Clock.fixed(NOW, ZoneOffset.UTC),
+                    zone = ZoneOffset.UTC,
                 )
 
             repo.snapshotFlow().test {
@@ -336,6 +356,8 @@ class WeatherRepositoryTest {
                 assertEquals(18.5, snapshot.apparentTempC, 0.0)
                 assertEquals(WeatherCode.CLEAR, snapshot.code)
                 assertEquals(0.0, snapshot.windKmh, 0.0)
+                assertNull(snapshot.humidityPercent)
+                assertNull(snapshot.uvIndex)
                 assertTrue(snapshot.isDay)
                 cancelAndIgnoreRemainingEvents()
             }
@@ -361,53 +383,41 @@ class WeatherRepositoryTest {
     }
 
     private companion object {
-        // current.time aligns with hourly.time[2] so the slice should start at index 2.
+        val NOW: Instant = Instant.parse("2026-05-01T05:32:00Z")
+
+        // Three local days (UTC in tests). Day 1 starts at the current hour (05:00)
+        // with six hourly entries plus a midday entry; the hourly slice takes the
+        // first five, and daily aggregation reduces each day to max/min temp and the
+        // symbol of the entry nearest local noon.
         const val FORECAST_BODY = """
             {
-              "timezone": "Asia/Tokyo",
-              "current": {
-                "time": "2026-05-01T11:00",
-                "temperature_2m": 18.5,
-                "apparent_temperature": 17.0,
-                "weathercode": 0,
-                "windspeed_10m": 12.6,
-                "uv_index": 4.5,
-                "is_day": 1
-              },
-              "hourly": {
-                "time": [
-                  "2026-05-01T09:00",
-                  "2026-05-01T10:00",
-                  "2026-05-01T11:00",
-                  "2026-05-01T12:00",
-                  "2026-05-01T13:00",
-                  "2026-05-01T14:00",
-                  "2026-05-01T15:00",
-                  "2026-05-01T16:00"
-                ],
-                "temperature_2m": [16.0, 17.5, 19.0, 20.0, 21.0, 21.5, 22.0, 22.5],
-                "weathercode": [0, 0, 0, 0, 2, 2, 2, 2]
-              },
-              "daily": {
-                "time": ["2026-05-01", "2026-05-02", "2026-05-03"],
-                "sunrise": ["2026-05-01T05:42", "2026-05-02T05:41", "2026-05-03T05:40"],
-                "sunset": ["2026-05-01T19:14", "2026-05-02T19:15", "2026-05-03T19:16"],
-                "weathercode": [0, 2, 61],
-                "temperature_2m_max": [22.0, 23.0, 21.0],
-                "temperature_2m_min": [14.0, 15.0, 14.0]
+              "properties": {
+                "timeseries": [
+                  { "time": "2026-05-01T05:00:00Z", "data": { "instant": { "details": { "air_temperature": 16.0, "wind_speed": 3.5, "relative_humidity": 60.0, "ultraviolet_index_clear_sky": 4.5 } }, "next_1_hours": { "summary": { "symbol_code": "clearsky_day" } } } },
+                  { "time": "2026-05-01T06:00:00Z", "data": { "instant": { "details": { "air_temperature": 17.5 } }, "next_1_hours": { "summary": { "symbol_code": "clearsky_day" } } } },
+                  { "time": "2026-05-01T07:00:00Z", "data": { "instant": { "details": { "air_temperature": 19.0 } }, "next_1_hours": { "summary": { "symbol_code": "partlycloudy_day" } } } },
+                  { "time": "2026-05-01T08:00:00Z", "data": { "instant": { "details": { "air_temperature": 20.0 } }, "next_1_hours": { "summary": { "symbol_code": "partlycloudy_day" } } } },
+                  { "time": "2026-05-01T09:00:00Z", "data": { "instant": { "details": { "air_temperature": 21.0 } }, "next_1_hours": { "summary": { "symbol_code": "cloudy" } } } },
+                  { "time": "2026-05-01T10:00:00Z", "data": { "instant": { "details": { "air_temperature": 21.5 } }, "next_1_hours": { "summary": { "symbol_code": "lightrain" } } } },
+                  { "time": "2026-05-01T12:00:00Z", "data": { "instant": { "details": { "air_temperature": 22.0 } }, "next_6_hours": { "summary": { "symbol_code": "rain" } } } },
+                  { "time": "2026-05-02T06:00:00Z", "data": { "instant": { "details": { "air_temperature": 14.0 } }, "next_1_hours": { "summary": { "symbol_code": "partlycloudy_day" } } } },
+                  { "time": "2026-05-02T12:00:00Z", "data": { "instant": { "details": { "air_temperature": 23.0 } }, "next_6_hours": { "summary": { "symbol_code": "partlycloudy_day" } } } },
+                  { "time": "2026-05-02T18:00:00Z", "data": { "instant": { "details": { "air_temperature": 15.0 } }, "next_1_hours": { "summary": { "symbol_code": "cloudy" } } } },
+                  { "time": "2026-05-03T06:00:00Z", "data": { "instant": { "details": { "air_temperature": 13.0 } }, "next_1_hours": { "summary": { "symbol_code": "cloudy" } } } },
+                  { "time": "2026-05-03T12:00:00Z", "data": { "instant": { "details": { "air_temperature": 21.0 } }, "next_6_hours": { "summary": { "symbol_code": "lightrainshowers_day" } } } }
+                ]
               }
             }
         """
 
-        // A current block carrying only the required temperature_2m + weathercode,
-        // with all secondary fields absent.
+        // A single entry carrying only air_temperature and a symbol, every other
+        // instant field absent.
         const val CURRENT_MINIMAL_BODY = """
             {
-              "timezone": "Asia/Tokyo",
-              "current": {
-                "time": "2026-05-01T11:00",
-                "temperature_2m": 18.5,
-                "weathercode": 0
+              "properties": {
+                "timeseries": [
+                  { "time": "2026-05-01T05:00:00Z", "data": { "instant": { "details": { "air_temperature": 18.5 } }, "next_1_hours": { "summary": { "symbol_code": "clearsky_day" } } } }
+                ]
               }
             }
         """

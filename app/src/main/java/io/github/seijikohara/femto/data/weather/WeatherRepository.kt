@@ -14,17 +14,18 @@ import kotlinx.coroutines.sync.withLock
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
+import java.time.ZoneId
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 internal class WeatherRepository(
-    private val api: OpenMeteoApi,
+    private val api: MetNorwayApi,
     private val locationFlow: Flow<Location?>,
     private val clockFlow: Flow<ClockTick>,
     private val clock: Clock = Clock.systemUTC(),
+    // Locationforecast times are UTC; the card shows local wall-clock times and
+    // groups days by the local calendar. Injectable so tests pin a fixed zone.
+    private val zone: ZoneId = ZoneId.systemDefault(),
 ) {
     // Serialises refresh: merge() lets the location and clock upstreams reach
     // refresh concurrently on the IO pool, and an unguarded check-fetch-write
@@ -35,8 +36,7 @@ internal class WeatherRepository(
 
     // Tracks the most recent refresh attempt regardless of outcome so an outage
     // (with or without an older cached snapshot) cannot retry faster than
-    // MIN_RETRY_INTERVAL against the public Open-Meteo endpoint, which would
-    // risk a ban.
+    // MIN_RETRY_INTERVAL against api.met.no, which risks a throttle/ban.
     private var lastAttemptAt: Instant? = null
 
     // Last-seen fix, updated by the location path and re-read on every clock tick.
@@ -62,33 +62,37 @@ internal class WeatherRepository(
     // be one atomic step or two near-simultaneous ticks both pass shouldRefetch.
     private suspend fun refreshLocked(location: Location): WeatherSnapshot? {
         if (!shouldRefetch(location)) return cached
-        // Record the attempt before the network call so a failing call still throttles
-        // subsequent outage retries via MIN_RETRY_INTERVAL.
+        // Record the attempt before the network call so a failing call still
+        // throttles subsequent outage retries via MIN_RETRY_INTERVAL.
         lastAttemptAt = clock.instant()
-        val response = api.forecast(location.latitude, location.longitude) ?: return cached
-        val current = response.current ?: return cached
+        val forecast = api.forecast(location.latitude, location.longitude) ?: return cached
+        val first = forecast.properties.timeseries.firstOrNull() ?: return cached
+        val instant = first.data.instant.details
+        val temp = instant.airTemperature ?: return cached
+        val symbol = first.data.next1Hours
+            ?.summary
+            ?.symbolCode ?: first.data.next6Hours
+            ?.summary
+            ?.symbolCode
+        val now = clock.instant()
+        val sun = SunCalculator.compute(location.latitude, location.longitude, now.atZone(zone).toLocalDate(), zone)
         cached =
             WeatherSnapshot(
-                tempC = current.temperature_2m,
-                // Fall back to the air temperature when "feels like" is absent so a
-                // dropped secondary field never discards the usable reading.
-                apparentTempC = current.apparent_temperature ?: current.temperature_2m,
-                code = WeatherCode.fromWmo(current.weathercode),
-                windKmh = current.windspeed_10m ?: 0.0,
-                humidityPercent = current.relative_humidity_2m?.roundToInt(),
-                uvIndex = current.uv_index,
-                isDay = (current.is_day ?: 1) == 1,
-                sunrise = response.daily
-                    ?.sunrise
-                    ?.firstOrNull()
-                    ?.let(::parseLocalTime),
-                sunset = response.daily
-                    ?.sunset
-                    ?.firstOrNull()
-                    ?.let(::parseLocalTime),
-                hourly = response.hourly?.let { hourlySliceFrom(it, current.time) }.orEmpty(),
-                daily = response.daily?.let(::dailyForecastsFrom).orEmpty(),
-                fetchedAt = clock.instant(),
+                tempC = temp,
+                // MET provides no "feels like"; the air temperature stands in.
+                apparentTempC = temp,
+                code = WeatherCode.fromMetSymbol(symbol),
+                windKmh = (instant.windSpeed ?: 0.0) * MS_TO_KMH,
+                humidityPercent = instant.relativeHumidity?.roundToInt(),
+                uvIndex = instant.ultravioletIndexClearSky,
+                // Day unless the symbol explicitly carries the _night suffix
+                // (_day / _polartwilight / no suffix all read as day).
+                isDay = symbol?.endsWith("_night") != true,
+                sunrise = sun.sunrise,
+                sunset = sun.sunset,
+                hourly = hourlySliceFrom(forecast.properties.timeseries),
+                daily = dailyForecastsFrom(forecast.properties.timeseries),
+                fetchedAt = now,
             )
         lastFetchLocation = location
         return cached
@@ -97,8 +101,8 @@ internal class WeatherRepository(
     private fun shouldRefetch(location: Location): Boolean {
         // Attempt floor first, regardless of cache state. When it only guarded
         // the no-cache path, a STALE cache during an outage passed the age check
-        // on every GPS tick (~1 Hz while moving) and hammered the public
-        // endpoint — the same storm the floor exists to prevent.
+        // on every GPS tick (~1 Hz while moving) and hammered the endpoint — the
+        // same storm the floor exists to prevent.
         val throttled =
             lastAttemptAt?.let { attempt ->
                 Duration.between(attempt, clock.instant()).abs() < MIN_RETRY_INTERVAL
@@ -111,50 +115,79 @@ internal class WeatherRepository(
         return !(ageOk && nearOk)
     }
 
-    private fun hourlySliceFrom(
-        hourly: OpenMeteoApi.Hourly,
-        currentTime: String,
-    ): List<HourlyForecast> {
-        val now = runCatching { LocalDateTime.parse(currentTime) }.getOrNull() ?: return emptyList()
-        val start =
-            hourly.time
-                .indexOfFirst { entry ->
-                    runCatching { LocalDateTime.parse(entry) }
-                        .getOrNull()
-                        ?.let { !it.isBefore(now) } == true
-                }.takeIf { it >= 0 } ?: return emptyList()
-        val end = (start + HOURLY_SLICE_LENGTH).coerceAtMost(hourly.time.size)
-        return (start until end).mapNotNull { i ->
-            val time = runCatching { LocalDateTime.parse(hourly.time[i]).toLocalTime() }.getOrNull()
-                ?: return@mapNotNull null
-            val temp = hourly.temperature_2m.getOrNull(i) ?: return@mapNotNull null
-            val code = hourly.weathercode.getOrNull(i)?.let(WeatherCode::fromWmo) ?: return@mapNotNull null
-            HourlyForecast(time = time, tempC = temp, code = code)
-        }
-    }
+    // The first HOURLY_SLICE_LENGTH hourly-resolution entries (those carrying a
+    // next_1_hours block) starting at the current hour — Locationforecast emits
+    // them oldest-first from "now".
+    private fun hourlySliceFrom(timeseries: List<MetForecast.Timeseries>): List<HourlyForecast> =
+        timeseries
+            .asSequence()
+            .filter { it.data.next1Hours != null }
+            .take(HOURLY_SLICE_LENGTH)
+            .mapNotNull { entry ->
+                val time = parseInstant(entry.time)?.atZone(zone)?.toLocalTime() ?: return@mapNotNull null
+                val temp = entry.data.instant.details.airTemperature ?: return@mapNotNull null
+                HourlyForecast(
+                    time = time,
+                    tempC = temp,
+                    code = WeatherCode.fromMetSymbol(
+                        entry.data.next1Hours
+                            ?.summary
+                            ?.symbolCode,
+                    ),
+                )
+            }.toList()
 
-    private fun dailyForecastsFrom(daily: OpenMeteoApi.Daily): List<DailyForecast> =
-        daily.time.indices.mapNotNull { i ->
-            val date = runCatching { LocalDate.parse(daily.time[i]) }.getOrNull() ?: return@mapNotNull null
-            val max = daily.temperature_2m_max.getOrNull(i) ?: return@mapNotNull null
-            val min = daily.temperature_2m_min.getOrNull(i) ?: return@mapNotNull null
-            val code = daily.weathercode.getOrNull(i)?.let(WeatherCode::fromWmo) ?: return@mapNotNull null
-            DailyForecast(date = date, tempMaxC = max, tempMinC = min, code = code)
-        }
+    // Aggregate the timeseries into FORECAST_DAYS local days: max/min of the
+    // instant air temperatures, and a representative symbol from the entry nearest
+    // local noon. MET gives instant points, not pre-summarised days.
+    private fun dailyForecastsFrom(timeseries: List<MetForecast.Timeseries>): List<DailyForecast> =
+        timeseries
+            .groupBy { parseInstant(it.time)?.atZone(zone)?.toLocalDate() }
+            .entries
+            .mapNotNull { (date, entries) ->
+                date ?: return@mapNotNull null
+                val temps = entries.mapNotNull { it.data.instant.details.airTemperature }
+                if (temps.isEmpty()) return@mapNotNull null
+                DailyForecast(
+                    date = date,
+                    tempMaxC = temps.max(),
+                    tempMinC = temps.min(),
+                    code = WeatherCode.fromMetSymbol(representativeSymbol(entries)),
+                )
+            }.sortedBy { it.date }
+            .take(FORECAST_DAYS)
 
-    private fun parseLocalTime(iso: String): LocalTime? =
-        runCatching { LocalDateTime.parse(iso, ISO_LOCAL).toLocalTime() }.getOrNull()
+    private fun representativeSymbol(entries: List<MetForecast.Timeseries>): String? =
+        entries
+            .minByOrNull { abs((parseInstant(it.time)?.atZone(zone)?.hour ?: 0) - NOON_HOUR) }
+            ?.let {
+                it.data.next6Hours
+                    ?.summary
+                    ?.symbolCode
+                    ?: it.data.next1Hours
+                        ?.summary
+                        ?.symbolCode
+                    ?: it.data.next12Hours
+                        ?.summary
+                        ?.symbolCode
+            }
+
+    private fun parseInstant(iso: String): Instant? = runCatching { Instant.parse(iso) }.getOrNull()
 
     private companion object {
         val REFRESH_INTERVAL: Duration = Duration.ofMinutes(30)
 
         // Floor between refresh attempts — success or failure, with or without
-        // a cached snapshot.
+        // a cached snapshot. Combined with If-Modified-Since this keeps api.met.no
+        // traffic minimal (a refetch is usually a cheap 304).
         val MIN_RETRY_INTERVAL: Duration = Duration.ofMinutes(1)
         const val REFRESH_DISTANCE_M = 5_000f
-        const val HOURLY_SLICE_LENGTH = 5
 
-        // Open-Meteo with timezone=auto returns naive local times (no offset suffix).
-        val ISO_LOCAL: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
+        // Card layout: a fixed 5-day strip and a 5-hour row.
+        const val FORECAST_DAYS = 5
+        const val HOURLY_SLICE_LENGTH = 5
+        const val NOON_HOUR = 12
+
+        const val MS_TO_KMH = 3.6
     }
 }
