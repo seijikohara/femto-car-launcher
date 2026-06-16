@@ -94,6 +94,7 @@ internal fun SettingsScreen(
     onOpenSystemSettings: () -> Unit,
     onOpenFontPicker: (FontSlot) -> Unit,
     onOpenDiagnostics: () -> Unit,
+    onOpenLicenses: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Surface(
     modifier = modifier.fillMaxSize(),
@@ -436,6 +437,10 @@ internal fun SettingsScreen(
             ActionRow(
                 title = stringResource(R.string.settings_open_diagnostics),
                 onClick = onOpenDiagnostics,
+            )
+            ActionRow(
+                title = stringResource(R.string.settings_open_licenses),
+                onClick = onOpenLicenses,
             )
             ResetRow(onConfirm = { onAction(SettingsAction.ResetToDefaults) })
         }
@@ -923,6 +928,7 @@ private fun SettingsScreenPreview() {
             onOpenSystemSettings = {},
             onOpenFontPicker = {},
             onOpenDiagnostics = {},
+            onOpenLicenses = {},
         )
     }
 }

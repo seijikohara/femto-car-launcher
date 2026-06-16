@@ -1,0 +1,17 @@
+{
+  "uniqueId": "org.maplibre:maplibre-gl-js",
+  "name": "MapLibre GL JS",
+  "description": "Vector basemap rendering in the LIVE map WebView (free tier).",
+  "website": "https://maplibre.org/",
+  "developers": [
+    {
+      "name": "MapLibre"
+    }
+  ],
+  "scm": {
+    "url": "https://github.com/maplibre/maplibre-gl-js"
+  },
+  "licenses": [
+    "maplibre_gl_js_bsd3"
+  ]
+}
