@@ -149,6 +149,8 @@ class SettingsScreenTest {
                     onOpenSystemSettings = {},
                     onOpenFontPicker = {},
                     onOpenDiagnostics = {},
+                    onOpenLicenses = {},
+                    onOpenPrivacyPolicy = {},
                 )
             }
         }
