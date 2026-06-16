@@ -162,6 +162,13 @@ android {
             // see the node {} block above.
             assets.srcDir(rootProject.file("webmap/dist"))
         }
+        // One SSOT for the fixture builders both the JVM unit tests and the
+        // instrumented tests need: src/sharedTest is compiled into each, so the
+        // copies can no longer drift (they used to be duplicated per source set).
+        // Wired through kotlin.srcDir (not java.srcDir) so the Kotlin test
+        // compilations pick the builders up.
+        getByName("test").kotlin.srcDir("src/sharedTest/java")
+        getByName("androidTest").kotlin.srcDir("src/sharedTest/java")
     }
     testOptions {
         unitTests {
