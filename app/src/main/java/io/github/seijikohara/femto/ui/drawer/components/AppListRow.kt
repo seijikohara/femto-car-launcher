@@ -1,4 +1,4 @@
-package io.github.seijikohara.femto.ui.home.components
+package io.github.seijikohara.femto.ui.drawer.components
 
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement

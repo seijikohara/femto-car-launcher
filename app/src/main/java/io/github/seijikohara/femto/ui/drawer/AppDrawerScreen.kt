@@ -58,9 +58,9 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
 import io.github.seijikohara.femto.data.apps.DrawerLayout
+import io.github.seijikohara.femto.ui.drawer.components.AppListRow
+import io.github.seijikohara.femto.ui.drawer.components.AppTile
 import io.github.seijikohara.femto.ui.drawer.components.PinnedDock
-import io.github.seijikohara.femto.ui.home.components.AppListRow
-import io.github.seijikohara.femto.ui.home.components.AppTile
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
