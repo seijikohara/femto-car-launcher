@@ -238,6 +238,7 @@
     <string name="settings_open_system_settings">System settings</string>
     <string name="settings_open_diagnostics">Diagnostics</string>
     <string name="settings_open_licenses">Open source licenses</string>
+    <string name="settings_open_privacy">Privacy policy</string>
 
     <!-- Diagnostics sheet -->
     <string name="diagnostics_title">Diagnostics</string>
