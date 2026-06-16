@@ -13,7 +13,7 @@ internal fun fakeWeatherSnapshot(
     apparentTempC: Double = 17.0,
     code: WeatherCode = WeatherCode.CLEAR,
     windKmh: Double = 9.6,
-    humidityPercent: Int? = 55,
+    humidityPercent: Int? = 58,
     uvIndex: Double? = 4.0,
     isDay: Boolean = true,
     sunrise: LocalTime? = LocalTime.of(5, 42),
