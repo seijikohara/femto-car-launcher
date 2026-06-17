@@ -78,6 +78,10 @@ internal class SettingsViewModel(
                     displayPreferences.setAccentColor(action.value)
                 }
 
+                is SettingsAction.ApplyThemePreset -> {
+                    displayPreferences.applyThemePreset(action.preset)
+                }
+
                 is SettingsAction.SetSpeedUnit -> {
                     displayPreferences.setSpeedUnit(action.value)
                 }

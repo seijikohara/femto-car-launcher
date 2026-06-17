@@ -30,6 +30,13 @@ internal interface DisplaySettingsStore {
 
     suspend fun setAccentColor(value: AccentColor)
 
+    /**
+     * Apply a [ThemePreset]'s look bundle (accent + both map colour schemes) in one
+     * atomic write, so the dashboard restyles without flickering through an
+     * intermediate state of half-applied fields.
+     */
+    suspend fun applyThemePreset(preset: ThemePreset)
+
     suspend fun setSpeedUnit(value: SpeedUnitSetting)
 
     suspend fun setTemperatureUnit(value: TemperatureUnitSetting)
@@ -150,6 +157,14 @@ internal class DisplayPreferences(
 
     override suspend fun setAccentColor(value: AccentColor) {
         context.displayDataStore.editOrLog(TAG) { it[ACCENT_KEY] = value.name }
+    }
+
+    override suspend fun applyThemePreset(preset: ThemePreset) {
+        context.displayDataStore.editOrLog(TAG) {
+            it[ACCENT_KEY] = preset.accentColor.name
+            it[MAP_SCHEME_LIGHT_KEY] = preset.mapSchemeLight.name
+            it[MAP_SCHEME_DARK_KEY] = preset.mapSchemeDark.name
+        }
     }
 
     override suspend fun setSpeedUnit(value: SpeedUnitSetting) {

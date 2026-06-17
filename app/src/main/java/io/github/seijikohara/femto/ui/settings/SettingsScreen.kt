@@ -66,6 +66,8 @@ import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
+import io.github.seijikohara.femto.data.display.ThemePreset
+import io.github.seijikohara.femto.data.display.ThemePresets
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.ui.theme.DynamicAccentSweep
@@ -129,6 +131,15 @@ internal fun SettingsScreen(
             AccentRow(
                 selected = uiState.accentColor,
                 onSelect = { onAction(SettingsAction.SetAccentColor(it)) },
+            )
+            ThemePresetRow(
+                selectedPreset =
+                    ThemePresets.matchingOrNull(
+                        accentColor = uiState.accentColor,
+                        mapSchemeLight = uiState.mapSchemeLight,
+                        mapSchemeDark = uiState.mapSchemeDark,
+                    ),
+                onSelect = { onAction(SettingsAction.ApplyThemePreset(it)) },
             )
             SettingsSubheader(stringResource(R.string.settings_subheader_screen))
             ChoiceRow(
@@ -606,6 +617,90 @@ private fun AccentSwatch(
     }
 }
 
+// The theme-preset picker: named bundles of accent + map colour schemes from the
+// ThemePresets registry. Tapping one applies the whole look at once; the accent
+// and map-scheme controls then reflect it. The data-driven "theme as data"
+// surface — mass-producing a theme is a registry entry, not new UI here.
+@Composable
+private fun ThemePresetRow(
+    selectedPreset: ThemePreset?,
+    onSelect: (ThemePreset) -> Unit,
+    modifier: Modifier = Modifier,
+) = Column(
+    modifier =
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+    verticalArrangement = Arrangement.spacedBy(10.dp),
+) {
+    Text(
+        text = stringResource(R.string.settings_group_theme_preset),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        ThemePresets.all.forEach { preset ->
+            ThemePresetChip(
+                preset = preset,
+                selected = preset == selectedPreset,
+                onClick = { onSelect(preset) },
+            )
+        }
+    }
+}
+
+// One preset chip: the accent seed dot + the preset name, in a >= MinTouchTarget
+// tap target. Selected swaps to the secondaryContainer fill + a primary border
+// (the same color-agnostic emphasis the accent swatch uses).
+@Composable
+private fun ThemePresetChip(
+    preset: ThemePreset,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val seed = preset.accentColor.accentSeedColor()
+    val fill =
+        if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
+    val border =
+        if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+    val labelColor =
+        if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
+    Row(
+        modifier =
+            modifier
+                .heightIn(min = FemtoDimens.MinTouchTarget)
+                .clip(MaterialTheme.shapes.large)
+                .background(fill)
+                .border(width = if (selected) 2.dp else 1.dp, color = border, shape = MaterialTheme.shapes.large)
+                .clickable(onClick = onClick)
+                .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        val dot =
+            if (seed !=
+                null
+            ) {
+                Modifier.background(seed)
+            } else {
+                Modifier.background(Brush.sweepGradient(DynamicAccentSweep))
+            }
+        Box(modifier = Modifier.size(20.dp).clip(CircleShape).then(dot))
+        Text(
+            text = stringResource(preset.labelRes()),
+            style = MaterialTheme.typography.titleMedium,
+            color = labelColor,
+        )
+    }
+}
+
 // A single-choice row: shows the current value as its summary and opens a radio
 // dialog on tap (the Android ListPreference pattern).
 @Composable
@@ -904,6 +999,16 @@ private fun AccentColor.labelRes(): Int =
         AccentColor.RED -> R.string.settings_accent_red
         AccentColor.VIOLET -> R.string.settings_accent_violet
         AccentColor.PINK -> R.string.settings_accent_pink
+    }
+
+// The display name for a theme preset (keyed by ThemePreset.key, so the registry
+// stays free of any resource dependency).
+private fun ThemePreset.labelRes(): Int =
+    when (key) {
+        "ocean" -> R.string.theme_preset_ocean
+        "forest" -> R.string.theme_preset_forest
+        "dusk" -> R.string.theme_preset_dusk
+        else -> R.string.theme_preset_dynamic
     }
 
 // A font-slot row: the current family (or "System default") under the title,
