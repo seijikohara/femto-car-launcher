@@ -166,6 +166,17 @@ internal fun Typography.sectionLabel(
         fontFeatureSettings = TabularFigures,
     )
 
+// The calendar head's weekday name: titleLarge tightened a notch for the head
+// unit. Rendered through [FitText] so a long localized weekday ("Wednesday",
+// "Mittwoch") shrinks to fit the narrow head column instead of truncating.
+internal fun Typography.calendarWeekday(): TextStyle =
+    titleLarge.copy(
+        fontSize = 20.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = (-0.01f).em,
+        lineHeight = 20.sp,
+    )
+
 // Shared line-box policy for the styles whose rows aim at a stable height:
 // centred, untrimmed, Fixed mode. NOTE measured on-device: this alone does
 // NOT pin a line that renders through a FALLBACK face — Android applies
