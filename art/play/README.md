@@ -49,10 +49,23 @@ rsvg-convert -w 1024 -h 500 art/play/feature-graphic.svg -o art/play/feature-gra
 ## `screenshots/` — store screenshots (PNG)
 
 Phone screenshots for the listing, captured on the TBox-Mock head-unit geometry
-(800×480 landscape) via the `verify-on-emulator` skill: `01-dashboard` (map,
-weather, calendar, trip), `02-drawer` (app search + grid), `03-settings`. Play
-accepts 320–3840 px with ≤ 2:1 aspect, which 800×480 satisfies. Recapture after
-UI changes.
+(800×480 landscape, within Play's 320–3840 px / ≤ 2:1 limits). Three surfaces ×
+both themes: `dashboard-{dark,light}` (live map, weather, calendar, trip),
+`drawer-{dark,light}` (app search + grid), `settings-{dark,light}`.
+
+Capture conditions (keep them reproducible and privacy-clean):
+
+- **Locale `en-US`** via per-app override (`cmd locale set-app-locales <pkg>
+  --locales en-US`) so dates/units render in English.
+- **Location** set to a recognisable English-locale city (San Francisco) so the
+  map tiles and reverse-geocoded address are in English; wait for the live map
+  to render before capturing.
+- **Calendar** shows neutral sample events from a throwaway local calendar; the
+  device's real Google calendars are temporarily set `visible=0` during capture
+  and restored afterwards, so no personal events appear (relies on the
+  visibility filter in `CalendarRepository`).
+
+Recapture after UI changes.
 
 ## Authored in the Play Console (not in the repo)
 
