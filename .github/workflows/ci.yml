@@ -13,8 +13,29 @@ concurrency:
 
 jobs:
   validate:
-    name: Validate
+    name: Validate (${{ matrix.name }})
     runs-on: ubuntu-latest
+    strategy:
+      # Run the check groups as parallel jobs so wall-clock is the slowest group
+      # (assemble), not their sum. The Gradle build cache (org.gradle.caching) lets
+      # each job reuse the compile/dex outputs the latest main run populated, so the
+      # parallel split does not triple the heavy work on warm caches. fail-fast off
+      # so one failing group still reports the others.
+      fail-fast: false
+      matrix:
+        include:
+          - name: static-checks
+            tasks: spotlessCheck lint
+          - name: unit-tests
+            # verifyRoborazziDebug runs the unit tests in screenshot-verify mode, so
+            # folding it in with `test` executes testDebugUnitTest once (two separate
+            # invocations ran it twice). CI-only: the Roborazzi goldens are recorded
+            # on this runner OS (record-screenshots.yml), so the screenshot diff runs
+            # here, not in the local verify-android-build skill — a developer's render
+            # would mismatch the Linux-recorded goldens on font antialiasing.
+            tasks: test verifyRoborazziDebug
+          - name: assemble
+            tasks: assembleDebug
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -32,16 +53,12 @@ jobs:
           # read-only fallback explicit so feature branches never pollute it.
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
-      # Mirrors .claude/skills/verify-android-build (the verification SSOT); change both together.
-      - name: Run checks
-        run: ./gradlew spotlessCheck test lint assembleDebug --stacktrace
-
-      # CI-only: Roborazzi goldens are recorded on this runner OS (see
-      # record-screenshots.yml), so the dashboard screenshot diff runs here, not
-      # in the local verify-android-build skill — a developer's render would
-      # mismatch the Linux-recorded goldens on font antialiasing.
-      - name: Verify screenshots
-        run: ./gradlew verifyRoborazziDebug --stacktrace
+      # The three groups together mirror the local verify-android-build skill
+      # (spotlessCheck + test + lint + assembleDebug); change both together.
+      - name: Run ${{ matrix.name }}
+        env:
+          GRADLE_TASKS: ${{ matrix.tasks }}
+        run: ./gradlew $GRADLE_TASKS --stacktrace
 
   nightly:
     name: Publish nightly
