@@ -12,8 +12,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  validate:
-    name: Validate (${{ matrix.name }})
+  checks:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
     strategy:
       # Run the check groups as parallel jobs so wall-clock is the slowest group
@@ -59,6 +59,24 @@ jobs:
         env:
           GRADLE_TASKS: ${{ matrix.tasks }}
         run: ./gradlew $GRADLE_TASKS --stacktrace
+
+  # Single status check the branch ruleset requires by the name "Validate". It
+  # stays stable regardless of how the matrix legs above are split or renamed, and
+  # fails if any leg failed (needs.checks.result is success only when all legs pass).
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    needs: checks
+    if: always()
+    steps:
+      - name: Confirm all check groups passed
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+        run: |
+          if [ "$CHECKS_RESULT" != "success" ]; then
+            echo "::error::A Validate check group failed (result: $CHECKS_RESULT)."
+            exit 1
+          fi
 
   nightly:
     name: Publish nightly
