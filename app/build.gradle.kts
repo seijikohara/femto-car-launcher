@@ -149,6 +149,12 @@ android {
                 "proguard-rules.pro",
             )
         }
+        debug {
+            // Pseudolocales surface text-fit / RTL regressions on debug builds without
+            // authoring translations: en-XA accents and lengthens Latin text (~+30%),
+            // ar-XB mirrors the layout right-to-left. Debug-only; never shipped.
+            isPseudoLocalesEnabled = true
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

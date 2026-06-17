@@ -53,6 +53,7 @@ internal fun MusicConnectState(onConnect: () -> Unit) =
                 style = MaterialTheme.typography.cardCta(),
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Box(modifier = Modifier.height(4.dp))
             Text(
@@ -95,6 +96,7 @@ internal fun MusicEmptyState() =
             style = MaterialTheme.typography.cardCta(),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
         Box(modifier = Modifier.height(4.dp))
         Text(
