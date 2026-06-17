@@ -74,7 +74,7 @@ internal fun SnapshotMap(
     // The chevron sits at a fixed on-screen spot — centre X, markerPos height — and
     // the camera look-ahead aims the location there, so the map slides beneath a
     // still marker (car-nav style) rather than the marker drifting per frame.
-    val dropFraction = markerDropFraction(mapConfig.markerPos)
+    val dropFraction = markerDropFraction(mapConfig.markerPos, mapConfig.bottomSafeFraction)
     val markerXPx = widthPx / 2f
     val markerYPx = (heightPx * (0.5 + dropFraction)).toFloat()
 
@@ -152,6 +152,7 @@ internal fun SnapshotMap(
                             tiltDeg = mapConfig.tiltDeg,
                             zoom = mapConfig.zoom,
                             markerPos = mapConfig.markerPos,
+                            bottomSafeFraction = mapConfig.bottomSafeFraction,
                             renderHeightPx = renderHeightPx,
                         )
                     val rendered = snap.render(camera)
@@ -232,7 +233,15 @@ private suspend fun MapSnapshotter.render(camera: CameraPosition): Bitmap? =
 
 // The marker's drop below centre as a fraction of the map height, shared by the
 // camera look-ahead and the fixed on-screen marker spot so the two always agree.
-private fun markerDropFraction(markerPos: Int): Double = (markerPos.coerceIn(0, 100) / 100.0) * MAX_MARKER_DROP
+// The drop is capped at MAX_MARKER_DROP and additionally clamped so the chevron
+// stays above the bottom speed overlay: the lowest the centre may sit is
+// 0.5 - bottomSafeFraction (the overlay's measured footprint plus marker
+// clearance), so a tall overlay or a short map pane shrinks the usable range
+// rather than burying the marker.
+private fun markerDropFraction(
+    markerPos: Int,
+    bottomSafeFraction: Float,
+): Double = (markerPos.coerceIn(0, 100) / 100.0) * (0.5 - bottomSafeFraction).coerceIn(0.0, MAX_MARKER_DROP)
 
 private fun cameraFor(
     location: Location,
@@ -240,6 +249,7 @@ private fun cameraFor(
     tiltDeg: Int,
     zoom: Int,
     markerPos: Int,
+    bottomSafeFraction: Float,
     renderHeightPx: Int,
 ): CameraPosition {
     val bearing = location.carriedBearing(bearingHolder).toDouble()
@@ -252,7 +262,7 @@ private fun cameraFor(
     // fraction the chevron is pinned to regardless of renderPercent. The tilt makes
     // this approximate, but a fixed chevron stays steady rather than drifting with
     // the per-frame estimate.
-    val dropFraction = markerDropFraction(markerPos)
+    val dropFraction = markerDropFraction(markerPos, bottomSafeFraction)
     val lookAheadM = dropFraction * renderHeightPx * metersPerPixel(zoom, location.latitude)
     val target = LatLng(location.latitude, location.longitude).offsetForward(bearing, lookAheadM)
     return CameraPosition

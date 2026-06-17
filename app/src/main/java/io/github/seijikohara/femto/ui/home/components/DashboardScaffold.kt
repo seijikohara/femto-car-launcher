@@ -21,6 +21,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -257,7 +259,7 @@ private fun MapPane(
     glassConfig: GlassConfig,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
-) = Box(modifier = modifier) {
+) = BoxWithConstraints(modifier = modifier) {
     // Shared Haze state: the map registers as the blur source, the glass overlays
     // sample it for their backdrop blur. Only the snapshot backend (a Compose
     // Image) can be captured; the Live GL surface falls back to the opaque tint.
@@ -269,9 +271,23 @@ private fun MapPane(
     var following by remember { mutableStateOf(true) }
     var bearingDeg by remember { mutableFloatStateOf(0f) }
     var recenterNonce by remember { mutableIntStateOf(0) }
+    // Measure the speed overlay against the pane height so the map can clamp the
+    // self-marker above it (MapConfig.bottomSafeFraction): a short pane or a tall
+    // overlay shrinks the marker's drop range rather than burying the chevron.
+    var overlayHeightPx by remember { mutableIntStateOf(0) }
+    val bottomSafeFraction =
+        with(LocalDensity.current) {
+            val paneHeightPx = maxHeight.roundToPx()
+            if (paneHeightPx > 0) {
+                ((overlayHeightPx + (SpeedOverlayBottomGap + MarkerOverlayClearance).toPx()) / paneHeightPx)
+                    .coerceIn(0f, 0.5f)
+            } else {
+                0f
+            }
+        }
     MapPanel(
         location = uiState.location,
-        mapConfig = mapConfig,
+        mapConfig = mapConfig.copy(bottomSafeFraction = bottomSafeFraction),
         onTap = { onAction(HomeAction.OpenMaps) },
         modifier = Modifier.fillMaxSize().hazeSource(hazeState),
         recenterNonce = recenterNonce,
@@ -329,7 +345,8 @@ private fun MapPane(
         modifier =
             Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp),
+                .padding(bottom = SpeedOverlayBottomGap)
+                .onSizeChanged { overlayHeightPx = it.height },
     )
 }
 
@@ -404,6 +421,13 @@ private val CompactWidthBreakpoint: Dp = 600.dp
 // defaults used on large panels.
 private val CompactScreenPadding: Dp = 12.dp
 private val CompactPaneGap: Dp = 10.dp
+
+// Gap between the speed overlay and the map pane's bottom edge, and the extra room
+// kept above the overlay so the self-marker chevron (and most of its ripple)
+// clears it. Together they form the bottom band the marker drop must avoid
+// (MapConfig.bottomSafeFraction).
+private val SpeedOverlayBottomGap: Dp = 16.dp
+private val MarkerOverlayClearance: Dp = 20.dp
 
 // Pane weights. The map is the dominant surface in landscape; in portrait it
 // sits a little taller than the info pane. The info pane splits its height
