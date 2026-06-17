@@ -21,6 +21,8 @@
     <!-- Speed overlay -->
     <string name="speed_reset_trip">Reset trip</string>
     <string name="speed_altitude">ALT %1$d m</string>
+    <string name="speed_metric_distance">DISTANCE</string>
+    <string name="speed_metric_avg">AVG.</string>
 
     <!-- Calendar card -->
     <string name="calendar_permission_denied">Calendar access not granted</string>

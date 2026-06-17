@@ -50,6 +50,7 @@ import io.github.seijikohara.femto.ui.locale.tripDistanceFromMeters
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import io.github.seijikohara.femto.ui.theme.glanceMetric
 import io.github.seijikohara.femto.ui.theme.heroNumeral
 import io.github.seijikohara.femto.ui.theme.sectionLabel
@@ -190,13 +191,13 @@ private fun MetricRow(
     NowMetric(value = currentSpeed, unit = speedUnitLabel)
     Separator()
     SecondaryMetric(
-        key = "DISTANCE",
+        key = stringResource(R.string.speed_metric_distance),
         value = "%.1f %s".format(distance, distanceUnitLabel),
         modifier = Modifier.widthIn(min = FemtoDimens.SpeedMetricMinWidth),
     )
     Separator()
     SecondaryMetric(
-        key = "AVG.",
+        key = stringResource(R.string.speed_metric_avg),
         value = "$avgSpeed $speedUnitLabel",
         modifier = Modifier.widthIn(min = FemtoDimens.SpeedMetricMinWidth),
     )
@@ -257,6 +258,7 @@ private fun SecondaryMetric(
         // dimmest tier so the value beside it reads first.
         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
         maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
     )
     Text(
         text = value,
@@ -380,6 +382,7 @@ private const val NO_SPEED_PLACEHOLDER = "—"
 private const val NO_ADDRESS_PLACEHOLDER = "—"
 
 @PreviewLightDark
+@PreviewTextStress
 @Preview(name = "Speed overlay", widthDp = 560, heightDp = 160)
 @Composable
 private fun SpeedOverlayPreview() {
