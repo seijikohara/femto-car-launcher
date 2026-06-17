@@ -48,16 +48,30 @@ export function clampMarkerPos(markerPos: number): number {
 	return Math.max(0, Math.min(100, markerPos || 0));
 }
 
+// Marker drop below centre as a fraction of map height. Capped at MAX_MARKER_DROP
+// and additionally clamped so the chevron stays above the bottom speed overlay:
+// the lowest the centre may sit is 0.5 - bottomSafe, where bottomSafe is the
+// overlay's measured footprint (plus marker clearance) the host pushes. A short
+// map pane or a tall overlay shrinks the usable range instead of burying the
+// marker. Mirrors markerDropFraction in MapSnapshot.kt — keep in sync.
+export function markerDrop(markerPos: number, bottomSafe: number): number {
+	const maxDrop = Math.max(
+		0,
+		Math.min(MAX_MARKER_DROP, 0.5 - (bottomSafe || 0)),
+	);
+	return (clampMarkerPos(markerPos) / 100) * maxDrop;
+}
+
 // Top camera padding (px) that places the centred location at the height the
-// marker-position setting asks for. padTop shifts the focal point down, so the
-// location (and its marker) sits lower in the frame; markerPos 0 keeps it
-// centred, 100 drops it MAX_MARKER_DROP of the height toward the speed panel.
+// marker sits at. padTop shifts the focal point down so the location (and its
+// marker) sits lower in the frame; the 2x compensates the half-of-padding
+// geometry so the location lands exactly under the chevron.
 export function markerPadTop(
 	markerPos: number,
+	bottomSafe: number,
 	containerHeight: number,
 ): number {
-	const drop = (clampMarkerPos(markerPos) / 100) * MAX_MARKER_DROP;
-	return 2 * drop * containerHeight;
+	return 2 * markerDrop(markerPos, bottomSafe) * containerHeight;
 }
 
 // The first vector source id in a style (the OpenMapTiles source), so 3D

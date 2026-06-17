@@ -20,6 +20,12 @@ internal data class MapConfig(
     val renderPercent: Int = 100,
     val renderMode: MapRenderMode = MapRenderMode.SNAPSHOT,
     val markerPos: Int = 70,
+    // Fraction (0..0.5) of the map height the bottom speed overlay occupies,
+    // measured at layout time (not a persisted setting). The marker drop is
+    // clamped against it so the chevron always clears the overlay regardless of
+    // markerPos or screen aspect; 0 means "unmeasured", leaving the MAX_MARKER_DROP
+    // cap as the only bound.
+    val bottomSafeFraction: Float = 0f,
     val buildings3d: Boolean = false,
     val terrain: Boolean = false,
 )
