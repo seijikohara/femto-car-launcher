@@ -12,9 +12,30 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  validate:
-    name: Validate
+  checks:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
+    strategy:
+      # Run the check groups as parallel jobs so wall-clock is the slowest group
+      # (assemble), not their sum. The Gradle build cache (org.gradle.caching) lets
+      # each job reuse the compile/dex outputs the latest main run populated, so the
+      # parallel split does not triple the heavy work on warm caches. fail-fast off
+      # so one failing group still reports the others.
+      fail-fast: false
+      matrix:
+        include:
+          - name: static-checks
+            tasks: spotlessCheck lint
+          - name: unit-tests
+            # verifyRoborazziDebug runs the unit tests in screenshot-verify mode, so
+            # folding it in with `test` executes testDebugUnitTest once (two separate
+            # invocations ran it twice). CI-only: the Roborazzi goldens are recorded
+            # on this runner OS (record-screenshots.yml), so the screenshot diff runs
+            # here, not in the local verify-android-build skill — a developer's render
+            # would mismatch the Linux-recorded goldens on font antialiasing.
+            tasks: test verifyRoborazziDebug
+          - name: assemble
+            tasks: assembleDebug
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -32,16 +53,30 @@ jobs:
           # read-only fallback explicit so feature branches never pollute it.
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
-      # Mirrors .claude/skills/verify-android-build (the verification SSOT); change both together.
-      - name: Run checks
-        run: ./gradlew spotlessCheck test lint assembleDebug --stacktrace
+      # The three groups together mirror the local verify-android-build skill
+      # (spotlessCheck + test + lint + assembleDebug); change both together.
+      - name: Run ${{ matrix.name }}
+        env:
+          GRADLE_TASKS: ${{ matrix.tasks }}
+        run: ./gradlew $GRADLE_TASKS --stacktrace
 
-      # CI-only: Roborazzi goldens are recorded on this runner OS (see
-      # record-screenshots.yml), so the dashboard screenshot diff runs here, not
-      # in the local verify-android-build skill — a developer's render would
-      # mismatch the Linux-recorded goldens on font antialiasing.
-      - name: Verify screenshots
-        run: ./gradlew verifyRoborazziDebug --stacktrace
+  # Single status check the branch ruleset requires by the name "Validate". It
+  # stays stable regardless of how the matrix legs above are split or renamed, and
+  # fails if any leg failed (needs.checks.result is success only when all legs pass).
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    needs: checks
+    if: always()
+    steps:
+      - name: Confirm all check groups passed
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+        run: |
+          if [ "$CHECKS_RESULT" != "success" ]; then
+            echo "::error::A Validate check group failed (result: $CHECKS_RESULT)."
+            exit 1
+          fi
 
   nightly:
     name: Publish nightly
