@@ -1,0 +1,124 @@
+name: Release
+
+# Cut a production build from a version tag (e.g. v1.0.0): build the signed
+# Android App Bundle (the Play upload format) plus an APK (direct sideload) and
+# attach both to a GitHub release. The .aab is uploaded to the Play Console
+# manually — see .github/RELEASING.md.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag to build, e.g. v1.0.0"
+        required: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build signed release
+    runs-on: ubuntu-latest
+    permissions:
+      # gh release create needs write access to repo contents.
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Resolve version
+        id: version
+        # The tag (push) or the dispatch input arrives only through this env var,
+        # never interpolated into the script body, and is validated against a
+        # strict semver pattern before use (workflow-injection safety).
+        env:
+          REF_VERSION: ${{ github.event.inputs.version || github.ref_name }}
+        run: |
+          name="${REF_VERSION#v}"
+          if ! printf '%s' "$name" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Version must be vMAJOR.MINOR.PATCH (got '$REF_VERSION')"
+            exit 1
+          fi
+          IFS=. read -r major minor patch <<< "$name"
+          if [ "$minor" -ge 100 ] || [ "$patch" -ge 100 ]; then
+            echo "::error::minor and patch must each be < 100 for the versionCode packing"
+            exit 1
+          fi
+          # Pack semver into a monotonic versionCode: major*10000 + minor*100 + patch.
+          code=$(( major * 10000 + minor * 100 + patch ))
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "Resolved versionName=$name versionCode=$code"
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6
+        with:
+          cache-read-only: true
+
+      - name: Verify signing secrets are present
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          # Fail fast (and clearly) if any signing secret is missing, so the job
+          # never reaches Gradle half-configured and never publishes an unsigned build.
+          missing=""
+          [ -z "$RELEASE_KEYSTORE_BASE64" ] && missing="$missing RELEASE_KEYSTORE_BASE64"
+          [ -z "$RELEASE_KEYSTORE_PASSWORD" ] && missing="$missing RELEASE_KEYSTORE_PASSWORD"
+          [ -z "$RELEASE_KEY_ALIAS" ] && missing="$missing RELEASE_KEY_ALIAS"
+          [ -z "$RELEASE_KEY_PASSWORD" ] && missing="$missing RELEASE_KEY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing signing secret(s):$missing. Add all four (RELEASE_KEYSTORE_BASE64, RELEASE_KEYSTORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD) so the release can be signed. Refusing to publish an unsigned build."
+            exit 1
+          fi
+
+      - name: Decode keystore
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          # Write outside the checked-out tree; $RUNNER_TEMP is auto-cleaned.
+          echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+
+      - name: Build signed release AAB and APK
+        env:
+          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+        run: ./gradlew bundleRelease assembleRelease --stacktrace
+
+      - name: Stage artifacts with version-stamped names
+        env:
+          V: ${{ steps.version.outputs.name }}
+        run: |
+          cp app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/femto-car-launcher-$V.aab"
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/femto-car-launcher-$V.apk"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          V: ${{ steps.version.outputs.name }}
+          CODE: ${{ steps.version.outputs.code }}
+          TAG: ${{ github.event.inputs.version || github.ref_name }}
+        run: |
+          # On a tag push the tag already exists; on workflow_dispatch this creates
+          # it against the current commit. The .aab is the artifact to upload to
+          # the Play Console (.github/RELEASING.md).
+          gh release create "$TAG" \
+            "$RUNNER_TEMP/femto-car-launcher-$V.aab" \
+            "$RUNNER_TEMP/femto-car-launcher-$V.apk" \
+            --title "v$V" \
+            --notes "Production build $V (versionCode $CODE). Upload the .aab to the Play Console; see .github/RELEASING.md." \
+            --latest

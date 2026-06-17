@@ -105,10 +105,12 @@ android {
         applicationId = "io.github.seijikohara.femto"
         minSdk = 33
         targetSdk = 36
-        // CI injects a monotonically increasing versionCode/versionName for the
-        // nightly channel; local builds fall back to the committed 1 / "1.0".
-        versionCode = System.getenv("NIGHTLY_VERSION_CODE")?.toIntOrNull() ?: 1
-        versionName = System.getenv("NIGHTLY_VERSION_NAME") ?: "1.0"
+        // CI injects versionCode/versionName: the nightly job uses the run
+        // number, the tag-driven release workflow derives them from the version
+        // tag (see .github/workflows/{ci,release}.yml). Local builds fall back to
+        // the committed 1 / "1.0".
+        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1
+        versionName = System.getenv("VERSION_NAME") ?: "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

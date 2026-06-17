@@ -3,6 +3,20 @@
 This file records the Play Console declarations that cannot live in the repo.
 Code-side release wiring is in `app/build.gradle.kts` and `.github/RELEASING.md`.
 
+## Status (free-launch audit, 2026-06-17)
+
+**No hard code/policy blocker remains.** Code-side is ready: `targetSdk 36`
+(clears the API-35 floor and the Aug-2026 API-36 deadline), signed **AAB**
+built by the tag-driven [`release.yml`](workflows/release.yml), manifest hygiene
+(no `QUERY_ALL_PACKAGES`, no `ACCESS_BACKGROUND_LOCATION`, FGS `location` type
+declared, all components `exported`-explicit, location prefs excluded from
+backup), all external resources free + ToS-compliant (MET Norway / OpenFreeMap /
+Google Fonts / on-device geocoder), privacy policy shipped, adaptive + 512px
+icons present.
+
+The remaining gates are all in this file (Console paperwork) plus, for a **new
+personal developer account**, the closed-testing requirement below.
+
 ## Privacy policy
 
 - URL: <https://github.com/seijikohara/femto-car-launcher/blob/main/PRIVACY.md>
@@ -43,15 +57,39 @@ be declared "not shared."
 ## Sensitive permission declarations
 
 - **Location** (`ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION`): map, address,
-  weather, trip. No `ACCESS_BACKGROUND_LOCATION`.
+  weather, trip. No `ACCESS_BACKGROUND_LOCATION`, so the heavyweight background-
+  location Permissions Declaration Form is NOT required — only the foreground
+  prominent disclosure + the FGS declaration above.
 - **Microphone** (`RECORD_AUDIO`): voice assistant + music spectrum; runtime-requested
-  on user action.
+  on user action. No declaration form, but needs a prominent disclosure.
 - **`READ_PHONE_STATE`**: cellular signal level only (not Call Log / SMS group).
+- **Notification listener** (`BIND_NOTIFICATION_LISTENER_SERVICE`,
+  `MusicSessionListenerService`): reads the active media session for the
+  now-playing card. No formal declaration form, but notification access draws
+  review scrutiny — keep the in-app prominent disclosure + affirmative consent
+  before requesting access, and justify the media-control use case.
+
+## Content rating, account, and testing
+
+- **Content rating**: complete the IARC questionnaire at **App content → Content
+  rating**.
+- **Account deletion**: N/A — the app has no user accounts / sign-in.
+- **Closed-testing requirement (new personal accounts only)**: a personal
+  developer account created after 2023-11-13 must run a **closed test with ≥12
+  testers opted-in continuously for ≥14 days** before applying for production
+  access. Recruit via friends / mutual-testing communities (real people on real
+  devices — bot/fake testers risk account termination). An **organization**
+  account is exempt (requires a D-U-N-S number). Plan ~3 weeks lead time
+  (14-day test + ~7-day production-access review).
+- One-time account setup: **$25** registration + identity verification.
 
 ## Release artifact
 
-- Upload an **App Bundle (.aab)**, not an APK (see the AAB CI work / `bundleRelease`).
-- Use a release `versionCode` / `versionName` distinct from the nightly channel.
-- Prepare store assets the repo cannot hold: 512×512 hi-res icon (export
-  `logo.svg`), feature graphic, and screenshots (landscape head-unit + portrait
-  phone).
+- Cut the build by pushing a `vMAJOR.MINOR.PATCH` tag → [`release.yml`](workflows/release.yml)
+  produces the **signed AAB** (and an APK) with a production version derived from
+  the tag, and attaches them to the GitHub release. Upload the `.aab` to the Play
+  Console. See `.github/RELEASING.md`.
+- Upload an **App Bundle (.aab)**, not an APK.
+- Store assets: the **512×512 icon** lives in `art/play/`; the **feature graphic
+  (1024×500)** and **screenshots** (landscape head-unit + portrait phone) also
+  live in `art/play/`. Short/long descriptions are authored in the Console.
