@@ -188,6 +188,12 @@ android {
             isReturnDefaultValues = true
         }
     }
+    lint {
+        // Lint the shipped code only. lintAnalyzeDebugUnitTest + lintAnalyzeDebugAndroidTest
+        // dominated CI lint time (~63s combined, vs ~1s for the main sources); test-code
+        // lint findings carry little value since tests are not shipped.
+        ignoreTestSources = true
+    }
 }
 
 // AboutLibraries collects each Gradle dependency's license at build time into
