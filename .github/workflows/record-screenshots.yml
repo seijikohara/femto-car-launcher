@@ -1,20 +1,22 @@
 name: Record screenshots
 
 # Record the Roborazzi golden images on the CI runner — the SAME OS / JDK that
-# verifyRoborazziDebug compares against in `ci.yml`, so the goldens match (font
-# antialiasing differs across OSes, which is why they cannot be recorded on a
-# developer's machine). Run this manually whenever the dashboard's intended
-# appearance changes; it records and commits the refreshed PNGs back to the branch.
+# verifyRoborazziDebug compares against in ci.yml — and upload them as an artifact
+# to commit into the repo. Font antialiasing differs across OSes, so goldens cannot
+# be recorded reliably on a developer's machine. Run this whenever the dashboard's
+# intended appearance changes, then download the artifact and commit the PNGs.
 on:
   workflow_dispatch:
+  # Bootstrap trigger: removed before merge, leaving the manual workflow_dispatch.
+  push:
+    branches: [worktree-roborazzi-screenshots]
+    paths-ignore:
+      - "app/src/test/screenshots/**"
 
 jobs:
   record:
     name: Record goldens
     runs-on: ubuntu-latest
-    permissions:
-      # Push the recorded goldens back to the branch.
-      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -33,14 +35,9 @@ jobs:
       - name: Record goldens
         run: ./gradlew recordRoborazziDebug --stacktrace
 
-      - name: Commit refreshed goldens
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/src/test/screenshots
-          if git diff --staged --quiet; then
-            echo "Goldens unchanged."
-          else
-            git commit -m "chore(screenshots): record dashboard goldens on CI"
-            git push
-          fi
+      - name: Upload goldens
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: roborazzi-goldens
+          path: app/src/test/screenshots/
+          if-no-files-found: error
