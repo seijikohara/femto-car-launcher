@@ -101,8 +101,8 @@ jobs:
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-          NIGHTLY_VERSION_CODE: ${{ github.run_number }}
-          NIGHTLY_VERSION_NAME: nightly-${{ github.run_number }}-${{ github.sha }}
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: nightly-${{ github.run_number }}-${{ github.sha }}
         # AAB is the Play upload format (required for new apps); APK stays for
         # direct sideload onto AI boxes / head units off the GitHub release.
         run: ./gradlew assembleRelease bundleRelease --stacktrace

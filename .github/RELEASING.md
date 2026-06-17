@@ -11,6 +11,29 @@ Play Console -> Testing/Production -> Create release. Local
 signing config is registered only when `RELEASE_KEYSTORE_PATH` is set, so
 contributor builds keep working with no keystore.
 
+## Production release (tag-driven)
+
+Cut a production build by pushing a semver tag, which triggers
+[`release.yml`](workflows/release.yml):
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The workflow derives the version from the tag — `versionName` is the tag
+without the `v` (e.g. `1.0.0`), and `versionCode` is packed as
+`major*10000 + minor*100 + patch` (so `v1.0.0` → `10000`, monotonic with
+semver; minor and patch must each be `< 100`). It builds the **signed AAB
+and APK**, then attaches both to a GitHub release for that tag. Download
+the `.aab` and upload it under **Play Console → Testing/Production →
+Create release**. (`workflow_dispatch` with a `version` input is the
+manual fallback when you'd rather not push a tag.)
+
+The nightly job uses the same signing secrets but stamps a
+`nightly-<run>-<sha>` version; only tagged builds carry a clean
+production version.
+
 ## Signing secrets
 
 A maintainer must add four repository secrets (Settings -> Secrets and
