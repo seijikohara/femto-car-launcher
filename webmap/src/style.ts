@@ -1,6 +1,9 @@
 // Pure style-transformation logic, kept free of MapLibre runtime and DOM state
 // so it is unit-testable (see style.test.ts); main.ts owns the page wiring.
 import type { LayerSpecification, StyleSpecification } from "maplibre-gl";
+// Single source for the recolour rule data, shared with the Kotlin snapshot
+// backend (it code-generates MapRecolorData from this same file).
+import recolorData from "./map-recolor-data.json";
 
 export interface AccentColors {
 	background: string;
@@ -35,11 +38,11 @@ export const BUILDING_EXTRUSION_OPACITY = 0.5;
 // the host's Compose attribution overlay when terrain is active.
 export const MAPTERHORN_DEM_URL = "https://tiles.mapterhorn.com/tilejson.json";
 
-const ACCENT_LAND = ["landcover", "landuse", "park"];
+const ACCENT_LAND = recolorData.accentLandLayers;
 
 // The lowest the self-marker drops below centre, as a fraction of map height,
-// at markerPos = 100 (mirrors MAX_MARKER_DROP in MapPanel.kt).
-export const MAX_MARKER_DROP = 0.32;
+// at markerPos = 100. From the shared map-recolor-data.json.
+export const MAX_MARKER_DROP = recolorData.maxMarkerDrop;
 
 // Clamp a host-pushed markerPos into the valid 0..100 range (treating a missing
 // value as 0). The single SSOT for the clamp shared by markerPadTop and the
@@ -95,7 +98,7 @@ export function roadClassOrNull(
 	if (!layer.id.startsWith("highway_") && !layer.id.startsWith("tunnel_"))
 		return null;
 	if (layer.id.includes("casing")) return "casing";
-	if (["minor", "path", "subtle"].some((k) => layer.id.includes(k)))
+	if (recolorData.roadMinorKeywords.some((k) => layer.id.includes(k)))
 		return "minor";
 	return "major";
 }

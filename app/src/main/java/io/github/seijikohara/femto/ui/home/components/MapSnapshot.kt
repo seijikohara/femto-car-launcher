@@ -233,15 +233,16 @@ private suspend fun MapSnapshotter.render(camera: CameraPosition): Bitmap? =
 
 // The marker's drop below centre as a fraction of the map height, shared by the
 // camera look-ahead and the fixed on-screen marker spot so the two always agree.
-// The drop is capped at MAX_MARKER_DROP and additionally clamped so the chevron
-// stays above the bottom speed overlay: the lowest the centre may sit is
+// The drop is capped at MapRecolorData.maxMarkerDrop and additionally clamped so the
+// chevron stays above the bottom speed overlay: the lowest the centre may sit is
 // 0.5 - bottomSafeFraction (the overlay's measured footprint plus marker
 // clearance), so a tall overlay or a short map pane shrinks the usable range
 // rather than burying the marker.
 private fun markerDropFraction(
     markerPos: Int,
     bottomSafeFraction: Float,
-): Double = (markerPos.coerceIn(0, 100) / 100.0) * (0.5 - bottomSafeFraction).coerceIn(0.0, MAX_MARKER_DROP)
+): Double =
+    (markerPos.coerceIn(0, 100) / 100.0) * (0.5 - bottomSafeFraction).coerceIn(0.0, MapRecolorData.maxMarkerDrop)
 
 private fun cameraFor(
     location: Location,
@@ -345,8 +346,3 @@ private const val TAG = "MapPanel"
 private const val REFRESH_DISTANCE_M = 2f
 private const val EARTH_RADIUS_M = 6_371_000.0
 private const val EARTH_CIRCUMFERENCE_M = 40_075_016.686
-
-// The lowest the marker drops as a fraction of the map height below centre at
-// markerPos = 100 — kept below 0.5 so the puck stays clear of the speed overlay
-// (mirrored by MAX_MARKER_DROP in map.html for the live backend).
-private const val MAX_MARKER_DROP = 0.32
