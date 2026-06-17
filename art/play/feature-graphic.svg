@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+  <rect width="1024" height="500" fill="#0E1318"/>
+  <!-- Brand chevron mark (from logo.svg), left, vertically centred. -->
+  <g transform="translate(-78.4,-57.2) scale(1.2)">
+    <path d="M132 156 L208 256 L132 356" stroke="#3BE0AE" stroke-width="58" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.25"/>
+    <path d="M224 156 L300 256 L224 356" stroke="#3BE0AE" stroke-width="58" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.55"/>
+    <path d="M316 156 L392 256 L316 356" stroke="#3BE0AE" stroke-width="58" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+  <!-- Wordmark + tagline. -->
+  <text x="430" y="232" font-family="Helvetica, Arial, sans-serif" font-size="112" font-weight="700" fill="#F5F7F8">Femto</text>
+  <text x="434" y="300" font-family="Helvetica, Arial, sans-serif" font-size="44" font-weight="500" fill="#3BE0AE" letter-spacing="7">CAR LAUNCHER</text>
+  <text x="436" y="360" font-family="Helvetica, Arial, sans-serif" font-size="30" font-weight="400" fill="#9AA6AD">Your car display's home screen</text>
+</svg>

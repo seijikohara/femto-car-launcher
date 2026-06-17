@@ -25,11 +25,60 @@ mv art/play/ic_launcher-512.svg.png art/play/ic_launcher-512.png
 rsvg-convert -w 512 -h 512 art/play/ic_launcher-512.svg -o art/play/ic_launcher-512.png
 ```
 
-## Still to prepare (cannot be generated from the repo)
+## `feature-graphic` — feature graphic (1024×500, PNG)
 
-- Feature graphic (1024×500).
-- Screenshots: landscape (head-unit geometry — the `verify-on-emulator` skill can
-  capture these) and portrait (phone).
+Required by Play Console → Store listing → Graphics.
+
+- `feature-graphic.svg` is the source: the `logo.svg` chevron mark plus the
+  wordmark on the brand background (`#0E1318` / accent `#3BE0AE`). Keep the colours
+  in sync with `logo.svg`.
+- `feature-graphic.png` is the exported 1024×500 bitmap to upload.
+
+Regenerate the PNG from the SVG:
+
+```bash
+# librsvg renders the 1024x500 SVG directly:
+rsvg-convert -w 1024 -h 500 art/play/feature-graphic.svg -o art/play/feature-graphic.png
+
+# macOS Quick Look only emits square thumbnails, so wrap the design in a 1024x1024
+# square (full-bleed background, content translated by 262) and crop the centre:
+#   qlmanage -t -s 1024 -o /tmp <square-wrapper>.svg
+#   sips -c 500 1024 art/play/feature-graphic.png
+```
+
+## `screenshots/` — store screenshots (PNG)
+
+Phone screenshots for the listing, captured on the TBox-Mock head-unit geometry
+upscaled to 2× (1600×960 landscape, within Play's 320–3840 px / ≤ 2:1 limits;
+same 853×512 dp layout, sharper bitmap). Two surfaces × both themes:
+`dashboard-{dark,light}` (live map with the self-marker, weather, calendar,
+active music, trip) and `drawer-{dark,light}` (app search + grid). There is no
+in-app full-screen map — the dashboard card is the live-map surface, and the dock
+Navigation button hands a `geo:` intent to an external maps app.
+
+Capture conditions (keep them reproducible and privacy-clean):
+
+- **Resolution**: `wm size 1600x960 && wm density 300` (2× the device's
+  800×480/150 override); restore with `wm size 800x480 && wm density 150`.
+- **Locale `en-US`** via per-app override (`cmd locale set-app-locales <pkg>
+  --locales en-US`) so dates/units render in English.
+- **Location** set to a recognisable English-locale city (San Francisco) so the
+  map tiles and reverse-geocoded address are in English; wait for the live map
+  to render before capturing.
+- **Calendar** shows neutral sample events from a throwaway local calendar; the
+  device's real Google calendars are temporarily set `visible=0` during capture
+  and restored afterwards, so no personal events appear (relies on the
+  visibility filter in `CalendarRepository`).
+- **Music** card shows an active session: grant the notification listener
+  (`cmd notification allow_listener <pkg>/<listener>`) and play neutral media in
+  Chrome (a small page served over `adb reverse` that sets `MediaSession`
+  metadata). Stop it and revoke the listener afterwards.
+
+Recapture after UI changes.
+
+## Authored in the Play Console (not in the repo)
+
+- Short description, full description, and the content-rating answers.
 
 A raster `mipmap` fallback icon is intentionally omitted: `minSdk` is 33, where
 adaptive icons are always supported.
