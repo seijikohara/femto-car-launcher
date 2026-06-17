@@ -49,12 +49,17 @@ rsvg-convert -w 1024 -h 500 art/play/feature-graphic.svg -o art/play/feature-gra
 ## `screenshots/` — store screenshots (PNG)
 
 Phone screenshots for the listing, captured on the TBox-Mock head-unit geometry
-(800×480 landscape, within Play's 320–3840 px / ≤ 2:1 limits). Three surfaces ×
-both themes: `dashboard-{dark,light}` (live map, weather, calendar, trip),
-`drawer-{dark,light}` (app search + grid), `settings-{dark,light}`.
+upscaled to 2× (1600×960 landscape, within Play's 320–3840 px / ≤ 2:1 limits;
+same 853×512 dp layout, sharper bitmap). Two surfaces × both themes:
+`dashboard-{dark,light}` (live map with the self-marker, weather, calendar,
+active music, trip) and `drawer-{dark,light}` (app search + grid). There is no
+in-app full-screen map — the dashboard card is the live-map surface, and the dock
+Navigation button hands a `geo:` intent to an external maps app.
 
 Capture conditions (keep them reproducible and privacy-clean):
 
+- **Resolution**: `wm size 1600x960 && wm density 300` (2× the device's
+  800×480/150 override); restore with `wm size 800x480 && wm density 150`.
 - **Locale `en-US`** via per-app override (`cmd locale set-app-locales <pkg>
   --locales en-US`) so dates/units render in English.
 - **Location** set to a recognisable English-locale city (San Francisco) so the
@@ -64,6 +69,10 @@ Capture conditions (keep them reproducible and privacy-clean):
   device's real Google calendars are temporarily set `visible=0` during capture
   and restored afterwards, so no personal events appear (relies on the
   visibility filter in `CalendarRepository`).
+- **Music** card shows an active session: grant the notification listener
+  (`cmd notification allow_listener <pkg>/<listener>`) and play neutral media in
+  Chrome (a small page served over `adb reverse` that sets `MediaSession`
+  metadata). Stop it and revoke the listener afterwards.
 
 Recapture after UI changes.
 
