@@ -307,6 +307,7 @@ internal fun WebMapView(
         mapConfig.zoom,
         mapConfig.tiltDeg,
         mapConfig.markerPos,
+        mapConfig.bottomSafeFraction,
         markerColor,
     ) {
         if (!pageReady.value) return@LaunchedEffect
@@ -314,7 +315,7 @@ internal fun WebMapView(
         webView.evaluateJavascript(
             "window.updateCamera && updateCamera(" +
                 "${location.latitude}, ${location.longitude}, $bearing, ${mapConfig.zoom}, ${mapConfig.tiltDeg}, " +
-                "${mapConfig.markerPos}, '$markerColor')",
+                "${mapConfig.markerPos}, ${mapConfig.bottomSafeFraction}, '$markerColor')",
             null,
         )
     }

@@ -6,6 +6,7 @@ import {
 	injectFeatures,
 	MAPTERHORN_DEM_URL,
 	MAX_MARKER_DROP,
+	markerDrop,
 	markerPadTop,
 	roadClassOrNull,
 	vectorSourceId,
@@ -290,18 +291,48 @@ describe("roadClassOrNull", () => {
 	});
 });
 
-describe("markerPadTop", () => {
-	it("keeps the focal point centred at markerPos 0", () => {
-		expect(markerPadTop(0, 480)).toBe(0);
+describe("markerDrop", () => {
+	it("keeps the marker centred at markerPos 0", () => {
+		expect(markerDrop(0, 0)).toBe(0);
 	});
 
-	it("drops the focal point by 2 * MAX_MARKER_DROP of the height at markerPos 100", () => {
-		expect(markerPadTop(100, 480)).toBeCloseTo(2 * MAX_MARKER_DROP * 480);
+	it("drops by MAX_MARKER_DROP at markerPos 100 when the overlay leaves room", () => {
+		expect(markerDrop(100, 0)).toBeCloseTo(MAX_MARKER_DROP);
+	});
+
+	it("clamps the drop so the marker stays above the bottom overlay", () => {
+		// bottomSafe 0.4 caps the centre at 0.5 - 0.4 = 0.1, below MAX_MARKER_DROP.
+		expect(markerDrop(100, 0.4)).toBeCloseTo(0.1);
+		expect(markerDrop(50, 0.4)).toBeCloseTo(0.05);
+	});
+
+	it("never drops when the overlay leaves no room", () => {
+		expect(markerDrop(100, 0.5)).toBe(0);
+		expect(markerDrop(100, 0.8)).toBe(0);
 	});
 
 	it("clamps out-of-range positions", () => {
-		expect(markerPadTop(250, 480)).toBe(markerPadTop(100, 480));
-		expect(markerPadTop(-5, 480)).toBe(0);
+		expect(markerDrop(250, 0)).toBe(markerDrop(100, 0));
+		expect(markerDrop(-5, 0)).toBe(0);
+	});
+});
+
+describe("markerPadTop", () => {
+	it("keeps the focal point centred at markerPos 0", () => {
+		expect(markerPadTop(0, 0, 480)).toBe(0);
+	});
+
+	it("drops the focal point by 2 * MAX_MARKER_DROP of the height at markerPos 100", () => {
+		expect(markerPadTop(100, 0, 480)).toBeCloseTo(2 * MAX_MARKER_DROP * 480);
+	});
+
+	it("clamps out-of-range positions", () => {
+		expect(markerPadTop(250, 0, 480)).toBe(markerPadTop(100, 0, 480));
+		expect(markerPadTop(-5, 0, 480)).toBe(0);
+	});
+
+	it("tracks the overlay-clamped drop", () => {
+		expect(markerPadTop(100, 0.4, 480)).toBeCloseTo(2 * 0.1 * 480);
 	});
 });
 
