@@ -29,6 +29,7 @@ import io.github.seijikohara.femto.data.music.sourceLabel
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -132,6 +133,7 @@ private fun PlayingState(
 }
 
 @PreviewLightDark
+@PreviewTextStress
 @Preview(name = "Music card · playing", widthDp = 360, heightDp = 200)
 @Composable
 private fun MusicCardPlayingPreview() {
@@ -159,6 +161,7 @@ private fun MusicCardPlayingPreview() {
 }
 
 @PreviewLightDark
+@PreviewTextStress
 @Preview(name = "Music card · empty", widthDp = 360, heightDp = 360)
 @Composable
 private fun MusicCardEmptyPreview() {
