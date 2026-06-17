@@ -33,9 +33,12 @@ import io.github.seijikohara.femto.data.calendar.DayCell
 import io.github.seijikohara.femto.data.calendar.EventItem
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.FitText
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import io.github.seijikohara.femto.ui.theme.TabularFigures
 import io.github.seijikohara.femto.ui.theme.bigNumber
+import io.github.seijikohara.femto.ui.theme.calendarWeekday
 import io.github.seijikohara.femto.ui.theme.glanceBody
 import io.github.seijikohara.femto.ui.theme.glanceMetric
 import io.github.seijikohara.femto.ui.theme.sectionLabel
@@ -140,24 +143,22 @@ private fun Head(snapshot: CalendarSnapshot) =
             maxLines = 1,
         )
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
+            FitText(
                 text = snapshot.weekday,
-                style =
-                    MaterialTheme.typography.titleLarge.copy(
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = (-0.01f).em,
-                        lineHeight = 20.sp,
-                    ),
+                style = MaterialTheme.typography.calendarWeekday(),
                 color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                // The weekday is glance metadata beside the big day number, so it may
+                // relax below the 18sp body floor to GlanceTextSize to keep the full
+                // localized name (e.g. "Wednesday") on the narrow head-unit card
+                // (CLAUDE.md#automotive-overrides). It shrinks only as far as needed.
+                minFontSize = FemtoDimens.GlanceTextSize,
             )
             Text(
                 text = snapshot.monthLabel.uppercase(),
                 style = MaterialTheme.typography.sectionLabel(11, 0.14f),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -303,6 +304,7 @@ private fun eventTimeFormatter(is24Hour: Boolean): DateTimeFormatter =
 // Sized to the head-unit binding: each top-row card is ~165 x 207 dp (half the
 // info pane on the 853 x 512 dp / 5:3 projection). Wider panels only add slack.
 @PreviewLightDark
+@PreviewTextStress
 @Preview(name = "Calendar card", widthDp = 165, heightDp = 207)
 @Composable
 private fun CalendarCardPreview() {
@@ -311,8 +313,10 @@ private fun CalendarCardPreview() {
             snapshot =
                 CalendarSnapshot(
                     today = LocalDate.of(2026, 3, 30),
-                    weekday = "Monday",
-                    monthLabel = "March 2026",
+                    // The longest common English weekday / month exercise the head's
+                    // FitText fit-to-width on the narrow card.
+                    weekday = "Wednesday",
+                    monthLabel = "September 2026",
                     days =
                         listOf(
                             DayCell(
