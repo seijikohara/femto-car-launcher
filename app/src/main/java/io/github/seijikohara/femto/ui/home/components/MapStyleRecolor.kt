@@ -10,8 +10,10 @@ import org.json.JSONObject
  * Material surface). Roads keep their zoom-interpolated widths from the base
  * style, so the visual hierarchy (motorway / major / minor) survives the recolour.
  *
- * Mirrors `injectFeatures` / `roadClassOrNull` in `webmap/src/style.ts` for the
- * live backend — keep the layer groups and the road classification in sync.
+ * The live backend (`webmap/src/style.ts`) applies the same recolour; both read the
+ * shared layer groups from `webmap/src/map-recolor-data.json` — the snapshot side via
+ * the generated [MapRecolorData]. Only the recolour algorithm stays mirrored per
+ * platform (Kotlin cannot run in the WebView).
  */
 internal fun recolorAccent(
     styleJson: String,
@@ -32,7 +34,7 @@ internal fun recolorAccent(
                 layer.paint().put("fill-color", colors.water)
             }
 
-            type == "fill" && sourceLayer in AccentLandLayers -> {
+            type == "fill" && sourceLayer in MapRecolorData.accentLandLayers -> {
                 layer.paint().put("fill-color", colors.land)
             }
 
@@ -68,7 +70,8 @@ private fun JSONObject.paint(): JSONObject = optJSONObject("paint") ?: JSONObjec
 // base its colour is identical to highway_minor, and as "major" it would render a
 // casing-less dark hairline on the dark background. Railways, piers, oneway arrows,
 // and aeroways fall outside the highway_/tunnel_ prefixes and keep their base
-// colours. Mirrors roadClassOrNull in webmap/src/style.ts — keep in sync.
+// colours. The minor keywords come from the shared map-recolor-data.json (via the
+// generated MapRecolorData); roadClassOrNull in webmap/src/style.ts reads the same.
 private fun roadColorOrNull(
     id: String,
     colors: AccentMapColors,
@@ -76,10 +79,6 @@ private fun roadColorOrNull(
     when {
         !id.startsWith("highway_") && !id.startsWith("tunnel_") -> null
         "casing" in id -> colors.roadCasing
-        RoadMinorKeywords.any { it in id } -> colors.roadMinor
+        MapRecolorData.roadMinorKeywords.any { it in id } -> colors.roadMinor
         else -> colors.roadMajor
     }
-
-private val AccentLandLayers = setOf("landcover", "landuse", "park")
-
-private val RoadMinorKeywords = listOf("minor", "path", "subtle")
