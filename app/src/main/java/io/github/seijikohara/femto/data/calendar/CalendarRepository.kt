@@ -183,7 +183,10 @@ internal class CalendarRepository(
                         CalendarContract.Instances.TITLE,
                         CalendarContract.Instances.ALL_DAY,
                     ),
-                    null,
+                    // Respect the user's per-calendar visibility: events from a
+                    // calendar hidden in the calendar app must not surface on the
+                    // dashboard. Instances joins Calendars, so VISIBLE filters here.
+                    "${CalendarContract.Calendars.VISIBLE} = 1",
                     null,
                     "${CalendarContract.Instances.BEGIN} ASC",
                 )?.use { cursor ->
