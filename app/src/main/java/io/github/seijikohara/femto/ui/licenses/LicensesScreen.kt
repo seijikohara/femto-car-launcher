@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ChevronRight
@@ -165,6 +166,11 @@ private fun Header(
         text = title,
         style = MaterialTheme.typography.headlineMedium,
         color = MaterialTheme.colorScheme.onBackground,
+        // The detail view reuses this Header with the library name as the title, so
+        // a long artifact id must bound to the row instead of wrapping to 3-4 lines.
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.weight(1f),
     )
 }
 
@@ -204,12 +210,16 @@ private fun LibraryRow(
             text = item.name,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
         item.licenseName?.let { name ->
             Text(
                 text = name,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }

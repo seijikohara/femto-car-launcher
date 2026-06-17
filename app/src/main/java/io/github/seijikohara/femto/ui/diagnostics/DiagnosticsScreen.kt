@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Lucide
@@ -321,6 +322,10 @@ private fun StatusRow(
         text = label,
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurface,
+        // The label ellipsizes (it is the fixed caption); the value keeps its
+        // intrinsic width — it is the diagnostic payload and must stay readable.
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = Modifier.weight(1f),
     )
     Text(
