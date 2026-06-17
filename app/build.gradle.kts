@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.node.gradle)
+    alias(libs.plugins.roborazzi)
     alias(libs.plugins.spotless)
 }
 
@@ -233,6 +234,12 @@ dependencies {
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.robolectric)
     testImplementation(libs.turbine)
+    // Roborazzi JVM/Robolectric screenshot tests render Compose, so the unit-test
+    // classpath needs the Compose test harness (via the BOM) alongside Roborazzi.
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

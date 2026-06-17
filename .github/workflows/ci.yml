@@ -36,6 +36,13 @@ jobs:
       - name: Run checks
         run: ./gradlew spotlessCheck test lint assembleDebug --stacktrace
 
+      # CI-only: Roborazzi goldens are recorded on this runner OS (see
+      # record-screenshots.yml), so the dashboard screenshot diff runs here, not
+      # in the local verify-android-build skill — a developer's render would
+      # mismatch the Linux-recorded goldens on font antialiasing.
+      - name: Verify screenshots
+        run: ./gradlew verifyRoborazziDebug --stacktrace
+
   nightly:
     name: Publish nightly
     runs-on: ubuntu-latest
