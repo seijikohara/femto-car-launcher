@@ -7,11 +7,6 @@ name: Record screenshots
 # intended appearance changes, then download the artifact and commit the PNGs.
 on:
   workflow_dispatch:
-  # Bootstrap trigger: removed before merge, leaving the manual workflow_dispatch.
-  push:
-    branches: [worktree-roborazzi-screenshots]
-    paths-ignore:
-      - "app/src/test/screenshots/**"
 
 jobs:
   record:
