@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -25,6 +24,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.cardCta
 import io.github.seijikohara.femto.ui.theme.cardCtaHint
 import io.github.seijikohara.femto.ui.theme.glanceBody
@@ -41,7 +41,7 @@ internal fun MusicConnectState(onConnect: () -> Unit) =
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Icon(
+            FemtoIcon(
                 imageVector = Lucide.Music,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
@@ -84,7 +84,7 @@ internal fun MusicEmptyState() =
         // title (its row ends flush against the title row). The taller top
         // weight nudges the cluster just above centre.
         Box(modifier = Modifier.weight(1.1f))
-        Icon(
+        FemtoIcon(
             imageVector = Lucide.Music,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),

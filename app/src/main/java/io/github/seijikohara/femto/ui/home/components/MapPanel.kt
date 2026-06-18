@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,6 +44,7 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.MapRenderMode
 import io.github.seijikohara.femto.data.location.isFresh
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import kotlinx.coroutines.delay
 import org.maplibre.android.MapLibre
 import org.maplibre.android.maps.MapView
@@ -274,7 +274,7 @@ internal fun Fallback(modifier: Modifier = Modifier) =
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(
+        FemtoIcon(
             imageVector = Lucide.MapPinOff,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -313,4 +313,4 @@ private const val MARKER_RIPPLE_EDGE_ALPHA = 0.55f
 
 // Small attribution type: legal credit only, deliberately tiny so the centred
 // speed overlay does not bury it on a narrow map pane.
-private val ATTRIBUTION_FONT_SIZE = 8.sp
+private val ATTRIBUTION_FONT_SIZE = 6.sp

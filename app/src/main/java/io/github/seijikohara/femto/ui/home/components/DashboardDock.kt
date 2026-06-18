@@ -15,9 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.VerticalDivider
@@ -25,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -41,11 +40,14 @@ import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Navigation
 import com.composables.icons.lucide.Phone
 import com.composables.icons.lucide.Settings
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.system.SystemStatus
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
@@ -85,9 +87,10 @@ private val NavSpecs =
  * authoritative dock spec.
  *
  * [position] picks the hosting edge: [DockPosition.BOTTOM] / [DockPosition.TOP]
- * render the classic horizontal bar (the 1 dp `outlineVariant` divider sits on
- * the edge facing the dashboard), [DockPosition.LEFT] / [DockPosition.RIGHT]
- * render the same content as a vertical rail of [FemtoDimens.DockThickness] width.
+ * render the horizontal bar, [DockPosition.LEFT] / [DockPosition.RIGHT] render the
+ * same content as a vertical rail of [FemtoDimens.DockThickness] width — both as a
+ * floating, rounded glass panel over the map (the host insets the dashboard
+ * overlays to clear it).
  *
  *  - Seven equal-weight nav buttons (Phone / Apps / Music / Navigation /
  *    Browser / Assistant / Settings).
@@ -96,7 +99,7 @@ private val NavSpecs =
  *    reception, and a battery indicator (icon over percent; charging reads from
  *    the bolt glyph and accent tint).
  *
- * Iconography is Lucide stroke-1.75 for parity with the design SSOT.
+ * Iconography is the Lucide set; its stroke is lightened app-wide via FemtoIcon.
  */
 @Composable
 internal fun DashboardDock(
@@ -104,12 +107,15 @@ internal fun DashboardDock(
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
     position: DockPosition = DockPosition.BOTTOM,
+    hazeState: HazeState = rememberHazeState(),
+    glassConfig: GlassConfig = GlassConfig(),
 ) = when (position) {
     DockPosition.BOTTOM, DockPosition.TOP -> {
         HorizontalDock(
             systemStatus = systemStatus,
             onAction = onAction,
-            dividerAtBottom = position == DockPosition.TOP,
+            hazeState = hazeState,
+            glassConfig = glassConfig,
             modifier = modifier,
         )
     }
@@ -118,7 +124,8 @@ internal fun DashboardDock(
         VerticalDock(
             systemStatus = systemStatus,
             onAction = onAction,
-            dividerAtStart = position == DockPosition.RIGHT,
+            hazeState = hazeState,
+            glassConfig = glassConfig,
             modifier = modifier,
         )
     }
@@ -128,16 +135,22 @@ internal fun DashboardDock(
 private fun HorizontalDock(
     systemStatus: SystemStatus,
     onAction: (HomeAction) -> Unit,
-    dividerAtBottom: Boolean,
+    hazeState: HazeState,
+    glassConfig: GlassConfig,
     modifier: Modifier = Modifier,
 ) = Surface(
-    // The hairline divider draws inside the Surface; oversize by its thickness
-    // so the button row keeps the full DockThickness (= the tap-target floor).
-    modifier = modifier.height(FemtoDimens.DockThickness + DividerDefaults.Thickness),
-    color = MaterialTheme.colorScheme.surface,
+    // Floating rounded glass bar: transparent + glassChrome (rounded clip + the
+    // frosted backdrop) so it reads as a panel over the full-bleed map like the
+    // cards; the host insets the dashboard overlays + the dock's own margins to
+    // float it. On the Live backend the blur falls back to the tint.
+    modifier =
+        modifier
+            .height(FemtoDimens.DockThickness)
+            .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
+    color = Color.Transparent,
+    contentColor = MaterialTheme.colorScheme.onSurface,
 ) {
     Column {
-        if (!dividerAtBottom) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         BoxWithConstraints(
             modifier =
                 Modifier
@@ -176,7 +189,7 @@ private fun HorizontalDock(
                             Modifier
                                 .padding(start = 4.dp)
                                 .height(48.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha),
                     )
                     StatusCluster(
                         status = systemStatus,
@@ -186,7 +199,6 @@ private fun HorizontalDock(
                 }
             }
         }
-        if (dividerAtBottom) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
@@ -196,15 +208,20 @@ private fun HorizontalDock(
 private fun VerticalDock(
     systemStatus: SystemStatus,
     onAction: (HomeAction) -> Unit,
-    dividerAtStart: Boolean,
+    hazeState: HazeState,
+    glassConfig: GlassConfig,
     modifier: Modifier = Modifier,
 ) = Surface(
-    // Same divider-thickness oversize as HorizontalDock, on the width.
-    modifier = modifier.width(FemtoDimens.DockThickness + DividerDefaults.Thickness),
-    color = MaterialTheme.colorScheme.surface,
+    // Floating rounded glass rail, mirroring HorizontalDock on the width; on the
+    // Live backend the blur falls back to the tint.
+    modifier =
+        modifier
+            .width(FemtoDimens.DockThickness)
+            .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
+    color = Color.Transparent,
+    contentColor = MaterialTheme.colorScheme.onSurface,
 ) {
     Row {
-        if (dividerAtStart) VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         BoxWithConstraints(
             modifier =
                 Modifier
@@ -239,7 +256,7 @@ private fun VerticalDock(
                             Modifier
                                 .padding(top = 4.dp)
                                 .width(48.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha),
                     )
                     StatusCluster(
                         status = systemStatus,
@@ -249,7 +266,6 @@ private fun VerticalDock(
                 }
             }
         }
-        if (!dividerAtStart) VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
@@ -270,7 +286,7 @@ private fun NavButton(
             .semantics { contentDescription = description },
     contentAlignment = Alignment.Center,
 ) {
-    Icon(
+    FemtoIcon(
         imageVector = icon,
         contentDescription = null,
         tint = MaterialTheme.colorScheme.onSurfaceVariant,

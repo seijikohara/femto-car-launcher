@@ -42,6 +42,7 @@ import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import io.github.seijikohara.femto.ui.theme.TabularFigures
 import io.github.seijikohara.femto.ui.theme.bigNumber
 import io.github.seijikohara.femto.ui.theme.calendarWeekday
+import io.github.seijikohara.femto.ui.theme.eyebrow
 import io.github.seijikohara.femto.ui.theme.glanceBody
 import io.github.seijikohara.femto.ui.theme.glanceMetric
 import io.github.seijikohara.femto.ui.theme.sectionLabel
@@ -52,7 +53,7 @@ import java.time.format.DateTimeFormatter
 /**
  * Calendar card:
  *
- *  1. Head — big day number (primary tint) + weekday + month label, always today.
+ *  1. Head — big day number (neutral onSurface) + weekday + month label, always today.
  *  2. Days — a scrollable vertical list of the coming days (today first), each row
  *     showing that day's full set of events. Days with no events are omitted so
  *     the short card spends every row on real entries; only today stays when
@@ -145,7 +146,7 @@ private fun Head(snapshot: CalendarSnapshot) =
         Text(
             text = "${snapshot.today.dayOfMonth}",
             style = MaterialTheme.typography.bigNumber(),
-            color = MaterialTheme.colorScheme.primary,
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
         )
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -161,7 +162,7 @@ private fun Head(snapshot: CalendarSnapshot) =
             )
             Text(
                 text = snapshot.monthLabel.uppercase(),
-                style = MaterialTheme.typography.sectionLabel(11, 0.14f),
+                style = MaterialTheme.typography.eyebrow(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

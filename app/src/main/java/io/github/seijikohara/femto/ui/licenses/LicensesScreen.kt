@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,6 +28,7 @@ import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Lucide
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.monoReference
@@ -155,7 +155,7 @@ private fun Header(
     onBack: () -> Unit,
 ) = Row(verticalAlignment = Alignment.CenterVertically) {
     IconButton(onClick = onBack, modifier = Modifier.size(FemtoDimens.MinTouchTarget)) {
-        Icon(
+        FemtoIcon(
             imageVector = Lucide.ArrowLeft,
             contentDescription = stringResource(R.string.settings_back),
             tint = MaterialTheme.colorScheme.onBackground,
@@ -223,7 +223,7 @@ private fun LibraryRow(
             )
         }
     }
-    Icon(
+    FemtoIcon(
         imageVector = Lucide.ChevronRight,
         contentDescription = null,
         tint = MaterialTheme.colorScheme.onSurfaceVariant,

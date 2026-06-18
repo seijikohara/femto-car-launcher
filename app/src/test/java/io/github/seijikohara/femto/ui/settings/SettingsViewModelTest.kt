@@ -253,8 +253,8 @@ class SettingsViewModelTest {
     fun `glass defaults and setters write to the store`() =
         runTest(dispatcher) {
             val vm = viewModel()
-            assertEquals(24, vm.uiState.value.glassBlurRadius)
-            assertEquals(100, vm.uiState.value.glassTintScale)
+            assertEquals(16, vm.uiState.value.glassBlurRadius)
+            assertEquals(50, vm.uiState.value.glassTintScale)
             vm.onAction(SettingsAction.SetGlassBlurRadius(12))
             vm.onAction(SettingsAction.SetGlassTintScale(60))
             advanceUntilIdle()

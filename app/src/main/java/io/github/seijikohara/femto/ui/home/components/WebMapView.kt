@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,6 +48,7 @@ import com.composables.icons.lucide.MapPinOff
 import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.MapStyleSetting
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.LocalFemtoDarkTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
@@ -440,7 +440,7 @@ private fun LiveMapNotice(
     verticalArrangement = Arrangement.Center,
     horizontalAlignment = Alignment.CenterHorizontally,
 ) {
-    Icon(
+    FemtoIcon(
         imageVector = Lucide.MapPinOff,
         contentDescription = null,
         tint = MaterialTheme.colorScheme.onSurfaceVariant,

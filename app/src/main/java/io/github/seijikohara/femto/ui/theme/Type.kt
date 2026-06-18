@@ -68,16 +68,18 @@ internal val TabularFigures = "tnum"
 /**
  * Return the shared big-number display style used for the calendar big-day and
  * the weather big-temperature anchors. Derived from [Typography.displayLarge]
- * with the Bold Minimal tuning the cards apply verbatim, plus tabular figures
- * so the large numeral never reflows the row beside it. [size] defaults to the
- * [FemtoDimens.BigNumberFontSize] anchor; a card with tighter geometry (the
- * weather hero temperature) passes its own size and inherits the same 0.92
- * leading ratio.
+ * plus tabular figures so the large numeral never reflows the row beside it.
+ * SemiBold rather than Bold: premium automotive dashboards keep their hero
+ * numerals airy (Rivian / Polestar / CarPlay), and AAOS guidance advises against
+ * Bold; SemiBold at 46-56 sp still anchors the card without reading dense. [size]
+ * defaults to the [FemtoDimens.BigNumberFontSize] anchor; a card with tighter
+ * geometry (the weather hero temperature) passes its own size and inherits the
+ * same 0.92 leading ratio.
  */
 internal fun Typography.bigNumber(size: TextUnit = FemtoDimens.BigNumberFontSize): TextStyle =
     displayLarge.copy(
         fontSize = size,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.SemiBold,
         letterSpacing = (-0.045f).em,
         lineHeight = (size.value * 0.92f).sp,
         fontFeatureSettings = TabularFigures,
@@ -85,14 +87,18 @@ internal fun Typography.bigNumber(size: TextUnit = FemtoDimens.BigNumberFontSize
 
 /**
  * Return the glass-overlay hero numeral style (the clock readout, the speed
- * value). 40sp Bold tabular digits on a fixed 40sp line; callers pass the
- * tracking their glyph run needs (the clock's colon tolerates tighter
- * tracking than the speed's digit run).
+ * value). 40sp tabular digits on a fixed 40sp line; callers pass the tracking
+ * their glyph run needs and the [weight] their role warrants — premium
+ * dashboards run an airy Light clock against a more emphatic speed (the speed is
+ * the safety-critical glance, so it stays heavier than the ambient clock).
  */
-internal fun Typography.heroNumeral(trackingEm: Float): TextStyle =
+internal fun Typography.heroNumeral(
+    trackingEm: Float,
+    weight: FontWeight = FontWeight.SemiBold,
+): TextStyle =
     displayMedium.copy(
         fontSize = 40.sp,
-        fontWeight = FontWeight.Bold,
+        fontWeight = weight,
         letterSpacing = trackingEm.em,
         lineHeight = 40.sp,
         fontFeatureSettings = TabularFigures,
@@ -166,6 +172,11 @@ internal fun Typography.sectionLabel(
         fontFeatureSettings = TabularFigures,
     )
 
+// Uppercase section eyebrow (e.g. the music source, the calendar month) at one
+// shared size + tracking, so every eyebrow reads identically. Built on
+// [sectionLabel] so it inherits the labelSmall + tabular base.
+internal fun Typography.eyebrow(): TextStyle = sectionLabel(10, 0.10f)
+
 // The calendar head's weekday name: titleLarge tightened a notch for the head
 // unit. Rendered through [FitText] so a long localized weekday ("Wednesday",
 // "Mittwoch") shrinks to fit the narrow head column instead of truncating.
@@ -195,16 +206,19 @@ private val NoFontPadding = PlatformTextStyle(includeFontPadding = false)
 /**
  * Return the dashboard-card primary line style (e.g. the now-playing track
  * title). Derived from [Typography.titleLarge] with the tighter 20sp/23sp
- * metrics the cards inherit from the retired dashboard-v2 mockup. The fixed
- * line box ([FixedLineBox]) keeps the primary-face metrics stable; it does
- * NOT survive a fallback face on its own (see the [FixedLineBox] note) — a
- * single-line slot that must hold its height across Latin↔CJK track
- * switches additionally clamps with [singleLineBox].
+ * metrics the cards inherit from the retired dashboard-v2 mockup. Medium, not
+ * Bold: a Bold 20 sp title is the clearest "Android widget" tell — premium
+ * dashboards (CarPlay, AAOS) keep titles Regular/Medium and let the size step
+ * over the 14 sp metadata carry the hierarchy. The fixed line box
+ * ([FixedLineBox]) keeps the primary-face metrics stable; it does NOT survive a
+ * fallback face on its own (see the [FixedLineBox] note) — a single-line slot
+ * that must hold its height across Latin↔CJK track switches additionally clamps
+ * with [singleLineBox].
  */
 internal fun Typography.cardTitle(): TextStyle =
     titleLarge.copy(
         fontSize = 20.sp,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.Medium,
         letterSpacing = (-0.02f).em,
         lineHeight = 23.sp,
         lineHeightStyle = FixedLineBox,
@@ -214,14 +228,17 @@ internal fun Typography.cardTitle(): TextStyle =
 /**
  * Return the dashboard-card secondary metadata line style (artist / album
  * rows). 14sp glance metadata — one of the sanctioned card relaxations of the
- * 18sp floor (CLAUDE.md#automotive-overrides). Fixed line box as in
- * [cardTitle], with the same caveat: height stability across font fallbacks
- * comes from the caller's [singleLineBox] clamp, not from the style alone.
+ * 18sp floor (CLAUDE.md#automotive-overrides). Regular weight so it sits a clear
+ * step below the Medium [cardTitle] above it (premium media cards subordinate the
+ * artist / album through weight + dimmer colour, not just size). Fixed line box
+ * as in [cardTitle], with the same caveat: height stability across font
+ * fallbacks comes from the caller's [singleLineBox] clamp, not from the style
+ * alone.
  */
 internal fun Typography.cardMeta(): TextStyle =
     bodyMedium.copy(
         fontSize = 14.sp,
-        fontWeight = FontWeight.Medium,
+        fontWeight = FontWeight.Normal,
         lineHeight = 16.sp,
         lineHeightStyle = FixedLineBox,
         platformStyle = NoFontPadding,

@@ -102,9 +102,9 @@ internal const val DEFAULT_MAP_RENDER_PERCENT = 100
  */
 internal const val DEFAULT_MAP_MARKER_POS = 70
 
-/** Default glass-overlay blur radius (dp) and tint scale (percent of the per-theme base alpha). */
-internal const val DEFAULT_GLASS_BLUR_DP = 24
-internal const val DEFAULT_GLASS_TINT_SCALE = 100
+/** Default glass-overlay blur radius (dp) and tint opacity (absolute percent: 0 = clear, 100 = opaque). */
+internal const val DEFAULT_GLASS_BLUR_DP = 16
+internal const val DEFAULT_GLASS_TINT_SCALE = 50
 
 /**
  * User display settings that override the locale / system defaults. Every value
@@ -155,8 +155,8 @@ internal data class DisplaySettings(
     // extrude the OpenMapTiles building layer; terrain adds raster-DEM relief.
     val map3dBuildings: Boolean,
     val mapTerrain: Boolean,
-    // Map-overlay glass blur strength: the backdrop blur radius (dp) and the tint
-    // opacity as a percent of the per-theme base alpha (100 = the current look).
+    // Map-overlay glass: the backdrop blur radius (dp) and the tint opacity as an
+    // absolute percent (0 = clear glass, 100 = fully opaque surface).
     val glassBlurRadius: Int,
     val glassTintScale: Int,
     // Info-pane card visibility. Each card defaults to shown so a fresh install

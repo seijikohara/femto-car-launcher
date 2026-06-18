@@ -55,17 +55,9 @@ object FemtoDimens {
     /** Centre play / pause button — slightly wider so it reads as primary. */
     val MusicPlayButton = 72.dp
 
-    /** Corner radius for glass overlays on the map pane. */
-    val OverlayCorner = 16.dp
-
-    /**
-     * Corner radius for the speed overlay on the map pane. Deliberately
-     * distinct from [OverlayCorner] (16 dp): the speed overlay carries a
-     * larger 20 dp corner — a retired-dashboard-v2-mockup decision kept on
-     * device — so the two tokens stay separate rather than reusing
-     * [OverlayCorner].
-     */
-    val SpeedOverlayCorner = 20.dp
+    /** Inner padding for the small glass map overlays (clock / speed pill). */
+    val OverlayPaddingHorizontal = 16.dp
+    val OverlayPaddingVertical = 6.dp
 
     /**
      * Minimum width reserved for the speed overlay's hero numeral so the card
@@ -95,7 +87,7 @@ object FemtoDimens {
     val WeatherGlyphLarge = 20.dp
 
     /** Hero weather glyph in the head row, sized to balance the big temperature. */
-    val WeatherGlyphHero = 56.dp
+    val WeatherGlyphHero = 44.dp
 
     /** Weather glyph inside the 3-hour forecast chips. */
     val WeatherGlyphSmall = 18.dp
@@ -109,9 +101,6 @@ object FemtoDimens {
 
     /** Large numeric anchor (big-day, big-temp) display size. */
     val BigNumberFontSize = 56.sp
-
-    /** Gap between the two top-level panes. Mockup legend: pane gap 16 dp. */
-    val PaneGap = 16.dp
 
     /** Uniform inner padding for dashboard cards. Tightened from the mockup's 16 dp. */
     val CardPadding = 14.dp
@@ -130,30 +119,14 @@ object FemtoDimens {
     /** Corner radius for the calendar day-strip cells. Mockup `.day-cell`: 10 px. */
     val DayCellCorner = 10.dp
 
-    /** Corner radius for the music album-art block. Mockup `.music-card .art`: 14 px. */
-    val ArtCorner = 14.dp
-
     /**
-     * Glass overlay tint opacity in light theme: the surface tint laid over the
-     * blurred map backdrop (the clock / speed panels use Haze). Kept below a fully
-     * opaque scrim so the backdrop blur stays visible while text contrast holds; on
-     * the Live map backend (no captured backdrop) the panel falls back to an opaque
-     * surface base under this tint, so it stays legible there too.
-     *
-     * The scalar tokens here are plain `val`, not `const val`: ktlint mandates
-     * SCREAMING_SNAKE_CASE for compile-time constants, and these must read as
-     * PascalCase siblings of the dp tokens above.
+     * Shared opacity for the dashboard's content dividers — the dock's nav /
+     * status separator, the speed overlay's metric separators and metric / address
+     * rule, and the map-control pill's segment dividers — so every hairline reads
+     * at the same weight over the glass. A plain `val`, not `const val`: ktlint
+     * reserves SCREAMING_SNAKE_CASE for compile-time constants.
      */
-    val GlassBgAlphaLight = 0.6f
-
-    /** Glass overlay tint opacity in dark theme — more translucent so the darker blurred map reads through. */
-    val GlassBgAlphaDark = 0.42f
-
-    /** Glass overlay hairline border opacity, shared across light and dark themes. */
-    val GlassBorderAlpha = 0.6f
-
-    /** Backdrop blur radius for the glass overlays (clock / speed) over the map. */
-    val GlassBlurRadius = 24.dp
+    val DividerAlpha = 0.5f
 
     /**
      * App-drawer bottom-sheet height as a fraction of the viewport, so the

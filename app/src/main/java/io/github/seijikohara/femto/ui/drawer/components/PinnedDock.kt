@@ -53,6 +53,7 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.tileLabel
@@ -285,7 +286,7 @@ private fun DockTile(
                 text = { Text(stringResource(R.string.drawer_move_left)) },
                 // M3's default menu-item height (48 dp) sits below the automotive floor.
                 modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
-                leadingIcon = { Icon(imageVector = Lucide.ArrowLeft, contentDescription = null) },
+                leadingIcon = { FemtoIcon(imageVector = Lucide.ArrowLeft, contentDescription = null) },
                 onClick = {
                     onMove(-1)
                     onDismissMenu()
@@ -296,7 +297,7 @@ private fun DockTile(
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.drawer_move_right)) },
                 modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
-                leadingIcon = { Icon(imageVector = Lucide.ArrowRight, contentDescription = null) },
+                leadingIcon = { FemtoIcon(imageVector = Lucide.ArrowRight, contentDescription = null) },
                 onClick = {
                     onMove(1)
                     onDismissMenu()
@@ -306,7 +307,7 @@ private fun DockTile(
         DropdownMenuItem(
             text = { Text(stringResource(R.string.drawer_unpin)) },
             modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
-            leadingIcon = { Icon(imageVector = Lucide.PinOff, contentDescription = null) },
+            leadingIcon = { FemtoIcon(imageVector = Lucide.PinOff, contentDescription = null) },
             onClick = {
                 onUnpin(entry.componentName)
                 onDismissMenu()

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -30,6 +29,7 @@ import io.github.seijikohara.femto.data.music.SpectrumDiagnosis
 import io.github.seijikohara.femto.data.system.DiagnosticsSnapshot
 import io.github.seijikohara.femto.data.system.PerformanceSnapshot
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.monoReference
@@ -91,7 +91,7 @@ internal fun DiagnosticsScreen(
 private fun Header(onBack: () -> Unit) =
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack, modifier = Modifier.size(FemtoDimens.MinTouchTarget)) {
-            Icon(
+            FemtoIcon(
                 imageVector = Lucide.ArrowLeft,
                 contentDescription = stringResource(R.string.settings_back),
                 tint = MaterialTheme.colorScheme.onBackground,

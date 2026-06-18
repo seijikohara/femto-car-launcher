@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,6 +33,7 @@ import com.composables.icons.lucide.SkipForward
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.progressCaption
 import kotlinx.coroutines.delay
 
@@ -170,7 +170,7 @@ private fun TransportButton(
                 .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
+        FemtoIcon(
             imageVector = icon,
             contentDescription = null,
             tint = content,

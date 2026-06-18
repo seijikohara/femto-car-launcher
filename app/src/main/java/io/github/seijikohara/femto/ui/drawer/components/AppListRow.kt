@@ -23,6 +23,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Pin
 import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 
 private val DefaultListIconSize = 40.dp
 private val PinIndicatorSize = 20.dp
@@ -66,7 +67,7 @@ internal fun AppListRow(
         modifier = Modifier.weight(1f),
     )
     if (isPinned) {
-        Icon(
+        FemtoIcon(
             imageVector = Lucide.Pin,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
@@ -101,7 +102,13 @@ private fun PlayingState(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AlbumArt(nowPlaying = nowPlaying, modifier = Modifier.fillMaxHeight().aspectRatio(1f))
+            // Cap the art at its design size so it does not dominate a tall card and
+            // starve the title / artist column beside it; it still shrinks to the
+            // card's height via fillMaxHeight on a shorter card.
+            AlbumArt(
+                nowPlaying = nowPlaying,
+                modifier = Modifier.heightIn(max = FemtoDimens.MusicArtSize).fillMaxHeight().aspectRatio(1f),
+            )
             Column(
                 modifier = Modifier.weight(1f).fillMaxHeight(),
                 verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),

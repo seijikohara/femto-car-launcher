@@ -29,6 +29,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Pin
 import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.tileLabel
 
 private val DefaultIconSize = 64.dp
@@ -88,7 +89,7 @@ internal fun AppTile(
 
 @Composable
 private fun PinBadge(modifier: Modifier = Modifier) =
-    Icon(
+    FemtoIcon(
         imageVector = Lucide.Pin,
         contentDescription = null,
         tint = MaterialTheme.colorScheme.onSecondaryContainer,

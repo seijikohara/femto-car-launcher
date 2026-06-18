@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,6 +36,7 @@ import com.composables.icons.lucide.WifiZero
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.system.SystemStatus
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.TabularFigures
 
 @Composable
@@ -179,7 +179,7 @@ private fun StatusIcon(
 ) {
     val tint =
         if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
-    Icon(
+    FemtoIcon(
         imageVector = icon,
         contentDescription = description,
         tint = tint,
@@ -212,7 +212,7 @@ private fun GpsIndicator(
     verticalArrangement = Arrangement.spacedBy(1.dp),
 ) {
     val tint = if (fixed) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
-    Icon(
+    FemtoIcon(
         imageVector = Lucide.Satellite,
         contentDescription =
             stringResource(
@@ -241,7 +241,7 @@ private fun BatteryIndicator(
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(1.dp),
 ) {
-    Icon(
+    FemtoIcon(
         imageVector = batteryIconForLevel(percent = percent, charging = charging),
         contentDescription = stringResource(R.string.status_battery),
         tint = if (charging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
