@@ -7,7 +7,9 @@ import {
 	MAPTERHORN_DEM_URL,
 	MAX_MARKER_DROP,
 	markerDrop,
+	markerPadRight,
 	markerPadTop,
+	markerXFraction,
 	roadClassOrNull,
 	vectorSourceId,
 } from "./style";
@@ -333,6 +335,34 @@ describe("markerPadTop", () => {
 
 	it("tracks the overlay-clamped drop", () => {
 		expect(markerPadTop(100, 0.4, 480)).toBeCloseTo(2 * 0.1 * 480);
+	});
+});
+
+describe("markerXFraction", () => {
+	it("keeps the marker centred when no right cards are present", () => {
+		expect(markerXFraction(0)).toBe(0);
+	});
+
+	it("shifts the marker half the right-safe fraction left of centre", () => {
+		expect(markerXFraction(0.4)).toBeCloseTo(0.2);
+	});
+
+	it("caps the shift so the marker stays within the left quarter", () => {
+		expect(markerXFraction(0.9)).toBeCloseTo(0.35);
+	});
+
+	it("clamps a negative right-safe fraction to centre, mirroring the Kotlin coerceIn", () => {
+		expect(markerXFraction(-0.2)).toBe(0);
+	});
+});
+
+describe("markerPadRight", () => {
+	it("keeps the focal point centred when no right cards are present", () => {
+		expect(markerPadRight(0, 1000)).toBe(0);
+	});
+
+	it("pads the right by 2 * the marker shift of the width", () => {
+		expect(markerPadRight(0.3, 1000)).toBeCloseTo(2 * 0.15 * 1000);
 	});
 });
 

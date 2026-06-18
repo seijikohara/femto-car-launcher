@@ -24,7 +24,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -62,6 +61,7 @@ import io.github.seijikohara.femto.ui.drawer.components.AppListRow
 import io.github.seijikohara.femto.ui.drawer.components.AppTile
 import io.github.seijikohara.femto.ui.drawer.components.PinnedDock
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
@@ -219,7 +219,7 @@ private fun AllAppsRow(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(12.dp),
 ) {
-    Icon(
+    FemtoIcon(
         imageVector = Lucide.LayoutGrid,
         contentDescription = null,
         tint = MaterialTheme.colorScheme.primary,
@@ -330,11 +330,11 @@ private fun DrawerTopBar(
         placeholder = {
             Text(text = stringResource(R.string.drawer_search_hint), fontSize = FemtoDimens.MinBodyTextSize)
         },
-        leadingIcon = { Icon(imageVector = Lucide.Search, contentDescription = null) },
+        leadingIcon = { FemtoIcon(imageVector = Lucide.Search, contentDescription = null) },
         trailingIcon = {
             if (query.isNotEmpty()) {
                 IconButton(onClick = { onQueryChange("") }) {
-                    Icon(imageVector = Lucide.X, contentDescription = stringResource(R.string.drawer_search_clear))
+                    FemtoIcon(imageVector = Lucide.X, contentDescription = stringResource(R.string.drawer_search_clear))
                 }
             }
         },
@@ -342,7 +342,7 @@ private fun DrawerTopBar(
     )
     // The icon shows the layout the tap switches TO.
     IconButton(onClick = onToggleLayout, modifier = Modifier.size(FemtoDimens.MinTouchTarget)) {
-        Icon(
+        FemtoIcon(
             imageVector = if (layout == DrawerLayout.GRID) Lucide.LayoutList else Lucide.LayoutGrid,
             contentDescription =
                 stringResource(
@@ -367,7 +367,7 @@ private fun IconSizeMenuButton(
         onClick = { menuOpen = true },
         modifier = Modifier.size(FemtoDimens.MinTouchTarget).testTag(APP_DRAWER_ICON_SIZE_TEST_TAG),
     ) {
-        Icon(
+        FemtoIcon(
             imageVector = Lucide.ZoomIn,
             contentDescription = stringResource(R.string.drawer_icon_size),
             tint = MaterialTheme.colorScheme.onBackground,
@@ -380,7 +380,7 @@ private fun IconSizeMenuButton(
                 // M3's default menu-item height (48 dp) sits below the automotive floor.
                 modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
                 trailingIcon = {
-                    if (size == iconSize) Icon(imageVector = Lucide.Check, contentDescription = null)
+                    if (size == iconSize) FemtoIcon(imageVector = Lucide.Check, contentDescription = null)
                 },
                 onClick = {
                     onSelectIconSize(size)
@@ -488,7 +488,7 @@ private fun DrawerAppItem(
                 // M3's default menu-item height (48 dp) sits below the automotive floor.
                 modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
                 leadingIcon = {
-                    Icon(imageVector = if (isPinned) Lucide.PinOff else Lucide.Pin, contentDescription = null)
+                    FemtoIcon(imageVector = if (isPinned) Lucide.PinOff else Lucide.Pin, contentDescription = null)
                 },
                 onClick = {
                     onTogglePin(entry.componentName)

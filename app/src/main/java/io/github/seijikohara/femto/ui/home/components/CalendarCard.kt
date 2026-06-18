@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -27,6 +28,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.calendar.DayCell
@@ -39,6 +42,7 @@ import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import io.github.seijikohara.femto.ui.theme.TabularFigures
 import io.github.seijikohara.femto.ui.theme.bigNumber
 import io.github.seijikohara.femto.ui.theme.calendarWeekday
+import io.github.seijikohara.femto.ui.theme.eyebrow
 import io.github.seijikohara.femto.ui.theme.glanceBody
 import io.github.seijikohara.femto.ui.theme.glanceMetric
 import io.github.seijikohara.femto.ui.theme.sectionLabel
@@ -49,7 +53,7 @@ import java.time.format.DateTimeFormatter
 /**
  * Calendar card:
  *
- *  1. Head — big day number (primary tint) + weekday + month label, always today.
+ *  1. Head — big day number (neutral onSurface) + weekday + month label, always today.
  *  2. Days — a scrollable vertical list of the coming days (today first), each row
  *     showing that day's full set of events. Days with no events are omitted so
  *     the short card spends every row on real entries; only today stays when
@@ -65,10 +69,13 @@ internal fun CalendarCard(
     is24Hour: Boolean,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
+    hazeState: HazeState = rememberHazeState(),
+    glassConfig: GlassConfig = GlassConfig(),
 ) = Surface(
-    modifier = modifier,
+    modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
     shape = MaterialTheme.shapes.large,
-    color = MaterialTheme.colorScheme.surfaceContainer,
+    color = Color.Transparent,
+    contentColor = MaterialTheme.colorScheme.onSurface,
 ) {
     // The whole card opens the default calendar app (CATEGORY_APP_CALENDAR),
     // in every state: even the denial/failed hints lead somewhere useful.
@@ -139,7 +146,7 @@ private fun Head(snapshot: CalendarSnapshot) =
         Text(
             text = "${snapshot.today.dayOfMonth}",
             style = MaterialTheme.typography.bigNumber(),
-            color = MaterialTheme.colorScheme.primary,
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
         )
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -155,7 +162,7 @@ private fun Head(snapshot: CalendarSnapshot) =
             )
             Text(
                 text = snapshot.monthLabel.uppercase(),
-                style = MaterialTheme.typography.sectionLabel(11, 0.14f),
+                style = MaterialTheme.typography.eyebrow(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -39,6 +38,7 @@ import com.composables.icons.lucide.Sparkles
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.voice.VoiceState
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
@@ -181,7 +181,7 @@ private fun MicButton(
                 ).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
+        FemtoIcon(
             imageVector = Lucide.Mic,
             contentDescription = stringResource(R.string.assistant_voice_mic),
             tint = if (listening) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
@@ -207,7 +207,7 @@ private fun PrimaryAction(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(10.dp),
 ) {
-    Icon(
+    FemtoIcon(
         imageVector = icon,
         contentDescription = null,
         tint = MaterialTheme.colorScheme.onPrimary,
@@ -265,7 +265,7 @@ private fun AssistantOptionRow(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
 ) {
-    Icon(
+    FemtoIcon(
         imageVector = icon,
         contentDescription = null,
         tint = MaterialTheme.colorScheme.onBackground,

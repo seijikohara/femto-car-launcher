@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -38,6 +37,7 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.data.fonts.GoogleFontFamily
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
@@ -127,7 +127,7 @@ private fun Header(
                 .clickable(onClick = onBack),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
+        FemtoIcon(
             imageVector = Lucide.ArrowLeft,
             contentDescription = stringResource(R.string.settings_back),
             tint = MaterialTheme.colorScheme.onBackground,
@@ -152,7 +152,7 @@ private fun SearchField(
     modifier = modifier.fillMaxWidth(),
     singleLine = true,
     leadingIcon = {
-        Icon(imageVector = Lucide.Search, contentDescription = null, modifier = Modifier.size(20.dp))
+        FemtoIcon(imageVector = Lucide.Search, contentDescription = null, modifier = Modifier.size(20.dp))
     },
     trailingIcon = {
         if (query.isNotEmpty()) {
@@ -164,7 +164,7 @@ private fun SearchField(
                         .clickable { onQueryChange("") },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
+                FemtoIcon(
                     imageVector = Lucide.X,
                     contentDescription = stringResource(R.string.font_picker_clear),
                     modifier = Modifier.size(20.dp),
@@ -280,7 +280,7 @@ private fun PickerRow(
         // not live — suppress the check so the row does not claim a font the
         // theme is not rendering.
         selected && !failed -> {
-            Icon(
+            FemtoIcon(
                 imageVector = Lucide.Check,
                 contentDescription = stringResource(R.string.font_picker_selected),
                 tint = MaterialTheme.colorScheme.primary,

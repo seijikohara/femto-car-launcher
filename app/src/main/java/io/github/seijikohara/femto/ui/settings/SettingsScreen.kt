@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
@@ -72,6 +71,7 @@ import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.ui.theme.DynamicAccentSweep
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.accentSeedColor
@@ -480,7 +480,7 @@ private fun Header(
                 .clipClickable(onBack),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
+        FemtoIcon(
             imageVector = Lucide.ArrowLeft,
             contentDescription = stringResource(R.string.settings_back),
             tint = MaterialTheme.colorScheme.onBackground,
@@ -949,7 +949,7 @@ private fun SettingRow(
 private fun TrailingIcon(
     imageVector: ImageVector,
     modifier: Modifier = Modifier,
-) = Icon(
+) = FemtoIcon(
     imageVector = imageVector,
     contentDescription = null,
     tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -974,7 +974,7 @@ private const val MAX_MAP_QUALITY = 100
 private const val MIN_GLASS_BLUR = 0
 private const val MAX_GLASS_BLUR = 40
 private const val MIN_GLASS_OPACITY = 0
-private const val MAX_GLASS_OPACITY = 150
+private const val MAX_GLASS_OPACITY = 100
 
 // Location-request interval slider, in 250 ms steps (250 ms – 2 s); the persisted
 // value is milliseconds. Minimum-distance band in metres; 0 delivers every fix.

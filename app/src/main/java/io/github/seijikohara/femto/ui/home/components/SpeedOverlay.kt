@@ -15,9 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,6 +46,7 @@ import io.github.seijikohara.femto.ui.locale.fromMetersPerSecond
 import io.github.seijikohara.femto.ui.locale.label
 import io.github.seijikohara.femto.ui.locale.tripDistanceFromMeters
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
@@ -64,7 +63,7 @@ import kotlin.math.roundToInt
  *  - Metric row: hero current speed | separator | distance | separator |
  *    average speed | separator | reset-trip button (top-right).
  *  - Below: a 1 dp top border, then a MapPin · short-address row.
- *  - 20 dp corner radius and a 1 dp outline border. The Column wraps its
+ *  - MaterialTheme.shapes.large corner and a 1 dp outline border. The Column wraps its
  *    content rather than claiming a fixed width, so the metric cells sit
  *    tight with a consistent 16 dp gap and the overlay never stretches to
  *    fill the map pane. The call site centres it via
@@ -154,8 +153,11 @@ internal fun SpeedOverlay(
                 // IntrinsicSize.Max still hugs short content; this only bounds the
                 // maximum, and the address row ellipsizes within it.
                 .widthIn(max = FemtoDimens.SpeedOverlayMaxWidth)
-                .glassChrome(RoundedCornerShape(FemtoDimens.SpeedOverlayCorner), hazeState, glassConfig)
-                .padding(horizontal = 18.dp, vertical = 6.dp),
+                .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
+                .padding(
+                    horizontal = FemtoDimens.OverlayPaddingHorizontal,
+                    vertical = FemtoDimens.OverlayPaddingVertical,
+                ),
     ) {
         MetricRow(
             currentSpeed = currentSpeedText,
@@ -170,7 +172,7 @@ internal fun SpeedOverlay(
         // the address arrives. The 5 dp gaps keep the metric row's breathing room in
         // step with the address row's.
         Box(modifier = Modifier.height(5.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha))
         Box(modifier = Modifier.height(5.dp))
         AddressRow(text = shortAddress.ifBlank { NO_ADDRESS_PLACEHOLDER }, altitudeM = altitudeM)
     }
@@ -215,7 +217,10 @@ private fun NowMetric(
 ) {
     Text(
         text = value,
-        style = MaterialTheme.typography.heroNumeral(trackingEm = -0.03f),
+        // SemiBold (not Bold) + tighter tracking: lighter and more optical than
+        // the old bold readout, but heavier than the ambient clock since the speed
+        // is the safety-critical glance that must stay legible on a dim head unit.
+        style = MaterialTheme.typography.heroNumeral(trackingEm = -0.05f, weight = FontWeight.SemiBold),
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
         // Reserve a stable width sized for the clamped 3-digit range and
@@ -242,7 +247,7 @@ private fun Separator() =
             Modifier
                 .width(1.dp)
                 .height(36.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha)),
     )
 
 @Composable
@@ -279,7 +284,7 @@ private fun AddressRow(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(8.dp),
 ) {
-    Icon(
+    FemtoIcon(
         imageVector = Lucide.MapPin,
         contentDescription = null,
         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.86f),
@@ -326,7 +331,7 @@ private fun ResetButton(
             .clickable(onClick = onReset),
     contentAlignment = Alignment.Center,
 ) {
-    Icon(
+    FemtoIcon(
         imageVector = Lucide.RotateCcw,
         contentDescription = stringResource(R.string.speed_reset_trip),
         tint = MaterialTheme.colorScheme.onSurfaceVariant,

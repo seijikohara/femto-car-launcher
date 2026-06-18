@@ -1,15 +1,14 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -70,12 +69,17 @@ internal fun ClockOverlay(
         }
     Text(
         text = now.format(formatter),
-        style = MaterialTheme.typography.heroNumeral(trackingEm = -0.04f),
+        // Light + tighter tracking: the clock is ambient, so it reads as an airy
+        // premium numeral rather than a bold readout (it is not the safety glance).
+        style = MaterialTheme.typography.heroNumeral(trackingEm = -0.05f, weight = FontWeight.Light),
         color = MaterialTheme.colorScheme.onSurface,
         modifier =
             modifier
-                .glassChrome(RoundedCornerShape(FemtoDimens.OverlayCorner), hazeState, glassConfig)
-                .padding(horizontal = 16.dp, vertical = 6.dp),
+                .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
+                .padding(
+                    horizontal = FemtoDimens.OverlayPaddingHorizontal,
+                    vertical = FemtoDimens.OverlayPaddingVertical,
+                ),
     )
 }
 

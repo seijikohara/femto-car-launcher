@@ -71,11 +71,12 @@ internal fun SnapshotMap(
     val renderPercent = mapConfig.renderPercent.coerceIn(1, 100)
     val renderWidthPx = (widthPx * renderPercent / 100).coerceAtLeast(1)
     val renderHeightPx = (heightPx * renderPercent / 100).coerceAtLeast(1)
-    // The chevron sits at a fixed on-screen spot — centre X, markerPos height — and
-    // the camera look-ahead aims the location there, so the map slides beneath a
-    // still marker (car-nav style) rather than the marker drifting per frame.
+    // The chevron sits at a fixed on-screen spot — markerPos height, and shifted
+    // left of centre by the right cards' footprint — and the camera look-ahead aims
+    // the location there, so the map slides beneath a still marker (car-nav style)
+    // rather than the marker drifting per frame.
     val dropFraction = markerDropFraction(mapConfig.markerPos, mapConfig.bottomSafeFraction)
-    val markerXPx = widthPx / 2f
+    val markerXPx = widthPx * (0.5f - markerXFraction(mapConfig.rightSafeFraction))
     val markerYPx = (heightPx * (0.5 + dropFraction)).toFloat()
 
     var frame by remember { mutableStateOf<Bitmap?>(null) }
@@ -153,7 +154,9 @@ internal fun SnapshotMap(
                             zoom = mapConfig.zoom,
                             markerPos = mapConfig.markerPos,
                             bottomSafeFraction = mapConfig.bottomSafeFraction,
+                            rightSafeFraction = mapConfig.rightSafeFraction,
                             renderHeightPx = renderHeightPx,
+                            renderWidthPx = renderWidthPx,
                         )
                     val rendered = snap.render(camera)
                     if (rendered != null) {
@@ -244,6 +247,13 @@ private fun markerDropFraction(
 ): Double =
     (markerPos.coerceIn(0, 100) / 100.0) * (0.5 - bottomSafeFraction).coerceIn(0.0, MapRecolorData.maxMarkerDrop)
 
+// Fraction of render width the marker shifts LEFT of centre to clear the right
+// floating cards. Half the safe zone lands the marker mid-way across the exposed
+// left strip; capped so a wide card set never pushes it past the left quarter.
+// Independent of markerPos (horizontal clearance, not a driving-depth choice).
+// Mirrors markerXFraction in webmap/src/style.ts — keep in sync.
+private fun markerXFraction(rightSafeFraction: Float): Float = (rightSafeFraction / 2f).coerceIn(0f, 0.35f)
+
 private fun cameraFor(
     location: Location,
     bearingHolder: FloatArray,
@@ -251,7 +261,9 @@ private fun cameraFor(
     zoom: Int,
     markerPos: Int,
     bottomSafeFraction: Float,
+    rightSafeFraction: Float,
     renderHeightPx: Int,
+    renderWidthPx: Int,
 ): CameraPosition {
     val bearing = location.carriedBearing(bearingHolder).toDouble()
     // Aim the camera ahead of the current position (along the heading) so the
@@ -264,8 +276,17 @@ private fun cameraFor(
     // this approximate, but a fixed chevron stays steady rather than drifting with
     // the per-frame estimate.
     val dropFraction = markerDropFraction(markerPos, bottomSafeFraction)
-    val lookAheadM = dropFraction * renderHeightPx * metersPerPixel(zoom, location.latitude)
-    val target = LatLng(location.latitude, location.longitude).offsetForward(bearing, lookAheadM)
+    val xFraction = markerXFraction(rightSafeFraction)
+    val mpp = metersPerPixel(zoom, location.latitude)
+    val lookAheadM = dropFraction * renderHeightPx * mpp
+    // Shift the target to the vehicle's right (bearing + 90°) so the vehicle renders
+    // left of centre, clearing the right cards — the horizontal analogue of the
+    // forward look-ahead that drops it below centre.
+    val lookRightM = xFraction * renderWidthPx * mpp
+    val target =
+        LatLng(location.latitude, location.longitude)
+            .offsetForward(bearing, lookAheadM)
+            .offsetForward(bearing + 90.0, lookRightM)
     return CameraPosition
         .Builder()
         .target(target)

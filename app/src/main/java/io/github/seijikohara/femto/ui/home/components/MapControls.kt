@@ -6,12 +6,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,6 +31,8 @@ import com.composables.icons.lucide.Plus
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
@@ -123,7 +124,7 @@ internal fun MapControlColumn(
     modifier =
         modifier
             .width(GROUP_WIDTH)
-            .glassChrome(RoundedCornerShape(GROUP_CORNER), hazeState, glassConfig),
+            .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
 ) {
     if (showLocate) {
         GroupSegment(
@@ -179,12 +180,14 @@ private fun GroupSegment(
     content()
 }
 
-// Hairline separator between segments, matching the speed overlay's divider.
+// Hairline separator between segments — inset from the pill edges (not edge-to-
+// edge) so it floats inside the capsule rather than cutting across it. Shares the
+// dashboard divider opacity with the speed overlay and dock.
 @Composable
 private fun GroupDivider(modifier: Modifier = Modifier) =
     HorizontalDivider(
-        modifier = modifier,
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = GROUP_DIVIDER_ALPHA),
+        modifier = modifier.padding(horizontal = GROUP_DIVIDER_INSET),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha),
     )
 
 @Composable
@@ -192,7 +195,7 @@ private fun ControlIcon(
     imageVector: ImageVector,
     modifier: Modifier = Modifier,
     tint: Color = MaterialTheme.colorScheme.onSurface,
-) = Icon(
+) = FemtoIcon(
     imageVector = imageVector,
     // The tappable wrapper carries the description.
     contentDescription = null,
@@ -202,13 +205,14 @@ private fun ControlIcon(
 
 // Compact control geometry (an explicit owner decision below the automotive
 // touch floor — see the MapControlColumn KDoc): the compass disc, the grouped
-// pill's width / per-segment height / corner radius, and the shared glyph size.
+// pill's width / per-segment height, the shared glyph size, and the horizontal
+// inset that keeps the segment dividers off the pill edges. The pill's corner is
+// MaterialTheme.shapes.large, shared with the other glass panels.
 private val COMPASS_SIZE = 48.dp
 private val GROUP_WIDTH = 48.dp
 private val SEGMENT_HEIGHT = 48.dp
-private val GROUP_CORNER = 24.dp
 private val CONTROL_ICON_SIZE = 22.dp
-private const val GROUP_DIVIDER_ALPHA = 0.5f
+private val GROUP_DIVIDER_INSET = 12.dp
 
 // Compass needle: half-width of the waist as a fraction of the glyph width,
 // and the muted alpha of the south half.

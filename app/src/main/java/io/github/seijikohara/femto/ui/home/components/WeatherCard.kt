@@ -1,7 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -22,7 +20,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -38,6 +35,8 @@ import com.composables.icons.lucide.Moon
 import com.composables.icons.lucide.Sun
 import com.composables.icons.lucide.Thermometer
 import com.composables.icons.lucide.Wind
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.weather.HourlyForecast
 import io.github.seijikohara.femto.data.weather.WeatherCode
@@ -49,6 +48,7 @@ import io.github.seijikohara.femto.ui.locale.fromCelsius
 import io.github.seijikohara.femto.ui.locale.label
 import io.github.seijikohara.femto.ui.locale.windLabel
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.TabularFigures
@@ -86,16 +86,20 @@ internal fun WeatherCard(
     is24Hour: Boolean,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
+    hazeState: HazeState = rememberHazeState(),
+    glassConfig: GlassConfig = GlassConfig(),
 ) = Surface(
     modifier = modifier
         // The whole card opens the default weather app (CATEGORY_APP_WEATHER,
-        // available exactly from the minSdk). clip keeps the ripple inside
-        // the rounded shape; the inner Column scrolls, so the clickable
-        // lives on the Surface rather than competing with the scroll.
-        .clip(MaterialTheme.shapes.large)
+        // available exactly from the minSdk). glassChrome clips to the rounded
+        // shape (keeping the ripple inside) and paints the frosted-glass backdrop
+        // over the map; the inner Column scrolls, so the clickable lives on the
+        // Surface rather than competing with the scroll.
+        .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
         .clickable(onClickLabel = stringResource(R.string.weather_open_app)) { onOpen() },
     shape = MaterialTheme.shapes.large,
-    color = MaterialTheme.colorScheme.surfaceContainer,
+    color = Color.Transparent,
+    contentColor = MaterialTheme.colorScheme.onSurface,
 ) {
     if (snapshot != null) {
         // During a refresh outage the repository serves the same cached snapshot
@@ -173,14 +177,12 @@ private fun Head(
 ) {
     val tempLabel = "${temperatureUnit.fromCelsius(snapshot.tempC).roundToInt()}"
     val glyphs = weatherGlyphs()
-    // Big temperature on the left, a hero condition glyph on the right. The city
-    // and the textual condition were removed (the city clipped on the narrow card),
-    // leaving the icon as the single condition cue, sized to balance the
-    // temperature; the condition label survives as the icon's content description.
+    // Big temperature on the left, the hero condition glyph beside it on the right;
+    // SpaceBetween balances the two across the card width.
     Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Column {
             // Stale-data eyebrow: only present once the snapshot ages past the
@@ -213,7 +215,7 @@ private fun Head(
                 )
             }
         }
-        Icon(
+        FemtoIcon(
             imageVector = glyphIconFor(snapshot.code, snapshot.isDay),
             contentDescription = stringResource(labelResFor(snapshot.code)),
             tint = glyphTintFor(snapshot.code, snapshot.isDay, glyphs),
@@ -222,48 +224,55 @@ private fun Head(
     }
 }
 
+// Feels / Wind / Humidity below the head, as three centred icon-over-value
+// columns sharing the row evenly (weight) so each reading gets a full cell rather
+// than crowding inline — the wind value needs the width on the narrow card. Each
+// label rides its glyph's content description.
 @Composable
 private fun Metrics(
     snapshot: WeatherSnapshot,
     temperatureUnit: TemperatureUnit,
     speedUnit: SpeedUnit,
-) = Row(
-    modifier = Modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.spacedBy(16.dp),
 ) {
-    Metric(
-        modifier = Modifier.weight(1f),
-        icon = Lucide.Thermometer,
-        label = stringResource(R.string.weather_metric_feels),
-        value = "${temperatureUnit.fromCelsius(snapshot.apparentTempC).roundToInt()}°",
-    )
-    Metric(
-        modifier = Modifier.weight(1f),
-        icon = Lucide.Wind,
-        label = stringResource(R.string.weather_metric_wind),
-        value = windLabel(snapshot.windKmh, speedUnit),
-    )
     val humidityLabel = snapshot.humidityPercent?.let { "$it%" } ?: "—"
-    Metric(
-        modifier = Modifier.weight(1f),
-        icon = Lucide.Droplet,
-        label = stringResource(R.string.weather_metric_humidity),
-        value = humidityLabel,
-    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Metric(
+            icon = Lucide.Thermometer,
+            label = stringResource(R.string.weather_metric_feels),
+            value = "${temperatureUnit.fromCelsius(snapshot.apparentTempC).roundToInt()}°",
+            modifier = Modifier.weight(1f),
+        )
+        Metric(
+            icon = Lucide.Wind,
+            label = stringResource(R.string.weather_metric_wind),
+            value = windLabel(snapshot.windKmh, speedUnit),
+            modifier = Modifier.weight(1f),
+        )
+        Metric(
+            icon = Lucide.Droplet,
+            label = stringResource(R.string.weather_metric_humidity),
+            value = humidityLabel,
+            modifier = Modifier.weight(1f),
+        )
+    }
 }
 
+// One metric as a centred icon-over-value column.
 @Composable
 private fun Metric(
     icon: ImageVector,
     label: String,
     value: String,
     modifier: Modifier = Modifier,
-) = Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-    // The Lucide glyph stands in for the metric label (thermometer = feels-like,
-    // wind, droplet = humidity); the text label moves to the icon's content
-    // description so the value keeps the full column width and never clips on the
-    // narrow head-unit card.
-    Icon(
+) = Column(
+    modifier = modifier,
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(3.dp),
+) {
+    FemtoIcon(
         imageVector = icon,
         contentDescription = label,
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -273,6 +282,7 @@ private fun Metric(
         text = value,
         style =
             MaterialTheme.typography.cardMeta().copy(
+                fontSize = FemtoDimens.GlanceTextSize,
                 fontWeight = FontWeight.SemiBold,
                 fontFeatureSettings = TabularFigures,
             ),
@@ -319,12 +329,11 @@ private fun ForecastChip(
 ) {
     val glyphs = weatherGlyphs()
     val isDay = isDaylight(forecast.time, sunrise, sunset)
+    // No cell background — the forecast reads as clean translucent columns on the
+    // card's glass, consistent with the frameless overlays (an opaque chip box
+    // popped as a solid panel inside the glass).
     Column(
-        modifier =
-            modifier
-                .clip(MaterialTheme.shapes.small)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .padding(vertical = 8.dp, horizontal = 4.dp),
+        modifier = modifier.padding(horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -334,7 +343,7 @@ private fun ForecastChip(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
         )
-        Icon(
+        FemtoIcon(
             imageVector = glyphIconFor(forecast.code, isDay),
             contentDescription = null,
             tint = glyphTintFor(forecast.code, isDay, glyphs),
@@ -365,7 +374,7 @@ private fun EmptyState() =
         // spec the empty state is an icon-only placeholder with no error copy;
         // the unavailable string moves to contentDescription so TalkBack still
         // announces the state.
-        Icon(
+        FemtoIcon(
             imageVector = Lucide.Cloud,
             contentDescription = stringResource(R.string.weather_unavailable),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
