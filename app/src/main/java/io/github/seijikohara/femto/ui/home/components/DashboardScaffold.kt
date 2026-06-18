@@ -256,14 +256,27 @@ private fun DashboardContent(
         )
     }
 
-    // Clock at top-centre: clear of the compass (top-start) and the right cards.
-    ClockOverlay(
-        is24Hour = is24Hour,
-        showSeconds = showClockSeconds,
-        hazeState = hazeState,
-        glassConfig = glassConfig,
-        modifier = Modifier.align(Alignment.TopCenter).padding(top = outerPad),
-    )
+    // Clock centred over the exposed map area — the right card column is reserved
+    // in landscape, so it balances with the speed overlay below rather than crowding
+    // the cards, and clears the top-start compass.
+    Box(
+        modifier =
+            Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .padding(
+                    top = outerPad,
+                    end = if (landscapeCards) FloatingCardWidth + outerPad else 0.dp,
+                ),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        ClockOverlay(
+            is24Hour = is24Hour,
+            showSeconds = showClockSeconds,
+            hazeState = hazeState,
+            glassConfig = glassConfig,
+        )
+    }
 
     // Speed overlay centred in the exposed map area: the right card column
     // (landscape) is reserved with end padding, and the bottom card band (portrait)
