@@ -350,6 +350,10 @@ describe("markerXFraction", () => {
 	it("caps the shift so the marker stays within the left quarter", () => {
 		expect(markerXFraction(0.9)).toBeCloseTo(0.35);
 	});
+
+	it("clamps a negative right-safe fraction to centre, mirroring the Kotlin coerceIn", () => {
+		expect(markerXFraction(-0.2)).toBe(0);
+	});
 });
 
 describe("markerPadRight", () => {

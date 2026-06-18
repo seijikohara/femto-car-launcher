@@ -82,7 +82,10 @@ export function markerPadTop(
 // left strip; capped at 0.35 so a wide card set never pushes it off the left
 // quarter. Independent of markerPos. Mirrors markerXFraction in MapSnapshot.kt.
 export function markerXFraction(rightSafe: number): number {
-	return Math.min(0.35, (rightSafe || 0) / 2);
+	// Clamp both ends, mirroring MapSnapshot.kt's coerceIn(0f, 0.35f): a negative
+	// rightSafe (a layout/rounding glitch upstream) must not shift the marker right
+	// of centre, only toward the exposed left of the map.
+	return Math.max(0, Math.min(0.35, (rightSafe || 0) / 2));
 }
 
 // Right camera padding (px) that shifts the focal point left so the location sits
