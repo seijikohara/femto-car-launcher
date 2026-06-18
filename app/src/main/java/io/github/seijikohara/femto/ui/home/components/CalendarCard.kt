@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -27,6 +28,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.calendar.DayCell
@@ -65,10 +68,13 @@ internal fun CalendarCard(
     is24Hour: Boolean,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
+    hazeState: HazeState = rememberHazeState(),
+    glassConfig: GlassConfig = GlassConfig(),
 ) = Surface(
-    modifier = modifier,
+    modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
     shape = MaterialTheme.shapes.large,
-    color = MaterialTheme.colorScheme.surfaceContainer,
+    color = Color.Transparent,
+    contentColor = MaterialTheme.colorScheme.onSurface,
 ) {
     // The whole card opens the default calendar app (CATEGORY_APP_CALENDAR),
     // in every state: even the denial/failed hints lead somewhere useful.

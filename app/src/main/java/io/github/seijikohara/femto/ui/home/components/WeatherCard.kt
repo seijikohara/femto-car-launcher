@@ -38,6 +38,8 @@ import com.composables.icons.lucide.Moon
 import com.composables.icons.lucide.Sun
 import com.composables.icons.lucide.Thermometer
 import com.composables.icons.lucide.Wind
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.weather.HourlyForecast
 import io.github.seijikohara.femto.data.weather.WeatherCode
@@ -86,16 +88,20 @@ internal fun WeatherCard(
     is24Hour: Boolean,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
+    hazeState: HazeState = rememberHazeState(),
+    glassConfig: GlassConfig = GlassConfig(),
 ) = Surface(
     modifier = modifier
         // The whole card opens the default weather app (CATEGORY_APP_WEATHER,
-        // available exactly from the minSdk). clip keeps the ripple inside
-        // the rounded shape; the inner Column scrolls, so the clickable
-        // lives on the Surface rather than competing with the scroll.
-        .clip(MaterialTheme.shapes.large)
+        // available exactly from the minSdk). glassChrome clips to the rounded
+        // shape (keeping the ripple inside) and paints the frosted-glass backdrop
+        // over the map; the inner Column scrolls, so the clickable lives on the
+        // Surface rather than competing with the scroll.
+        .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
         .clickable(onClickLabel = stringResource(R.string.weather_open_app)) { onOpen() },
     shape = MaterialTheme.shapes.large,
-    color = MaterialTheme.colorScheme.surfaceContainer,
+    color = Color.Transparent,
+    contentColor = MaterialTheme.colorScheme.onSurface,
 ) {
     if (snapshot != null) {
         // During a refresh outage the repository serves the same cached snapshot

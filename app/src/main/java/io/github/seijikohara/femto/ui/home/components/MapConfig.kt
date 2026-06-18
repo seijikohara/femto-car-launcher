@@ -26,6 +26,11 @@ internal data class MapConfig(
     // markerPos or screen aspect; 0 means "unmeasured", leaving the MAX_MARKER_DROP
     // cap as the only bound.
     val bottomSafeFraction: Float = 0f,
+    // Fraction (0..0.45) of the map width the right-hand floating cards occupy,
+    // measured at layout time. The marker is shifted left of centre so it stays
+    // clear of those cards — the horizontal analogue of [bottomSafeFraction]. 0
+    // keeps the marker centred (portrait, or no cards).
+    val rightSafeFraction: Float = 0f,
     val buildings3d: Boolean = false,
     val terrain: Boolean = false,
 )

@@ -77,6 +77,24 @@ export function markerPadTop(
 	return 2 * markerDrop(markerPos, bottomSafe) * containerHeight;
 }
 
+// Marker shift LEFT of centre as a fraction of map width, to clear the right
+// floating cards. Half the safe zone lands the marker mid-way across the exposed
+// left strip; capped at 0.35 so a wide card set never pushes it off the left
+// quarter. Independent of markerPos. Mirrors markerXFraction in MapSnapshot.kt.
+export function markerXFraction(rightSafe: number): number {
+	return Math.min(0.35, (rightSafe || 0) / 2);
+}
+
+// Right camera padding (px) that shifts the focal point left so the location sits
+// left of centre, clear of the right cards; the 2x compensates the half-of-padding
+// geometry. Mirrors the SNAPSHOT cameraFor lookRightM — keep in sync.
+export function markerPadRight(
+	rightSafe: number,
+	containerWidth: number,
+): number {
+	return 2 * markerXFraction(rightSafe) * containerWidth;
+}
+
 // The first vector source id in a style (the OpenMapTiles source), so 3D
 // buildings work across positron / the bundled dark.json without hard-coding.
 export function vectorSourceId(style: StyleSpecification): string | undefined {

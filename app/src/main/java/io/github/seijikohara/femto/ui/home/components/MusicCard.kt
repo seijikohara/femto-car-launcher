@@ -17,10 +17,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Music
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
@@ -52,13 +55,16 @@ internal fun MusicCard(
     onConnect: () -> Unit,
     onLaunchSource: (String) -> Unit,
     modifier: Modifier = Modifier,
+    hazeState: HazeState = rememberHazeState(),
+    glassConfig: GlassConfig = GlassConfig(),
     // Spectrum band levels for the transport strip's background, or null when
     // the visualization is absent (setting off, previews, tests).
     spectrum: StateFlow<FloatArray?>? = null,
 ) = Surface(
-    modifier = modifier,
+    modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
     shape = MaterialTheme.shapes.large,
-    color = MaterialTheme.colorScheme.surfaceContainer,
+    color = Color.Transparent,
+    contentColor = MaterialTheme.colorScheme.onSurface,
 ) {
     when (state) {
         MusicCardState.NeedsPermission -> MusicConnectState(onConnect = onConnect)
