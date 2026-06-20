@@ -301,7 +301,7 @@ private fun DashboardContent(
                         .fillMaxWidth()
                         .padding(
                             bottom = cardGap + if (bottomCards) bottomCardBand else 0.dp,
-                            end = if (landscapeCards) floatingCardWidth + outerPad else 0.dp,
+                            end = if (landscapeCards) floatingCardWidth + outerPad + cardGap else 0.dp,
                         ),
                 contentAlignment = Alignment.BottomCenter,
             ) {
@@ -340,8 +340,12 @@ private fun DashboardContent(
                             .height(bottomCardBand)
                             .padding(horizontal = outerPad, vertical = outerPad)
                     } else {
+                        // Top-anchored (not centred): once the cluster is capped on a
+                        // tall display it stays paired with the clock at the top, and
+                        // the freed height below flows to the full-bleed map instead of
+                        // stranding the clock above a centred column.
                         Modifier
-                            .align(Alignment.CenterEnd)
+                            .align(Alignment.TopEnd)
                             .width(floatingCardWidth)
                             .heightIn(max = CardClusterMaxHeight)
                             .fillMaxHeight()
