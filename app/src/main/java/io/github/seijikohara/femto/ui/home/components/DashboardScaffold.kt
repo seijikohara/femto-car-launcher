@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
@@ -204,13 +206,20 @@ private fun DashboardContent(
     // The band height as the cards actually get it: a fraction of the overlay box
     // (the viewport already inset by the dock), so the speed/marker reserve matches
     // the rendered band instead of over-reserving by the dock's extent.
-    val bottomCardBand = if (bottomCards) (maxHeight - dockExtent) * bottomBandFraction else 0.dp
+    // Capped so the band keeps its designed height on tall portrait panels rather
+    // than stretching the cards into sparse glass; the extra height goes to the map.
+    val bottomCardBand =
+        if (bottomCards) {
+            ((maxHeight - dockExtent) * bottomBandFraction).coerceAtMost(CardClusterMaxHeight)
+        } else {
+            0.dp
+        }
     val bottomSafeFraction =
         with(density) {
             val heightPx = maxHeight.roundToPx()
             if (heightPx > 0) {
                 val dockBottom = if (dockPosition == DockPosition.BOTTOM) dockExtent else 0.dp
-                val overlay = overlayHeightPx + (SpeedOverlayBottomGap + MarkerOverlayClearance + dockBottom).toPx()
+                val overlay = overlayHeightPx + (cardGap + MarkerOverlayClearance + dockBottom).toPx()
                 val cards = bottomCardBand.toPx()
                 ((overlay + cards) / heightPx).coerceIn(0f, 0.5f)
             } else {
@@ -291,7 +300,7 @@ private fun DashboardContent(
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .padding(
-                            bottom = SpeedOverlayBottomGap + if (bottomCards) bottomCardBand + cardGap else 0.dp,
+                            bottom = cardGap + if (bottomCards) bottomCardBand else 0.dp,
                             end = if (landscapeCards) floatingCardWidth + outerPad else 0.dp,
                         ),
                 contentAlignment = Alignment.BottomCenter,
@@ -328,12 +337,13 @@ private fun DashboardContent(
                         Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
-                            .fillMaxHeight(bottomBandFraction)
+                            .height(bottomCardBand)
                             .padding(horizontal = outerPad, vertical = outerPad)
                     } else {
                         Modifier
                             .align(Alignment.CenterEnd)
                             .width(floatingCardWidth)
+                            .heightIn(max = CardClusterMaxHeight)
                             .fillMaxHeight()
                             .padding(top = outerPad, bottom = outerPad, end = outerPad)
                     },
@@ -496,11 +506,9 @@ private val CompactWidthBreakpoint: Dp = 600.dp
 // panel margins stay uniform.
 private val CompactScreenPadding: Dp = 12.dp
 
-// Gap between the speed overlay and the map's bottom edge, and the extra room kept
-// above the overlay so the self-marker chevron (and most of its ripple) clears it.
-// Together they form the bottom band the marker drop must avoid
-// (MapConfig.bottomSafeFraction).
-private val SpeedOverlayBottomGap: Dp = 16.dp
+// Extra room kept above the speed overlay so the self-marker chevron (and most of
+// its ripple) clears it; together with the panel gap (cardGap) it forms the bottom
+// band the marker drop must avoid (MapConfig.bottomSafeFraction).
 private val MarkerOverlayClearance: Dp = 20.dp
 
 // The landscape floating card column scales with the viewport so the side-by-side
@@ -511,6 +519,12 @@ private val MarkerOverlayClearance: Dp = 20.dp
 private const val FLOATING_CARD_WIDTH_FRACTION = 0.40f
 private val FloatingCardWidthMin: Dp = 260.dp
 private val FloatingCardWidthMax: Dp = 350.dp
+
+// Cap on the floating card cluster's height (right column and portrait band) so the
+// cards keep their designed proportions on tall displays (1080 dp+) instead of
+// stretching — the music card especially — into sparse glass; the freed height goes
+// to the full-bleed map. Sits above the 720 dp head-unit column, which still fills.
+private val CardClusterMaxHeight: Dp = 680.dp
 
 // Below this height a landscape cannot stack the right column (calendar+weather row
 // over the music card) without cramming, so it falls back to the single bottom row.

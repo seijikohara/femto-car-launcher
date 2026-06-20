@@ -24,6 +24,14 @@ internal fun fakeWeatherSnapshot(
             HourlyForecast(LocalTime.of(13, 0), 20.0, WeatherCode.CLEAR),
             HourlyForecast(LocalTime.of(14, 0), 21.0, WeatherCode.PARTLY_CLOUDY),
             HourlyForecast(LocalTime.of(15, 0), 21.0, WeatherCode.PARTLY_CLOUDY),
+            HourlyForecast(LocalTime.of(16, 0), 20.0, WeatherCode.PARTLY_CLOUDY),
+            HourlyForecast(LocalTime.of(17, 0), 19.0, WeatherCode.CLOUDY),
+            HourlyForecast(LocalTime.of(18, 0), 18.0, WeatherCode.CLOUDY),
+            HourlyForecast(LocalTime.of(19, 0), 16.0, WeatherCode.CLOUDY),
+            HourlyForecast(LocalTime.of(20, 0), 15.0, WeatherCode.CLEAR),
+            HourlyForecast(LocalTime.of(21, 0), 14.0, WeatherCode.CLEAR),
+            HourlyForecast(LocalTime.of(22, 0), 13.0, WeatherCode.CLEAR),
+            HourlyForecast(LocalTime.of(23, 0), 12.0, WeatherCode.CLEAR),
         ),
     daily: List<DailyForecast> =
         listOf(

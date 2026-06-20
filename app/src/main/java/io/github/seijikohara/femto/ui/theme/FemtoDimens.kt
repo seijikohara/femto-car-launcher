@@ -93,11 +93,11 @@ object FemtoDimens {
     val WeatherGlyphSmall = 18.dp
 
     /**
-     * Minimum width per hourly-forecast chip. The chip count derives from the
-     * card width at this floor (never fewer than three chips), so wider
-     * panels gain forecast hours instead of stretching three chips.
+     * Fixed width per hourly-forecast chip. The forecast row scrolls horizontally,
+     * so a wider card reveals more hours at once and a narrow one scrolls to the
+     * rest — the timeline is never capped to a fixed chip count.
      */
-    val ForecastChipMinWidth = 52.dp
+    val ForecastChipWidth = 52.dp
 
     /** Large numeric anchor (big-day, big-temp) display size. */
     val BigNumberFontSize = 56.sp

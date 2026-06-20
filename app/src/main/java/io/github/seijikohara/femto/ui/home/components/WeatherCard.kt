@@ -2,15 +2,16 @@ package io.github.seijikohara.femto.ui.home.components
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -300,20 +301,24 @@ private fun Forecast(
     is24Hour: Boolean,
 ) {
     if (hourly.isEmpty()) return
-    // Hours read left-to-right as a timeline (deliberately not a vertical list
-    // like the calendar agenda — the forecast answers "how does it trend", and
-    // the horizontal axis carries that). The chip count derives from the card
-    // width: never fewer than the three the head-unit card was designed
-    // around, gaining hours on wider panels instead of stretching three chips.
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val chipCount = (maxWidth / FemtoDimens.ForecastChipMinWidth).toInt().coerceIn(3, 6)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            hourly.take(chipCount).forEach { hour ->
-                ForecastChip(hour, sunrise, sunset, temperatureUnit, is24Hour, modifier = Modifier.weight(1f))
-            }
+    // Hours read left-to-right as a timeline (deliberately not a vertical list like
+    // the calendar agenda — the forecast answers "how does it trend"). Every hour the
+    // snapshot carries is laid out at a fixed chip width and the row scrolls
+    // horizontally, so a wide card reveals more hours at once while a narrow one
+    // scrolls to the rest rather than capping the timeline to a fixed chip count.
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        hourly.forEach { hour ->
+            ForecastChip(
+                hour,
+                sunrise,
+                sunset,
+                temperatureUnit,
+                is24Hour,
+                modifier = Modifier.width(FemtoDimens.ForecastChipWidth),
+            )
         }
     }
 }
