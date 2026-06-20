@@ -2,16 +2,15 @@ package io.github.seijikohara.femto.ui.home.components
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -292,6 +291,10 @@ private fun Metric(
     )
 }
 
+// The forecast lays its hours out three to a row; the card's vertical scroll reveals
+// further rows. Three keeps the chips legible even on the narrow head-unit card.
+private const val FORECAST_COLUMNS = 3
+
 @Composable
 private fun Forecast(
     hourly: List<HourlyForecast>,
@@ -301,24 +304,30 @@ private fun Forecast(
     is24Hour: Boolean,
 ) {
     if (hourly.isEmpty()) return
-    // Hours read left-to-right as a timeline (deliberately not a vertical list like
-    // the calendar agenda — the forecast answers "how does it trend"). Every hour the
-    // snapshot carries is laid out at a fixed chip width and the row scrolls
-    // horizontally, so a wide card reveals more hours at once while a narrow one
-    // scrolls to the rest rather than capping the timeline to a fixed chip count.
-    Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        hourly.forEach { hour ->
-            ForecastChip(
-                hour,
-                sunrise,
-                sunset,
-                temperatureUnit,
-                is24Hour,
-                modifier = Modifier.width(FemtoDimens.ForecastChipWidth),
-            )
+    // Hours laid out three to a row (left-to-right, then top-to-bottom); the card's
+    // vertical scroll reveals further rows, so a card shows several hours at a glance
+    // and scrolls down to the rest rather than capping the timeline. A short final
+    // row is padded with spacers so the columns stay aligned.
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        hourly.chunked(FORECAST_COLUMNS).forEach { rowHours ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                rowHours.forEach { hour ->
+                    ForecastChip(
+                        hour,
+                        sunrise,
+                        sunset,
+                        temperatureUnit,
+                        is24Hour,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                repeat(FORECAST_COLUMNS - rowHours.size) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
         }
     }
 }

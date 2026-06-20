@@ -92,13 +92,6 @@ object FemtoDimens {
     /** Weather glyph inside the 3-hour forecast chips. */
     val WeatherGlyphSmall = 18.dp
 
-    /**
-     * Fixed width per hourly-forecast chip. The forecast row scrolls horizontally,
-     * so a wider card reveals more hours at once and a narrow one scrolls to the
-     * rest — the timeline is never capped to a fixed chip count.
-     */
-    val ForecastChipWidth = 52.dp
-
     /** Large numeric anchor (big-day, big-temp) display size. */
     val BigNumberFontSize = 56.sp
 
