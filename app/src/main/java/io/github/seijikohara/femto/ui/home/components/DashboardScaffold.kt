@@ -147,11 +147,9 @@ private fun DashboardContent(
     // panel carries uniform margins on all four sides (gap-to-neighbour == edge-margin).
     val cardGap = outerPad
     val hasCards = panels.anyInfoPanel
-    // A landscape too short to stack the right column (the calendar+weather row over
-    // the music card needs ~ColumnMinHeight) lays all three cards side by side in the
-    // right region instead of stacking them — either way the cards stay on the right
-    // and the map keeps the left. Portrait alone drops them to a bottom band.
-    val shortLandscape = !portrait && maxHeight < ColumnMinHeight
+    // Landscape floats the cards as a right-hand column over the map; portrait drops
+    // them to a bottom band. The column compresses to the available height on a short
+    // landscape (a phone) and caps on a tall one, so the map keeps the left either way.
     val landscapeCards = hasCards && !portrait
     val bottomCards = hasCards && portrait
 
@@ -162,10 +160,6 @@ private fun DashboardContent(
         FloatingCardWidthMin,
         FloatingCardWidthMax,
     )
-    // Short landscape lays all three cards side by side in the right region, so it
-    // claims a wider strip than the stacked tall-landscape column; the map keeps the
-    // rest of the width on the left.
-    val landscapeCardWidth = if (shortLandscape) maxWidth * SHORT_LANDSCAPE_WIDTH_FRACTION else floatingCardWidth
 
     // Shared Haze state: the map registers as the blur source, every glass overlay
     // (chrome, the floating cards, and the dock) samples it. Only the snapshot
@@ -193,7 +187,7 @@ private fun DashboardContent(
                 val widthPx = maxWidth.toPx()
                 val dockEnd = if (dockPosition == DockPosition.RIGHT) dockExtent else 0.dp
                 if (widthPx > 0f) {
-                    ((landscapeCardWidth + outerPad + dockEnd).toPx() / widthPx).coerceIn(0f, 0.65f)
+                    ((floatingCardWidth + outerPad + dockEnd).toPx() / widthPx).coerceIn(0f, 0.45f)
                 } else {
                     0f
                 }
@@ -283,7 +277,7 @@ private fun DashboardContent(
                     .align(Alignment.TopEnd)
                     .padding(
                         top = outerPad,
-                        end = if (landscapeCards) landscapeCardWidth + outerPad + cardGap else outerPad,
+                        end = if (landscapeCards) floatingCardWidth + outerPad + cardGap else outerPad,
                     ),
         )
 
@@ -297,7 +291,7 @@ private fun DashboardContent(
                     .fillMaxWidth()
                     .padding(
                         bottom = cardGap + if (bottomCards) bottomCardBand else 0.dp,
-                        end = if (landscapeCards) landscapeCardWidth + outerPad + cardGap else 0.dp,
+                        end = if (landscapeCards) floatingCardWidth + outerPad + cardGap else 0.dp,
                     ),
             contentAlignment = Alignment.BottomCenter,
         ) {
@@ -324,7 +318,6 @@ private fun DashboardContent(
                 hazeState = hazeState,
                 glassConfig = glassConfig,
                 onAction = onAction,
-                singleRow = shortLandscape,
                 spectrum = spectrum,
                 modifier =
                     if (bottomCards) {
@@ -334,12 +327,12 @@ private fun DashboardContent(
                             .height(bottomCardBand)
                             .padding(horizontal = outerPad, vertical = outerPad)
                     } else {
-                        // Cards on the right — stacked when tall, side by side when
-                        // short — top-anchored and height-capped so they pair with the
-                        // clock and never stretch; the map keeps the left.
+                        // Cards in a right-hand column, top-anchored and height-capped
+                        // so they pair with the clock and never stretch; the map keeps
+                        // the left.
                         Modifier
                             .align(Alignment.TopEnd)
-                            .width(landscapeCardWidth)
+                            .width(floatingCardWidth)
                             .heightIn(max = CardClusterMaxHeight)
                             .fillMaxHeight()
                             .padding(top = outerPad, bottom = outerPad, end = outerPad)
@@ -408,11 +401,9 @@ private fun dockAlignment(position: DockPosition): Alignment =
         DockPosition.RIGHT -> Alignment.CenterEnd
     }
 
-// The floating info cards. The tall-landscape right column and the portrait band
-// stack the calendar+weather row over the music card; the short-landscape [singleRow]
-// lays all three side by side (in the right region) so each keeps full height where
-// the column would cram. Each card gets the shared glass treatment so the map shows
-// through.
+// The floating info cards: the calendar+weather row stacked over the music card,
+// hosted in the landscape right column or the portrait bottom band. Each card gets
+// the shared glass treatment so the map shows through.
 @Composable
 private fun FloatingCardColumn(
     uiState: HomeUiState,
@@ -425,7 +416,6 @@ private fun FloatingCardColumn(
     glassConfig: GlassConfig,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
-    singleRow: Boolean = false,
     spectrum: StateFlow<FloatArray?>? = null,
 ) {
     val calendar: @Composable (Modifier) -> Unit = { cardModifier ->
@@ -462,30 +452,20 @@ private fun FloatingCardColumn(
             spectrum = spectrum,
         )
     }
-    if (singleRow) {
-        // Short landscape: all three side by side so each keeps full height. The
-        // music card takes the wider share for its >= 64 dp transport row.
-        Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(cardGap)) {
-            if (panels.calendar) calendar(Modifier.weight(1f).fillMaxHeight())
-            if (panels.weather) weather(Modifier.weight(1f).fillMaxHeight())
-            if (panels.music) music(Modifier.weight(SHORT_LANDSCAPE_MUSIC_WEIGHT).fillMaxHeight())
-        }
-    } else {
-        Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(cardGap)) {
-            // Calendar + weather pair in a row so each keeps its designed height
-            // instead of stacking three full cards into a column too short for them;
-            // a single visible card takes the whole row.
-            if (panels.calendar || panels.weather) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(cardGap),
-                ) {
-                    if (panels.calendar) calendar(Modifier.weight(1f).fillMaxHeight())
-                    if (panels.weather) weather(Modifier.weight(1f).fillMaxHeight())
-                }
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(cardGap)) {
+        // Calendar + weather pair in a row so each keeps its designed height instead
+        // of stacking three full cards into a column too short for them; a single
+        // visible card takes the whole row.
+        if (panels.calendar || panels.weather) {
+            Row(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(cardGap),
+            ) {
+                if (panels.calendar) calendar(Modifier.weight(1f).fillMaxHeight())
+                if (panels.weather) weather(Modifier.weight(1f).fillMaxHeight())
             }
-            if (panels.music) music(Modifier.weight(MUSIC_CARD_WEIGHT).fillMaxWidth())
         }
+        if (panels.music) music(Modifier.weight(MUSIC_CARD_WEIGHT).fillMaxWidth())
     }
 }
 
@@ -522,26 +502,14 @@ private val FloatingCardWidthMax: Dp = 350.dp
 // to the full-bleed map. Sits above the 720 dp head-unit column, which still fills.
 private val CardClusterMaxHeight: Dp = 680.dp
 
-// Below this height a landscape cannot stack the right column (calendar+weather row
-// over the music card) without cramming, so it lays the three cards side by side in
-// the right region instead. The 5:3 head unit (512 dp) clears it; a phone-landscape
-// panel does not.
-private val ColumnMinHeight: Dp = 480.dp
-
 // The share of the height the portrait bottom card band takes (capped by
 // CardClusterMaxHeight on tall panels).
 private const val PORTRAIT_CARD_HEIGHT_FRACTION = 0.52f
 
-// The share of the width the short-landscape right region takes for its three
-// side-by-side cards; the map keeps the rest of the width on the left.
-private const val SHORT_LANDSCAPE_WIDTH_FRACTION = 0.6f
-
-// The music card's weight in the floating layouts. It carries the most content
-// (album art + title / artist / album + progress + the >= 64 dp transport row), so
-// it takes a larger share than the calendar / weather cards — both in the column
-// against the cal+weather row and in the short-landscape side-by-side row.
+// The music card's weight against the calendar + weather row in the floating column.
+// It carries the most content (album art + title / artist / album + progress + the
+// >= 64 dp transport row), so it takes a larger share than the cal / weather cards.
 private const val MUSIC_CARD_WEIGHT = 1.2f
-private const val SHORT_LANDSCAPE_MUSIC_WEIGHT = 1.4f
 
 // Responsive previews. HomeUiState.Initial renders the empty/loading states (no
 // network/GL in a preview), which is enough to lock the responsive arrangement
