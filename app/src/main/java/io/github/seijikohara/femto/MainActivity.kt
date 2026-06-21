@@ -143,7 +143,12 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(orientation) {
                 orientation?.let { applyOrientation(it) }
             }
-            FemtoTheme(fontFamily = fontFamily, accent = display.accentColor, darkTheme = darkTheme) {
+            FemtoTheme(
+                fontFamily = fontFamily,
+                accent = display.accentColor,
+                uiScale = display.uiScale,
+                darkTheme = darkTheme,
+            ) {
                 // The dashboard stays composed; the app drawer, assistant, and
                 // settings are all bottom-sheet overlays that slide up over it.
                 var showDrawer by rememberSaveable { mutableStateOf(false) }

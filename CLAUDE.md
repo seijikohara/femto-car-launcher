@@ -4,6 +4,13 @@ Android home launcher for in-car displays across three device
 classes — aftermarket CarPlay / Android Auto AI boxes, built-in
 Android head units, and car-mounted smartphones. MVP targets Android 13 (API 33).
 
+It is a regular Play-Store Android app installed on those devices — **not** an
+OEM-embedded (Android Automotive) system app, and **not** an Android Auto /
+CarPlay projection app (the "built-in Android head units" are aftermarket Android
+units, not the car's factory system). In-car visibility and operability are the
+design priority, but a **safe default the user can override** (e.g. the UI-scale
+setting), not a hard mandate — see #automotive-overrides.
+
 <!-- "multi-region distribution" is prose-cited by NominatimApi.kt. -->
 The launcher is designed for **multi-region distribution**. No
 single market is privileged in design, code, or documentation;
@@ -72,6 +79,14 @@ Trivial stateless screens need only `<Area>Screen.kt` — see
 
 When the value lives in code, the symbol on the right is the SSOT —
 not a magic number in another file.
+
+These floors are the **safe default** (the `MEDIUM` UI scale), not a hard ceiling
+on user choice. The user-selectable Display-size setting (`UiScale`,
+`FemtoTheme(uiScale = ...)`) scales the whole UI through the density; its `SMALL`
+option deliberately crosses below the floors as an explicit opt-in — sanctioned
+because this ships as a general Play-Store app, mirroring Android's own font-size /
+display-size controls. Author components to the floors at `MEDIUM`; the scale
+applies on top.
 
 ### Launcher behavior <a id="launcher-behavior"></a>
 

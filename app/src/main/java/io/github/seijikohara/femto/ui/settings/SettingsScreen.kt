@@ -67,6 +67,7 @@ import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
 import io.github.seijikohara.femto.data.display.ThemePreset
 import io.github.seijikohara.femto.data.display.ThemePresets
+import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.ui.theme.DynamicAccentSweep
@@ -142,6 +143,17 @@ internal fun SettingsScreen(
                 onSelect = { onAction(SettingsAction.ApplyThemePreset(it)) },
             )
             SettingsSubheader(stringResource(R.string.settings_subheader_screen))
+            ChoiceRow(
+                title = stringResource(R.string.settings_group_ui_scale),
+                options =
+                    listOf(
+                        UiScale.SMALL to stringResource(R.string.settings_ui_scale_small),
+                        UiScale.MEDIUM to stringResource(R.string.settings_ui_scale_medium),
+                        UiScale.LARGE to stringResource(R.string.settings_ui_scale_large),
+                    ),
+                selected = uiState.uiScale,
+                onSelect = { onAction(SettingsAction.SetUiScale(it)) },
+            )
             ChoiceRow(
                 title = stringResource(R.string.settings_group_orientation),
                 options =
