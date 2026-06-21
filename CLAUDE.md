@@ -4,6 +4,13 @@ Android home launcher for in-car displays across three device
 classes — aftermarket CarPlay / Android Auto AI boxes, built-in
 Android head units, and car-mounted smartphones. MVP targets Android 13 (API 33).
 
+It is a regular Play-Store Android app installed on those devices — **not** an
+OEM-embedded (Android Automotive) system app, and **not** an Android Auto /
+CarPlay projection app (the "built-in Android head units" are aftermarket Android
+units, not the car's factory system). In-car visibility and operability are the
+design priority, but a **safe default the user can override** (e.g. the UI-scale
+setting), not a hard mandate — see #automotive-overrides.
+
 <!-- "multi-region distribution" is prose-cited by NominatimApi.kt. -->
 The launcher is designed for **multi-region distribution**. No
 single market is privileged in design, code, or documentation;
