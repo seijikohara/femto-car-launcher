@@ -130,8 +130,8 @@ internal const val DEFAULT_GLASS_TINT_SCALE = 50
 internal data class DisplaySettings(
     val themeMode: ThemeMode,
     val accentColor: AccentColor,
-    // Global UI scale (density multiplier): MEDIUM is the safe default; SMALL / LARGE
-    // are user opt-ins that may cross the automotive floors.
+    // Global UI scale (density multiplier): MEDIUM is the safe default; SMALL may
+    // fall below the automotive floors and LARGE rises above them (user opt-in).
     val uiScale: UiScale,
     val speedUnit: SpeedUnitSetting,
     val temperatureUnit: TemperatureUnitSetting,
