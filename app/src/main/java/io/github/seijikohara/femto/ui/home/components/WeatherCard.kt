@@ -71,8 +71,8 @@ import kotlin.math.roundToInt
  *
  *  1. Head — big temperature + a hero per-condition glyph.
  *  2. Metrics — Feels / Wind / Humid row.
- *  3. Forecast — hourly chips on a horizontal timeline (three on the
- *     head-unit card, more when the card is wide enough).
+ *  3. Forecast — hourly chips in a 3-column grid; the card's vertical scroll
+ *     reveals further rows.
  *
  * Typography and spacing originated in the `.weather-card` rules of the
  * retired dashboard-v2 design mockup — the same intentional relaxation of
@@ -308,11 +308,11 @@ private fun Forecast(
     // vertical scroll reveals further rows, so a card shows several hours at a glance
     // and scrolls down to the rest rather than capping the timeline. A short final
     // row is padded with spacers so the columns stay aligned.
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(FemtoDimens.ForecastChipGap)) {
         hourly.chunked(FORECAST_COLUMNS).forEach { rowHours ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(FemtoDimens.ForecastChipGap),
             ) {
                 rowHours.forEach { hour ->
                     ForecastChip(

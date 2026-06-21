@@ -89,8 +89,11 @@ object FemtoDimens {
     /** Hero weather glyph in the head row, sized to balance the big temperature. */
     val WeatherGlyphHero = 44.dp
 
-    /** Weather glyph inside the 3-hour forecast chips. */
+    /** Weather glyph inside the forecast chips. */
     val WeatherGlyphSmall = 18.dp
+
+    /** Gap between the weather card's forecast-grid chips, on both axes. */
+    val ForecastChipGap = 4.dp
 
     /** Large numeric anchor (big-day, big-temp) display size. */
     val BigNumberFontSize = 56.sp
