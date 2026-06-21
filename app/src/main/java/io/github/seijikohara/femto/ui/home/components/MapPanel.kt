@@ -13,7 +13,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -112,7 +114,20 @@ internal fun MapPanel(
                 }
             }
         } else {
-            Fallback()
+            // Centre the placeholder in the exposed map region — left of the right
+            // cards and above the bottom overlays (the same safe fractions the marker
+            // honours) — instead of the full screen, so its text does not slide under
+            // the floating cards and read as off-centre.
+            Box(
+                modifier =
+                    Modifier
+                        .align(Alignment.TopStart)
+                        .fillMaxWidth(1f - mapConfig.rightSafeFraction)
+                        .fillMaxHeight(1f - mapConfig.bottomSafeFraction),
+                contentAlignment = Alignment.Center,
+            ) {
+                Fallback()
+            }
         }
     }
 }

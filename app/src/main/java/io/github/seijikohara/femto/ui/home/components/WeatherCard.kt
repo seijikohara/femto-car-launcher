@@ -4,9 +4,9 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -71,8 +71,8 @@ import kotlin.math.roundToInt
  *
  *  1. Head — big temperature + a hero per-condition glyph.
  *  2. Metrics — Feels / Wind / Humid row.
- *  3. Forecast — hourly chips on a horizontal timeline (three on the
- *     head-unit card, more when the card is wide enough).
+ *  3. Forecast — hourly chips in a 3-column grid; the card's vertical scroll
+ *     reveals further rows.
  *
  * Typography and spacing originated in the `.weather-card` rules of the
  * retired dashboard-v2 design mockup — the same intentional relaxation of
@@ -291,6 +291,10 @@ private fun Metric(
     )
 }
 
+// The forecast lays its hours out three to a row; the card's vertical scroll reveals
+// further rows. Three keeps the chips legible even on the narrow head-unit card.
+private const val FORECAST_COLUMNS = 3
+
 @Composable
 private fun Forecast(
     hourly: List<HourlyForecast>,
@@ -300,19 +304,29 @@ private fun Forecast(
     is24Hour: Boolean,
 ) {
     if (hourly.isEmpty()) return
-    // Hours read left-to-right as a timeline (deliberately not a vertical list
-    // like the calendar agenda — the forecast answers "how does it trend", and
-    // the horizontal axis carries that). The chip count derives from the card
-    // width: never fewer than the three the head-unit card was designed
-    // around, gaining hours on wider panels instead of stretching three chips.
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val chipCount = (maxWidth / FemtoDimens.ForecastChipMinWidth).toInt().coerceIn(3, 6)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            hourly.take(chipCount).forEach { hour ->
-                ForecastChip(hour, sunrise, sunset, temperatureUnit, is24Hour, modifier = Modifier.weight(1f))
+    // Hours laid out three to a row (left-to-right, then top-to-bottom); the card's
+    // vertical scroll reveals further rows, so a card shows several hours at a glance
+    // and scrolls down to the rest rather than capping the timeline. A short final
+    // row is padded with spacers so the columns stay aligned.
+    Column(verticalArrangement = Arrangement.spacedBy(FemtoDimens.ForecastChipGap)) {
+        hourly.chunked(FORECAST_COLUMNS).forEach { rowHours ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(FemtoDimens.ForecastChipGap),
+            ) {
+                rowHours.forEach { hour ->
+                    ForecastChip(
+                        hour,
+                        sunrise,
+                        sunset,
+                        temperatureUnit,
+                        is24Hour,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                repeat(FORECAST_COLUMNS - rowHours.size) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
             }
         }
     }
