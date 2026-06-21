@@ -9,13 +9,17 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.Density
 import com.materialkolor.rememberDynamicColorScheme
 import io.github.seijikohara.femto.data.display.AccentColor
+import io.github.seijikohara.femto.data.display.UiScale
 
 /**
  * The dark flag FemtoTheme actually rendered with, as opposed to the system
@@ -52,6 +56,7 @@ internal val LocalFemtoDarkTheme =
 fun FemtoTheme(
     fontFamily: FontFamily = FontFamily.Default,
     accent: AccentColor = AccentColor.DYNAMIC,
+    uiScale: UiScale = UiScale.MEDIUM,
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
@@ -72,7 +77,19 @@ fun FemtoTheme(
 
             else -> dynamicLightColorScheme(context)
         }
-    CompositionLocalProvider(LocalFemtoDarkTheme provides darkTheme) {
+    // Scale the whole UI (text, icons, layout) by the user's UI-scale choice through
+    // the density: dp and sp both derive from it, so the responsive layout also sees
+    // the adjusted dp viewport. fontScale is left untouched so the system font-size
+    // setting still applies on top. MEDIUM (factor 1) is a no-op.
+    val baseDensity = LocalDensity.current
+    val scaledDensity =
+        remember(baseDensity, uiScale) {
+            Density(baseDensity.density * uiScale.factor, baseDensity.fontScale)
+        }
+    CompositionLocalProvider(
+        LocalFemtoDarkTheme provides darkTheme,
+        LocalDensity provides scaledDensity,
+    ) {
         MaterialTheme(
             colorScheme = target.animated(),
             typography = femtoTypography(fontFamily),

@@ -23,6 +23,22 @@ internal enum class ClockSetting { AUTO, TWELVE_HOUR, TWENTY_FOUR_HOUR }
  */
 enum class AccentColor { DYNAMIC, BLUE, TEAL, GREEN, AMBER, ORANGE, RED, VIOLET, PINK }
 
+/**
+ * Global UI scale, applied as a density multiplier over the whole UI (text, icons,
+ * and layout). [MEDIUM] is the safe default that honours the automotive floors
+ * (CLAUDE.md#automotive-overrides); [SMALL] and [LARGE] are explicit user opt-ins
+ * that may fall below / rise above them — sanctioned because this ships as a general
+ * Play-Store app, mirroring the system font-size / display-size controls. Public
+ * (like [AccentColor]) because the public [FemtoTheme] takes it.
+ */
+enum class UiScale(
+    val factor: Float,
+) {
+    SMALL(2f / 3f),
+    MEDIUM(1f),
+    LARGE(4f / 3f),
+}
+
 /** Fullscreen: keep the system bars, or hide both status and navigation bars. */
 internal enum class FullscreenSetting { OFF, ON }
 
@@ -114,6 +130,9 @@ internal const val DEFAULT_GLASS_TINT_SCALE = 50
 internal data class DisplaySettings(
     val themeMode: ThemeMode,
     val accentColor: AccentColor,
+    // Global UI scale (density multiplier): MEDIUM is the safe default; SMALL / LARGE
+    // are user opt-ins that may cross the automotive floors.
+    val uiScale: UiScale,
     val speedUnit: SpeedUnitSetting,
     val temperatureUnit: TemperatureUnitSetting,
     val clock: ClockSetting,
@@ -176,6 +195,7 @@ internal data class DisplaySettings(
             DisplaySettings(
                 themeMode = ThemeMode.SYSTEM,
                 accentColor = AccentColor.DYNAMIC,
+                uiScale = UiScale.MEDIUM,
                 speedUnit = SpeedUnitSetting.AUTO,
                 temperatureUnit = TemperatureUnitSetting.AUTO,
                 clock = ClockSetting.AUTO,

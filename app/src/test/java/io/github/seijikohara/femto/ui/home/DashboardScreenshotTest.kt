@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.seijikohara.femto.data.clock.ClockTick
+import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
@@ -120,9 +121,23 @@ class DashboardScreenshotTest {
     @Config(qualifiers = "w1200dp-h1920dp-mdpi")
     fun dashboard_car_portrait_tall_1200x1920() = capture("car-portrait-tall-1200x1920")
 
-    private fun capture(name: String) {
+    // --- UI-scale opt-ins: SMALL fits the tight phone-landscape, LARGE enlarges a
+    // comfortable head unit. Default MEDIUM is the no-op baseline of every case above. ---
+
+    @Test
+    @Config(qualifiers = "w915dp-h412dp-mdpi")
+    fun dashboard_phone_landscape_small_scale() = capture("phone-landscape-915x412-small", UiScale.SMALL)
+
+    @Test
+    @Config(qualifiers = "w853dp-h512dp-mdpi")
+    fun dashboard_head_unit_large_scale() = capture("head-unit-853x512-large", UiScale.LARGE)
+
+    private fun capture(
+        name: String,
+        uiScale: UiScale = UiScale.MEDIUM,
+    ) {
         captureRoboImage(filePath = "src/test/screenshots/dashboard-$name.png", roborazziOptions = OPTIONS) {
-            FemtoTheme {
+            FemtoTheme(uiScale = uiScale) {
                 DashboardScaffold(
                     uiState = STATE,
                     is24Hour = true,

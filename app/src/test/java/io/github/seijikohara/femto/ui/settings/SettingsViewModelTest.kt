@@ -10,6 +10,7 @@ import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapRenderMode
 import io.github.seijikohara.femto.data.display.OrientationSetting
+import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.data.fonts.FontPreferences
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
@@ -81,6 +82,20 @@ class SettingsViewModelTest {
             viewModel().onAction(SettingsAction.SetAccentColor(AccentColor.TEAL))
             advanceUntilIdle()
             assertEquals(AccentColor.TEAL, store.settings.first().accentColor)
+        }
+
+    @Test
+    fun `SetUiScale writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetUiScale(UiScale.SMALL))
+            advanceUntilIdle()
+            assertEquals(UiScale.SMALL, store.settings.first().uiScale)
+        }
+
+    @Test
+    fun `ui scale defaults to medium`() =
+        runTest(dispatcher) {
+            assertEquals(UiScale.MEDIUM, store.settings.first().uiScale)
         }
 
     @Test

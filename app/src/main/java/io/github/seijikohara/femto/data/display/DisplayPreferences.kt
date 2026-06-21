@@ -37,6 +37,8 @@ internal interface DisplaySettingsStore {
      */
     suspend fun applyThemePreset(preset: ThemePreset)
 
+    suspend fun setUiScale(value: UiScale)
+
     suspend fun setSpeedUnit(value: SpeedUnitSetting)
 
     suspend fun setTemperatureUnit(value: TemperatureUnitSetting)
@@ -122,6 +124,7 @@ internal class DisplayPreferences(
                 DisplaySettings(
                     themeMode = prefs[THEME_KEY].toEnumOr(ThemeMode.SYSTEM),
                     accentColor = prefs[ACCENT_KEY].toEnumOr(AccentColor.DYNAMIC),
+                    uiScale = prefs[UI_SCALE_KEY].toEnumOr(UiScale.MEDIUM),
                     speedUnit = prefs[SPEED_KEY].toEnumOr(SpeedUnitSetting.AUTO),
                     temperatureUnit = prefs[TEMPERATURE_KEY].toEnumOr(TemperatureUnitSetting.AUTO),
                     clock = prefs[CLOCK_KEY].toEnumOr(ClockSetting.AUTO),
@@ -193,6 +196,10 @@ internal class DisplayPreferences(
 
     override suspend fun setOrientation(value: OrientationSetting) {
         context.displayDataStore.editOrLog(TAG) { it[ORIENTATION_KEY] = value.name }
+    }
+
+    override suspend fun setUiScale(value: UiScale) {
+        context.displayDataStore.editOrLog(TAG) { it[UI_SCALE_KEY] = value.name }
     }
 
     override suspend fun setKeepScreenOn(value: Boolean) {
@@ -291,6 +298,7 @@ internal class DisplayPreferences(
     private companion object {
         val THEME_KEY = stringPreferencesKey("theme_mode")
         val ACCENT_KEY = stringPreferencesKey("accent_color")
+        val UI_SCALE_KEY = stringPreferencesKey("ui_scale")
         val SPEED_KEY = stringPreferencesKey("speed_unit")
         val TEMPERATURE_KEY = stringPreferencesKey("temperature_unit")
         val CLOCK_KEY = stringPreferencesKey("clock")

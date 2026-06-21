@@ -31,6 +31,7 @@ internal class SettingsViewModel(
             SettingsUiState(
                 themeMode = display.themeMode,
                 accentColor = display.accentColor,
+                uiScale = display.uiScale,
                 speedUnit = display.speedUnit,
                 temperatureUnit = display.temperatureUnit,
                 clock = display.clock,
@@ -108,6 +109,10 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetOrientation -> {
                     displayPreferences.setOrientation(action.value)
+                }
+
+                is SettingsAction.SetUiScale -> {
+                    displayPreferences.setUiScale(action.value)
                 }
 
                 is SettingsAction.SetKeepScreenOn -> {
