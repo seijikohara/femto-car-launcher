@@ -47,7 +47,8 @@ control.
 
 ## What the app does NOT do
 
-- No advertising, no analytics, no crash-reporting SDKs.
+- No advertising, no analytics, no crash-reporting SDKs — except the optional
+  Mapbox map backend's usage telemetry, disclosed below.
 - No sale or sharing of personal data for advertising.
 - No collection of device or advertising identifiers — **except** when you select
   the optional Mapbox map backend: Mapbox GL JS sends usage telemetry to Mapbox as
