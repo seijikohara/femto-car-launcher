@@ -132,7 +132,10 @@ internal fun WebMapView(
     // current camera / style / feature state is (re)applied as soon as the page is
     // ready — closing the race where an effect fires before the script registers
     // window.updateCamera / setStyleUrl / setFeatures and is silently dropped.
-    val pageReady = remember { mutableStateOf(false) }
+    // Keyed on backend so the flag resets to false when a new page is loaded for
+    // a different backend; without this key the old `true` value would cause effects
+    // to fire against the new WebView before its script has registered the bridge.
+    val pageReady = remember(mapConfig.backend) { mutableStateOf(false) }
 
     // Renderer-death containment state (see the KDoc): bumping the generation
     // rebuilds the WebView after the renderer process dies; once deaths repeat
@@ -148,8 +151,10 @@ internal fun WebMapView(
     // Set by a `fatal` bridge event (see the KDoc): the page itself determined it
     // can never render, so a blank "working" map would be a lie. Like the
     // renderer-death notice, this only informs — the persisted mode is untouched.
-    var liveInitFailed by remember { mutableStateOf(false) }
-    var lastFatalDetail by remember { mutableStateOf<String?>(null) }
+    // Keyed on backend so a fatal from one backend does not suppress the other
+    // backend's page from rendering when the user switches.
+    var liveInitFailed by remember(mapConfig.backend) { mutableStateOf(false) }
+    var lastFatalDetail by remember(mapConfig.backend) { mutableStateOf<String?>(null) }
     // Bridge callbacks arrive on a WebView-managed background thread; Compose
     // state writes must land on the main thread.
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
@@ -179,7 +184,11 @@ internal fun WebMapView(
     }
 
     val webView =
-        remember(rendererGeneration) {
+        // Keyed on backend so a live backend switch (Task 4) tears down the old
+        // WebView and loads the correct page — without this key the old page keeps
+        // running while the new backend's bridge effects fire against the wrong DOM.
+        // rendererGeneration remains a key so renderer-death rebuilds still work.
+        remember(rendererGeneration, mapConfig.backend) {
             val assetLoader =
                 WebViewAssetLoader
                     .Builder()
