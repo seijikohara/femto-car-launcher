@@ -15,7 +15,10 @@ export default defineConfig({
 		// whole dist/ directory is wired into the Android assets source set.
 		outDir: "dist/web",
 		rollupOptions: {
-			input: resolve(import.meta.dirname, "map.html"),
+			input: {
+				map: resolve(import.meta.dirname, "map.html"),
+				mapbox: resolve(import.meta.dirname, "mapbox.html"),
+			},
 		},
 	},
 	test: {

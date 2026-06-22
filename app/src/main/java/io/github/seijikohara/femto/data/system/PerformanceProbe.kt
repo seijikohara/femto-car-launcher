@@ -164,10 +164,9 @@ internal class PerformanceProbe(
         val display = DisplayPreferences(context).settings.first()
         val location = LocationPreferences(context).settings.first()
         return listOf(
-            DiagnosticEntry("Map render mode", display.mapRenderMode.name),
+            DiagnosticEntry("Map backend", display.mapBackend.name),
             DiagnosticEntry("3D buildings / terrain", "${display.map3dBuildings} / ${display.mapTerrain}"),
             DiagnosticEntry("Map zoom / tilt", "z${display.mapZoom} / ${display.mapTiltDeg}°"),
-            DiagnosticEntry("Snapshot render percent", "${display.mapRenderPercent}%"),
             DiagnosticEntry("Location quality", location.quality.name),
             DiagnosticEntry("Location interval", "${location.intervalMillis} ms"),
             DiagnosticEntry("Location min distance", "${location.minUpdateDistanceMeters} m"),

@@ -47,7 +47,9 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPinOff
 import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapStyleSetting
+import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.LocalFemtoDarkTheme
@@ -130,7 +132,10 @@ internal fun WebMapView(
     // current camera / style / feature state is (re)applied as soon as the page is
     // ready — closing the race where an effect fires before the script registers
     // window.updateCamera / setStyleUrl / setFeatures and is silently dropped.
-    val pageReady = remember { mutableStateOf(false) }
+    // Keyed on backend so the flag resets to false when a new page is loaded for
+    // a different backend; without this key the old `true` value would cause effects
+    // to fire against the new WebView before its script has registered the bridge.
+    val pageReady = remember(mapConfig.backend) { mutableStateOf(false) }
 
     // Renderer-death containment state (see the KDoc): bumping the generation
     // rebuilds the WebView after the renderer process dies; once deaths repeat
@@ -146,13 +151,21 @@ internal fun WebMapView(
     // Set by a `fatal` bridge event (see the KDoc): the page itself determined it
     // can never render, so a blank "working" map would be a lie. Like the
     // renderer-death notice, this only informs — the persisted mode is untouched.
-    var liveInitFailed by remember { mutableStateOf(false) }
-    var lastFatalDetail by remember { mutableStateOf<String?>(null) }
+    // Keyed on backend so a fatal from one backend does not suppress the other
+    // backend's page from rendering when the user switches.
+    var liveInitFailed by remember(mapConfig.backend) { mutableStateOf(false) }
+    var lastFatalDetail by remember(mapConfig.backend) { mutableStateOf<String?>(null) }
     // Bridge callbacks arrive on a WebView-managed background thread; Compose
     // state writes must land on the main thread.
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
 
-    if (rendererGaveUp || liveInitFailed) {
+    // A blank token with the Mapbox backend is a configuration error that will
+    // never self-heal at runtime — show the init-failed notice immediately so
+    // the map area is not a permanently blank white box.
+    val mapboxTokenMissing =
+        mapConfig.backend == MapBackend.MAPBOX && BuildConfig.MAPBOX_ACCESS_TOKEN.isBlank()
+
+    if (rendererGaveUp || liveInitFailed || mapboxTokenMissing) {
         Box(modifier = modifier) {
             LiveMapNotice(
                 titleRes = if (rendererGaveUp) R.string.map_live_renderer_gone else R.string.map_live_init_failed,
@@ -171,7 +184,11 @@ internal fun WebMapView(
     }
 
     val webView =
-        remember(rendererGeneration) {
+        // Keyed on backend so a live backend switch (Task 4) tears down the old
+        // WebView and loads the correct page — without this key the old page keeps
+        // running while the new backend's bridge effects fire against the wrong DOM.
+        // rendererGeneration remains a key so renderer-death rebuilds still work.
+        remember(rendererGeneration, mapConfig.backend) {
             val assetLoader =
                 WebViewAssetLoader
                     .Builder()
@@ -237,6 +254,13 @@ internal fun WebMapView(
                     object {
                         // Block body: a @JavascriptInterface method must not leak
                         // a non-primitive return type to the JS side.
+
+                        // Read synchronously by mapbox.html before map initialisation
+                        // to authenticate the Mapbox GL JS instance. The token lives
+                        // in BuildConfig so it is never bundled as a plain-text asset.
+                        @JavascriptInterface
+                        fun mapboxToken(): String = BuildConfig.MAPBOX_ACCESS_TOKEN
+
                         @JavascriptInterface
                         fun onMapEvent(
                             kind: String,
@@ -282,7 +306,7 @@ internal fun WebMapView(
                     },
                     "femtoBridge",
                 )
-                loadUrl("https://appassets.androidplatform.net/assets/web/map.html")
+                loadUrl(mapPageUrl(mapConfig.backend))
             }
         }
 
@@ -320,29 +344,50 @@ internal fun WebMapView(
             null,
         )
     }
-    LaunchedEffect(webView, pageReady.value, styleRef, accentColors) {
-        if (!pageReady.value) return@LaunchedEffect
-        // The theme cross-fade animates MaterialTheme colours, so accentColors
-        // churns once per frame for the fade duration after a theme change. Each
-        // push restarts the page's style swap, so debounce: every churn cancels
-        // this effect and only the settled palette reaches the page.
-        delay(STYLE_PUSH_DEBOUNCE_MS)
-        // Resolve the scheme to a URL the WebView can load (hosted, or the bundled
-        // base served over appassets) plus the accent palette (empty = no recolor).
-        val url =
-            when (styleRef) {
-                is MapStyleRef.Hosted -> styleRef.url
-                is MapStyleRef.Bundled -> appAssetsUrl(styleRef.asset)
-                is MapStyleRef.Accent -> appAssetsUrl(styleRef.baseAsset)
-            }
-        val accent = (styleRef as? MapStyleRef.Accent)?.let { accentColors }
-        webView.evaluateJavascript(
-            "window.setStyleUrl && setStyleUrl('$url', " +
-                "'${accent?.background ?: ""}', '${accent?.water ?: ""}', '${accent?.land ?: ""}', " +
-                "'${accent?.roadMajor ?: ""}', '${accent?.roadMinor ?: ""}', '${accent?.roadCasing ?: ""}', " +
-                "'${accent?.building ?: ""}', '${accent?.label ?: ""}')",
-            null,
-        )
+    // OSM backend: push the MapLibre style URL + optional accent recolor palette.
+    // The MAPBOX backend has its own style bridge (setMapboxStyle below) and does
+    // not use setStyleUrl or the OSM accent colors.
+    if (mapConfig.backend == MapBackend.OSM) {
+        LaunchedEffect(webView, pageReady.value, styleRef, accentColors) {
+            if (!pageReady.value) return@LaunchedEffect
+            // The theme cross-fade animates MaterialTheme colours, so accentColors
+            // churns once per frame for the fade duration after a theme change. Each
+            // push restarts the page's style swap, so debounce: every churn cancels
+            // this effect and only the settled palette reaches the page.
+            delay(STYLE_PUSH_DEBOUNCE_MS)
+            // Resolve the scheme to a URL the WebView can load (hosted, or the bundled
+            // base served over appassets) plus the accent palette (empty = no recolor).
+            val url =
+                when (styleRef) {
+                    is MapStyleRef.Hosted -> styleRef.url
+                    is MapStyleRef.Bundled -> appAssetsUrl(styleRef.asset)
+                    is MapStyleRef.Accent -> appAssetsUrl(styleRef.baseAsset)
+                }
+            val accent = (styleRef as? MapStyleRef.Accent)?.let { accentColors }
+            webView.evaluateJavascript(
+                "window.setStyleUrl && setStyleUrl('$url', " +
+                    "'${accent?.background ?: ""}', '${accent?.water ?: ""}', '${accent?.land ?: ""}', " +
+                    "'${accent?.roadMajor ?: ""}', '${accent?.roadMinor ?: ""}', '${accent?.roadCasing ?: ""}', " +
+                    "'${accent?.building ?: ""}', '${accent?.label ?: ""}')",
+                null,
+            )
+        }
+    }
+    // Mapbox backend: push style ID, light preset, and traffic toggle via the
+    // setMapboxStyle bridge. Light preset is derived from the same isDark resolution
+    // the OSM path uses so light/dark tracking is consistent across backends.
+    if (mapConfig.backend == MapBackend.MAPBOX) {
+        LaunchedEffect(webView, pageReady.value, mapConfig.mapboxStyle, isDark, mapConfig.mapboxTraffic) {
+            if (!pageReady.value) return@LaunchedEffect
+            // Same debounce as the OSM style push: settle after theme cross-fade.
+            delay(STYLE_PUSH_DEBOUNCE_MS)
+            val styleId = mapboxStyleId(mapConfig.mapboxStyle)
+            val lightPreset = lightPresetFor(isDark)
+            webView.evaluateJavascript(
+                "window.setMapboxStyle && setMapboxStyle('$styleId', '$lightPreset', ${mapConfig.mapboxTraffic})",
+                null,
+            )
+        }
     }
     // Camera-orientation mode, pushed whenever the persisted setting flips (the
     // compass tap or the settings switch) and re-pushed to a rebuilt page.
@@ -360,19 +405,27 @@ internal fun WebMapView(
             webView.evaluateJavascript("window.setFollow && setFollow(true)", null)
         }
     }
-    // LIVE-only feature toggles (3D buildings / terrain) plus the theme-tracked
-    // extrusion colour, which applies to EVERY scheme. The page merges them into
-    // the style via MapLibre transformStyle, so this re-applies the style.
-    LaunchedEffect(webView, pageReady.value, mapConfig.buildings3d, mapConfig.terrain, accentColors.building) {
-        if (!pageReady.value) return@LaunchedEffect
-        // Same debounce as the style push above: the theme cross-fade churns the
-        // building colour once per frame after a theme change.
-        delay(STYLE_PUSH_DEBOUNCE_MS)
-        webView.evaluateJavascript(
-            "window.setFeatures && setFeatures(" +
-                "${mapConfig.buildings3d}, ${mapConfig.terrain}, '${accentColors.building}')",
-            null,
-        )
+    // OSM-only feature toggles (3D buildings / terrain) plus the theme-tracked
+    // extrusion colour. The Mapbox page exposes buildings3d/terrain via its own
+    // style (STANDARD) and does not implement the setFeatures bridge.
+    if (mapConfig.backend == MapBackend.OSM) {
+        LaunchedEffect(
+            webView,
+            pageReady.value,
+            mapConfig.buildings3d,
+            mapConfig.terrain,
+            accentColors.building,
+        ) {
+            if (!pageReady.value) return@LaunchedEffect
+            // Same debounce as the style push above: the theme cross-fade churns the
+            // building colour once per frame after a theme change.
+            delay(STYLE_PUSH_DEBOUNCE_MS)
+            webView.evaluateJavascript(
+                "window.setFeatures && setFeatures(" +
+                    "${mapConfig.buildings3d}, ${mapConfig.terrain}, '${accentColors.building}')",
+                null,
+            )
+        }
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -468,9 +521,29 @@ private fun LiveMapNotice(
     }
 }
 
+// Single origin literal for the WebViewAssetLoader https scheme. Both the map
+// page base URL and all asset references derive from this constant so the
+// origin string appears in exactly one place.
+private const val APPASSETS_ORIGIN = "https://appassets.androidplatform.net"
+private const val WEB_BASE = "$APPASSETS_ORIGIN/assets/web/"
+
 // A bundled asset served to the WebView over the WebViewAssetLoader https origin so
 // MapLibre's tile Worker can fetch it (and the asset's OpenFreeMap sources) cross-origin.
-private fun appAssetsUrl(asset: String): String = "https://appassets.androidplatform.net/assets/$asset"
+private fun appAssetsUrl(asset: String): String = "$APPASSETS_ORIGIN/assets/$asset"
+
+// Select the HTML page to load based on the active map backend.
+internal fun mapPageUrl(backend: MapBackend) =
+    WEB_BASE + if (backend == MapBackend.MAPBOX) "mapbox.html" else "map.html"
+
+// Mapbox GL JS style identifier for the user-chosen style preset.
+internal fun mapboxStyleId(style: MapboxStyle) =
+    when (style) {
+        MapboxStyle.STANDARD -> "standard"
+        MapboxStyle.SATELLITE -> "satellite-streets-v12"
+        MapboxStyle.STREETS -> "streets-v12"
+    }
+
+internal fun lightPresetFor(dark: Boolean) = if (dark) "night" else "day"
 
 @PreviewLightDark
 @Composable

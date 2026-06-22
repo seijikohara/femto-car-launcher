@@ -81,10 +81,6 @@ internal interface DisplaySettingsStore {
     /** Flip north-up ⇄ heading-up atomically (the on-map compass tap). */
     suspend fun toggleMapNorthUp()
 
-    suspend fun setMapRenderPercent(value: Int)
-
-    suspend fun setMapRenderMode(value: MapRenderMode)
-
     suspend fun setMapMarkerPos(value: Int)
 
     suspend fun setMap3dBuildings(value: Boolean)
@@ -102,6 +98,12 @@ internal interface DisplaySettingsStore {
     suspend fun setShowMusic(value: Boolean)
 
     suspend fun setMusicSpectrum(value: Boolean)
+
+    suspend fun setMapBackend(value: MapBackend)
+
+    suspend fun setMapboxStyle(value: MapboxStyle)
+
+    suspend fun setMapboxTraffic(value: Boolean)
 
     /** Restore every display setting to [DisplaySettings.Default]. */
     suspend fun resetToDefaults()
@@ -140,8 +142,6 @@ internal class DisplayPreferences(
                     mapTiltDeg = prefs[MAP_TILT_KEY] ?: DEFAULT_MAP_TILT_DEG,
                     mapZoom = prefs[MAP_ZOOM_KEY] ?: DEFAULT_MAP_ZOOM,
                     mapNorthUp = prefs[MAP_NORTH_UP_KEY] ?: false,
-                    mapRenderPercent = prefs[MAP_QUALITY_KEY] ?: DEFAULT_MAP_RENDER_PERCENT,
-                    mapRenderMode = prefs[MAP_RENDER_MODE_KEY].toMapRenderModeOr(MapRenderMode.LIVE),
                     mapMarkerPos = prefs[MAP_MARKER_POS_KEY] ?: DEFAULT_MAP_MARKER_POS,
                     map3dBuildings = prefs[MAP_3D_BUILDINGS_KEY] ?: true,
                     mapTerrain = prefs[MAP_TERRAIN_KEY] ?: true,
@@ -151,6 +151,9 @@ internal class DisplayPreferences(
                     showWeather = prefs[SHOW_WEATHER_KEY] ?: true,
                     showMusic = prefs[SHOW_MUSIC_KEY] ?: true,
                     musicSpectrum = prefs[MUSIC_SPECTRUM_KEY] ?: false,
+                    mapBackend = prefs[MAP_BACKEND_KEY].toEnumOr(MapBackend.OSM),
+                    mapboxStyle = prefs[MAPBOX_STYLE_KEY].toEnumOr(MapboxStyle.STANDARD),
+                    mapboxTraffic = prefs[MAPBOX_TRAFFIC_KEY] ?: false,
                 )
             }
 
@@ -244,14 +247,6 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[MAP_NORTH_UP_KEY] = !(it[MAP_NORTH_UP_KEY] ?: false) }
     }
 
-    override suspend fun setMapRenderPercent(value: Int) {
-        context.displayDataStore.editOrLog(TAG) { it[MAP_QUALITY_KEY] = value }
-    }
-
-    override suspend fun setMapRenderMode(value: MapRenderMode) {
-        context.displayDataStore.editOrLog(TAG) { it[MAP_RENDER_MODE_KEY] = value.name }
-    }
-
     override suspend fun setMapMarkerPos(value: Int) {
         context.displayDataStore.editOrLog(TAG) { it[MAP_MARKER_POS_KEY] = value }
     }
@@ -288,6 +283,18 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[MUSIC_SPECTRUM_KEY] = value }
     }
 
+    override suspend fun setMapBackend(value: MapBackend) {
+        context.displayDataStore.editOrLog(TAG) { it[MAP_BACKEND_KEY] = value.name }
+    }
+
+    override suspend fun setMapboxStyle(value: MapboxStyle) {
+        context.displayDataStore.editOrLog(TAG) { it[MAPBOX_STYLE_KEY] = value.name }
+    }
+
+    override suspend fun setMapboxTraffic(value: Boolean) {
+        context.displayDataStore.editOrLog(TAG) { it[MAPBOX_TRAFFIC_KEY] = value }
+    }
+
     // Clearing every key makes the read path above fall back to its per-field
     // defaults, which are kept identical to DisplaySettings.Default — so a reset
     // restores the defaults without duplicating the default literals here.
@@ -314,8 +321,6 @@ internal class DisplayPreferences(
         val MAP_TILT_KEY = intPreferencesKey("map_tilt_deg")
         val MAP_ZOOM_KEY = intPreferencesKey("map_zoom")
         val MAP_NORTH_UP_KEY = booleanPreferencesKey("map_north_up")
-        val MAP_QUALITY_KEY = intPreferencesKey("map_render_percent")
-        val MAP_RENDER_MODE_KEY = stringPreferencesKey("map_render_mode")
         val MAP_MARKER_POS_KEY = intPreferencesKey("map_marker_pos")
         val MAP_3D_BUILDINGS_KEY = booleanPreferencesKey("map_3d_buildings")
         val MAP_TERRAIN_KEY = booleanPreferencesKey("map_terrain")
@@ -325,15 +330,8 @@ internal class DisplayPreferences(
         val SHOW_WEATHER_KEY = booleanPreferencesKey("show_weather")
         val SHOW_MUSIC_KEY = booleanPreferencesKey("show_music")
         val MUSIC_SPECTRUM_KEY = booleanPreferencesKey("music_spectrum")
+        val MAP_BACKEND_KEY = stringPreferencesKey("map_backend")
+        val MAPBOX_STYLE_KEY = stringPreferencesKey("mapbox_style")
+        val MAPBOX_TRAFFIC_KEY = booleanPreferencesKey("mapbox_traffic")
     }
 }
-
-// Decode the render mode, migrating the short-lived three-mode values
-// (LIVE_HARDWARE / LIVE_SOFTWARE) back to LIVE, so anyone who picked a live map
-// keeps it after the software backend was removed. internal so the migration is
-// unit-testable without a raw write to the private DataStore.
-internal fun String?.toMapRenderModeOr(fallback: MapRenderMode): MapRenderMode =
-    when (this) {
-        "LIVE_HARDWARE", "LIVE_SOFTWARE" -> MapRenderMode.LIVE
-        else -> toEnumOr(fallback)
-    }

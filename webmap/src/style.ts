@@ -1,8 +1,8 @@
 // Pure style-transformation logic, kept free of MapLibre runtime and DOM state
 // so it is unit-testable (see style.test.ts); main.ts owns the page wiring.
 import type { LayerSpecification, StyleSpecification } from "maplibre-gl";
-// Single source for the recolour rule data, shared with the Kotlin snapshot
-// backend (it code-generates MapRecolorData from this same file).
+// Recolour rule data — layer group names and the marker-drop cap live here so
+// accent blending and the chevron geometry share one authoritative source.
 import recolorData from "./map-recolor-data.json";
 
 export interface AccentColors {

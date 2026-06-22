@@ -9,9 +9,10 @@ import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
+import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
-import io.github.seijikohara.femto.data.display.MapRenderMode
 import io.github.seijikohara.femto.data.display.MapStyleSetting
+import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
@@ -91,10 +92,6 @@ internal class FakeDisplaySettingsStore(
 
     override suspend fun toggleMapNorthUp() = state.update { it.copy(mapNorthUp = !it.mapNorthUp) }
 
-    override suspend fun setMapRenderPercent(value: Int) = state.update { it.copy(mapRenderPercent = value) }
-
-    override suspend fun setMapRenderMode(value: MapRenderMode) = state.update { it.copy(mapRenderMode = value) }
-
     override suspend fun setMapMarkerPos(value: Int) = state.update { it.copy(mapMarkerPos = value) }
 
     override suspend fun setMap3dBuildings(value: Boolean) = state.update { it.copy(map3dBuildings = value) }
@@ -112,6 +109,12 @@ internal class FakeDisplaySettingsStore(
     override suspend fun setShowMusic(value: Boolean) = state.update { it.copy(showMusic = value) }
 
     override suspend fun setMusicSpectrum(value: Boolean) = state.update { it.copy(musicSpectrum = value) }
+
+    override suspend fun setMapBackend(value: MapBackend) = state.update { it.copy(mapBackend = value) }
+
+    override suspend fun setMapboxStyle(value: MapboxStyle) = state.update { it.copy(mapboxStyle = value) }
+
+    override suspend fun setMapboxTraffic(value: Boolean) = state.update { it.copy(mapboxTraffic = value) }
 
     override suspend fun resetToDefaults() = state.update { DisplaySettings.Default }
 }

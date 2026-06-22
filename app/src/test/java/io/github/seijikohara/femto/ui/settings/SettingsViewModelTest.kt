@@ -7,8 +7,9 @@ import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.FullscreenSetting
+import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
-import io.github.seijikohara.femto.data.display.MapRenderMode
+import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.data.fonts.FontPreferences
@@ -143,22 +144,6 @@ class SettingsViewModelTest {
         }
 
     @Test
-    fun `SetMapRenderPercent writes the value to the store`() =
-        runTest(dispatcher) {
-            viewModel().onAction(SettingsAction.SetMapRenderPercent(50))
-            advanceUntilIdle()
-            assertEquals(50, store.settings.first().mapRenderPercent)
-        }
-
-    @Test
-    fun `SetMapRenderMode writes the value to the store`() =
-        runTest(dispatcher) {
-            viewModel().onAction(SettingsAction.SetMapRenderMode(MapRenderMode.LIVE))
-            advanceUntilIdle()
-            assertEquals(MapRenderMode.LIVE, store.settings.first().mapRenderMode)
-        }
-
-    @Test
     fun `SetMapSchemeLight writes the value to the store`() =
         runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetMapSchemeLight(MapColorScheme.BRIGHT))
@@ -258,7 +243,6 @@ class SettingsViewModelTest {
         runTest(dispatcher) {
             val defaults = DisplaySettings.Default
             assertEquals(FullscreenSetting.ON, defaults.fullscreen)
-            assertEquals(MapRenderMode.LIVE, defaults.mapRenderMode)
             assertEquals(true, defaults.map3dBuildings)
             assertEquals(true, defaults.mapTerrain)
             assertEquals(false, defaults.showClockSeconds)
@@ -291,6 +275,33 @@ class SettingsViewModelTest {
             viewModel().onAction(SettingsAction.SetOrientation(OrientationSetting.LANDSCAPE))
             advanceUntilIdle()
             assertEquals(OrientationSetting.LANDSCAPE, store.settings.first().orientation)
+        }
+
+    @Test
+    fun `SetMapBackend persists and reflects in state`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.SetMapBackend(MapBackend.MAPBOX))
+            advanceUntilIdle()
+            assertEquals(MapBackend.MAPBOX, store.settings.first().mapBackend)
+        }
+
+    @Test
+    fun `SetMapboxStyle persists and reflects in state`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.SetMapboxStyle(MapboxStyle.SATELLITE))
+            advanceUntilIdle()
+            assertEquals(MapboxStyle.SATELLITE, store.settings.first().mapboxStyle)
+        }
+
+    @Test
+    fun `SetMapboxTraffic persists and reflects in state`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.SetMapboxTraffic(true))
+            advanceUntilIdle()
+            assertEquals(true, store.settings.first().mapboxTraffic)
         }
 
     private fun viewModel() = SettingsViewModel(store, fontStore, locationStore)

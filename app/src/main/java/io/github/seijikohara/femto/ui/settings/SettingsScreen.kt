@@ -58,9 +58,10 @@ import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
+import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
-import io.github.seijikohara.femto.data.display.MapRenderMode
 import io.github.seijikohara.femto.data.display.MapStyleSetting
+import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
@@ -267,47 +268,44 @@ internal fun SettingsScreen(
         }
 
         SettingsSection(title = stringResource(R.string.settings_section_map)) {
-            SettingsSubheader(stringResource(R.string.settings_subheader_map_rendering))
             ChoiceRow(
-                title = stringResource(R.string.settings_group_map_rendering),
+                title = stringResource(R.string.settings_map_backend),
                 options =
                     listOf(
-                        MapRenderMode.LIVE to stringResource(R.string.settings_map_mode_live),
-                        MapRenderMode.SNAPSHOT to stringResource(R.string.settings_map_mode_snapshot),
+                        MapBackend.OSM to stringResource(R.string.settings_map_backend_osm),
+                        MapBackend.MAPBOX to stringResource(R.string.settings_map_backend_mapbox),
                     ),
-                selected = uiState.mapRenderMode,
-                onSelect = { onAction(SettingsAction.SetMapRenderMode(it)) },
+                selected = uiState.mapBackend,
+                onSelect = { onAction(SettingsAction.SetMapBackend(it)) },
             )
-            // Snapshot exposes bitmap sharpness; the live (WebGL) backend exposes 3D
-            // buildings + terrain. Each row sits directly under the rendering parent
-            // and slides in/out, so the swap reads as a result of the mode change. A
-            // hidden row keeps its stored value; only the layout changes.
-            AnimatedVisibility(visible = uiState.mapRenderMode == MapRenderMode.SNAPSHOT) {
-                SliderRow(
-                    title = stringResource(R.string.settings_group_map_quality),
-                    valueLabel = stringResource(R.string.settings_map_quality_value, uiState.mapRenderPercent),
-                    value = uiState.mapRenderPercent,
-                    range = MIN_MAP_QUALITY..MAX_MAP_QUALITY,
-                    onValueChange = { onAction(SettingsAction.SetMapRenderPercent(it)) },
-                    description = stringResource(R.string.settings_map_quality_desc),
-                )
-            }
-            AnimatedVisibility(visible = uiState.mapRenderMode == MapRenderMode.LIVE) {
+            AnimatedVisibility(visible = uiState.mapBackend == MapBackend.MAPBOX) {
                 Column {
-                    SwitchRow(
-                        title = stringResource(R.string.settings_group_map_3d),
-                        checked = uiState.map3dBuildings,
-                        onCheckedChange = { onAction(SettingsAction.SetMap3dBuildings(it)) },
+                    ChoiceRow(
+                        title = stringResource(R.string.settings_mapbox_style),
+                        options =
+                            listOf(
+                                MapboxStyle.STANDARD to stringResource(R.string.settings_mapbox_style_standard),
+                                MapboxStyle.SATELLITE to stringResource(R.string.settings_mapbox_style_satellite),
+                                MapboxStyle.STREETS to stringResource(R.string.settings_mapbox_style_streets),
+                            ),
+                        selected = uiState.mapboxStyle,
+                        onSelect = { onAction(SettingsAction.SetMapboxStyle(it)) },
                     )
                     SwitchRow(
-                        title = stringResource(R.string.settings_group_map_terrain),
-                        checked = uiState.mapTerrain,
-                        onCheckedChange = { onAction(SettingsAction.SetMapTerrain(it)) },
-                        summary = stringResource(R.string.settings_map_terrain_desc),
+                        title = stringResource(R.string.settings_mapbox_traffic),
+                        checked = uiState.mapboxTraffic,
+                        onCheckedChange = { onAction(SettingsAction.SetMapboxTraffic(it)) },
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_map_accent_osm_only_note),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                     )
                 }
             }
-            SettingsSubheader(stringResource(R.string.settings_subheader_map_appearance))
+            // The AUTO/LIGHT/DARK map style also drives Mapbox Standard's lightPreset
+            // (day/night), so it belongs outside the OSM-only block.
             ChoiceRow(
                 title = stringResource(R.string.settings_group_map_style),
                 options =
@@ -319,37 +317,55 @@ internal fun SettingsScreen(
                 selected = uiState.mapStyle,
                 onSelect = { onAction(SettingsAction.SetMapStyle(it)) },
             )
-            // Light scheme applies for AUTO + LIGHT, Dark scheme for AUTO + DARK. AUTO
-            // can use either (the system theme decides), so AUTO shows both; a fixed
-            // LIGHT / DARK hides the scheme it never uses. Independent colour schemes:
-            // ACCENT is the adaptive accent-tinted default, the rest fixed OpenFreeMap.
-            AnimatedVisibility(visible = uiState.mapStyle != MapStyleSetting.DARK) {
-                ChoiceRow(
-                    title = stringResource(R.string.settings_group_map_scheme_light),
-                    options =
-                        listOf(
-                            MapColorScheme.ACCENT to stringResource(R.string.settings_map_scheme_accent),
-                            MapColorScheme.POSITRON to stringResource(R.string.settings_map_scheme_positron),
-                            MapColorScheme.BRIGHT to stringResource(R.string.settings_map_scheme_bright),
-                            MapColorScheme.LIBERTY to stringResource(R.string.settings_map_scheme_liberty),
-                        ),
-                    selected = uiState.mapSchemeLight,
-                    onSelect = { onAction(SettingsAction.SetMapSchemeLight(it)) },
-                )
-            }
-            AnimatedVisibility(visible = uiState.mapStyle != MapStyleSetting.LIGHT) {
-                ChoiceRow(
-                    title = stringResource(R.string.settings_group_map_scheme_dark),
-                    options =
-                        listOf(
-                            MapColorScheme.ACCENT to stringResource(R.string.settings_map_scheme_accent),
-                            MapColorScheme.DARK_MATTER to stringResource(R.string.settings_map_scheme_dark_matter),
-                            MapColorScheme.DARK to stringResource(R.string.settings_map_scheme_dark),
-                            MapColorScheme.FIORD to stringResource(R.string.settings_map_scheme_fiord),
-                        ),
-                    selected = uiState.mapSchemeDark,
-                    onSelect = { onAction(SettingsAction.SetMapSchemeDark(it)) },
-                )
+            AnimatedVisibility(visible = uiState.mapBackend == MapBackend.OSM) {
+                Column {
+                    SettingsSubheader(stringResource(R.string.settings_subheader_map_rendering))
+                    SwitchRow(
+                        title = stringResource(R.string.settings_group_map_3d),
+                        checked = uiState.map3dBuildings,
+                        onCheckedChange = { onAction(SettingsAction.SetMap3dBuildings(it)) },
+                    )
+                    SwitchRow(
+                        title = stringResource(R.string.settings_group_map_terrain),
+                        checked = uiState.mapTerrain,
+                        onCheckedChange = { onAction(SettingsAction.SetMapTerrain(it)) },
+                        summary = stringResource(R.string.settings_map_terrain_desc),
+                    )
+                    SettingsSubheader(stringResource(R.string.settings_subheader_map_appearance))
+                    // Light scheme applies for AUTO + LIGHT, Dark scheme for AUTO + DARK. AUTO
+                    // can use either (the system theme decides), so AUTO shows both; a fixed
+                    // LIGHT / DARK hides the scheme it never uses. Independent colour schemes:
+                    // ACCENT is the adaptive accent-tinted default, the rest fixed OpenFreeMap.
+                    AnimatedVisibility(visible = uiState.mapStyle != MapStyleSetting.DARK) {
+                        ChoiceRow(
+                            title = stringResource(R.string.settings_group_map_scheme_light),
+                            options =
+                                listOf(
+                                    MapColorScheme.ACCENT to stringResource(R.string.settings_map_scheme_accent),
+                                    MapColorScheme.POSITRON to stringResource(R.string.settings_map_scheme_positron),
+                                    MapColorScheme.BRIGHT to stringResource(R.string.settings_map_scheme_bright),
+                                    MapColorScheme.LIBERTY to stringResource(R.string.settings_map_scheme_liberty),
+                                ),
+                            selected = uiState.mapSchemeLight,
+                            onSelect = { onAction(SettingsAction.SetMapSchemeLight(it)) },
+                        )
+                    }
+                    AnimatedVisibility(visible = uiState.mapStyle != MapStyleSetting.LIGHT) {
+                        ChoiceRow(
+                            title = stringResource(R.string.settings_group_map_scheme_dark),
+                            options =
+                                listOf(
+                                    MapColorScheme.ACCENT to stringResource(R.string.settings_map_scheme_accent),
+                                    MapColorScheme.DARK_MATTER to
+                                        stringResource(R.string.settings_map_scheme_dark_matter),
+                                    MapColorScheme.DARK to stringResource(R.string.settings_map_scheme_dark),
+                                    MapColorScheme.FIORD to stringResource(R.string.settings_map_scheme_fiord),
+                                ),
+                            selected = uiState.mapSchemeDark,
+                            onSelect = { onAction(SettingsAction.SetMapSchemeDark(it)) },
+                        )
+                    }
+                }
             }
             SettingsSubheader(stringResource(R.string.settings_subheader_map_camera))
             SliderRow(
@@ -372,8 +388,6 @@ internal fun SettingsScreen(
                 onCheckedChange = { onAction(SettingsAction.SetMapNorthUp(it)) },
                 summary = stringResource(R.string.settings_map_north_up_desc),
             )
-            // Marker vertical position applies to both backends (0 = map centre,
-            // 100 = just above the speed overlay).
             SliderRow(
                 title = stringResource(R.string.settings_group_map_marker_pos),
                 valueLabel = stringResource(R.string.settings_map_marker_pos_value, uiState.mapMarkerPos),
@@ -975,11 +989,6 @@ private const val MAX_MAP_TILT = 60
 // just above the speed panel.
 private const val MIN_MAP_MARKER_POS = 0
 private const val MAX_MAP_MARKER_POS = 100
-
-// Snapshot render resolution band (percent). The floor stays well above zero so
-// the upscaled map keeps roads legible; 100 is full panel resolution.
-private const val MIN_MAP_QUALITY = 30
-private const val MAX_MAP_QUALITY = 100
 
 // Glass-overlay blur radius (dp) and tint opacity (percent of the per-theme base
 // alpha; 100 = the default look, 0 = no tint).

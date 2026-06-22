@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <style>
+      html, body { margin: 0; padding: 0; background: #eaeaea; }
+      /* height:100% resolves to 0 inside an Android WebView (the container measures
+         0 px tall); fixed/inset fills the WebView viewport reliably. */
+      #map { position: fixed; inset: 0; }
+      /* Self-location chevron pinned at a fixed screen spot (centre X, markerPos
+         height). The camera brings the location to it, so the chevron stays put and
+         the map slides / rotates beneath it (car-nav style) instead of the marker
+         sliding to catch the eased camera. */
+      #self-marker {
+        position: fixed; left: 50%; top: 50%;
+        transform: translate(-50%, -50%);
+        display: none; will-change: top, transform;
+      }
+      /* Shared marker styling (.self-marker class): applies to the screen-fixed
+         chevron AND the geo-anchored clone shown while the camera is detached,
+         so colour, ripple, and stale-greying stay identical in both modes. */
+      .self-marker { pointer-events: none; }
+      /* Live-position ripple: a fading disc per period expanding past the chevron,
+         with a ring edge so the pulse reads clearly. Coloured by --marker-color
+         (Material primary, set per fix from mapbox-main.ts). Mirrors the SNAPSHOT
+         chevron's ripple (MapPanel.kt). */
+      /* Keep the chevron above the ripple (a positioned sibling would otherwise
+         paint over it). */
+      .self-marker svg { position: relative; z-index: 1; }
+      .self-marker .ripple {
+        position: absolute; left: 50%; top: 50%;
+        width: 64px; height: 64px; margin: -32px 0 0 -32px;
+        border-radius: 50%;
+        background: var(--marker-color, #3367D6);
+        border: 1.5px solid var(--marker-color, #3367D6);
+        box-sizing: border-box;
+        animation: marker-ripple 2.8s linear infinite;
+      }
+      @keyframes marker-ripple {
+        0%   { transform: scale(0); opacity: 0.38; }
+        100% { transform: scale(1); opacity: 0; }
+      }
+      /* Position lost (a tunnel): grey the chevron whatever its colour and stop
+         the ripple. mapbox-main.ts toggles .stale from the staleness timer. */
+      .self-marker.stale svg { filter: grayscale(1); }
+      .self-marker.stale .ripple { display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="self-marker" class="self-marker">
+      <!-- Decorative self-location chevron; the host UI owns the accessible name. -->
+      <span class="ripple"></span>
+      <svg width="34" height="34" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M15 0 L30 30 L15 21.6 L0 30 Z" fill="#3367D6" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <script type="module" src="/src/mapbox-main.ts"></script>
+  </body>
+</html>

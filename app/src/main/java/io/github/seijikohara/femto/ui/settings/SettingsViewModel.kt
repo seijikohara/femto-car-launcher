@@ -47,8 +47,6 @@ internal class SettingsViewModel(
                 mapTiltDeg = display.mapTiltDeg,
                 mapZoom = display.mapZoom,
                 mapNorthUp = display.mapNorthUp,
-                mapRenderPercent = display.mapRenderPercent,
-                mapRenderMode = display.mapRenderMode,
                 mapMarkerPos = display.mapMarkerPos,
                 map3dBuildings = display.map3dBuildings,
                 mapTerrain = display.mapTerrain,
@@ -58,6 +56,9 @@ internal class SettingsViewModel(
                 showWeather = display.showWeather,
                 showMusic = display.showMusic,
                 musicSpectrum = display.musicSpectrum,
+                mapBackend = display.mapBackend,
+                mapboxStyle = display.mapboxStyle,
+                mapboxTraffic = display.mapboxTraffic,
                 latinFont = font.latinFamily,
                 cjkFont = font.cjkFamily,
                 locationQuality = location.quality,
@@ -147,14 +148,6 @@ internal class SettingsViewModel(
                     displayPreferences.setMapNorthUp(action.value)
                 }
 
-                is SettingsAction.SetMapRenderPercent -> {
-                    displayPreferences.setMapRenderPercent(action.value)
-                }
-
-                is SettingsAction.SetMapRenderMode -> {
-                    displayPreferences.setMapRenderMode(action.value)
-                }
-
                 is SettingsAction.SetMapMarkerPos -> {
                     displayPreferences.setMapMarkerPos(action.value)
                 }
@@ -205,6 +198,18 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetBackgroundRanging -> {
                     locationPreferences.setBackgroundRangingEnabled(action.value)
+                }
+
+                is SettingsAction.SetMapBackend -> {
+                    displayPreferences.setMapBackend(action.value)
+                }
+
+                is SettingsAction.SetMapboxStyle -> {
+                    displayPreferences.setMapboxStyle(action.value)
+                }
+
+                is SettingsAction.SetMapboxTraffic -> {
+                    displayPreferences.setMapboxTraffic(action.value)
                 }
 
                 is SettingsAction.ResetToDefaults -> {

@@ -227,6 +227,15 @@
     <string name="settings_group_map_3d">3D buildings</string>
     <string name="settings_group_map_terrain">Terrain</string>
     <string name="settings_map_terrain_desc">3D elevation relief (Mapterhorn). Adds tile downloads; heavier on low-end GPUs.</string>
+    <string name="settings_map_backend">Map provider</string>
+    <string name="settings_map_backend_osm">OpenStreetMap (free)</string>
+    <string name="settings_map_backend_mapbox">Mapbox (paid)</string>
+    <string name="settings_mapbox_style">Mapbox style</string>
+    <string name="settings_mapbox_style_standard">Standard</string>
+    <string name="settings_mapbox_style_satellite">Satellite</string>
+    <string name="settings_mapbox_style_streets">Streets</string>
+    <string name="settings_mapbox_traffic">Traffic overlay</string>
+    <string name="settings_map_accent_osm_only_note">Accent recolor applies to OpenStreetMap only</string>
     <string name="settings_group_location_quality">Accuracy</string>
     <string name="settings_location_quality_high">High accuracy</string>
     <string name="settings_location_quality_balanced">Balanced</string>

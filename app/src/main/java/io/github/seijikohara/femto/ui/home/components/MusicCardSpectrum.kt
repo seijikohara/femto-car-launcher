@@ -78,9 +78,9 @@ internal fun SpectrumBackground(
 ) {
     val target by spectrum.collectAsStateWithLifecycle()
     var displayed by remember { mutableStateOf(FloatArray(0)) }
-    // repeatOnLifecycle keeps the frame loop STARTED-only (precedent:
-    // MapSnapshot's render loop): in the background collectAsStateWithLifecycle
-    // parks `target` at its last non-null value, so without the lifecycle gate
+    // repeatOnLifecycle keeps the frame loop STARTED-only: in the background
+    // collectAsStateWithLifecycle parks `target` at its last non-null value, so
+    // without the lifecycle gate
     // the loop could spin against a stale target. The restart also resets the
     // frame basis, so the first frame after resume uses the fallback dt
     // instead of one giant background-spanning delta.
