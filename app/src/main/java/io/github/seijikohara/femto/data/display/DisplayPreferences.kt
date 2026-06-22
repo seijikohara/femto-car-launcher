@@ -16,9 +16,7 @@ import kotlinx.coroutines.flow.map
 
 private const val TAG = "DisplayPreferences"
 
-// internal so the test package can call writeRaw() to seed a legacy on-disk state
-// without going through the DisplayPreferences setters.
-internal val Context.displayDataStore: DataStore<Preferences> by preferencesDataStore(name = "display_preferences")
+private val Context.displayDataStore: DataStore<Preferences> by preferencesDataStore(name = "display_preferences")
 
 /**
  * Read/write surface for [DisplaySettings]. [DisplayPreferences] is the
@@ -159,8 +157,8 @@ internal class DisplayPreferences(
                     showWeather = prefs[SHOW_WEATHER_KEY] ?: true,
                     showMusic = prefs[SHOW_MUSIC_KEY] ?: true,
                     musicSpectrum = prefs[MUSIC_SPECTRUM_KEY] ?: false,
-                    mapBackend = prefs[MAP_BACKEND_KEY].toMapBackendOr(MapBackend.OSM),
-                    mapboxStyle = prefs[MAPBOX_STYLE_KEY].toMapboxStyleOr(MapboxStyle.STANDARD),
+                    mapBackend = prefs[MAP_BACKEND_KEY].toEnumOr(MapBackend.OSM),
+                    mapboxStyle = prefs[MAPBOX_STYLE_KEY].toEnumOr(MapboxStyle.STANDARD),
                     mapboxTraffic = prefs[MAPBOX_TRAFFIC_KEY] ?: false,
                 )
             }
@@ -363,13 +361,3 @@ internal fun String?.toMapRenderModeOr(fallback: MapRenderMode): MapRenderMode =
         "LIVE_HARDWARE", "LIVE_SOFTWARE" -> MapRenderMode.LIVE
         else -> toEnumOr(fallback)
     }
-
-// Defensive enum decoders for the new backend keys. An absent key or an
-// unrecognised name (e.g. after a downgrade) falls back to the supplied
-// default, matching the toMapRenderModeOr / toEnumOr pattern throughout this
-// file. internal so the parsers are unit-testable in isolation.
-internal fun String?.toMapBackendOr(fallback: MapBackend): MapBackend =
-    this?.let { runCatching { MapBackend.valueOf(it) }.getOrNull() } ?: fallback
-
-internal fun String?.toMapboxStyleOr(fallback: MapboxStyle): MapboxStyle =
-    this?.let { runCatching { MapboxStyle.valueOf(it) }.getOrNull() } ?: fallback

@@ -1,9 +1,6 @@
 package io.github.seijikohara.femto.data.display
 
 import android.content.Context
-import androidx.datastore.preferences.core.MutablePreferences
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -75,8 +72,7 @@ class DisplayPreferencesTest {
     @Test
     fun `mapBackend mapboxStyle mapboxTraffic defaults migration and round-trip`() =
         runTest {
-            val ctx = ApplicationProvider.getApplicationContext<Context>()
-            val store = newTestStore(ctx)
+            val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
             // Clear any state left by a test that ran earlier in the same process.
             store.resetToDefaults()
 
@@ -87,9 +83,10 @@ class DisplayPreferencesTest {
             assertEquals(MapBackend.OSM, store.settings.first().mapBackend)
             assertEquals(MapboxStyle.STANDARD, store.settings.first().mapboxStyle)
 
-            // Legacy: map_render_mode written (simulating a pre-migration store)
-            // with no map_backend key → mapBackend still resolves to OSM.
-            writeRaw(ctx) { it[MAP_RENDER_MODE_KEY_TEST] = "SNAPSHOT" }
+            // Legacy: a pre-migration store has map_render_mode but no map_backend.
+            // Writing via the production setter reproduces this state; mapBackend
+            // must still resolve to OSM because the map_backend key stays absent.
+            store.setMapRenderMode(MapRenderMode.SNAPSHOT)
             assertEquals(MapBackend.OSM, store.settings.first().mapBackend)
 
             // Round-trip: write MAPBOX / SATELLITE / traffic-on, then read back.
@@ -102,19 +99,3 @@ class DisplayPreferencesTest {
             assertTrue(s.mapboxTraffic)
         }
 }
-
-// Creates a DisplayPreferences bound to the given Context (the Robolectric
-// test Application). Callers must pass the same context for writeRaw so both
-// helpers reach the same singleton DataStore.
-private fun newTestStore(ctx: Context): DisplayPreferences = DisplayPreferences(ctx)
-
-// Writes raw preferences directly into the displayDataStore so tests can
-// simulate a legacy on-disk state without going through DisplayPreferences setters.
-private suspend fun writeRaw(
-    ctx: Context,
-    transform: (MutablePreferences) -> Unit,
-) = ctx.displayDataStore.edit(transform)
-
-// The raw key that the legacy migration test needs to write — mirrors the
-// production MAP_RENDER_MODE_KEY without importing the private companion member.
-private val MAP_RENDER_MODE_KEY_TEST = stringPreferencesKey("map_render_mode")
