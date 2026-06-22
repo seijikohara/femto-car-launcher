@@ -6,9 +6,11 @@ import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.FullscreenSetting
+import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapRenderMode
 import io.github.seijikohara.femto.data.display.MapStyleSetting
+import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
@@ -56,6 +58,9 @@ internal data class SettingsUiState(
     val locationIntervalMillis: Long,
     val locationMinDistanceMeters: Int,
     val backgroundRangingEnabled: Boolean,
+    val mapBackend: MapBackend = DisplaySettings.Default.mapBackend,
+    val mapboxStyle: MapboxStyle = DisplaySettings.Default.mapboxStyle,
+    val mapboxTraffic: Boolean = DisplaySettings.Default.mapboxTraffic,
 ) {
     companion object {
         // Seeded from the persistence defaults so the default values live in one
@@ -97,6 +102,9 @@ internal data class SettingsUiState(
                 locationIntervalMillis = LocationSettings.Default.intervalMillis,
                 locationMinDistanceMeters = LocationSettings.Default.minUpdateDistanceMeters,
                 backgroundRangingEnabled = LocationSettings.Default.backgroundRangingEnabled,
+                mapBackend = DisplaySettings.Default.mapBackend,
+                mapboxStyle = DisplaySettings.Default.mapboxStyle,
+                mapboxTraffic = DisplaySettings.Default.mapboxTraffic,
             )
     }
 }
@@ -237,6 +245,18 @@ internal sealed interface SettingsAction {
     ) : SettingsAction
 
     data class SetBackgroundRanging(
+        val value: Boolean,
+    ) : SettingsAction
+
+    data class SetMapBackend(
+        val value: MapBackend,
+    ) : SettingsAction
+
+    data class SetMapboxStyle(
+        val value: MapboxStyle,
+    ) : SettingsAction
+
+    data class SetMapboxTraffic(
         val value: Boolean,
     ) : SettingsAction
 

@@ -179,6 +179,9 @@ class MainActivity : ComponentActivity() {
                             markerPos = display.mapMarkerPos,
                             buildings3d = display.map3dBuildings,
                             terrain = display.mapTerrain,
+                            backend = display.mapBackend,
+                            mapboxStyle = display.mapboxStyle,
+                            mapboxTraffic = display.mapboxTraffic,
                         ),
                     panels =
                         PanelVisibility(

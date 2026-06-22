@@ -58,6 +58,9 @@ internal class SettingsViewModel(
                 showWeather = display.showWeather,
                 showMusic = display.showMusic,
                 musicSpectrum = display.musicSpectrum,
+                mapBackend = display.mapBackend,
+                mapboxStyle = display.mapboxStyle,
+                mapboxTraffic = display.mapboxTraffic,
                 latinFont = font.latinFamily,
                 cjkFont = font.cjkFamily,
                 locationQuality = location.quality,
@@ -205,6 +208,18 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetBackgroundRanging -> {
                     locationPreferences.setBackgroundRangingEnabled(action.value)
+                }
+
+                is SettingsAction.SetMapBackend -> {
+                    displayPreferences.setMapBackend(action.value)
+                }
+
+                is SettingsAction.SetMapboxStyle -> {
+                    displayPreferences.setMapboxStyle(action.value)
+                }
+
+                is SettingsAction.SetMapboxTraffic -> {
+                    displayPreferences.setMapboxTraffic(action.value)
                 }
 
                 is SettingsAction.ResetToDefaults -> {
