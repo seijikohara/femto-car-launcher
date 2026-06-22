@@ -34,7 +34,6 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.data.display.DockPosition
-import io.github.seijikohara.femto.data.display.MapRenderMode
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
@@ -162,11 +161,9 @@ private fun DashboardContent(
     )
 
     // Shared Haze state: the map registers as the blur source, every glass overlay
-    // (chrome, the floating cards, and the dock) samples it. Only the snapshot
-    // backend (a Compose Image) can be captured; the Live GL surface falls back to
-    // the tint.
+    // (chrome, the floating cards, and the dock) samples it. The WebView GL surface
+    // falls back to the tint (it cannot be captured by Haze).
     val hazeState = rememberHazeState()
-    val live = mapConfig.renderMode == MapRenderMode.LIVE
     var following by remember { mutableStateOf(true) }
     var bearingDeg by remember { mutableFloatStateOf(0f) }
     var recenterNonce by remember { mutableIntStateOf(0) }
@@ -238,21 +235,17 @@ private fun DashboardContent(
     // controls, and speed overlay never sit under the dock's nav buttons while the
     // map still shows through behind the dock.
     Box(modifier = Modifier.fillMaxSize().padding(dockEdgePadding(dockPosition, dockExtent))) {
-        // Map controls render only when the map does (a fix exists). The compass and
-        // locate button are LIVE-only (SNAPSHOT has no free camera); the zoom pair
-        // works on both backends via the persisted setting.
+        // Map controls render only when the map does (a fix exists).
         if (uiState.location != null) {
-            if (live) {
-                MapCompass(
-                    bearingDeg = bearingDeg,
-                    onTap = { onAction(HomeAction.ToggleMapNorthUp) },
-                    hazeState = hazeState,
-                    glassConfig = glassConfig,
-                    modifier = Modifier.align(Alignment.TopStart).padding(outerPad),
-                )
-            }
+            MapCompass(
+                bearingDeg = bearingDeg,
+                onTap = { onAction(HomeAction.ToggleMapNorthUp) },
+                hazeState = hazeState,
+                glassConfig = glassConfig,
+                modifier = Modifier.align(Alignment.TopStart).padding(outerPad),
+            )
             MapControlColumn(
-                showLocate = live,
+                showLocate = true,
                 following = following,
                 onLocate = { recenterNonce++ },
                 onZoomIn = { onAction(HomeAction.AdjustMapZoom(1)) },

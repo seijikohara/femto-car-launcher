@@ -9,7 +9,6 @@ import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
-import io.github.seijikohara.femto.data.display.MapRenderMode
 import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.UiScale
@@ -145,22 +144,6 @@ class SettingsViewModelTest {
         }
 
     @Test
-    fun `SetMapRenderPercent writes the value to the store`() =
-        runTest(dispatcher) {
-            viewModel().onAction(SettingsAction.SetMapRenderPercent(50))
-            advanceUntilIdle()
-            assertEquals(50, store.settings.first().mapRenderPercent)
-        }
-
-    @Test
-    fun `SetMapRenderMode writes the value to the store`() =
-        runTest(dispatcher) {
-            viewModel().onAction(SettingsAction.SetMapRenderMode(MapRenderMode.LIVE))
-            advanceUntilIdle()
-            assertEquals(MapRenderMode.LIVE, store.settings.first().mapRenderMode)
-        }
-
-    @Test
     fun `SetMapSchemeLight writes the value to the store`() =
         runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetMapSchemeLight(MapColorScheme.BRIGHT))
@@ -260,7 +243,6 @@ class SettingsViewModelTest {
         runTest(dispatcher) {
             val defaults = DisplaySettings.Default
             assertEquals(FullscreenSetting.ON, defaults.fullscreen)
-            assertEquals(MapRenderMode.LIVE, defaults.mapRenderMode)
             assertEquals(true, defaults.map3dBuildings)
             assertEquals(true, defaults.mapTerrain)
             assertEquals(false, defaults.showClockSeconds)

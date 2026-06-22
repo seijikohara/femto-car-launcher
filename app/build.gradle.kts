@@ -275,7 +275,6 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(platform(libs.okhttp.bom))
     implementation(libs.okhttp)
-    implementation(libs.maplibre.android)
     implementation(libs.aboutlibraries.core)
 
     implementation(platform(libs.androidx.compose.bom))

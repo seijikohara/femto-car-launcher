@@ -8,7 +8,6 @@ import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
-import io.github.seijikohara.femto.data.display.MapRenderMode
 import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.display.OrientationSetting
@@ -40,8 +39,6 @@ internal data class SettingsUiState(
     val mapTiltDeg: Int,
     val mapZoom: Int,
     val mapNorthUp: Boolean,
-    val mapRenderPercent: Int,
-    val mapRenderMode: MapRenderMode,
     val mapMarkerPos: Int,
     val map3dBuildings: Boolean,
     val mapTerrain: Boolean,
@@ -85,8 +82,6 @@ internal data class SettingsUiState(
                 mapTiltDeg = DisplaySettings.Default.mapTiltDeg,
                 mapZoom = DisplaySettings.Default.mapZoom,
                 mapNorthUp = DisplaySettings.Default.mapNorthUp,
-                mapRenderPercent = DisplaySettings.Default.mapRenderPercent,
-                mapRenderMode = DisplaySettings.Default.mapRenderMode,
                 mapMarkerPos = DisplaySettings.Default.mapMarkerPos,
                 map3dBuildings = DisplaySettings.Default.map3dBuildings,
                 mapTerrain = DisplaySettings.Default.mapTerrain,
@@ -186,14 +181,6 @@ internal sealed interface SettingsAction {
 
     data class SetMapNorthUp(
         val value: Boolean,
-    ) : SettingsAction
-
-    data class SetMapRenderPercent(
-        val value: Int,
-    ) : SettingsAction
-
-    data class SetMapRenderMode(
-        val value: MapRenderMode,
     ) : SettingsAction
 
     data class SetMapMarkerPos(

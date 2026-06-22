@@ -47,8 +47,6 @@ internal class SettingsViewModel(
                 mapTiltDeg = display.mapTiltDeg,
                 mapZoom = display.mapZoom,
                 mapNorthUp = display.mapNorthUp,
-                mapRenderPercent = display.mapRenderPercent,
-                mapRenderMode = display.mapRenderMode,
                 mapMarkerPos = display.mapMarkerPos,
                 map3dBuildings = display.map3dBuildings,
                 mapTerrain = display.mapTerrain,
@@ -148,14 +146,6 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetMapNorthUp -> {
                     displayPreferences.setMapNorthUp(action.value)
-                }
-
-                is SettingsAction.SetMapRenderPercent -> {
-                    displayPreferences.setMapRenderPercent(action.value)
-                }
-
-                is SettingsAction.SetMapRenderMode -> {
-                    displayPreferences.setMapRenderMode(action.value)
                 }
 
                 is SettingsAction.SetMapMarkerPos -> {

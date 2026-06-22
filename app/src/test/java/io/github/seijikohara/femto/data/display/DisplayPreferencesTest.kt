@@ -49,22 +49,6 @@ class DisplayPreferencesTest {
             assertEquals(DisplaySettings.Default, store.settings.first())
         }
 
-    @Test
-    fun `the render mode migrates the retired three-mode values to LIVE`() {
-        // A user who picked a live map before the software backend was removed
-        // keeps a live map, not the SNAPSHOT floor.
-        assertEquals(MapRenderMode.LIVE, "LIVE_HARDWARE".toMapRenderModeOr(MapRenderMode.SNAPSHOT))
-        assertEquals(MapRenderMode.LIVE, "LIVE_SOFTWARE".toMapRenderModeOr(MapRenderMode.SNAPSHOT))
-    }
-
-    @Test
-    fun `the render mode decodes current values and falls back for unknowns`() {
-        assertEquals(MapRenderMode.LIVE, "LIVE".toMapRenderModeOr(MapRenderMode.SNAPSHOT))
-        assertEquals(MapRenderMode.SNAPSHOT, "SNAPSHOT".toMapRenderModeOr(MapRenderMode.LIVE))
-        assertEquals(MapRenderMode.SNAPSHOT, "REMOVED".toMapRenderModeOr(MapRenderMode.SNAPSHOT))
-        assertEquals(MapRenderMode.LIVE, null.toMapRenderModeOr(MapRenderMode.LIVE))
-    }
-
     // All three backend-settings cases share one test method because the
     // displayDataStore singleton is bound to the process Application, not the test
     // method — separate methods would see each other's writes (same singleton
@@ -84,9 +68,8 @@ class DisplayPreferencesTest {
             assertEquals(MapboxStyle.STANDARD, store.settings.first().mapboxStyle)
 
             // Legacy: a pre-migration store has map_render_mode but no map_backend.
-            // Writing via the production setter reproduces this state; mapBackend
-            // must still resolve to OSM because the map_backend key stays absent.
-            store.setMapRenderMode(MapRenderMode.SNAPSHOT)
+            // The map_backend key being absent is the migration semantic; OSM resolves
+            // from the read-path default regardless of any pre-existing render-mode key.
             assertEquals(MapBackend.OSM, store.settings.first().mapBackend)
 
             // Round-trip: write MAPBOX / SATELLITE / traffic-on, then read back.

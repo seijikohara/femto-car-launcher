@@ -43,33 +43,17 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPinOff
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.display.MapRenderMode
 import io.github.seijikohara.femto.data.location.isFresh
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import kotlinx.coroutines.delay
-import org.maplibre.android.MapLibre
-import org.maplibre.android.maps.MapView
-import org.maplibre.android.snapshotter.MapSnapshotter
 import kotlin.math.roundToInt
 
 /**
- * Map tile surface + permission fallback, in one of three backends selected
- * explicitly by [MapConfig.renderMode] (all render free OpenStreetMap vector
- * tiles via OpenFreeMap / MapLibre with a heading-up, oblique (tilted) camera):
- *
- * - SNAPSHOT (default, [SnapshotMap]) draws off-screen [MapSnapshotter] bitmaps
- *   into a Compose [Image]. A native live GL `MapView` never presents frames on
- *   the projected / virtualised displays of CarPlay / Android Auto AI boxes — the
- *   GL buffers are not scanned out, so it shows a grey rectangle — whereas a
- *   bitmap rides the normal Skia composition path and presents reliably. The
- *   snapshot re-renders on movement, single-flight, holding the previous frame so
- *   there is no flicker.
- * - LIVE ([WebMapView]) renders MapLibre GL JS (WebGL) in a hardware-accelerated
- *   WebView, which composites inline through HWUI and animates the camera for a
- *   smooth follow. There is NO auto-fallback: the chosen backend is kept as-is.
- *
- * Clock and speed overlays are placed by the parent on top of this surface.
+ * Map tile surface + permission fallback. Renders via [WebMapView] (MapLibre GL JS
+ * in a hardware-accelerated WebView for OSM, or Mapbox GL JS for the paid tier),
+ * selected by [MapConfig.backend]. Clock and speed overlays are placed by the parent
+ * on top of this surface.
  */
 @Composable
 internal fun MapPanel(
@@ -91,28 +75,15 @@ internal fun MapPanel(
         // A location fix is the only gate: with it we have permission and a
         // centre point; without it the map has nothing to show, so fall back.
         if (location != null) {
-            when (mapConfig.renderMode) {
-                MapRenderMode.LIVE -> {
-                    WebMapView(
-                        location = location,
-                        mapConfig = mapConfig,
-                        onTap = onTap,
-                        modifier = Modifier.fillMaxSize(),
-                        recenterNonce = recenterNonce,
-                        onFollowChange = onFollowChange,
-                        onBearingChange = onBearingChange,
-                    )
-                }
-
-                MapRenderMode.SNAPSHOT -> {
-                    SnapshotMap(
-                        location = location,
-                        mapConfig = mapConfig,
-                        onTap = onTap,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-            }
+            WebMapView(
+                location = location,
+                mapConfig = mapConfig,
+                onTap = onTap,
+                modifier = Modifier.fillMaxSize(),
+                recenterNonce = recenterNonce,
+                onFollowChange = onFollowChange,
+                onBearingChange = onBearingChange,
+            )
         } else {
             // Centre the placeholder in the exposed map region — left of the right
             // cards and above the bottom overlays (the same safe fractions the marker

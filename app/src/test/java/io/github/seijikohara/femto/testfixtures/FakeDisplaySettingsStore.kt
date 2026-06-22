@@ -11,7 +11,6 @@ import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
-import io.github.seijikohara.femto.data.display.MapRenderMode
 import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.display.OrientationSetting
@@ -92,10 +91,6 @@ internal class FakeDisplaySettingsStore(
     override suspend fun setMapNorthUp(value: Boolean) = state.update { it.copy(mapNorthUp = value) }
 
     override suspend fun toggleMapNorthUp() = state.update { it.copy(mapNorthUp = !it.mapNorthUp) }
-
-    override suspend fun setMapRenderPercent(value: Int) = state.update { it.copy(mapRenderPercent = value) }
-
-    override suspend fun setMapRenderMode(value: MapRenderMode) = state.update { it.copy(mapRenderMode = value) }
 
     override suspend fun setMapMarkerPos(value: Int) = state.update { it.copy(mapMarkerPos = value) }
 

@@ -77,22 +77,6 @@ internal enum class MapStyleSetting { AUTO, LIGHT, DARK }
  */
 internal enum class MapColorScheme { ACCENT, POSITRON, BRIGHT, LIBERTY, DARK_MATTER, DARK, FIORD }
 
-/**
- * Map render backend, picked explicitly by the user (no auto-fallback).
- *
- * - [LIVE]: MapLibre GL JS (WebGL) in a hardware-accelerated WebView — smooth,
- *   animated, renders on both the emulator and the head unit.
- * - [SNAPSHOT]: off-screen `MapSnapshotter` bitmaps; presents reliably on any
- *   display (the robust floor for hardware that cannot keep a WebGL context).
- *   The default.
- *
- * A software-WebGL (SwiftShader) backend was removed: there is no per-app API to
- * route WebView WebGL through SwiftShader (`setLayerType(LAYER_TYPE_SOFTWARE)`
- * yields a blank map, not software WebGL), and hardware WebGL works on the target
- * device, so SNAPSHOT already covers the no-WebGL case.
- */
-internal enum class MapRenderMode { LIVE, SNAPSHOT }
-
 /** Default oblique-camera tilt (degrees) and zoom level for the map. */
 internal const val DEFAULT_MAP_TILT_DEG = 55
 internal const val DEFAULT_MAP_ZOOM = 16
@@ -103,13 +87,6 @@ internal const val DEFAULT_MAP_ZOOM = 16
  */
 internal const val MIN_MAP_ZOOM = 12
 internal const val MAX_MAP_ZOOM = 19
-
-/**
- * Default snapshot render resolution, as a percentage of the panel's pixel size.
- * 100 renders at full resolution; lower values render a smaller bitmap (upscaled
- * to fill), trading sharpness for a faster render and a smoother frame rate.
- */
-internal const val DEFAULT_MAP_RENDER_PERCENT = 100
 
 /**
  * Default location-marker vertical position (0..100): 0 centres the marker in the
@@ -162,16 +139,12 @@ internal data class DisplaySettings(
     // it with the travel heading (the driving default everywhere; the compass
     // overlay toggles this). Locale-neutral by design — no market prefers one.
     val mapNorthUp: Boolean,
-    // Snapshot render resolution as a percent of the panel pixel size; lower is
-    // blurrier but renders faster (a smaller bitmap to upscale).
-    val mapRenderPercent: Int,
-    val mapRenderMode: MapRenderMode,
     // Location-marker vertical position (0..100): 0 = map centre, 100 = just above
     // the speed overlay. Applied to both backends.
     val mapMarkerPos: Int,
-    // Live-map (WebGL) feature toggles. Both default off; they apply to the LIVE
-    // backends only (SNAPSHOT's native GL cannot extrude/relief safely). 3D buildings
-    // extrude the OpenMapTiles building layer; terrain adds raster-DEM relief.
+    // OSM-map (WebGL) feature toggles. Both default off. 3D buildings extrude the
+    // OpenMapTiles building layer; terrain adds raster-DEM relief. Ignored when
+    // backend == MAPBOX (Mapbox GL JS manages its own layer stack).
     val map3dBuildings: Boolean,
     val mapTerrain: Boolean,
     // Map-overlay glass: the backdrop blur radius (dp) and the tint opacity as an
@@ -219,8 +192,6 @@ internal data class DisplaySettings(
                 mapTiltDeg = DEFAULT_MAP_TILT_DEG,
                 mapZoom = DEFAULT_MAP_ZOOM,
                 mapNorthUp = false,
-                mapRenderPercent = DEFAULT_MAP_RENDER_PERCENT,
-                mapRenderMode = MapRenderMode.LIVE,
                 mapMarkerPos = DEFAULT_MAP_MARKER_POS,
                 map3dBuildings = true,
                 mapTerrain = true,
