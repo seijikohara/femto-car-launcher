@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Effective date: 2026-06-16**
+**Effective date: 2026-06-22**
 
 Femto Car Launcher ("the app") is an Android home launcher. This policy explains
 what data the app accesses, why, and who it is shared with. The app does **not**
@@ -29,7 +29,11 @@ To provide map, address, and weather features the app sends your location
 coordinates to the following services, governed by their own privacy policies:
 
 - **Weather** — MET Norway (the Norwegian Meteorological Institute, `api.met.no`).
-- **Map tiles** — OpenFreeMap and Mapterhorn (OpenStreetMap-based map data).
+- **Map tiles (default / OSM backend)** — OpenFreeMap and Mapterhorn (OpenStreetMap-based map data).
+- **Map tiles (optional Mapbox backend)** — if you select the Mapbox map backend in Settings,
+  location coordinates are sent to Mapbox (`api.mapbox.com`) to render map tiles, styles,
+  satellite imagery, and traffic. This data is governed by the
+  [Mapbox privacy policy](https://www.mapbox.com/legal/privacy).
 - **Reverse geocoding (address)** — by default the app uses the **on-device**
   Android geocoder. On devices with Google services, that geocoder is provided by
   Google and may process the coordinates. If you configure a self-hosted geocoding
@@ -45,7 +49,11 @@ control.
 
 - No advertising, no analytics, no crash-reporting SDKs.
 - No sale or sharing of personal data for advertising.
-- No collection of device or advertising identifiers.
+- No collection of device or advertising identifiers — **except** when you select
+  the optional Mapbox map backend: Mapbox GL JS sends usage telemetry to Mapbox as
+  part of its standard operation, and the app cannot fully disable this. The
+  telemetry is governed by the [Mapbox privacy policy](https://www.mapbox.com/legal/privacy).
+  The default OSM backend does not send any analytics or telemetry.
 - No background location collection. The optional trip-tracking foreground
   service runs only while you enable it and only while the app would otherwise
   lose the location stream; it does not use background-location access.
