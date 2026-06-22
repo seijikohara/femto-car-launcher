@@ -9,9 +9,11 @@ import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
+import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapRenderMode
 import io.github.seijikohara.femto.data.display.MapStyleSetting
+import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
@@ -112,6 +114,12 @@ internal class FakeDisplaySettingsStore(
     override suspend fun setShowMusic(value: Boolean) = state.update { it.copy(showMusic = value) }
 
     override suspend fun setMusicSpectrum(value: Boolean) = state.update { it.copy(musicSpectrum = value) }
+
+    override suspend fun setMapBackend(value: MapBackend) = state.update { it.copy(mapBackend = value) }
+
+    override suspend fun setMapboxStyle(value: MapboxStyle) = state.update { it.copy(mapboxStyle = value) }
+
+    override suspend fun setMapboxTraffic(value: Boolean) = state.update { it.copy(mapboxTraffic = value) }
 
     override suspend fun resetToDefaults() = state.update { DisplaySettings.Default }
 }

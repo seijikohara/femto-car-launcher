@@ -16,7 +16,9 @@ import kotlinx.coroutines.flow.map
 
 private const val TAG = "DisplayPreferences"
 
-private val Context.displayDataStore: DataStore<Preferences> by preferencesDataStore(name = "display_preferences")
+// internal so the test package can call writeRaw() to seed a legacy on-disk state
+// without going through the DisplayPreferences setters.
+internal val Context.displayDataStore: DataStore<Preferences> by preferencesDataStore(name = "display_preferences")
 
 /**
  * Read/write surface for [DisplaySettings]. [DisplayPreferences] is the
@@ -103,6 +105,12 @@ internal interface DisplaySettingsStore {
 
     suspend fun setMusicSpectrum(value: Boolean)
 
+    suspend fun setMapBackend(value: MapBackend)
+
+    suspend fun setMapboxStyle(value: MapboxStyle)
+
+    suspend fun setMapboxTraffic(value: Boolean)
+
     /** Restore every display setting to [DisplaySettings.Default]. */
     suspend fun resetToDefaults()
 }
@@ -151,6 +159,9 @@ internal class DisplayPreferences(
                     showWeather = prefs[SHOW_WEATHER_KEY] ?: true,
                     showMusic = prefs[SHOW_MUSIC_KEY] ?: true,
                     musicSpectrum = prefs[MUSIC_SPECTRUM_KEY] ?: false,
+                    mapBackend = prefs[MAP_BACKEND_KEY].toMapBackendOr(MapBackend.OSM),
+                    mapboxStyle = prefs[MAPBOX_STYLE_KEY].toMapboxStyleOr(MapboxStyle.STANDARD),
+                    mapboxTraffic = prefs[MAPBOX_TRAFFIC_KEY] ?: false,
                 )
             }
 
@@ -288,6 +299,18 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[MUSIC_SPECTRUM_KEY] = value }
     }
 
+    override suspend fun setMapBackend(value: MapBackend) {
+        context.displayDataStore.editOrLog(TAG) { it[MAP_BACKEND_KEY] = value.name }
+    }
+
+    override suspend fun setMapboxStyle(value: MapboxStyle) {
+        context.displayDataStore.editOrLog(TAG) { it[MAPBOX_STYLE_KEY] = value.name }
+    }
+
+    override suspend fun setMapboxTraffic(value: Boolean) {
+        context.displayDataStore.editOrLog(TAG) { it[MAPBOX_TRAFFIC_KEY] = value }
+    }
+
     // Clearing every key makes the read path above fall back to its per-field
     // defaults, which are kept identical to DisplaySettings.Default — so a reset
     // restores the defaults without duplicating the default literals here.
@@ -325,6 +348,9 @@ internal class DisplayPreferences(
         val SHOW_WEATHER_KEY = booleanPreferencesKey("show_weather")
         val SHOW_MUSIC_KEY = booleanPreferencesKey("show_music")
         val MUSIC_SPECTRUM_KEY = booleanPreferencesKey("music_spectrum")
+        val MAP_BACKEND_KEY = stringPreferencesKey("map_backend")
+        val MAPBOX_STYLE_KEY = stringPreferencesKey("mapbox_style")
+        val MAPBOX_TRAFFIC_KEY = booleanPreferencesKey("mapbox_traffic")
     }
 }
 
@@ -337,3 +363,13 @@ internal fun String?.toMapRenderModeOr(fallback: MapRenderMode): MapRenderMode =
         "LIVE_HARDWARE", "LIVE_SOFTWARE" -> MapRenderMode.LIVE
         else -> toEnumOr(fallback)
     }
+
+// Defensive enum decoders for the new backend keys. An absent key or an
+// unrecognised name (e.g. after a downgrade) falls back to the supplied
+// default, matching the toMapRenderModeOr / toEnumOr pattern throughout this
+// file. internal so the parsers are unit-testable in isolation.
+internal fun String?.toMapBackendOr(fallback: MapBackend): MapBackend =
+    this?.let { runCatching { MapBackend.valueOf(it) }.getOrNull() } ?: fallback
+
+internal fun String?.toMapboxStyleOr(fallback: MapboxStyle): MapboxStyle =
+    this?.let { runCatching { MapboxStyle.valueOf(it) }.getOrNull() } ?: fallback
