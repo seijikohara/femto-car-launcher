@@ -107,6 +107,37 @@ function report(
 	}
 }
 
+// Pending bridge calls recorded by module-top-level stubs so that host pushes
+// arriving before the UMD `onload` are not silently dropped. `onPageFinished`
+// (which gates host pushes) can fire before the injected `<script>` `onload`,
+// so the first `setMapboxStyle` push — which is rarely repeated — would be
+// lost if the bridge functions were only wired inside `initMap`. The stubs
+// record the latest call; `initMap` replays them after the real implementations
+// are installed. Stubs are installed unconditionally so they work even when
+// the token check exits `initMap` early.
+const pending = {
+	camera: null as Parameters<Window["updateCamera"]> | null,
+	style: null as Parameters<Window["setMapboxStyle"]> | null,
+	follow: null as boolean | null,
+	northUp: null as boolean | null,
+	resume: false,
+};
+window.updateCamera = (...a) => {
+	pending.camera = a;
+};
+window.setMapboxStyle = (...a) => {
+	pending.style = a;
+};
+window.setFollow = (f) => {
+	pending.follow = f;
+};
+window.setNorthUp = (e) => {
+	pending.northUp = e;
+};
+window.onHostResume = () => {
+	pending.resume = true;
+};
+
 // Mutable page state in one const holder (let/var are banned — see biome.json
 // and no-let.grit). All camera pushes and style ops read+write through here.
 const state = {
@@ -273,6 +304,9 @@ function initMap(): void {
 	mapboxgl.accessToken = token;
 
 	try {
+		// attributionControl is intentionally not suppressed: Mapbox ToS require
+		// the Mapbox logo and attribution text to remain visible at all times.
+		// A compact control keeps the overlay small on head-unit displays.
 		const liveMap = new mapboxgl.Map({
 			container: "map",
 			style: mapboxStyleUrl("standard"),
@@ -280,6 +314,7 @@ function initMap(): void {
 			zoom: 1,
 			attributionControl: false,
 		});
+		liveMap.addControl(new mapboxgl.AttributionControl({ compact: true }));
 		state.map = liveMap;
 
 		// Log the first rendered frame once; detach immediately after to avoid
@@ -531,6 +566,14 @@ function initMap(): void {
 			liveMap.resize();
 			liveMap.triggerRepaint();
 		};
+
+		// Replay any bridge calls that arrived via the module-top-level stubs
+		// before this `onload` fired. Order mirrors the host's push sequence.
+		if (pending.style) window.setMapboxStyle(...pending.style);
+		if (pending.northUp != null) window.setNorthUp(pending.northUp);
+		if (pending.follow != null) window.setFollow(pending.follow);
+		if (pending.camera) window.updateCamera(...pending.camera);
+		if (pending.resume) window.onHostResume();
 	} catch (e) {
 		log(`exception: ${e instanceof Error ? e.message : e}`);
 		report(

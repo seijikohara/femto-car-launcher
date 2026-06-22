@@ -304,6 +304,19 @@ internal fun SettingsScreen(
                     )
                 }
             }
+            // The AUTO/LIGHT/DARK map style also drives Mapbox Standard's lightPreset
+            // (day/night), so it belongs outside the OSM-only block.
+            ChoiceRow(
+                title = stringResource(R.string.settings_group_map_style),
+                options =
+                    listOf(
+                        MapStyleSetting.AUTO to stringResource(R.string.settings_option_auto),
+                        MapStyleSetting.LIGHT to stringResource(R.string.settings_theme_light),
+                        MapStyleSetting.DARK to stringResource(R.string.settings_theme_dark),
+                    ),
+                selected = uiState.mapStyle,
+                onSelect = { onAction(SettingsAction.SetMapStyle(it)) },
+            )
             AnimatedVisibility(visible = uiState.mapBackend == MapBackend.OSM) {
                 Column {
                     SettingsSubheader(stringResource(R.string.settings_subheader_map_rendering))
@@ -319,17 +332,6 @@ internal fun SettingsScreen(
                         summary = stringResource(R.string.settings_map_terrain_desc),
                     )
                     SettingsSubheader(stringResource(R.string.settings_subheader_map_appearance))
-                    ChoiceRow(
-                        title = stringResource(R.string.settings_group_map_style),
-                        options =
-                            listOf(
-                                MapStyleSetting.AUTO to stringResource(R.string.settings_option_auto),
-                                MapStyleSetting.LIGHT to stringResource(R.string.settings_theme_light),
-                                MapStyleSetting.DARK to stringResource(R.string.settings_theme_dark),
-                            ),
-                        selected = uiState.mapStyle,
-                        onSelect = { onAction(SettingsAction.SetMapStyle(it)) },
-                    )
                     // Light scheme applies for AUTO + LIGHT, Dark scheme for AUTO + DARK. AUTO
                     // can use either (the system theme decides), so AUTO shows both; a fixed
                     // LIGHT / DARK hides the scheme it never uses. Independent colour schemes:

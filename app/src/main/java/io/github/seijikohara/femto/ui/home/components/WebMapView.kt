@@ -521,14 +521,15 @@ private fun LiveMapNotice(
     }
 }
 
-// SSOT for the appassets origin: both the OSM and Mapbox page URLs, and all
-// style/DEM asset references, are built from this base so the origin is never
-// duplicated as a magic literal.
-private const val WEB_BASE = "https://appassets.androidplatform.net/assets/web/"
+// Single origin literal for the WebViewAssetLoader https scheme. Both the map
+// page base URL and all asset references derive from this constant so the
+// origin string appears in exactly one place.
+private const val APPASSETS_ORIGIN = "https://appassets.androidplatform.net"
+private const val WEB_BASE = "$APPASSETS_ORIGIN/assets/web/"
 
 // A bundled asset served to the WebView over the WebViewAssetLoader https origin so
 // MapLibre's tile Worker can fetch it (and the asset's OpenFreeMap sources) cross-origin.
-private fun appAssetsUrl(asset: String): String = "https://appassets.androidplatform.net/assets/$asset"
+private fun appAssetsUrl(asset: String): String = "$APPASSETS_ORIGIN/assets/$asset"
 
 // Select the HTML page to load based on the active map backend.
 internal fun mapPageUrl(backend: MapBackend) =
