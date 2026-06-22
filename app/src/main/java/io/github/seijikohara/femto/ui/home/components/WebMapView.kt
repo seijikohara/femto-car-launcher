@@ -542,7 +542,6 @@ internal fun mapboxStyleId(style: MapboxStyle) =
         MapboxStyle.STREETS -> "streets-v12"
     }
 
-// Map the current light/dark context to the Mapbox lightPreset name.
 internal fun lightPresetFor(dark: Boolean) = if (dark) "night" else "day"
 
 @PreviewLightDark

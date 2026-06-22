@@ -132,9 +132,6 @@ const state = {
 		rightSafe: number;
 	} | null,
 	lastPushedZoom: 0,
-	// Traffic layer on/off: toggled by setMapboxStyle and re-applied after a
-	// style.load so a style swap preserves the user's traffic preference.
-	trafficEnabled: false,
 };
 
 // Throttle per-frame error reports so a flaky tile server does not spray
@@ -503,7 +500,6 @@ function initMap(): void {
 		// Android -> JS: switch Mapbox base style, apply Standard lightPreset,
 		// and restore the traffic layer after the style reloads its sources.
 		window.setMapboxStyle = (styleId, lightPreset, traffic) => {
-			state.trafficEnabled = traffic;
 			liveMap.setStyle(mapboxStyleUrl(styleId));
 			liveMap.once("style.load", () => {
 				// Standard v3 fragment API; safe-no-op on non-Standard styles.
@@ -549,4 +545,5 @@ function initMap(): void {
 const s = document.createElement("script");
 s.src = mapboxglUrl;
 s.onload = initMap;
+s.onerror = () => report("fatal", "mapbox-lib-load-failed");
 document.head.appendChild(s);
