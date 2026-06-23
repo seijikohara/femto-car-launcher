@@ -19,9 +19,10 @@ internal interface BillingEntitlementStore {
     suspend fun cache(entitlement: Entitlement)
 
     // The force-unlock flag persists across builds but is only HONORED in DEBUG builds
-    // (BillingRepository gates the combine on BuildConfig.DEBUG). Keeping the pref key
-    // in all build types avoids a separate DataStore instance and lets a release build
-    // silently ignore any leftover value without reading it.
+    // (BillingRepository overlays it on the real entitlement in recompute(),
+    // gated on BuildConfig.DEBUG). Keeping the pref key in all build types avoids a
+    // separate DataStore instance and lets a release build silently ignore any leftover
+    // value without reading it.
     // Exposed as a Flow — BillingRepository collects it in its process-lifetime scope
     // and maintains a hot MutableStateFlow mirror so the entitlement StateFlow stays
     // consistent without needing a combine coroutine per subscriber.

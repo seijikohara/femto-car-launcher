@@ -6,7 +6,6 @@ import io.github.seijikohara.femto.BuildConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -50,8 +49,9 @@ internal class BillingRepository internal constructor(
 
     val connection: StateFlow<ConnectionState> = gateway.connection
 
-    // Expose the raw flag flow for the Diagnostics toggle binding.
-    val debugForceUnlocked: Flow<Boolean> get() = store.debugForceUnlocked
+    // Hot mirror of the store flag; recompute() reads this synchronously so the
+    // public entitlement converges to the latest inputs without an extra coroutine hop.
+    val debugForceUnlocked: StateFlow<Boolean> = debugForceState.asStateFlow()
 
     suspend fun setDebugForceUnlocked(value: Boolean) = store.setDebugForceUnlocked(value)
 
@@ -92,8 +92,10 @@ internal class BillingRepository internal constructor(
     }
 
     // Recomputes _entitlement from entitlementState and debugForceState.
-    // Must be called after either changes. Not synchronized with applyMutex —
-    // both callers already hold consistent state by the time they call this.
+    // Intentionally not guarded by applyMutex: both MutableStateFlows are read
+    // atomically, and the debugForceUnlocked collector always writes debugForceState
+    // before calling this, so the public value converges to the latest inputs.
+    // DEBUG-only overlay — no additional synchronization is warranted.
     private fun recompute() {
         val real = entitlementState.value
         val forced = debugForceState.value
