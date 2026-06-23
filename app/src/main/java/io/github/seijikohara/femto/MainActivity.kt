@@ -472,18 +472,17 @@ class MainActivity : ComponentActivity() {
     /**
      * Open the Play Store subscription management page for the active Femto Plus plan.
      * Uses a deep link so the user lands directly on their subscription rather than the
-     * top-level account page. Falls back silently if the Play Store is unavailable.
+     * top-level account page. Head units without the Play Store log a warning via
+     * tryStartActivity rather than silently swallowing the failure.
      */
     private fun openManageSubscription() {
-        runCatching {
-            startActivity(
-                Intent(
-                    Intent.ACTION_VIEW,
-                    "https://play.google.com/store/account/subscriptions?sku=$FEMTO_PLUS_PRODUCT_ID&package=$packageName"
-                        .toUri(),
-                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
-        }
+        val intent =
+            Intent(
+                Intent.ACTION_VIEW,
+                "https://play.google.com/store/account/subscriptions?sku=$FEMTO_PLUS_PRODUCT_ID&package=$packageName"
+                    .toUri(),
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        tryStartActivity(intent)
     }
 
     private fun launchAppCategory(category: String) {
