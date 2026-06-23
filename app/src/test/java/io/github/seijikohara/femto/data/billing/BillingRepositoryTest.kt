@@ -62,6 +62,13 @@ class BillingRepositoryTest {
         override suspend fun cache(entitlement: Entitlement) {
             state.value = entitlement
         }
+
+        private val debugForceUnlockedState = MutableStateFlow(false)
+        override val debugForceUnlocked: Flow<Boolean> = debugForceUnlockedState
+
+        override suspend fun setDebugForceUnlocked(value: Boolean) {
+            debugForceUnlockedState.value = value
+        }
     }
 
     @Test
@@ -76,8 +83,9 @@ class BillingRepositoryTest {
                 }
             val repo =
                 BillingRepository(disconnectedGateway, store, backgroundScope, now = { 5L })
-            // backgroundScope coroutines are scheduled eagerly; one runCurrent() pass
-            // lets the cache-collector emit before we assert.
+            // advanceUntilIdle() stops when only background-scope tasks remain, so use
+            // runCurrent() to also drain the background init launches (seed + force-unlock
+            // collector) before asserting.
             runCurrent()
             assertTrue(repo.entitlement.first().mapboxUnlocked)
         }
@@ -99,6 +107,9 @@ class BillingRepositoryTest {
                 )
             val store = FakeStore()
             val repo = BillingRepository(gw, store, backgroundScope, now = { 42L })
+            // advanceUntilIdle() stops when only background-scope tasks remain; the
+            // explicit refresh() in the test body runs as foreground work and is the
+            // sole caller of applyPurchases here.
             repo.refresh()
             advanceUntilIdle()
             assertTrue(repo.entitlement.first().mapboxUnlocked)
@@ -161,5 +172,33 @@ class BillingRepositoryTest {
             val launched = repo.launchPurchase(activity = activity, offerToken = "o1")
             assertTrue(launched)
             assertEquals("o1", gw.launched)
+        }
+
+    @Test
+    fun `debug force-unlock overrides locked real entitlement in DEBUG builds`() =
+        runTest {
+            // BuildConfig.DEBUG is true in the debug test variant, so this exercises
+            // the real combine branch rather than needing to mock BuildConfig.
+            val store = FakeStore() // real state = Locked, no purchases
+            val repo =
+                BillingRepository(
+                    FakeGateway(purchases = emptyList()),
+                    store,
+                    backgroundScope,
+                    now = { 0L },
+                )
+            // runCurrent() drains background init launches (seed + force-unlock collector)
+            // at virtual time 0. The collector emits the initial false value, recompute()
+            // leaves entitlement Locked.
+            runCurrent()
+            // With flag false: reconcile locks — force-unlock must not activate.
+            assertFalse(repo.entitlement.first().mapboxUnlocked)
+
+            // Enable the force flag and let the background collector pick up the new value.
+            store.setDebugForceUnlocked(true)
+            // runCurrent() dispatches the collector resumption scheduled by the StateFlow
+            // emission above; recompute() then overlays mapboxUnlocked=true.
+            runCurrent()
+            assertTrue(repo.entitlement.first().mapboxUnlocked)
         }
 }

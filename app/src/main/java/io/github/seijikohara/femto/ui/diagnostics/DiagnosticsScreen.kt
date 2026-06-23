@@ -9,17 +9,20 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
@@ -341,6 +344,43 @@ private fun StatusRow(
     )
 }
 
+// The whole row is the toggle (role = Switch) so the inline Switch is
+// presentation-only (onCheckedChange = null) and never double-fires.
+// An optional [summary] explains the tradeoff (shown under the title).
+@Composable
+private fun SwitchRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    summary: String? = null,
+) = Row(
+    modifier =
+        modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .heightIn(min = FemtoDimens.MinTouchTarget)
+            .padding(vertical = 4.dp),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.SpaceBetween,
+) {
+    Column(modifier = Modifier.weight(1f)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        if (summary != null) {
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+    Switch(checked = checked, onCheckedChange = null)
+}
+
 @Composable
 private fun spectrumLabel(diagnosis: SpectrumDiagnosis?): String =
     stringResource(
@@ -412,12 +452,20 @@ private fun OfferRow(offer: SubscriptionOffer) {
 }
 
 // Shown only when BuildConfig.DEBUG is true; lets a developer trigger the Play
-// billing dialog or refresh purchase state without building a dedicated UI.
+// billing dialog, refresh purchase state, or force-unlock the paid tier locally.
 @Composable
 private fun BillingDebugActions(
     billing: BillingDiagnostics,
     onAction: (DiagnosticsAction) -> Unit,
 ) = Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    // Force-unlock toggle: overrides the real Play entitlement so the full paid
+    // Mapbox experience can be tested locally without an active subscription.
+    SwitchRow(
+        title = stringResource(R.string.diagnostics_debug_force_unlocked),
+        checked = billing.debugForceUnlocked,
+        onCheckedChange = { onAction(DiagnosticsAction.SetDebugForceUnlocked(it)) },
+        summary = stringResource(R.string.diagnostics_debug_force_unlocked_desc),
+    )
     // Matching assumes Play Console base-plan IDs contain "month" / "annual" / "year"
     // (the project's naming convention). Buttons self-disable when no match is found.
     val monthlyOffer = billing.offers.firstOrNull { it.basePlanId.contains("month", ignoreCase = true) }

@@ -17,6 +17,10 @@ internal data class BillingDiagnostics(
     val lastVerified: Long?,
     val connection: ConnectionState,
     val offers: List<SubscriptionOffer>,
+    // DEBUG-only override: true when the developer has toggled force-unlock in
+    // Diagnostics. Carried here so the toggle row can bind its checked state
+    // directly from uiState.billing without reaching into a separate field.
+    val debugForceUnlocked: Boolean = false,
 )
 
 internal data class DiagnosticsUiState(
@@ -50,5 +54,11 @@ internal sealed interface DiagnosticsAction {
     // because launchBillingFlow requires a live Activity, not an Application context.
     data class LaunchPurchase(
         val offerToken: String,
+    ) : DiagnosticsAction
+
+    // DEBUG-only: toggle the force-unlock override so developers can test the paid
+    // Mapbox experience locally without a real Play subscription.
+    data class SetDebugForceUnlocked(
+        val value: Boolean,
     ) : DiagnosticsAction
 }

@@ -17,6 +17,17 @@ internal interface BillingEntitlementStore {
     val cached: Flow<Entitlement>
 
     suspend fun cache(entitlement: Entitlement)
+
+    // The force-unlock flag persists across builds but is only HONORED in DEBUG builds
+    // (BillingRepository gates the combine on BuildConfig.DEBUG). Keeping the pref key
+    // in all build types avoids a separate DataStore instance and lets a release build
+    // silently ignore any leftover value without reading it.
+    // Exposed as a Flow — BillingRepository collects it in its process-lifetime scope
+    // and maintains a hot MutableStateFlow mirror so the entitlement StateFlow stays
+    // consistent without needing a combine coroutine per subscriber.
+    val debugForceUnlocked: Flow<Boolean>
+
+    suspend fun setDebugForceUnlocked(value: Boolean)
 }
 
 internal class BillingPreferences(
@@ -46,8 +57,15 @@ internal class BillingPreferences(
             }
         }
 
+    override val debugForceUnlocked: Flow<Boolean> =
+        dataStore.data.catchIoAsDefaults(TAG).map { it[DEBUG_FORCE_UNLOCKED_KEY] ?: false }
+
+    override suspend fun setDebugForceUnlocked(value: Boolean) =
+        dataStore.editOrLog(TAG) { it[DEBUG_FORCE_UNLOCKED_KEY] = value }
+
     private companion object {
         val UNLOCKED_KEY = booleanPreferencesKey("mapbox_unlocked")
         val VERIFIED_AT_KEY = longPreferencesKey("last_verified_at")
+        val DEBUG_FORCE_UNLOCKED_KEY = booleanPreferencesKey("debug_force_unlocked")
     }
 }
