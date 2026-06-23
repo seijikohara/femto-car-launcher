@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.seijikohara.femto.data.apps.AppsRepository
+import io.github.seijikohara.femto.data.billing.BillingRepository
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DisplayPreferences
@@ -74,6 +75,10 @@ class MainActivity : ComponentActivity() {
     private val appsRepository by lazy { AppsRepository(this) }
     private val displayPreferences by lazy { DisplayPreferences(this) }
     private val fontRepository by lazy { FontRepository.get(this) }
+
+    // App-scoped singleton; the lazy delegate ensures we never construct it
+    // before the Activity is alive (launchPurchase needs a live Activity).
+    private val billingRepository by lazy { BillingRepository.get(this) }
 
     // Cache the latest fullscreen choice so [onWindowFocusChanged] can re-hide the
     // system bars when focus returns from another Activity. The Compose
@@ -253,6 +258,11 @@ class MainActivity : ComponentActivity() {
                     DiagnosticsSheet(
                         onDismiss = { showDiagnostics = false },
                         fullscreen = fullscreen,
+                        onLaunchPurchase = { offerToken ->
+                            // billingRepository.launchPurchase requires a live Activity — this
+                            // is the only place in the call tree that has one.
+                            billingRepository.launchPurchase(this@MainActivity, offerToken)
+                        },
                     )
                 }
                 if (showLicenses) {

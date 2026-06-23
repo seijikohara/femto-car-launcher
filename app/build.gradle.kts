@@ -227,6 +227,8 @@ dependencies {
     implementation(platform(libs.okhttp.bom))
     implementation(libs.okhttp)
     implementation(libs.aboutlibraries.core)
+    implementation(libs.billing)
+    implementation(libs.billing.ktx)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.material3)
