@@ -19,12 +19,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Lucide
+import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.billing.ConnectionState
+import io.github.seijikohara.femto.data.billing.SubscriptionOffer
 import io.github.seijikohara.femto.data.music.SpectrumDiagnosis
 import io.github.seijikohara.femto.data.system.DiagnosticsSnapshot
 import io.github.seijikohara.femto.data.system.PerformanceSnapshot
@@ -33,6 +35,8 @@ import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.monoReference
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 /**
@@ -85,6 +89,7 @@ internal fun DiagnosticsScreen(
         )
         MusicSection(uiState)
     }
+    BillingSection(billing = uiState.billing, onAction = onAction)
 }
 
 @Composable
@@ -346,6 +351,106 @@ private fun spectrumLabel(diagnosis: SpectrumDiagnosis?): String =
             null -> R.string.diagnostics_spectrum_not_probed
         },
     )
+
+@Composable
+private fun BillingSection(
+    billing: BillingDiagnostics?,
+    onAction: (DiagnosticsAction) -> Unit,
+) = Section(title = stringResource(R.string.diagnostics_section_billing)) {
+    if (billing == null) {
+        Text(
+            text = stringResource(R.string.diagnostics_loading),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return@Section
+    }
+    StatusRow(
+        label = stringResource(R.string.diagnostics_billing_entitlement),
+        value =
+            stringResource(
+                if (billing.mapboxUnlocked) {
+                    R.string.diagnostics_billing_unlocked
+                } else {
+                    R.string.diagnostics_billing_locked
+                },
+            ),
+        healthy = billing.mapboxUnlocked,
+    )
+    StatusRow(
+        label = stringResource(R.string.diagnostics_billing_last_verified),
+        value =
+            billing.lastVerified
+                ?.let { millis ->
+                    SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ROOT).format(Date(millis))
+                }
+                ?: stringResource(R.string.diagnostics_billing_never_verified),
+        healthy = billing.lastVerified != null,
+    )
+    StatusRow(
+        label = stringResource(R.string.diagnostics_billing_connection),
+        value = billing.connection.name,
+        healthy = billing.connection == ConnectionState.CONNECTED,
+    )
+    if (billing.offers.isEmpty()) {
+        ValueRow(label = stringResource(R.string.diagnostics_billing_offers_none))
+    } else {
+        billing.offers.forEach { offer -> OfferRow(offer) }
+    }
+    if (BuildConfig.DEBUG) {
+        BillingDebugActions(billing = billing, onAction = onAction)
+    }
+}
+
+@Composable
+private fun OfferRow(offer: SubscriptionOffer) {
+    val trialSuffix = if (offer.isTrial) stringResource(R.string.diagnostics_billing_offer_trial) else ""
+    ValueRow(
+        label = "${offer.basePlanId}: ${offer.formattedPrice} / ${offer.billingPeriod}$trialSuffix",
+    )
+}
+
+// Shown only when BuildConfig.DEBUG is true; lets a developer trigger the Play
+// billing dialog or refresh purchase state without building a dedicated UI.
+@Composable
+private fun BillingDebugActions(
+    billing: BillingDiagnostics,
+    onAction: (DiagnosticsAction) -> Unit,
+) = Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val monthlyOffer = billing.offers.firstOrNull { it.basePlanId.contains("month", ignoreCase = true) }
+    val annualOffer =
+        billing.offers.firstOrNull { it.basePlanId.contains("annual", ignoreCase = true) }
+            ?: billing.offers.firstOrNull { it.basePlanId.contains("year", ignoreCase = true) }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedButton(
+            onClick = {
+                monthlyOffer?.let { onAction(DiagnosticsAction.LaunchPurchase(it.offerToken)) }
+            },
+            enabled = monthlyOffer != null,
+            modifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget),
+        ) {
+            Text(text = stringResource(R.string.diagnostics_billing_launch_monthly))
+        }
+        OutlinedButton(
+            onClick = {
+                annualOffer?.let { onAction(DiagnosticsAction.LaunchPurchase(it.offerToken)) }
+            },
+            enabled = annualOffer != null,
+            modifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget),
+        ) {
+            Text(text = stringResource(R.string.diagnostics_billing_launch_annual))
+        }
+    }
+    OutlinedButton(
+        onClick = { onAction(DiagnosticsAction.RefreshBilling) },
+        modifier = Modifier.fillMaxWidth().heightIn(min = FemtoDimens.MinTouchTarget),
+    ) {
+        Text(text = stringResource(R.string.diagnostics_billing_restore))
+    }
+}
 
 // A delayed-frame share below this reads as healthy on the status row; above
 // it the row flags the UI thread as a sluggishness suspect.

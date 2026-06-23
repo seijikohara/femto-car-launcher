@@ -15,10 +15,13 @@ private val Context.billingDataStore by preferencesDataStore(name = "billing")
 
 internal interface BillingEntitlementStore {
     val cached: Flow<Entitlement>
+
     suspend fun cache(entitlement: Entitlement)
 }
 
-internal class BillingPreferences(context: Context) : BillingEntitlementStore {
+internal class BillingPreferences(
+    context: Context,
+) : BillingEntitlementStore {
     private val dataStore = context.billingDataStore
 
     override val cached: Flow<Entitlement> =

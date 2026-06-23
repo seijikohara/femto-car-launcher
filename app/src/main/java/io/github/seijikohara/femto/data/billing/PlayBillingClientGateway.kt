@@ -43,7 +43,10 @@ internal class PlayBillingClientGateway(
     override val purchaseUpdates: Flow<List<PurchaseRecord>> = _purchaseUpdates
 
     // Cached for launchBillingFlow — populated on the first successful queryProductDetails.
-    private var cachedProductDetails: com.android.billingclient.api.ProductDetails? = null
+    // @Volatile is required: queryOffers() writes this field inside withContext(Dispatchers.IO),
+    // but launch() reads it on whichever thread the caller runs on (typically the main thread).
+    // Without @Volatile the JMM does not guarantee the write is visible across threads.
+    @Volatile private var cachedProductDetails: com.android.billingclient.api.ProductDetails? = null
 
     private val billingClient: BillingClient =
         BillingClient

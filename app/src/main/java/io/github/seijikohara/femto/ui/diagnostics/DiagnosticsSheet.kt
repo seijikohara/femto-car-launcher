@@ -23,6 +23,9 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 internal fun DiagnosticsSheet(
     onDismiss: () -> Unit,
     fullscreen: Boolean,
+    // Passed through to DiagnosticsRoute so the debug LaunchPurchase action can
+    // reach MainActivity without the Route or Sheet holding an Activity reference.
+    onLaunchPurchase: (offerToken: String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val sheetHeight = rememberSheetHeight(FemtoDimens.DrawerSheetHeightFraction)
@@ -38,7 +41,7 @@ internal fun DiagnosticsSheet(
                     .fillMaxWidth()
                     .height(sheetHeight),
         ) {
-            DiagnosticsRoute(onBack = onDismiss)
+            DiagnosticsRoute(onBack = onDismiss, onLaunchPurchase = onLaunchPurchase)
         }
     }
 }

@@ -4,10 +4,12 @@ package io.github.seijikohara.femto.data.billing
 // Mapbox. Acknowledgement is a separate obligation (Play auto-refunds after 3 days
 // if unacknowledged), but it does not gate the unlock itself — an active, not-yet-
 // acknowledged purchase still counts as unlocked.
-private fun PurchaseRecord.isActiveFemtoPlus() =
-    state == PurchaseState.PURCHASED && FEMTO_PLUS_PRODUCT_ID in productIds
+private fun PurchaseRecord.isActiveFemtoPlus() = state == PurchaseState.PURCHASED && FEMTO_PLUS_PRODUCT_ID in productIds
 
-internal fun entitlementOf(purchases: List<PurchaseRecord>, nowMillis: Long): Entitlement =
+internal fun entitlementOf(
+    purchases: List<PurchaseRecord>,
+    nowMillis: Long,
+): Entitlement =
     Entitlement(
         mapboxUnlocked = purchases.any { it.isActiveFemtoPlus() },
         lastVerifiedAtMillis = nowMillis,

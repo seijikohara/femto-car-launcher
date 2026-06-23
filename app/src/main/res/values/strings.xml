@@ -298,6 +298,21 @@
     <string name="diagnostics_online">Online (%1$s)</string>
     <string name="diagnostics_offline">Offline</string>
     <string name="diagnostics_logs_empty">No recent warnings, or log access is restricted on this device.</string>
+
+    <!-- Diagnostics — Billing section -->
+    <string name="diagnostics_section_billing">Billing</string>
+    <string name="diagnostics_billing_entitlement">Mapbox entitlement</string>
+    <string name="diagnostics_billing_unlocked">Unlocked</string>
+    <string name="diagnostics_billing_locked">Locked</string>
+    <string name="diagnostics_billing_last_verified">Last verified</string>
+    <string name="diagnostics_billing_never_verified">Never (cached default only)</string>
+    <string name="diagnostics_billing_connection">Play Billing connection</string>
+    <string name="diagnostics_billing_offers_none">No offers loaded</string>
+    <string name="diagnostics_billing_offer_trial"> (trial)</string>
+    <!-- Debug-only billing actions -->
+    <string name="diagnostics_billing_launch_monthly">Launch monthly</string>
+    <string name="diagnostics_billing_launch_annual">Launch annual</string>
+    <string name="diagnostics_billing_restore">Restore / refresh</string>
     <string name="settings_reset_to_defaults">Reset to defaults</string>
     <string name="settings_reset_confirm_title">Reset all settings?</string>
     <string name="settings_reset_confirm_message">This restores every display, unit, map, location, panel and font setting to its default value.</string>

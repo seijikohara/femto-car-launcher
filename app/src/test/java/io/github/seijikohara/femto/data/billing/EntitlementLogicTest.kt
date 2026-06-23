@@ -1,9 +1,9 @@
 package io.github.seijikohara.femto.data.billing
 
+import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import org.junit.Test
 
 class EntitlementLogicTest {
     private fun purchase(
