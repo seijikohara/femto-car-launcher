@@ -97,7 +97,17 @@ internal class DiagnosticsViewModel(
             }
 
             DiagnosticsAction.RefreshBilling -> {
-                viewModelScope.launch { onRefreshBilling() }
+                viewModelScope.launch {
+                    // Mirror the runCatchingOrNull pattern used by refresh(): a billing
+                    // refresh failure must degrade silently (logcat only) rather than
+                    // propagate an unhandled exception to the coroutine supervisor and
+                    // crash the ViewModel's scope.
+                    runCatching { onRefreshBilling() }
+                        .onFailure {
+                            if (it is CancellationException) throw it
+                            Log.e(TAG, "billing refresh failed", it)
+                        }
+                }
             }
 
             // LaunchPurchase reaches here only as a routing marker; the actual

@@ -70,36 +70,48 @@ internal class PlayBillingClientGateway(
 
     override suspend fun ensureConnected(): Boolean {
         if (_connection.value == ConnectionState.CONNECTED) return true
-        return withTimeoutOrNull(CONNECT_TIMEOUT_MS) {
-            suspendCancellableCoroutine { cont ->
-                _connection.value = ConnectionState.CONNECTING
-                billingClient.startConnection(
-                    object : com.android.billingclient.api.BillingClientStateListener {
-                        override fun onBillingSetupFinished(result: BillingResult) {
-                            if (result.responseCode == BillingClient.BillingResponseCode.OK) {
-                                _connection.value = ConnectionState.CONNECTED
-                                cont.resume(true)
-                            } else {
-                                Log.w(TAG, "onBillingSetupFinished: ${result.debugMessage}")
-                                _connection.value = ConnectionState.DISCONNECTED
-                                cont.resume(false)
+        // withTimeoutOrNull returns null when the connection attempt exceeds the deadline.
+        // In that case we must reset to DISCONNECTED — leaving it at CONNECTING would cause
+        // every subsequent caller to skip the fast-return check above and spin indefinitely.
+        val connected =
+            withTimeoutOrNull(CONNECT_TIMEOUT_MS) {
+                suspendCancellableCoroutine { cont ->
+                    _connection.value = ConnectionState.CONNECTING
+                    billingClient.startConnection(
+                        object : com.android.billingclient.api.BillingClientStateListener {
+                            override fun onBillingSetupFinished(result: BillingResult) {
+                                // Guard against a late callback racing with a timeout or
+                                // cancellation: resuming an already-completed continuation
+                                // throws IllegalStateException in kotlinx.coroutines.
+                                if (!cont.isActive) return
+                                if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+                                    _connection.value = ConnectionState.CONNECTED
+                                    cont.resume(true)
+                                } else {
+                                    Log.w(TAG, "onBillingSetupFinished: ${result.debugMessage}")
+                                    _connection.value = ConnectionState.DISCONNECTED
+                                    cont.resume(false)
+                                }
                             }
-                        }
 
-                        override fun onBillingServiceDisconnected() {
-                            _connection.value = ConnectionState.DISCONNECTED
-                            // BillingClient handles reconnection automatically on the next call;
-                            // we surface the disconnected state but do not restart here to avoid
-                            // busy-looping while the Play Store service is unavailable.
-                            Log.d(TAG, "Billing service disconnected")
-                        }
-                    },
-                )
+                            override fun onBillingServiceDisconnected() {
+                                _connection.value = ConnectionState.DISCONNECTED
+                                // BillingClient handles reconnection automatically on the next call;
+                                // we surface the disconnected state but do not restart here to avoid
+                                // busy-looping while the Play Store service is unavailable.
+                                Log.d(TAG, "Billing service disconnected")
+                            }
+                        },
+                    )
+                }
             }
-        } ?: run {
+        if (connected == null) {
+            // Timeout: reset to DISCONNECTED so callers can retry cleanly.
             Log.w(TAG, "ensureConnected timed out after ${CONNECT_TIMEOUT_MS}ms")
-            false
+            _connection.value = ConnectionState.DISCONNECTED
+            return false
         }
+        return connected
     }
 
     override suspend fun queryActivePurchases(): List<PurchaseRecord> =

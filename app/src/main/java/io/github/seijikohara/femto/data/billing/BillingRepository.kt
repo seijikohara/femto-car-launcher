@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 // Hot MutableStateFlow for entitlement and offers — NOT stateIn/WhileUiSubscribed,
 // because these must survive UI unsubscribes for the process lifetime.
@@ -27,6 +29,14 @@ internal class BillingRepository internal constructor(
     val offers: StateFlow<List<SubscriptionOffer>> = offersState.asStateFlow()
 
     val connection: StateFlow<ConnectionState> = gateway.connection
+
+    // applyPurchases is called from two concurrent sites: the purchaseUpdates collector
+    // (process-lifetime background coroutine) and refresh() (which can be called from
+    // any coroutine, including from the init block). Without serialization, the two
+    // invocations can interleave: one call may acknowledge a token while the other is
+    // mid-computation, producing a stale entitlement that overwrites the correct one.
+    // The Mutex ensures each invocation runs atomically end-to-end.
+    private val applyMutex = Mutex()
 
     init {
         scope.launch {
@@ -51,14 +61,15 @@ internal class BillingRepository internal constructor(
         offersState.value = offersOf(gateway.queryOffers(FEMTO_PLUS_PRODUCT_ID))
     }
 
-    private suspend fun applyPurchases(purchases: List<PurchaseRecord>) {
-        // Acknowledge before computing entitlement: Play's 3-day window starts the
-        // moment state transitions to PURCHASED, so we must ack as soon as we see it.
-        unacknowledgedActiveTokens(purchases).forEach { gateway.acknowledge(it) }
-        val computed = entitlementOf(purchases, now())
-        entitlementState.value = computed
-        store.cache(computed)
-    }
+    private suspend fun applyPurchases(purchases: List<PurchaseRecord>) =
+        applyMutex.withLock {
+            // Acknowledge before computing entitlement: Play's 3-day window starts the
+            // moment state transitions to PURCHASED, so we must ack as soon as we see it.
+            unacknowledgedActiveTokens(purchases).forEach { gateway.acknowledge(it) }
+            val computed = entitlementOf(purchases, now())
+            entitlementState.value = computed
+            store.cache(computed)
+        }
 
     /**
      * Launch the Play billing flow for the given offer token.
