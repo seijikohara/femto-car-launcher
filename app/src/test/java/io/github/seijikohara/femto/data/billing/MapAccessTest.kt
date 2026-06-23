@@ -1,8 +1,8 @@
 package io.github.seijikohara.femto.data.billing
 
 import io.github.seijikohara.femto.data.display.MapBackend
-import kotlin.test.assertEquals
 import org.junit.Test
+import kotlin.test.assertEquals
 
 class MapAccessTest {
     @Test fun `mapbox stored and unlocked resolves to mapbox`() =

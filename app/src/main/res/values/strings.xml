@@ -328,6 +328,16 @@
     <string name="licenses_map_data_note">Map data and tiles are provided under the Open Database License (ODbL) and CC BY 4.0. See each project for full terms.</string>
     <string name="licenses_fonts_note">Typography is provided on demand by Google Fonts, each family under its own SIL Open Font License (OFL) or Apache License 2.0. Fonts are downloaded and cached on the device; none are bundled in the app.</string>
 
+    <!-- Upsell paywall sheet -->
+    <string name="upsell_title">Unlock Mapbox maps</string>
+    <string name="upsell_subtitle">Satellite imagery, 3D, and live traffic.</string>
+    <string name="upsell_subscribe">Subscribe</string>
+    <string name="upsell_try_free">Try free</string>
+    <string name="upsell_unavailable">Subscriptions are unavailable right now.</string>
+    <string name="upsell_retry">Retry</string>
+    <string name="upsell_period_month">Monthly</string>
+    <string name="upsell_period_year">Yearly</string>
+
     <!-- Background-ranging foreground-service notification -->
     <string name="notification_trip_channel_name">Trip tracking</string>
     <string name="notification_trip_channel_desc">Ongoing notification shown while distance and average speed are measured in the background.</string>
