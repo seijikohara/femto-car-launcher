@@ -129,6 +129,10 @@
     <string name="settings_section_map">Map</string>
     <string name="settings_section_location">Location</string>
     <string name="settings_section_panels">Panels</string>
+    <string name="settings_section_subscription">Subscription</string>
+    <string name="settings_upgrade_mapbox">Upgrade to Mapbox maps</string>
+    <string name="settings_manage_subscription">Manage subscription</string>
+    <string name="settings_restore_purchases">Restore purchases</string>
     <string name="settings_subheader_screen">Screen</string>
     <string name="settings_subheader_glass">Glass</string>
     <string name="settings_group_glass_blur">Blur radius</string>
@@ -327,6 +331,16 @@
     <string name="licenses_section_fonts">Fonts</string>
     <string name="licenses_map_data_note">Map data and tiles are provided under the Open Database License (ODbL) and CC BY 4.0. See each project for full terms.</string>
     <string name="licenses_fonts_note">Typography is provided on demand by Google Fonts, each family under its own SIL Open Font License (OFL) or Apache License 2.0. Fonts are downloaded and cached on the device; none are bundled in the app.</string>
+
+    <!-- Upsell paywall sheet -->
+    <string name="upsell_title">Unlock Mapbox maps</string>
+    <string name="upsell_subtitle">Satellite imagery, 3D, and live traffic.</string>
+    <string name="upsell_subscribe">Subscribe</string>
+    <string name="upsell_try_free">Try free</string>
+    <string name="upsell_unavailable">Subscriptions are unavailable right now.</string>
+    <string name="upsell_retry">Retry</string>
+    <string name="upsell_period_month">Monthly</string>
+    <string name="upsell_period_year">Yearly</string>
 
     <!-- Background-ranging foreground-service notification -->
     <string name="notification_trip_channel_name">Trip tracking</string>

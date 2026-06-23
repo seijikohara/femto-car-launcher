@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.ExternalLink
+import com.composables.icons.lucide.Lock
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.RotateCcw
 import io.github.seijikohara.femto.R
@@ -101,6 +102,9 @@ internal fun SettingsScreen(
     onOpenDiagnostics: () -> Unit,
     onOpenLicenses: () -> Unit,
     onOpenPrivacyPolicy: () -> Unit,
+    onShowUpsell: () -> Unit,
+    onManageSubscription: () -> Unit,
+    onRestorePurchases: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Surface(
     modifier = modifier.fillMaxSize(),
@@ -268,6 +272,11 @@ internal fun SettingsScreen(
         }
 
         SettingsSection(title = stringResource(R.string.settings_section_map)) {
+            // Show a lock icon only when Mapbox is both the currently selected provider
+            // and the subscription has lapsed — this is the "locked in place" state.
+            // When OSM is selected the row shows the normal ChevronRight; forward
+            // discovery (free user tapping Mapbox in the dialog) is handled by the
+            // SettingsRoute intercept, not by this icon.
             ChoiceRow(
                 title = stringResource(R.string.settings_map_backend),
                 options =
@@ -277,6 +286,13 @@ internal fun SettingsScreen(
                     ),
                 selected = uiState.mapBackend,
                 onSelect = { onAction(SettingsAction.SetMapBackend(it)) },
+                trailingIcon = if (uiState.mapBackend == MapBackend.MAPBOX &&
+                    !uiState.mapboxUnlocked
+                ) {
+                    Lucide.Lock
+                } else {
+                    null
+                },
             )
             AnimatedVisibility(visible = uiState.mapBackend == MapBackend.MAPBOX) {
                 Column {
@@ -461,6 +477,24 @@ internal fun SettingsScreen(
                 checked = uiState.musicSpectrum,
                 onCheckedChange = { onAction(SettingsAction.SetMusicSpectrum(it)) },
                 summary = stringResource(R.string.settings_panel_music_spectrum_desc),
+            )
+        }
+
+        SettingsSection(title = stringResource(R.string.settings_section_subscription)) {
+            if (!uiState.mapboxUnlocked) {
+                ActionRow(
+                    title = stringResource(R.string.settings_upgrade_mapbox),
+                    onClick = onShowUpsell,
+                )
+            } else {
+                ActionRow(
+                    title = stringResource(R.string.settings_manage_subscription),
+                    onClick = onManageSubscription,
+                )
+            }
+            ActionRow(
+                title = stringResource(R.string.settings_restore_purchases),
+                onClick = onRestorePurchases,
             )
         }
 
@@ -728,7 +762,9 @@ private fun ThemePresetChip(
 }
 
 // A single-choice row: shows the current value as its summary and opens a radio
-// dialog on tap (the Android ListPreference pattern).
+// dialog on tap (the Android ListPreference pattern). An optional [trailingIcon]
+// overrides the default ChevronRight — used to surface a lock when the row
+// requires an active subscription.
 @Composable
 private fun <T> ChoiceRow(
     title: String,
@@ -736,6 +772,7 @@ private fun <T> ChoiceRow(
     selected: T,
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
+    trailingIcon: ImageVector? = null,
 ) {
     var dialogOpen by remember { mutableStateOf(false) }
     SettingRow(
@@ -743,7 +780,7 @@ private fun <T> ChoiceRow(
         modifier = modifier.clickable { dialogOpen = true },
         summary = options.firstOrNull { it.first == selected }?.second,
     ) {
-        TrailingIcon(Lucide.ChevronRight)
+        TrailingIcon(trailingIcon ?: Lucide.ChevronRight)
     }
     if (dialogOpen) {
         ChoiceDialog(
@@ -1068,6 +1105,9 @@ private fun SettingsScreenPreview() {
             onOpenDiagnostics = {},
             onOpenLicenses = {},
             onOpenPrivacyPolicy = {},
+            onShowUpsell = {},
+            onManageSubscription = {},
+            onRestorePurchases = {},
         )
     }
 }

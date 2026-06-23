@@ -35,6 +35,9 @@ internal fun SettingsSheet(
     onOpenDiagnostics: () -> Unit,
     onOpenLicenses: () -> Unit,
     onOpenPrivacyPolicy: () -> Unit,
+    onShowUpsell: () -> Unit,
+    onManageSubscription: () -> Unit,
+    onRestorePurchases: () -> Unit,
     onDismiss: () -> Unit,
     fullscreen: Boolean,
     modifier: Modifier = Modifier,
@@ -59,6 +62,9 @@ internal fun SettingsSheet(
                 onOpenDiagnostics = onOpenDiagnostics,
                 onOpenLicenses = onOpenLicenses,
                 onOpenPrivacyPolicy = onOpenPrivacyPolicy,
+                onShowUpsell = onShowUpsell,
+                onManageSubscription = onManageSubscription,
+                onRestorePurchases = onRestorePurchases,
             )
         }
     }
