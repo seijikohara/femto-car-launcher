@@ -46,9 +46,14 @@ internal class DiagnosticsViewModel(
     billingEntitlement: Flow<Entitlement> = MutableStateFlow(Entitlement.Locked),
     billingOffers: Flow<List<SubscriptionOffer>> = MutableStateFlow(emptyList()),
     billingConnection: Flow<ConnectionState> = MutableStateFlow(ConnectionState.DISCONNECTED),
+    // DEBUG-only flag flow; defaults to a constant false so tests not exercising
+    // force-unlock never observe it. The real value comes from BillingRepository.
+    billingDebugForceUnlocked: Flow<Boolean> = MutableStateFlow(false),
     // Suspend refresh call injected so the ViewModel never directly references
     // BillingRepository; the factory provides the real call, tests inject a lambda.
     private val onRefreshBilling: suspend () -> Unit = {},
+    // Suspend setter for the DEBUG force-unlock flag; same injection rationale.
+    private val onSetDebugForceUnlocked: suspend (Boolean) -> Unit = {},
     // LaunchPurchase is NOT handled here: it requires a live Activity reference
     // (BillingRepository.launchPurchase takes an Activity). The action bubbles
     // up to the Route/Sheet/MainActivity where the Activity is reachable.
@@ -64,19 +69,21 @@ internal class DiagnosticsViewModel(
                 Log.e(TAG, "music state flow failed", e)
                 emit(MusicCardState.NoActiveSession)
             },
-            // Three billing flows combined into one BillingDiagnostics? projection.
+            // Four billing flows combined into one BillingDiagnostics? projection.
             // Any failure degrades this field to null independently — a broken
             // billing SDK must not hide the permissions/network rows.
             combine(
                 billingEntitlement,
                 billingOffers,
                 billingConnection,
-            ) { entitlement, offers, connection ->
+                billingDebugForceUnlocked,
+            ) { entitlement, offers, connection, debugForceUnlocked ->
                 BillingDiagnostics(
                     mapboxUnlocked = entitlement.mapboxUnlocked,
                     lastVerified = entitlement.lastVerifiedAtMillis,
                     connection = connection,
                     offers = offers,
+                    debugForceUnlocked = debugForceUnlocked,
                 ) as BillingDiagnostics?
             }.catch { e ->
                 if (e is CancellationException) throw e
@@ -116,6 +123,16 @@ internal class DiagnosticsViewModel(
             // ViewModel's own effect boundary.
             is DiagnosticsAction.LaunchPurchase -> {
                 Unit
+            }
+
+            is DiagnosticsAction.SetDebugForceUnlocked -> {
+                viewModelScope.launch {
+                    runCatching { onSetDebugForceUnlocked(action.value) }
+                        .onFailure {
+                            if (it is CancellationException) throw it
+                            Log.e(TAG, "set debug force-unlock failed", it)
+                        }
+                }
             }
         }
 
@@ -169,7 +186,9 @@ internal val DiagnosticsViewModelFactory: ViewModelProvider.Factory =
                 billingEntitlement = billingRepository.entitlement,
                 billingOffers = billingRepository.offers,
                 billingConnection = billingRepository.connection,
+                billingDebugForceUnlocked = billingRepository.debugForceUnlocked,
                 onRefreshBilling = billingRepository::refresh,
+                onSetDebugForceUnlocked = billingRepository::setDebugForceUnlocked,
             )
         }
     }
