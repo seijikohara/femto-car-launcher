@@ -272,8 +272,11 @@ internal fun SettingsScreen(
         }
 
         SettingsSection(title = stringResource(R.string.settings_section_map)) {
-            // Show a lock icon when Mapbox is not yet unlocked to signal that selecting it
-            // will open the upsell rather than switching immediately.
+            // Show a lock icon only when Mapbox is both the currently selected provider
+            // and the subscription has lapsed — this is the "locked in place" state.
+            // When OSM is selected the row shows the normal ChevronRight; forward
+            // discovery (free user tapping Mapbox in the dialog) is handled by the
+            // SettingsRoute intercept, not by this icon.
             ChoiceRow(
                 title = stringResource(R.string.settings_map_backend),
                 options =
@@ -283,7 +286,13 @@ internal fun SettingsScreen(
                     ),
                 selected = uiState.mapBackend,
                 onSelect = { onAction(SettingsAction.SetMapBackend(it)) },
-                trailingIcon = if (!uiState.mapboxUnlocked) Lucide.Lock else null,
+                trailingIcon = if (uiState.mapBackend == MapBackend.MAPBOX &&
+                    !uiState.mapboxUnlocked
+                ) {
+                    Lucide.Lock
+                } else {
+                    null
+                },
             )
             AnimatedVisibility(visible = uiState.mapBackend == MapBackend.MAPBOX) {
                 Column {

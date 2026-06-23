@@ -22,8 +22,10 @@ private const val TAG = "UpsellViewModel"
 
 /**
  * Merges the three billing flows into a single [UpsellUiState] projection.
- * Dependencies are plain seams so JVM tests drive every transition without
- * Android types or the Play Billing SDK.
+ * Holds no Play Billing SDK objects and no Activity reference — purchase
+ * launch is bridged through MainActivity via [UpsellAction.Subscribe].
+ * Dependencies are plain flows and lambdas, so JVM unit tests drive every
+ * transition without the Play Billing SDK or an Activity on the classpath.
  */
 internal class UpsellViewModel(
     offers: Flow<List<SubscriptionOffer>>,
