@@ -417,6 +417,8 @@ private fun BillingDebugActions(
     billing: BillingDiagnostics,
     onAction: (DiagnosticsAction) -> Unit,
 ) = Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    // Matching assumes Play Console base-plan IDs contain "month" / "annual" / "year"
+    // (the project's naming convention). Buttons self-disable when no match is found.
     val monthlyOffer = billing.offers.firstOrNull { it.basePlanId.contains("month", ignoreCase = true) }
     val annualOffer =
         billing.offers.firstOrNull { it.basePlanId.contains("annual", ignoreCase = true) }

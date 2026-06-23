@@ -119,6 +119,37 @@ class BillingRepositoryTest {
         }
 
     @Test
+    fun `refresh unlock wins over stale Locked cache seed`() =
+        runTest {
+            // Store pre-seeded to Locked; gateway is connected and sees an active purchase.
+            // Under the old separate-launch init the seed could arrive AFTER refresh and
+            // overwrite mapboxUnlocked=true back to Locked — this test would then fail.
+            val store =
+                FakeStore().apply {
+                    state.value = Entitlement.Locked
+                }
+            val gw =
+                FakeGateway(
+                    purchases =
+                        listOf(
+                            PurchaseRecord(
+                                productIds = listOf(FEMTO_PLUS_PRODUCT_ID),
+                                isAcknowledged = true,
+                                state = PurchaseState.PURCHASED,
+                                purchaseToken = "tok-race",
+                            ),
+                        ),
+                )
+            // Construct in backgroundScope so the init's scope.launch runs on the same
+            // test scheduler. runCurrent() drains the seed + starts the inner launches;
+            // advanceUntilIdle() then lets refresh() complete all its suspension points.
+            val repo = BillingRepository(gw, store, backgroundScope, now = { 1L })
+            runCurrent()
+            advanceUntilIdle()
+            assertTrue(repo.entitlement.first().mapboxUnlocked)
+        }
+
+    @Test
     fun `launchPurchase delegates to gateway and returns true when flow launched`() =
         runTest {
             val gw = FakeGateway()

@@ -97,7 +97,7 @@ internal class DiagnosticsViewModel(
             }
 
             DiagnosticsAction.RefreshBilling -> {
-                viewModelScope.launch { onRefreshBilling() }.let {}
+                viewModelScope.launch { onRefreshBilling() }
             }
 
             // LaunchPurchase reaches here only as a routing marker; the actual

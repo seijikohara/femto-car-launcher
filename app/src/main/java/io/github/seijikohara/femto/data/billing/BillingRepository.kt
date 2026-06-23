@@ -30,18 +30,19 @@ internal class BillingRepository internal constructor(
 
     init {
         scope.launch {
-            // Seed once from the last-known cached value so the entitlement gate
-            // shows the correct state immediately on cold start — before refresh()
-            // completes. A live collector would be redundant here: the only writer
-            // of the cache is applyPurchases(), which already sets entitlementState
-            // directly, so re-collecting our own writes adds no new information.
+            // Seed last-known entitlement FIRST so the gate shows a stable value on cold
+            // start before refresh() completes. refresh() runs after the seed — a separate
+            // launch for the reconcile would race here on Dispatchers.Default and could
+            // overwrite a completed refresh with the stale cached value.
             entitlementState.value = store.cached.first()
-            // React to PurchasesUpdatedListener callbacks (e.g. purchase completed in-app).
-            gateway.purchaseUpdates.collect { applyPurchases(it) }
+            // Start the purchaseUpdates collector for the process lifetime before
+            // reconciling: a purchase completed between seed and refresh would arrive
+            // on this channel, and we must not miss it.
+            scope.launch { gateway.purchaseUpdates.collect { applyPurchases(it) } }
+            // Kick off an initial reconcile; failures are silent (the cached value
+            // already gated the UI correctly).
+            refresh()
         }
-        // Kick off an initial reconcile on construction; failures are silent (no crash
-        // path needed here — the cached value from above already gated the UI correctly).
-        scope.launch { refresh() }
     }
 
     suspend fun refresh() {
