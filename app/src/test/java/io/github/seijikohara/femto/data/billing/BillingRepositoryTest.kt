@@ -1,9 +1,6 @@
 package io.github.seijikohara.femto.data.billing
 
 import android.app.Activity
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -17,6 +14,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 // BillingRepositoryTest uses Robolectric only for the launchPurchase test that
 // requires a real Activity instance; the other three tests are pure coroutine
@@ -46,14 +46,19 @@ class BillingRepositoryTest {
             acknowledged += purchaseToken
         }
 
-        override fun launch(activity: Activity, offerToken: String) {
+        override fun launch(
+            activity: Activity,
+            offerToken: String,
+        ): Boolean {
             launched = offerToken
+            return true
         }
     }
 
     private class FakeStore : BillingEntitlementStore {
         val state = MutableStateFlow(Entitlement.Locked)
         override val cached: Flow<Entitlement> = state
+
         override suspend fun cache(entitlement: Entitlement) {
             state.value = entitlement
         }
@@ -114,13 +119,16 @@ class BillingRepositoryTest {
         }
 
     @Test
-    fun `launchPurchase delegates to gateway`() =
+    fun `launchPurchase delegates to gateway and returns true when flow launched`() =
         runTest {
             val gw = FakeGateway()
             val repo = BillingRepository(gw, FakeStore(), backgroundScope, now = { 0L })
             val activity =
-                org.robolectric.Robolectric.buildActivity(Activity::class.java).get()
-            repo.launchPurchase(activity = activity, offerToken = "o1")
+                org.robolectric.Robolectric
+                    .buildActivity(Activity::class.java)
+                    .get()
+            val launched = repo.launchPurchase(activity = activity, offerToken = "o1")
+            assertTrue(launched)
             assertEquals("o1", gw.launched)
         }
 }

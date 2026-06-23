@@ -25,15 +25,24 @@ internal data class OfferRecord(
 
 internal enum class ConnectionState { DISCONNECTED, CONNECTING, CONNECTED }
 
-// The seam over BillingClient. The real impl (Task 4) wraps the Play SDK; tests
-// inject a fake. launch() is fire-and-forget — purchase results arrive via
-// purchaseUpdates, not a return value.
+// The seam over BillingClient. The real impl wraps the Play SDK; tests inject a fake.
+// launch() returns true when the billing flow was shown, false when a precondition
+// was unmet (offers not yet loaded, no Play Store); purchase results always arrive
+// via purchaseUpdates, not the return value.
 internal interface BillingClientGateway {
     val connection: StateFlow<ConnectionState>
     val purchaseUpdates: Flow<List<PurchaseRecord>>
+
     suspend fun ensureConnected(): Boolean
+
     suspend fun queryActivePurchases(): List<PurchaseRecord>
+
     suspend fun queryOffers(productId: String): List<OfferRecord>
+
     suspend fun acknowledge(purchaseToken: String)
-    fun launch(activity: Activity, offerToken: String)
+
+    fun launch(
+        activity: Activity,
+        offerToken: String,
+    ): Boolean
 }

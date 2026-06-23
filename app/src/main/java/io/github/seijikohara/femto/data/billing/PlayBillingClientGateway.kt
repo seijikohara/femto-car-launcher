@@ -33,7 +33,9 @@ private const val CONNECT_TIMEOUT_MS = 10_000L
 
 // Real BillingClient gateway. Not unit-tested — on-device / integration tests cover this
 // class, as the SDK embeds Android framework internals that cannot run on JVM.
-internal class PlayBillingClientGateway(context: Context) : BillingClientGateway {
+internal class PlayBillingClientGateway(
+    context: Context,
+) : BillingClientGateway {
     private val _connection = MutableStateFlow(ConnectionState.DISCONNECTED)
     override val connection: StateFlow<ConnectionState> = _connection.asStateFlow()
 
@@ -44,7 +46,8 @@ internal class PlayBillingClientGateway(context: Context) : BillingClientGateway
     private var cachedProductDetails: com.android.billingclient.api.ProductDetails? = null
 
     private val billingClient: BillingClient =
-        BillingClient.newBuilder(context)
+        BillingClient
+            .newBuilder(context)
             .setListener { result, purchases ->
                 if (result.responseCode == BillingClient.BillingResponseCode.OK && purchases != null) {
                     _purchaseUpdates.tryEmit(purchases.map { it.toRecord() })
@@ -55,12 +58,12 @@ internal class PlayBillingClientGateway(context: Context) : BillingClientGateway
             // enablePendingPurchases(PendingPurchasesParams) is required since v7;
             // enablePrepaidPlans() surfaces prepaid subscription purchases.
             .enablePendingPurchases(
-                PendingPurchasesParams.newBuilder()
+                PendingPurchasesParams
+                    .newBuilder()
                     .enableOneTimeProducts()
                     .enablePrepaidPlans()
-                    .build()
-            )
-            .build()
+                    .build(),
+            ).build()
 
     override suspend fun ensureConnected(): Boolean {
         if (_connection.value == ConnectionState.CONNECTED) return true
@@ -87,7 +90,7 @@ internal class PlayBillingClientGateway(context: Context) : BillingClientGateway
                             // busy-looping while the Play Store service is unavailable.
                             Log.d(TAG, "Billing service disconnected")
                         }
-                    }
+                    },
                 )
             }
         } ?: run {
@@ -99,7 +102,8 @@ internal class PlayBillingClientGateway(context: Context) : BillingClientGateway
     override suspend fun queryActivePurchases(): List<PurchaseRecord> =
         withContext(Dispatchers.IO) {
             val params =
-                QueryPurchasesParams.newBuilder()
+                QueryPurchasesParams
+                    .newBuilder()
                     .setProductType(ProductType.SUBS)
                     .build()
             val result = billingClient.queryPurchasesAsync(params)
@@ -113,16 +117,17 @@ internal class PlayBillingClientGateway(context: Context) : BillingClientGateway
     override suspend fun queryOffers(productId: String): List<OfferRecord> =
         withContext(Dispatchers.IO) {
             val params =
-                QueryProductDetailsParams.newBuilder()
+                QueryProductDetailsParams
+                    .newBuilder()
                     .setProductList(
                         listOf(
-                            QueryProductDetailsParams.Product.newBuilder()
+                            QueryProductDetailsParams.Product
+                                .newBuilder()
                                 .setProductId(productId)
                                 .setProductType(ProductType.SUBS)
-                                .build()
-                        )
-                    )
-                    .build()
+                                .build(),
+                        ),
+                    ).build()
             val result = billingClient.queryProductDetails(params)
             if (result.billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
                 Log.w(TAG, "queryProductDetails: ${result.billingResult.debugMessage}")
@@ -141,24 +146,38 @@ internal class PlayBillingClientGateway(context: Context) : BillingClientGateway
         }
     }
 
-    override fun launch(activity: Activity, offerToken: String) {
+    override fun launch(
+        activity: Activity,
+        offerToken: String,
+    ): Boolean {
         val details = cachedProductDetails
         if (details == null) {
+            // queryOffers() has not completed yet (or Play Store is unavailable);
+            // the caller should wait for offers to load before retrying.
             Log.e(TAG, "launch() called before queryOffers(); ProductDetails not cached")
-            return
+            return false
+        }
+        val matchingOffer =
+            details.subscriptionOfferDetails?.firstOrNull { it.offerToken == offerToken }
+        if (matchingOffer == null) {
+            Log.e(TAG, "launch() offerToken not found in cached ProductDetails: $offerToken")
+            return false
         }
         val productDetailsParams =
             listOf(
-                BillingFlowParams.ProductDetailsParams.newBuilder()
+                BillingFlowParams.ProductDetailsParams
+                    .newBuilder()
                     .setProductDetails(details)
                     .setOfferToken(offerToken)
-                    .build()
+                    .build(),
             )
         val flowParams =
-            BillingFlowParams.newBuilder()
+            BillingFlowParams
+                .newBuilder()
                 .setProductDetailsParamsList(productDetailsParams)
                 .build()
-        billingClient.launchBillingFlow(activity, flowParams)
+        val result = billingClient.launchBillingFlow(activity, flowParams)
+        return result.responseCode == BillingClient.BillingResponseCode.OK
     }
 
     // Map SDK Purchase to the SDK-free projection the rest of the billing package uses.

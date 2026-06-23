@@ -8,11 +8,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 // Hot MutableStateFlow for entitlement and offers — NOT stateIn/WhileUiSubscribed,
-// because these must survive UI unsubscribes for the process lifetime. The
-// cache-seed collector keeps entitlement warm; the scope is never torn down.
+// because these must survive UI unsubscribes for the process lifetime.
+// The scope is never torn down.
 internal class BillingRepository internal constructor(
     private val gateway: BillingClientGateway,
     private val store: BillingEntitlementStore,
@@ -28,11 +29,16 @@ internal class BillingRepository internal constructor(
     val connection: StateFlow<ConnectionState> = gateway.connection
 
     init {
-        // Seed entitlement from DataStore so the gate never flickers on cold start;
-        // the collector overwrites Locked the moment the first cached value arrives.
-        scope.launch { store.cached.collect { entitlementState.value = it } }
-        // React to PurchasesUpdatedListener callbacks (e.g. purchase completed in-app).
-        scope.launch { gateway.purchaseUpdates.collect { applyPurchases(it) } }
+        scope.launch {
+            // Seed once from the last-known cached value so the entitlement gate
+            // shows the correct state immediately on cold start — before refresh()
+            // completes. A live collector would be redundant here: the only writer
+            // of the cache is applyPurchases(), which already sets entitlementState
+            // directly, so re-collecting our own writes adds no new information.
+            entitlementState.value = store.cached.first()
+            // React to PurchasesUpdatedListener callbacks (e.g. purchase completed in-app).
+            gateway.purchaseUpdates.collect { applyPurchases(it) }
+        }
         // Kick off an initial reconcile on construction; failures are silent (no crash
         // path needed here — the cached value from above already gated the UI correctly).
         scope.launch { refresh() }
@@ -53,8 +59,17 @@ internal class BillingRepository internal constructor(
         store.cache(computed)
     }
 
-    fun launchPurchase(activity: Activity, offerToken: String) =
-        gateway.launch(activity, offerToken)
+    /**
+     * Launch the Play billing flow for the given offer token.
+     *
+     * Returns true when the billing dialog was shown, false when offers have not yet been loaded
+     * (i.e. [refresh] has not completed) — callers should treat false as a no-op precondition
+     * failure rather than a billing error.
+     */
+    fun launchPurchase(
+        activity: Activity,
+        offerToken: String,
+    ): Boolean = gateway.launch(activity, offerToken)
 
     companion object {
         @Volatile private var instance: BillingRepository? = null
@@ -63,12 +78,11 @@ internal class BillingRepository internal constructor(
             instance ?: synchronized(this) {
                 instance
                     ?: BillingRepository(
-                            gateway = PlayBillingClientGateway(context.applicationContext),
-                            store = BillingPreferences(context.applicationContext),
-                            scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
-                            now = System::currentTimeMillis,
-                        )
-                        .also { instance = it }
+                        gateway = PlayBillingClientGateway(context.applicationContext),
+                        store = BillingPreferences(context.applicationContext),
+                        scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+                        now = System::currentTimeMillis,
+                    ).also { instance = it }
             }
     }
 }
