@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.data.location.hasRecordAudioPermission
 
@@ -19,6 +20,10 @@ import io.github.seijikohara.femto.data.location.hasRecordAudioPermission
  * forwards persisted changes to the VM. Host-level navigation / system intents (back, the
  * notification-access screen, the OS settings root) flow up to [MainActivity] via
  * the callbacks so this route owns no Activity concerns.
+ *
+ * [onShowUpsell] is called instead of persisting [SettingsAction.SetMapBackend] when the
+ * user picks Mapbox without an active subscription, mirroring the DiagnosticsRoute
+ * LaunchPurchase intercept pattern.
  */
 @Composable
 internal fun SettingsRoute(
@@ -29,6 +34,9 @@ internal fun SettingsRoute(
     onOpenDiagnostics: () -> Unit,
     onOpenLicenses: () -> Unit,
     onOpenPrivacyPolicy: () -> Unit,
+    onShowUpsell: () -> Unit,
+    onManageSubscription: () -> Unit,
+    onRestorePurchases: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -51,10 +59,21 @@ internal fun SettingsRoute(
             contract = ActivityResultContracts.RequestPermission(),
         ) { viewModel.onAction(SettingsAction.SetMusicSpectrum(true)) }
     val onAction: (SettingsAction) -> Unit = { action ->
-        if (action is SettingsAction.SetMusicSpectrum && action.value && !context.hasRecordAudioPermission()) {
-            recordAudioLauncher.launch(Manifest.permission.RECORD_AUDIO)
-        } else {
-            viewModel.onAction(action)
+        when {
+            action is SettingsAction.SetMusicSpectrum && action.value && !context.hasRecordAudioPermission() -> {
+                recordAudioLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+
+            // Intercept the Mapbox selection when locked: surface the upsell instead
+            // of persisting the backend switch (mirrors DiagnosticsRoute LaunchPurchase).
+            action is SettingsAction.SetMapBackend &&
+                action.value == MapBackend.MAPBOX && !uiState.mapboxUnlocked -> {
+                onShowUpsell()
+            }
+
+            else -> {
+                viewModel.onAction(action)
+            }
         }
     }
     SettingsScreen(
@@ -67,6 +86,9 @@ internal fun SettingsRoute(
         onOpenDiagnostics = onOpenDiagnostics,
         onOpenLicenses = onOpenLicenses,
         onOpenPrivacyPolicy = onOpenPrivacyPolicy,
+        onShowUpsell = onShowUpsell,
+        onManageSubscription = onManageSubscription,
+        onRestorePurchases = onRestorePurchases,
         modifier = modifier,
     )
 }

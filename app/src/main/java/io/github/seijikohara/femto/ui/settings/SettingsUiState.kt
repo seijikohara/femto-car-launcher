@@ -58,6 +58,8 @@ internal data class SettingsUiState(
     val mapBackend: MapBackend = DisplaySettings.Default.mapBackend,
     val mapboxStyle: MapboxStyle = DisplaySettings.Default.mapboxStyle,
     val mapboxTraffic: Boolean = DisplaySettings.Default.mapboxTraffic,
+    // True when the active subscription entitles the user to Mapbox maps; false locks the option.
+    val mapboxUnlocked: Boolean = false,
 ) {
     companion object {
         // Seeded from the persistence defaults so the default values live in one
@@ -100,6 +102,7 @@ internal data class SettingsUiState(
                 mapBackend = DisplaySettings.Default.mapBackend,
                 mapboxStyle = DisplaySettings.Default.mapboxStyle,
                 mapboxTraffic = DisplaySettings.Default.mapboxTraffic,
+                mapboxUnlocked = false,
             )
     }
 }
