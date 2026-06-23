@@ -35,6 +35,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.seijikohara.femto.data.apps.AppsRepository
 import io.github.seijikohara.femto.data.billing.BillingRepository
+import io.github.seijikohara.femto.data.billing.Entitlement
+import io.github.seijikohara.femto.data.billing.effectiveBackend
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DisplayPreferences
@@ -114,6 +116,11 @@ class MainActivity : ComponentActivity() {
             val display by displayPreferences.settings.collectAsStateWithLifecycle(
                 initialValue = DisplaySettings.Default,
             )
+            // Gate the rendered map backend on the active subscription; the stored
+            // preference is untouched so re-subscribing restores Mapbox automatically.
+            val entitlement by billingRepository.entitlement.collectAsStateWithLifecycle(
+                initialValue = Entitlement.Locked,
+            )
             // The resolved Google Fonts faces (or system default) drive the theme;
             // they swap in reactively when a freshly chosen family finishes downloading.
             val resolvedFonts by fontRepository.resolved.collectAsStateWithLifecycle()
@@ -182,7 +189,7 @@ class MainActivity : ComponentActivity() {
                             markerPos = display.mapMarkerPos,
                             buildings3d = display.map3dBuildings,
                             terrain = display.mapTerrain,
-                            backend = display.mapBackend,
+                            backend = effectiveBackend(display.mapBackend, entitlement.mapboxUnlocked),
                             mapboxStyle = display.mapboxStyle,
                             mapboxTraffic = display.mapboxTraffic,
                         ),
