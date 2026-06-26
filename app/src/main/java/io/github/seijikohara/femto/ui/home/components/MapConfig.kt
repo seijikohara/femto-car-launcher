@@ -24,6 +24,8 @@ internal data class MapConfig(
     // Mapbox-specific fields; ignored when backend == OSM.
     val mapboxStyle: MapboxStyle = MapboxStyle.STANDARD,
     val mapboxTraffic: Boolean = false,
+    /** User-supplied Mapbox access token; empty when the user has not entered one. */
+    val mapboxToken: String = "",
     val markerPos: Int = 70,
     // Fraction (0..0.5) of the map height the bottom speed overlay occupies,
     // measured at layout time (not a persisted setting). The marker drop is

@@ -163,7 +163,7 @@ internal fun WebMapView(
     // never self-heal at runtime — show the init-failed notice immediately so
     // the map area is not a permanently blank white box.
     val mapboxTokenMissing =
-        mapConfig.backend == MapBackend.MAPBOX && BuildConfig.MAPBOX_ACCESS_TOKEN.isBlank()
+        mapConfig.backend == MapBackend.MAPBOX && mapConfig.mapboxToken.isBlank()
 
     if (rendererGaveUp || liveInitFailed || mapboxTokenMissing) {
         Box(modifier = modifier) {
@@ -188,7 +188,7 @@ internal fun WebMapView(
         // WebView and loads the correct page — without this key the old page keeps
         // running while the new backend's bridge effects fire against the wrong DOM.
         // rendererGeneration remains a key so renderer-death rebuilds still work.
-        remember(rendererGeneration, mapConfig.backend) {
+        remember(rendererGeneration, mapConfig.backend, mapConfig.mapboxToken) {
             val assetLoader =
                 WebViewAssetLoader
                     .Builder()
@@ -256,10 +256,10 @@ internal fun WebMapView(
                         // a non-primitive return type to the JS side.
 
                         // Read synchronously by mapbox.html before map initialisation
-                        // to authenticate the Mapbox GL JS instance. The token lives
-                        // in BuildConfig so it is never bundled as a plain-text asset.
+                        // to authenticate the Mapbox GL JS instance. The token comes
+                        // from MapConfig (user-supplied at runtime via DisplaySettings).
                         @JavascriptInterface
-                        fun mapboxToken(): String = BuildConfig.MAPBOX_ACCESS_TOKEN
+                        fun mapboxToken(): String = mapConfig.mapboxToken
 
                         @JavascriptInterface
                         fun onMapEvent(
