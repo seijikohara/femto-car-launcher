@@ -525,8 +525,9 @@ internal fun SettingsScreen(
                 TextButton(
                     enabled = draft.isNotBlank(),
                     onClick = {
-                        onAction(SettingsAction.SetMapboxToken(draft))
-                        onAction(SettingsAction.SetMapBackend(MapBackend.MAPBOX))
+                        // One atomic action: persist the token and select Mapbox
+                        // together so the gate never sees a blank-token MAPBOX.
+                        onAction(SettingsAction.SaveMapboxToken(draft))
                         showTokenDialog = false
                     },
                 ) { Text(stringResource(R.string.settings_mapbox_token_save)) }

@@ -300,16 +300,17 @@ class SettingsViewModelTest {
         }
 
     @Test
-    fun `SetMapboxToken persists token and surfaces it in uiState`() =
+    fun `SaveMapboxToken persists token and selects the Mapbox backend atomically`() =
         runTest(dispatcher) {
             val vm = viewModel()
             // Subscribe so WhileUiSubscribed keeps the upstream combine alive across both phases.
             backgroundScope.launch { vm.uiState.collect { } }
             advanceUntilIdle()
 
-            vm.onAction(SettingsAction.SetMapboxToken("pk.abc"))
+            vm.onAction(SettingsAction.SaveMapboxToken("pk.abc"))
             advanceUntilIdle()
             assertEquals("pk.abc", vm.uiState.value.mapboxAccessToken)
+            assertEquals(MapBackend.MAPBOX, vm.uiState.value.mapBackend)
 
             vm.onAction(SettingsAction.ClearMapboxToken)
             advanceUntilIdle()

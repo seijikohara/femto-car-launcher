@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.seijikohara.femto.data.common.WhileUiSubscribed
 import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.DisplaySettingsStore
+import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.fonts.FontPreferences
 import io.github.seijikohara.femto.data.fonts.FontSelectionStore
 import io.github.seijikohara.femto.data.location.LocationPreferences
@@ -213,8 +214,11 @@ internal class SettingsViewModel(
                     displayPreferences.setMapboxTraffic(action.value)
                 }
 
-                is SettingsAction.SetMapboxToken -> {
+                is SettingsAction.SaveMapboxToken -> {
+                    // Token first, then backend, in this one coroutine: the gate
+                    // never observes backend=MAPBOX with a blank token (no flicker).
                     displayPreferences.setMapboxAccessToken(action.value.trim())
+                    displayPreferences.setMapBackend(MapBackend.MAPBOX)
                 }
 
                 SettingsAction.ClearMapboxToken -> {

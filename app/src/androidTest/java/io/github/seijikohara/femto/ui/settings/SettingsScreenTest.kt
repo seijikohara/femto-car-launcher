@@ -182,9 +182,10 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun saving_token_in_dialog_dispatches_set_token_and_set_backend() {
-        // Entering a token and tapping Save must dispatch SetMapboxToken followed by
-        // SetMapBackend(MAPBOX) in that order.
+    fun saving_token_in_dialog_dispatches_single_atomic_action() {
+        // Entering a token and tapping Save must dispatch exactly one
+        // SaveMapboxToken action (the ViewModel persists the token and selects the
+        // Mapbox backend together, so the gate never sees a blank-token MAPBOX).
         val actions = mutableListOf<SettingsAction>()
         setScreen(
             uiState = SettingsUiState.Initial.copy(mapboxAccessToken = ""),
@@ -195,13 +196,7 @@ class SettingsScreenTest {
         // The OutlinedTextField shows its label text when the field is empty; type into it.
         rule.onNodeWithText(tokenHintLabel).performTextInput("pk.test")
         rule.onNodeWithText(tokenSaveLabel).performClick()
-        assertEquals(
-            listOf(
-                SettingsAction.SetMapboxToken("pk.test"),
-                SettingsAction.SetMapBackend(MapBackend.MAPBOX),
-            ),
-            actions,
-        )
+        assertEquals(listOf(SettingsAction.SaveMapboxToken("pk.test")), actions)
     }
 
     @Test

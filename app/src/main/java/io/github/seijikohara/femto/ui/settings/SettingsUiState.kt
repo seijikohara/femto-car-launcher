@@ -249,7 +249,9 @@ internal sealed interface SettingsAction {
         val value: Boolean,
     ) : SettingsAction
 
-    data class SetMapboxToken(
+    // Persist the token AND select the Mapbox backend atomically (one coroutine)
+    // so the gate never briefly sees backend=MAPBOX with a blank token.
+    data class SaveMapboxToken(
         val value: String,
     ) : SettingsAction
 
