@@ -162,9 +162,7 @@ internal data class DisplaySettings(
     // and its Visualizer capture sits behind the RECORD_AUDIO runtime grant,
     // so a fresh install must never prompt for it.
     val musicSpectrum: Boolean,
-    // Map backend: OSM (MapLibre + OpenFreeMap, free) or MAPBOX (paid tier).
-    // Entitlement gating lives in sub-project C — these fields are the data
-    // layer only.
+    // Map backend: OSM (MapLibre + OpenFreeMap, free) or MAPBOX (requires a user-supplied token).
     val mapBackend: MapBackend = MapBackend.OSM,
     // Mapbox base style, only meaningful when mapBackend == MAPBOX.
     val mapboxStyle: MapboxStyle = MapboxStyle.STANDARD,
