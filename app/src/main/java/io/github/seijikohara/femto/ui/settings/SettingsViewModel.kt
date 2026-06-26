@@ -5,8 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
-import io.github.seijikohara.femto.data.billing.BillingRepository
-import io.github.seijikohara.femto.data.billing.Entitlement
 import io.github.seijikohara.femto.data.common.WhileUiSubscribed
 import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.DisplaySettingsStore
@@ -23,17 +21,13 @@ internal class SettingsViewModel(
     private val displayPreferences: DisplaySettingsStore,
     private val fontPreferences: FontSelectionStore,
     private val locationPreferences: LocationSettingsStore,
-    // Injected so the subscription gate can react to entitlement changes without
-    // coupling the View layer to BillingRepository.
-    entitlement: StateFlow<Entitlement>,
 ) : ViewModel() {
     val uiState: StateFlow<SettingsUiState> =
         combine(
             displayPreferences.settings,
             fontPreferences.selection,
             locationPreferences.settings,
-            entitlement,
-        ) { display, font, location, ent ->
+        ) { display, font, location ->
             SettingsUiState(
                 themeMode = display.themeMode,
                 accentColor = display.accentColor,
@@ -65,7 +59,7 @@ internal class SettingsViewModel(
                 mapBackend = display.mapBackend,
                 mapboxStyle = display.mapboxStyle,
                 mapboxTraffic = display.mapboxTraffic,
-                mapboxUnlocked = ent.mapboxUnlocked,
+                mapboxAccessToken = display.mapboxAccessToken,
                 latinFont = font.latinFamily,
                 cjkFont = font.cjkFamily,
                 locationQuality = location.quality,
@@ -219,6 +213,14 @@ internal class SettingsViewModel(
                     displayPreferences.setMapboxTraffic(action.value)
                 }
 
+                is SettingsAction.SetMapboxToken -> {
+                    displayPreferences.setMapboxAccessToken(action.value.trim())
+                }
+
+                SettingsAction.ClearMapboxToken -> {
+                    displayPreferences.setMapboxAccessToken("")
+                }
+
                 is SettingsAction.ResetToDefaults -> {
                     displayPreferences.resetToDefaults()
                     locationPreferences.resetToDefaults()
@@ -241,7 +243,6 @@ internal class SettingsViewModelFactory(
             displayPreferences = DisplayPreferences(application),
             fontPreferences = FontPreferences(application),
             locationPreferences = LocationPreferences(application),
-            entitlement = BillingRepository.get(application).entitlement,
         ) as T
     }
 }

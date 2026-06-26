@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -48,7 +49,6 @@ import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.ExternalLink
-import com.composables.icons.lucide.Lock
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.RotateCcw
 import io.github.seijikohara.femto.R
@@ -102,9 +102,6 @@ internal fun SettingsScreen(
     onOpenDiagnostics: () -> Unit,
     onOpenLicenses: () -> Unit,
     onOpenPrivacyPolicy: () -> Unit,
-    onShowUpsell: () -> Unit,
-    onManageSubscription: () -> Unit,
-    onRestorePurchases: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Surface(
     modifier = modifier.fillMaxSize(),
@@ -112,6 +109,7 @@ internal fun SettingsScreen(
     // surface reads as the sheet rather than painting the opaque app background.
     color = MaterialTheme.colorScheme.surfaceContainerLow,
 ) {
+    var showTokenDialog by remember { mutableStateOf(false) }
     Column(
         modifier =
             Modifier
@@ -272,11 +270,9 @@ internal fun SettingsScreen(
         }
 
         SettingsSection(title = stringResource(R.string.settings_section_map)) {
-            // Show a lock icon only when Mapbox is both the currently selected provider
-            // and the subscription has lapsed — this is the "locked in place" state.
-            // When OSM is selected the row shows the normal ChevronRight; forward
-            // discovery (free user tapping Mapbox in the dialog) is handled by the
-            // SettingsRoute intercept, not by this icon.
+            // Selecting Mapbox without a token opens the token-entry dialog instead of
+            // persisting the backend switch — the Screen owns this interception because
+            // the dialog lives here (single source of truth for showTokenDialog).
             ChoiceRow(
                 title = stringResource(R.string.settings_map_backend),
                 options =
@@ -285,13 +281,12 @@ internal fun SettingsScreen(
                         MapBackend.MAPBOX to stringResource(R.string.settings_map_backend_mapbox),
                     ),
                 selected = uiState.mapBackend,
-                onSelect = { onAction(SettingsAction.SetMapBackend(it)) },
-                trailingIcon = if (uiState.mapBackend == MapBackend.MAPBOX &&
-                    !uiState.mapboxUnlocked
-                ) {
-                    Lucide.Lock
-                } else {
-                    null
+                onSelect = { backend ->
+                    if (backend == MapBackend.MAPBOX && uiState.mapboxAccessToken.isBlank()) {
+                        showTokenDialog = true
+                    } else {
+                        onAction(SettingsAction.SetMapBackend(backend))
+                    }
                 },
             )
             AnimatedVisibility(visible = uiState.mapBackend == MapBackend.MAPBOX) {
@@ -312,6 +307,13 @@ internal fun SettingsScreen(
                         checked = uiState.mapboxTraffic,
                         onCheckedChange = { onAction(SettingsAction.SetMapboxTraffic(it)) },
                     )
+                    SettingRow(
+                        title = stringResource(R.string.settings_mapbox_token),
+                        summary = mapboxTokenSummary(uiState.mapboxAccessToken),
+                        modifier = Modifier.clickable { showTokenDialog = true },
+                    ) {
+                        TrailingIcon(Lucide.ChevronRight)
+                    }
                     Text(
                         text = stringResource(R.string.settings_map_accent_osm_only_note),
                         style = MaterialTheme.typography.bodyMedium,
@@ -480,24 +482,6 @@ internal fun SettingsScreen(
             )
         }
 
-        SettingsSection(title = stringResource(R.string.settings_section_subscription)) {
-            if (!uiState.mapboxUnlocked) {
-                ActionRow(
-                    title = stringResource(R.string.settings_upgrade_mapbox),
-                    onClick = onShowUpsell,
-                )
-            } else {
-                ActionRow(
-                    title = stringResource(R.string.settings_manage_subscription),
-                    onClick = onManageSubscription,
-                )
-            }
-            ActionRow(
-                title = stringResource(R.string.settings_restore_purchases),
-                onClick = onRestorePurchases,
-            )
-        }
-
         SettingsSection(title = stringResource(R.string.settings_group_system)) {
             ActionRow(
                 title = stringResource(R.string.settings_open_notification_access),
@@ -521,6 +505,41 @@ internal fun SettingsScreen(
             )
             ResetRow(onConfirm = { onAction(SettingsAction.ResetToDefaults) })
         }
+    }
+    if (showTokenDialog) {
+        var draft by remember { mutableStateOf(uiState.mapboxAccessToken) }
+        AlertDialog(
+            onDismissRequest = { showTokenDialog = false },
+            title = { Text(stringResource(R.string.settings_mapbox_token)) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.settings_mapbox_token_hint)) },
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = draft.isNotBlank(),
+                    onClick = {
+                        onAction(SettingsAction.SetMapboxToken(draft))
+                        onAction(SettingsAction.SetMapBackend(MapBackend.MAPBOX))
+                        showTokenDialog = false
+                    },
+                ) { Text(stringResource(R.string.settings_mapbox_token_save)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        onAction(SettingsAction.ClearMapboxToken)
+                        showTokenDialog = false
+                    },
+                ) { Text(stringResource(R.string.settings_mapbox_token_clear)) }
+            },
+        )
     }
 }
 
@@ -1091,6 +1110,16 @@ private fun Modifier.clipClickable(onClick: () -> Unit): Modifier =
         .clip(RoundedCornerShape(percent = 50))
         .clickable(onClick = onClick)
 
+// Masks all but the last four characters of the token so it is not fully visible
+// on a shared in-car screen, while still letting the user confirm which key is set.
+@Composable
+private fun mapboxTokenSummary(token: String): String =
+    if (token.isBlank()) {
+        stringResource(R.string.settings_mapbox_token_unset)
+    } else {
+        "••••" + token.takeLast(4)
+    }
+
 @PreviewLightDark
 @Composable
 private fun SettingsScreenPreview() {
@@ -1105,9 +1134,6 @@ private fun SettingsScreenPreview() {
             onOpenDiagnostics = {},
             onOpenLicenses = {},
             onOpenPrivacyPolicy = {},
-            onShowUpsell = {},
-            onManageSubscription = {},
-            onRestorePurchases = {},
         )
     }
 }

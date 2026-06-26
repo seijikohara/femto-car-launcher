@@ -129,10 +129,11 @@
     <string name="settings_section_map">Map</string>
     <string name="settings_section_location">Location</string>
     <string name="settings_section_panels">Panels</string>
-    <string name="settings_section_subscription">Subscription</string>
-    <string name="settings_upgrade_mapbox">Upgrade to Mapbox maps</string>
-    <string name="settings_manage_subscription">Manage subscription</string>
-    <string name="settings_restore_purchases">Restore purchases</string>
+    <string name="settings_mapbox_token">Mapbox access token</string>
+    <string name="settings_mapbox_token_unset">Not set — tap to enter your token</string>
+    <string name="settings_mapbox_token_hint">Paste your Mapbox public token (pk.…)</string>
+    <string name="settings_mapbox_token_save">Save</string>
+    <string name="settings_mapbox_token_clear">Clear</string>
     <string name="settings_subheader_screen">Screen</string>
     <string name="settings_subheader_glass">Glass</string>
     <string name="settings_group_glass_blur">Blur radius</string>

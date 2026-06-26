@@ -255,9 +255,6 @@ class MainActivity : ComponentActivity() {
                         onOpenDiagnostics = { showDiagnostics = true },
                         onOpenLicenses = { showLicenses = true },
                         onOpenPrivacyPolicy = ::openPrivacyPolicy,
-                        onShowUpsell = { showUpsell = true },
-                        onManageSubscription = ::openManageSubscription,
-                        onRestorePurchases = { lifecycleScope.launch { billingRepository.refresh() } },
                         onDismiss = { showSettings = false },
                         fullscreen = fullscreen,
                     )
