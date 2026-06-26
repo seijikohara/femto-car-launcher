@@ -170,6 +170,8 @@ internal data class DisplaySettings(
     val mapboxStyle: MapboxStyle = MapboxStyle.STANDARD,
     // Whether to overlay live traffic on the Mapbox map.
     val mapboxTraffic: Boolean = false,
+    /** User-supplied Mapbox public access token (pk.…); blank disables the Mapbox backend. */
+    val mapboxAccessToken: String = "",
 ) {
     companion object {
         val Default =
@@ -204,6 +206,7 @@ internal data class DisplaySettings(
                 mapBackend = MapBackend.OSM,
                 mapboxStyle = MapboxStyle.STANDARD,
                 mapboxTraffic = false,
+                mapboxAccessToken = "",
             )
     }
 }

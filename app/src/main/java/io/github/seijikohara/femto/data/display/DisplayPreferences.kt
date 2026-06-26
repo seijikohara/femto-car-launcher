@@ -105,6 +105,8 @@ internal interface DisplaySettingsStore {
 
     suspend fun setMapboxTraffic(value: Boolean)
 
+    suspend fun setMapboxAccessToken(value: String)
+
     /** Restore every display setting to [DisplaySettings.Default]. */
     suspend fun resetToDefaults()
 }
@@ -154,6 +156,7 @@ internal class DisplayPreferences(
                     mapBackend = prefs[MAP_BACKEND_KEY].toEnumOr(MapBackend.OSM),
                     mapboxStyle = prefs[MAPBOX_STYLE_KEY].toEnumOr(MapboxStyle.STANDARD),
                     mapboxTraffic = prefs[MAPBOX_TRAFFIC_KEY] ?: false,
+                    mapboxAccessToken = prefs[MAPBOX_ACCESS_TOKEN_KEY].orEmpty(),
                 )
             }
 
@@ -295,6 +298,10 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[MAPBOX_TRAFFIC_KEY] = value }
     }
 
+    override suspend fun setMapboxAccessToken(value: String) {
+        context.displayDataStore.editOrLog(TAG) { it[MAPBOX_ACCESS_TOKEN_KEY] = value }
+    }
+
     // Clearing every key makes the read path above fall back to its per-field
     // defaults, which are kept identical to DisplaySettings.Default — so a reset
     // restores the defaults without duplicating the default literals here.
@@ -333,5 +340,6 @@ internal class DisplayPreferences(
         val MAP_BACKEND_KEY = stringPreferencesKey("map_backend")
         val MAPBOX_STYLE_KEY = stringPreferencesKey("mapbox_style")
         val MAPBOX_TRAFFIC_KEY = booleanPreferencesKey("mapbox_traffic")
+        val MAPBOX_ACCESS_TOKEN_KEY = stringPreferencesKey("mapbox_access_token")
     }
 }
