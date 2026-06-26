@@ -2,7 +2,6 @@ package io.github.seijikohara.femto.ui.diagnostics
 
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.system.PerformanceSnapshot
-import java.text.SimpleDateFormat
 import java.util.Locale
 
 /**
@@ -61,28 +60,6 @@ internal fun diagnosticsReport(uiState: DiagnosticsUiState): String =
             appendLine("```text")
             logs.forEach(::appendLine)
             appendLine("```")
-        }
-        uiState.billing?.let { billing ->
-            appendLine()
-            appendLine("## Billing")
-            appendLine()
-            appendLine("- Mapbox entitlement: ${if (billing.mapboxUnlocked) "UNLOCKED" else "locked"}")
-            appendLine(
-                // Locale.ROOT keeps the pattern grep-stable on comma-decimal devices —
-                // matching the BillingSection screen formatter exactly.
-                "- Last verified: ${billing.lastVerified?.let {
-                    SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ROOT).format(java.util.Date(it))
-                } ?: "never (cached default only)"}",
-            )
-            appendLine("- Play Billing connection: ${billing.connection.name}")
-            if (billing.offers.isEmpty()) {
-                appendLine("- Offers: none loaded")
-            } else {
-                billing.offers.forEach { offer ->
-                    val trial = if (offer.isTrial) " (trial)" else ""
-                    appendLine("- Offer ${offer.basePlanId}: ${offer.formattedPrice} / ${offer.billingPeriod}$trial")
-                }
-            }
         }
     }
 

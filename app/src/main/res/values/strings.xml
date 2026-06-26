@@ -315,8 +315,6 @@
     <string name="diagnostics_billing_offers_none">No offers loaded</string>
     <string name="diagnostics_billing_offer_trial"> (trial)</string>
     <!-- Debug-only billing actions -->
-    <string name="diagnostics_debug_force_unlocked">Force Mapbox unlocked</string>
-    <string name="diagnostics_debug_force_unlocked_desc">Debug only: treat the subscription as active to test the paid map locally.</string>
     <string name="diagnostics_billing_launch_monthly">Launch monthly</string>
     <string name="diagnostics_billing_launch_annual">Launch annual</string>
     <string name="diagnostics_billing_restore">Restore / refresh</string>

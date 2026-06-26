@@ -270,11 +270,6 @@ class MainActivity : ComponentActivity() {
                     DiagnosticsSheet(
                         onDismiss = { showDiagnostics = false },
                         fullscreen = fullscreen,
-                        onLaunchPurchase = { offerToken ->
-                            // billingRepository.launchPurchase requires a live Activity — this
-                            // is the only place in the call tree that has one.
-                            billingRepository.launchPurchase(this@MainActivity, offerToken)
-                        },
                     )
                 }
                 if (showLicenses) {

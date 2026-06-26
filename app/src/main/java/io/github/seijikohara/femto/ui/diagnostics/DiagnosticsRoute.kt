@@ -14,9 +14,6 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun DiagnosticsRoute(
     onBack: () -> Unit,
-    // LaunchPurchase bubbles up to the Activity because BillingRepository.launchPurchase
-    // needs a live Activity reference; neither the ViewModel nor the Route can provide one.
-    onLaunchPurchase: (offerToken: String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val viewModel: DiagnosticsViewModel = viewModel(factory = DiagnosticsViewModelFactory)
@@ -25,14 +22,7 @@ internal fun DiagnosticsRoute(
     val scope = rememberCoroutineScope()
     DiagnosticsScreen(
         uiState = uiState,
-        onAction = { action ->
-            // Intercept LaunchPurchase so it never reaches the ViewModel
-            // (the VM has no Activity). All other actions go to the ViewModel.
-            when (action) {
-                is DiagnosticsAction.LaunchPurchase -> onLaunchPurchase(action.offerToken)
-                else -> viewModel.onAction(action)
-            }
-        },
+        onAction = viewModel::onAction,
         onBack = onBack,
         onCopyReport = {
             scope.launch {
