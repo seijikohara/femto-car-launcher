@@ -58,8 +58,7 @@ internal data class SettingsUiState(
     val mapBackend: MapBackend = DisplaySettings.Default.mapBackend,
     val mapboxStyle: MapboxStyle = DisplaySettings.Default.mapboxStyle,
     val mapboxTraffic: Boolean = DisplaySettings.Default.mapboxTraffic,
-    // True when the active subscription entitles the user to Mapbox maps; false locks the option.
-    val mapboxUnlocked: Boolean = false,
+    val mapboxAccessToken: String = "",
 ) {
     companion object {
         // Seeded from the persistence defaults so the default values live in one
@@ -102,7 +101,7 @@ internal data class SettingsUiState(
                 mapBackend = DisplaySettings.Default.mapBackend,
                 mapboxStyle = DisplaySettings.Default.mapboxStyle,
                 mapboxTraffic = DisplaySettings.Default.mapboxTraffic,
-                mapboxUnlocked = false,
+                mapboxAccessToken = DisplaySettings.Default.mapboxAccessToken,
             )
     }
 }
@@ -249,6 +248,14 @@ internal sealed interface SettingsAction {
     data class SetMapboxTraffic(
         val value: Boolean,
     ) : SettingsAction
+
+    // Persist the token AND select the Mapbox backend atomically (one coroutine)
+    // so the gate never briefly sees backend=MAPBOX with a blank token.
+    data class SaveMapboxToken(
+        val value: String,
+    ) : SettingsAction
+
+    data object ClearMapboxToken : SettingsAction
 
     /** Restore every display + font + location setting to its default value. */
     data object ResetToDefaults : SettingsAction

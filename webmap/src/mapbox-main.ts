@@ -163,6 +163,7 @@ const state = {
 		rightSafe: number;
 	} | null,
 	lastPushedZoom: 0,
+	styleLoaded: false,
 };
 
 // Throttle per-frame error reports so a flaky tile server does not spray
@@ -318,14 +319,20 @@ function initMap(): void {
 		state.map = liveMap;
 
 		// Log the first rendered frame once; detach immediately after to avoid
-		// flooding logcat at ~60 lines/sec during GPS camera easing.
+		// flooding logcat at ~60 lines/sec during GPS camera easing. The first
+		// successful render also marks the style as loaded so any later error is
+		// treated as transient, never as a token failure.
 		const onFirstRender = (): void => {
 			if (!liveMap.isStyleLoaded()) return;
+			state.styleLoaded = true;
 			log("rendered");
 			liveMap.off("render", onFirstRender);
 		};
 		liveMap.on("render", onFirstRender);
-		liveMap.on("load", () => log("load"));
+		liveMap.on("load", () => {
+			state.styleLoaded = true;
+			log("load");
+		});
 
 		liveMap.on("webglcontextlost", () =>
 			log("webglcontextlost (awaiting Mapbox restore)"),
@@ -337,7 +344,16 @@ function initMap(): void {
 				(e as { error?: { message?: string } })?.error?.message ??
 				"unknown map error";
 			log(`error: ${detail}`);
-			reportErrorThrottled(String(detail));
+			// An error before the style has ever loaded is almost always an
+			// invalid/blank access token (or no network) — surface a fatal so the
+			// host shows the token notice instead of a silent blank map. A slow
+			// but valid load fires no error, so this never false-positives on it.
+			// Errors after the style loaded are transient (flaky tiles): log-only.
+			if (state.styleLoaded) {
+				reportErrorThrottled(String(detail));
+			} else {
+				report("fatal", String(detail));
+			}
 		});
 
 		// Staleness timer: grey the chevron when fixes stop arriving (tunnel).

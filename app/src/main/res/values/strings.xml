@@ -6,9 +6,11 @@
     <string name="map_unavailable">Map unavailable</string>
     <string name="map_permission_cta">Grant location access to enable the map and overlays.</string>
     <string name="map_live_renderer_gone">Live map stopped</string>
-    <string name="map_live_renderer_gone_hint">The map renderer keeps crashing on this device. Switch the map mode to Snapshot in Settings.</string>
+    <string name="map_live_renderer_gone_hint">The map renderer keeps crashing on this device. Switch the map provider to OpenStreetMap in Settings.</string>
     <string name="map_live_init_failed">Live map can\'t start</string>
-    <string name="map_live_init_failed_hint">This device can\'t render the live map. Switch the map mode to Snapshot in Settings.</string>
+    <string name="map_live_init_failed_hint">This device can\'t render the live map. Switch the map provider to OpenStreetMap in Settings.</string>
+    <string name="map_mapbox_failed">Mapbox map can\'t load</string>
+    <string name="map_mapbox_failed_hint">Check your Mapbox access token in Settings — it must be a valid public token starting with \"pk.\", and you need an internet connection. You can also switch back to OpenStreetMap.</string>
     <string name="calendar_query_failed">Calendar couldn\'t be read</string>
     <string name="font_download_failed">Download failed — tap to retry</string>
     <string name="map_attribution">© OpenStreetMap · OpenMapTiles · OpenFreeMap</string>
@@ -129,10 +131,11 @@
     <string name="settings_section_map">Map</string>
     <string name="settings_section_location">Location</string>
     <string name="settings_section_panels">Panels</string>
-    <string name="settings_section_subscription">Subscription</string>
-    <string name="settings_upgrade_mapbox">Upgrade to Mapbox maps</string>
-    <string name="settings_manage_subscription">Manage subscription</string>
-    <string name="settings_restore_purchases">Restore purchases</string>
+    <string name="settings_mapbox_token">Mapbox access token</string>
+    <string name="settings_mapbox_token_unset">Not set — tap to enter your token</string>
+    <string name="settings_mapbox_token_hint">Paste your Mapbox public token (pk.…)</string>
+    <string name="settings_mapbox_token_save">Save</string>
+    <string name="settings_mapbox_token_clear">Clear</string>
     <string name="settings_subheader_screen">Screen</string>
     <string name="settings_subheader_glass">Glass</string>
     <string name="settings_group_glass_blur">Blur radius</string>
@@ -232,8 +235,8 @@
     <string name="settings_group_map_terrain">Terrain</string>
     <string name="settings_map_terrain_desc">3D elevation relief (Mapterhorn). Adds tile downloads; heavier on low-end GPUs.</string>
     <string name="settings_map_backend">Map provider</string>
-    <string name="settings_map_backend_osm">OpenStreetMap (free)</string>
-    <string name="settings_map_backend_mapbox">Mapbox (paid)</string>
+    <string name="settings_map_backend_osm">OpenStreetMap</string>
+    <string name="settings_map_backend_mapbox">Mapbox (requires access token)</string>
     <string name="settings_mapbox_style">Mapbox style</string>
     <string name="settings_mapbox_style_standard">Standard</string>
     <string name="settings_mapbox_style_satellite">Satellite</string>
@@ -303,22 +306,6 @@
     <string name="diagnostics_offline">Offline</string>
     <string name="diagnostics_logs_empty">No recent warnings, or log access is restricted on this device.</string>
 
-    <!-- Diagnostics — Billing section -->
-    <string name="diagnostics_section_billing">Billing</string>
-    <string name="diagnostics_billing_entitlement">Mapbox entitlement</string>
-    <string name="diagnostics_billing_unlocked">Unlocked</string>
-    <string name="diagnostics_billing_locked">Locked</string>
-    <string name="diagnostics_billing_last_verified">Last verified</string>
-    <string name="diagnostics_billing_never_verified">Never (cached default only)</string>
-    <string name="diagnostics_billing_connection">Play Billing connection</string>
-    <string name="diagnostics_billing_offers_none">No offers loaded</string>
-    <string name="diagnostics_billing_offer_trial"> (trial)</string>
-    <!-- Debug-only billing actions -->
-    <string name="diagnostics_debug_force_unlocked">Force Mapbox unlocked</string>
-    <string name="diagnostics_debug_force_unlocked_desc">Debug only: treat the subscription as active to test the paid map locally.</string>
-    <string name="diagnostics_billing_launch_monthly">Launch monthly</string>
-    <string name="diagnostics_billing_launch_annual">Launch annual</string>
-    <string name="diagnostics_billing_restore">Restore / refresh</string>
     <string name="settings_reset_to_defaults">Reset to defaults</string>
     <string name="settings_reset_confirm_title">Reset all settings?</string>
     <string name="settings_reset_confirm_message">This restores every display, unit, map, location, panel and font setting to its default value.</string>
@@ -333,16 +320,6 @@
     <string name="licenses_section_fonts">Fonts</string>
     <string name="licenses_map_data_note">Map data and tiles are provided under the Open Database License (ODbL) and CC BY 4.0. See each project for full terms.</string>
     <string name="licenses_fonts_note">Typography is provided on demand by Google Fonts, each family under its own SIL Open Font License (OFL) or Apache License 2.0. Fonts are downloaded and cached on the device; none are bundled in the app.</string>
-
-    <!-- Upsell paywall sheet -->
-    <string name="upsell_title">Unlock Mapbox maps</string>
-    <string name="upsell_subtitle">Satellite imagery, 3D, and live traffic.</string>
-    <string name="upsell_subscribe">Subscribe</string>
-    <string name="upsell_try_free">Try free</string>
-    <string name="upsell_unavailable">Subscriptions are unavailable right now.</string>
-    <string name="upsell_retry">Retry</string>
-    <string name="upsell_period_month">Monthly</string>
-    <string name="upsell_period_year">Yearly</string>
 
     <!-- Background-ranging foreground-service notification -->
     <string name="notification_trip_channel_name">Trip tracking</string>

@@ -6,10 +6,12 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.FullscreenSetting
+import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -32,6 +34,13 @@ class SettingsScreenTest {
     private val keepScreenOnLabel = context.getString(R.string.settings_keep_screen_on)
     private val lightSchemeLabel = context.getString(R.string.settings_group_map_scheme_light)
     private val darkSchemeLabel = context.getString(R.string.settings_group_map_scheme_dark)
+    private val mapBackendLabel = context.getString(R.string.settings_map_backend)
+    private val mapboxLabel = context.getString(R.string.settings_map_backend_mapbox)
+    private val tokenLabel = context.getString(R.string.settings_mapbox_token)
+    private val tokenUnsetLabel = context.getString(R.string.settings_mapbox_token_unset)
+    private val tokenHintLabel = context.getString(R.string.settings_mapbox_token_hint)
+    private val tokenSaveLabel = context.getString(R.string.settings_mapbox_token_save)
+    private val tokenClearLabel = context.getString(R.string.settings_mapbox_token_clear)
     private val glassBlurLabel = context.getString(R.string.settings_group_glass_blur)
     private val locationIntervalLabel = context.getString(R.string.settings_group_location_interval)
 
@@ -133,6 +142,77 @@ class SettingsScreenTest {
         setScreen(uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.DARK))
         rule.onNodeWithText(darkSchemeLabel).performScrollTo().assertIsDisplayed()
         rule.onNodeWithText(lightSchemeLabel).assertDoesNotExist()
+    }
+
+    @Test
+    fun mapbox_token_row_shows_masked_summary_when_token_is_set() {
+        // A set token shows only the last four characters prefixed with bullets,
+        // keeping the credential off a shared in-car display.
+        setScreen(
+            uiState =
+                SettingsUiState.Initial.copy(
+                    mapBackend = MapBackend.MAPBOX,
+                    mapboxAccessToken = "pk.abc123",
+                ),
+        )
+        // "pk.abc123".takeLast(4) == "c123"
+        rule.onNodeWithText("••••c123").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun mapbox_token_row_shows_unset_label_when_no_token() {
+        setScreen(
+            uiState =
+                SettingsUiState.Initial.copy(
+                    mapBackend = MapBackend.MAPBOX,
+                    mapboxAccessToken = "",
+                ),
+        )
+        rule.onNodeWithText(tokenUnsetLabel).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun selecting_mapbox_with_no_token_opens_token_dialog() {
+        // Selecting Mapbox when no token is stored must open the entry dialog instead
+        // of switching the backend — verified by the dialog title appearing.
+        setScreen(uiState = SettingsUiState.Initial.copy(mapboxAccessToken = ""))
+        rule.onNodeWithText(mapBackendLabel).performScrollTo().performClick()
+        rule.onNodeWithText(mapboxLabel).performClick()
+        rule.onNodeWithText(tokenLabel).assertIsDisplayed()
+    }
+
+    @Test
+    fun saving_token_in_dialog_dispatches_single_atomic_action() {
+        // Entering a token and tapping Save must dispatch exactly one
+        // SaveMapboxToken action (the ViewModel persists the token and selects the
+        // Mapbox backend together, so the gate never sees a blank-token MAPBOX).
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(
+            uiState = SettingsUiState.Initial.copy(mapboxAccessToken = ""),
+            onAction = { actions += it },
+        )
+        rule.onNodeWithText(mapBackendLabel).performScrollTo().performClick()
+        rule.onNodeWithText(mapboxLabel).performClick()
+        // The OutlinedTextField shows its label text when the field is empty; type into it.
+        rule.onNodeWithText(tokenHintLabel).performTextInput("pk.test")
+        rule.onNodeWithText(tokenSaveLabel).performClick()
+        assertEquals(listOf(SettingsAction.SaveMapboxToken("pk.test")), actions)
+    }
+
+    @Test
+    fun clear_in_token_dialog_dispatches_clear_mapbox_token() {
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(
+            uiState =
+                SettingsUiState.Initial.copy(
+                    mapBackend = MapBackend.MAPBOX,
+                    mapboxAccessToken = "pk.old",
+                ),
+            onAction = { actions += it },
+        )
+        rule.onNodeWithText(tokenLabel).performScrollTo().performClick()
+        rule.onNodeWithText(tokenClearLabel).performClick()
+        assertEquals(listOf(SettingsAction.ClearMapboxToken), actions)
     }
 
     private fun setScreen(

@@ -34,12 +34,15 @@ strictest applicable rule wins when markets diverge.
 The home screen is a fixed dashboard rather than a scrolling grid of apps.
 
 - **Map panel** — a live vector map rendered by MapLibre GL JS inside a
-  WebView, with OpenStreetMap tiles served by the keyless OpenFreeMap
-  service. The view is heading-up (the map rotates so the travel
+  WebView. The default backend uses OpenStreetMap tiles served by
+  the keyless OpenFreeMap service. An optional Mapbox backend — offering
+  satellite imagery, real-time traffic, and Mapbox 3D styles — is
+  available by entering your own Mapbox public access token in
+  Settings → Map. The view is heading-up (the map rotates so the travel
   direction points up) and offers an optional three-dimensional terrain
   relief layer (Mapterhorn elevation tiles). Head units whose WebView
   cannot sustain WebGL can switch to a Snapshot mode that rasterises the
-  same vector map off-screen. No API key is required in either mode.
+  same vector map off-screen.
 - **Trip overlay** — current speed, trip distance, and average speed
   derived from the Global Positioning System (GPS), plus the
   reverse-geocoded address of the current position.
@@ -75,7 +78,8 @@ The home screen is a fixed dashboard rather than a scrolling grid of apps.
   temperature units, clock format and seconds, a fullscreen toggle that
   hides the system bars, dock edge, drawer icon size, glass-effect blur
   and opacity for the dashboard overlays, map rendering (Live / Snapshot
-  mode, render quality, terrain), location-update tuning, and the font
+  mode, render quality, terrain, and an optional Mapbox access token to
+  enable the Mapbox backend), location-update tuning, and the font
   pairing — plus shortcuts to the system notification-access and Android
   settings screens, and a one-tap reset to defaults.
 
@@ -92,7 +96,8 @@ prerelease tagged
 [`nightly`](https://github.com/seijikohara/femto-car-launcher/releases/tag/nightly).
 The tag is re-pointed to the built commit each run, so the release always
 reflects the latest `main`. Install it with `adb install -r <apk>` or by
-sideloading on the head unit.
+sideloading on the head unit. Play Store publication is not planned at this
+time; sideloading is the supported installation path.
 
 ## Architecture
 
@@ -175,7 +180,10 @@ regular phone AVD in portrait — the dashboard adapts to both.
 ## Configuration
 
 The launcher runs with no configuration: `./gradlew assembleDebug`
-produces a working build, and the map needs no API key.
+produces a working build. The default OSM map backend (MapLibre + OpenFreeMap)
+needs no API key. To enable the optional Mapbox backend, enter your own Mapbox
+public access token (`pk.…`) in Settings → Map on the device; the token is
+stored on-device and requires no build-time configuration.
 
 Two network services default to shared public endpoints that are fine for
 development and evaluation but are rate-limited and unsuitable for

@@ -116,5 +116,7 @@ internal class FakeDisplaySettingsStore(
 
     override suspend fun setMapboxTraffic(value: Boolean) = state.update { it.copy(mapboxTraffic = value) }
 
+    override suspend fun setMapboxAccessToken(value: String) = state.update { it.copy(mapboxAccessToken = value) }
+
     override suspend fun resetToDefaults() = state.update { DisplaySettings.Default }
 }

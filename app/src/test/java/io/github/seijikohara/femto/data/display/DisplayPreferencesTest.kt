@@ -54,6 +54,16 @@ class DisplayPreferencesTest {
     // method — separate methods would see each other's writes (same singleton
     // constraint as the round-trip test above).
     @Test
+    fun mapboxAccessToken_roundTrips() =
+        runTest {
+            val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
+            store.resetToDefaults()
+            assertEquals("", store.settings.first().mapboxAccessToken)
+            store.setMapboxAccessToken("pk.test_token_123")
+            assertEquals("pk.test_token_123", store.settings.first().mapboxAccessToken)
+        }
+
+    @Test
     fun `mapBackend mapboxStyle mapboxTraffic defaults migration and round-trip`() =
         runTest {
             val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())

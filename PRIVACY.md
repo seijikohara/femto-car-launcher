@@ -30,10 +30,12 @@ coordinates to the following services, governed by their own privacy policies:
 
 - **Weather** — MET Norway (the Norwegian Meteorological Institute, `api.met.no`).
 - **Map tiles (default / OSM backend)** — OpenFreeMap and Mapterhorn (OpenStreetMap-based map data).
-- **Map tiles (optional Mapbox backend)** — if you select the Mapbox map backend in Settings,
-  location coordinates are sent to Mapbox (`api.mapbox.com`) to render map tiles, styles,
-  satellite imagery, and traffic. This data is governed by the
-  [Mapbox privacy policy](https://www.mapbox.com/legal/privacy).
+- **Map tiles (optional Mapbox backend)** — if you enter your own Mapbox access token in
+  Settings to enable the Mapbox map backend, location coordinates are sent to Mapbox
+  (`api.mapbox.com`) to render map tiles, styles, satellite imagery, and traffic. Your
+  Mapbox access token is stored on-device only and is not transmitted by the launcher;
+  Mapbox GL JS in the WebView uses it to fetch tiles directly from Mapbox. This data is
+  governed by the [Mapbox privacy policy](https://www.mapbox.com/legal/privacy).
 - **Reverse geocoding (address)** — by default the app uses the **on-device**
   Android geocoder. On devices with Google services, that geocoder is provided by
   Google and may process the coordinates. If you configure a self-hosted geocoding
@@ -50,10 +52,11 @@ control.
 - No advertising, no analytics, no crash-reporting SDKs — except the optional
   Mapbox map backend's usage telemetry, disclosed below.
 - No sale or sharing of personal data for advertising.
-- No collection of device or advertising identifiers — **except** when you select
-  the optional Mapbox map backend: Mapbox GL JS sends usage telemetry to Mapbox as
-  part of its standard operation, and the app cannot fully disable this. The
-  telemetry is governed by the [Mapbox privacy policy](https://www.mapbox.com/legal/privacy).
+- No collection of device or advertising identifiers — **except** when you enable
+  the optional Mapbox map backend by entering your own access token: Mapbox GL JS
+  sends usage telemetry to Mapbox as part of its standard operation, and the app
+  cannot fully disable this. The telemetry is governed by the
+  [Mapbox privacy policy](https://www.mapbox.com/legal/privacy).
   The default OSM backend does not send any analytics or telemetry.
 - No background location collection. The optional trip-tracking foreground
   service runs only while you enable it and only while the app would otherwise

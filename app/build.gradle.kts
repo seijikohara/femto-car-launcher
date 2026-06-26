@@ -74,14 +74,6 @@ val geocoderBaseUrl = localProperties.getProperty("GEOCODER_BASE_URL", "")
 val geocoderApiKey = localProperties.getProperty("GEOCODER_API_KEY", "")
 val weatherBaseUrl = localProperties.getProperty("WEATHER_BASE_URL", "https://api.met.no/")
 val fontsMetadataBaseUrl = localProperties.getProperty("FONTS_METADATA_BASE_URL", "https://fonts.google.com/")
-// Mapbox access token: env var takes precedence over local.properties so CI
-// can inject it without a file, while local builds use a gitignored property.
-// Defaults to "" so a token-less build still compiles; WebMapView surfaces the
-// liveInitFailed notice when the token is blank and MAPBOX backend is selected.
-val mapboxAccessToken =
-    System.getenv("MAPBOX_ACCESS_TOKEN")
-        ?: localProperties.getProperty("MAPBOX_ACCESS_TOKEN", "")
-
 // Release signing is driven entirely by environment variables so CI can sign the
 // nightly APK without committing a keystore, while local `assembleRelease` stays
 // unsigned (no signing config attached) when the variables are absent.
@@ -126,7 +118,6 @@ android {
         buildConfigField("String", "GEOCODER_API_KEY", "\"${geocoderApiKey}\"")
         buildConfigField("String", "WEATHER_BASE_URL", "\"${weatherBaseUrl}\"")
         buildConfigField("String", "FONTS_METADATA_BASE_URL", "\"${fontsMetadataBaseUrl}\"")
-        buildConfigField("String", "MAPBOX_ACCESS_TOKEN", "\"${mapboxAccessToken}\"")
     }
 
     signingConfigs {
@@ -227,8 +218,6 @@ dependencies {
     implementation(platform(libs.okhttp.bom))
     implementation(libs.okhttp)
     implementation(libs.aboutlibraries.core)
-    implementation(libs.billing)
-    implementation(libs.billing.ktx)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.material3)

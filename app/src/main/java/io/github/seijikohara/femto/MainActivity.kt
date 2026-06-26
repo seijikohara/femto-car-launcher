@@ -34,18 +34,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.seijikohara.femto.data.apps.AppsRepository
-import io.github.seijikohara.femto.data.billing.BillingRepository
-import io.github.seijikohara.femto.data.billing.Entitlement
-import io.github.seijikohara.femto.data.billing.FEMTO_PLUS_PRODUCT_ID
-import io.github.seijikohara.femto.data.billing.effectiveBackend
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.FullscreenSetting
-import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
+import io.github.seijikohara.femto.data.display.effectiveBackend
 import io.github.seijikohara.femto.data.fonts.FontRepository
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.data.location.LocationGraph
@@ -71,7 +67,6 @@ import io.github.seijikohara.femto.ui.locale.resolved
 import io.github.seijikohara.femto.ui.settings.SettingsSheet
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.buildFontFamily
-import io.github.seijikohara.femto.ui.upsell.UpsellSheet
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -80,10 +75,6 @@ class MainActivity : ComponentActivity() {
     private val appsRepository by lazy { AppsRepository(this) }
     private val displayPreferences by lazy { DisplayPreferences(this) }
     private val fontRepository by lazy { FontRepository.get(this) }
-
-    // App-scoped singleton; the lazy delegate ensures we never construct it
-    // before the Activity is alive (launchPurchase needs a live Activity).
-    private val billingRepository by lazy { BillingRepository.get(this) }
 
     // Cache the latest fullscreen choice so [onWindowFocusChanged] can re-hide the
     // system bars when focus returns from another Activity. The Compose
@@ -118,11 +109,6 @@ class MainActivity : ComponentActivity() {
             // theme + font feed FemtoTheme, the units + clock feed the dashboard.
             val display by displayPreferences.settings.collectAsStateWithLifecycle(
                 initialValue = DisplaySettings.Default,
-            )
-            // Gate the rendered map backend on the active subscription; the stored
-            // preference is untouched so re-subscribing restores Mapbox automatically.
-            val entitlement by billingRepository.entitlement.collectAsStateWithLifecycle(
-                initialValue = Entitlement.Locked,
             )
             // The resolved Google Fonts faces (or system default) drive the theme;
             // they swap in reactively when a freshly chosen family finishes downloading.
@@ -175,8 +161,6 @@ class MainActivity : ComponentActivity() {
                 var showDiagnostics by rememberSaveable { mutableStateOf(false) }
                 // The open-source licenses sheet opens over settings, like diagnostics.
                 var showLicenses by rememberSaveable { mutableStateOf(false) }
-                // The upsell paywall; triggered from the Settings Mapbox option when locked.
-                var showUpsell by rememberSaveable { mutableStateOf(false) }
                 HomeRoute(
                     is24Hour = resolveIs24Hour(display.clock),
                     showClockSeconds = display.showClockSeconds,
@@ -194,7 +178,11 @@ class MainActivity : ComponentActivity() {
                             markerPos = display.mapMarkerPos,
                             buildings3d = display.map3dBuildings,
                             terrain = display.mapTerrain,
-                            backend = effectiveBackend(display.mapBackend, entitlement.mapboxUnlocked),
+                            backend = effectiveBackend(
+                                stored = display.mapBackend,
+                                hasMapboxToken = display.mapboxAccessToken.isNotBlank(),
+                            ),
+                            mapboxToken = display.mapboxAccessToken,
                             mapboxStyle = display.mapboxStyle,
                             mapboxTraffic = display.mapboxTraffic,
                         ),
@@ -255,9 +243,6 @@ class MainActivity : ComponentActivity() {
                         onOpenDiagnostics = { showDiagnostics = true },
                         onOpenLicenses = { showLicenses = true },
                         onOpenPrivacyPolicy = ::openPrivacyPolicy,
-                        onShowUpsell = { showUpsell = true },
-                        onManageSubscription = ::openManageSubscription,
-                        onRestorePurchases = { lifecycleScope.launch { billingRepository.refresh() } },
                         onDismiss = { showSettings = false },
                         fullscreen = fullscreen,
                     )
@@ -273,34 +258,12 @@ class MainActivity : ComponentActivity() {
                     DiagnosticsSheet(
                         onDismiss = { showDiagnostics = false },
                         fullscreen = fullscreen,
-                        onLaunchPurchase = { offerToken ->
-                            // billingRepository.launchPurchase requires a live Activity — this
-                            // is the only place in the call tree that has one.
-                            billingRepository.launchPurchase(this@MainActivity, offerToken)
-                        },
                     )
                 }
                 if (showLicenses) {
                     LicensesSheet(
                         onDismiss = { showLicenses = false },
                         fullscreen = fullscreen,
-                    )
-                }
-                if (showUpsell) {
-                    UpsellSheet(
-                        onDismiss = { showUpsell = false },
-                        fullscreen = fullscreen,
-                        onLaunchPurchase = { offerToken ->
-                            // billingRepository.launchPurchase requires a live Activity; this is
-                            // the only point in the call tree that holds one.
-                            billingRepository.launchPurchase(this@MainActivity, offerToken)
-                        },
-                        onPurchaseComplete = {
-                            // Auto-switch the persisted backend to Mapbox so the map upgrades
-                            // immediately without the user visiting Settings again.
-                            lifecycleScope.launch { displayPreferences.setMapBackend(MapBackend.MAPBOX) }
-                            showUpsell = false
-                        },
                     )
                 }
             }
@@ -466,22 +429,6 @@ class MainActivity : ComponentActivity() {
         val intent =
             Intent(Intent.ACTION_VIEW, PRIVACY_POLICY_URL.toUri())
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        tryStartActivity(intent)
-    }
-
-    /**
-     * Open the Play Store subscription management page for the active Femto Plus plan.
-     * Uses a deep link so the user lands directly on their subscription rather than the
-     * top-level account page. Head units without the Play Store log a warning via
-     * tryStartActivity rather than silently swallowing the failure.
-     */
-    private fun openManageSubscription() {
-        val intent =
-            Intent(
-                Intent.ACTION_VIEW,
-                "https://play.google.com/store/account/subscriptions?sku=$FEMTO_PLUS_PRODUCT_ID&package=$packageName"
-                    .toUri(),
-            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         tryStartActivity(intent)
     }
 

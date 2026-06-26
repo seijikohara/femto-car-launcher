@@ -1,8 +1,5 @@
 package io.github.seijikohara.femto.ui.settings
 
-import android.app.Application
-import androidx.test.core.app.ApplicationProvider
-import io.github.seijikohara.femto.data.billing.Entitlement
 import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.DisplaySettings
@@ -13,7 +10,6 @@ import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.UiScale
-import io.github.seijikohara.femto.data.fonts.FontPreferences
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
 import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
@@ -21,7 +17,6 @@ import io.github.seijikohara.femto.testfixtures.FakeFontSelectionStore
 import io.github.seijikohara.femto.testfixtures.FakeLocationSettingsStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -32,9 +27,6 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 
 // Pure JVM: every collaborator is an in-memory fake, so there is no DataStore IO
@@ -44,7 +36,6 @@ class SettingsViewModelTest {
     private val store = FakeDisplaySettingsStore()
     private val fontStore = FakeFontSelectionStore()
     private val locationStore = FakeLocationSettingsStore()
-    private val entitlementFlow = MutableStateFlow(Entitlement.Locked)
     private val dispatcher = StandardTestDispatcher()
 
     @Before
@@ -309,21 +300,22 @@ class SettingsViewModelTest {
         }
 
     @Test
-    fun `mapboxUnlocked reflects entitlement`() =
+    fun `SaveMapboxToken persists token and selects the Mapbox backend atomically`() =
         runTest(dispatcher) {
-            val entitlement = MutableStateFlow(Entitlement.Locked)
-            val vm = SettingsViewModel(store, fontStore, locationStore, entitlement)
-            // Collect uiState to satisfy WhileSubscribed so the combining flow stays alive
-            // across both phases of this test.
-            val collected = mutableListOf<Boolean>()
-            backgroundScope.launch { vm.uiState.collect { collected += it.mapboxUnlocked } }
+            val vm = viewModel()
+            // Subscribe so WhileUiSubscribed keeps the upstream combine alive across both phases.
+            backgroundScope.launch { vm.uiState.collect { } }
             advanceUntilIdle()
-            assertEquals(false, vm.uiState.value.mapboxUnlocked)
 
-            entitlement.value = Entitlement(mapboxUnlocked = true)
+            vm.onAction(SettingsAction.SaveMapboxToken("pk.abc"))
             advanceUntilIdle()
-            assertEquals(true, vm.uiState.value.mapboxUnlocked)
+            assertEquals("pk.abc", vm.uiState.value.mapboxAccessToken)
+            assertEquals(MapBackend.MAPBOX, vm.uiState.value.mapBackend)
+
+            vm.onAction(SettingsAction.ClearMapboxToken)
+            advanceUntilIdle()
+            assertEquals("", vm.uiState.value.mapboxAccessToken)
         }
 
-    private fun viewModel() = SettingsViewModel(store, fontStore, locationStore, entitlementFlow)
+    private fun viewModel() = SettingsViewModel(store, fontStore, locationStore)
 }
