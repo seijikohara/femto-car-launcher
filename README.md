@@ -34,7 +34,7 @@ strictest applicable rule wins when markets diverge.
 The home screen is a fixed dashboard rather than a scrolling grid of apps.
 
 - **Map panel** — a live vector map rendered by MapLibre GL JS inside a
-  WebView. The default (free) backend uses OpenStreetMap tiles served by
+  WebView. The default backend uses OpenStreetMap tiles served by
   the keyless OpenFreeMap service. An optional Mapbox backend — offering
   satellite imagery, real-time traffic, and Mapbox 3D styles — is
   available by entering your own Mapbox public access token in

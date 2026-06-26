@@ -6,9 +6,11 @@
     <string name="map_unavailable">Map unavailable</string>
     <string name="map_permission_cta">Grant location access to enable the map and overlays.</string>
     <string name="map_live_renderer_gone">Live map stopped</string>
-    <string name="map_live_renderer_gone_hint">The map renderer keeps crashing on this device. Switch the map mode to Snapshot in Settings.</string>
+    <string name="map_live_renderer_gone_hint">The map renderer keeps crashing on this device. Switch the map provider to OpenStreetMap in Settings.</string>
     <string name="map_live_init_failed">Live map can\'t start</string>
-    <string name="map_live_init_failed_hint">This device can\'t render the live map. Switch the map mode to Snapshot in Settings.</string>
+    <string name="map_live_init_failed_hint">This device can\'t render the live map. Switch the map provider to OpenStreetMap in Settings.</string>
+    <string name="map_mapbox_failed">Mapbox map can\'t load</string>
+    <string name="map_mapbox_failed_hint">Check your Mapbox access token in Settings — it must be a valid public token starting with \"pk.\", and you need an internet connection. You can also switch back to OpenStreetMap.</string>
     <string name="calendar_query_failed">Calendar couldn\'t be read</string>
     <string name="font_download_failed">Download failed — tap to retry</string>
     <string name="map_attribution">© OpenStreetMap · OpenMapTiles · OpenFreeMap</string>
@@ -233,8 +235,8 @@
     <string name="settings_group_map_terrain">Terrain</string>
     <string name="settings_map_terrain_desc">3D elevation relief (Mapterhorn). Adds tile downloads; heavier on low-end GPUs.</string>
     <string name="settings_map_backend">Map provider</string>
-    <string name="settings_map_backend_osm">OpenStreetMap (free)</string>
-    <string name="settings_map_backend_mapbox">Mapbox (paid)</string>
+    <string name="settings_map_backend_osm">OpenStreetMap</string>
+    <string name="settings_map_backend_mapbox">Mapbox (requires access token)</string>
     <string name="settings_mapbox_style">Mapbox style</string>
     <string name="settings_mapbox_style_standard">Standard</string>
     <string name="settings_mapbox_style_satellite">Satellite</string>
