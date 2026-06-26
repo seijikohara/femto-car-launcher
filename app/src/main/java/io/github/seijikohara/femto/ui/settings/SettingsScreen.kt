@@ -781,9 +781,7 @@ private fun ThemePresetChip(
 }
 
 // A single-choice row: shows the current value as its summary and opens a radio
-// dialog on tap (the Android ListPreference pattern). An optional [trailingIcon]
-// overrides the default ChevronRight — used to surface a lock when the row
-// requires an active subscription.
+// dialog on tap (the Android ListPreference pattern).
 @Composable
 private fun <T> ChoiceRow(
     title: String,
@@ -791,7 +789,6 @@ private fun <T> ChoiceRow(
     selected: T,
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
-    trailingIcon: ImageVector? = null,
 ) {
     var dialogOpen by remember { mutableStateOf(false) }
     SettingRow(
@@ -799,7 +796,7 @@ private fun <T> ChoiceRow(
         modifier = modifier.clickable { dialogOpen = true },
         summary = options.firstOrNull { it.first == selected }?.second,
     ) {
-        TrailingIcon(trailingIcon ?: Lucide.ChevronRight)
+        TrailingIcon(Lucide.ChevronRight)
     }
     if (dialogOpen) {
         ChoiceDialog(
