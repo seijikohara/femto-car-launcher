@@ -224,6 +224,7 @@ class SettingsScreenTest {
             uiState =
                 SettingsUiState.Initial.copy(
                     showCalendar = true,
+                    hasCalendarAccess = true,
                     availableCalendars = listOf(fakeCalendarInfo(id = 1L, displayName = "Personal")),
                     hiddenCalendarIds = emptySet(),
                 ),

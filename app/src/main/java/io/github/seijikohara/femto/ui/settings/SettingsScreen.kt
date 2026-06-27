@@ -1236,11 +1236,11 @@ private fun MultiSelectDialog(
                                 Modifier
                                     .fillMaxWidth()
                                     .heightIn(min = FemtoDimens.MinTouchTarget)
-                                    // Toggling hides when currently shown, shows when currently hidden.
+                                    // Hidden is the inverse of the new shown state.
                                     .toggleable(
                                         value = shown,
                                         role = Role.Checkbox,
-                                        onValueChange = { onToggle(calendar.id, shown) },
+                                        onValueChange = { newShown -> onToggle(calendar.id, !newShown) },
                                     ),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp),

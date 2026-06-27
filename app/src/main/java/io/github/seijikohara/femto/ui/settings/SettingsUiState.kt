@@ -62,7 +62,10 @@ internal data class SettingsUiState(
     val mapboxAccessToken: String = "",
     val availableCalendars: List<CalendarInfo> = emptyList(),
     val hiddenCalendarIds: Set<Long> = emptySet(),
-    val hasCalendarAccess: Boolean = true,
+    // Defaults false so a not-yet-loaded selector never falsely claims "no
+    // calendars found" (hiding the grant affordance) when access is actually
+    // denied; CalendarCatalog emits the real value on subscription.
+    val hasCalendarAccess: Boolean = false,
 ) {
     companion object {
         // Seeded from the persistence defaults so the default values live in one
