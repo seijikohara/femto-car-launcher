@@ -1216,6 +1216,7 @@ private fun MultiSelectDialog(
                             onOpenAppSettings()
                             onDismiss()
                         },
+                        modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
                     ) {
                         Text(stringResource(R.string.settings_open_system_settings))
                     }
