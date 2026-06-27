@@ -5,6 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import io.github.seijikohara.femto.data.calendar.CalendarCatalog
+import io.github.seijikohara.femto.data.calendar.CalendarInfo
+import io.github.seijikohara.femto.data.calendar.CalendarPreferences
+import io.github.seijikohara.femto.data.calendar.CalendarPreferencesStore
 import io.github.seijikohara.femto.data.common.WhileUiSubscribed
 import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.DisplaySettingsStore
@@ -13,6 +17,7 @@ import io.github.seijikohara.femto.data.fonts.FontPreferences
 import io.github.seijikohara.femto.data.fonts.FontSelectionStore
 import io.github.seijikohara.femto.data.location.LocationPreferences
 import io.github.seijikohara.femto.data.location.LocationSettingsStore
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -22,13 +27,17 @@ internal class SettingsViewModel(
     private val displayPreferences: DisplaySettingsStore,
     private val fontPreferences: FontSelectionStore,
     private val locationPreferences: LocationSettingsStore,
+    private val calendarPreferences: CalendarPreferencesStore,
+    availableCalendars: Flow<List<CalendarInfo>>,
 ) : ViewModel() {
     val uiState: StateFlow<SettingsUiState> =
         combine(
             displayPreferences.settings,
             fontPreferences.selection,
             locationPreferences.settings,
-        ) { display, font, location ->
+            calendarPreferences.hiddenCalendarIds,
+            availableCalendars,
+        ) { display, font, location, hiddenCalendars, calendars ->
             SettingsUiState(
                 themeMode = display.themeMode,
                 accentColor = display.accentColor,
@@ -67,6 +76,8 @@ internal class SettingsViewModel(
                 locationIntervalMillis = location.intervalMillis,
                 locationMinDistanceMeters = location.minUpdateDistanceMeters,
                 backgroundRangingEnabled = location.backgroundRangingEnabled,
+                availableCalendars = calendars,
+                hiddenCalendarIds = hiddenCalendars,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, SettingsUiState.Initial)
 
@@ -225,6 +236,10 @@ internal class SettingsViewModel(
                     displayPreferences.setMapboxAccessToken("")
                 }
 
+                is SettingsAction.SetCalendarHidden -> {
+                    calendarPreferences.setCalendarHidden(action.id, action.hidden)
+                }
+
                 is SettingsAction.ResetToDefaults -> {
                     displayPreferences.resetToDefaults()
                     locationPreferences.resetToDefaults()
@@ -247,6 +262,8 @@ internal class SettingsViewModelFactory(
             displayPreferences = DisplayPreferences(application),
             fontPreferences = FontPreferences(application),
             locationPreferences = LocationPreferences(application),
+            calendarPreferences = CalendarPreferences(application),
+            availableCalendars = CalendarCatalog(application).availableCalendarsFlow(),
         ) as T
     }
 }

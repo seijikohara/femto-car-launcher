@@ -12,12 +12,15 @@ import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
+import io.github.seijikohara.femto.testfixtures.FakeCalendarPreferencesStore
 import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeFontSelectionStore
 import io.github.seijikohara.femto.testfixtures.FakeLocationSettingsStore
+import io.github.seijikohara.femto.testfixtures.fakeCalendarInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -317,5 +320,44 @@ class SettingsViewModelTest {
             assertEquals("", vm.uiState.value.mapboxAccessToken)
         }
 
-    private fun viewModel() = SettingsViewModel(store, fontStore, locationStore)
+    @Test
+    fun `available calendars and hidden set surface and SetCalendarHidden toggles`() =
+        runTest(dispatcher) {
+            val calendarPrefs = FakeCalendarPreferencesStore()
+            val vm =
+                SettingsViewModel(
+                    store,
+                    fontStore,
+                    locationStore,
+                    calendarPrefs,
+                    availableCalendars =
+                        flowOf(
+                            listOf(
+                                fakeCalendarInfo(id = 1L),
+                                fakeCalendarInfo(id = 2L, displayName = "Work"),
+                            ),
+                        ),
+                )
+            backgroundScope.launch { vm.uiState.collect { } }
+            advanceUntilIdle()
+            assertEquals(
+                listOf(1L, 2L),
+                vm.uiState.value.availableCalendars
+                    .map { it.id },
+            )
+            assertEquals(emptySet(), vm.uiState.value.hiddenCalendarIds)
+
+            vm.onAction(SettingsAction.SetCalendarHidden(id = 2L, hidden = true))
+            advanceUntilIdle()
+            assertEquals(setOf(2L), vm.uiState.value.hiddenCalendarIds)
+        }
+
+    private fun viewModel() =
+        SettingsViewModel(
+            store,
+            fontStore,
+            locationStore,
+            FakeCalendarPreferencesStore(),
+            availableCalendars = flowOf(emptyList()),
+        )
 }
