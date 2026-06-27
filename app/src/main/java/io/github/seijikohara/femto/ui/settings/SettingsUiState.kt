@@ -62,6 +62,7 @@ internal data class SettingsUiState(
     val mapboxAccessToken: String = "",
     val availableCalendars: List<CalendarInfo> = emptyList(),
     val hiddenCalendarIds: Set<Long> = emptySet(),
+    val hasCalendarAccess: Boolean = true,
 ) {
     companion object {
         // Seeded from the persistence defaults so the default values live in one

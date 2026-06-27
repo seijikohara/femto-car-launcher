@@ -14,7 +14,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -51,7 +50,7 @@ private const val TAG = "CalendarRepository"
 internal class CalendarRepository(
     private val context: Context,
     private val clockFlow: Flow<ClockTick>,
-    private val hiddenCalendarIds: Flow<Set<Long>> = flowOf(emptySet()),
+    private val hiddenCalendarIds: Flow<Set<Long>>,
     // Read per rebuild rather than captured at construction: the repository
     // outlives timezone and locale changes (a phone mounted as car nav crosses
     // borders), and captured values would pin the agenda to the old zone /

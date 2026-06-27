@@ -28,6 +28,12 @@ private const val CHANGE_DEBOUNCE_MS = 500L
  * launcher that would crash the home screen on every cold start until the
  * user grants the calendar, so a denied (or racing-revoked) grant skips
  * registration rather than throwing.
+ *
+ * Note: this flow observes [CalendarContract.Events.CONTENT_URI] only, not the
+ * Calendars table. CalendarCatalog liveness for calendar-list changes (e.g. a
+ * new calendar account added) relies on the Settings re-subscription cycle:
+ * [WhileUiSubscribed] cancels the upstream on Settings close and `onStart`
+ * re-queries when the screen re-opens.
  */
 internal fun calendarChangeFlow(context: Context): Flow<Unit> =
     callbackFlow {

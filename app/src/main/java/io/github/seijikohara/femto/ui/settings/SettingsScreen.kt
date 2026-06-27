@@ -470,10 +470,16 @@ internal fun SettingsScreen(
             AnimatedVisibility(visible = uiState.showCalendar) {
                 MultiSelectRow(
                     title = stringResource(R.string.settings_visible_calendars),
-                    summary = visibleCalendarsSummary(uiState.availableCalendars, uiState.hiddenCalendarIds),
+                    summary = visibleCalendarsSummary(
+                        uiState.hasCalendarAccess,
+                        uiState.availableCalendars,
+                        uiState.hiddenCalendarIds,
+                    ),
+                    hasCalendarAccess = uiState.hasCalendarAccess,
                     calendars = uiState.availableCalendars,
                     hiddenIds = uiState.hiddenCalendarIds,
                     onToggle = { id, hidden -> onAction(SettingsAction.SetCalendarHidden(id, hidden)) },
+                    onOpenAppSettings = onOpenSystemSettings,
                 )
             }
             SwitchRow(
@@ -1121,17 +1127,21 @@ private fun Modifier.clipClickable(onClick: () -> Unit): Modifier =
         .clickable(onClick = onClick)
 
 // Summarises the current visible-calendar selection in one line for the row subtitle.
-// Empty calendar list means the READ_CALENDAR permission is not granted; an empty
-// hidden-ids set means every available calendar is shown; otherwise reports the
-// fraction of calendars the user has left visible.
+// Three distinct states: permission denied, granted but no calendars, or a count of
+// visible vs total. An empty hidden-ids set means every calendar is shown.
 @Composable
 private fun visibleCalendarsSummary(
+    hasCalendarAccess: Boolean,
     calendars: List<CalendarInfo>,
     hiddenIds: Set<Long>,
 ): String =
     when {
-        calendars.isEmpty() -> {
+        !hasCalendarAccess -> {
             stringResource(R.string.settings_visible_calendars_none)
+        }
+
+        calendars.isEmpty() -> {
+            stringResource(R.string.settings_visible_calendars_empty)
         }
 
         hiddenIds.isEmpty() -> {
@@ -1151,9 +1161,11 @@ private fun visibleCalendarsSummary(
 private fun MultiSelectRow(
     title: String,
     summary: String,
+    hasCalendarAccess: Boolean,
     calendars: List<CalendarInfo>,
     hiddenIds: Set<Long>,
     onToggle: (Long, Boolean) -> Unit,
+    onOpenAppSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var open by remember { mutableStateOf(false) }
@@ -1165,62 +1177,85 @@ private fun MultiSelectRow(
     if (open) {
         MultiSelectDialog(
             title = title,
+            hasCalendarAccess = hasCalendarAccess,
             calendars = calendars,
             hiddenIds = hiddenIds,
             onToggle = onToggle,
+            onOpenAppSettings = onOpenAppSettings,
             onDismiss = { open = false },
         )
     }
 }
 
-// Multi-select dialog for the visible-calendars picker. Each row shows a checkbox,
-// a colour dot (12 dp decorative marker from CalendarInfo.color), and the calendar's
-// display name + account name. The whole row is the toggle target (toggleable with
-// Role.Checkbox); the Checkbox is visual-only (onCheckedChange = null) so a single
-// tap never double-fires. Touch targets meet FemtoDimens.MinTouchTarget; text uses
-// bodyLarge / bodyMedium.
+// Multi-select dialog for the visible-calendars picker. Three states: permission
+// denied (shows a grant button linking to system settings), granted but no calendars
+// found, or the checkbox list. Each calendar row shows a colour dot (12 dp decorative
+// marker from CalendarInfo.color), display name, and account name. The whole row is
+// the toggle target (toggleable with Role.Checkbox); the Checkbox is visual-only
+// (onCheckedChange = null) so a single tap never double-fires. Touch targets meet
+// FemtoDimens.MinTouchTarget; text uses bodyLarge / bodyMedium.
 @Composable
 private fun MultiSelectDialog(
     title: String,
+    hasCalendarAccess: Boolean,
     calendars: List<CalendarInfo>,
     hiddenIds: Set<Long>,
     onToggle: (Long, Boolean) -> Unit,
+    onOpenAppSettings: () -> Unit,
     onDismiss: () -> Unit,
 ) = AlertDialog(
     onDismissRequest = onDismiss,
     title = { Text(title) },
     text = {
-        if (calendars.isEmpty()) {
-            Text(stringResource(R.string.settings_visible_calendars_empty))
-        } else {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                calendars.forEach { calendar ->
-                    val shown = calendar.id !in hiddenIds
-                    Row(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = FemtoDimens.MinTouchTarget)
-                                // Toggling hides when currently shown, shows when currently hidden.
-                                .toggleable(
-                                    value = shown,
-                                    role = Role.Checkbox,
-                                    onValueChange = { onToggle(calendar.id, shown) },
-                                ),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        when {
+            !hasCalendarAccess -> {
+                Column {
+                    Text(stringResource(R.string.settings_visible_calendars_none))
+                    TextButton(
+                        onClick = {
+                            onOpenAppSettings()
+                            onDismiss()
+                        },
                     ) {
-                        Checkbox(checked = shown, onCheckedChange = null)
-                        Box(
+                        Text(stringResource(R.string.settings_open_system_settings))
+                    }
+                }
+            }
+
+            calendars.isEmpty() -> {
+                Text(stringResource(R.string.settings_visible_calendars_empty))
+            }
+
+            else -> {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    calendars.forEach { calendar ->
+                        val shown = calendar.id !in hiddenIds
+                        Row(
                             modifier =
                                 Modifier
-                                    .size(12.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(calendar.color)),
-                        )
-                        Column {
-                            Text(calendar.displayName, style = MaterialTheme.typography.bodyLarge)
-                            Text(calendar.accountName, style = MaterialTheme.typography.bodyMedium)
+                                    .fillMaxWidth()
+                                    .heightIn(min = FemtoDimens.MinTouchTarget)
+                                    // Toggling hides when currently shown, shows when currently hidden.
+                                    .toggleable(
+                                        value = shown,
+                                        role = Role.Checkbox,
+                                        onValueChange = { onToggle(calendar.id, shown) },
+                                    ),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Checkbox(checked = shown, onCheckedChange = null)
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .size(12.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(calendar.color)),
+                            )
+                            Column {
+                                Text(calendar.displayName, style = MaterialTheme.typography.bodyLarge)
+                                Text(calendar.accountName, style = MaterialTheme.typography.bodyMedium)
+                            }
                         }
                     }
                 }

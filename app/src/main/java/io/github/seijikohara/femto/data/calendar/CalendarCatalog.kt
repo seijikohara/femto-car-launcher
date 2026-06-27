@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.provider.CalendarContract
+import androidx.compose.runtime.Immutable
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -12,15 +13,33 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 
+/**
+ * Snapshot emitted by [CalendarCatalog.availableCalendarsFlow].
+ *
+ * Carries both the permission flag and the resulting list so callers can
+ * distinguish "access denied" (hasAccess = false) from "granted but no
+ * visible calendars" (hasAccess = true, calendars = empty).
+ */
+@Immutable
+internal data class CalendarCatalogState(
+    val hasAccess: Boolean,
+    val calendars: List<CalendarInfo>,
+)
+
 /** Reads the set of device calendars the user could choose to show or hide. */
 internal class CalendarCatalog(
     private val context: Context,
 ) {
-    fun availableCalendarsFlow(): Flow<List<CalendarInfo>> =
+    fun availableCalendarsFlow(): Flow<CalendarCatalogState> =
         calendarChangeFlow(context)
             .onStart { emit(Unit) }
-            .map { readCalendars() }
-            .distinctUntilChanged()
+            .map {
+                val hasAccess = hasPermission()
+                CalendarCatalogState(
+                    hasAccess = hasAccess,
+                    calendars = if (hasAccess) readCalendars() else emptyList(),
+                )
+            }.distinctUntilChanged()
             .flowOn(Dispatchers.IO)
 
     private fun hasPermission(): Boolean =
@@ -28,7 +47,6 @@ internal class CalendarCatalog(
             PackageManager.PERMISSION_GRANTED
 
     private fun readCalendars(): List<CalendarInfo> {
-        if (!hasPermission()) return emptyList()
         val projection =
             arrayOf(
                 CalendarContract.Calendars._ID,

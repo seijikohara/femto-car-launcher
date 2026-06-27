@@ -6,7 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.seijikohara.femto.data.calendar.CalendarCatalog
-import io.github.seijikohara.femto.data.calendar.CalendarInfo
+import io.github.seijikohara.femto.data.calendar.CalendarCatalogState
 import io.github.seijikohara.femto.data.calendar.CalendarPreferences
 import io.github.seijikohara.femto.data.calendar.CalendarPreferencesStore
 import io.github.seijikohara.femto.data.common.WhileUiSubscribed
@@ -28,7 +28,7 @@ internal class SettingsViewModel(
     private val fontPreferences: FontSelectionStore,
     private val locationPreferences: LocationSettingsStore,
     private val calendarPreferences: CalendarPreferencesStore,
-    availableCalendars: Flow<List<CalendarInfo>>,
+    availableCalendars: Flow<CalendarCatalogState>,
 ) : ViewModel() {
     val uiState: StateFlow<SettingsUiState> =
         combine(
@@ -37,7 +37,7 @@ internal class SettingsViewModel(
             locationPreferences.settings,
             calendarPreferences.hiddenCalendarIds,
             availableCalendars,
-        ) { display, font, location, hiddenCalendars, calendars ->
+        ) { display, font, location, hiddenCalendars, catalog ->
             SettingsUiState(
                 themeMode = display.themeMode,
                 accentColor = display.accentColor,
@@ -76,8 +76,9 @@ internal class SettingsViewModel(
                 locationIntervalMillis = location.intervalMillis,
                 locationMinDistanceMeters = location.minUpdateDistanceMeters,
                 backgroundRangingEnabled = location.backgroundRangingEnabled,
-                availableCalendars = calendars,
+                availableCalendars = catalog.calendars,
                 hiddenCalendarIds = hiddenCalendars,
+                hasCalendarAccess = catalog.hasAccess,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, SettingsUiState.Initial)
 

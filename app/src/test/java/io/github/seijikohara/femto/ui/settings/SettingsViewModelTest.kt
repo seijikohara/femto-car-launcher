@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.settings
 
+import io.github.seijikohara.femto.data.calendar.CalendarCatalogState
 import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.DisplaySettings
@@ -332,9 +333,13 @@ class SettingsViewModelTest {
                     calendarPrefs,
                     availableCalendars =
                         flowOf(
-                            listOf(
-                                fakeCalendarInfo(id = 1L),
-                                fakeCalendarInfo(id = 2L, displayName = "Work"),
+                            CalendarCatalogState(
+                                hasAccess = true,
+                                calendars =
+                                    listOf(
+                                        fakeCalendarInfo(id = 1L),
+                                        fakeCalendarInfo(id = 2L, displayName = "Work"),
+                                    ),
                             ),
                         ),
                 )
@@ -358,6 +363,6 @@ class SettingsViewModelTest {
             fontStore,
             locationStore,
             FakeCalendarPreferencesStore(),
-            availableCalendars = flowOf(emptyList()),
+            availableCalendars = flowOf(CalendarCatalogState(hasAccess = true, calendars = emptyList())),
         )
 }

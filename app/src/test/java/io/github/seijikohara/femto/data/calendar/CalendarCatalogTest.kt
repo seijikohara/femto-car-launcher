@@ -18,6 +18,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -33,18 +35,23 @@ class CalendarCatalogTest {
                 .create(CalendarContract.AUTHORITY)
 
             val catalog = CalendarCatalog(app)
-            val calendars = catalog.availableCalendarsFlow().first()
+            val state = catalog.availableCalendarsFlow().first()
 
-            assertEquals(listOf(1L, 2L), calendars.map { it.id })
-            assertEquals("Personal", calendars.first().displayName)
+            assertTrue(state.hasAccess)
+            assertEquals(listOf(1L, 2L), state.calendars.map { it.id })
+            assertEquals("Personal", state.calendars.first().displayName)
         }
 
     @Test
     fun `emits empty when permission denied`() =
         runTest {
-            // READ_CALENDAR intentionally not granted: the list must be empty.
+            // READ_CALENDAR intentionally not granted: hasAccess must be false
+            // and the calendar list must be empty.
             val catalog = CalendarCatalog(app)
-            assertEquals(emptyList(), catalog.availableCalendarsFlow().first())
+            val state = catalog.availableCalendarsFlow().first()
+
+            assertFalse(state.hasAccess)
+            assertTrue(state.calendars.isEmpty())
         }
 
     /**
