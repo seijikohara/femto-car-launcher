@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.data.apps.AppsRepository
+import io.github.seijikohara.femto.data.calendar.CalendarPreferences
 import io.github.seijikohara.femto.data.calendar.CalendarRepository
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.clock.ClockRepository
@@ -283,7 +284,8 @@ internal class HomeViewModelFactory(
         val weather = WeatherRepository(weatherApi, locationFlow, clockFlow)
         val music = MusicSessionRepository(application)
         val audioSpectrum = AudioSpectrumRepository(application)
-        val calendar = CalendarRepository(application, clockFlow)
+        val calendarPreferences = CalendarPreferences(application)
+        val calendar = CalendarRepository(application, clockFlow, calendarPreferences.hiddenCalendarIds)
         val systemStatus = SystemStatusRepository(application, locationFlow)
         val apps = AppsRepository(application)
 

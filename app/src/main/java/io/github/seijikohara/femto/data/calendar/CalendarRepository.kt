@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -50,6 +51,7 @@ private const val TAG = "CalendarRepository"
 internal class CalendarRepository(
     private val context: Context,
     private val clockFlow: Flow<ClockTick>,
+    private val hiddenCalendarIds: Flow<Set<Long>> = flowOf(emptySet()),
     // Read per rebuild rather than captured at construction: the repository
     // outlives timezone and locale changes (a phone mounted as car nav crosses
     // borders), and captured values would pin the agenda to the old zone /
@@ -69,21 +71,23 @@ internal class CalendarRepository(
                 .map { Triple(it.date, hasPermission(), zoneProvider()) }
                 .distinctUntilChanged(),
             calendarChangeFlow(context).onStart { emit(Unit) },
-        ) { (date, granted, zone), _ ->
+            hiddenCalendarIds,
+        ) { (date, granted, zone), _, hidden ->
             // The build consumes the key's own values (not fresh provider
             // reads) so the snapshot always matches the key that produced it.
-            buildSnapshot(date, granted, zone)
+            buildSnapshot(date, granted, zone, hidden)
         }.distinctUntilChanged().flowOn(Dispatchers.IO)
 
     private fun buildSnapshot(
         today: LocalDate,
         granted: Boolean,
         zone: ZoneId,
+        hidden: Set<Long>,
     ): CalendarSnapshot {
         val locale = localeProvider()
         // null marks a provider fault (see readWindow); the days still build
         // from the clock alone so the strip never disappears.
-        val eventsByDay = if (granted) readWindow(today, zone) else emptyMap()
+        val eventsByDay = if (granted) readWindow(today, zone, hidden) else emptyMap()
         val days = (0 until WINDOW_DAYS).map { offset ->
             val date = today.plusDays(offset.toLong())
             DayCell(
@@ -164,9 +168,24 @@ internal class CalendarRepository(
     private fun readWindow(
         today: LocalDate,
         zone: ZoneId,
+        hidden: Set<Long>,
     ): Map<LocalDate, List<EventItem>>? =
         runCatching {
             val byDay = linkedMapOf<LocalDate, MutableList<EventItem>>()
+            // Respect the user's per-calendar visibility: events from a calendar
+            // hidden in the calendar app must not surface on the dashboard.
+            // Instances joins Calendars, so VISIBLE filters here. Additionally
+            // exclude any calendar the user has hidden via dashboard preferences.
+            // IDs are Longs (no injection risk); inline them as a NOT IN list.
+            val selection =
+                buildString {
+                    append("${CalendarContract.Calendars.VISIBLE} = 1")
+                    if (hidden.isNotEmpty()) {
+                        append(" AND ${CalendarContract.Instances.CALENDAR_ID} NOT IN (")
+                        append(hidden.joinToString(","))
+                        append(")")
+                    }
+                }
             context.contentResolver
                 .query(
                     windowUri(today, zone),
@@ -175,10 +194,7 @@ internal class CalendarRepository(
                         CalendarContract.Instances.TITLE,
                         CalendarContract.Instances.ALL_DAY,
                     ),
-                    // Respect the user's per-calendar visibility: events from a
-                    // calendar hidden in the calendar app must not surface on the
-                    // dashboard. Instances joins Calendars, so VISIBLE filters here.
-                    "${CalendarContract.Calendars.VISIBLE} = 1",
+                    selection,
                     null,
                     "${CalendarContract.Instances.BEGIN} ASC",
                 )?.use { cursor ->
