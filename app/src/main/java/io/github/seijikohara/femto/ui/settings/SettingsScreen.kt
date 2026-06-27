@@ -1175,9 +1175,10 @@ private fun MultiSelectRow(
 
 // Multi-select dialog for the visible-calendars picker. Each row shows a checkbox,
 // a colour dot (12 dp decorative marker from CalendarInfo.color), and the calendar's
-// display name + account name. The whole row is clickable; the checkbox reflects the
-// checked state without a separate handler to avoid double-firing on row tap.
-// Touch targets meet FemtoDimens.MinTouchTarget; text uses bodyLarge / bodyMedium.
+// display name + account name. The whole row is the toggle target (toggleable with
+// Role.Checkbox); the Checkbox is visual-only (onCheckedChange = null) so a single
+// tap never double-fires. Touch targets meet FemtoDimens.MinTouchTarget; text uses
+// bodyLarge / bodyMedium.
 @Composable
 private fun MultiSelectDialog(
     title: String,
@@ -1201,11 +1202,15 @@ private fun MultiSelectDialog(
                                 .fillMaxWidth()
                                 .heightIn(min = FemtoDimens.MinTouchTarget)
                                 // Toggling hides when currently shown, shows when currently hidden.
-                                .clickable { onToggle(calendar.id, shown) },
+                                .toggleable(
+                                    value = shown,
+                                    role = Role.Checkbox,
+                                    onValueChange = { onToggle(calendar.id, shown) },
+                                ),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Checkbox(checked = shown, onCheckedChange = { onToggle(calendar.id, !it) })
+                        Checkbox(checked = shown, onCheckedChange = null)
                         Box(
                             modifier =
                                 Modifier
