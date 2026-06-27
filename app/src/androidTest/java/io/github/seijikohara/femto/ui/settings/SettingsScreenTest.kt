@@ -14,6 +14,7 @@ import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
+import io.github.seijikohara.femto.testfixtures.fakeCalendarInfo
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -43,6 +44,7 @@ class SettingsScreenTest {
     private val tokenClearLabel = context.getString(R.string.settings_mapbox_token_clear)
     private val glassBlurLabel = context.getString(R.string.settings_group_glass_blur)
     private val locationIntervalLabel = context.getString(R.string.settings_group_location_interval)
+    private val visibleCalendarsLabel = context.getString(R.string.settings_visible_calendars)
 
     @Test
     fun renders_fullscreen_row() {
@@ -213,6 +215,26 @@ class SettingsScreenTest {
         rule.onNodeWithText(tokenLabel).performScrollTo().performClick()
         rule.onNodeWithText(tokenClearLabel).performClick()
         assertEquals(listOf(SettingsAction.ClearMapboxToken), actions)
+    }
+
+    @Test
+    fun toggling_a_calendar_dispatches_SetCalendarHidden() {
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(
+            uiState =
+                SettingsUiState.Initial.copy(
+                    showCalendar = true,
+                    hasCalendarAccess = true,
+                    availableCalendars = listOf(fakeCalendarInfo(id = 1L, displayName = "Personal")),
+                    hiddenCalendarIds = emptySet(),
+                ),
+            onAction = { actions += it },
+        )
+        // Scroll the "Visible calendars" row into view and tap to open the dialog.
+        rule.onNodeWithText(visibleCalendarsLabel).performScrollTo().performClick()
+        // Tapping the "Personal" calendar row (currently shown) should hide it.
+        rule.onNodeWithText("Personal").performClick()
+        assertEquals(listOf(SettingsAction.SetCalendarHidden(id = 1L, hidden = true)), actions)
     }
 
     private fun setScreen(

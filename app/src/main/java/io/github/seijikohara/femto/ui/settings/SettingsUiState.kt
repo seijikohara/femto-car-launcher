@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.settings
 
+import io.github.seijikohara.femto.data.calendar.CalendarInfo
 import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
@@ -59,6 +60,12 @@ internal data class SettingsUiState(
     val mapboxStyle: MapboxStyle = DisplaySettings.Default.mapboxStyle,
     val mapboxTraffic: Boolean = DisplaySettings.Default.mapboxTraffic,
     val mapboxAccessToken: String = "",
+    val availableCalendars: List<CalendarInfo> = emptyList(),
+    val hiddenCalendarIds: Set<Long> = emptySet(),
+    // Defaults false so a not-yet-loaded selector never falsely claims "no
+    // calendars found" (hiding the grant affordance) when access is actually
+    // denied; CalendarCatalog emits the real value on subscription.
+    val hasCalendarAccess: Boolean = false,
 ) {
     companion object {
         // Seeded from the persistence defaults so the default values live in one
@@ -256,6 +263,11 @@ internal sealed interface SettingsAction {
     ) : SettingsAction
 
     data object ClearMapboxToken : SettingsAction
+
+    data class SetCalendarHidden(
+        val id: Long,
+        val hidden: Boolean,
+    ) : SettingsAction
 
     /** Restore every display + font + location setting to its default value. */
     data object ResetToDefaults : SettingsAction

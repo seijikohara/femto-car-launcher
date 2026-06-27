@@ -1,5 +1,3 @@
-@file:OptIn(kotlinx.coroutines.FlowPreview::class)
-
 package io.github.seijikohara.femto.data.calendar
 
 import android.Manifest
@@ -7,20 +5,14 @@ import android.annotation.SuppressLint
 import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
-import android.database.ContentObserver
-import android.os.Handler
-import android.os.Looper
 import android.provider.CalendarContract
 import android.text.format.DateFormat
 import android.util.Log
 import androidx.core.content.ContextCompat
 import io.github.seijikohara.femto.data.clock.ClockTick
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -58,6 +50,7 @@ private const val TAG = "CalendarRepository"
 internal class CalendarRepository(
     private val context: Context,
     private val clockFlow: Flow<ClockTick>,
+    private val hiddenCalendarIds: Flow<Set<Long>>,
     // Read per rebuild rather than captured at construction: the repository
     // outlives timezone and locale changes (a phone mounted as car nav crosses
     // borders), and captured values would pin the agenda to the old zone /
@@ -76,22 +69,24 @@ internal class CalendarRepository(
             clockFlow
                 .map { Triple(it.date, hasPermission(), zoneProvider()) }
                 .distinctUntilChanged(),
-            calendarChangeFlow().onStart { emit(Unit) },
-        ) { (date, granted, zone), _ ->
+            calendarChangeFlow(context).onStart { emit(Unit) },
+            hiddenCalendarIds,
+        ) { (date, granted, zone), _, hidden ->
             // The build consumes the key's own values (not fresh provider
             // reads) so the snapshot always matches the key that produced it.
-            buildSnapshot(date, granted, zone)
+            buildSnapshot(date, granted, zone, hidden)
         }.distinctUntilChanged().flowOn(Dispatchers.IO)
 
     private fun buildSnapshot(
         today: LocalDate,
         granted: Boolean,
         zone: ZoneId,
+        hidden: Set<Long>,
     ): CalendarSnapshot {
         val locale = localeProvider()
         // null marks a provider fault (see readWindow); the days still build
         // from the clock alone so the strip never disappears.
-        val eventsByDay = if (granted) readWindow(today, zone) else emptyMap()
+        val eventsByDay = if (granted) readWindow(today, zone, hidden) else emptyMap()
         val days = (0 until WINDOW_DAYS).map { offset ->
             val date = today.plusDays(offset.toLong())
             DayCell(
@@ -172,9 +167,24 @@ internal class CalendarRepository(
     private fun readWindow(
         today: LocalDate,
         zone: ZoneId,
+        hidden: Set<Long>,
     ): Map<LocalDate, List<EventItem>>? =
         runCatching {
             val byDay = linkedMapOf<LocalDate, MutableList<EventItem>>()
+            // Respect the user's per-calendar visibility: events from a calendar
+            // hidden in the calendar app must not surface on the dashboard.
+            // Instances joins Calendars, so VISIBLE filters here. Additionally
+            // exclude any calendar the user has hidden via dashboard preferences.
+            // IDs are Longs (no injection risk); inline them as a NOT IN list.
+            val selection =
+                buildString {
+                    append("${CalendarContract.Calendars.VISIBLE} = 1")
+                    if (hidden.isNotEmpty()) {
+                        append(" AND ${CalendarContract.Instances.CALENDAR_ID} NOT IN (")
+                        append(hidden.joinToString(","))
+                        append(")")
+                    }
+                }
             context.contentResolver
                 .query(
                     windowUri(today, zone),
@@ -183,10 +193,7 @@ internal class CalendarRepository(
                         CalendarContract.Instances.TITLE,
                         CalendarContract.Instances.ALL_DAY,
                     ),
-                    // Respect the user's per-calendar visibility: events from a
-                    // calendar hidden in the calendar app must not surface on the
-                    // dashboard. Instances joins Calendars, so VISIBLE filters here.
-                    "${CalendarContract.Calendars.VISIBLE} = 1",
+                    selection,
                     null,
                     "${CalendarContract.Instances.BEGIN} ASC",
                 )?.use { cursor ->
@@ -235,52 +242,8 @@ internal class CalendarRepository(
             .atZone(if (allDay) ZoneOffset.UTC else zone)
             .toLocalDate()
 
-    /**
-     * Re-emit whenever the calendar provider notifies a change. Debounced
-     * because edit / delete operations on a single event can fire several
-     * notifications in quick succession.
-     *
-     * Registering an observer on the calendar provider requires `READ_CALENDAR`;
-     * without it `registerContentObserver` throws `SecurityException`. On a
-     * launcher that would crash the home screen on every cold start until the
-     * user grants the calendar, so a denied (or racing-revoked) grant skips
-     * registration rather than throwing. The card already renders the denial
-     * fallback from the clock alone (see [snapshotFlow]), and a grant that
-     * arrives later is picked up within a minute: each tick re-evaluates the
-     * permission state inside the rebuild key, so the grant flips the key and
-     * re-runs [buildSnapshot]. This mirrors [readWindow], whose `runCatching`
-     * already guards the query side against the same fault.
-     */
-    private fun calendarChangeFlow(): Flow<Unit> =
-        callbackFlow {
-            val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
-                override fun onChange(selfChange: Boolean) {
-                    trySend(Unit)
-                }
-            }
-            val registered =
-                hasPermission() &&
-                    runCatching {
-                        context.contentResolver.registerContentObserver(
-                            CalendarContract.Events.CONTENT_URI,
-                            // notifyForDescendants =
-                            true,
-                            observer,
-                        )
-                    }.onFailure {
-                        // Mirror readWindow's split: the revoke race is expected and
-                        // silent, but any other fault leaves the card stale until the
-                        // next rebuild-key change — that needs a trail.
-                        if (it !is SecurityException) Log.e(TAG, "calendar observer registration failed", it)
-                    }.isSuccess
-            awaitClose {
-                if (registered) context.contentResolver.unregisterContentObserver(observer)
-            }
-        }.debounce(CHANGE_DEBOUNCE_MS)
-
     private companion object {
         // Vertical day-list horizon (today .. today + WINDOW_DAYS).
         const val WINDOW_DAYS = 30
-        const val CHANGE_DEBOUNCE_MS = 500L
     }
 }

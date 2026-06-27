@@ -47,6 +47,7 @@ class CalendarRepositoryTest {
                 CalendarRepository(
                     application,
                     clockFlow = flowOf(ClockTick(LocalTime.NOON, LocalDate.of(2026, 6, 3))),
+                    hiddenCalendarIds = flowOf(emptySet()),
                 )
 
             val snapshot = repository.snapshotFlow().first()
@@ -78,6 +79,7 @@ class CalendarRepositoryTest {
                 CalendarRepository(
                     application,
                     clockFlow = flowOf(ClockTick(LocalTime.NOON, LocalDate.of(2026, 6, 3))),
+                    hiddenCalendarIds = flowOf(emptySet()),
                 )
 
             val snapshot = repository.snapshotFlow().first()
@@ -105,6 +107,7 @@ class CalendarRepositoryTest {
                 CalendarRepository(
                     application,
                     clockFlow = flowOf(ClockTick(LocalTime.NOON, LocalDate.of(2026, 6, 3))),
+                    hiddenCalendarIds = flowOf(emptySet()),
                 )
 
             val snapshot = repository.snapshotFlow().first()
@@ -134,6 +137,7 @@ class CalendarRepositoryTest {
                 CalendarRepository(
                     application,
                     clockFlow = flowOf(ClockTick(LocalTime.NOON, AllDayCalendarProvider.TODAY)),
+                    hiddenCalendarIds = flowOf(emptySet()),
                     zoneProvider = { newYork },
                 )
 
@@ -179,6 +183,7 @@ class CalendarRepositoryTest {
                 CalendarRepository(
                     application,
                     clockFlow = flowOf(ClockTick(LocalTime.NOON, MultiDayCalendarProvider.TODAY)),
+                    hiddenCalendarIds = flowOf(emptySet()),
                     zoneProvider = { ZoneOffset.UTC },
                 )
 
@@ -220,6 +225,7 @@ class CalendarRepositoryTest {
                             ClockTick(LocalTime.of(12, 1), date),
                             ClockTick(LocalTime.of(12, 2), date),
                         ),
+                    hiddenCalendarIds = flowOf(emptySet()),
                 )
 
             val snapshot = repository.snapshotFlow().first()
@@ -228,6 +234,40 @@ class CalendarRepositoryTest {
             // Same-date ticks collapse to one rebuild key, so the 30-day
             // Instances window is scanned once — not once per minute.
             assertEquals(1, CountingCalendarProvider.queryCount)
+        }
+
+    /**
+     * Calendar IDs hidden in the preferences must not appear in the agenda.
+     *
+     * The provider fake captures the selection string and also applies the
+     * NOT IN filter so the end-to-end title assertion is meaningful.
+     */
+    @Test
+    fun `hides events from hidden calendars`() =
+        runTest {
+            shadowOf(application).grantPermissions(Manifest.permission.READ_CALENDAR)
+            HiddenCalendarProvider.lastSelection = null
+            Robolectric
+                .buildContentProvider(HiddenCalendarProvider::class.java)
+                .create(CalendarContract.AUTHORITY)
+
+            val repo =
+                CalendarRepository(
+                    application,
+                    clockFlow = flowOf(ClockTick(LocalTime.NOON, HiddenCalendarProvider.TODAY)),
+                    hiddenCalendarIds = flowOf(setOf(2L)),
+                    zoneProvider = { ZoneOffset.UTC },
+                )
+            val snapshot = repo.snapshotFlow().first()
+
+            assertNotNull(snapshot)
+            // The repository must build a NOT IN clause so the resolver can filter.
+            val sel = HiddenCalendarProvider.lastSelection
+            assertNotNull(sel)
+            assertTrue(sel.contains("NOT IN (2)"), "expected NOT IN clause but got: $sel")
+            // The provider honours the NOT IN clause; only the Work event (cal 1) survives.
+            val titles = snapshot.days.flatMap { it.events }.map { it.title }
+            assertEquals(listOf("Work"), titles)
         }
 
     @Test
@@ -244,6 +284,7 @@ class CalendarRepositoryTest {
                     CalendarRepository(
                         application,
                         clockFlow = flowOf(ClockTick(LocalTime.NOON, today)),
+                        hiddenCalendarIds = flowOf(emptySet()),
                         localeProvider = { locale },
                     )
 
@@ -267,12 +308,14 @@ class CalendarRepositoryTest {
                 CalendarRepository(
                     application,
                     clockFlow = flowOf(ClockTick(LocalTime.NOON, today)),
+                    hiddenCalendarIds = flowOf(emptySet()),
                     localeProvider = { Locale.ENGLISH },
                 ).snapshotFlow().first()!!.monthLabel
             val jaLabel =
                 CalendarRepository(
                     application,
                     clockFlow = flowOf(ClockTick(LocalTime.NOON, today)),
+                    hiddenCalendarIds = flowOf(emptySet()),
                     localeProvider = { Locale.JAPANESE },
                 ).snapshotFlow().first()!!.monthLabel
             assertTrue(enLabel != jaLabel)
@@ -458,6 +501,103 @@ class CalendarRepositoryTest {
 
         companion object {
             var queryCount: Int = 0
+        }
+    }
+
+    /**
+     * Stand-in calendar provider with two rows — calendar 1 ("Work") and calendar 2
+     * ("Private"). It captures the [selection] argument passed by the repository and
+     * also applies the NOT IN filter so the end-to-end title assertion is meaningful.
+     * [lastSelection] is reset by the test before registering the provider because
+     * Robolectric can share the companion across test methods.
+     */
+    class HiddenCalendarProvider : ContentProvider() {
+        override fun onCreate(): Boolean = true
+
+        override fun query(
+            uri: Uri,
+            projection: Array<out String>?,
+            selection: String?,
+            selectionArgs: Array<out String>?,
+            sortOrder: String?,
+        ): Cursor {
+            lastSelection = selection
+            val excludedIds = parseNotInIds(selection)
+            val columns: Array<out String> =
+                projection ?: arrayOf(CalendarContract.Instances.BEGIN)
+            val cursor = MatrixCursor(columns)
+            ROWS
+                .filter { row -> row.calId !in excludedIds }
+                .forEach { row ->
+                    cursor.addRow(
+                        columns.map { column ->
+                            when (column) {
+                                CalendarContract.Instances.BEGIN -> row.beginMs
+                                CalendarContract.Instances.ALL_DAY -> 0
+                                CalendarContract.Instances.TITLE -> row.title
+                                else -> null
+                            }
+                        },
+                    )
+                }
+            return cursor
+        }
+
+        override fun getType(uri: Uri): String? = null
+
+        override fun insert(
+            uri: Uri,
+            values: ContentValues?,
+        ): Uri? = null
+
+        override fun delete(
+            uri: Uri,
+            selection: String?,
+            selectionArgs: Array<out String>?,
+        ): Int = 0
+
+        override fun update(
+            uri: Uri,
+            values: ContentValues?,
+            selection: String?,
+            selectionArgs: Array<out String>?,
+        ): Int = 0
+
+        data class Row(
+            val calId: Long,
+            val title: String,
+            val beginMs: Long,
+        )
+
+        companion object {
+            var lastSelection: String? = null
+            val TODAY: LocalDate = LocalDate.of(2099, 8, 1)
+
+            private fun at(hour: Int): Long =
+                TODAY
+                    .atTime(hour, 0)
+                    .atZone(ZoneOffset.UTC)
+                    .toInstant()
+                    .toEpochMilli()
+
+            val ROWS: List<Row> =
+                listOf(
+                    Row(1L, "Work", at(9)),
+                    Row(2L, "Private", at(10)),
+                )
+
+            // Extracts the IDs from a "NOT IN (1,2,3)" clause in the selection string.
+            // IDs are Longs without spaces, matching the joinToString(",") format the
+            // repository produces.
+            fun parseNotInIds(selection: String?): Set<Long> =
+                Regex("""NOT IN \(([0-9,]+)\)""")
+                    .find(selection.orEmpty())
+                    ?.groupValues
+                    ?.get(1)
+                    ?.split(",")
+                    ?.mapNotNull { it.toLongOrNull() }
+                    ?.toSet()
+                    .orEmpty()
         }
     }
 

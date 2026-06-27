@@ -260,6 +260,12 @@
     <string name="settings_group_panel_music">Music panel</string>
     <string name="settings_group_panel_music_spectrum">Music spectrum</string>
     <string name="settings_panel_music_spectrum_desc">Show a spectrum of the playing audio behind the playback controls; uses the audio-capture (microphone) permission.</string>
+    <string name="settings_visible_calendars">Visible calendars</string>
+    <string name="settings_visible_calendars_all">All calendars</string>
+    <string name="settings_visible_calendars_count">%1$d of %2$d shown</string>
+    <string name="settings_visible_calendars_none">Calendar access not granted</string>
+    <string name="settings_visible_calendars_empty">No calendars found</string>
+    <string name="settings_dialog_close">Close</string>
     <string name="settings_open_notification_access">Notification access</string>
     <string name="settings_open_system_settings">System settings</string>
     <string name="settings_open_diagnostics">Diagnostics</string>
