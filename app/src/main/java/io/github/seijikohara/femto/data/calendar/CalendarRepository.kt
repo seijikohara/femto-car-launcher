@@ -1,5 +1,3 @@
-@file:OptIn(kotlinx.coroutines.FlowPreview::class)
-
 package io.github.seijikohara.femto.data.calendar
 
 import android.Manifest
@@ -7,20 +5,14 @@ import android.annotation.SuppressLint
 import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
-import android.database.ContentObserver
-import android.os.Handler
-import android.os.Looper
 import android.provider.CalendarContract
 import android.text.format.DateFormat
 import android.util.Log
 import androidx.core.content.ContextCompat
 import io.github.seijikohara.femto.data.clock.ClockTick
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -76,7 +68,7 @@ internal class CalendarRepository(
             clockFlow
                 .map { Triple(it.date, hasPermission(), zoneProvider()) }
                 .distinctUntilChanged(),
-            calendarChangeFlow().onStart { emit(Unit) },
+            calendarChangeFlow(context).onStart { emit(Unit) },
         ) { (date, granted, zone), _ ->
             // The build consumes the key's own values (not fresh provider
             // reads) so the snapshot always matches the key that produced it.
@@ -235,52 +227,8 @@ internal class CalendarRepository(
             .atZone(if (allDay) ZoneOffset.UTC else zone)
             .toLocalDate()
 
-    /**
-     * Re-emit whenever the calendar provider notifies a change. Debounced
-     * because edit / delete operations on a single event can fire several
-     * notifications in quick succession.
-     *
-     * Registering an observer on the calendar provider requires `READ_CALENDAR`;
-     * without it `registerContentObserver` throws `SecurityException`. On a
-     * launcher that would crash the home screen on every cold start until the
-     * user grants the calendar, so a denied (or racing-revoked) grant skips
-     * registration rather than throwing. The card already renders the denial
-     * fallback from the clock alone (see [snapshotFlow]), and a grant that
-     * arrives later is picked up within a minute: each tick re-evaluates the
-     * permission state inside the rebuild key, so the grant flips the key and
-     * re-runs [buildSnapshot]. This mirrors [readWindow], whose `runCatching`
-     * already guards the query side against the same fault.
-     */
-    private fun calendarChangeFlow(): Flow<Unit> =
-        callbackFlow {
-            val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
-                override fun onChange(selfChange: Boolean) {
-                    trySend(Unit)
-                }
-            }
-            val registered =
-                hasPermission() &&
-                    runCatching {
-                        context.contentResolver.registerContentObserver(
-                            CalendarContract.Events.CONTENT_URI,
-                            // notifyForDescendants =
-                            true,
-                            observer,
-                        )
-                    }.onFailure {
-                        // Mirror readWindow's split: the revoke race is expected and
-                        // silent, but any other fault leaves the card stale until the
-                        // next rebuild-key change — that needs a trail.
-                        if (it !is SecurityException) Log.e(TAG, "calendar observer registration failed", it)
-                    }.isSuccess
-            awaitClose {
-                if (registered) context.contentResolver.unregisterContentObserver(observer)
-            }
-        }.debounce(CHANGE_DEBOUNCE_MS)
-
     private companion object {
         // Vertical day-list horizon (today .. today + WINDOW_DAYS).
         const val WINDOW_DAYS = 30
-        const val CHANGE_DEBOUNCE_MS = 500L
     }
 }
