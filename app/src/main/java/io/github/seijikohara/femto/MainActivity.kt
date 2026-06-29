@@ -181,6 +181,7 @@ class MainActivity : ComponentActivity() {
                             backend = effectiveBackend(
                                 stored = display.mapBackend,
                                 hasMapboxToken = display.mapboxAccessToken.isNotBlank(),
+                                hasGoogleMapsKey = display.googleMapsApiKey.isNotBlank(),
                             ),
                             mapboxToken = display.mapboxAccessToken,
                             mapboxStyle = display.mapboxStyle,
