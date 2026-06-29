@@ -341,6 +341,15 @@ async function initMap(): Promise<void> {
 		} else {
 			// Detached (free pan): the screen-fixed chevron points at arbitrary
 			// map, so hide it until the camera re-attaches to the location.
+			//
+			// DIVERGENCE from the OSM/Mapbox pages: those swap to a geo-anchored
+			// clone (syncGeoMarker) so the user still sees their GPS position on the
+			// panned map. Google Maps has no mapId-free, non-deprecated geo-marker —
+			// AdvancedMarkerElement needs a Cloud-configured mapId, and the classic
+			// google.maps.Marker is deprecated (barred by CLAUDE.md#no-suppress). So
+			// the self-marker is simply hidden while detached. A geo-anchored
+			// OverlayView (the only mapId-free, non-deprecated route, materially more
+			// complex) is a documented follow-up.
 			markerEl.style.display = "none";
 		}
 	}
@@ -400,26 +409,18 @@ async function initMap(): Promise<void> {
 		}
 	});
 
-	// First tilesloaded marks the map as rendered. After this point map errors
-	// are transient (flaky tiles), not fatal key/auth failures. Detach
-	// immediately; the event fires repeatedly.
+	// First tilesloaded marks the map as rendered and reports it to the host.
+	// The flag also closes the gm_authFailure fatal path (an auth failure can
+	// only arrive before the first render). Detach immediately; the event fires
+	// repeatedly. google.maps.Map emits no general "error" event, so the only
+	// fatal paths are the missing-key check, gm_authFailure, the WebGL pre-check,
+	// and the bootstrap/importLibrary rejection caught by initMap().catch().
 	const tilesListener = liveMap.addListener("tilesloaded", () => {
 		if (state.rendered) return;
 		state.rendered = true;
 		log("rendered");
 		report("render", "");
 		tilesListener.remove();
-	});
-
-	// An error before first render is almost always an invalid API key or
-	// network failure — surface a fatal so the host shows the key-entry notice.
-	// Errors after the first render are transient (flaky tiles): log-only.
-	liveMap.addListener("error", () => {
-		if (state.rendered) {
-			reportErrorThrottled("map-error");
-		} else {
-			report("fatal", "google-maps-load-error");
-		}
 	});
 
 	// Staleness timer: grey the chevron when fixes stop arriving (a tunnel).
