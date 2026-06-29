@@ -170,6 +170,12 @@ internal data class DisplaySettings(
     val mapboxTraffic: Boolean = false,
     /** User-supplied Mapbox public access token (pk.…); blank disables the Mapbox backend. */
     val mapboxAccessToken: String = "",
+    /** User-supplied Google Maps API key; blank disables the Google Maps backend. */
+    val googleMapsApiKey: String = "",
+    // Google Maps map type, only meaningful when mapBackend == GOOGLEMAPS.
+    val googleMapsMapType: GoogleMapType = GoogleMapType.ROADMAP,
+    // Whether to overlay live traffic on the Google Maps map.
+    val googleMapsTraffic: Boolean = false,
 ) {
     companion object {
         val Default =
@@ -205,6 +211,9 @@ internal data class DisplaySettings(
                 mapboxStyle = MapboxStyle.STANDARD,
                 mapboxTraffic = false,
                 mapboxAccessToken = "",
+                googleMapsApiKey = "",
+                googleMapsMapType = GoogleMapType.ROADMAP,
+                googleMapsTraffic = false,
             )
     }
 }

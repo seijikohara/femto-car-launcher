@@ -91,4 +91,18 @@ class DisplayPreferencesTest {
             assertEquals(MapboxStyle.SATELLITE, s.mapboxStyle)
             assertTrue(s.mapboxTraffic)
         }
+
+    @Test
+    fun googleMapsSettingsRoundTrip() =
+        runTest {
+            val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
+            store.resetToDefaults()
+            store.setGoogleMapsApiKey("AIzaTESTKEY")
+            store.setGoogleMapsMapType(GoogleMapType.HYBRID)
+            store.setGoogleMapsTraffic(true)
+            val settings = store.settings.first()
+            assertEquals("AIzaTESTKEY", settings.googleMapsApiKey)
+            assertEquals(GoogleMapType.HYBRID, settings.googleMapsMapType)
+            assertTrue(settings.googleMapsTraffic)
+        }
 }

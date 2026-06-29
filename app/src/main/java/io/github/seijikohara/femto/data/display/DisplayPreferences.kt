@@ -107,6 +107,12 @@ internal interface DisplaySettingsStore {
 
     suspend fun setMapboxAccessToken(value: String)
 
+    suspend fun setGoogleMapsApiKey(value: String)
+
+    suspend fun setGoogleMapsMapType(value: GoogleMapType)
+
+    suspend fun setGoogleMapsTraffic(value: Boolean)
+
     /** Restore every display setting to [DisplaySettings.Default]. */
     suspend fun resetToDefaults()
 }
@@ -157,6 +163,9 @@ internal class DisplayPreferences(
                     mapboxStyle = prefs[MAPBOX_STYLE_KEY].toEnumOr(MapboxStyle.STANDARD),
                     mapboxTraffic = prefs[MAPBOX_TRAFFIC_KEY] ?: false,
                     mapboxAccessToken = prefs[MAPBOX_ACCESS_TOKEN_KEY].orEmpty(),
+                    googleMapsApiKey = prefs[GOOGLE_MAPS_API_KEY_KEY].orEmpty(),
+                    googleMapsMapType = prefs[GOOGLE_MAPS_MAP_TYPE_KEY].toEnumOr(GoogleMapType.ROADMAP),
+                    googleMapsTraffic = prefs[GOOGLE_MAPS_TRAFFIC_KEY] ?: false,
                 )
             }
 
@@ -302,6 +311,18 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[MAPBOX_ACCESS_TOKEN_KEY] = value }
     }
 
+    override suspend fun setGoogleMapsApiKey(value: String) {
+        context.displayDataStore.editOrLog(TAG) { it[GOOGLE_MAPS_API_KEY_KEY] = value }
+    }
+
+    override suspend fun setGoogleMapsMapType(value: GoogleMapType) {
+        context.displayDataStore.editOrLog(TAG) { it[GOOGLE_MAPS_MAP_TYPE_KEY] = value.name }
+    }
+
+    override suspend fun setGoogleMapsTraffic(value: Boolean) {
+        context.displayDataStore.editOrLog(TAG) { it[GOOGLE_MAPS_TRAFFIC_KEY] = value }
+    }
+
     // Clearing every key makes the read path above fall back to its per-field
     // defaults, which are kept identical to DisplaySettings.Default — so a reset
     // restores the defaults without duplicating the default literals here.
@@ -341,5 +362,8 @@ internal class DisplayPreferences(
         val MAPBOX_STYLE_KEY = stringPreferencesKey("mapbox_style")
         val MAPBOX_TRAFFIC_KEY = booleanPreferencesKey("mapbox_traffic")
         val MAPBOX_ACCESS_TOKEN_KEY = stringPreferencesKey("mapbox_access_token")
+        val GOOGLE_MAPS_API_KEY_KEY = stringPreferencesKey("google_maps_api_key")
+        val GOOGLE_MAPS_MAP_TYPE_KEY = stringPreferencesKey("google_maps_map_type")
+        val GOOGLE_MAPS_TRAFFIC_KEY = booleanPreferencesKey("google_maps_traffic")
     }
 }

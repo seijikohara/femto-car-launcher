@@ -7,6 +7,7 @@ import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DisplaySettingsStore
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.FullscreenSetting
+import io.github.seijikohara.femto.data.display.GoogleMapType
 import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MapBackend
@@ -117,6 +118,13 @@ internal class FakeDisplaySettingsStore(
     override suspend fun setMapboxTraffic(value: Boolean) = state.update { it.copy(mapboxTraffic = value) }
 
     override suspend fun setMapboxAccessToken(value: String) = state.update { it.copy(mapboxAccessToken = value) }
+
+    override suspend fun setGoogleMapsApiKey(value: String) = state.update { it.copy(googleMapsApiKey = value) }
+
+    override suspend fun setGoogleMapsMapType(value: GoogleMapType) =
+        state.update { it.copy(googleMapsMapType = value) }
+
+    override suspend fun setGoogleMapsTraffic(value: Boolean) = state.update { it.copy(googleMapsTraffic = value) }
 
     override suspend fun resetToDefaults() = state.update { DisplaySettings.Default }
 }
