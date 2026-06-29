@@ -37,6 +37,7 @@ val buildWebMap =
         inputs.dir("../webmap/src")
         inputs.files(
             "../webmap/biome.json",
+            "../webmap/googlemaps.html",
             "../webmap/map.html",
             "../webmap/no-let.grit",
             "../webmap/package.json",
