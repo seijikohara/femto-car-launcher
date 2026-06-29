@@ -172,6 +172,8 @@ internal data class DisplaySettings(
     val mapboxAccessToken: String = "",
     /** User-supplied Google Maps API key; blank disables the Google Maps backend. */
     val googleMapsApiKey: String = "",
+    /** User-supplied Google Maps Map ID; blank uses the default raster map. */
+    val googleMapsMapId: String = "",
     // Google Maps map type, only meaningful when mapBackend == GOOGLEMAPS.
     val googleMapsMapType: GoogleMapType = GoogleMapType.ROADMAP,
     // Whether to overlay live traffic on the Google Maps map.
@@ -212,6 +214,7 @@ internal data class DisplaySettings(
                 mapboxTraffic = false,
                 mapboxAccessToken = "",
                 googleMapsApiKey = "",
+                googleMapsMapId = "",
                 googleMapsMapType = GoogleMapType.ROADMAP,
                 googleMapsTraffic = false,
             )

@@ -29,6 +29,7 @@ internal data class MapConfig(
     val mapboxToken: String = "",
     // Google Maps-specific fields; ignored when backend != GOOGLEMAPS.
     val googleMapsApiKey: String = "",
+    val googleMapsMapId: String = "",
     val googleMapsMapType: GoogleMapType = GoogleMapType.ROADMAP,
     val googleMapsTraffic: Boolean = false,
     val markerPos: Int = 70,

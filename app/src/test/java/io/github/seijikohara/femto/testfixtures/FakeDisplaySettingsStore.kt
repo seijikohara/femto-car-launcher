@@ -121,6 +121,8 @@ internal class FakeDisplaySettingsStore(
 
     override suspend fun setGoogleMapsApiKey(value: String) = state.update { it.copy(googleMapsApiKey = value) }
 
+    override suspend fun setGoogleMapsMapId(value: String) = state.update { it.copy(googleMapsMapId = value) }
+
     override suspend fun setGoogleMapsMapType(value: GoogleMapType) =
         state.update { it.copy(googleMapsMapType = value) }
 

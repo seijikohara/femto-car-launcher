@@ -187,6 +187,7 @@ class MainActivity : ComponentActivity() {
                             mapboxStyle = display.mapboxStyle,
                             mapboxTraffic = display.mapboxTraffic,
                             googleMapsApiKey = display.googleMapsApiKey,
+                            googleMapsMapId = display.googleMapsMapId,
                             googleMapsMapType = display.googleMapsMapType,
                             googleMapsTraffic = display.googleMapsTraffic,
                         ),

@@ -98,10 +98,12 @@ class DisplayPreferencesTest {
             val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
             store.resetToDefaults()
             store.setGoogleMapsApiKey("AIzaTESTKEY")
+            store.setGoogleMapsMapId("test-map-id-01")
             store.setGoogleMapsMapType(GoogleMapType.HYBRID)
             store.setGoogleMapsTraffic(true)
             val settings = store.settings.first()
             assertEquals("AIzaTESTKEY", settings.googleMapsApiKey)
+            assertEquals("test-map-id-01", settings.googleMapsMapId)
             assertEquals(GoogleMapType.HYBRID, settings.googleMapsMapType)
             assertTrue(settings.googleMapsTraffic)
         }

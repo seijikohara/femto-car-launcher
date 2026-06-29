@@ -109,6 +109,8 @@ internal interface DisplaySettingsStore {
 
     suspend fun setGoogleMapsApiKey(value: String)
 
+    suspend fun setGoogleMapsMapId(value: String)
+
     suspend fun setGoogleMapsMapType(value: GoogleMapType)
 
     suspend fun setGoogleMapsTraffic(value: Boolean)
@@ -164,6 +166,7 @@ internal class DisplayPreferences(
                     mapboxTraffic = prefs[MAPBOX_TRAFFIC_KEY] ?: false,
                     mapboxAccessToken = prefs[MAPBOX_ACCESS_TOKEN_KEY].orEmpty(),
                     googleMapsApiKey = prefs[GOOGLE_MAPS_API_KEY_KEY].orEmpty(),
+                    googleMapsMapId = prefs[GOOGLE_MAPS_MAP_ID_KEY].orEmpty(),
                     googleMapsMapType = prefs[GOOGLE_MAPS_MAP_TYPE_KEY].toEnumOr(GoogleMapType.ROADMAP),
                     googleMapsTraffic = prefs[GOOGLE_MAPS_TRAFFIC_KEY] ?: false,
                 )
@@ -315,6 +318,10 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[GOOGLE_MAPS_API_KEY_KEY] = value }
     }
 
+    override suspend fun setGoogleMapsMapId(value: String) {
+        context.displayDataStore.editOrLog(TAG) { it[GOOGLE_MAPS_MAP_ID_KEY] = value }
+    }
+
     override suspend fun setGoogleMapsMapType(value: GoogleMapType) {
         context.displayDataStore.editOrLog(TAG) { it[GOOGLE_MAPS_MAP_TYPE_KEY] = value.name }
     }
@@ -363,6 +370,7 @@ internal class DisplayPreferences(
         val MAPBOX_TRAFFIC_KEY = booleanPreferencesKey("mapbox_traffic")
         val MAPBOX_ACCESS_TOKEN_KEY = stringPreferencesKey("mapbox_access_token")
         val GOOGLE_MAPS_API_KEY_KEY = stringPreferencesKey("google_maps_api_key")
+        val GOOGLE_MAPS_MAP_ID_KEY = stringPreferencesKey("google_maps_map_id")
         val GOOGLE_MAPS_MAP_TYPE_KEY = stringPreferencesKey("google_maps_map_type")
         val GOOGLE_MAPS_TRAFFIC_KEY = booleanPreferencesKey("google_maps_traffic")
     }

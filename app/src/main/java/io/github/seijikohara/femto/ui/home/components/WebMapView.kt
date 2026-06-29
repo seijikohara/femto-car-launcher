@@ -209,7 +209,7 @@ internal fun WebMapView(
         // WebView and loads the correct page — without this key the old page keeps
         // running while the new backend's bridge effects fire against the wrong DOM.
         // rendererGeneration remains a key so renderer-death rebuilds still work.
-        remember(rendererGeneration, mapConfig.backend, mapConfig.mapboxToken, mapConfig.googleMapsApiKey) {
+        remember(rendererGeneration, mapConfig.backend, mapConfig.mapboxToken, mapConfig.googleMapsApiKey, mapConfig.googleMapsMapId) {
             val assetLoader =
                 WebViewAssetLoader
                     .Builder()
@@ -286,6 +286,11 @@ internal fun WebMapView(
                         // to authenticate the Maps JavaScript API instance.
                         @JavascriptInterface
                         fun googleMapsApiKey(): String = mapConfig.googleMapsApiKey
+
+                        // Read synchronously by googlemaps.html to enable vector
+                        // rendering; empty string means the default raster map is used.
+                        @JavascriptInterface
+                        fun googleMapsMapId(): String = mapConfig.googleMapsMapId
 
                         @JavascriptInterface
                         fun onMapEvent(
