@@ -271,6 +271,8 @@ internal sealed interface SettingsAction {
 
     data object ClearMapboxToken : SettingsAction
 
+    // Persist the key AND select the Google Maps backend atomically (one coroutine)
+    // so the gate never briefly sees backend=GOOGLEMAPS with a blank key.
     data class SaveGoogleMapsKey(
         val value: String,
     ) : SettingsAction

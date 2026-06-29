@@ -5,10 +5,16 @@ import kotlin.test.assertEquals
 
 class MapAccessTest {
     @Test fun mapbox_with_token_resolves_to_mapbox() =
-        assertEquals(MapBackend.MAPBOX, effectiveBackend(MapBackend.MAPBOX, hasMapboxToken = true, hasGoogleMapsKey = false))
+        assertEquals(
+            MapBackend.MAPBOX,
+            effectiveBackend(MapBackend.MAPBOX, hasMapboxToken = true, hasGoogleMapsKey = false),
+        )
 
     @Test fun mapbox_without_token_falls_back_to_osm() =
-        assertEquals(MapBackend.OSM, effectiveBackend(MapBackend.MAPBOX, hasMapboxToken = false, hasGoogleMapsKey = false))
+        assertEquals(
+            MapBackend.OSM,
+            effectiveBackend(MapBackend.MAPBOX, hasMapboxToken = false, hasGoogleMapsKey = false),
+        )
 
     @Test fun osm_with_token_stays_osm() =
         assertEquals(MapBackend.OSM, effectiveBackend(MapBackend.OSM, hasMapboxToken = true, hasGoogleMapsKey = false))

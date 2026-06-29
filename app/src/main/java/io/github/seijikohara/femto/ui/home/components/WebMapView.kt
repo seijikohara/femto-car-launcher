@@ -154,8 +154,12 @@ internal fun WebMapView(
     // Keyed on backend AND the Mapbox token so a fatal from one backend does not
     // suppress the other backend's page, and re-entering a corrected token clears
     // a prior token failure (the rebuilt WebView gets a fresh chance).
-    var liveInitFailed by remember(mapConfig.backend, mapConfig.mapboxToken, mapConfig.googleMapsApiKey) { mutableStateOf(false) }
-    var lastFatalDetail by remember(mapConfig.backend, mapConfig.mapboxToken, mapConfig.googleMapsApiKey) { mutableStateOf<String?>(null) }
+    var liveInitFailed by remember(mapConfig.backend, mapConfig.mapboxToken, mapConfig.googleMapsApiKey) {
+        mutableStateOf(false)
+    }
+    var lastFatalDetail by remember(mapConfig.backend, mapConfig.mapboxToken, mapConfig.googleMapsApiKey) {
+        mutableStateOf<String?>(null)
+    }
     // Bridge callbacks arrive on a WebView-managed background thread; Compose
     // state writes must land on the main thread.
     val mainHandler = remember { Handler(Looper.getMainLooper()) }

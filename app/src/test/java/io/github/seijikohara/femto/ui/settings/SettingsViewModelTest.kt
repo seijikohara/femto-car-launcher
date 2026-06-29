@@ -6,6 +6,7 @@ import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.FullscreenSetting
+import io.github.seijikohara.femto.data.display.GoogleMapType
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapboxStyle
@@ -355,6 +356,38 @@ class SettingsViewModelTest {
             vm.onAction(SettingsAction.SetCalendarHidden(id = 2L, hidden = true))
             advanceUntilIdle()
             assertEquals(setOf(2L), vm.uiState.value.hiddenCalendarIds)
+        }
+
+    @Test
+    fun `SaveGoogleMapsKey persists key then switches backend atomically`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            // Subscribe so WhileUiSubscribed keeps the upstream combine alive across both phases.
+            backgroundScope.launch { vm.uiState.collect { } }
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.SaveGoogleMapsKey("AIza-test-key"))
+            advanceUntilIdle()
+            assertEquals("AIza-test-key", vm.uiState.value.googleMapsApiKey)
+            assertEquals(MapBackend.GOOGLEMAPS, vm.uiState.value.mapBackend)
+
+            vm.onAction(SettingsAction.ClearGoogleMapsKey)
+            advanceUntilIdle()
+            assertEquals("", vm.uiState.value.googleMapsApiKey)
+        }
+
+    @Test
+    fun `SetGoogleMapsMapType and SetGoogleMapsTraffic surface in uiState`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            backgroundScope.launch { vm.uiState.collect { } }
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.SetGoogleMapsMapType(GoogleMapType.SATELLITE))
+            vm.onAction(SettingsAction.SetGoogleMapsTraffic(true))
+            advanceUntilIdle()
+            assertEquals(GoogleMapType.SATELLITE, vm.uiState.value.googleMapsMapType)
+            assertEquals(true, vm.uiState.value.googleMapsTraffic)
         }
 
     private fun viewModel() =
