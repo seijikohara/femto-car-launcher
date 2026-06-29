@@ -36,6 +36,15 @@ coordinates to the following services, governed by their own privacy policies:
   Mapbox access token is stored on-device only and is not transmitted by the launcher;
   Mapbox GL JS in the WebView uses it to fetch tiles directly from Mapbox. This data is
   governed by the [Mapbox privacy policy](https://www.mapbox.com/legal/privacy).
+- **Map tiles (optional Google Maps backend)** — if you enter your own Google Maps
+  Platform API key in Settings to enable the Google Maps map backend, location
+  coordinates are sent to Google (`maps.googleapis.com`) to render the map, satellite
+  imagery, and traffic via the Google Maps JavaScript API. Your API key is stored
+  on-device only; the Google Maps JS API loaded in the WebView uses it to fetch map
+  data directly from Google. This data is governed by the
+  [Google privacy policy](https://policies.google.com/privacy), and your use of your
+  own key is subject to the
+  [Google Maps Platform Terms of Service](https://cloud.google.com/maps-platform/terms).
 - **Reverse geocoding (address)** — by default the app uses the **on-device**
   Android geocoder. On devices with Google services, that geocoder is provided by
   Google and may process the coordinates. If you configure a self-hosted geocoding
@@ -50,13 +59,16 @@ control.
 ## What the app does NOT do
 
 - No advertising, no analytics, no crash-reporting SDKs — except the optional
-  Mapbox map backend's usage telemetry, disclosed below.
+  Mapbox and Google Maps map backends' usage data collection, disclosed below.
 - No sale or sharing of personal data for advertising.
 - No collection of device or advertising identifiers — **except** when you enable
   the optional Mapbox map backend by entering your own access token: Mapbox GL JS
   sends usage telemetry to Mapbox as part of its standard operation, and the app
   cannot fully disable this. The telemetry is governed by the
-  [Mapbox privacy policy](https://www.mapbox.com/legal/privacy).
+  [Mapbox privacy policy](https://www.mapbox.com/legal/privacy). Likewise, the
+  optional Google Maps backend, when enabled with your own API key, sends usage
+  data to Google as part of the Google Maps JavaScript API's standard operation,
+  governed by the [Google privacy policy](https://policies.google.com/privacy).
   The default OSM backend does not send any analytics or telemetry.
 - No background location collection. The optional trip-tracking foreground
   service runs only while you enable it and only while the app would otherwise
