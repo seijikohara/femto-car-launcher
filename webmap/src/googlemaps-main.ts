@@ -119,10 +119,10 @@ function log(msg: string): void {
 // JS -> Android event channel. "fatal" = definitive never-going-to-render
 // facts; "error" = transient resource failures, log-only on the host;
 // "follow" = camera follow state flips; "bearing" = throttled map bearing for
-// the compass overlay; "render" = the first painted frame. No kind triggers a
-// backend switch — there is no auto-fallback.
+// the compass overlay. No kind triggers a backend switch — there is no
+// auto-fallback.
 function report(
-	kind: "fatal" | "error" | "follow" | "bearing" | "render",
+	kind: "fatal" | "error" | "follow" | "bearing",
 	detail: unknown,
 ): void {
 	try {
@@ -409,17 +409,18 @@ async function initMap(): Promise<void> {
 		}
 	});
 
-	// First tilesloaded marks the map as rendered and reports it to the host.
-	// The flag also closes the gm_authFailure fatal path (an auth failure can
-	// only arrive before the first render). Detach immediately; the event fires
-	// repeatedly. google.maps.Map emits no general "error" event, so the only
-	// fatal paths are the missing-key check, gm_authFailure, the WebGL pre-check,
-	// and the bootstrap/importLibrary rejection caught by initMap().catch().
+	// First tilesloaded marks the map as rendered. The flag also closes the
+	// gm_authFailure fatal path (an auth failure can only arrive before the
+	// first render). Log to console for diagnostics; the host detects readiness
+	// via onPageFinished, not a bridge event. Detach immediately; the event
+	// fires repeatedly. google.maps.Map emits no general "error" event, so the
+	// only fatal paths are the missing-key check, gm_authFailure, the WebGL
+	// pre-check, and the bootstrap/importLibrary rejection caught by
+	// initMap().catch().
 	const tilesListener = liveMap.addListener("tilesloaded", () => {
 		if (state.rendered) return;
 		state.rendered = true;
 		log("rendered");
-		report("render", "");
 		tilesListener.remove();
 	});
 

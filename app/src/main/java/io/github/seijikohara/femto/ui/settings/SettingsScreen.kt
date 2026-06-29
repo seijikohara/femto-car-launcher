@@ -294,8 +294,7 @@ internal fun SettingsScreen(
                         }
 
                         backend == MapBackend.GOOGLEMAPS && uiState.googleMapsApiKey.isBlank() -> {
-                            showGoogleKeyDialog =
-                                true
+                            showGoogleKeyDialog = true
                         }
 
                         else -> {
