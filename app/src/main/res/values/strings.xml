@@ -11,6 +11,8 @@
     <string name="map_live_init_failed_hint">This device can\'t render the live map. Switch the map provider to OpenStreetMap in Settings.</string>
     <string name="map_mapbox_failed">Mapbox map can\'t load</string>
     <string name="map_mapbox_failed_hint">Check your Mapbox access token in Settings — it must be a valid public token starting with \"pk.\", and you need an internet connection. You can also switch back to OpenStreetMap.</string>
+    <string name="map_googlemaps_failed">Google Maps can\'t load</string>
+    <string name="map_googlemaps_failed_hint">Check your Google Maps API key in Settings — it must be a valid key with the Maps JavaScript API enabled, and you need an internet connection. You can also switch back to OpenStreetMap.</string>
     <string name="calendar_query_failed">Calendar couldn\'t be read</string>
     <string name="font_download_failed">Download failed — tap to retry</string>
     <string name="map_attribution">© OpenStreetMap · OpenMapTiles · OpenFreeMap</string>

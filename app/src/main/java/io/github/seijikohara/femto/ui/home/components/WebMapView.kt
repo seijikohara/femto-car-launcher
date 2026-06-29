@@ -154,34 +154,42 @@ internal fun WebMapView(
     // Keyed on backend AND the Mapbox token so a fatal from one backend does not
     // suppress the other backend's page, and re-entering a corrected token clears
     // a prior token failure (the rebuilt WebView gets a fresh chance).
-    var liveInitFailed by remember(mapConfig.backend, mapConfig.mapboxToken) { mutableStateOf(false) }
-    var lastFatalDetail by remember(mapConfig.backend, mapConfig.mapboxToken) { mutableStateOf<String?>(null) }
+    var liveInitFailed by remember(mapConfig.backend, mapConfig.mapboxToken, mapConfig.googleMapsApiKey) { mutableStateOf(false) }
+    var lastFatalDetail by remember(mapConfig.backend, mapConfig.mapboxToken, mapConfig.googleMapsApiKey) { mutableStateOf<String?>(null) }
     // Bridge callbacks arrive on a WebView-managed background thread; Compose
     // state writes must land on the main thread.
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
 
-    // A blank token with the Mapbox backend is a configuration error that will
-    // never self-heal at runtime — show the notice immediately so the map area is
-    // not a permanently blank white box.
+    // A blank token/key with the Mapbox or Google Maps backend is a configuration
+    // error that will never self-heal at runtime — show the notice immediately so
+    // the map area is not a permanently blank white box.
     val mapboxBackend = mapConfig.backend == MapBackend.MAPBOX
     val mapboxTokenMissing = mapboxBackend && mapConfig.mapboxToken.isBlank()
     // A Mapbox failure (blank token, or a style that never loads — almost always
     // an invalid token) gets token-specific guidance instead of the generic notice.
     val mapboxProblem = mapboxBackend && (mapboxTokenMissing || liveInitFailed)
 
-    if (rendererGaveUp || liveInitFailed || mapboxTokenMissing) {
+    val googleMapsBackend = mapConfig.backend == MapBackend.GOOGLEMAPS
+    val googleMapsKeyMissing = googleMapsBackend && mapConfig.googleMapsApiKey.isBlank()
+    // A Google Maps failure (blank key, or the Maps JS API refusing to load —
+    // almost always an invalid or unregistered key) gets key-specific guidance.
+    val googleMapsProblem = googleMapsBackend && (googleMapsKeyMissing || liveInitFailed)
+
+    if (rendererGaveUp || liveInitFailed || mapboxTokenMissing || googleMapsKeyMissing) {
         Box(modifier = modifier) {
             LiveMapNotice(
                 titleRes =
                     when {
                         rendererGaveUp -> R.string.map_live_renderer_gone
                         mapboxProblem -> R.string.map_mapbox_failed
+                        googleMapsProblem -> R.string.map_googlemaps_failed
                         else -> R.string.map_live_init_failed
                     },
                 hintRes =
                     when {
                         rendererGaveUp -> R.string.map_live_renderer_gone_hint
                         mapboxProblem -> R.string.map_mapbox_failed_hint
+                        googleMapsProblem -> R.string.map_googlemaps_failed_hint
                         else -> R.string.map_live_init_failed_hint
                     },
                 // Why it failed is debugging detail, not driver-facing content.
@@ -197,7 +205,7 @@ internal fun WebMapView(
         // WebView and loads the correct page — without this key the old page keeps
         // running while the new backend's bridge effects fire against the wrong DOM.
         // rendererGeneration remains a key so renderer-death rebuilds still work.
-        remember(rendererGeneration, mapConfig.backend, mapConfig.mapboxToken) {
+        remember(rendererGeneration, mapConfig.backend, mapConfig.mapboxToken, mapConfig.googleMapsApiKey) {
             val assetLoader =
                 WebViewAssetLoader
                     .Builder()
@@ -269,6 +277,11 @@ internal fun WebMapView(
                         // from MapConfig (user-supplied at runtime via DisplaySettings).
                         @JavascriptInterface
                         fun mapboxToken(): String = mapConfig.mapboxToken
+
+                        // Read synchronously by googlemaps.html before map initialisation
+                        // to authenticate the Maps JavaScript API instance.
+                        @JavascriptInterface
+                        fun googleMapsApiKey(): String = mapConfig.googleMapsApiKey
 
                         @JavascriptInterface
                         fun onMapEvent(
@@ -394,6 +407,18 @@ internal fun WebMapView(
             val lightPreset = lightPresetFor(isDark)
             webView.evaluateJavascript(
                 "window.setMapboxStyle && setMapboxStyle('$styleId', '$lightPreset', ${mapConfig.mapboxTraffic})",
+                null,
+            )
+        }
+    }
+    // Google Maps backend: push map type and traffic toggle live. Map type/traffic
+    // do not churn with the theme cross-fade, so no debounce is needed — but the
+    // same pageReady guard as the other pushes applies.
+    if (mapConfig.backend == MapBackend.GOOGLEMAPS) {
+        LaunchedEffect(webView, pageReady.value, mapConfig.googleMapsMapType, mapConfig.googleMapsTraffic) {
+            if (!pageReady.value) return@LaunchedEffect
+            webView.evaluateJavascript(
+                "window.setGoogleMapsOptions && setGoogleMapsOptions('${mapConfig.googleMapsMapType.name}', ${mapConfig.googleMapsTraffic})",
                 null,
             )
         }
@@ -542,7 +567,11 @@ private fun appAssetsUrl(asset: String): String = "$APPASSETS_ORIGIN/assets/$ass
 
 // Select the HTML page to load based on the active map backend.
 internal fun mapPageUrl(backend: MapBackend) =
-    WEB_BASE + if (backend == MapBackend.MAPBOX) "mapbox.html" else "map.html"
+    WEB_BASE + when (backend) {
+        MapBackend.MAPBOX -> "mapbox.html"
+        MapBackend.GOOGLEMAPS -> "googlemaps.html"
+        MapBackend.OSM -> "map.html"
+    }
 
 // Mapbox GL JS style identifier for the user-chosen style preset.
 internal fun mapboxStyleId(style: MapboxStyle) =
