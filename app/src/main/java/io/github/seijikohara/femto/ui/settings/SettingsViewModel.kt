@@ -237,6 +237,23 @@ internal class SettingsViewModel(
                     displayPreferences.setMapboxAccessToken("")
                 }
 
+                is SettingsAction.SaveGoogleMapsKey -> {
+                    displayPreferences.setGoogleMapsApiKey(action.value.trim())
+                    displayPreferences.setMapBackend(MapBackend.GOOGLEMAPS)
+                }
+
+                SettingsAction.ClearGoogleMapsKey -> {
+                    displayPreferences.setGoogleMapsApiKey("")
+                }
+
+                is SettingsAction.SetGoogleMapsMapType -> {
+                    displayPreferences.setGoogleMapsMapType(action.value)
+                }
+
+                is SettingsAction.SetGoogleMapsTraffic -> {
+                    displayPreferences.setGoogleMapsTraffic(action.value)
+                }
+
                 is SettingsAction.SetCalendarHidden -> {
                     calendarPreferences.setCalendarHidden(action.id, action.hidden)
                 }
