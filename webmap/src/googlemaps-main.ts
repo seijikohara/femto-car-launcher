@@ -4,9 +4,18 @@
 //
 // The Google Maps JS API is loaded at runtime from Google's CDN via the
 // official inline bootstrap loader — it must never be bundled or self-hosted
-// (Google Maps Platform ToS). The loader is injected programmatically so
-// the API key comes from the Android bridge at runtime rather than being
-// baked into the HTML at build time.
+// (Google Maps Platform ToS). The loader is injected programmatically so the
+// API key comes from the Android bridge at runtime rather than being baked
+// into the HTML at build time.
+//
+// Self-marker: the host drives a screen-pinned DOM chevron through
+// updateCamera (markerColor / markerPos / safe-zone fractions), exactly like
+// the OSM and Mapbox pages — NOT a geo-anchored map marker. The Google Maps
+// camera API exposes no per-frame padding/focal-offset primitive (unlike
+// MapLibre/Mapbox `padding`), so the chevron is pinned at the rendered
+// location (screen centre) to keep it sitting on the user's position; the
+// markerPos/safe-zone look-ahead offset the other two backends apply via
+// camera padding is a documented divergence here.
 import {
 	AUTO_REFOLLOW_MS,
 	appliedBearing,
@@ -55,8 +64,8 @@ declare global {
 	}
 }
 
-// Minimal type stubs for the Google Maps JS API (CDN-loaded at runtime,
-// never bundled). These cover only the surface this page exercises.
+// Minimal type stubs for the Google Maps JS API (CDN-loaded at runtime, never
+// bundled). These cover only the surface this page exercises.
 interface GMLatLng {
 	lat: number;
 	lng: number;
@@ -76,53 +85,16 @@ interface GMMap {
 	getHeading(): number | undefined;
 	addListener(event: string, handler: () => void): GMMapsEventListener;
 }
-interface GMAdvancedMarker {
-	position: GMLatLng | null;
-	map: GMMap | null;
-}
-interface GMAdvancedMarkerOptions {
-	position: GMLatLng;
-	map: GMMap;
-	title?: string;
-	content?: HTMLElement;
-	zIndex?: number;
-}
 interface GMTrafficLayer {
 	setMap(map: GMMap | null): void;
-}
-interface GMPolyline {
-	setMap(map: GMMap | null): void;
-	setPath(path: GMLatLng[]): void;
-}
-interface GMPolylineOptions {
-	path?: GMLatLng[];
-	geodesic?: boolean;
-	strokeColor?: string;
-	strokeOpacity?: number;
-	strokeWeight?: number;
-	map?: GMMap;
 }
 interface GMMapsLibrary {
 	Map: new (el: HTMLElement, opts: Record<string, unknown>) => GMMap;
 	TrafficLayer: new () => GMTrafficLayer;
-	Polyline: new (opts: GMPolylineOptions) => GMPolyline;
-}
-interface GMMarkerLibrary {
-	AdvancedMarkerElement: new (
-		opts: GMAdvancedMarkerOptions,
-	) => GMAdvancedMarker;
 }
 interface GMNamespace {
 	importLibrary(name: "maps"): Promise<GMMapsLibrary>;
-	importLibrary(name: "marker"): Promise<GMMarkerLibrary>;
 	importLibrary(name: string): Promise<Record<string, unknown>>;
-}
-
-// JSON payload shape for setFeatures (overlays: self-position + route).
-interface FeaturesPayload {
-	position?: { lat: number; lng: number };
-	markerColor?: string;
-	route?: Array<{ lat: number; lng: number }>;
 }
 
 // Typed accessor for the Google Maps bridge (mirrors mapboxBridge() in
@@ -145,9 +117,10 @@ function log(msg: string): void {
 }
 
 // JS -> Android event channel. "fatal" = definitive never-going-to-render
-// facts; "error" = transient resource failures; "follow" = camera follow
-// state flips; "bearing" = throttled map bearing for the compass overlay.
-// No kind triggers a backend switch — there is no auto-fallback.
+// facts; "error" = transient resource failures, log-only on the host;
+// "follow" = camera follow state flips; "bearing" = throttled map bearing for
+// the compass overlay; "render" = the first painted frame. No kind triggers a
+// backend switch — there is no auto-fallback.
 function report(
 	kind: "fatal" | "error" | "follow" | "bearing" | "render",
 	detail: unknown,
@@ -159,21 +132,68 @@ function report(
 	}
 }
 
-// Throttle per-frame error reports so a flaky tile server does not spray
-// logcat with thousands of identical lines.
-const ERROR_REPORT_INTERVAL_MS = 10_000;
+// Mutable page state in one const holder (let/var are banned — see biome.json
+// and no-let.grit). All camera pushes and API ops read+write through here.
+const state = {
+	map: undefined as GMMap | undefined,
+	trafficLayer: null as GMTrafficLayer | null,
+	// Set to true on the first tilesloaded event; gates fatal error reporting
+	// (errors after first render are transient, not key/auth failures).
+	rendered: false,
+	lastErrorReportMs: 0,
+	following: true,
+	refollowTimer: 0 as ReturnType<typeof setTimeout> | 0,
+	northUp: false,
+	lastBearing: null as number | null,
+	lastFixMs: 0,
+	lastPushedZoom: 0,
+	// Google Maps fires camera-change events for BOTH programmatic moveCamera
+	// calls and user gestures, with no originalEvent flag to tell them apart.
+	// Each programmatic move opens a short suppression window; change events
+	// inside it are treated as programmatic (no follow detach), and events
+	// after it as user gestures. moveCamera is immediate (no animation), so its
+	// events fire well within the window while user input between fixes does not.
+	programmaticUntil: 0,
+	lastFix: null as {
+		lat: number;
+		lng: number;
+		heading: number;
+		zoom: number;
+		tilt: number;
+	} | null,
+};
 
+// Suppression window after each programmatic moveCamera (see state.programmaticUntil).
+const GESTURE_SUPPRESS_MS = 60;
+
+// Throttle per-frame error reports so a flaky tile server does not spray
+// logcat (and the in-app diagnostics tail) with thousands of identical lines.
+const ERROR_REPORT_INTERVAL_MS = 10_000;
+function reportErrorThrottled(detail: string): void {
+	const now = Date.now();
+	if (now - state.lastErrorReportMs >= ERROR_REPORT_INTERVAL_MS) {
+		state.lastErrorReportMs = now;
+		report("error", detail.slice(0, 200));
+	}
+}
+
+// A post-init exception inside a bridge call or an unhandled rejection would
+// otherwise reach only the JS console, invisible on an adb-unreachable head
+// unit. Route both through the throttled channel so the in-app diagnostics
+// tail sees them.
 window.addEventListener("error", (e) => {
 	log(`uncaught: ${e.message}`);
+	reportErrorThrottled(e.message || "uncaught error");
 });
 window.addEventListener("unhandledrejection", (e) => {
 	const reason =
 		e.reason instanceof Error ? e.reason.message : String(e.reason);
 	log(`unhandledrejection: ${reason}`);
+	reportErrorThrottled(reason);
 });
 
-// Google Maps requires WebGL; report fatal immediately if absent so the
-// host shows a clear notice rather than a silent blank page.
+// Google Maps requires WebGL; report fatal immediately if absent so the host
+// shows a clear notice rather than a silent blank page.
 (() => {
 	const c = document.createElement("canvas");
 	if (!(c.getContext("webgl2") || c.getContext("webgl"))) {
@@ -182,13 +202,26 @@ window.addEventListener("unhandledrejection", (e) => {
 	}
 })();
 
+// Self-location chevron: a fixed-on-screen DOM overlay (see #self-marker CSS).
+// The camera centres the location under the chevron, so the chevron stays still
+// and the map slides + rotates beneath it (car-nav style). Heading-up by
+// default: the chevron points to the top of the frame and the map rotates to
+// the travel bearing; north-up keeps the map north-aligned and rotates the
+// chevron instead. rotateX lays it onto the tilted ground plane.
+const markerEl = document.getElementById("self-marker") as HTMLElement;
+const markerPath = markerEl.querySelector("path");
+
+function syncChevronTransform(tilt: number, heading: number): void {
+	const turn = state.northUp ? heading : 0;
+	markerEl.style.transform = `translate(-50%, -50%) perspective(600px) rotateX(${tilt}deg) rotateZ(${turn}deg)`;
+}
+
 // Pending bridge calls queued by module-top-level stubs so that host pushes
 // arriving before initMap completes are not silently dropped. onPageFinished
 // can fire before the async import chain resolves on a slow first load.
 const pending = {
 	camera: null as Parameters<Window["updateCamera"]> | null,
 	options: null as [string, boolean] | null,
-	features: null as string | null,
 	follow: null as boolean | null,
 	northUp: null as boolean | null,
 	resume: false,
@@ -208,52 +241,6 @@ window.onHostResume = () => {
 window.setGoogleMapsOptions = (type, traffic) => {
 	pending.options = [type, traffic] as [string, boolean];
 };
-// setFeatures is Google Maps specific (OSM uses a 3-param variant); assign
-// via the window object directly to avoid a type conflict with main.ts's
-// Window.setFeatures declaration that shares the same tsconfig scope.
-// The double-cast through unknown is required because Window.setFeatures from
-// main.ts (buildings, terrain, buildingColor) is not directly castable to the
-// 1-arg JSON variant — the signatures are incompatible for a direct cast.
-(window as unknown as { setFeatures: (json: string) => void }).setFeatures = (
-	json,
-) => {
-	pending.features = json;
-};
-
-// Mutable page state in one const holder (let/var are banned — see biome.json
-// and no-let.grit). All camera pushes and API ops read+write through here.
-const state = {
-	map: undefined as GMMap | undefined,
-	selfMarker: null as GMAdvancedMarker | null,
-	routePolyline: null as GMPolyline | null,
-	trafficLayer: null as GMTrafficLayer | null,
-	// Set to true on the first tilesloaded event; gates fatal error reporting
-	// (errors after first render are transient, not token/auth failures).
-	rendered: false,
-	lastErrorReportMs: 0,
-	following: true,
-	refollowTimer: 0 as ReturnType<typeof setTimeout> | 0,
-	northUp: false,
-	lastBearing: null as number | null,
-	lastFixMs: 0,
-	firstCamera: true,
-	lastPushedZoom: 0,
-	lastFix: null as {
-		lat: number;
-		lng: number;
-		heading: number;
-		zoom: number;
-		tilt: number;
-	} | null,
-};
-
-// Class constructors populated once after importLibrary resolves; held here
-// so setFeatures and setGoogleMapsOptions can reach them after init.
-const libs = {
-	PolylineCtor: null as GMMapsLibrary["Polyline"] | null,
-	AdvancedMarkerCtor: null as GMMarkerLibrary["AdvancedMarkerElement"] | null,
-	TrafficLayerCtor: null as GMMapsLibrary["TrafficLayer"] | null,
-};
 
 // Maps the GoogleMapType enum name strings from the Android bridge to the
 // Google Maps JS API map type id strings.
@@ -263,61 +250,6 @@ const MAP_TYPE_IDS: Record<string, string> = {
 	HYBRID: "hybrid",
 	TERRAIN: "terrain",
 };
-
-function reportErrorThrottled(detail: string): void {
-	const now = Date.now();
-	if (now - state.lastErrorReportMs >= ERROR_REPORT_INTERVAL_MS) {
-		state.lastErrorReportMs = now;
-		report("error", detail.slice(0, 200));
-	}
-}
-
-// --- Camera-follow state machine --------------------------------------------
-
-function easeHome(): void {
-	const fix = state.lastFix;
-	const liveMap = state.map;
-	if (!fix || !liveMap) return;
-	liveMap.moveCamera({
-		center: { lat: fix.lat, lng: fix.lng },
-		zoom: fix.zoom,
-		heading: appliedBearing(state.northUp, fix.heading),
-		tilt: fix.tilt,
-	});
-}
-
-function setFollowing(follow: boolean): void {
-	if (state.following === follow) return;
-	state.following = follow;
-	report("follow", follow);
-	if (follow) {
-		if (state.refollowTimer) clearTimeout(state.refollowTimer);
-		state.refollowTimer = 0;
-		easeHome();
-	}
-}
-
-function armRefollow(): void {
-	if (state.refollowTimer) clearTimeout(state.refollowTimer);
-	state.refollowTimer = setTimeout(() => setFollowing(true), AUTO_REFOLLOW_MS);
-}
-
-// --- Traffic layer toggle ---------------------------------------------------
-
-function applyTraffic(on: boolean): void {
-	const liveMap = state.map;
-	if (!liveMap) return;
-	if (on) {
-		if (!state.trafficLayer) {
-			state.trafficLayer = libs.TrafficLayerCtor
-				? new libs.TrafficLayerCtor()
-				: null;
-		}
-		state.trafficLayer?.setMap(liveMap);
-	} else {
-		state.trafficLayer?.setMap(null);
-	}
-}
 
 // --- Map construction -------------------------------------------------------
 
@@ -349,11 +281,6 @@ async function initMap(): Promise<void> {
 	// importLibrary is available immediately after the bootstrap snippet runs.
 	const gm = gmapsNS();
 	const mapsLib = await gm.importLibrary("maps");
-	const markerLib = await gm.importLibrary("marker");
-
-	libs.PolylineCtor = mapsLib.Polyline;
-	libs.TrafficLayerCtor = mapsLib.TrafficLayer;
-	libs.AdvancedMarkerCtor = markerLib.AdvancedMarkerElement;
 
 	const mapEl = document.getElementById("map");
 	if (!mapEl) {
@@ -361,66 +288,74 @@ async function initMap(): Promise<void> {
 		return;
 	}
 
-	// attributionControl is left at its default (visible): Google Maps ToS
-	// require the Google logo and attribution text to remain visible at all
-	// times. Do not attempt to suppress or reposition the attribution overlay.
-	//
-	// mapId "DEMO_MAP_ID" enables vector-map features including AdvancedMarker
-	// support and heading control. Production deployments should supply a real
-	// Map ID configured in Google Cloud Console.
+	// disableDefaultUI suppresses the control buttons only; the Google logo and
+	// attribution text render regardless and must remain visible at all times
+	// (Google Maps ToS). Do not attempt to hide or reposition the attribution.
+	// headingInteractionEnabled is false: heading is driven solely by the host
+	// (heading-up vs north-up), never by user rotation gestures.
 	const liveMap = new mapsLib.Map(mapEl as HTMLElement, {
 		center: { lat: 0, lng: 0 },
 		zoom: 1,
 		heading: 0,
 		tilt: 0,
 		mapTypeId: "roadmap",
-		mapId: "DEMO_MAP_ID",
 		disableDefaultUI: true,
 		gestureHandling: "greedy",
 		keyboardShortcuts: false,
+		headingInteractionEnabled: false,
 	});
 	state.map = liveMap;
+	// Traffic layer is created once and toggled on/off via setMap (memoized).
+	state.trafficLayer = new mapsLib.TrafficLayer();
 
-	// First tilesloaded marks the map as rendered. After this point map errors
-	// are transient (flaky tiles), not fatal key/auth failures — so no further
-	// fatal reports are issued. Detach immediately; the event fires repeatedly.
-	const tilesListener = liveMap.addListener("tilesloaded", () => {
-		if (state.rendered) return;
-		state.rendered = true;
-		log("rendered");
-		report("render", "");
-		tilesListener.remove();
-	});
+	// A programmatic move opens the gesture-suppression window, then issues the
+	// immediate (un-animated) camera move. Camera-change events fired by this
+	// call land inside the window and are ignored by the gesture detacher.
+	function moveCam(opts: GMCameraOptions): void {
+		state.programmaticUntil = Date.now() + GESTURE_SUPPRESS_MS;
+		liveMap.moveCamera(opts);
+	}
 
-	// Errors before first render are almost always an invalid API key or
-	// network failure. Surface them as fatal so the host shows the key-entry
-	// notice. Errors after the first render are transient; log-only.
-	liveMap.addListener("error", () => {
-		if (state.rendered) {
-			reportErrorThrottled("map-error");
+	// --- Camera-follow state machine -----------------------------------------
+
+	function easeHome(): void {
+		const fix = state.lastFix;
+		if (!fix) return;
+		moveCam({
+			center: { lat: fix.lat, lng: fix.lng },
+			zoom: fix.zoom,
+			heading: appliedBearing(state.northUp, fix.heading),
+			tilt: fix.tilt,
+		});
+	}
+
+	function setFollowing(follow: boolean): void {
+		if (state.following === follow) return;
+		state.following = follow;
+		report("follow", follow);
+		if (follow) {
+			if (state.refollowTimer) clearTimeout(state.refollowTimer);
+			state.refollowTimer = 0;
+			markerEl.style.display = "block";
+			easeHome();
 		} else {
-			report("fatal", "google-maps-load-error");
+			// Detached (free pan): the screen-fixed chevron points at arbitrary
+			// map, so hide it until the camera re-attaches to the location.
+			markerEl.style.display = "none";
 		}
-	});
+	}
 
-	// Throttled bearing reports so the host compass overlay can track
-	// orientation in either heading-up or north-up mode.
-	const BEARING_REPORT_INTERVAL_MS = 150;
-	const bearingReport = { lastMs: 0, lastSent: "" };
-	liveMap.addListener("heading_changed", () => {
-		const now = Date.now();
-		if (now - bearingReport.lastMs < BEARING_REPORT_INTERVAL_MS) return;
-		const raw = liveMap.getHeading() ?? 0;
-		const bearing = raw.toFixed(1);
-		if (bearing === bearingReport.lastSent) return;
-		bearingReport.lastMs = now;
-		bearingReport.lastSent = bearing;
-		report("bearing", bearing);
-	});
+	function armRefollow(): void {
+		if (state.refollowTimer) clearTimeout(state.refollowTimer);
+		state.refollowTimer = setTimeout(
+			() => setFollowing(true),
+			AUTO_REFOLLOW_MS,
+		);
+	}
 
-	// dragstart fires only for user drags (not for programmatic moveCamera
-	// calls). Detach follow so the user can free-pan, then arm a refollow
-	// timer so the camera reattaches after AUTO_REFOLLOW_MS of stillness.
+	// dragstart fires only for user pans (not programmatic moveCamera). Detach
+	// follow so the user can free-pan; re-attach AUTO_REFOLLOW_MS after the last
+	// gesture or on an explicit host setFollow(true).
 	liveMap.addListener("dragstart", () => {
 		setFollowing(false);
 		if (state.refollowTimer) {
@@ -432,12 +367,75 @@ async function initMap(): Promise<void> {
 		if (!state.following) armRefollow();
 	});
 
+	// Zoom / tilt change events carry no user-vs-programmatic flag, so gate on
+	// the suppression window: a change outside it is a user gesture. These have
+	// no "end" event, so re-arm the refollow timer immediately.
+	for (const ev of ["zoom_changed", "tilt_changed"] as const) {
+		liveMap.addListener(ev, () => {
+			if (Date.now() <= state.programmaticUntil) return;
+			setFollowing(false);
+			armRefollow();
+		});
+	}
+
+	// heading_changed both reports the bearing (throttled) for the host compass
+	// overlay and detaches follow on a user rotation. Heading interaction is
+	// disabled, but a programmatic heading push while following still reports
+	// the bearing so the overlay tracks the heading-up rotation.
+	const BEARING_REPORT_INTERVAL_MS = 150;
+	const bearingReport = { lastMs: 0, lastSent: "" };
+	liveMap.addListener("heading_changed", () => {
+		const now = Date.now();
+		if (now - bearingReport.lastMs >= BEARING_REPORT_INTERVAL_MS) {
+			const bearing = (liveMap.getHeading() ?? 0).toFixed(1);
+			if (bearing !== bearingReport.lastSent) {
+				bearingReport.lastMs = now;
+				bearingReport.lastSent = bearing;
+				report("bearing", bearing);
+			}
+		}
+		if (now > state.programmaticUntil) {
+			setFollowing(false);
+			armRefollow();
+		}
+	});
+
+	// First tilesloaded marks the map as rendered. After this point map errors
+	// are transient (flaky tiles), not fatal key/auth failures. Detach
+	// immediately; the event fires repeatedly.
+	const tilesListener = liveMap.addListener("tilesloaded", () => {
+		if (state.rendered) return;
+		state.rendered = true;
+		log("rendered");
+		report("render", "");
+		tilesListener.remove();
+	});
+
+	// An error before first render is almost always an invalid API key or
+	// network failure — surface a fatal so the host shows the key-entry notice.
+	// Errors after the first render are transient (flaky tiles): log-only.
+	liveMap.addListener("error", () => {
+		if (state.rendered) {
+			reportErrorThrottled("map-error");
+		} else {
+			report("fatal", "google-maps-load-error");
+		}
+	});
+
+	// Staleness timer: grey the chevron when fixes stop arriving (a tunnel).
+	setInterval(() => {
+		const stale =
+			state.lastFixMs > 0 &&
+			Date.now() - state.lastFixMs > LOCATION_STALE_THRESHOLD_MS;
+		markerEl.classList.toggle("stale", stale);
+	}, 1_000);
+
 	// --- Bridge functions ----------------------------------------------------
 
-	// Android -> JS: smooth heading-up camera follow. First fix jumps (no
-	// fly-in from [0,0]); subsequent fixes use moveCamera for instant
-	// positioning — at 1 Hz GPS cadence, frame-by-frame instant updates
-	// read as continuous motion without the camera lag of animation.
+	// Android -> JS: smooth heading-up camera follow. moveCamera is immediate;
+	// at the host's GPS cadence the frame-by-frame instant positioning reads as
+	// continuous motion. The chevron is pinned on screen and tinted per fix; the
+	// markerColor self-heals if the first push raced page load.
 	window.updateCamera = (
 		lat,
 		lon,
@@ -447,16 +445,21 @@ async function initMap(): Promise<void> {
 		_markerPos,
 		_bottomSafe,
 		_rightSafe,
-		_markerColor,
+		markerColor,
 	) => {
 		const now = Date.now();
 		const sinceLastFixMs = state.lastFixMs > 0 ? now - state.lastFixMs : 0;
 		const signalGap = sinceLastFixMs > LOCATION_STALE_THRESHOLD_MS;
 		if (signalGap) state.lastBearing = null;
+
+		if (markerColor && markerPath) markerPath.setAttribute("fill", markerColor);
+		if (markerColor) markerEl.style.setProperty("--marker-color", markerColor);
 		state.lastFixMs = now;
+		markerEl.classList.remove("stale");
 
 		const heading = smoothedBearing(state.lastBearing, bearing || 0);
 		state.lastBearing = heading;
+		const previousZoom = state.lastPushedZoom;
 		state.lastPushedZoom = Number.isFinite(zoom) ? zoom : 16;
 		state.lastFix = {
 			lat,
@@ -467,94 +470,50 @@ async function initMap(): Promise<void> {
 		};
 
 		if (!state.following) {
-			// Detached: honour pushed zoom changes (the host's +/- buttons) but
-			// leave the camera centre where the user panned.
+			// Detached (free pan): leave the camera centre where the user panned,
+			// but a pushed zoom change is the host's +/- button (head units have no
+			// multitouch, so the zoom buttons are mandatory) — apply it around the
+			// free camera's own centre.
+			if (previousZoom > 0 && state.lastPushedZoom !== previousZoom) {
+				moveCam({ zoom: state.lastPushedZoom });
+			}
 			return;
 		}
 
-		liveMap.moveCamera({
+		syncChevronTransform(tilt || 0, heading);
+		markerEl.style.display = "block";
+		moveCam({
 			center: { lat, lng: lon },
 			zoom: Number.isFinite(zoom) ? zoom : 16,
 			heading: appliedBearing(state.northUp, heading),
 			tilt: tilt || 0,
 		});
-		state.firstCamera = false;
 	};
 
-	// Android -> JS: place or update the self-location AdvancedMarkerElement
-	// and the route Polyline. JSON payload: { position?, markerColor?, route? }.
-	// Clears prior overlays before applying the new state.
-	(window as unknown as { setFeatures: (json: string) => void }).setFeatures = (
-		json,
-	) => {
-		try {
-			const data = JSON.parse(json) as FeaturesPayload;
-
-			// Self-position marker.
-			if (data.position) {
-				if (state.selfMarker) {
-					state.selfMarker.position = data.position;
-				} else if (libs.AdvancedMarkerCtor) {
-					try {
-						state.selfMarker = new libs.AdvancedMarkerCtor({
-							position: data.position,
-							map: liveMap,
-							title: "Current location",
-						});
-					} catch (markerErr) {
-						// AdvancedMarkerElement requires a mapId-enabled Map. Log and
-						// continue — the camera still works without the marker overlay.
-						log(
-							`marker-init-failed: ${markerErr instanceof Error ? markerErr.message : markerErr}`,
-						);
-					}
-				}
-			}
-
-			// Route polyline — clear the previous one first.
-			if (state.routePolyline) {
-				state.routePolyline.setMap(null);
-				state.routePolyline = null;
-			}
-			if (data.route && data.route.length > 0 && libs.PolylineCtor) {
-				state.routePolyline = new libs.PolylineCtor({
-					path: data.route,
-					geodesic: true,
-					strokeColor: data.markerColor ?? "#4285F4",
-					strokeOpacity: 1.0,
-					strokeWeight: 4,
-					map: liveMap,
-				});
-			}
-		} catch (e) {
-			log(`setFeatures-error: ${e instanceof Error ? e.message : e}`);
-		}
-	};
-
-	// Android -> JS: switch the map type and toggle traffic overlay.
+	// Android -> JS: switch the map type and toggle the traffic overlay.
 	// mapType is a GoogleMapType enum name: ROADMAP / SATELLITE / HYBRID / TERRAIN.
 	window.setGoogleMapsOptions = (mapType, traffic) => {
 		liveMap.setMapTypeId(MAP_TYPE_IDS[mapType] ?? "roadmap");
-		applyTraffic(traffic);
+		state.trafficLayer?.setMap(traffic ? liveMap : null);
 	};
 
 	window.setFollow = (follow) => setFollowing(!!follow);
 
 	window.setNorthUp = (enabled) => {
 		state.northUp = !!enabled;
+		// Re-orient the camera immediately while following; a detached camera
+		// keeps the user's rotation until re-attach.
 		const fix = state.lastFix;
 		if (state.following && fix) {
-			liveMap.moveCamera({
-				heading: appliedBearing(state.northUp, fix.heading),
-			});
+			moveCam({ heading: appliedBearing(state.northUp, fix.heading) });
+			syncChevronTransform(fix.tilt, fix.heading);
 		}
 	};
 
-	// Host lifecycle resume: re-measure and repaint so the map recovers after
-	// a pause/resume cycle (guards a stale GL surface on Android).
+	// Host lifecycle resume: re-measure and repaint so the map recovers after a
+	// pause/resume cycle (guards a stale GL surface on Android). Google Maps has
+	// no resize() API; a window resize event triggers the same relayout path.
 	window.onHostResume = () => {
-		// Google Maps does not expose a resize() API; a window resize event
-		// triggers the same internal relayout path.
 		window.dispatchEvent(new Event("resize"));
 	};
 
@@ -565,10 +524,6 @@ async function initMap(): Promise<void> {
 	if (pending.northUp != null) window.setNorthUp(pending.northUp);
 	if (pending.follow != null) window.setFollow(pending.follow);
 	if (pending.camera) window.updateCamera(...pending.camera);
-	if (pending.features)
-		(window as unknown as { setFeatures: (json: string) => void }).setFeatures(
-			pending.features,
-		);
 	if (pending.resume) window.onHostResume();
 }
 
