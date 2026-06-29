@@ -251,6 +251,11 @@
     <string name="settings_google_maps_key_hint">Paste a Google Maps Platform API key. Requires a Google Cloud project with billing enabled and the Maps JavaScript API enabled, and the key\'s HTTP-referrer restriction must allow https://appassets.androidplatform.net/*. In-vehicle use is subject to Google Maps Platform terms (your responsibility); usage may incur Google billing.</string>
     <string name="settings_google_maps_key_save">Save</string>
     <string name="settings_google_maps_key_clear">Clear</string>
+    <string name="settings_google_maps_map_id">Map ID (optional)</string>
+    <string name="settings_google_maps_map_id_unset">Not set — flat north-up map; tap to enable a vector map</string>
+    <string name="settings_google_maps_map_id_hint">Optional. Enter a Map ID created in your Google Cloud console (Map Management) to render a vector map with heading-up rotation, tilt, and 3D. Leave blank for a flat north-up raster map.</string>
+    <string name="settings_google_maps_map_id_save">Save</string>
+    <string name="settings_google_maps_map_id_clear">Clear</string>
     <string name="settings_google_maps_type">Map type</string>
     <string name="settings_google_maps_type_roadmap">Roadmap</string>
     <string name="settings_google_maps_type_satellite">Satellite</string>

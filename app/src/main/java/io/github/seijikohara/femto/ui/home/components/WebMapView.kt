@@ -209,7 +209,13 @@ internal fun WebMapView(
         // WebView and loads the correct page — without this key the old page keeps
         // running while the new backend's bridge effects fire against the wrong DOM.
         // rendererGeneration remains a key so renderer-death rebuilds still work.
-        remember(rendererGeneration, mapConfig.backend, mapConfig.mapboxToken, mapConfig.googleMapsApiKey, mapConfig.googleMapsMapId) {
+        remember(
+            rendererGeneration,
+            mapConfig.backend,
+            mapConfig.mapboxToken,
+            mapConfig.googleMapsApiKey,
+            mapConfig.googleMapsMapId,
+        ) {
             val assetLoader =
                 WebViewAssetLoader
                     .Builder()

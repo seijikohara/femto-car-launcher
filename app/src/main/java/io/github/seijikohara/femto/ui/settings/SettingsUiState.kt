@@ -62,6 +62,7 @@ internal data class SettingsUiState(
     val mapboxTraffic: Boolean = DisplaySettings.Default.mapboxTraffic,
     val mapboxAccessToken: String = "",
     val googleMapsApiKey: String = "",
+    val googleMapsMapId: String = "",
     val googleMapsMapType: GoogleMapType = DisplaySettings.Default.googleMapsMapType,
     val googleMapsTraffic: Boolean = DisplaySettings.Default.googleMapsTraffic,
     val availableCalendars: List<CalendarInfo> = emptyList(),
@@ -114,6 +115,7 @@ internal data class SettingsUiState(
                 mapboxTraffic = DisplaySettings.Default.mapboxTraffic,
                 mapboxAccessToken = DisplaySettings.Default.mapboxAccessToken,
                 googleMapsApiKey = DisplaySettings.Default.googleMapsApiKey,
+                googleMapsMapId = DisplaySettings.Default.googleMapsMapId,
                 googleMapsMapType = DisplaySettings.Default.googleMapsMapType,
                 googleMapsTraffic = DisplaySettings.Default.googleMapsTraffic,
             )
@@ -278,6 +280,15 @@ internal sealed interface SettingsAction {
     ) : SettingsAction
 
     data object ClearGoogleMapsKey : SettingsAction
+
+    // Map ID is optional and does not switch the backend (a key already did
+    // that); a non-empty value upgrades the map to a vector style. Blank is
+    // valid, so this is a plain set — not the atomic key/backend pair above.
+    data class SetGoogleMapsMapId(
+        val value: String,
+    ) : SettingsAction
+
+    data object ClearGoogleMapsMapId : SettingsAction
 
     data class SetGoogleMapsMapType(
         val value: GoogleMapType,

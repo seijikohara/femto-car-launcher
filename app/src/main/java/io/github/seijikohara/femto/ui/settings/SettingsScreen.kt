@@ -115,6 +115,7 @@ internal fun SettingsScreen(
 ) {
     var showTokenDialog by remember { mutableStateOf(false) }
     var showGoogleKeyDialog by remember { mutableStateOf(false) }
+    var showGoogleMapIdDialog by remember { mutableStateOf(false) }
     Column(
         modifier =
             Modifier
@@ -359,6 +360,16 @@ internal fun SettingsScreen(
                         title = stringResource(R.string.settings_google_maps_key),
                         summary = googleMapsKeySummary(uiState.googleMapsApiKey),
                         modifier = Modifier.clickable { showGoogleKeyDialog = true },
+                    ) {
+                        TrailingIcon(Lucide.ChevronRight)
+                    }
+                    // Optional: a Map ID upgrades the raster map to a vector style
+                    // (heading-up/3D). It does not switch the backend — the key
+                    // already selected Google Maps — so the Map ID is not masked.
+                    SettingRow(
+                        title = stringResource(R.string.settings_google_maps_map_id),
+                        summary = googleMapsMapIdSummary(uiState.googleMapsMapId),
+                        modifier = Modifier.clickable { showGoogleMapIdDialog = true },
                     ) {
                         TrailingIcon(Lucide.ChevronRight)
                     }
@@ -643,6 +654,52 @@ internal fun SettingsScreen(
                     },
                     modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
                 ) { Text(stringResource(R.string.settings_google_maps_key_clear)) }
+            },
+        )
+    }
+    if (showGoogleMapIdDialog) {
+        var draft by remember { mutableStateOf(uiState.googleMapsMapId) }
+        AlertDialog(
+            onDismissRequest = { showGoogleMapIdDialog = false },
+            title = { Text(stringResource(R.string.settings_google_maps_map_id)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // The vector-vs-raster guidance is the point of this optional field,
+                    // so it lives as a full body paragraph above the input (bodyMedium
+                    // >= 18sp, never bodySmall), mirroring the API-key dialog.
+                    Text(
+                        text = stringResource(R.string.settings_google_maps_map_id_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.settings_google_maps_map_id)) },
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    // Blank is a valid Map ID (it reverts to the raster map), so the
+                    // confirm button is always enabled.
+                    enabled = true,
+                    onClick = {
+                        onAction(SettingsAction.SetGoogleMapsMapId(draft))
+                        showGoogleMapIdDialog = false
+                    },
+                    modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
+                ) { Text(stringResource(R.string.settings_google_maps_map_id_save)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        onAction(SettingsAction.ClearGoogleMapsMapId)
+                        showGoogleMapIdDialog = false
+                    },
+                    modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
+                ) { Text(stringResource(R.string.settings_google_maps_map_id_clear)) }
             },
         )
     }
@@ -1372,6 +1429,12 @@ private fun googleMapsKeySummary(key: String): String =
     } else {
         "••••" + key.takeLast(4)
     }
+
+// The Map ID is not secret (it only names a console-defined style), so it is
+// shown verbatim — no masking, unlike the API key above.
+@Composable
+private fun googleMapsMapIdSummary(mapId: String): String =
+    mapId.ifBlank { stringResource(R.string.settings_google_maps_map_id_unset) }
 
 @PreviewLightDark
 @Composable
