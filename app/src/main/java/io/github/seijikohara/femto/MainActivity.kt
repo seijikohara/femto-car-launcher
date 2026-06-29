@@ -186,6 +186,9 @@ class MainActivity : ComponentActivity() {
                             mapboxToken = display.mapboxAccessToken,
                             mapboxStyle = display.mapboxStyle,
                             mapboxTraffic = display.mapboxTraffic,
+                            googleMapsApiKey = display.googleMapsApiKey,
+                            googleMapsMapType = display.googleMapsMapType,
+                            googleMapsTraffic = display.googleMapsTraffic,
                         ),
                     panels =
                         PanelVisibility(
