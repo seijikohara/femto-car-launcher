@@ -83,8 +83,9 @@ The home screen is a fixed dashboard rather than a scrolling grid of apps.
   hides the system bars, dock edge, drawer icon size, glass-effect blur
   and opacity for the dashboard overlays, map rendering (Live / Snapshot
   mode, render quality, terrain, an optional Mapbox access token to
-  enable the Mapbox backend, and an optional Google Maps Platform API key
-  to enable the Google Maps backend), location-update tuning, and the font
+  enable the Mapbox backend, an optional Google Maps Platform API key
+  to enable the Google Maps backend, and an optional Map ID for a vector
+  Google map), location-update tuning, and the font
   pairing — plus shortcuts to the system notification-access and Android
   settings screens, and a one-tap reset to defaults.
 
@@ -192,7 +193,11 @@ stored on-device and requires no build-time configuration. The optional Google
 Maps backend works the same way: enter your own Google Maps Platform API key in
 Settings → Map. The key needs the Maps JavaScript API enabled and an
 HTTP-referrer restriction that allows `https://appassets.androidplatform.net/*`;
-it is stored on-device and requires no build-time configuration.
+it is stored on-device and requires no build-time configuration. Optionally,
+also enter a **Map ID** (created in the Google Cloud console) to render a vector
+map with heading-up rotation, tilt, and 3D; leave it blank for a flat north-up
+raster map. An invalid Map ID renders nothing — clear it to fall back to the
+raster map.
 
 Two network services default to shared public endpoints that are fine for
 development and evaluation but are rate-limited and unsuitable for
