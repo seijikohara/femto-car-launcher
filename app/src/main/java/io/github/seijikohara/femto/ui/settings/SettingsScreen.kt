@@ -606,12 +606,21 @@ internal fun SettingsScreen(
             onDismissRequest = { showGoogleKeyDialog = false },
             title = { Text(stringResource(R.string.settings_google_maps_key)) },
             text = {
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // The setup/ToS disclosure is the point of this feature, so it lives as a
+                    // full body paragraph above the field (bodyMedium >= 18sp, never bodySmall)
+                    // rather than a floating label that truncates on a car display — the
+                    // deliberate divergence from the Mapbox dialog, whose hint fits in a label.
+                    Text(
+                        text = stringResource(R.string.settings_google_maps_key_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     OutlinedTextField(
                         value = draft,
                         onValueChange = { draft = it },
                         singleLine = true,
-                        label = { Text(stringResource(R.string.settings_google_maps_key_hint)) },
+                        label = { Text(stringResource(R.string.settings_google_maps_key)) },
                     )
                 }
             },
@@ -624,6 +633,7 @@ internal fun SettingsScreen(
                         onAction(SettingsAction.SaveGoogleMapsKey(draft))
                         showGoogleKeyDialog = false
                     },
+                    modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
                 ) { Text(stringResource(R.string.settings_google_maps_key_save)) }
             },
             dismissButton = {
@@ -632,6 +642,7 @@ internal fun SettingsScreen(
                         onAction(SettingsAction.ClearGoogleMapsKey)
                         showGoogleKeyDialog = false
                     },
+                    modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
                 ) { Text(stringResource(R.string.settings_google_maps_key_clear)) }
             },
         )

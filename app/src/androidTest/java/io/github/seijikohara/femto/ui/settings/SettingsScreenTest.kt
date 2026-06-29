@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.settings
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -244,11 +245,13 @@ class SettingsScreenTest {
     @Test
     fun selecting_googlemaps_with_no_key_opens_key_dialog() {
         // Selecting Google Maps when no key is stored must open the entry dialog instead
-        // of switching the backend — verified by the dialog title appearing.
+        // of switching the backend — verified by the setup/ToS disclosure paragraph
+        // appearing (the dialog title text also labels the field, so the disclosure is
+        // the unambiguous marker that the dialog is open).
         setScreen(uiState = SettingsUiState.Initial.copy(googleMapsApiKey = ""))
         rule.onNodeWithText(mapBackendLabel).performScrollTo().performClick()
         rule.onNodeWithText(googleMapsLabel).performClick()
-        rule.onNodeWithText(googleMapsKeyLabel).assertIsDisplayed()
+        rule.onNodeWithText(googleMapsKeyHintLabel).assertIsDisplayed()
     }
 
     @Test
@@ -290,8 +293,9 @@ class SettingsScreenTest {
         )
         rule.onNodeWithText(mapBackendLabel).performScrollTo().performClick()
         rule.onNodeWithText(googleMapsLabel).performClick()
-        // The OutlinedTextField shows its label text when the field is empty; type into it.
-        rule.onNodeWithText(googleMapsKeyHintLabel).performTextInput("AIzaNewKey")
+        // The disclosure is now plain body text and the field label duplicates the
+        // dialog title, so target the only editable node (the OutlinedTextField).
+        rule.onNode(hasSetTextAction()).performTextInput("AIzaNewKey")
         rule.onNodeWithText(googleMapsKeySaveLabel).performClick()
         assertEquals(listOf(SettingsAction.SaveGoogleMapsKey("AIzaNewKey")), actions)
     }
