@@ -60,6 +60,7 @@ import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.FullscreenSetting
+import io.github.seijikohara.femto.data.display.GoogleMapType
 import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MapBackend
@@ -113,6 +114,7 @@ internal fun SettingsScreen(
     color = MaterialTheme.colorScheme.surfaceContainerLow,
 ) {
     var showTokenDialog by remember { mutableStateOf(false) }
+    var showGoogleKeyDialog by remember { mutableStateOf(false) }
     Column(
         modifier =
             Modifier
@@ -273,22 +275,32 @@ internal fun SettingsScreen(
         }
 
         SettingsSection(title = stringResource(R.string.settings_section_map)) {
-            // Selecting Mapbox without a token opens the token-entry dialog instead of
-            // persisting the backend switch — the Screen owns this interception because
-            // the dialog lives here (single source of truth for showTokenDialog).
+            // Selecting Mapbox without a token, or Google Maps without an API key, opens
+            // the respective entry dialog instead of persisting the backend switch — the
+            // Screen owns this interception because the dialogs live here.
             ChoiceRow(
                 title = stringResource(R.string.settings_map_backend),
                 options =
                     listOf(
                         MapBackend.OSM to stringResource(R.string.settings_map_backend_osm),
                         MapBackend.MAPBOX to stringResource(R.string.settings_map_backend_mapbox),
+                        MapBackend.GOOGLEMAPS to stringResource(R.string.settings_map_backend_googlemaps),
                     ),
                 selected = uiState.mapBackend,
                 onSelect = { backend ->
-                    if (backend == MapBackend.MAPBOX && uiState.mapboxAccessToken.isBlank()) {
-                        showTokenDialog = true
-                    } else {
-                        onAction(SettingsAction.SetMapBackend(backend))
+                    when {
+                        backend == MapBackend.MAPBOX && uiState.mapboxAccessToken.isBlank() -> {
+                            showTokenDialog = true
+                        }
+
+                        backend == MapBackend.GOOGLEMAPS && uiState.googleMapsApiKey.isBlank() -> {
+                            showGoogleKeyDialog =
+                                true
+                        }
+
+                        else -> {
+                            onAction(SettingsAction.SetMapBackend(backend))
+                        }
                     }
                 },
             )
@@ -323,6 +335,34 @@ internal fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                     )
+                }
+            }
+            AnimatedVisibility(visible = uiState.mapBackend == MapBackend.GOOGLEMAPS) {
+                Column {
+                    ChoiceRow(
+                        title = stringResource(R.string.settings_google_maps_type),
+                        options =
+                            listOf(
+                                GoogleMapType.ROADMAP to stringResource(R.string.settings_google_maps_type_roadmap),
+                                GoogleMapType.SATELLITE to stringResource(R.string.settings_google_maps_type_satellite),
+                                GoogleMapType.HYBRID to stringResource(R.string.settings_google_maps_type_hybrid),
+                                GoogleMapType.TERRAIN to stringResource(R.string.settings_google_maps_type_terrain),
+                            ),
+                        selected = uiState.googleMapsMapType,
+                        onSelect = { onAction(SettingsAction.SetGoogleMapsMapType(it)) },
+                    )
+                    SwitchRow(
+                        title = stringResource(R.string.settings_google_maps_traffic),
+                        checked = uiState.googleMapsTraffic,
+                        onCheckedChange = { onAction(SettingsAction.SetGoogleMapsTraffic(it)) },
+                    )
+                    SettingRow(
+                        title = stringResource(R.string.settings_google_maps_key),
+                        summary = googleMapsKeySummary(uiState.googleMapsApiKey),
+                        modifier = Modifier.clickable { showGoogleKeyDialog = true },
+                    ) {
+                        TrailingIcon(Lucide.ChevronRight)
+                    }
                 }
             }
             // The AUTO/LIGHT/DARK map style also drives Mapbox Standard's lightPreset
@@ -557,6 +597,42 @@ internal fun SettingsScreen(
                         showTokenDialog = false
                     },
                 ) { Text(stringResource(R.string.settings_mapbox_token_clear)) }
+            },
+        )
+    }
+    if (showGoogleKeyDialog) {
+        var draft by remember { mutableStateOf(uiState.googleMapsApiKey) }
+        AlertDialog(
+            onDismissRequest = { showGoogleKeyDialog = false },
+            title = { Text(stringResource(R.string.settings_google_maps_key)) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.settings_google_maps_key_hint)) },
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = draft.isNotBlank(),
+                    onClick = {
+                        // One atomic action: persist the key and select Google Maps
+                        // together so the gate never sees a blank-key GOOGLEMAPS.
+                        onAction(SettingsAction.SaveGoogleMapsKey(draft))
+                        showGoogleKeyDialog = false
+                    },
+                ) { Text(stringResource(R.string.settings_google_maps_key_save)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        onAction(SettingsAction.ClearGoogleMapsKey)
+                        showGoogleKeyDialog = false
+                    },
+                ) { Text(stringResource(R.string.settings_google_maps_key_clear)) }
             },
         )
     }
@@ -1276,6 +1352,15 @@ private fun mapboxTokenSummary(token: String): String =
         stringResource(R.string.settings_mapbox_token_unset)
     } else {
         "••••" + token.takeLast(4)
+    }
+
+// Same masking pattern as mapboxTokenSummary, applied to the Google Maps API key.
+@Composable
+private fun googleMapsKeySummary(key: String): String =
+    if (key.isBlank()) {
+        stringResource(R.string.settings_google_maps_key_unset)
+    } else {
+        "••••" + key.takeLast(4)
     }
 
 @PreviewLightDark

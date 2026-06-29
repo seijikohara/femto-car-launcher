@@ -11,6 +11,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.FullscreenSetting
+import io.github.seijikohara.femto.data.display.GoogleMapType
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
@@ -45,6 +46,14 @@ class SettingsScreenTest {
     private val glassBlurLabel = context.getString(R.string.settings_group_glass_blur)
     private val locationIntervalLabel = context.getString(R.string.settings_group_location_interval)
     private val visibleCalendarsLabel = context.getString(R.string.settings_visible_calendars)
+    private val googleMapsLabel = context.getString(R.string.settings_map_backend_googlemaps)
+    private val googleMapsKeyLabel = context.getString(R.string.settings_google_maps_key)
+    private val googleMapsKeyUnsetLabel = context.getString(R.string.settings_google_maps_key_unset)
+    private val googleMapsKeyHintLabel = context.getString(R.string.settings_google_maps_key_hint)
+    private val googleMapsKeySaveLabel = context.getString(R.string.settings_google_maps_key_save)
+    private val googleMapsKeyClearLabel = context.getString(R.string.settings_google_maps_key_clear)
+    private val googleMapsTypeLabel = context.getString(R.string.settings_google_maps_type)
+    private val googleMapsTrafficLabel = context.getString(R.string.settings_google_maps_traffic)
 
     @Test
     fun renders_fullscreen_row() {
@@ -215,6 +224,109 @@ class SettingsScreenTest {
         rule.onNodeWithText(tokenLabel).performScrollTo().performClick()
         rule.onNodeWithText(tokenClearLabel).performClick()
         assertEquals(listOf(SettingsAction.ClearMapboxToken), actions)
+    }
+
+    @Test
+    fun googlemaps_type_and_traffic_rows_shown_when_backend_googlemaps_with_key() {
+        // The map-type and traffic rows are only visible when the Google Maps backend is
+        // active; a non-blank key means the backend can be selected.
+        setScreen(
+            uiState =
+                SettingsUiState.Initial.copy(
+                    mapBackend = MapBackend.GOOGLEMAPS,
+                    googleMapsApiKey = "AIzaTestKey",
+                ),
+        )
+        rule.onNodeWithText(googleMapsTypeLabel).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText(googleMapsTrafficLabel).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun selecting_googlemaps_with_no_key_opens_key_dialog() {
+        // Selecting Google Maps when no key is stored must open the entry dialog instead
+        // of switching the backend — verified by the dialog title appearing.
+        setScreen(uiState = SettingsUiState.Initial.copy(googleMapsApiKey = ""))
+        rule.onNodeWithText(mapBackendLabel).performScrollTo().performClick()
+        rule.onNodeWithText(googleMapsLabel).performClick()
+        rule.onNodeWithText(googleMapsKeyLabel).assertIsDisplayed()
+    }
+
+    @Test
+    fun google_maps_key_row_shows_masked_summary_when_key_is_set() {
+        // A set key shows only the last four characters prefixed with bullets,
+        // keeping the credential off a shared in-car display.
+        setScreen(
+            uiState =
+                SettingsUiState.Initial.copy(
+                    mapBackend = MapBackend.GOOGLEMAPS,
+                    googleMapsApiKey = "AIzaTestKey",
+                ),
+        )
+        // "AIzaTestKey".takeLast(4) == "tKey"
+        rule.onNodeWithText("••••tKey").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun google_maps_key_row_shows_unset_label_when_no_key() {
+        setScreen(
+            uiState =
+                SettingsUiState.Initial.copy(
+                    mapBackend = MapBackend.GOOGLEMAPS,
+                    googleMapsApiKey = "",
+                ),
+        )
+        rule.onNodeWithText(googleMapsKeyUnsetLabel).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun saving_google_key_in_dialog_dispatches_single_atomic_action() {
+        // Entering a key and tapping Save must dispatch exactly one SaveGoogleMapsKey
+        // action (the ViewModel persists the key and selects Google Maps together, so
+        // the gate never sees a blank-key GOOGLEMAPS).
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(
+            uiState = SettingsUiState.Initial.copy(googleMapsApiKey = ""),
+            onAction = { actions += it },
+        )
+        rule.onNodeWithText(mapBackendLabel).performScrollTo().performClick()
+        rule.onNodeWithText(googleMapsLabel).performClick()
+        // The OutlinedTextField shows its label text when the field is empty; type into it.
+        rule.onNodeWithText(googleMapsKeyHintLabel).performTextInput("AIzaNewKey")
+        rule.onNodeWithText(googleMapsKeySaveLabel).performClick()
+        assertEquals(listOf(SettingsAction.SaveGoogleMapsKey("AIzaNewKey")), actions)
+    }
+
+    @Test
+    fun clear_in_google_key_dialog_dispatches_clear_google_maps_key() {
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(
+            uiState =
+                SettingsUiState.Initial.copy(
+                    mapBackend = MapBackend.GOOGLEMAPS,
+                    googleMapsApiKey = "AIzaOld",
+                ),
+            onAction = { actions += it },
+        )
+        rule.onNodeWithText(googleMapsKeyLabel).performScrollTo().performClick()
+        rule.onNodeWithText(googleMapsKeyClearLabel).performClick()
+        assertEquals(listOf(SettingsAction.ClearGoogleMapsKey), actions)
+    }
+
+    @Test
+    fun choosing_googlemaps_map_type_dispatches_set_google_maps_map_type() {
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(
+            uiState =
+                SettingsUiState.Initial.copy(
+                    mapBackend = MapBackend.GOOGLEMAPS,
+                    googleMapsApiKey = "AIzaTestKey",
+                ),
+            onAction = { actions += it },
+        )
+        val terrainLabel = context.getString(R.string.settings_google_maps_type_terrain)
+        rule.onNodeWithText(googleMapsTypeLabel).performScrollTo().performClick()
+        rule.onNodeWithText(terrainLabel).performClick()
+        assertEquals(listOf(SettingsAction.SetGoogleMapsMapType(GoogleMapType.TERRAIN)), actions)
     }
 
     @Test
