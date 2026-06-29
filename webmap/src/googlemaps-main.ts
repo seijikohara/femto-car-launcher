@@ -10,34 +10,46 @@
 //
 // Self-marker: in FOLLOW mode the host drives a screen-pinned DOM chevron
 // through updateCamera (markerColor / markerPos / safe-zone fractions), like
-// the OSM and Mapbox pages — NOT a geo-anchored map marker. Two deliberate
-// divergences from those pages:
-//   1. RASTER + north-up only. Without a Cloud Map ID the map is a RASTER map,
-//      which cannot rotate (no heading-up) or tilt/3D — and passing heading or
-//      tilt to moveCamera makes the camera refuse to move at all. So the map is
-//      always north-up and the chevron rotates to the travel bearing to convey
-//      heading. Full heading-up / tilt / 3D would require a VECTOR map, i.e.
-//      the user also supplying a Cloud Map ID — a documented possible follow-up.
-//   2. No per-frame camera padding (unlike MapLibre/Mapbox `padding`), so the
+// the OSM and Mapbox pages — NOT a geo-anchored map marker.
+//
+// Two render modes, chosen by whether the user supplied a Cloud Map ID
+// (femtoBridge.googleMapsMapId()):
+//   - VECTOR (Map ID present): full heading-up rotation, tilt, and 3D — parity
+//     with the Mapbox page. The map rotates in heading-up; the chevron rotates
+//     in north-up.
+//   - RASTER (no Map ID): north-up only. A raster map cannot rotate or tilt, and
+//     passing heading/tilt to moveCamera stops the camera from positioning, so
+//     the map stays north-up and the chevron always rotates to the travel
+//     bearing to convey heading.
+//
+// Two divergences from the OSM/Mapbox pages apply in BOTH modes:
+//   1. No per-frame camera padding (unlike MapLibre/Mapbox `padding`), so the
 //      chevron pins at the rendered location (screen centre); the markerPos /
 //      safe-zone look-ahead offset is not applied to the camera.
+//   2. While detached (free pan) the chevron is hidden rather than swapped to a
+//      geo-anchored clone — see setFollowing for why (no mapId-free,
+//      non-deprecated geo-marker).
 import {
 	AUTO_REFOLLOW_MS,
+	appliedBearing,
 	LOCATION_STALE_THRESHOLD_MS,
 	smoothedBearing,
 } from "./camera";
 
-// The Google Maps bridge extends the base femtoBridge with googleMapsApiKey(),
-// which is only present when the host has wired up the Google Maps backend.
-// Declared locally rather than in the global Window augmentation to avoid a
-// type conflict with main.ts's narrower femtoBridge declaration (both compile
-// in the same tsconfig scope; TS merges interface Window and requires
+// The Google Maps bridge extends the base femtoBridge with googleMapsApiKey()
+// and googleMapsMapId(), present only when the host has wired up the Google Maps
+// backend. Declared locally rather than in the global Window augmentation to
+// avoid a type conflict with main.ts's narrower femtoBridge declaration (both
+// compile in the same tsconfig scope; TS merges interface Window and requires
 // compatible types).
 interface GoogleMapsFemtoBridge {
 	onMapEvent(kind: string, detail: string): void;
 	// Synchronous getter injected by the host; returns the Google Maps API key.
 	// Returns an empty string when unconfigured.
 	googleMapsApiKey(): string;
+	// Synchronous getter injected by the host; returns the Cloud Map ID the user
+	// supplied (a non-empty value opts into a VECTOR map), or "" for a raster map.
+	googleMapsMapId(): string;
 }
 
 // Android -> JS bridge surface. Every function is feature-detected on the
@@ -74,12 +86,13 @@ interface GMLatLng {
 	lat: number;
 	lng: number;
 }
-// Deliberately omits heading/tilt: this page only ever drives a RASTER map,
-// which rejects them (passing either stops moveCamera from positioning). The
-// narrow type structurally prevents reintroducing that bug.
+// heading/tilt are sent only for a VECTOR map (Cloud Map ID present); a RASTER
+// map rejects them (passing either stops moveCamera from positioning).
 interface GMCameraOptions {
 	center?: GMLatLng;
 	zoom?: number;
+	heading?: number;
+	tilt?: number;
 }
 interface GMMapsEventListener {
 	remove(): void;
@@ -87,6 +100,7 @@ interface GMMapsEventListener {
 interface GMMap {
 	moveCamera(opts: GMCameraOptions): void;
 	setMapTypeId(id: string): void;
+	getHeading(): number | undefined;
 	addListener(event: string, handler: () => void): GMMapsEventListener;
 }
 interface GMTrafficLayer {
@@ -122,10 +136,13 @@ function log(msg: string): void {
 
 // JS -> Android event channel. "fatal" = definitive never-going-to-render
 // facts; "error" = transient resource failures, log-only on the host;
-// "follow" = camera follow state flips. No "bearing" kind: the raster map is
-// permanently north-up, so there is no map rotation to report (the chevron
-// conveys heading). No kind triggers a backend switch — there is no auto-fallback.
-function report(kind: "fatal" | "error" | "follow", detail: unknown): void {
+// "follow" = camera follow state flips; "bearing" = throttled map bearing for
+// the compass overlay (VECTOR mode only — a RASTER map is north-up and never
+// rotates). No kind triggers a backend switch — there is no auto-fallback.
+function report(
+	kind: "fatal" | "error" | "follow" | "bearing",
+	detail: unknown,
+): void {
 	try {
 		gmBridge()?.onMapEvent(kind, String(detail ?? ""));
 	} catch {
@@ -138,12 +155,18 @@ function report(kind: "fatal" | "error" | "follow", detail: unknown): void {
 const state = {
 	map: undefined as GMMap | undefined,
 	trafficLayer: null as GMTrafficLayer | null,
+	// True when the user supplied a Cloud Map ID: render a VECTOR map (heading-up
+	// rotation + tilt). False = RASTER map (north-up only). Set once in initMap.
+	isVector: false,
 	// Set to true on the first tilesloaded event; gates fatal error reporting
 	// (errors after first render are transient, not key/auth failures).
 	rendered: false,
 	lastErrorReportMs: 0,
 	following: true,
 	refollowTimer: 0 as ReturnType<typeof setTimeout> | 0,
+	// North-up vs heading-up; only meaningful on a VECTOR map (a raster map is
+	// always north-up). The chevron and the vector-map camera read this.
+	northUp: false,
 	lastBearing: null as number | null,
 	lastFixMs: 0,
 	lastPushedZoom: 0,
@@ -154,13 +177,13 @@ const state = {
 	// after it as user gestures. moveCamera is immediate (no animation), so its
 	// events fire well within the window while user input between fixes does not.
 	programmaticUntil: 0,
-	// No tilt/heading fields: a raster map is north-up and top-down only, so the
-	// camera never carries them (only center + zoom). The chevron conveys heading.
+	// tilt is used only on a VECTOR map; a raster map ignores it.
 	lastFix: null as {
 		lat: number;
 		lng: number;
 		heading: number;
 		zoom: number;
+		tilt: number;
 	} | null,
 };
 
@@ -205,14 +228,20 @@ window.addEventListener("unhandledrejection", (e) => {
 
 // Self-location chevron: a fixed-on-screen DOM overlay (see #self-marker CSS).
 // The camera centres the location under the chevron, so the chevron stays still
-// while the map slides beneath it (car-nav style). The raster map is permanently
-// north-up (it cannot rotate), so the chevron ALWAYS rotates to the travel
-// bearing to convey heading. No rotateX: a raster map is top-down (tilt is
-// always 0), so there is no tilted ground plane to lay the chevron onto.
+// while the map slides (and, on a vector map, rotates) beneath it (car-nav
+// style). VECTOR: heading-up rotates the MAP and the chevron points up; north-up
+// rotates the chevron; rotateX lays it onto the tilted ground plane. RASTER: the
+// map is permanently north-up, so the chevron always rotates to the travel
+// bearing and there is no tilt plane (no rotateX).
 const markerEl = document.getElementById("self-marker") as HTMLElement;
 const markerPath = markerEl.querySelector("path");
 
-function syncChevronTransform(heading: number): void {
+function syncChevronTransform(tilt: number, heading: number): void {
+	if (state.isVector) {
+		const turn = state.northUp ? heading : 0;
+		markerEl.style.transform = `translate(-50%, -50%) perspective(600px) rotateX(${tilt}deg) rotateZ(${turn}deg)`;
+		return;
+	}
 	markerEl.style.transform = `translate(-50%, -50%) rotateZ(${heading}deg)`;
 }
 
@@ -261,6 +290,12 @@ async function initMap(): Promise<void> {
 		return;
 	}
 
+	// A non-empty Cloud Map ID = the user opted into a VECTOR map (heading-up,
+	// tilt, 3D). Blank = a flat north-up RASTER map.
+	const mapId = gmBridge()?.googleMapsMapId?.() ?? "";
+	const isVector = mapId !== "";
+	state.isVector = isVector;
+
 	// gm_authFailure is Google's global hook for invalid/revoked API keys.
 	// Install it before injecting the bootstrap loader so it is in place before
 	// any authentication attempt. Only report fatal before the first successful
@@ -291,9 +326,12 @@ async function initMap(): Promise<void> {
 	// disableDefaultUI suppresses the control buttons only; the Google logo and
 	// attribution text render regardless and must remain visible at all times
 	// (Google Maps ToS). Do not attempt to hide or reposition the attribution.
-	// No heading/tilt: without a Cloud Map ID this is a RASTER map, which is
-	// north-up and top-down only — heading/tilt are unsupported, and passing them
-	// to moveCamera makes the camera refuse to move (the chevron conveys heading).
+	//
+	// VECTOR (Map ID present): enable host-driven heading-up rotation + tilt/3D;
+	// headingInteractionEnabled is false because heading is driven solely by the
+	// host (north-up vs heading-up), never by user rotation gestures. RASTER (no
+	// Map ID): omit mapId/heading/tilt entirely — a raster map rejects heading/
+	// tilt, and passing them stops moveCamera from positioning.
 	const liveMap = new mapsLib.Map(mapEl as HTMLElement, {
 		center: { lat: 0, lng: 0 },
 		zoom: 1,
@@ -301,6 +339,9 @@ async function initMap(): Promise<void> {
 		disableDefaultUI: true,
 		gestureHandling: "greedy",
 		keyboardShortcuts: false,
+		...(isVector
+			? { mapId, heading: 0, tilt: 0, headingInteractionEnabled: false }
+			: {}),
 	});
 	state.map = liveMap;
 	// Traffic layer is created once and toggled on/off via setMap (memoized).
@@ -319,11 +360,22 @@ async function initMap(): Promise<void> {
 	function easeHome(): void {
 		const fix = state.lastFix;
 		if (!fix) return;
+		if (state.isVector) {
+			// Vector map: restore center + zoom + heading + tilt; the map rotates,
+			// so the chevron re-syncs from the next updateCamera push.
+			moveCam({
+				center: { lat: fix.lat, lng: fix.lng },
+				zoom: fix.zoom,
+				heading: appliedBearing(state.northUp, fix.heading),
+				tilt: fix.tilt,
+			});
+			return;
+		}
 		// Raster map: center + zoom only (never heading/tilt). Re-show the chevron
 		// at the last travel bearing so it reads correctly the instant follow
 		// re-attaches, before the next fix arrives.
 		moveCam({ center: { lat: fix.lat, lng: fix.lng }, zoom: fix.zoom });
-		syncChevronTransform(fix.heading);
+		syncChevronTransform(0, fix.heading);
 	}
 
 	function setFollowing(follow: boolean): void {
@@ -376,14 +428,36 @@ async function initMap(): Promise<void> {
 	// User-gesture detach beyond panning. Change events carry no
 	// user-vs-programmatic flag, so gate on the suppression window: a change
 	// outside it is a user gesture. They have no "end" event, so re-arm the
-	// refollow timer immediately. On the north-up raster map zoom_changed is the
-	// only one that fires (the map cannot tilt or rotate); tilt_changed is kept
-	// as a harmless guard in case a future vector-map config is ever enabled.
+	// refollow timer immediately. zoom_changed fires in both modes; tilt_changed
+	// only on a vector map (a raster map cannot tilt — there it never fires).
 	for (const ev of ["zoom_changed", "tilt_changed"] as const) {
 		liveMap.addListener(ev, () => {
 			if (Date.now() <= state.programmaticUntil) return;
 			setFollowing(false);
 			armRefollow();
+		});
+	}
+
+	// VECTOR only: heading_changed reports the bearing (throttled) for the host
+	// compass overlay and detaches follow on a user rotation. (A raster map is
+	// north-up and never rotates, so the event cannot fire — skip the listener.)
+	if (isVector) {
+		const BEARING_REPORT_INTERVAL_MS = 150;
+		const bearingReport = { lastMs: 0, lastSent: "" };
+		liveMap.addListener("heading_changed", () => {
+			const now = Date.now();
+			if (now - bearingReport.lastMs >= BEARING_REPORT_INTERVAL_MS) {
+				const bearing = (liveMap.getHeading() ?? 0).toFixed(1);
+				if (bearing !== bearingReport.lastSent) {
+					bearingReport.lastMs = now;
+					bearingReport.lastSent = bearing;
+					report("bearing", bearing);
+				}
+			}
+			if (now > state.programmaticUntil) {
+				setFollowing(false);
+				armRefollow();
+			}
 		});
 	}
 
@@ -412,17 +486,17 @@ async function initMap(): Promise<void> {
 
 	// --- Bridge functions ----------------------------------------------------
 
-	// Android -> JS: north-up camera follow on the raster map. moveCamera is
-	// immediate; at the host's GPS cadence the frame-by-frame instant positioning
-	// reads as continuous motion. The map stays north-up and the chevron rotates
-	// to the travel bearing; the chevron is tinted per fix, and markerColor
-	// self-heals if the first push raced page load. tilt is ignored (raster).
+	// Android -> JS: smooth camera follow. moveCamera is immediate; at the host's
+	// GPS cadence the frame-by-frame instant positioning reads as continuous
+	// motion. The chevron is pinned on screen and tinted per fix; markerColor
+	// self-heals if the first push raced page load. VECTOR drives heading + tilt
+	// (heading-up rotates the map); RASTER sends center + zoom only.
 	window.updateCamera = (
 		lat,
 		lon,
 		bearing,
 		zoom,
-		_tilt,
+		tilt,
 		_markerPos,
 		_bottomSafe,
 		_rightSafe,
@@ -447,6 +521,7 @@ async function initMap(): Promise<void> {
 			lng: lon,
 			heading,
 			zoom: Number.isFinite(zoom) ? zoom : 16,
+			tilt: tilt || 0,
 		};
 
 		if (!state.following) {
@@ -460,15 +535,24 @@ async function initMap(): Promise<void> {
 			return;
 		}
 
-		// Chevron always shows the travel bearing (the raster map is north-up).
-		syncChevronTransform(heading);
+		syncChevronTransform(tilt || 0, heading);
 		markerEl.style.display = "block";
-		// Raster map: center + zoom only — never heading/tilt (passing them stops
-		// the camera from moving at all).
-		moveCam({
-			center: { lat, lng: lon },
-			zoom: Number.isFinite(zoom) ? zoom : 16,
-		});
+		if (state.isVector) {
+			// Vector map: heading-up rotates the map (chevron points up); tilt/3D.
+			moveCam({
+				center: { lat, lng: lon },
+				zoom: Number.isFinite(zoom) ? zoom : 16,
+				heading: appliedBearing(state.northUp, heading),
+				tilt: tilt || 0,
+			});
+		} else {
+			// Raster map: center + zoom only — never heading/tilt (passing them
+			// stops the camera from moving at all).
+			moveCam({
+				center: { lat, lng: lon },
+				zoom: Number.isFinite(zoom) ? zoom : 16,
+			});
+		}
 	};
 
 	// Android -> JS: switch the map type and toggle the traffic overlay.
@@ -480,10 +564,19 @@ async function initMap(): Promise<void> {
 
 	window.setFollow = (follow) => setFollowing(!!follow);
 
-	// Android -> JS: kept because the host calls it for every backend, but a no-op
-	// here. A raster map (no Cloud Map ID) is north-up only and cannot rotate, so
-	// there is no heading-up mode to toggle; the chevron always shows the bearing.
-	window.setNorthUp = (_enabled) => {};
+	window.setNorthUp = (enabled) => {
+		state.northUp = !!enabled;
+		// Raster maps are north-up only and cannot rotate, so this is a no-op for
+		// the map there; the chevron always shows the bearing regardless.
+		if (!state.isVector) return;
+		// Vector map: re-orient the camera immediately while following; a detached
+		// camera keeps the user's rotation until re-attach.
+		const fix = state.lastFix;
+		if (state.following && fix) {
+			moveCam({ heading: appliedBearing(state.northUp, fix.heading) });
+			syncChevronTransform(fix.tilt, fix.heading);
+		}
+	};
 
 	// Host lifecycle resume: re-measure and repaint so the map recovers after a
 	// pause/resume cycle (guards a stale GL surface on Android). Google Maps has
