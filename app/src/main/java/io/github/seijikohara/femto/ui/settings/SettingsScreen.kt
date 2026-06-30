@@ -289,6 +289,10 @@ internal fun SettingsScreen(
                     ),
                 selected = uiState.mapBackend,
                 onSelect = { backend ->
+                    onAction(SettingsAction.SetMapBackend(backend))
+                    // Open the credential dialog as a convenience when the credential is
+                    // blank — the backend switch already happened above, so the map area
+                    // shows the "missing credential" notice if the dialog is dismissed.
                     when {
                         backend == MapBackend.MAPBOX && uiState.mapboxAccessToken.isBlank() -> {
                             showTokenDialog = true
@@ -296,10 +300,6 @@ internal fun SettingsScreen(
 
                         backend == MapBackend.GOOGLEMAPS && uiState.googleMapsApiKey.isBlank() -> {
                             showGoogleKeyDialog = true
-                        }
-
-                        else -> {
-                            onAction(SettingsAction.SetMapBackend(backend))
                         }
                     }
                 },

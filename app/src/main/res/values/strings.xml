@@ -9,10 +9,14 @@
     <string name="map_live_renderer_gone_hint">The map renderer keeps crashing on this device. Switch the map provider to OpenStreetMap in Settings.</string>
     <string name="map_live_init_failed">Live map can\'t start</string>
     <string name="map_live_init_failed_hint">This device can\'t render the live map. Switch the map provider to OpenStreetMap in Settings.</string>
+    <string name="map_mapbox_no_token">Mapbox needs an access token</string>
+    <string name="map_mapbox_no_token_hint">Enter your Mapbox access token in Settings → Map to show the map.</string>
     <string name="map_mapbox_failed">Mapbox map can\'t load</string>
-    <string name="map_mapbox_failed_hint">Check your Mapbox access token in Settings — it must be a valid public token starting with \"pk.\", and you need an internet connection. You can also switch back to OpenStreetMap.</string>
+    <string name="map_mapbox_failed_hint">Check that your access token is valid and not expired, and that you are online. You can change the map provider in Settings → Map.</string>
+    <string name="map_googlemaps_no_key">Google Maps needs an API key</string>
+    <string name="map_googlemaps_no_key_hint">Enter your Google Maps API key in Settings → Map to show the map.</string>
     <string name="map_googlemaps_failed">Google Maps can\'t load</string>
-    <string name="map_googlemaps_failed_hint">Check that your API key is valid, the Maps JavaScript API is enabled, the key allows this app\'s referrer, and you have internet. You can switch to OpenStreetMap in Settings.</string>
+    <string name="map_googlemaps_failed_hint">Check that your API key is valid and not expired, the Maps JavaScript API is enabled, the key allows this app, and you are online. You can change the map provider in Settings → Map.</string>
     <string name="calendar_query_failed">Calendar couldn\'t be read</string>
     <string name="font_download_failed">Download failed — tap to retry</string>
     <string name="map_attribution">© OpenStreetMap · OpenMapTiles · OpenFreeMap</string>

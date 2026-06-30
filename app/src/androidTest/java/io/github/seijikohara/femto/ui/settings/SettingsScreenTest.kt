@@ -189,20 +189,25 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun selecting_mapbox_with_no_token_opens_token_dialog() {
-        // Selecting Mapbox when no token is stored must open the entry dialog instead
-        // of switching the backend — verified by the dialog title appearing.
-        setScreen(uiState = SettingsUiState.Initial.copy(mapboxAccessToken = ""))
+    fun selecting_mapbox_with_no_token_switches_backend_and_opens_token_dialog() {
+        // Selecting Mapbox when no token is stored must switch the backend immediately
+        // (so the map area shows the missing-token notice) AND open the entry dialog.
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(
+            uiState = SettingsUiState.Initial.copy(mapboxAccessToken = ""),
+            onAction = { actions += it },
+        )
         rule.onNodeWithText(mapBackendLabel).performScrollTo().performClick()
         rule.onNodeWithText(mapboxLabel).performClick()
         rule.onNodeWithText(tokenLabel).assertIsDisplayed()
+        assertEquals(listOf(SettingsAction.SetMapBackend(MapBackend.MAPBOX)), actions)
     }
 
     @Test
-    fun saving_token_in_dialog_dispatches_single_atomic_action() {
-        // Entering a token and tapping Save must dispatch exactly one
-        // SaveMapboxToken action (the ViewModel persists the token and selects the
-        // Mapbox backend together, so the gate never sees a blank-token MAPBOX).
+    fun saving_token_in_dialog_dispatches_set_backend_then_save_token() {
+        // Selecting Mapbox with no token dispatches SetMapBackend(MAPBOX) immediately,
+        // then entering a token and tapping Save dispatches SaveMapboxToken (which also
+        // atomically persists the backend in the ViewModel — keeping both in sync).
         val actions = mutableListOf<SettingsAction>()
         setScreen(
             uiState = SettingsUiState.Initial.copy(mapboxAccessToken = ""),
@@ -213,7 +218,10 @@ class SettingsScreenTest {
         // The OutlinedTextField shows its label text when the field is empty; type into it.
         rule.onNodeWithText(tokenHintLabel).performTextInput("pk.test")
         rule.onNodeWithText(tokenSaveLabel).performClick()
-        assertEquals(listOf(SettingsAction.SaveMapboxToken("pk.test")), actions)
+        assertEquals(
+            listOf(SettingsAction.SetMapBackend(MapBackend.MAPBOX), SettingsAction.SaveMapboxToken("pk.test")),
+            actions,
+        )
     }
 
     @Test
@@ -248,15 +256,18 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun selecting_googlemaps_with_no_key_opens_key_dialog() {
-        // Selecting Google Maps when no key is stored must open the entry dialog instead
-        // of switching the backend — verified by the setup/ToS disclosure paragraph
-        // appearing (the dialog title text also labels the field, so the disclosure is
-        // the unambiguous marker that the dialog is open).
-        setScreen(uiState = SettingsUiState.Initial.copy(googleMapsApiKey = ""))
+    fun selecting_googlemaps_with_no_key_switches_backend_and_opens_key_dialog() {
+        // Selecting Google Maps when no key is stored must switch the backend immediately
+        // (so the map area shows the missing-key notice) AND open the entry dialog.
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(
+            uiState = SettingsUiState.Initial.copy(googleMapsApiKey = ""),
+            onAction = { actions += it },
+        )
         rule.onNodeWithText(mapBackendLabel).performScrollTo().performClick()
         rule.onNodeWithText(googleMapsLabel).performClick()
         rule.onNodeWithText(googleMapsKeyHintLabel).assertIsDisplayed()
+        assertEquals(listOf(SettingsAction.SetMapBackend(MapBackend.GOOGLEMAPS)), actions)
     }
 
     @Test
@@ -287,10 +298,10 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun saving_google_key_in_dialog_dispatches_single_atomic_action() {
-        // Entering a key and tapping Save must dispatch exactly one SaveGoogleMapsKey
-        // action (the ViewModel persists the key and selects Google Maps together, so
-        // the gate never sees a blank-key GOOGLEMAPS).
+    fun saving_google_key_in_dialog_dispatches_set_backend_then_save_key() {
+        // Selecting Google Maps with no key dispatches SetMapBackend(GOOGLEMAPS)
+        // immediately, then entering a key and tapping Save dispatches SaveGoogleMapsKey
+        // (which also atomically persists the backend in the ViewModel).
         val actions = mutableListOf<SettingsAction>()
         setScreen(
             uiState = SettingsUiState.Initial.copy(googleMapsApiKey = ""),
@@ -302,7 +313,10 @@ class SettingsScreenTest {
         // dialog title, so target the only editable node (the OutlinedTextField).
         rule.onNode(hasSetTextAction()).performTextInput("AIzaNewKey")
         rule.onNodeWithText(googleMapsKeySaveLabel).performClick()
-        assertEquals(listOf(SettingsAction.SaveGoogleMapsKey("AIzaNewKey")), actions)
+        assertEquals(
+            listOf(SettingsAction.SetMapBackend(MapBackend.GOOGLEMAPS), SettingsAction.SaveGoogleMapsKey("AIzaNewKey")),
+            actions,
+        )
     }
 
     @Test

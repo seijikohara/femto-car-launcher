@@ -169,15 +169,9 @@ internal fun WebMapView(
     // the map area is not a permanently blank white box.
     val mapboxBackend = mapConfig.backend == MapBackend.MAPBOX
     val mapboxTokenMissing = mapboxBackend && mapConfig.mapboxToken.isBlank()
-    // A Mapbox failure (blank token, or a style that never loads — almost always
-    // an invalid token) gets token-specific guidance instead of the generic notice.
-    val mapboxProblem = mapboxBackend && (mapboxTokenMissing || liveInitFailed)
 
     val googleMapsBackend = mapConfig.backend == MapBackend.GOOGLEMAPS
     val googleMapsKeyMissing = googleMapsBackend && mapConfig.googleMapsApiKey.isBlank()
-    // A Google Maps failure (blank key, or the Maps JS API refusing to load —
-    // almost always an invalid or unregistered key) gets key-specific guidance.
-    val googleMapsProblem = googleMapsBackend && (googleMapsKeyMissing || liveInitFailed)
 
     if (rendererGaveUp || liveInitFailed || mapboxTokenMissing || googleMapsKeyMissing) {
         Box(modifier = modifier) {
@@ -185,15 +179,26 @@ internal fun WebMapView(
                 titleRes =
                     when {
                         rendererGaveUp -> R.string.map_live_renderer_gone
-                        mapboxProblem -> R.string.map_mapbox_failed
-                        googleMapsProblem -> R.string.map_googlemaps_failed
+
+                        // Check missing credential before liveInitFailed: a blank credential
+                        // also triggers a fatal from the page, so both can be true at once.
+                        mapboxTokenMissing -> R.string.map_mapbox_no_token
+
+                        mapboxBackend && liveInitFailed -> R.string.map_mapbox_failed
+
+                        googleMapsKeyMissing -> R.string.map_googlemaps_no_key
+
+                        googleMapsBackend && liveInitFailed -> R.string.map_googlemaps_failed
+
                         else -> R.string.map_live_init_failed
                     },
                 hintRes =
                     when {
                         rendererGaveUp -> R.string.map_live_renderer_gone_hint
-                        mapboxProblem -> R.string.map_mapbox_failed_hint
-                        googleMapsProblem -> R.string.map_googlemaps_failed_hint
+                        mapboxTokenMissing -> R.string.map_mapbox_no_token_hint
+                        mapboxBackend && liveInitFailed -> R.string.map_mapbox_failed_hint
+                        googleMapsKeyMissing -> R.string.map_googlemaps_no_key_hint
+                        googleMapsBackend && liveInitFailed -> R.string.map_googlemaps_failed_hint
                         else -> R.string.map_live_init_failed_hint
                     },
                 // Why it failed is debugging detail, not driver-facing content.
