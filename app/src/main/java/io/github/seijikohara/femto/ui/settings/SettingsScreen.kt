@@ -616,7 +616,14 @@ internal fun SettingsScreen(
             onDismissRequest = { showGoogleKeyDialog = false },
             title = { Text(stringResource(R.string.settings_google_maps_key)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    // The setup/ToS disclosure runs several lines on a car display;
+                    // without scrolling it pushes the input field past the dialog's
+                    // bounded content height and clips it. Scroll keeps the field at
+                    // full height and reachable.
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     // The setup/ToS disclosure is the point of this feature, so it lives as a
                     // full body paragraph above the field (bodyMedium >= 18sp, never bodySmall)
                     // rather than a floating label that truncates on a car display — the
@@ -663,7 +670,14 @@ internal fun SettingsScreen(
             onDismissRequest = { showGoogleMapIdDialog = false },
             title = { Text(stringResource(R.string.settings_google_maps_map_id)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    // The setup/ToS disclosure runs several lines on a car display;
+                    // without scrolling it pushes the input field past the dialog's
+                    // bounded content height and clips it. Scroll keeps the field at
+                    // full height and reachable.
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     // The vector-vs-raster guidance is the point of this optional field,
                     // so it lives as a full body paragraph above the input (bodyMedium
                     // >= 18sp, never bodySmall), mirroring the API-key dialog.
