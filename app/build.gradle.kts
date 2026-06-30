@@ -169,15 +169,15 @@ android {
         getByName("main") {
             // Serve the built web payload (webmap/dist/web/...) as assets/web/...;
             // see the node {} block above.
-            assets.srcDir(rootProject.file("webmap/dist"))
+            assets.directories.add(rootProject.file("webmap/dist").path)
         }
         // One SSOT for the fixture builders both the JVM unit tests and the
         // instrumented tests need: src/sharedTest is compiled into each, so the
         // copies can no longer drift (they used to be duplicated per source set).
-        // Wired through kotlin.srcDir (not java.srcDir) so the Kotlin test
+        // Wired through kotlin.directories (not java.directories) so the Kotlin test
         // compilations pick the builders up.
-        getByName("test").kotlin.srcDir("src/sharedTest/java")
-        getByName("androidTest").kotlin.srcDir("src/sharedTest/java")
+        getByName("test").kotlin.directories.add("src/sharedTest/java")
+        getByName("androidTest").kotlin.directories.add("src/sharedTest/java")
     }
     testOptions {
         unitTests {
