@@ -323,6 +323,22 @@ async function initMap(): Promise<void> {
 		return;
 	}
 
+	// Size the container with EXPLICIT pixels before constructing the map. Google
+	// Maps lays out its inner containers with height:100%, which only resolves
+	// against a DEFINITE container height. An auto-height box — a
+	// position:fixed;inset:0 element (as the OSM/Mapbox pages use, where MapLibre/
+	// mapbox-gl measure the element themselves) or a height:100% box before <body>
+	// has a height — leaves Google's inner divs at 0px tall and the map renders
+	// permanently blank. window.innerWidth/Height are reliable at module-load time
+	// even though <body> has not been laid out yet. Re-apply on resize so the map
+	// tracks orientation changes (Google Maps observes the container size).
+	const sizeContainer = () => {
+		mapEl.style.width = `${window.innerWidth}px`;
+		mapEl.style.height = `${window.innerHeight}px`;
+	};
+	sizeContainer();
+	window.addEventListener("resize", sizeContainer);
+
 	// disableDefaultUI suppresses the control buttons only; the Google logo and
 	// attribution text render regardless and must remain visible at all times
 	// (Google Maps ToS). Do not attempt to hide or reposition the attribution.

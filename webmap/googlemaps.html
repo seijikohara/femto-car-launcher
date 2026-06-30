@@ -7,10 +7,20 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
     />
     <style>
-      html, body { margin: 0; padding: 0; background: #eaeaea; }
-      /* height:100% resolves to 0 inside an Android WebView (the container
-         measures 0 px tall); fixed/inset fills the WebView viewport reliably. */
-      #map { position: fixed; inset: 0; }
+      /* Google Maps lays out its internal containers with height:100%, so the
+         map element needs a DEFINITE height to resolve against — a
+         position:fixed;inset:0 box (as the OSM/Mapbox pages use, where the GL
+         lib measures the element in JS) leaves Google's inner divs at height 0
+         and the map renders blank. Give html/body/#map an explicit 100% height
+         chain, exactly as the Google Maps reference requires. */
+      html, body { margin: 0; padding: 0; height: 100%; background: #eaeaea; }
+      /* #map is positioned but sized in JS with explicit pixel width/height
+         (sizeContainer in googlemaps-main.ts). Google Maps' inner containers use
+         height:100%, which only resolves against a DEFINITE container height — a
+         position:fixed;inset:0 box (as the OSM/Mapbox pages use, where the GL lib
+         measures the element itself) is auto-height and Google's inner divs
+         collapse to 0, leaving the map blank. Explicit px makes it definite. */
+      #map { position: fixed; top: 0; left: 0; }
       /* Self-location chevron pinned at a fixed screen spot. The camera centres
          the location to it, so the chevron stays put and the map slides /
          rotates beneath it (car-nav style) instead of the marker sliding to
