@@ -60,6 +60,7 @@ import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.FullscreenSetting
+import io.github.seijikohara.femto.data.display.GoogleMapType
 import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MapBackend
@@ -113,6 +114,8 @@ internal fun SettingsScreen(
     color = MaterialTheme.colorScheme.surfaceContainerLow,
 ) {
     var showTokenDialog by remember { mutableStateOf(false) }
+    var showGoogleKeyDialog by remember { mutableStateOf(false) }
+    var showGoogleMapIdDialog by remember { mutableStateOf(false) }
     Column(
         modifier =
             Modifier
@@ -273,22 +276,31 @@ internal fun SettingsScreen(
         }
 
         SettingsSection(title = stringResource(R.string.settings_section_map)) {
-            // Selecting Mapbox without a token opens the token-entry dialog instead of
-            // persisting the backend switch — the Screen owns this interception because
-            // the dialog lives here (single source of truth for showTokenDialog).
+            // Selecting Mapbox without a token, or Google Maps without an API key, opens
+            // the respective entry dialog instead of persisting the backend switch — the
+            // Screen owns this interception because the dialogs live here.
             ChoiceRow(
                 title = stringResource(R.string.settings_map_backend),
                 options =
                     listOf(
                         MapBackend.OSM to stringResource(R.string.settings_map_backend_osm),
                         MapBackend.MAPBOX to stringResource(R.string.settings_map_backend_mapbox),
+                        MapBackend.GOOGLEMAPS to stringResource(R.string.settings_map_backend_googlemaps),
                     ),
                 selected = uiState.mapBackend,
                 onSelect = { backend ->
-                    if (backend == MapBackend.MAPBOX && uiState.mapboxAccessToken.isBlank()) {
-                        showTokenDialog = true
-                    } else {
-                        onAction(SettingsAction.SetMapBackend(backend))
+                    onAction(SettingsAction.SetMapBackend(backend))
+                    // Open the credential dialog as a convenience when the credential is
+                    // blank — the backend switch already happened above, so the map area
+                    // shows the "missing credential" notice if the dialog is dismissed.
+                    when {
+                        backend == MapBackend.MAPBOX && uiState.mapboxAccessToken.isBlank() -> {
+                            showTokenDialog = true
+                        }
+
+                        backend == MapBackend.GOOGLEMAPS && uiState.googleMapsApiKey.isBlank() -> {
+                            showGoogleKeyDialog = true
+                        }
                     }
                 },
             )
@@ -323,6 +335,44 @@ internal fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                     )
+                }
+            }
+            AnimatedVisibility(visible = uiState.mapBackend == MapBackend.GOOGLEMAPS) {
+                Column {
+                    ChoiceRow(
+                        title = stringResource(R.string.settings_google_maps_type),
+                        options =
+                            listOf(
+                                GoogleMapType.ROADMAP to stringResource(R.string.settings_google_maps_type_roadmap),
+                                GoogleMapType.SATELLITE to stringResource(R.string.settings_google_maps_type_satellite),
+                                GoogleMapType.HYBRID to stringResource(R.string.settings_google_maps_type_hybrid),
+                                GoogleMapType.TERRAIN to stringResource(R.string.settings_google_maps_type_terrain),
+                            ),
+                        selected = uiState.googleMapsMapType,
+                        onSelect = { onAction(SettingsAction.SetGoogleMapsMapType(it)) },
+                    )
+                    SwitchRow(
+                        title = stringResource(R.string.settings_google_maps_traffic),
+                        checked = uiState.googleMapsTraffic,
+                        onCheckedChange = { onAction(SettingsAction.SetGoogleMapsTraffic(it)) },
+                    )
+                    SettingRow(
+                        title = stringResource(R.string.settings_google_maps_key),
+                        summary = googleMapsKeySummary(uiState.googleMapsApiKey),
+                        modifier = Modifier.clickable { showGoogleKeyDialog = true },
+                    ) {
+                        TrailingIcon(Lucide.ChevronRight)
+                    }
+                    // Optional: a Map ID upgrades the raster map to a vector style
+                    // (heading-up/3D). It does not switch the backend — the key
+                    // already selected Google Maps — so the Map ID is not masked.
+                    SettingRow(
+                        title = stringResource(R.string.settings_google_maps_map_id),
+                        summary = googleMapsMapIdSummary(uiState.googleMapsMapId),
+                        modifier = Modifier.clickable { showGoogleMapIdDialog = true },
+                    ) {
+                        TrailingIcon(Lucide.ChevronRight)
+                    }
                 }
             }
             // The AUTO/LIGHT/DARK map style also drives Mapbox Standard's lightPreset
@@ -557,6 +607,113 @@ internal fun SettingsScreen(
                         showTokenDialog = false
                     },
                 ) { Text(stringResource(R.string.settings_mapbox_token_clear)) }
+            },
+        )
+    }
+    if (showGoogleKeyDialog) {
+        var draft by remember { mutableStateOf(uiState.googleMapsApiKey) }
+        AlertDialog(
+            onDismissRequest = { showGoogleKeyDialog = false },
+            title = { Text(stringResource(R.string.settings_google_maps_key)) },
+            text = {
+                Column(
+                    // The setup/ToS disclosure runs several lines on a car display;
+                    // without scrolling it pushes the input field past the dialog's
+                    // bounded content height and clips it. Scroll keeps the field at
+                    // full height and reachable.
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    // The setup/ToS disclosure is the point of this feature, so it lives as a
+                    // full body paragraph above the field (bodyMedium >= 18sp, never bodySmall)
+                    // rather than a floating label that truncates on a car display — the
+                    // deliberate divergence from the Mapbox dialog, whose hint fits in a label.
+                    Text(
+                        text = stringResource(R.string.settings_google_maps_key_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.settings_google_maps_key)) },
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = draft.isNotBlank(),
+                    onClick = {
+                        // One atomic action: persist the key and select Google Maps
+                        // together so the gate never sees a blank-key GOOGLEMAPS.
+                        onAction(SettingsAction.SaveGoogleMapsKey(draft))
+                        showGoogleKeyDialog = false
+                    },
+                    modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
+                ) { Text(stringResource(R.string.settings_google_maps_key_save)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        onAction(SettingsAction.ClearGoogleMapsKey)
+                        showGoogleKeyDialog = false
+                    },
+                    modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
+                ) { Text(stringResource(R.string.settings_google_maps_key_clear)) }
+            },
+        )
+    }
+    if (showGoogleMapIdDialog) {
+        var draft by remember { mutableStateOf(uiState.googleMapsMapId) }
+        AlertDialog(
+            onDismissRequest = { showGoogleMapIdDialog = false },
+            title = { Text(stringResource(R.string.settings_google_maps_map_id)) },
+            text = {
+                Column(
+                    // The setup/ToS disclosure runs several lines on a car display;
+                    // without scrolling it pushes the input field past the dialog's
+                    // bounded content height and clips it. Scroll keeps the field at
+                    // full height and reachable.
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    // The vector-vs-raster guidance is the point of this optional field,
+                    // so it lives as a full body paragraph above the input (bodyMedium
+                    // >= 18sp, never bodySmall), mirroring the API-key dialog.
+                    Text(
+                        text = stringResource(R.string.settings_google_maps_map_id_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.settings_google_maps_map_id)) },
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    // Blank is a valid Map ID (it reverts to the raster map), so the
+                    // confirm button is always enabled.
+                    enabled = true,
+                    onClick = {
+                        onAction(SettingsAction.SetGoogleMapsMapId(draft))
+                        showGoogleMapIdDialog = false
+                    },
+                    modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
+                ) { Text(stringResource(R.string.settings_google_maps_map_id_save)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        onAction(SettingsAction.ClearGoogleMapsMapId)
+                        showGoogleMapIdDialog = false
+                    },
+                    modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
+                ) { Text(stringResource(R.string.settings_google_maps_map_id_clear)) }
             },
         )
     }
@@ -1277,6 +1434,21 @@ private fun mapboxTokenSummary(token: String): String =
     } else {
         "••••" + token.takeLast(4)
     }
+
+// Same masking pattern as mapboxTokenSummary, applied to the Google Maps API key.
+@Composable
+private fun googleMapsKeySummary(key: String): String =
+    if (key.isBlank()) {
+        stringResource(R.string.settings_google_maps_key_unset)
+    } else {
+        "••••" + key.takeLast(4)
+    }
+
+// The Map ID is not secret (it only names a console-defined style), so it is
+// shown verbatim — no masking, unlike the API key above.
+@Composable
+private fun googleMapsMapIdSummary(mapId: String): String =
+    mapId.ifBlank { stringResource(R.string.settings_google_maps_map_id_unset) }
 
 @PreviewLightDark
 @Composable

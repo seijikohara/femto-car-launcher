@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import io.github.seijikohara.femto.data.display.GoogleMapType
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapStyleSetting
@@ -21,11 +22,16 @@ internal data class MapConfig(
     // (Mapbox GL JS, paid). Kept as a MapConfig field so the WebView host can
     // branch page URL and bridge calls without reaching into DisplaySettings.
     val backend: MapBackend = MapBackend.OSM,
-    // Mapbox-specific fields; ignored when backend == OSM.
+    // Mapbox-specific fields; ignored when backend != MAPBOX.
     val mapboxStyle: MapboxStyle = MapboxStyle.STANDARD,
     val mapboxTraffic: Boolean = false,
     /** User-supplied Mapbox access token; empty when the user has not entered one. */
     val mapboxToken: String = "",
+    // Google Maps-specific fields; ignored when backend != GOOGLEMAPS.
+    val googleMapsApiKey: String = "",
+    val googleMapsMapId: String = "",
+    val googleMapsMapType: GoogleMapType = GoogleMapType.ROADMAP,
+    val googleMapsTraffic: Boolean = false,
     val markerPos: Int = 70,
     // Fraction (0..0.5) of the map height the bottom speed overlay occupies,
     // measured at layout time (not a persisted setting). The marker drop is

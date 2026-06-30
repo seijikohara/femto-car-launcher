@@ -38,7 +38,11 @@ The home screen is a fixed dashboard rather than a scrolling grid of apps.
   the keyless OpenFreeMap service. An optional Mapbox backend — offering
   satellite imagery, real-time traffic, and Mapbox 3D styles — is
   available by entering your own Mapbox public access token in
-  Settings → Map. The view is heading-up (the map rotates so the travel
+  Settings → Map. A further optional Google Maps backend — offering the
+  roadmap, satellite, hybrid, and terrain map types with a traffic
+  overlay, rendered by the Google Maps JavaScript API — is available by
+  entering your own Google Maps Platform API key in the same screen. The
+  view is heading-up (the map rotates so the travel
   direction points up) and offers an optional three-dimensional terrain
   relief layer (Mapterhorn elevation tiles). Head units whose WebView
   cannot sustain WebGL can switch to a Snapshot mode that rasterises the
@@ -78,8 +82,10 @@ The home screen is a fixed dashboard rather than a scrolling grid of apps.
   temperature units, clock format and seconds, a fullscreen toggle that
   hides the system bars, dock edge, drawer icon size, glass-effect blur
   and opacity for the dashboard overlays, map rendering (Live / Snapshot
-  mode, render quality, terrain, and an optional Mapbox access token to
-  enable the Mapbox backend), location-update tuning, and the font
+  mode, render quality, terrain, an optional Mapbox access token to
+  enable the Mapbox backend, an optional Google Maps Platform API key
+  to enable the Google Maps backend, and an optional Map ID for a vector
+  Google map), location-update tuning, and the font
   pairing — plus shortcuts to the system notification-access and Android
   settings screens, and a one-tap reset to defaults.
 
@@ -183,7 +189,15 @@ The launcher runs with no configuration: `./gradlew assembleDebug`
 produces a working build. The default OSM map backend (MapLibre + OpenFreeMap)
 needs no API key. To enable the optional Mapbox backend, enter your own Mapbox
 public access token (`pk.…`) in Settings → Map on the device; the token is
-stored on-device and requires no build-time configuration.
+stored on-device and requires no build-time configuration. The optional Google
+Maps backend works the same way: enter your own Google Maps Platform API key in
+Settings → Map. The key needs the Maps JavaScript API enabled and an
+HTTP-referrer restriction that allows `https://appassets.androidplatform.net/*`;
+it is stored on-device and requires no build-time configuration. Optionally,
+also enter a **Map ID** (created in the Google Cloud console) to render a vector
+map with heading-up rotation, tilt, and 3D; leave it blank for a flat north-up
+raster map. An invalid Map ID renders nothing — clear it to fall back to the
+raster map.
 
 Two network services default to shared public endpoints that are fine for
 development and evaluation but are rate-limited and unsuitable for

@@ -41,7 +41,6 @@ import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
-import io.github.seijikohara.femto.data.display.effectiveBackend
 import io.github.seijikohara.femto.data.fonts.FontRepository
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.data.location.LocationGraph
@@ -178,13 +177,14 @@ class MainActivity : ComponentActivity() {
                             markerPos = display.mapMarkerPos,
                             buildings3d = display.map3dBuildings,
                             terrain = display.mapTerrain,
-                            backend = effectiveBackend(
-                                stored = display.mapBackend,
-                                hasMapboxToken = display.mapboxAccessToken.isNotBlank(),
-                            ),
+                            backend = display.mapBackend,
                             mapboxToken = display.mapboxAccessToken,
                             mapboxStyle = display.mapboxStyle,
                             mapboxTraffic = display.mapboxTraffic,
+                            googleMapsApiKey = display.googleMapsApiKey,
+                            googleMapsMapId = display.googleMapsMapId,
+                            googleMapsMapType = display.googleMapsMapType,
+                            googleMapsTraffic = display.googleMapsTraffic,
                         ),
                     panels =
                         PanelVisibility(

@@ -70,6 +70,10 @@ internal class SettingsViewModel(
                 mapboxStyle = display.mapboxStyle,
                 mapboxTraffic = display.mapboxTraffic,
                 mapboxAccessToken = display.mapboxAccessToken,
+                googleMapsApiKey = display.googleMapsApiKey,
+                googleMapsMapId = display.googleMapsMapId,
+                googleMapsMapType = display.googleMapsMapType,
+                googleMapsTraffic = display.googleMapsTraffic,
                 latinFont = font.latinFamily,
                 cjkFont = font.cjkFamily,
                 locationQuality = location.quality,
@@ -235,6 +239,31 @@ internal class SettingsViewModel(
 
                 SettingsAction.ClearMapboxToken -> {
                     displayPreferences.setMapboxAccessToken("")
+                }
+
+                is SettingsAction.SaveGoogleMapsKey -> {
+                    displayPreferences.setGoogleMapsApiKey(action.value.trim())
+                    displayPreferences.setMapBackend(MapBackend.GOOGLEMAPS)
+                }
+
+                SettingsAction.ClearGoogleMapsKey -> {
+                    displayPreferences.setGoogleMapsApiKey("")
+                }
+
+                is SettingsAction.SetGoogleMapsMapId -> {
+                    displayPreferences.setGoogleMapsMapId(action.value.trim())
+                }
+
+                SettingsAction.ClearGoogleMapsMapId -> {
+                    displayPreferences.setGoogleMapsMapId("")
+                }
+
+                is SettingsAction.SetGoogleMapsMapType -> {
+                    displayPreferences.setGoogleMapsMapType(action.value)
+                }
+
+                is SettingsAction.SetGoogleMapsTraffic -> {
+                    displayPreferences.setGoogleMapsTraffic(action.value)
                 }
 
                 is SettingsAction.SetCalendarHidden -> {

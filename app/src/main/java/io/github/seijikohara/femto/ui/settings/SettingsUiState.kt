@@ -7,6 +7,7 @@ import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.FullscreenSetting
+import io.github.seijikohara.femto.data.display.GoogleMapType
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapStyleSetting
@@ -60,6 +61,10 @@ internal data class SettingsUiState(
     val mapboxStyle: MapboxStyle = DisplaySettings.Default.mapboxStyle,
     val mapboxTraffic: Boolean = DisplaySettings.Default.mapboxTraffic,
     val mapboxAccessToken: String = "",
+    val googleMapsApiKey: String = "",
+    val googleMapsMapId: String = "",
+    val googleMapsMapType: GoogleMapType = DisplaySettings.Default.googleMapsMapType,
+    val googleMapsTraffic: Boolean = DisplaySettings.Default.googleMapsTraffic,
     val availableCalendars: List<CalendarInfo> = emptyList(),
     val hiddenCalendarIds: Set<Long> = emptySet(),
     // Defaults false so a not-yet-loaded selector never falsely claims "no
@@ -109,6 +114,10 @@ internal data class SettingsUiState(
                 mapboxStyle = DisplaySettings.Default.mapboxStyle,
                 mapboxTraffic = DisplaySettings.Default.mapboxTraffic,
                 mapboxAccessToken = DisplaySettings.Default.mapboxAccessToken,
+                googleMapsApiKey = DisplaySettings.Default.googleMapsApiKey,
+                googleMapsMapId = DisplaySettings.Default.googleMapsMapId,
+                googleMapsMapType = DisplaySettings.Default.googleMapsMapType,
+                googleMapsTraffic = DisplaySettings.Default.googleMapsTraffic,
             )
     }
 }
@@ -263,6 +272,31 @@ internal sealed interface SettingsAction {
     ) : SettingsAction
 
     data object ClearMapboxToken : SettingsAction
+
+    // Persist the key AND select the Google Maps backend atomically (one coroutine)
+    // so the gate never briefly sees backend=GOOGLEMAPS with a blank key.
+    data class SaveGoogleMapsKey(
+        val value: String,
+    ) : SettingsAction
+
+    data object ClearGoogleMapsKey : SettingsAction
+
+    // Map ID is optional and does not switch the backend (a key already did
+    // that); a non-empty value upgrades the map to a vector style. Blank is
+    // valid, so this is a plain set — not the atomic key/backend pair above.
+    data class SetGoogleMapsMapId(
+        val value: String,
+    ) : SettingsAction
+
+    data object ClearGoogleMapsMapId : SettingsAction
+
+    data class SetGoogleMapsMapType(
+        val value: GoogleMapType,
+    ) : SettingsAction
+
+    data class SetGoogleMapsTraffic(
+        val value: Boolean,
+    ) : SettingsAction
 
     data class SetCalendarHidden(
         val id: Long,

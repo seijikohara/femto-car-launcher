@@ -18,6 +18,7 @@ export default defineConfig({
 			input: {
 				map: resolve(import.meta.dirname, "map.html"),
 				mapbox: resolve(import.meta.dirname, "mapbox.html"),
+				googlemaps: resolve(import.meta.dirname, "googlemaps.html"),
 			},
 		},
 	},
