@@ -142,7 +142,7 @@
     <string name="settings_mapbox_token_hint">Paste your Mapbox public token (pk.…)</string>
     <string name="settings_mapbox_token_save">Save</string>
     <string name="settings_mapbox_token_clear">Clear</string>
-    <string name="settings_subheader_screen">Screen</string>
+    <string name="settings_section_screen">Screen</string>
     <string name="settings_subheader_glass">Glass</string>
     <string name="settings_group_glass_blur">Blur radius</string>
     <string name="settings_group_glass_opacity">Glass opacity</string>

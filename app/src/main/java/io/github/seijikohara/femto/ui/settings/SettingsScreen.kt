@@ -40,9 +40,6 @@ import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Lucide
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.AccentColor
-import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
-import io.github.seijikohara.femto.data.display.DockPosition
-import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.GoogleMapType
 import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
@@ -50,17 +47,16 @@ import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.display.MapboxStyle
-import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
 import io.github.seijikohara.femto.data.display.ThemePreset
 import io.github.seijikohara.femto.data.display.ThemePresets
-import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.ui.settings.components.ChoiceRow
 import io.github.seijikohara.femto.ui.settings.components.FontRow
 import io.github.seijikohara.femto.ui.settings.components.Header
 import io.github.seijikohara.femto.ui.settings.components.LocationSection
 import io.github.seijikohara.femto.ui.settings.components.PanelsSection
+import io.github.seijikohara.femto.ui.settings.components.ScreenSection
 import io.github.seijikohara.femto.ui.settings.components.SettingRow
 import io.github.seijikohara.femto.ui.settings.components.SettingsSection
 import io.github.seijikohara.femto.ui.settings.components.SettingsSubheader
@@ -144,61 +140,6 @@ internal fun SettingsScreen(
                     ),
                 onSelect = { onAction(SettingsAction.ApplyThemePreset(it)) },
             )
-            SettingsSubheader(stringResource(R.string.settings_subheader_screen))
-            ChoiceRow(
-                title = stringResource(R.string.settings_group_ui_scale),
-                options =
-                    listOf(
-                        UiScale.SMALL to stringResource(R.string.settings_ui_scale_small),
-                        UiScale.MEDIUM to stringResource(R.string.settings_ui_scale_medium),
-                        UiScale.LARGE to stringResource(R.string.settings_ui_scale_large),
-                    ),
-                selected = uiState.uiScale,
-                onSelect = { onAction(SettingsAction.SetUiScale(it)) },
-            )
-            ChoiceRow(
-                title = stringResource(R.string.settings_group_orientation),
-                options =
-                    listOf(
-                        OrientationSetting.AUTO to stringResource(R.string.settings_option_auto),
-                        OrientationSetting.LANDSCAPE to stringResource(R.string.settings_orientation_landscape),
-                        OrientationSetting.PORTRAIT to stringResource(R.string.settings_orientation_portrait),
-                    ),
-                selected = uiState.orientation,
-                onSelect = { onAction(SettingsAction.SetOrientation(it)) },
-            )
-            SwitchRow(
-                title = stringResource(R.string.settings_group_fullscreen),
-                checked = uiState.fullscreen == FullscreenSetting.ON,
-                onCheckedChange = { onAction(SettingsAction.SetFullscreen(it.toFullscreen())) },
-            )
-            SwitchRow(
-                title = stringResource(R.string.settings_keep_screen_on),
-                checked = uiState.keepScreenOn,
-                onCheckedChange = { onAction(SettingsAction.SetKeepScreenOn(it)) },
-            )
-            ChoiceRow(
-                title = stringResource(R.string.settings_group_dock_position),
-                options =
-                    listOf(
-                        DockPosition.BOTTOM to stringResource(R.string.settings_dock_bottom),
-                        DockPosition.TOP to stringResource(R.string.settings_dock_top),
-                        DockPosition.LEFT to stringResource(R.string.settings_dock_left),
-                        DockPosition.RIGHT to stringResource(R.string.settings_dock_right),
-                    ),
-                selected = uiState.dockPosition,
-                onSelect = { onAction(SettingsAction.SetDockPosition(it)) },
-            )
-            ChoiceRow(
-                title = stringResource(R.string.settings_group_assistant),
-                options =
-                    listOf(
-                        AssistantLaunchSetting.SYSTEM to stringResource(R.string.settings_assistant_system),
-                        AssistantLaunchSetting.IN_APP to stringResource(R.string.settings_assistant_in_app),
-                    ),
-                selected = uiState.assistantLaunch,
-                onSelect = { onAction(SettingsAction.SetAssistantLaunch(it)) },
-            )
             SettingsSubheader(stringResource(R.string.settings_subheader_glass))
             SliderRow(
                 title = stringResource(R.string.settings_group_glass_blur),
@@ -226,6 +167,8 @@ internal fun SettingsScreen(
                 onClick = { onOpenFontPicker(FontSlot.CJK) },
             )
         }
+
+        ScreenSection(uiState = uiState, onAction = onAction)
 
         UnitsSection(uiState = uiState, onAction = onAction)
 
@@ -848,8 +791,6 @@ private const val MIN_GLASS_BLUR = 0
 private const val MAX_GLASS_BLUR = 40
 private const val MIN_GLASS_OPACITY = 0
 private const val MAX_GLASS_OPACITY = 100
-
-private fun Boolean.toFullscreen(): FullscreenSetting = if (this) FullscreenSetting.ON else FullscreenSetting.OFF
 
 // The human-readable label for an accent, used as each swatch's content
 // description (the swatches are color-only, so they need an accessible name).
