@@ -63,6 +63,7 @@ class SettingsScreenTest {
     private val googleMapsMapIdHintLabel = context.getString(R.string.settings_google_maps_map_id_hint)
     private val googleMapsMapIdSaveLabel = context.getString(R.string.settings_google_maps_map_id_save)
     private val googleMapsMapIdClearLabel = context.getString(R.string.settings_google_maps_map_id_clear)
+    private val accentOsmOnlyNoteLabel = context.getString(R.string.settings_map_accent_osm_only_note)
 
     @Test
     fun renders_fullscreen_row() {
@@ -319,6 +320,33 @@ class SettingsScreenTest {
         )
         rule.onNodeWithText(googleMapsTypeLabel).performScrollTo().assertIsDisplayed()
         rule.onNodeWithText(googleMapsTrafficLabel).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun accent_osm_only_note_shown_for_mapbox_backend() {
+        setScreen(
+            uiState =
+                SettingsUiState.Initial.copy(
+                    mapBackend = MapBackend.MAPBOX,
+                    mapboxAccessToken = "pk.test",
+                ),
+        )
+        rule.onNodeWithText(accentOsmOnlyNoteLabel).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun accent_osm_only_note_shown_for_google_maps_backend() {
+        // The note already shows for Mapbox (see the test above); Google Maps is
+        // equally non-recolorable and must show the same explanation, not leave
+        // the gap unexplained.
+        setScreen(
+            uiState =
+                SettingsUiState.Initial.copy(
+                    mapBackend = MapBackend.GOOGLEMAPS,
+                    googleMapsApiKey = "AIzaTestKey",
+                ),
+        )
+        rule.onNodeWithText(accentOsmOnlyNoteLabel).performScrollTo().assertIsDisplayed()
     }
 
     @Test

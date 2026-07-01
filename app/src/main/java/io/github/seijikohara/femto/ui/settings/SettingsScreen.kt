@@ -375,6 +375,12 @@ internal fun SettingsScreen(
                     ) {
                         TrailingIcon(Lucide.ChevronRight)
                     }
+                    Text(
+                        text = stringResource(R.string.settings_map_accent_osm_only_note),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                    )
                 }
             }
             // MapStyleSetting.AUTO also drives Mapbox Standard's lightPreset (day/night),
