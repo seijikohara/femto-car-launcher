@@ -42,8 +42,10 @@ with automotive overrides on top.
   ExtraBold/Bold, headline SemiBold, title Medium; body Normal, label
   Medium — `ui/theme/Type.kt` is the SSOT). Use
   `MaterialTheme.typography.*` styles or the named `Typography`
-  extensions in `Type.kt` (`bigNumber`, `sectionLabel`, `cardTitle`,
-  `cardMeta`, `cardCta`, `cardCtaHint`); never construct ad-hoc
+  extensions in `Type.kt` (`bigNumber`, `heroNumeral`, `sectionLabel`,
+  `eyebrow`, `calendarWeekday`, `glanceMetric`, `glanceBody`,
+  `progressCaption`, `monoReference`, `cardTitle`, `cardMeta`,
+  `cardCta`, `cardCtaHint`, `tileLabel`); never construct ad-hoc
   `TextStyle` literals — a recurring `.copy(fontSize = ...)` becomes a
   new named extension in `Type.kt`.
 - Sizing: read from `FemtoDimens` (e.g. `FemtoDimens.MinTouchTarget`).
@@ -53,3 +55,9 @@ with automotive overrides on top.
   ...)`) beside it are sanctioned responsive test cases: annotation
   classes cannot parameterise dimensions, and the geometries differ
   per component.
+- `ui/theme/FitText.kt` is the SSOT for a single-line label that
+  shrinks to fit its available width across locales and screen sizes
+  (weekday names, track titles, metric values).
+  `ui/theme/PreviewTextStress.kt` is a `@Preview` annotation bundling
+  pseudolocale (`en-XA`, `ar-XB`) and large-font-scale cases; apply it
+  alongside `@PreviewLightDark` on text-heavy components.
