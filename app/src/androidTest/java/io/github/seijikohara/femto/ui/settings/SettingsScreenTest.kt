@@ -32,6 +32,7 @@ class SettingsScreenTest {
     private val darkLabel = context.getString(R.string.settings_theme_dark)
     private val showSecondsLabel = context.getString(R.string.settings_group_clock_seconds)
     private val tealAccentLabel = context.getString(R.string.settings_accent_teal)
+    private val customPresetLabel = context.getString(R.string.settings_theme_preset_custom)
     private val resetLabel = context.getString(R.string.settings_reset_to_defaults)
     private val resetConfirmLabel = context.getString(R.string.settings_reset_confirm)
     private val keepScreenOnLabel = context.getString(R.string.settings_keep_screen_on)
@@ -95,6 +96,21 @@ class SettingsScreenTest {
         // then tapping it reports the matching AccentColor.
         rule.onNodeWithContentDescription(tealAccentLabel).performScrollTo().performClick()
         assertEquals(listOf(SettingsAction.SetAccentColor(AccentColor.TEAL)), actions)
+    }
+
+    @Test
+    fun theme_preset_row_shows_no_custom_chip_when_matching_dynamic_default() {
+        // SettingsUiState.Initial is DYNAMIC + ACCENT/ACCENT, which matches
+        // ThemePresets.Dynamic exactly, so no Custom chip should render.
+        setScreen()
+        rule.onNodeWithText(customPresetLabel).assertDoesNotExist()
+    }
+
+    @Test
+    fun theme_preset_row_shows_custom_chip_when_accent_diverges_from_every_preset() {
+        // PINK is not any preset's accent seed, so the bundle can't match.
+        setScreen(uiState = SettingsUiState.Initial.copy(accentColor = AccentColor.PINK))
+        rule.onNodeWithText(customPresetLabel).performScrollTo().assertIsDisplayed()
     }
 
     @Test

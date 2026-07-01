@@ -143,6 +143,7 @@ internal fun SettingsScreen(
                 onSelect = { onAction(SettingsAction.SetAccentColor(it)) },
             )
             ThemePresetRow(
+                accentColor = uiState.accentColor,
                 selectedPreset =
                     ThemePresets.matchingOrNull(
                         accentColor = uiState.accentColor,
@@ -875,9 +876,13 @@ private fun AccentSwatch(
 // The theme-preset picker: named bundles of accent + map colour schemes from the
 // ThemePresets registry. Tapping one applies the whole look at once; the accent
 // and map-scheme controls then reflect it. The data-driven "theme as data"
-// surface — mass-producing a theme is a registry entry, not new UI here.
+// surface — mass-producing a theme is a registry entry, not new UI here. When the
+// current accent/map-scheme combination matches no registered bundle, a
+// non-interactive "Custom" chip renders instead of leaving every chip unselected,
+// so a fine-tuned combination reads as a deliberate state rather than a stale one.
 @Composable
 private fun ThemePresetRow(
+    accentColor: AccentColor,
     selectedPreset: ThemePreset?,
     onSelect: (ThemePreset) -> Unit,
     modifier: Modifier = Modifier,
@@ -907,6 +912,46 @@ private fun ThemePresetRow(
                 onClick = { onSelect(preset) },
             )
         }
+        if (selectedPreset == null) {
+            CustomPresetChip(accentColor = accentColor)
+        }
+    }
+}
+
+// The "you are here" readout when no preset bundle matches: same visual weight as
+// a selected ThemePresetChip (secondaryContainer fill + primary border) but not
+// clickable — Custom is a status, not an action to invoke. The dot shows the
+// CURRENT accent live, since there is no single preset color to show.
+@Composable
+private fun CustomPresetChip(
+    accentColor: AccentColor,
+    modifier: Modifier = Modifier,
+) {
+    val seed = accentColor.accentSeedColor()
+    Row(
+        modifier =
+            modifier
+                .heightIn(min = FemtoDimens.MinTouchTarget)
+                .clip(MaterialTheme.shapes.large)
+                .background(MaterialTheme.colorScheme.secondaryContainer)
+                .border(width = 2.dp, color = MaterialTheme.colorScheme.primary, shape = MaterialTheme.shapes.large)
+                .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        val dot = if (seed !=
+            null
+        ) {
+            Modifier.background(seed)
+        } else {
+            Modifier.background(Brush.sweepGradient(DynamicAccentSweep))
+        }
+        Box(modifier = Modifier.size(20.dp).clip(CircleShape).then(dot))
+        Text(
+            text = stringResource(R.string.settings_theme_preset_custom),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
     }
 }
 
