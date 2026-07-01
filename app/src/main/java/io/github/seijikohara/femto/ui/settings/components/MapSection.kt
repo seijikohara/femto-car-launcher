@@ -147,9 +147,9 @@ internal fun MapSection(
                 )
             }
         }
-        SettingsSubheader(stringResource(R.string.settings_subheader_map_rendering))
         AnimatedVisibility(visible = uiState.mapBackend == MapBackend.OSM) {
             Column {
+                SettingsSubheader(stringResource(R.string.settings_subheader_map_rendering))
                 SwitchRow(
                     title = stringResource(R.string.settings_group_map_3d),
                     checked = uiState.map3dBuildings,
