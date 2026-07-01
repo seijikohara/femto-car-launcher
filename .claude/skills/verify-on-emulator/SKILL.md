@@ -68,7 +68,8 @@ the home dashboard.
    then `am force-stop` + restart.
 
 5. **Drive the UI**: `uiautomator dump /sdcard/ui.xml` + `adb pull`,
-   grep `content-desc="Settings"` for the footer button bounds, then
+   grep `content-desc="Settings"` for the dock button bounds (the
+   `DashboardDock` component, formerly called the footer), then
    `input tap`. The settings ModalBottomSheet opens **partially
    expanded** — `input swipe` up to fully expand, then swipe to
    scroll.
@@ -83,10 +84,11 @@ the home dashboard.
 
 ## Known limitation
 
-The emulator cannot present the native LIVE map GL — see the map
-memory note (`memory/map_maplibre_openfreemap.md` under the project
-memory directory) for the details and the SNAPSHOT floor; do not
-treat a blank LIVE map on the emulator as a regression.
+The emulator cannot present the map WebView's GL surface for any
+backend (OSM/MapLibre, Mapbox, or Google Maps) — this is a known
+GLES-translator limitation, not a regression; do not treat a blank
+map on the emulator as one. See the project's Claude Code memory
+(CLAUDE.md's Memory section) for the detailed history if needed.
 
 ## Report
 

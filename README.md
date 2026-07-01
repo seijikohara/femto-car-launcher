@@ -44,9 +44,7 @@ The home screen is a fixed dashboard rather than a scrolling grid of apps.
   entering your own Google Maps Platform API key in the same screen. The
   view is heading-up (the map rotates so the travel
   direction points up) and offers an optional three-dimensional terrain
-  relief layer (Mapterhorn elevation tiles). Head units whose WebView
-  cannot sustain WebGL can switch to a Snapshot mode that rasterises the
-  same vector map off-screen.
+  relief layer (Mapterhorn elevation tiles).
 - **Trip overlay** — current speed, trip distance, and average speed
   derived from the Global Positioning System (GPS), plus the
   reverse-geocoded address of the current position.
@@ -54,7 +52,8 @@ The home screen is a fixed dashboard rather than a scrolling grid of apps.
   temperature, wind, humidity, and an hourly forecast from MET Norway
   (`api.met.no`).
 - **Calendar card** — a six-day strip and the upcoming events read from the
-  device calendar.
+  device calendar, with a Settings option to choose which of the
+  device's calendars are shown.
 - **Now-playing card** — the active media session (title, artist, source
   app, and transport controls), read through a notification-listener
   service.
@@ -76,18 +75,20 @@ The home screen is a fixed dashboard rather than a scrolling grid of apps.
   family chosen per slot (a Latin face plus a CJK — Chinese, Japanese,
   Korean — fallback face), downloaded on demand and cached on disk. No
   fonts are bundled in the APK and no Play Services are required.
-- **Settings** — in-app preferences for theme (follow-system / light /
-  dark), accent colour (Material You dynamic colour or a fixed seed
-  preset), screen orientation (auto / landscape / portrait), speed and
-  temperature units, clock format and seconds, a fullscreen toggle that
-  hides the system bars, dock edge, drawer icon size, glass-effect blur
-  and opacity for the dashboard overlays, map rendering (Live / Snapshot
-  mode, render quality, terrain, an optional Mapbox access token to
-  enable the Mapbox backend, an optional Google Maps Platform API key
-  to enable the Google Maps backend, and an optional Map ID for a vector
-  Google map), location-update tuning, and the font
-  pairing — plus shortcuts to the system notification-access and Android
-  settings screens, and a one-tap reset to defaults.
+- **Settings** — in-app preferences grouped into seven sections:
+  **Appearance** (theme, accent colour, a curated theme preset with a
+  live "Custom" indicator, map colour matching, glass-effect blur and
+  opacity, and font pairing), **Screen** (UI scale, screen orientation,
+  fullscreen, keep-screen-on, dock edge, and voice-assistant launch
+  behaviour), **Units** (speed and temperature units, clock format and
+  seconds), **Map** (backend choice, an optional Mapbox access token or
+  Google Maps Platform API key to enable the paid backends, 3D
+  buildings, terrain, and camera behaviour), **Location**
+  (location-update tuning), **Panels** (show or hide the calendar,
+  weather, and music cards, and which device calendars the calendar
+  card shows), and **System** (shortcuts to the system
+  notification-access and Android settings screens, and a one-tap
+  reset to defaults).
 
 Each panel degrades gracefully. A panel whose runtime permission is denied,
 or whose data source is unavailable, renders an empty or reduced state
@@ -152,7 +153,10 @@ app/src/main/
 │       ├── drawer/       # full app drawer with pinned dock
 │       ├── assistant/    # voice-assistant bottom sheet
 │       ├── settings/     # in-app settings
+│       ├── diagnostics/  # in-app diagnostics report
+│       ├── licenses/     # open-source licenses screen
 │       ├── fontpicker/   # per-slot Google Fonts picker
+│       ├── common/       # shared modal-sheet helpers
 │       ├── locale/       # unit and locale formatting
 │       └── theme/        # FemtoTheme, design tokens, previews
 └── res/                  # themes, strings (per-locale), launcher icon
@@ -220,11 +224,14 @@ set it to a self-hosted host to use network geocoding instead.
 The [`CI`](.github/workflows/ci.yml) workflow runs on every pull request
 and on pushes to `main`:
 
-- **Validate** (all triggers): runs
-  `./gradlew spotlessCheck test lint assembleDebug` on a Temurin JDK 21
-  runner.
-- **Publish nightly** (`main` pushes and manual `workflow_dispatch` only):
-  builds the release-signed APK behind the [Download](#download) badge.
+- **Checks** (all triggers): three parallel jobs on Temurin JDK 21
+  runners — `static-checks` (`spotlessCheck lint`), `unit-tests`
+  (`test verifyRoborazziDebug`), and `assemble` (`assembleDebug`).
+- **Validate** (all triggers): a lightweight gate that requires every
+  `Checks` job to succeed; this is the single required status check.
+- **Publish nightly** (`main` pushes and manual `workflow_dispatch`
+  only, after `Validate` passes): builds the release-signed APK and
+  AAB behind the [Download](#download) badge.
 
 The nightly APK is **release-signed**; local and contributor
 `./gradlew assembleRelease` builds stay **unsigned**, because the signing

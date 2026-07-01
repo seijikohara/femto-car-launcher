@@ -26,7 +26,9 @@ applicable rule wins when markets diverge.
 
 - Kotlin (auto-applied by AGP), Jetpack Compose (via the BOM),
   Material 3; JDK 21 toolchain, Java 11 source/target. Versions:
-  `gradle/libs.versions.toml` + `gradle/wrapper/gradle-wrapper.properties`.
+  `gradle/libs.versions.toml` + `gradle/wrapper/gradle-wrapper.properties`
+  (the JDK toolchain version itself is pinned in
+  `gradle/gradle-daemon-jvm.properties`).
 - `minSdk = 33`, `targetSdk = 36` with `compileSdk { release(37) }`
   (compile against API 37 as `androidx.core` 1.19+ requires; the
   supported-device floor stays Android 13 / API 33).
@@ -75,7 +77,7 @@ Trivial stateless screens need only `<Area>Screen.kt` — see
 | Concern | M3 default | Femto rule | Symbol |
 | --- | --- | --- | --- |
 | Tap target | 48 dp | **≥ 64 dp** | `FemtoDimens.MinTouchTarget` |
-| Body text on the head-unit dashboard | flexible | **≥ 18 sp**, never `bodySmall` / `labelSmall`. Cards may deliberately relax this for glance metadata, metrics, and progress captions — never as a literal in component code: the size lives in `FemtoDimens.GlanceTextSize` (13 sp) or inside a named `Type.kt` extension (e.g. `cardMeta`). The shipped card components under `ui/home/components/` are the reference for where the relaxation applies (inherited from the retired dashboard-v2 mockup, whose KDoc notes mark each spot) | `FemtoDimens.MinBodyTextSize` / `FemtoDimens.GlanceTextSize` |
+| Body text on the head-unit dashboard | flexible | **≥ 18 sp**, never `bodySmall` / `labelSmall`. Cards may deliberately relax this for glance metadata, metrics, progress captions, and dense reference text (e.g. license/log listings) — never as a literal in component code: the size lives in `FemtoDimens.GlanceTextSize` (13 sp) or inside a named `Type.kt` extension (e.g. `cardMeta`, `monoReference`). `ui/home/components/`, `ui/licenses/`, and `ui/diagnostics/` are the reference for where the relaxation applies (inherited from the retired dashboard-v2 mockup, whose KDoc notes mark each spot) | `FemtoDimens.MinBodyTextSize` / `FemtoDimens.GlanceTextSize` |
 
 When the value lives in code, the symbol on the right is the SSOT —
 not a magic number in another file.
@@ -164,7 +166,7 @@ scope column abbreviates it. When in doubt, read them all.
 | `.claude/rules/permissions.md` | `AndroidManifest.xml` | Permission procedure + the audit-log table |
 | `.claude/rules/dependencies.md` | Gradle catalog + wrapper, `**/build.gradle.kts`, `settings.gradle.kts`, `webmap/package.json` + lockfile | Version-catalog discipline, Compose BOM, lock-step rule, build-time endpoints |
 | `.claude/rules/kotlin-style.md` | `app/src/**/*.kt` | Expression chains, naming, sanctioned language features, ktlint / Spotless wiring |
-| `.claude/rules/compose.md` | `app/src/main/java/**/*.kt` | UDF architecture, layering, `WhileUiSubscribed`, Compose performance |
+| `.claude/rules/compose.md` | `app/src/main/java/io/github/seijikohara/femto/**/*.kt` | UDF architecture, layering, `WhileUiSubscribed`, Compose performance |
 | `.claude/rules/testing.md` | `app/src/test/**`, `app/src/androidTest/**` | JUnit 4 + `runTest`, Compose UI tests, `testfixtures/` |
 | `.claude/rules/webmap.md` | `webmap/**` | TS toolchain split, `build.target` floor, TS7 readiness, pnpm pin |
 
@@ -182,6 +184,9 @@ scope column abbreviates it. When in doubt, read them all.
 
 The [`verify-android-build`](.claude/skills/verify-android-build/SKILL.md)
 skill is the canonical verification procedure for non-trivial changes.
+For UI changes, follow it with the
+[`verify-on-emulator`](.claude/skills/verify-on-emulator/SKILL.md)
+skill to check the result on the TBox-Mock AVD.
 
 ## Claude Code surface
 
@@ -199,6 +204,11 @@ SSOT. Manual-only entry points (`disable-model-invocation: true`):
 | `lint` | `/lint [task]` — Android Lint with parsed summary; the lint-report-interpretation SSOT. |
 | `format` | `/format` — runs `./gradlew spotlessApply` and reports the diff. |
 | `review` | `/review [git-range]` — forks the `compose-launcher-reviewer` agent on the resolved diff. |
+
+The [`update-launcher-icon`](.claude/skills/update-launcher-icon/SKILL.md)
+skill regenerates the adaptive launcher icon (background / foreground /
+monochrome) from the root `logo.svg` brand mark; it auto-invokes when
+either changes.
 
 Settings: `.claude/settings.json` (committed) holds the allow /
 deny permission lists; `settings.local.json` (gitignored) holds

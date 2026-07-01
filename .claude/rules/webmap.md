@@ -5,12 +5,19 @@ paths:
 
 # Webmap
 
-Rules for `webmap/`, the TypeScript source of the LIVE map WebView
-page. Dependency versions live in `webmap/package.json` +
+Rules for `webmap/`, the TypeScript source of the map WebView pages
+(one HTML entry point per backend — `map.html` for OSM/MapLibre,
+`mapbox.html` for Mapbox, `googlemaps.html` for Google Maps).
+Dependency versions live in `webmap/package.json` +
 `pnpm-lock.yaml` (the SSOT) — never restate version numbers here.
-`app/src/main/assets/licenses/` holds the licenses of the bundled
-map styles (Positron / Dark Matter) and MapLibre GL JS — keep it in
-step with what the page bundles.
+`app/src/main/assets/licenses/` holds the license texts for the
+bundled OSS map styles (Positron / Dark Matter) and MapLibre GL JS
+(BSD-3-Clause) — keep it in step with what each page bundles under
+an OSS license. Mapbox GL JS ships under Mapbox's own proprietary
+Terms of Service rather than a redistributable OSS license (the end
+user's own Mapbox account and token govern its use), so it has no
+bundled license file here; a CDN-loaded library (e.g. the Google
+Maps JavaScript API) likewise needs none.
 
 ## Toolchain split
 

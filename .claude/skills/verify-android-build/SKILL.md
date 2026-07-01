@@ -85,9 +85,13 @@ task. Default is `assembleDebug`.
    do not skip hooks. If a Compose API is experimental, opt in at
    file level — never at module level.
 
-CI parity: `.github/workflows/ci.yml` runs the same set
-(`spotlessCheck test lint assembleDebug`). If this step list
-changes, change `ci.yml` in the same commit.
+CI parity: `.github/workflows/ci.yml` runs the same four tasks
+(`spotlessCheck`, `lint`, `test`, `assembleDebug`), split across
+three parallel jobs (`static-checks`, `unit-tests`, `assemble`) for
+wall-clock speed, plus `verifyRoborazziDebug` alongside `test` in
+CI only (screenshot verification against goldens recorded on the
+CI runner OS). If this step list changes, change `ci.yml` in the
+same commit.
 
 ## Common failure modes and fixes
 

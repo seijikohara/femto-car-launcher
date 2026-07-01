@@ -33,7 +33,10 @@ Dependency and build-file discipline for femto-car-launcher.
   skill for the procedure.
 
 Build-time endpoints: `GEOCODER_BASE_URL` / `GEOCODER_API_KEY`,
-`WEATHER_BASE_URL` / `WEATHER_API_KEY`, and `FONTS_METADATA_BASE_URL`
-are `BuildConfig` fields fed from the gitignored `local.properties`,
-falling back to the public hosts. The mechanism (and the per-field
-comments) in `app/build.gradle.kts` is the wiring SSOT.
+`WEATHER_BASE_URL`, and `FONTS_METADATA_BASE_URL` are `BuildConfig`
+fields fed from the gitignored `local.properties`. `WEATHER_BASE_URL`
+and `FONTS_METADATA_BASE_URL` fall back to public hosts;
+`GEOCODER_BASE_URL` / `GEOCODER_API_KEY` fall back to empty, which
+makes the launcher use the on-device platform geocoder instead of a
+network host. The mechanism (and the per-field comments) in
+`app/build.gradle.kts` is the wiring SSOT.

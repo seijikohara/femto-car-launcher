@@ -113,11 +113,15 @@ need the per-bump justification rule from
   Kotlin and the `kotlin-compose` / `kotlin-serialization` plugin
   aliases move in lock-step automatically (shared `version.ref =
   "kotlin"` in the catalog).
-- **MapLibre renders but cannot be seen on the emulator** (the emulator
-  GLES translator never presents the live map surface). After any
-  MapLibre bump, run `MapSnapshotRenderTest` (`./gradlew
-  connectedAndroidTest`) — its off-screen `MapSnapshotter` is the guard
-  that the map still rasterises real tiles; a grey screenshot is not.
+- **A `maplibre-gl` bump can silently break tile rendering with no
+  automated signal.** There is no automated tile-rendering test —
+  `pnpm run check` (type-check + the `webmap/` unit tests) only
+  covers pure logic (camera math, style JSON), not what actually
+  paints. After any `maplibre-gl` (or `mapbox-gl`) major bump,
+  manually verify the map still renders real tiles, ideally on a
+  physical device — the `verify-on-emulator` skill's own "Known
+  limitation" section explains why the emulator's GLES translator
+  makes the emulator an unreliable check for this specific case.
 
 ## Skill-specific anti-patterns
 
