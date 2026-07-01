@@ -524,10 +524,14 @@ internal fun WebMapView(
                 factory = { webView },
             )
         }
-        Attribution(
-            modifier = Modifier.align(Alignment.BottomStart),
-            showTerrainCredit = mapConfig.terrain,
-        )
+        // Native tile credit only for OSM; Mapbox and Google Maps render their own
+        // ToS-mandated attribution inside the WebView (see showsNativeAttribution).
+        if (showsNativeAttribution(mapConfig.backend)) {
+            Attribution(
+                modifier = Modifier.align(Alignment.BottomStart),
+                showTerrainCredit = mapConfig.terrain,
+            )
+        }
     }
 }
 
@@ -592,6 +596,16 @@ internal fun mapPageUrl(backend: MapBackend) =
         MapBackend.GOOGLEMAPS -> "googlemaps.html"
         MapBackend.OSM -> "map.html"
     }
+
+// Whether the host draws the native tile-credit overlay ([Attribution]) for this
+// backend. Only the OSM page hides its web-side attribution (map.html's CSS +
+// main.ts's `attributionControl: false`) and leans on the host for the
+// OpenStreetMap / OpenMapTiles / OpenFreeMap credit. Mapbox and Google Maps render
+// their own ToS-mandated attribution INSIDE the WebView (mapbox-main.ts keeps the
+// Mapbox AttributionControl + logo; googlemaps-main.ts keeps Google's logo +
+// credit), so a native overlay there would both duplicate that credit and — by
+// naming OpenMapTiles / OpenFreeMap — misattribute tiles those backends never serve.
+internal fun showsNativeAttribution(backend: MapBackend) = backend == MapBackend.OSM
 
 // Mapbox GL JS style identifier for the user-chosen style preset.
 internal fun mapboxStyleId(style: MapboxStyle) =

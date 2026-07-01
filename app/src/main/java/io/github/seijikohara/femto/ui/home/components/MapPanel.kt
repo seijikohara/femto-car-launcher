@@ -116,9 +116,12 @@ internal fun Attribution(
     modifier: Modifier = Modifier,
     showTerrainCredit: Boolean = false,
 ) {
-    // Append the terrain provider's required credit when that LIVE layer is active
-    // (its licence mandates attribution); the base OSM / OpenMapTiles / OpenFreeMap
-    // credit always shows.
+    // The OSM tile credit (OpenStreetMap / OpenMapTiles / OpenFreeMap). The host
+    // renders this overlay only for the OSM backend, whose web page hides its own
+    // attribution control (see showsNativeAttribution in WebMapView.kt); Mapbox and
+    // Google Maps carry their own in-WebView attribution instead. Append the terrain
+    // provider's required credit when that LIVE layer is active (its licence mandates
+    // attribution).
     val base = stringResource(R.string.map_attribution)
     val terrain = stringResource(R.string.map_attribution_terrain)
     val text = base + (if (showTerrainCredit) " · $terrain" else "")
