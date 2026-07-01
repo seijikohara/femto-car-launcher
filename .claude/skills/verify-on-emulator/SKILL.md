@@ -85,10 +85,10 @@ the home dashboard.
 ## Known limitation
 
 The emulator cannot present the map WebView's GL surface for any
-backend (OSM/MapLibre, Mapbox, or Google Maps) — see the map memory
-note (`memory/map_maplibre_openfreemap.md` under the project memory
-directory) for the details; do not treat a blank map on the emulator
-as a regression.
+backend (OSM/MapLibre, Mapbox, or Google Maps) — this is a known
+GLES-translator limitation, not a regression; do not treat a blank
+map on the emulator as one. See the project's Claude Code memory
+(CLAUDE.md's Memory section) for the detailed history if needed.
 
 ## Report
 
