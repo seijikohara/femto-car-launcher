@@ -15,11 +15,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -34,19 +32,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Lucide
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.calendar.CalendarInfo
 import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
-import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.GoogleMapType
@@ -57,25 +51,24 @@ import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.display.OrientationSetting
-import io.github.seijikohara.femto.data.display.SpeedUnitSetting
-import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
 import io.github.seijikohara.femto.data.display.ThemePreset
 import io.github.seijikohara.femto.data.display.ThemePresets
 import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.data.fonts.FontSlot
-import io.github.seijikohara.femto.data.location.LocationQualitySetting
-import io.github.seijikohara.femto.ui.settings.components.ActionRow
 import io.github.seijikohara.femto.ui.settings.components.ChoiceRow
 import io.github.seijikohara.femto.ui.settings.components.FontRow
 import io.github.seijikohara.femto.ui.settings.components.Header
-import io.github.seijikohara.femto.ui.settings.components.ResetRow
+import io.github.seijikohara.femto.ui.settings.components.LocationSection
+import io.github.seijikohara.femto.ui.settings.components.PanelsSection
 import io.github.seijikohara.femto.ui.settings.components.SettingRow
 import io.github.seijikohara.femto.ui.settings.components.SettingsSection
 import io.github.seijikohara.femto.ui.settings.components.SettingsSubheader
 import io.github.seijikohara.femto.ui.settings.components.SliderRow
 import io.github.seijikohara.femto.ui.settings.components.SwitchRow
+import io.github.seijikohara.femto.ui.settings.components.SystemSection
 import io.github.seijikohara.femto.ui.settings.components.TrailingIcon
+import io.github.seijikohara.femto.ui.settings.components.UnitsSection
 import io.github.seijikohara.femto.ui.theme.DynamicAccentSweep
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -234,46 +227,7 @@ internal fun SettingsScreen(
             )
         }
 
-        SettingsSection(title = stringResource(R.string.settings_section_units)) {
-            ChoiceRow(
-                title = stringResource(R.string.settings_group_speed),
-                options =
-                    listOf(
-                        SpeedUnitSetting.AUTO to stringResource(R.string.settings_option_auto),
-                        SpeedUnitSetting.KILOMETERS to stringResource(R.string.settings_speed_km),
-                        SpeedUnitSetting.MILES to stringResource(R.string.settings_speed_mi),
-                    ),
-                selected = uiState.speedUnit,
-                onSelect = { onAction(SettingsAction.SetSpeedUnit(it)) },
-            )
-            ChoiceRow(
-                title = stringResource(R.string.settings_group_temperature),
-                options =
-                    listOf(
-                        TemperatureUnitSetting.AUTO to stringResource(R.string.settings_option_auto),
-                        TemperatureUnitSetting.CELSIUS to stringResource(R.string.settings_temp_celsius),
-                        TemperatureUnitSetting.FAHRENHEIT to stringResource(R.string.settings_temp_fahrenheit),
-                    ),
-                selected = uiState.temperatureUnit,
-                onSelect = { onAction(SettingsAction.SetTemperatureUnit(it)) },
-            )
-            ChoiceRow(
-                title = stringResource(R.string.settings_group_clock),
-                options =
-                    listOf(
-                        ClockSetting.AUTO to stringResource(R.string.settings_option_auto),
-                        ClockSetting.TWELVE_HOUR to stringResource(R.string.settings_clock_12),
-                        ClockSetting.TWENTY_FOUR_HOUR to stringResource(R.string.settings_clock_24),
-                    ),
-                selected = uiState.clock,
-                onSelect = { onAction(SettingsAction.SetClock(it)) },
-            )
-            SwitchRow(
-                title = stringResource(R.string.settings_group_clock_seconds),
-                checked = uiState.showClockSeconds,
-                onCheckedChange = { onAction(SettingsAction.SetShowClockSeconds(it)) },
-            )
-        }
+        UnitsSection(uiState = uiState, onAction = onAction)
 
         SettingsSection(title = stringResource(R.string.settings_section_map)) {
             // Selecting Mapbox without a token, or Google Maps without an API key, opens
@@ -470,111 +424,18 @@ internal fun SettingsScreen(
             )
         }
 
-        SettingsSection(title = stringResource(R.string.settings_section_location)) {
-            ChoiceRow(
-                title = stringResource(R.string.settings_group_location_quality),
-                options =
-                    listOf(
-                        LocationQualitySetting.HIGH_ACCURACY to
-                            stringResource(R.string.settings_location_quality_high),
-                        LocationQualitySetting.BALANCED to
-                            stringResource(R.string.settings_location_quality_balanced),
-                        LocationQualitySetting.LOW_POWER to
-                            stringResource(R.string.settings_location_quality_low),
-                    ),
-                selected = uiState.locationQuality,
-                onSelect = { onAction(SettingsAction.SetLocationQuality(it)) },
-            )
-            // The slider works in 250 ms steps so the knob lands on round values;
-            // the persisted value stays in milliseconds.
-            SliderRow(
-                title = stringResource(R.string.settings_group_location_interval),
-                valueLabel =
-                    stringResource(R.string.settings_location_interval_value, uiState.locationIntervalMillis),
-                value = (uiState.locationIntervalMillis / LOCATION_INTERVAL_STEP_MS).toInt(),
-                range = MIN_LOCATION_INTERVAL_STEPS..MAX_LOCATION_INTERVAL_STEPS,
-                onValueChange = { onAction(SettingsAction.SetLocationIntervalMillis(it * LOCATION_INTERVAL_STEP_MS)) },
-                description = stringResource(R.string.settings_location_interval_desc),
-            )
-            SliderRow(
-                title = stringResource(R.string.settings_group_location_min_distance),
-                valueLabel =
-                    stringResource(R.string.settings_location_min_distance_value, uiState.locationMinDistanceMeters),
-                value = uiState.locationMinDistanceMeters,
-                range = MIN_LOCATION_MIN_DISTANCE..MAX_LOCATION_MIN_DISTANCE,
-                onValueChange = { onAction(SettingsAction.SetLocationMinDistance(it)) },
-                description = stringResource(R.string.settings_location_min_distance_desc),
-            )
-            SwitchRow(
-                title = stringResource(R.string.settings_group_background_ranging),
-                checked = uiState.backgroundRangingEnabled,
-                onCheckedChange = { onAction(SettingsAction.SetBackgroundRanging(it)) },
-                summary = stringResource(R.string.settings_background_ranging_desc),
-            )
-        }
+        LocationSection(uiState = uiState, onAction = onAction)
 
-        SettingsSection(title = stringResource(R.string.settings_section_panels)) {
-            SwitchRow(
-                title = stringResource(R.string.settings_group_panel_calendar),
-                checked = uiState.showCalendar,
-                onCheckedChange = { onAction(SettingsAction.SetShowCalendar(it)) },
-            )
-            AnimatedVisibility(visible = uiState.showCalendar) {
-                MultiSelectRow(
-                    title = stringResource(R.string.settings_visible_calendars),
-                    summary = visibleCalendarsSummary(
-                        uiState.hasCalendarAccess,
-                        uiState.availableCalendars,
-                        uiState.hiddenCalendarIds,
-                    ),
-                    hasCalendarAccess = uiState.hasCalendarAccess,
-                    calendars = uiState.availableCalendars,
-                    hiddenIds = uiState.hiddenCalendarIds,
-                    onToggle = { id, hidden -> onAction(SettingsAction.SetCalendarHidden(id, hidden)) },
-                    onOpenAppSettings = onOpenSystemSettings,
-                )
-            }
-            SwitchRow(
-                title = stringResource(R.string.settings_group_panel_weather),
-                checked = uiState.showWeather,
-                onCheckedChange = { onAction(SettingsAction.SetShowWeather(it)) },
-            )
-            SwitchRow(
-                title = stringResource(R.string.settings_group_panel_music),
-                checked = uiState.showMusic,
-                onCheckedChange = { onAction(SettingsAction.SetShowMusic(it)) },
-            )
-            SwitchRow(
-                title = stringResource(R.string.settings_group_panel_music_spectrum),
-                checked = uiState.musicSpectrum,
-                onCheckedChange = { onAction(SettingsAction.SetMusicSpectrum(it)) },
-                summary = stringResource(R.string.settings_panel_music_spectrum_desc),
-            )
-        }
+        PanelsSection(uiState = uiState, onAction = onAction, onOpenSystemSettings = onOpenSystemSettings)
 
-        SettingsSection(title = stringResource(R.string.settings_group_system)) {
-            ActionRow(
-                title = stringResource(R.string.settings_open_notification_access),
-                onClick = onOpenNotificationAccess,
-            )
-            ActionRow(
-                title = stringResource(R.string.settings_open_system_settings),
-                onClick = onOpenSystemSettings,
-            )
-            ActionRow(
-                title = stringResource(R.string.settings_open_diagnostics),
-                onClick = onOpenDiagnostics,
-            )
-            ActionRow(
-                title = stringResource(R.string.settings_open_licenses),
-                onClick = onOpenLicenses,
-            )
-            ActionRow(
-                title = stringResource(R.string.settings_open_privacy),
-                onClick = onOpenPrivacyPolicy,
-            )
-            ResetRow(onConfirm = { onAction(SettingsAction.ResetToDefaults) })
-        }
+        SystemSection(
+            onAction = onAction,
+            onOpenNotificationAccess = onOpenNotificationAccess,
+            onOpenSystemSettings = onOpenSystemSettings,
+            onOpenDiagnostics = onOpenDiagnostics,
+            onOpenLicenses = onOpenLicenses,
+            onOpenPrivacyPolicy = onOpenPrivacyPolicy,
+        )
     }
     if (showTokenDialog) {
         var draft by remember { mutableStateOf(uiState.mapboxAccessToken) }
@@ -988,14 +849,6 @@ private const val MAX_GLASS_BLUR = 40
 private const val MIN_GLASS_OPACITY = 0
 private const val MAX_GLASS_OPACITY = 100
 
-// Location-request interval slider, in 250 ms steps (250 ms – 2 s); the persisted
-// value is milliseconds. Minimum-distance band in metres; 0 delivers every fix.
-private const val LOCATION_INTERVAL_STEP_MS = 250L
-private const val MIN_LOCATION_INTERVAL_STEPS = 1
-private const val MAX_LOCATION_INTERVAL_STEPS = 8
-private const val MIN_LOCATION_MIN_DISTANCE = 0
-private const val MAX_LOCATION_MIN_DISTANCE = 25
-
 private fun Boolean.toFullscreen(): FullscreenSetting = if (this) FullscreenSetting.ON else FullscreenSetting.OFF
 
 // The human-readable label for an accent, used as each swatch's content
@@ -1022,148 +875,6 @@ private fun ThemePreset.labelRes(): Int =
         "dusk" -> R.string.theme_preset_dusk
         else -> R.string.theme_preset_dynamic
     }
-
-// Summarises the current visible-calendar selection in one line for the row subtitle.
-// Three distinct states: permission denied, granted but no calendars, or a count of
-// visible vs total. An empty hidden-ids set means every calendar is shown.
-@Composable
-private fun visibleCalendarsSummary(
-    hasCalendarAccess: Boolean,
-    calendars: List<CalendarInfo>,
-    hiddenIds: Set<Long>,
-): String =
-    when {
-        !hasCalendarAccess -> {
-            stringResource(R.string.settings_visible_calendars_none)
-        }
-
-        calendars.isEmpty() -> {
-            stringResource(R.string.settings_visible_calendars_empty)
-        }
-
-        hiddenIds.isEmpty() -> {
-            stringResource(R.string.settings_visible_calendars_all)
-        }
-
-        else -> {
-            val shown = calendars.count { it.id !in hiddenIds }
-            stringResource(R.string.settings_visible_calendars_count, shown, calendars.size)
-        }
-    }
-
-// A choice row that opens a multi-select dialog — same open/dismiss pattern as
-// ChoiceRow, but the dialog hosts checkboxes instead of radio buttons so multiple
-// calendars can be independently toggled.
-@Composable
-private fun MultiSelectRow(
-    title: String,
-    summary: String,
-    hasCalendarAccess: Boolean,
-    calendars: List<CalendarInfo>,
-    hiddenIds: Set<Long>,
-    onToggle: (Long, Boolean) -> Unit,
-    onOpenAppSettings: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var open by remember { mutableStateOf(false) }
-    SettingRow(
-        modifier = modifier.clickable { open = true },
-        title = title,
-        summary = summary,
-    )
-    if (open) {
-        MultiSelectDialog(
-            title = title,
-            hasCalendarAccess = hasCalendarAccess,
-            calendars = calendars,
-            hiddenIds = hiddenIds,
-            onToggle = onToggle,
-            onOpenAppSettings = onOpenAppSettings,
-            onDismiss = { open = false },
-        )
-    }
-}
-
-// Multi-select dialog for the visible-calendars picker. Three states: permission
-// denied (shows a grant button linking to system settings), granted but no calendars
-// found, or the checkbox list. Each calendar row shows a colour dot (12 dp decorative
-// marker from CalendarInfo.color), display name, and account name. The whole row is
-// the toggle target (toggleable with Role.Checkbox); the Checkbox is visual-only
-// (onCheckedChange = null) so a single tap never double-fires. Touch targets meet
-// FemtoDimens.MinTouchTarget; text uses bodyLarge / bodyMedium.
-@Composable
-private fun MultiSelectDialog(
-    title: String,
-    hasCalendarAccess: Boolean,
-    calendars: List<CalendarInfo>,
-    hiddenIds: Set<Long>,
-    onToggle: (Long, Boolean) -> Unit,
-    onOpenAppSettings: () -> Unit,
-    onDismiss: () -> Unit,
-) = AlertDialog(
-    onDismissRequest = onDismiss,
-    title = { Text(title) },
-    text = {
-        when {
-            !hasCalendarAccess -> {
-                Column {
-                    Text(stringResource(R.string.settings_visible_calendars_none))
-                    TextButton(
-                        onClick = {
-                            onOpenAppSettings()
-                            onDismiss()
-                        },
-                        modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
-                    ) {
-                        Text(stringResource(R.string.settings_open_system_settings))
-                    }
-                }
-            }
-
-            calendars.isEmpty() -> {
-                Text(stringResource(R.string.settings_visible_calendars_empty))
-            }
-
-            else -> {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    calendars.forEach { calendar ->
-                        val shown = calendar.id !in hiddenIds
-                        Row(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = FemtoDimens.MinTouchTarget)
-                                    // Hidden is the inverse of the new shown state.
-                                    .toggleable(
-                                        value = shown,
-                                        role = Role.Checkbox,
-                                        onValueChange = { newShown -> onToggle(calendar.id, !newShown) },
-                                    ),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            Checkbox(checked = shown, onCheckedChange = null)
-                            Box(
-                                modifier =
-                                    Modifier
-                                        .size(12.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(calendar.color)),
-                            )
-                            Column {
-                                Text(calendar.displayName, style = MaterialTheme.typography.bodyLarge)
-                                Text(calendar.accountName, style = MaterialTheme.typography.bodyMedium)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    },
-    confirmButton = {
-        TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_dialog_close)) }
-    },
-)
 
 // Masks all but the last four characters of the token so it is not fully visible
 // on a shared in-car screen, while still letting the user confirm which key is set.
