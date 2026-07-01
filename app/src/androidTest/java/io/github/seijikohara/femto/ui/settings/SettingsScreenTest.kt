@@ -27,6 +27,8 @@ class SettingsScreenTest {
     val rule = createComposeRule()
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
+    private val appearanceSectionLabel = context.getString(R.string.settings_section_appearance)
+    private val screenSectionLabel = context.getString(R.string.settings_section_screen)
     private val fullscreenLabel = context.getString(R.string.settings_group_fullscreen)
     private val themeLabel = context.getString(R.string.settings_group_theme)
     private val darkLabel = context.getString(R.string.settings_theme_dark)
@@ -68,7 +70,22 @@ class SettingsScreenTest {
     @Test
     fun renders_fullscreen_row() {
         setScreen()
-        rule.onNodeWithText(fullscreenLabel).assertIsDisplayed()
+        // The Screen section now sits below the larger Appearance section (which
+        // absorbed the map-color rows), pushing Fullscreen below the fold on a
+        // short head unit; scroll it into view first.
+        rule.onNodeWithText(fullscreenLabel).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun renders_appearance_section() {
+        setScreen()
+        rule.onNodeWithText(appearanceSectionLabel).assertIsDisplayed()
+    }
+
+    @Test
+    fun renders_screen_section() {
+        setScreen()
+        rule.onNodeWithText(screenSectionLabel).performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -76,7 +93,8 @@ class SettingsScreenTest {
         val actions = mutableListOf<SettingsAction>()
         setScreen(onAction = { actions += it })
         // Initial.fullscreen is now ON (the revised default), so tapping flips it off.
-        rule.onNodeWithText(fullscreenLabel).performClick()
+        // Scroll first: see the comment on renders_fullscreen_row.
+        rule.onNodeWithText(fullscreenLabel).performScrollTo().performClick()
         assertEquals(listOf(SettingsAction.SetFullscreen(FullscreenSetting.OFF)), actions)
     }
 

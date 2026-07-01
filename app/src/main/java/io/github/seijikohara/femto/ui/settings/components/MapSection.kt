@@ -28,13 +28,10 @@ import io.github.seijikohara.femto.data.display.GoogleMapType
 import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MapBackend
-import io.github.seijikohara.femto.data.display.MapColorScheme
-import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
-import io.github.seijikohara.femto.ui.theme.LocalFemtoDarkTheme
 
 private const val MIN_MAP_TILT = 0
 private const val MAX_MAP_TILT = 60
@@ -150,19 +147,6 @@ internal fun MapSection(
                 )
             }
         }
-        // MapStyleSetting.AUTO also drives Mapbox Standard's lightPreset (day/night),
-        // so it belongs outside the OSM-only block. AUTO already resolves to
-        // LocalFemtoDarkTheme.current (WebMapView.kt), i.e. it follows the app's
-        // Theme setting above — MapThemeMatchRow makes that relationship visible
-        // instead of presenting a second, unrelated-looking AUTO/LIGHT/DARK picker.
-        // NOTE FOR TASK 8: this call + the MapThemeMatchRow composable definition
-        // below move OUT of this file and into AppearanceSection.kt in Task 8 — they
-        // land here in Task 7 only because they are still physically inside the same
-        // SettingsSection block as everything else this task extracts.
-        MapThemeMatchRow(
-            mapStyle = uiState.mapStyle,
-            onSelect = { onAction(SettingsAction.SetMapStyle(it)) },
-        )
         SettingsSubheader(stringResource(R.string.settings_subheader_map_rendering))
         AnimatedVisibility(visible = uiState.mapBackend == MapBackend.OSM) {
             Column {
@@ -177,43 +161,6 @@ internal fun MapSection(
                     onCheckedChange = { onAction(SettingsAction.SetMapTerrain(it)) },
                     summary = stringResource(R.string.settings_map_terrain_desc),
                 )
-                // NOTE FOR TASK 8: these two rows (and their "Map appearance" subheader)
-                // also move out of this file and into AppearanceSection.kt in Task 8, for
-                // the same reason as MapThemeMatchRow above.
-                SettingsSubheader(stringResource(R.string.settings_subheader_map_appearance))
-                // Light scheme applies for AUTO + LIGHT, Dark scheme for AUTO + DARK. AUTO
-                // can use either (the system theme decides), so AUTO shows both; a fixed
-                // LIGHT / DARK hides the scheme it never uses. Independent colour schemes:
-                // ACCENT is the adaptive accent-tinted default, the rest fixed OpenFreeMap.
-                AnimatedVisibility(visible = uiState.mapStyle != MapStyleSetting.DARK) {
-                    ChoiceRow(
-                        title = stringResource(R.string.settings_group_map_scheme_light),
-                        options =
-                            listOf(
-                                MapColorScheme.ACCENT to stringResource(R.string.settings_map_scheme_accent),
-                                MapColorScheme.POSITRON to stringResource(R.string.settings_map_scheme_positron),
-                                MapColorScheme.BRIGHT to stringResource(R.string.settings_map_scheme_bright),
-                                MapColorScheme.LIBERTY to stringResource(R.string.settings_map_scheme_liberty),
-                            ),
-                        selected = uiState.mapSchemeLight,
-                        onSelect = { onAction(SettingsAction.SetMapSchemeLight(it)) },
-                    )
-                }
-                AnimatedVisibility(visible = uiState.mapStyle != MapStyleSetting.LIGHT) {
-                    ChoiceRow(
-                        title = stringResource(R.string.settings_group_map_scheme_dark),
-                        options =
-                            listOf(
-                                MapColorScheme.ACCENT to stringResource(R.string.settings_map_scheme_accent),
-                                MapColorScheme.DARK_MATTER to
-                                    stringResource(R.string.settings_map_scheme_dark_matter),
-                                MapColorScheme.DARK to stringResource(R.string.settings_map_scheme_dark),
-                                MapColorScheme.FIORD to stringResource(R.string.settings_map_scheme_fiord),
-                            ),
-                        selected = uiState.mapSchemeDark,
-                        onSelect = { onAction(SettingsAction.SetMapSchemeDark(it)) },
-                    )
-                }
             }
         }
         SettingsSubheader(stringResource(R.string.settings_subheader_map_camera))
@@ -365,53 +312,6 @@ internal fun MapSection(
                     modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
                 ) { Text(stringResource(R.string.settings_google_maps_map_id_clear)) }
             },
-        )
-    }
-}
-
-// NOTE FOR TASK 8: this whole composable moves out of this file and into
-// AppearanceSection.kt in Task 8 — it lands here in Task 7 only because it is
-// still physically inside the same SettingsSection block as everything else
-// this task extracts (see the note at its call site above).
-//
-// Theme stays the one primary light/dark control; this is the map's secondary,
-// clearly-subordinate override. Checked (the default) means mapStyle == AUTO,
-// which already follows the app's resolved theme (LocalFemtoDarkTheme). Turning
-// it off freezes the map at whatever the app currently renders (no visual jump at
-// the instant of toggling) and reveals a plain Light/Dark choice for further
-// manual override.
-@Composable
-private fun MapThemeMatchRow(
-    mapStyle: MapStyleSetting,
-    onSelect: (MapStyleSetting) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val appIsDark = LocalFemtoDarkTheme.current
-    SwitchRow(
-        title = stringResource(R.string.settings_map_match_theme),
-        summary = stringResource(R.string.settings_map_match_theme_desc),
-        checked = mapStyle == MapStyleSetting.AUTO,
-        onCheckedChange = { matchTheme ->
-            onSelect(
-                when {
-                    matchTheme -> MapStyleSetting.AUTO
-                    appIsDark -> MapStyleSetting.DARK
-                    else -> MapStyleSetting.LIGHT
-                },
-            )
-        },
-        modifier = modifier,
-    )
-    AnimatedVisibility(visible = mapStyle != MapStyleSetting.AUTO) {
-        ChoiceRow(
-            title = stringResource(R.string.settings_group_map_style),
-            options =
-                listOf(
-                    MapStyleSetting.LIGHT to stringResource(R.string.settings_theme_light),
-                    MapStyleSetting.DARK to stringResource(R.string.settings_theme_dark),
-                ),
-            selected = mapStyle,
-            onSelect = onSelect,
         )
     }
 }
