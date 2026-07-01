@@ -4,6 +4,8 @@ import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapboxStyle
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class WebMapPageTest {
     @Test fun `osm backend loads map_html`() {
@@ -18,6 +20,22 @@ class WebMapPageTest {
             "https://appassets.androidplatform.net/assets/web/mapbox.html",
             mapPageUrl(MapBackend.MAPBOX),
         )
+    }
+
+    @Test fun `google maps backend loads googlemaps_html`() {
+        assertEquals(
+            "https://appassets.androidplatform.net/assets/web/googlemaps.html",
+            mapPageUrl(MapBackend.GOOGLEMAPS),
+        )
+    }
+
+    @Test fun `native attribution overlay shows only for osm backend`() {
+        // OSM hides its web-side attribution and relies on the native overlay; the
+        // paid backends carry their own ToS-mandated in-WebView attribution, so the
+        // host must not overlay the OSM/OpenMapTiles/OpenFreeMap credit on them.
+        assertTrue(showsNativeAttribution(MapBackend.OSM))
+        assertFalse(showsNativeAttribution(MapBackend.MAPBOX))
+        assertFalse(showsNativeAttribution(MapBackend.GOOGLEMAPS))
     }
 
     @Test fun `mapbox style ids match mapbox slugs`() {
