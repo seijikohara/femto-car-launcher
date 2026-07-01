@@ -27,16 +27,21 @@ class SettingsScreenTest {
     val rule = createComposeRule()
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
+    private val appearanceSectionLabel = context.getString(R.string.settings_section_appearance)
+    private val screenSectionLabel = context.getString(R.string.settings_section_screen)
     private val fullscreenLabel = context.getString(R.string.settings_group_fullscreen)
     private val themeLabel = context.getString(R.string.settings_group_theme)
     private val darkLabel = context.getString(R.string.settings_theme_dark)
     private val showSecondsLabel = context.getString(R.string.settings_group_clock_seconds)
     private val tealAccentLabel = context.getString(R.string.settings_accent_teal)
+    private val customPresetLabel = context.getString(R.string.settings_theme_preset_custom)
     private val resetLabel = context.getString(R.string.settings_reset_to_defaults)
     private val resetConfirmLabel = context.getString(R.string.settings_reset_confirm)
     private val keepScreenOnLabel = context.getString(R.string.settings_keep_screen_on)
     private val lightSchemeLabel = context.getString(R.string.settings_group_map_scheme_light)
     private val darkSchemeLabel = context.getString(R.string.settings_group_map_scheme_dark)
+    private val matchAppThemeLabel = context.getString(R.string.settings_map_match_theme)
+    private val mapStyleLabel = context.getString(R.string.settings_group_map_style)
     private val mapBackendLabel = context.getString(R.string.settings_map_backend)
     private val mapboxLabel = context.getString(R.string.settings_map_backend_mapbox)
     private val tokenLabel = context.getString(R.string.settings_mapbox_token)
@@ -60,11 +65,28 @@ class SettingsScreenTest {
     private val googleMapsMapIdHintLabel = context.getString(R.string.settings_google_maps_map_id_hint)
     private val googleMapsMapIdSaveLabel = context.getString(R.string.settings_google_maps_map_id_save)
     private val googleMapsMapIdClearLabel = context.getString(R.string.settings_google_maps_map_id_clear)
+    private val accentOsmOnlyNoteLabel = context.getString(R.string.settings_map_accent_osm_only_note)
+    private val mapRenderingSubheaderLabel = context.getString(R.string.settings_subheader_map_rendering)
 
     @Test
     fun renders_fullscreen_row() {
         setScreen()
-        rule.onNodeWithText(fullscreenLabel).assertIsDisplayed()
+        // The Screen section now sits below the larger Appearance section (which
+        // absorbed the map-color rows), pushing Fullscreen below the fold on a
+        // short head unit; scroll it into view first.
+        rule.onNodeWithText(fullscreenLabel).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun renders_appearance_section() {
+        setScreen()
+        rule.onNodeWithText(appearanceSectionLabel).assertIsDisplayed()
+    }
+
+    @Test
+    fun renders_screen_section() {
+        setScreen()
+        rule.onNodeWithText(screenSectionLabel).performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -72,7 +94,8 @@ class SettingsScreenTest {
         val actions = mutableListOf<SettingsAction>()
         setScreen(onAction = { actions += it })
         // Initial.fullscreen is now ON (the revised default), so tapping flips it off.
-        rule.onNodeWithText(fullscreenLabel).performClick()
+        // Scroll first: see the comment on renders_fullscreen_row.
+        rule.onNodeWithText(fullscreenLabel).performScrollTo().performClick()
         assertEquals(listOf(SettingsAction.SetFullscreen(FullscreenSetting.OFF)), actions)
     }
 
@@ -95,6 +118,21 @@ class SettingsScreenTest {
         // then tapping it reports the matching AccentColor.
         rule.onNodeWithContentDescription(tealAccentLabel).performScrollTo().performClick()
         assertEquals(listOf(SettingsAction.SetAccentColor(AccentColor.TEAL)), actions)
+    }
+
+    @Test
+    fun theme_preset_row_shows_no_custom_chip_when_matching_dynamic_default() {
+        // SettingsUiState.Initial is DYNAMIC + ACCENT/ACCENT, which matches
+        // ThemePresets.Dynamic exactly, so no Custom chip should render.
+        setScreen()
+        rule.onNodeWithText(customPresetLabel).assertDoesNotExist()
+    }
+
+    @Test
+    fun theme_preset_row_shows_custom_chip_when_accent_diverges_from_every_preset() {
+        // PINK is not any preset's accent seed, so the bundle can't match.
+        setScreen(uiState = SettingsUiState.Initial.copy(accentColor = AccentColor.PINK))
+        rule.onNodeWithText(customPresetLabel).performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -159,6 +197,54 @@ class SettingsScreenTest {
         setScreen(uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.DARK))
         rule.onNodeWithText(darkSchemeLabel).performScrollTo().assertIsDisplayed()
         rule.onNodeWithText(lightSchemeLabel).assertDoesNotExist()
+    }
+
+    @Test
+    fun map_style_override_choice_hidden_when_matching_app_theme() {
+        // mapStyle == AUTO means "match app theme" is on, so the override
+        // Light/Dark choice row must not be present.
+        setScreen(uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.AUTO))
+        rule.onNodeWithText(mapStyleLabel).assertDoesNotExist()
+    }
+
+    @Test
+    fun map_style_override_choice_shown_and_dispatches_when_overridden() {
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(
+            uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.LIGHT),
+            onAction = { actions += it },
+        )
+        rule.onNodeWithText(mapStyleLabel).performScrollTo().performClick()
+        rule.onNodeWithText(darkLabel).performClick()
+        assertEquals(listOf(SettingsAction.SetMapStyle(MapStyleSetting.DARK)), actions)
+    }
+
+    @Test
+    fun turning_off_match_app_theme_dispatches_set_map_style_dark_when_app_is_dark() {
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(darkTheme = true, onAction = { actions += it })
+        // Initial.mapStyle is AUTO, so the toggle starts checked; tapping unchecks it.
+        rule.onNodeWithText(matchAppThemeLabel).performScrollTo().performClick()
+        assertEquals(listOf(SettingsAction.SetMapStyle(MapStyleSetting.DARK)), actions)
+    }
+
+    @Test
+    fun turning_off_match_app_theme_dispatches_set_map_style_light_when_app_is_light() {
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(darkTheme = false, onAction = { actions += it })
+        rule.onNodeWithText(matchAppThemeLabel).performScrollTo().performClick()
+        assertEquals(listOf(SettingsAction.SetMapStyle(MapStyleSetting.LIGHT)), actions)
+    }
+
+    @Test
+    fun turning_on_match_app_theme_dispatches_set_map_style_auto() {
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(
+            uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.DARK),
+            onAction = { actions += it },
+        )
+        rule.onNodeWithText(matchAppThemeLabel).performScrollTo().performClick()
+        assertEquals(listOf(SettingsAction.SetMapStyle(MapStyleSetting.AUTO)), actions)
     }
 
     @Test
@@ -253,6 +339,48 @@ class SettingsScreenTest {
         )
         rule.onNodeWithText(googleMapsTypeLabel).performScrollTo().assertIsDisplayed()
         rule.onNodeWithText(googleMapsTrafficLabel).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun accent_osm_only_note_shown_for_mapbox_backend() {
+        setScreen(
+            uiState =
+                SettingsUiState.Initial.copy(
+                    mapBackend = MapBackend.MAPBOX,
+                    mapboxAccessToken = "pk.test",
+                ),
+        )
+        rule.onNodeWithText(accentOsmOnlyNoteLabel).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun accent_osm_only_note_shown_for_google_maps_backend() {
+        // The note already shows for Mapbox (see the test above); Google Maps is
+        // equally non-recolorable and must show the same explanation, not leave
+        // the gap unexplained.
+        setScreen(
+            uiState =
+                SettingsUiState.Initial.copy(
+                    mapBackend = MapBackend.GOOGLEMAPS,
+                    googleMapsApiKey = "AIzaTestKey",
+                ),
+        )
+        rule.onNodeWithText(accentOsmOnlyNoteLabel).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun map_rendering_subheader_hidden_for_non_osm_backend() {
+        // The Rendering subheader (3D Buildings / Terrain) only applies to the OSM
+        // backend; Mapbox renders those effects natively, so neither the header nor
+        // its switches should appear once a non-OSM backend is selected.
+        setScreen(
+            uiState =
+                SettingsUiState.Initial.copy(
+                    mapBackend = MapBackend.MAPBOX,
+                    mapboxAccessToken = "pk.test",
+                ),
+        )
+        rule.onNodeWithText(mapRenderingSubheaderLabel).assertDoesNotExist()
     }
 
     @Test
@@ -458,9 +586,10 @@ class SettingsScreenTest {
     private fun setScreen(
         uiState: SettingsUiState = SettingsUiState.Initial,
         onAction: (SettingsAction) -> Unit = {},
+        darkTheme: Boolean = false,
     ) {
         rule.setContent {
-            FemtoTheme {
+            FemtoTheme(darkTheme = darkTheme) {
                 SettingsScreen(
                     uiState = uiState,
                     onAction = onAction,

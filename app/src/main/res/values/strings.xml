@@ -132,9 +132,9 @@
     <string name="settings_title">Settings</string>
     <string name="settings_back">Back</string>
     <string name="settings_cancel">Cancel</string>
-    <string name="settings_section_display">Display</string>
     <string name="settings_section_units">Units</string>
     <string name="settings_section_map">Map</string>
+    <string name="settings_section_appearance">Appearance</string>
     <string name="settings_section_location">Location</string>
     <string name="settings_section_panels">Panels</string>
     <string name="settings_mapbox_token">Mapbox access token</string>
@@ -142,7 +142,7 @@
     <string name="settings_mapbox_token_hint">Paste your Mapbox public token (pk.…)</string>
     <string name="settings_mapbox_token_save">Save</string>
     <string name="settings_mapbox_token_clear">Clear</string>
-    <string name="settings_subheader_screen">Screen</string>
+    <string name="settings_section_screen">Screen</string>
     <string name="settings_subheader_glass">Glass</string>
     <string name="settings_group_glass_blur">Blur radius</string>
     <string name="settings_group_glass_opacity">Glass opacity</string>
@@ -162,7 +162,6 @@
     <string name="settings_dock_right">Right</string>
     <string name="settings_subheader_fonts">Fonts</string>
     <string name="settings_subheader_map_rendering">Rendering</string>
-    <string name="settings_subheader_map_appearance">Appearance</string>
     <string name="settings_subheader_map_camera">Camera</string>
     <string name="settings_group_theme">Theme</string>
     <string name="settings_group_speed">Speed &amp; distance</string>
@@ -197,6 +196,8 @@
     <string name="settings_accent_violet">Violet</string>
     <string name="settings_accent_pink">Pink</string>
     <string name="settings_group_theme_preset">Theme preset</string>
+    <string name="settings_theme_preset_custom">Custom</string>
+    <string name="settings_subheader_map_color">Map color</string>
     <string name="theme_preset_dynamic">Dynamic</string>
     <string name="theme_preset_ocean">Ocean</string>
     <string name="theme_preset_forest">Forest</string>
@@ -214,9 +215,11 @@
     <string name="settings_assistant_system">System</string>
     <string name="settings_assistant_in_app">Built-in</string>
     <string name="settings_group_map_style">Map style</string>
+    <string name="settings_map_match_theme">Match app theme</string>
+    <string name="settings_map_match_theme_desc">Follows the Theme setting above. Turn off to set the map\'s light or dark mode independently.</string>
     <string name="settings_group_map_scheme_light">Light scheme</string>
     <string name="settings_group_map_scheme_dark">Dark scheme</string>
-    <string name="settings_map_scheme_accent">Accent</string>
+    <string name="settings_map_scheme_accent">Accent (app color)</string>
     <string name="settings_map_scheme_positron">Positron</string>
     <string name="settings_map_scheme_bright">Bright</string>
     <string name="settings_map_scheme_liberty">Liberty</string>
