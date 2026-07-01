@@ -49,8 +49,8 @@ internal fun MapSection(
     var showGoogleMapIdDialog by remember { mutableStateOf(false) }
     SettingsSection(title = stringResource(R.string.settings_section_map), modifier = modifier) {
         // Selecting Mapbox without a token, or Google Maps without an API key, opens
-        // the respective entry dialog instead of persisting the backend switch — the
-        // Screen owns this interception because the dialogs live here.
+        // the respective entry dialog instead of persisting the backend switch —
+        // MapSection owns this interception because the dialogs live here.
         ChoiceRow(
             title = stringResource(R.string.settings_map_backend),
             options =
