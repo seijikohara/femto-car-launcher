@@ -80,6 +80,7 @@ import io.github.seijikohara.femto.ui.theme.DynamicAccentSweep
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.LocalFemtoDarkTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.accentSeedColor
 import kotlin.math.roundToInt
@@ -376,17 +377,13 @@ internal fun SettingsScreen(
                     }
                 }
             }
-            // The AUTO/LIGHT/DARK map style also drives Mapbox Standard's lightPreset
-            // (day/night), so it belongs outside the OSM-only block.
-            ChoiceRow(
-                title = stringResource(R.string.settings_group_map_style),
-                options =
-                    listOf(
-                        MapStyleSetting.AUTO to stringResource(R.string.settings_option_auto),
-                        MapStyleSetting.LIGHT to stringResource(R.string.settings_theme_light),
-                        MapStyleSetting.DARK to stringResource(R.string.settings_theme_dark),
-                    ),
-                selected = uiState.mapStyle,
+            // MapStyleSetting.AUTO also drives Mapbox Standard's lightPreset (day/night),
+            // so it belongs outside the OSM-only block. AUTO already resolves to
+            // LocalFemtoDarkTheme.current (WebMapView.kt), i.e. it follows the app's
+            // Theme setting above — MapThemeMatchRow makes that relationship visible
+            // instead of presenting a second, unrelated-looking AUTO/LIGHT/DARK picker.
+            MapThemeMatchRow(
+                mapStyle = uiState.mapStyle,
                 onSelect = { onAction(SettingsAction.SetMapStyle(it)) },
             )
             AnimatedVisibility(visible = uiState.mapBackend == MapBackend.OSM) {
@@ -997,6 +994,48 @@ private fun ThemePresetChip(
             text = stringResource(preset.labelRes()),
             style = MaterialTheme.typography.titleMedium,
             color = labelColor,
+        )
+    }
+}
+
+// Theme stays the one primary light/dark control; this is the map's secondary,
+// clearly-subordinate override. Checked (the default) means mapStyle == AUTO,
+// which already follows the app's resolved theme (LocalFemtoDarkTheme). Turning
+// it off freezes the map at whatever the app currently renders (no visual jump at
+// the instant of toggling) and reveals a plain Light/Dark choice for further
+// manual override.
+@Composable
+private fun MapThemeMatchRow(
+    mapStyle: MapStyleSetting,
+    onSelect: (MapStyleSetting) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val appIsDark = LocalFemtoDarkTheme.current
+    SwitchRow(
+        title = stringResource(R.string.settings_map_match_theme),
+        summary = stringResource(R.string.settings_map_match_theme_desc),
+        checked = mapStyle == MapStyleSetting.AUTO,
+        onCheckedChange = { matchTheme ->
+            onSelect(
+                when {
+                    matchTheme -> MapStyleSetting.AUTO
+                    appIsDark -> MapStyleSetting.DARK
+                    else -> MapStyleSetting.LIGHT
+                },
+            )
+        },
+        modifier = modifier,
+    )
+    AnimatedVisibility(visible = mapStyle != MapStyleSetting.AUTO) {
+        ChoiceRow(
+            title = stringResource(R.string.settings_group_map_style),
+            options =
+                listOf(
+                    MapStyleSetting.LIGHT to stringResource(R.string.settings_theme_light),
+                    MapStyleSetting.DARK to stringResource(R.string.settings_theme_dark),
+                ),
+            selected = mapStyle,
+            onSelect = onSelect,
         )
     }
 }

@@ -38,6 +38,8 @@ class SettingsScreenTest {
     private val keepScreenOnLabel = context.getString(R.string.settings_keep_screen_on)
     private val lightSchemeLabel = context.getString(R.string.settings_group_map_scheme_light)
     private val darkSchemeLabel = context.getString(R.string.settings_group_map_scheme_dark)
+    private val matchAppThemeLabel = context.getString(R.string.settings_map_match_theme)
+    private val mapStyleLabel = context.getString(R.string.settings_group_map_style)
     private val mapBackendLabel = context.getString(R.string.settings_map_backend)
     private val mapboxLabel = context.getString(R.string.settings_map_backend_mapbox)
     private val tokenLabel = context.getString(R.string.settings_mapbox_token)
@@ -175,6 +177,54 @@ class SettingsScreenTest {
         setScreen(uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.DARK))
         rule.onNodeWithText(darkSchemeLabel).performScrollTo().assertIsDisplayed()
         rule.onNodeWithText(lightSchemeLabel).assertDoesNotExist()
+    }
+
+    @Test
+    fun map_style_override_choice_hidden_when_matching_app_theme() {
+        // mapStyle == AUTO means "match app theme" is on, so the override
+        // Light/Dark choice row must not be present.
+        setScreen(uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.AUTO))
+        rule.onNodeWithText(mapStyleLabel).assertDoesNotExist()
+    }
+
+    @Test
+    fun map_style_override_choice_shown_and_dispatches_when_overridden() {
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(
+            uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.LIGHT),
+            onAction = { actions += it },
+        )
+        rule.onNodeWithText(mapStyleLabel).performScrollTo().performClick()
+        rule.onNodeWithText(darkLabel).performClick()
+        assertEquals(listOf(SettingsAction.SetMapStyle(MapStyleSetting.DARK)), actions)
+    }
+
+    @Test
+    fun turning_off_match_app_theme_dispatches_set_map_style_dark_when_app_is_dark() {
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(darkTheme = true, onAction = { actions += it })
+        // Initial.mapStyle is AUTO, so the toggle starts checked; tapping unchecks it.
+        rule.onNodeWithText(matchAppThemeLabel).performScrollTo().performClick()
+        assertEquals(listOf(SettingsAction.SetMapStyle(MapStyleSetting.DARK)), actions)
+    }
+
+    @Test
+    fun turning_off_match_app_theme_dispatches_set_map_style_light_when_app_is_light() {
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(darkTheme = false, onAction = { actions += it })
+        rule.onNodeWithText(matchAppThemeLabel).performScrollTo().performClick()
+        assertEquals(listOf(SettingsAction.SetMapStyle(MapStyleSetting.LIGHT)), actions)
+    }
+
+    @Test
+    fun turning_on_match_app_theme_dispatches_set_map_style_auto() {
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(
+            uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.DARK),
+            onAction = { actions += it },
+        )
+        rule.onNodeWithText(matchAppThemeLabel).performScrollTo().performClick()
+        assertEquals(listOf(SettingsAction.SetMapStyle(MapStyleSetting.AUTO)), actions)
     }
 
     @Test
@@ -474,9 +524,10 @@ class SettingsScreenTest {
     private fun setScreen(
         uiState: SettingsUiState = SettingsUiState.Initial,
         onAction: (SettingsAction) -> Unit = {},
+        darkTheme: Boolean = false,
     ) {
         rule.setContent {
-            FemtoTheme {
+            FemtoTheme(darkTheme = darkTheme) {
                 SettingsScreen(
                     uiState = uiState,
                     onAction = onAction,

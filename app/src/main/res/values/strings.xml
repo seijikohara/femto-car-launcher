@@ -215,6 +215,8 @@
     <string name="settings_assistant_system">System</string>
     <string name="settings_assistant_in_app">Built-in</string>
     <string name="settings_group_map_style">Map style</string>
+    <string name="settings_map_match_theme">Match app theme</string>
+    <string name="settings_map_match_theme_desc">Follows the Theme setting above. Turn off to set the map\'s light or dark mode independently.</string>
     <string name="settings_group_map_scheme_light">Light scheme</string>
     <string name="settings_group_map_scheme_dark">Dark scheme</string>
     <string name="settings_map_scheme_accent">Accent</string>
