@@ -205,6 +205,40 @@ class CalendarRepositoryTest {
         }
 
     @Test
+    fun `maps event end time and location`() =
+        runTest {
+            shadowOf(application).grantPermissions(Manifest.permission.READ_CALENDAR)
+            Robolectric
+                .buildContentProvider(MultiDayCalendarProvider::class.java)
+                .create(CalendarContract.AUTHORITY)
+
+            val repository =
+                CalendarRepository(
+                    application,
+                    clockFlow = flowOf(ClockTick(LocalTime.NOON, MultiDayCalendarProvider.TODAY)),
+                    hiddenCalendarIds = flowOf(emptySet()),
+                    zoneProvider = { ZoneOffset.UTC },
+                )
+
+            val today = repository
+                .snapshotFlow()
+                .first()!!
+                .days
+                .first { it.date == MultiDayCalendarProvider.TODAY }
+            val first = today.events.first { it.title == "A" }
+
+            // "A" starts 09:00 UTC; the provider ends it one hour later and puts it in Room 4.
+            assertEquals(LocalTime.of(9, 0), first.time)
+            assertEquals(LocalTime.of(10, 0), first.endTime)
+            assertEquals("Room 4", first.location)
+
+            // "B" has no location → null; still carries an end time.
+            val second = today.events.first { it.title == "B" }
+            assertEquals(LocalTime.of(11, 0), second.endTime)
+            assertNull(second.location)
+        }
+
+    @Test
     fun `scans the events window once for ticks sharing the same date`() =
         runTest {
             shadowOf(application).grantPermissions(Manifest.permission.READ_CALENDAR)
@@ -405,10 +439,29 @@ class CalendarRepositoryTest {
                 cursor.addRow(
                     columns.map { column ->
                         when (column) {
-                            CalendarContract.Instances.BEGIN -> beginMs
-                            CalendarContract.Instances.ALL_DAY -> 0
-                            CalendarContract.Instances.TITLE -> title
-                            else -> null
+                            CalendarContract.Instances.BEGIN -> {
+                                beginMs
+                            }
+
+                            CalendarContract.Instances.ALL_DAY -> {
+                                0
+                            }
+
+                            CalendarContract.Instances.TITLE -> {
+                                title
+                            }
+
+                            CalendarContract.Instances.END -> {
+                                beginMs + 60 * 60 * 1000L
+                            }
+
+                            CalendarContract.Instances.EVENT_LOCATION -> {
+                                if (title == "A") "Room 4" else null
+                            }
+
+                            else -> {
+                                null
+                            }
                         }
                     },
                 )

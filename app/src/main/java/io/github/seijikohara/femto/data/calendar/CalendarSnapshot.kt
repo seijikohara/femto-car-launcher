@@ -49,4 +49,9 @@ data class EventItem(
     // an "all day" label instead of a formatted time.
     val time: LocalTime?,
     val title: String,
+    // Event end (clock time); null for all-day or open-ended events. Shown only
+    // in the maximized calendar panel — the compact card shows the start alone.
+    val endTime: LocalTime? = null,
+    // Event location; null/blank when the calendar carries none. Panel-only.
+    val location: String? = null,
 )
