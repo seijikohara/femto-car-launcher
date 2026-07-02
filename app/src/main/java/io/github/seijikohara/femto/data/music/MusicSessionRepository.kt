@@ -10,6 +10,7 @@ import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -272,32 +273,53 @@ internal fun musicCardStateOf(
  * Map one session's extracted fields to the card's [NowPlaying]. Operates on
  * plain values so the fallback branches are unit-testable without a
  * [MediaController]; [fallbackTitle] is a lambda so the source-label lookup
- * runs only when both metadata titles are blank.
+ * runs only when both metadata titles are blank. [shuffleOn], [repeatMode],
+ * and [queue] pass through session state that has no platform getter and must
+ * be read via `MediaControllerCompat` upstream.
  */
 internal fun nowPlayingOf(
     metadata: MediaMetadata,
     playbackState: PlaybackState?,
     packageName: String,
     fallbackTitle: () -> String,
+    shuffleOn: Boolean = false,
+    repeatMode: RepeatMode = RepeatMode.NONE,
+    queue: List<QueueEntry> = emptyList(),
 ): NowPlaying =
-    NowPlaying(
-        // METADATA_KEY_TITLE is empty for many podcast / radio / stream
-        // sessions; fall back to the display title and finally the source
-        // label so the 23sp title line is never blank.
-        title =
-            metadata.getString(MediaMetadata.METADATA_KEY_TITLE)?.takeIf { it.isNotBlank() }
-                ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)?.takeIf { it.isNotBlank() }
-                ?: fallbackTitle(),
-        artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST),
-        album = metadata.getString(MediaMetadata.METADATA_KEY_ALBUM),
-        albumArt = metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)?.asImageBitmap(),
-        // sourceIcon is resolved downstream off Main (see stateFlow).
-        // A paused controller renders with isPlaying=false (Play icon,
-        // resumable), but stays on screen via selectPrimaryController.
-        isPlaying = playbackState?.state == PlaybackState.STATE_PLAYING,
-        positionMs = playbackState?.position ?: 0L,
-        durationMs = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION),
-        packageName = packageName,
-        playbackSpeed = playbackState?.playbackSpeed ?: 1f,
-        positionUpdateTimeMs = playbackState?.lastPositionUpdateTime ?: 0L,
-    )
+    (playbackState?.actions ?: 0L).let { actions ->
+        NowPlaying(
+            // METADATA_KEY_TITLE is empty for many podcast / radio / stream
+            // sessions; fall back to the display title and finally the source
+            // label so the 23sp title line is never blank.
+            title =
+                metadata.getString(MediaMetadata.METADATA_KEY_TITLE)?.takeIf { it.isNotBlank() }
+                    ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)?.takeIf { it.isNotBlank() }
+                    ?: fallbackTitle(),
+            artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST),
+            album = metadata.getString(MediaMetadata.METADATA_KEY_ALBUM),
+            // Prefer METADATA_KEY_ART — the full-size artwork some apps publish
+            // beside the album thumb — so the expanded panel gets the sharpest
+            // bitmap available; the small card scales it down regardless.
+            albumArt =
+                (
+                    metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)
+                        ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+                )?.asImageBitmap(),
+            // sourceIcon is resolved downstream off Main (see stateFlow).
+            // A paused controller renders with isPlaying=false (Play icon,
+            // resumable), but stays on screen via selectPrimaryController.
+            isPlaying = playbackState?.state == PlaybackState.STATE_PLAYING,
+            positionMs = playbackState?.position ?: 0L,
+            durationMs = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION),
+            packageName = packageName,
+            playbackSpeed = playbackState?.playbackSpeed ?: 1f,
+            positionUpdateTimeMs = playbackState?.lastPositionUpdateTime ?: 0L,
+            canSeek = (actions and PlaybackState.ACTION_SEEK_TO) != 0L,
+            canShuffle = (actions and PlaybackStateCompat.ACTION_SET_SHUFFLE_MODE) != 0L,
+            canRepeat = (actions and PlaybackStateCompat.ACTION_SET_REPEAT_MODE) != 0L,
+            canSkipToQueueItem = (actions and PlaybackState.ACTION_SKIP_TO_QUEUE_ITEM) != 0L,
+            shuffleOn = shuffleOn,
+            repeatMode = repeatMode,
+            queue = queue,
+        )
+    }
