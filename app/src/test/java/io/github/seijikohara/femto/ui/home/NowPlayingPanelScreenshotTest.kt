@@ -7,14 +7,18 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.seijikohara.femto.data.music.NowPlaying
 import io.github.seijikohara.femto.data.music.QueueEntry
 import io.github.seijikohara.femto.data.music.RepeatMode
+import io.github.seijikohara.femto.data.music.SPECTRUM_BAND_COUNT
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.ui.home.components.NowPlayingPanel
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import kotlin.math.sin
 
 /**
  * Now Playing panel goldens across the two orientations and the two capability
@@ -42,9 +46,18 @@ class NowPlayingPanelScreenshotTest {
     @Config(qualifiers = "w412dp-h915dp-mdpi")
     fun nowplaying_phone_portrait_no_capabilities() = capture("phone-portrait-412x915-bare", BARE)
 
+    @Test
+    @Config(qualifiers = "w853dp-h512dp-mdpi")
+    fun nowplaying_head_unit_spectrum() = capture("head-unit-853x512-spectrum", FULL, mockSpectrum())
+
+    @Test
+    @Config(qualifiers = "w412dp-h915dp-mdpi")
+    fun nowplaying_phone_portrait_spectrum() = capture("phone-portrait-412x915-spectrum", FULL, mockSpectrum())
+
     private fun capture(
         name: String,
         state: NowPlaying,
+        spectrum: StateFlow<FloatArray?>? = null,
     ) {
         captureRoboImage(filePath = "src/test/screenshots/nowplaying-$name.png", roborazziOptions = OPTIONS) {
             FemtoTheme {
@@ -54,6 +67,7 @@ class NowPlayingPanelScreenshotTest {
                     onLaunchSource = {},
                     onClose = {},
                     modifier = Modifier.fillMaxSize(),
+                    spectrum = spectrum,
                 )
             }
         }
@@ -86,5 +100,10 @@ class NowPlayingPanelScreenshotTest {
             )
 
         val BARE = fakeNowPlaying()
+
+        // A fixed band ramp standing in for a live capture, so the golden shows
+        // the spectrum strip behind the transport controls.
+        private fun mockSpectrum(): StateFlow<FloatArray?> =
+            MutableStateFlow(FloatArray(SPECTRUM_BAND_COUNT) { band -> 0.2f + 0.7f * (0.5f + 0.5f * sin(band * 0.8f)) })
     }
 }
