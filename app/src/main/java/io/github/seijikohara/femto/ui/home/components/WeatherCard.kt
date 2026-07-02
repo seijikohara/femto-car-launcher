@@ -22,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -79,19 +81,15 @@ internal fun WeatherCard(
     temperatureUnit: TemperatureUnit,
     speedUnit: SpeedUnit,
     is24Hour: Boolean,
-    onOpen: () -> Unit,
+    onExpand: () -> Unit,
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
 ) = Surface(
-    modifier = modifier
-        // The whole card opens the default weather app (CATEGORY_APP_WEATHER,
-        // available exactly from the minSdk). glassChrome clips to the rounded
-        // shape (keeping the ripple inside) and paints the frosted-glass backdrop
-        // over the map; the inner Column scrolls, so the clickable lives on the
-        // Surface rather than competing with the scroll.
-        .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
-        .clickable(onClickLabel = stringResource(R.string.weather_open_app)) { onOpen() },
+    // glassChrome clips to the rounded shape (keeping the ripple inside) and
+    // paints the frosted-glass backdrop over the map; the inner Column scrolls,
+    // so the maximize tap lives on the Head row rather than competing with it.
+    modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
     shape = MaterialTheme.shapes.large,
     color = Color.Transparent,
     contentColor = MaterialTheme.colorScheme.onSurface,
@@ -121,7 +119,7 @@ internal fun WeatherCard(
                     .padding(FemtoDimens.CardPaddingCompact),
             verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
         ) {
-            Head(snapshot, temperatureUnit, asOf)
+            Head(snapshot, temperatureUnit, asOf, onExpand)
             Metrics(snapshot, temperatureUnit, speedUnit)
             Forecast(snapshot.hourly.take(5), snapshot.sunrise, snapshot.sunset, temperatureUnit, is24Hour)
         }
@@ -169,13 +167,23 @@ private fun Head(
     snapshot: WeatherSnapshot,
     temperatureUnit: TemperatureUnit,
     asOfLabel: String?,
+    onExpand: () -> Unit,
 ) {
     val tempLabel = "${temperatureUnit.fromCelsius(snapshot.tempC).roundToInt()}"
     val glyphs = weatherGlyphs()
+    // clickable + an explicit contentDescription (the AlbumArt idiom in
+    // MusicCardMeta): onClickLabel alone sets only the OnClick action label, not
+    // the node's content description, so the maximize entry stays discoverable.
+    // Hoisted out of the semantics lambda, which is not @Composable.
+    val weatherExpandLabel = stringResource(R.string.weather_expand)
     // Big temperature on the left, the hero condition glyph beside it on the right;
     // SpaceBetween balances the two across the card width.
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable { onExpand() }
+                .semantics { contentDescription = weatherExpandLabel },
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -422,7 +430,7 @@ private fun WeatherCardPreview() {
             temperatureUnit = TemperatureUnit.CELSIUS,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             is24Hour = true,
-            onOpen = {},
+            onExpand = {},
         )
     }
 }

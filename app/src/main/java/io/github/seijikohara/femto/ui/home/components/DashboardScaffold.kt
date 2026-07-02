@@ -182,6 +182,18 @@ private fun DashboardContent(
     LaunchedEffect(expandedCalendar) {
         if (expandedCalendar != null) panelCalendar = expandedCalendar
     }
+    // Full-screen weather panel, mirroring the calendar panel above: pure UI
+    // state, saveable across rotation, auto-collapsed once the snapshot goes
+    // null (e.g. a cold-start window with no cached data yet).
+    var weatherExpanded by rememberSaveable { mutableStateOf(false) }
+    val expandedWeather = uiState.weather
+    LaunchedEffect(expandedWeather == null) {
+        if (expandedWeather == null) weatherExpanded = false
+    }
+    var panelWeather by remember { mutableStateOf(expandedWeather) }
+    LaunchedEffect(expandedWeather) {
+        if (expandedWeather != null) panelWeather = expandedWeather
+    }
     // Landscape floats the cards as a right-hand column over the map; portrait drops
     // them to a bottom band. The column compresses to the available height on a short
     // landscape (a phone) and caps on a tall one, so the map keeps the left either way.
@@ -349,6 +361,7 @@ private fun DashboardContent(
                 onAction = onAction,
                 onExpandNowPlaying = { nowPlayingExpanded = true },
                 onExpandCalendar = { calendarExpanded = true },
+                onExpandWeather = { weatherExpanded = true },
                 spectrum = spectrum,
                 modifier =
                     if (bottomCards) {
@@ -409,6 +422,27 @@ private fun DashboardContent(
                     is24Hour = is24Hour,
                     onOpenExternal = { onAction(HomeAction.OpenCalendar) },
                     onClose = { calendarExpanded = false },
+                    hazeState = hazeState,
+                    glassConfig = glassConfig,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = weatherExpanded && expandedWeather != null,
+            enter = fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.92f),
+            exit = fadeOut(tween(180)) + scaleOut(tween(180), targetScale = 0.92f),
+            modifier = Modifier.fillMaxSize().padding(outerPad),
+        ) {
+            panelWeather?.let { snapshot ->
+                WeatherPanel(
+                    snapshot = snapshot,
+                    temperatureUnit = temperatureUnit,
+                    speedUnit = speedUnit,
+                    is24Hour = is24Hour,
+                    onOpenExternal = { onAction(HomeAction.OpenWeather) },
+                    onClose = { weatherExpanded = false },
                     hazeState = hazeState,
                     glassConfig = glassConfig,
                     modifier = Modifier.fillMaxSize(),
@@ -493,6 +527,7 @@ private fun FloatingCardColumn(
     onAction: (HomeAction) -> Unit,
     onExpandNowPlaying: () -> Unit,
     onExpandCalendar: () -> Unit,
+    onExpandWeather: () -> Unit,
     modifier: Modifier = Modifier,
     spectrum: StateFlow<FloatArray?>? = null,
 ) {
@@ -512,7 +547,7 @@ private fun FloatingCardColumn(
             temperatureUnit = temperatureUnit,
             speedUnit = speedUnit,
             is24Hour = is24Hour,
-            onOpen = { onAction(HomeAction.OpenWeather) },
+            onExpand = onExpandWeather,
             hazeState = hazeState,
             glassConfig = glassConfig,
             modifier = cardModifier,

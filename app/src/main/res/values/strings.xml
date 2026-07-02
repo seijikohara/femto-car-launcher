@@ -40,8 +40,12 @@
     <string name="calendar_no_events">No events</string>
 
     <!-- Weather card -->
+    <string name="weather_title">Weather</string>
     <string name="weather_unavailable">Weather unavailable</string>
     <string name="weather_open_app">Open weather</string>
+    <string name="weather_uv">UV %1$s</string>
+    <string name="weather_sunrise">Sunrise %1$s</string>
+    <string name="weather_sunset">Sunset %1$s</string>
     <!-- Shown on the weather card when the data is stale (a refresh outage); %1$s is the local fetch time. -->
     <string name="weather_as_of">as of %1$s</string>
     <string name="weather_metric_feels">FEELS</string>
