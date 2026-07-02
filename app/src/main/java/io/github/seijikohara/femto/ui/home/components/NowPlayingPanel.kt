@@ -31,10 +31,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ChevronDown
+import com.composables.icons.lucide.Disc
 import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.ListMusic
 import com.composables.icons.lucide.Lucide
@@ -42,6 +45,7 @@ import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Repeat
 import com.composables.icons.lucide.Repeat1
 import com.composables.icons.lucide.Shuffle
+import com.composables.icons.lucide.User
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
@@ -370,29 +374,62 @@ private fun ExpandedMeta(
     label = "expandedMeta",
     modifier = modifier,
 ) { (title, artist, album) ->
+    // A leading glyph per line (track / person / disc) mirrors the small card's
+    // Meta so the two read the same; unlike the card, the text marquees instead
+    // of ellipsizing so a long title is shown in full.
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
+        MarqueeMetaLine(
+            icon = Lucide.Music,
             text = title,
             style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            modifier = Modifier.basicMarquee(),
+            iconSize = 28.dp,
         )
-        Text(
+        MarqueeMetaLine(
+            icon = Lucide.User,
             text = artist?.takeUnless { it.isBlank() } ?: "—",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            modifier = Modifier.basicMarquee(),
+            iconSize = FemtoDimens.InlineIconSize,
         )
-        Text(
+        MarqueeMetaLine(
+            icon = Lucide.Disc,
             text = album?.takeUnless { it.isBlank() } ?: "—",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            modifier = Modifier.basicMarquee(),
+            iconSize = FemtoDimens.InlineIconSize,
         )
     }
+}
+
+// One panel metadata line: a leading glyph sized to the line + the marquee text
+// filling the rest, so the icon stays put while a long value scrolls beside it.
+@Composable
+private fun MarqueeMetaLine(
+    icon: ImageVector,
+    text: String,
+    style: TextStyle,
+    color: Color,
+    iconSize: Dp,
+    modifier: Modifier = Modifier,
+) = Row(
+    modifier = modifier.fillMaxWidth(),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(10.dp),
+) {
+    FemtoIcon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = color,
+        modifier = Modifier.size(iconSize),
+    )
+    Text(
+        text = text,
+        style = style,
+        color = color,
+        maxLines = 1,
+        modifier = Modifier.weight(1f).basicMarquee(),
+    )
 }
 
 private fun previewNowPlaying(): NowPlaying =
