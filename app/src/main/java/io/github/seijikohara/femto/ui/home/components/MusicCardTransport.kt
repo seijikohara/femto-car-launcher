@@ -1,6 +1,5 @@
 package io.github.seijikohara.femto.ui.home.components
 
-import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +15,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,7 +33,6 @@ import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.progressCaption
-import kotlinx.coroutines.delay
 
 @Composable
 internal fun Progress(
@@ -46,32 +43,14 @@ internal fun Progress(
     playbackSpeed: Float,
     modifier: Modifier = Modifier,
 ) {
-    // Interpolate the displayed position from the PlaybackState basis while
-    // playing, so the bar and elapsed label advance smoothly without waiting for
-    // the next session callback. Held at positionMs when paused.
     val livePosition by
-        produceState(
-            initialValue = positionMs.coerceIn(0L, durationMs.coerceAtLeast(0L)),
-            positionMs,
-            positionUpdateTimeMs,
-            isPlaying,
-            playbackSpeed,
-            durationMs,
-        ) {
-            val maxMs = durationMs.coerceAtLeast(0L)
-            // Hold the reported position when paused, or when the session gives no
-            // valid update-time basis (a 0 basis would interpolate from boot and
-            // snap the bar to the end).
-            if (!isPlaying || positionUpdateTimeMs <= 0L) {
-                value = positionMs.coerceIn(0L, maxMs)
-                return@produceState
-            }
-            while (true) {
-                val elapsed = SystemClock.elapsedRealtime() - positionUpdateTimeMs
-                value = (positionMs + (elapsed * playbackSpeed)).toLong().coerceIn(0L, maxMs)
-                delay(500L)
-            }
-        }
+        rememberInterpolatedPositionMs(
+            positionMs = positionMs,
+            durationMs = durationMs,
+            positionUpdateTimeMs = positionUpdateTimeMs,
+            isPlaying = isPlaying,
+            playbackSpeed = playbackSpeed,
+        )
     val fraction =
         if (durationMs > 0L) {
             (livePosition.toFloat() / durationMs).coerceIn(0f, 1f)
@@ -177,12 +156,4 @@ private fun TransportButton(
             modifier = Modifier.size(if (primary) 40.dp else 32.dp),
         )
     }
-}
-
-private fun formatMillis(ms: Long): String {
-    if (ms <= 0L) return "0:00"
-    val totalSeconds = ms / 1000
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return "%d:%02d".format(minutes, seconds)
 }
