@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import io.github.seijikohara.femto.data.music.MusicCommand
+import io.github.seijikohara.femto.data.music.QueueEntry
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
@@ -130,5 +131,45 @@ class NowPlayingPanelTest {
         rule.onNodeWithContentDescription("Shuffle").performClick()
         rule.onNodeWithContentDescription("Repeat").performClick()
         assertEquals(listOf<MusicCommand>(MusicCommand.ToggleShuffle, MusicCommand.CycleRepeat), commands)
+    }
+
+    @Test
+    fun queue_is_hidden_without_the_capability_even_when_populated() {
+        rule.setContent {
+            FemtoTheme {
+                NowPlayingPanel(
+                    nowPlaying =
+                        fakeNowPlaying(
+                            canSkipToQueueItem = false,
+                            queue = listOf(QueueEntry(1L, "Next Track", null)),
+                        ),
+                    onCommand = {},
+                    onLaunchSource = {},
+                    onClose = {},
+                )
+            }
+        }
+        rule.onNodeWithText("Next Track").assertDoesNotExist()
+    }
+
+    @Test
+    fun queue_entry_tap_dispatches_SkipToQueueItem() {
+        val commands = mutableListOf<MusicCommand>()
+        rule.setContent {
+            FemtoTheme {
+                NowPlayingPanel(
+                    nowPlaying =
+                        fakeNowPlaying(
+                            canSkipToQueueItem = true,
+                            queue = listOf(QueueEntry(42L, "Next Track", "The Wayfinders")),
+                        ),
+                    onCommand = { commands += it },
+                    onLaunchSource = {},
+                    onClose = {},
+                )
+            }
+        }
+        rule.onNodeWithText("Next Track").performClick()
+        assertEquals(listOf<MusicCommand>(MusicCommand.SkipToQueueItem(42L)), commands)
     }
 }

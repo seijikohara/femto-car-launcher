@@ -74,6 +74,7 @@
     <string name="music_seek">Seek</string>
     <string name="music_shuffle">Shuffle</string>
     <string name="music_repeat">Repeat</string>
+    <string name="music_playing_next">Playing next</string>
 
     <!-- Dashboard footer: navigation -->
     <string name="nav_phone">Phone</string>

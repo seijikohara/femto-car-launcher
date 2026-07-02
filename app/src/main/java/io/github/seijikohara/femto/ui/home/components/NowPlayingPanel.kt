@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -30,10 +31,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.ExternalLink
+import com.composables.icons.lucide.ListMusic
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Repeat
@@ -44,6 +47,7 @@ import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.NowPlaying
+import io.github.seijikohara.femto.data.music.QueueEntry
 import io.github.seijikohara.femto.data.music.RepeatMode
 import io.github.seijikohara.femto.data.music.sourceLabel
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -51,6 +55,8 @@ import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
+import io.github.seijikohara.femto.ui.theme.cardCta
+import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.eyebrow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -241,6 +247,13 @@ private fun PanelControls(
             modifier = Modifier.fillMaxWidth(),
         )
     }
+    if (nowPlaying.canSkipToQueueItem && nowPlaying.queue.isNotEmpty()) {
+        PlayingNextList(
+            queue = nowPlaying.queue,
+            onSelect = { id -> onCommand(MusicCommand.SkipToQueueItem(id)) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 }
 
 // Secondary transport row: shuffle / repeat, each rendered only when the
@@ -299,6 +312,64 @@ private fun ToggleIconButton(
     )
 }
 
+// Upcoming queue entries (already sliced to the items after the active track
+// and capped at QUEUE_UPCOMING_LIMIT by the data layer). A plain Column: the
+// parent PanelControls scrolls, and nesting a lazy list inside a scrollable
+// column is both forbidden and unnecessary at <= 12 rows.
+@Composable
+private fun PlayingNextList(
+    queue: List<QueueEntry>,
+    onSelect: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) = Column(
+    modifier = modifier,
+    verticalArrangement = Arrangement.spacedBy(2.dp),
+) {
+    Text(
+        text = stringResource(R.string.music_playing_next).uppercase(),
+        style = MaterialTheme.typography.eyebrow(),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    queue.forEach { entry ->
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = FemtoDimens.MinTouchTarget)
+                    .clip(MaterialTheme.shapes.small)
+                    .clickable { onSelect(entry.id) }
+                    .padding(horizontal = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            FemtoIcon(
+                imageVector = Lucide.ListMusic,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(FemtoDimens.InlineIconSize),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = entry.title,
+                    style = MaterialTheme.typography.cardCta(),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                entry.subtitle?.takeUnless { it.isBlank() }?.let { subtitle ->
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.cardMeta(),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
 // Display-size metadata that never truncates: one line each, marquee on
 // overflow (the deliberate inverse of the card's ellipsis + FitText, which
 // shrink; here there is room to scroll instead). Cross-fades on track change
@@ -351,6 +422,13 @@ private fun previewNowPlaying(): NowPlaying =
         canShuffle = true,
         canRepeat = true,
         shuffleOn = true,
+        canSkipToQueueItem = true,
+        queue =
+            listOf(
+                QueueEntry(1L, "Next Track One", "The Wayfinders"),
+                QueueEntry(2L, "Next Track Two", null),
+                QueueEntry(3L, "A Third Upcoming Track With A Longer Name", "Night Routes"),
+            ),
     )
 
 @PreviewLightDark
