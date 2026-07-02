@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,6 +59,10 @@ internal fun PlaybackSeekBar(
             playbackSpeed = playbackSpeed,
         )
     var dragFraction by remember { mutableStateOf<Float?>(null) }
+    // A track auto-advancing mid-scrub restarts the pointerInput and cancels the
+    // gesture without onDragEnd/onDragCancel; drop the stale scrub so the bar
+    // resumes tracking the live position instead of freezing.
+    LaunchedEffect(durationMs) { dragFraction = null }
     val fraction =
         dragFraction
             ?: if (durationMs > 0L) (livePosition.toFloat() / durationMs).coerceIn(0f, 1f) else 0f

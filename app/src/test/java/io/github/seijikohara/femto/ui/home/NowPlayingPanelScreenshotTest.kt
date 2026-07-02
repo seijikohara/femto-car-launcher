@@ -38,6 +38,10 @@ class NowPlayingPanelScreenshotTest {
     @Config(qualifiers = "w412dp-h915dp-mdpi")
     fun nowplaying_phone_portrait_full_capabilities() = capture("phone-portrait-412x915-full", FULL)
 
+    @Test
+    @Config(qualifiers = "w412dp-h915dp-mdpi")
+    fun nowplaying_phone_portrait_no_capabilities() = capture("phone-portrait-412x915-bare", BARE)
+
     private fun capture(
         name: String,
         state: NowPlaying,

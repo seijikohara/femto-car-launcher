@@ -101,6 +101,7 @@ internal class MusicSessionRepository(
                         .onFailure { Log.w(TAG, "media3 connect failed for ${controller.packageName}", it) }
                         .getOrNull() ?: return@addListener
                 media3Controller = connected
+                media3Future = null
                 media3PackageName = controller.packageName
                 connected.addListener(
                     object : Player.Listener {
@@ -413,9 +414,9 @@ internal fun musicCardStateOf(
  * plain values so the fallback branches are unit-testable without a
  * [MediaController]; [fallbackTitle] is a lambda so the source-label lookup
  * runs only when both metadata titles are blank. [canShuffle], [canRepeat],
- * [shuffleOn], [repeatMode], and [queue] pass through session state and
- * capability that have no platform getter and must be read via the media3
- * controller upstream.
+ * [shuffleOn], [repeatMode], and [queue] pass through: shuffle/repeat state and
+ * capability arrive as plain values from the media3 controller, which has no
+ * platform getter.
  */
 internal fun nowPlayingOf(
     metadata: MediaMetadata,

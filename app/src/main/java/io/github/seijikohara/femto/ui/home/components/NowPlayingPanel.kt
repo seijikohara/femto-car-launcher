@@ -187,6 +187,7 @@ private fun PanelIconButton(
     description: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    tint: Color = Color.Unspecified,
 ) = Box(
     modifier =
         modifier
@@ -199,7 +200,7 @@ private fun PanelIconButton(
     FemtoIcon(
         imageVector = icon,
         contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSurface,
+        tint = if (tint == Color.Unspecified) MaterialTheme.colorScheme.onSurface else tint,
         modifier = Modifier.size(28.dp),
     )
 }
@@ -271,45 +272,31 @@ private fun TransportToggles(
     verticalAlignment = Alignment.CenterVertically,
 ) {
     if (nowPlaying.canShuffle) {
-        ToggleIconButton(
+        PanelIconButton(
             icon = Lucide.Shuffle,
             description = stringResource(R.string.music_shuffle),
-            active = nowPlaying.shuffleOn,
             onClick = { onCommand(MusicCommand.ToggleShuffle) },
+            tint =
+                if (nowPlaying.shuffleOn) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
         )
     }
     if (nowPlaying.canRepeat) {
-        ToggleIconButton(
+        PanelIconButton(
             icon = if (nowPlaying.repeatMode == RepeatMode.ONE) Lucide.Repeat1 else Lucide.Repeat,
             description = stringResource(R.string.music_repeat),
-            active = nowPlaying.repeatMode != RepeatMode.NONE,
             onClick = { onCommand(MusicCommand.CycleRepeat) },
+            tint =
+                if (nowPlaying.repeatMode != RepeatMode.NONE) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
         )
     }
-}
-
-@Composable
-private fun ToggleIconButton(
-    icon: ImageVector,
-    description: String,
-    active: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) = Box(
-    modifier =
-        modifier
-            .size(FemtoDimens.MinTouchTarget)
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .semantics { contentDescription = description },
-    contentAlignment = Alignment.Center,
-) {
-    FemtoIcon(
-        imageVector = icon,
-        contentDescription = null,
-        tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.size(28.dp),
-    )
 }
 
 // Upcoming queue entries (already sliced to the items after the active track
