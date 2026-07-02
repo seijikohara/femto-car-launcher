@@ -1,5 +1,11 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -156,6 +162,13 @@ private fun DashboardContent(
     val expandedNowPlaying = (uiState.musicState as? MusicCardState.Playing)?.nowPlaying
     LaunchedEffect(expandedNowPlaying == null) {
         if (expandedNowPlaying == null) nowPlayingExpanded = false
+    }
+    // Hold the last live track so the collapse animation still renders content
+    // when the session ends (expandedNowPlaying goes null the same frame the
+    // panel starts fading out) rather than flashing empty mid-exit.
+    var panelNowPlaying by remember { mutableStateOf(expandedNowPlaying) }
+    LaunchedEffect(expandedNowPlaying) {
+        if (expandedNowPlaying != null) panelNowPlaying = expandedNowPlaying
     }
     // Landscape floats the cards as a right-hand column over the map; portrait drops
     // them to a bottom band. The column compresses to the available height on a short
@@ -347,18 +360,28 @@ private fun DashboardContent(
 
         // Drawn after (over) the cards but before the dock, which is a later
         // sibling of this Box — so the panel reaches exactly to the dock edge,
-        // the map blurs through the glass, and the dock stays operable.
-        if (nowPlayingExpanded && expandedNowPlaying != null) {
-            NowPlayingPanel(
-                nowPlaying = expandedNowPlaying,
-                onCommand = { command -> onAction(HomeAction.Music(command)) },
-                onLaunchSource = { packageName -> onAction(HomeAction.LaunchMusicSource(packageName)) },
-                onClose = { nowPlayingExpanded = false },
-                hazeState = hazeState,
-                glassConfig = glassConfig,
-                spectrum = spectrum,
-                modifier = Modifier.fillMaxSize().padding(outerPad),
-            )
+        // the map blurs through the glass, and the dock stays operable. The
+        // maximize/minimize fades with a subtle scale so the panel grows into
+        // place rather than popping; the exit renders panelNowPlaying so a
+        // session ending mid-collapse still fades its last frame.
+        AnimatedVisibility(
+            visible = nowPlayingExpanded && expandedNowPlaying != null,
+            enter = fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.92f),
+            exit = fadeOut(tween(180)) + scaleOut(tween(180), targetScale = 0.92f),
+            modifier = Modifier.fillMaxSize().padding(outerPad),
+        ) {
+            panelNowPlaying?.let { nowPlaying ->
+                NowPlayingPanel(
+                    nowPlaying = nowPlaying,
+                    onCommand = { command -> onAction(HomeAction.Music(command)) },
+                    onLaunchSource = { packageName -> onAction(HomeAction.LaunchMusicSource(packageName)) },
+                    onClose = { nowPlayingExpanded = false },
+                    hazeState = hazeState,
+                    glassConfig = glassConfig,
+                    spectrum = spectrum,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
     }
 
