@@ -36,11 +36,15 @@ import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
+import com.composables.icons.lucide.Repeat
+import com.composables.icons.lucide.Repeat1
+import com.composables.icons.lucide.Shuffle
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.NowPlaying
+import io.github.seijikohara.femto.data.music.RepeatMode
 import io.github.seijikohara.femto.data.music.sourceLabel
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
@@ -230,6 +234,69 @@ private fun PanelControls(
             modifier = Modifier.fillMaxWidth(),
         )
     }
+    if (nowPlaying.canShuffle || nowPlaying.canRepeat) {
+        TransportToggles(
+            nowPlaying = nowPlaying,
+            onCommand = onCommand,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+// Secondary transport row: shuffle / repeat, each rendered only when the
+// session advertises the capability — hidden, never disabled ghosts. Active
+// state reads through the accent tint, matching the primary play button's
+// colour hierarchy.
+@Composable
+private fun TransportToggles(
+    nowPlaying: NowPlaying,
+    onCommand: (MusicCommand) -> Unit,
+    modifier: Modifier = Modifier,
+) = Row(
+    modifier = modifier,
+    horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
+    verticalAlignment = Alignment.CenterVertically,
+) {
+    if (nowPlaying.canShuffle) {
+        ToggleIconButton(
+            icon = Lucide.Shuffle,
+            description = stringResource(R.string.music_shuffle),
+            active = nowPlaying.shuffleOn,
+            onClick = { onCommand(MusicCommand.ToggleShuffle) },
+        )
+    }
+    if (nowPlaying.canRepeat) {
+        ToggleIconButton(
+            icon = if (nowPlaying.repeatMode == RepeatMode.ONE) Lucide.Repeat1 else Lucide.Repeat,
+            description = stringResource(R.string.music_repeat),
+            active = nowPlaying.repeatMode != RepeatMode.NONE,
+            onClick = { onCommand(MusicCommand.CycleRepeat) },
+        )
+    }
+}
+
+@Composable
+private fun ToggleIconButton(
+    icon: ImageVector,
+    description: String,
+    active: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) = Box(
+    modifier =
+        modifier
+            .size(FemtoDimens.MinTouchTarget)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = description },
+    contentAlignment = Alignment.Center,
+) {
+    FemtoIcon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(28.dp),
+    )
 }
 
 // Display-size metadata that never truncates: one line each, marquee on
@@ -281,6 +348,9 @@ private fun previewNowPlaying(): NowPlaying =
         durationMs = 368_000,
         packageName = "com.example.music",
         canSeek = true,
+        canShuffle = true,
+        canRepeat = true,
+        shuffleOn = true,
     )
 
 @PreviewLightDark

@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
@@ -95,5 +96,39 @@ class NowPlayingPanelTest {
             }
         }
         rule.onNodeWithContentDescription("Seek").assertIsDisplayed()
+    }
+
+    @Test
+    fun shuffle_and_repeat_are_hidden_without_capabilities() {
+        rule.setContent {
+            FemtoTheme {
+                NowPlayingPanel(
+                    nowPlaying = fakeNowPlaying(canShuffle = false, canRepeat = false),
+                    onCommand = {},
+                    onLaunchSource = {},
+                    onClose = {},
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("Shuffle").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Repeat").assertDoesNotExist()
+    }
+
+    @Test
+    fun shuffle_tap_dispatches_ToggleShuffle() {
+        val commands = mutableListOf<MusicCommand>()
+        rule.setContent {
+            FemtoTheme {
+                NowPlayingPanel(
+                    nowPlaying = fakeNowPlaying(canShuffle = true, canRepeat = true),
+                    onCommand = { commands += it },
+                    onLaunchSource = {},
+                    onClose = {},
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("Shuffle").performClick()
+        rule.onNodeWithContentDescription("Repeat").performClick()
+        assertEquals(listOf<MusicCommand>(MusicCommand.ToggleShuffle, MusicCommand.CycleRepeat), commands)
     }
 }
