@@ -55,6 +55,9 @@ object FemtoDimens {
     /** Centre play / pause button — slightly wider so it reads as primary. */
     val MusicPlayButton = 72.dp
 
+    /** Cap on the Now Playing panel's album art so it never dominates a tall panel. */
+    val NowPlayingArtMax = 320.dp
+
     /** Inner padding for the small glass map overlays (clock / speed pill). */
     val OverlayPaddingHorizontal = 16.dp
     val OverlayPaddingVertical = 6.dp

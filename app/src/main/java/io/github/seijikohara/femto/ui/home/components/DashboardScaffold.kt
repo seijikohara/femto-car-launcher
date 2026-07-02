@@ -17,11 +17,13 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +36,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
@@ -146,6 +149,14 @@ private fun DashboardContent(
     // panel carries uniform margins on all four sides (gap-to-neighbour == edge-margin).
     val cardGap = outerPad
     val hasCards = panels.anyInfoPanel
+    // Full-screen Now Playing panel (issue #231). Pure UI state — saveable so a
+    // rotation keeps the panel open — auto-collapsed when the session leaves
+    // Playing so a dead session never strands an empty panel over the map.
+    var nowPlayingExpanded by rememberSaveable { mutableStateOf(false) }
+    val expandedNowPlaying = (uiState.musicState as? MusicCardState.Playing)?.nowPlaying
+    LaunchedEffect(expandedNowPlaying == null) {
+        if (expandedNowPlaying == null) nowPlayingExpanded = false
+    }
     // Landscape floats the cards as a right-hand column over the map; portrait drops
     // them to a bottom band. The column compresses to the available height on a short
     // landscape (a phone) and caps on a tall one, so the map keeps the left either way.
@@ -311,6 +322,7 @@ private fun DashboardContent(
                 hazeState = hazeState,
                 glassConfig = glassConfig,
                 onAction = onAction,
+                onExpandNowPlaying = { nowPlayingExpanded = true },
                 spectrum = spectrum,
                 modifier =
                     if (bottomCards) {
@@ -330,6 +342,22 @@ private fun DashboardContent(
                             .fillMaxHeight()
                             .padding(top = outerPad, bottom = outerPad, end = outerPad)
                     },
+            )
+        }
+
+        // Drawn after (over) the cards but before the dock, which is a later
+        // sibling of this Box — so the panel reaches exactly to the dock edge,
+        // the map blurs through the glass, and the dock stays operable.
+        if (nowPlayingExpanded && expandedNowPlaying != null) {
+            NowPlayingPanel(
+                nowPlaying = expandedNowPlaying,
+                onCommand = { command -> onAction(HomeAction.Music(command)) },
+                onLaunchSource = { packageName -> onAction(HomeAction.LaunchMusicSource(packageName)) },
+                onClose = { nowPlayingExpanded = false },
+                hazeState = hazeState,
+                glassConfig = glassConfig,
+                spectrum = spectrum,
+                modifier = Modifier.fillMaxSize().padding(outerPad),
             )
         }
     }
@@ -408,6 +436,7 @@ private fun FloatingCardColumn(
     hazeState: HazeState,
     glassConfig: GlassConfig,
     onAction: (HomeAction) -> Unit,
+    onExpandNowPlaying: () -> Unit,
     modifier: Modifier = Modifier,
     spectrum: StateFlow<FloatArray?>? = null,
 ) {
@@ -439,6 +468,7 @@ private fun FloatingCardColumn(
             onCommand = { command -> onAction(HomeAction.Music(command)) },
             onConnect = { onAction(HomeAction.ConnectMusicPlayer) },
             onLaunchSource = { packageName -> onAction(HomeAction.LaunchMusicSource(packageName)) },
+            onExpand = onExpandNowPlaying,
             hazeState = hazeState,
             glassConfig = glassConfig,
             modifier = cardModifier,

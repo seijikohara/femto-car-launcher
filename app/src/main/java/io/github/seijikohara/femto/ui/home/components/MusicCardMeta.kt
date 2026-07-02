@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.ui.home.components
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,7 +29,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -37,6 +40,7 @@ import com.composables.icons.lucide.Disc
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.User
+import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.music.NowPlaying
 import io.github.seijikohara.femto.data.music.trackKey
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -56,67 +60,82 @@ private const val ART_GRACE_WINDOW_MS = 600L
 @Composable
 internal fun AlbumArt(
     nowPlaying: NowPlaying,
+    onTap: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
-) = Box(
-    modifier =
-        modifier
-            .clip(MaterialTheme.shapes.medium)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-    contentAlignment = Alignment.Center,
 ) {
-    // Media apps deliver a new track's metadata in stages: the title usually
-    // lands before METADATA_KEY_ALBUM_ART. Dropping to the placeholder the
-    // instant the bitmap is momentarily absent flashes the "no art" gradient on
-    // every track change. Hold the last shown art across that gap and concede
-    // the placeholder only once the art stays absent past a short grace window
-    // (covering a track that genuinely carries none).
-    //
-    // The hold keys on track identity, not the ImageBitmap instance, because
-    // METADATA_KEY_ALBUM_ART re-wraps a fresh bitmap on every emission — keying
-    // on the instance would re-fire the dissolve on each play/pause tick.
-    val trackKey = nowPlaying.trackKey
-    val hasArt = nowPlaying.albumArt != null
-    var shownArt by remember { mutableStateOf(nowPlaying.albumArt) }
-    LaunchedEffect(trackKey, hasArt) {
-        if (hasArt) {
-            shownArt = nowPlaying.albumArt
-        } else {
-            delay(ART_GRACE_WINDOW_MS)
-            shownArt = null
+    // Optional tap: on the dashboard card the art is the expand-to-panel
+    // affordance (the TransportButton idiom: clickable + explicit content
+    // description); in the panel itself the art is inert, so no tap modifier
+    // and no misleading action semantics.
+    val tapModifier =
+        onTap?.let { tap ->
+            val label = stringResource(R.string.music_expand_player)
+            Modifier
+                .clickable(onClick = tap)
+                .semantics { contentDescription = label }
+        } ?: Modifier
+    Box(
+        modifier =
+            modifier
+                .clip(MaterialTheme.shapes.medium)
+                .then(tapModifier)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Media apps deliver a new track's metadata in stages: the title usually
+        // lands before METADATA_KEY_ALBUM_ART. Dropping to the placeholder the
+        // instant the bitmap is momentarily absent flashes the "no art" gradient on
+        // every track change. Hold the last shown art across that gap and concede
+        // the placeholder only once the art stays absent past a short grace window
+        // (covering a track that genuinely carries none).
+        //
+        // The hold keys on track identity, not the ImageBitmap instance, because
+        // METADATA_KEY_ALBUM_ART re-wraps a fresh bitmap on every emission — keying
+        // on the instance would re-fire the dissolve on each play/pause tick.
+        val trackKey = nowPlaying.trackKey
+        val hasArt = nowPlaying.albumArt != null
+        var shownArt by remember { mutableStateOf(nowPlaying.albumArt) }
+        LaunchedEffect(trackKey, hasArt) {
+            if (hasArt) {
+                shownArt = nowPlaying.albumArt
+            } else {
+                delay(ART_GRACE_WINDOW_MS)
+                shownArt = null
+            }
         }
-    }
-    // The dissolve targets the held art, so it fires only on a real artwork
-    // change (track switch, or art conceded after the grace window) — never on
-    // the per-emission re-wrap or a transient gap mid-track-change.
-    Crossfade(targetState = shownArt, label = "albumArt") { art ->
-        if (art != null) {
-            Image(
-                bitmap = art,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.linearGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.tertiary,
+        // The dissolve targets the held art, so it fires only on a real artwork
+        // change (track switch, or art conceded after the grace window) — never on
+        // the per-emission re-wrap or a transient gap mid-track-change.
+        Crossfade(targetState = shownArt, label = "albumArt") { art ->
+            if (art != null) {
+                Image(
+                    bitmap = art,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.tertiary,
+                                    ),
                                 ),
                             ),
-                        ),
-                contentAlignment = Alignment.Center,
-            ) {
-                FemtoIcon(
-                    imageVector = Lucide.Music,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(48.dp),
-                )
+                    contentAlignment = Alignment.Center,
+                ) {
+                    FemtoIcon(
+                        imageVector = Lucide.Music,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(48.dp),
+                    )
+                }
             }
         }
     }
