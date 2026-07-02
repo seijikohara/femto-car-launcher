@@ -23,10 +23,12 @@ private fun playbackState(
     positionMs: Long = 0L,
     speed: Float = 1f,
     updateTimeMs: Long = 0L,
+    actions: Long = 0L,
 ): PlaybackState =
     PlaybackState
         .Builder()
         .setState(state, positionMs, speed, updateTimeMs)
+        .setActions(actions)
         .build()
 
 private fun metadata(
@@ -36,6 +38,7 @@ private fun metadata(
     album: String? = null,
     durationMs: Long = 0L,
     albumArt: Bitmap? = null,
+    art: Bitmap? = null,
 ): MediaMetadata =
     MediaMetadata
         .Builder()
@@ -46,6 +49,7 @@ private fun metadata(
             album?.let { putString(MediaMetadata.METADATA_KEY_ALBUM, it) }
             putLong(MediaMetadata.METADATA_KEY_DURATION, durationMs)
             albumArt?.let { putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, it) }
+            art?.let { putBitmap(MediaMetadata.METADATA_KEY_ART, it) }
         }.build()
 
 /** Plain value holder standing in for a MediaController in selection tests. */
@@ -299,6 +303,100 @@ class MusicSessionMappingTest {
                 fallbackTitle = { FALLBACK },
             ).albumArt,
         )
+    }
+
+    @Test
+    fun `nowPlayingOf derives seek and queue capabilities from the action bits`() {
+        val result =
+            nowPlayingOf(
+                metadata = metadata(title = "Strobe"),
+                playbackState =
+                    playbackState(
+                        PlaybackState.STATE_PLAYING,
+                        actions = PlaybackState.ACTION_SEEK_TO or PlaybackState.ACTION_SKIP_TO_QUEUE_ITEM,
+                    ),
+                packageName = PACKAGE,
+                fallbackTitle = { FALLBACK },
+            )
+
+        assertTrue(result.canSeek)
+        assertTrue(result.canSkipToQueueItem)
+        // Shuffle / repeat capability comes from the media3 controller, not the
+        // action bits, so it stays false unless passed in.
+        assertFalse(result.canShuffle)
+        assertFalse(result.canRepeat)
+    }
+
+    @Test
+    fun `nowPlayingOf reports no capabilities without matching action bits`() {
+        val result =
+            nowPlayingOf(
+                metadata = metadata(title = "Strobe"),
+                playbackState = playbackState(PlaybackState.STATE_PLAYING, actions = PlaybackState.ACTION_PLAY_PAUSE),
+                packageName = PACKAGE,
+                fallbackTitle = { FALLBACK },
+            )
+
+        assertFalse(result.canSeek)
+        assertFalse(result.canSkipToQueueItem)
+        assertFalse(result.canShuffle)
+        assertFalse(result.canRepeat)
+    }
+
+    @Test
+    fun `nowPlayingOf reports no capabilities when the playback state is null`() {
+        val result =
+            nowPlayingOf(
+                metadata = metadata(title = "Strobe"),
+                playbackState = null,
+                packageName = PACKAGE,
+                fallbackTitle = { FALLBACK },
+            )
+
+        assertFalse(result.canSeek)
+        assertFalse(result.canSkipToQueueItem)
+        assertFalse(result.canShuffle)
+        assertFalse(result.canRepeat)
+    }
+
+    @Test
+    fun `nowPlayingOf prefers full-size art over the album thumb`() {
+        val thumb = Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888)
+        val full = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
+
+        val result =
+            nowPlayingOf(
+                metadata = metadata(title = "Strobe", albumArt = thumb, art = full),
+                playbackState = null,
+                packageName = PACKAGE,
+                fallbackTitle = { FALLBACK },
+            )
+
+        assertEquals(4, result.albumArt?.width)
+    }
+
+    @Test
+    fun `nowPlayingOf passes through shuffle, repeat, capabilities, and queue`() {
+        val queue = listOf(QueueEntry(7L, "Next", null))
+
+        val result =
+            nowPlayingOf(
+                metadata = metadata(title = "Strobe"),
+                playbackState = null,
+                packageName = PACKAGE,
+                fallbackTitle = { FALLBACK },
+                canShuffle = true,
+                canRepeat = true,
+                shuffleOn = true,
+                repeatMode = RepeatMode.ONE,
+                queue = queue,
+            )
+
+        assertTrue(result.canShuffle)
+        assertTrue(result.canRepeat)
+        assertTrue(result.shuffleOn)
+        assertEquals(RepeatMode.ONE, result.repeatMode)
+        assertEquals(queue, result.queue)
     }
 
     private companion object {

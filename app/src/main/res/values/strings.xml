@@ -69,6 +69,12 @@
     <string name="music_play_pause">Play / pause</string>
     <string name="music_skip_next">Skip next</string>
     <string name="music_open_source">Open %1$s</string>
+    <string name="music_expand_player">Open full-screen player</string>
+    <string name="music_collapse_player">Collapse player</string>
+    <string name="music_seek">Seek</string>
+    <string name="music_shuffle">Shuffle</string>
+    <string name="music_repeat">Repeat</string>
+    <string name="music_playing_next">Playing next</string>
 
     <!-- Dashboard footer: navigation -->
     <string name="nav_phone">Phone</string>

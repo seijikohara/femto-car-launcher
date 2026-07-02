@@ -29,6 +29,7 @@ class MusicCardTest {
                     onCommand = {},
                     onConnect = {},
                     onLaunchSource = {},
+                    onExpand = {},
                 )
             }
         }
@@ -46,6 +47,7 @@ class MusicCardTest {
                     onCommand = {},
                     onConnect = {},
                     onLaunchSource = {},
+                    onExpand = {},
                 )
             }
         }
@@ -61,6 +63,7 @@ class MusicCardTest {
                     onCommand = {},
                     onConnect = {},
                     onLaunchSource = {},
+                    onExpand = {},
                 )
             }
         }
@@ -78,6 +81,7 @@ class MusicCardTest {
                     onCommand = {},
                     onConnect = {},
                     onLaunchSource = { launched = it },
+                    onExpand = {},
                 )
             }
         }
@@ -98,6 +102,7 @@ class MusicCardTest {
                     onCommand = { command = it },
                     onConnect = {},
                     onLaunchSource = { launched = it },
+                    onExpand = {},
                 )
             }
         }
@@ -124,6 +129,7 @@ class MusicCardTest {
                     onCommand = { command = it },
                     onConnect = {},
                     onLaunchSource = {},
+                    onExpand = {},
                     spectrum = MutableStateFlow(FloatArray(SPECTRUM_BAND_COUNT) { 0.6f }),
                 )
             }
@@ -144,6 +150,7 @@ class MusicCardTest {
                     onCommand = {},
                     onConnect = { tapped = true },
                     onLaunchSource = {},
+                    onExpand = {},
                 )
             }
         }
@@ -160,9 +167,28 @@ class MusicCardTest {
                     onCommand = {},
                     onConnect = {},
                     onLaunchSource = {},
+                    onExpand = {},
                 )
             }
         }
         rule.onNodeWithText("Nothing is playing").assertIsDisplayed()
+    }
+
+    @Test
+    fun album_art_tap_invokes_onExpand() {
+        var expanded = false
+        rule.setContent {
+            FemtoTheme {
+                MusicCard(
+                    state = MusicCardState.Playing(fakeNowPlaying()),
+                    onCommand = {},
+                    onConnect = {},
+                    onLaunchSource = {},
+                    onExpand = { expanded = true },
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("Open full-screen player").performClick()
+        assertTrue(expanded)
     }
 }

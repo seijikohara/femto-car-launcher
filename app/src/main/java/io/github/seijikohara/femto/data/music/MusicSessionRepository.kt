@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.ContentObserver
 import android.media.MediaMetadata
 import android.media.session.MediaController
+import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.Handler
@@ -14,8 +15,12 @@ import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import androidx.core.graphics.drawable.toBitmap
+import androidx.media3.common.Player
+import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -23,6 +28,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import androidx.media3.session.MediaController as Media3Controller
 
 private const val TAG = "MusicSessionRepo"
 
@@ -40,6 +46,76 @@ internal class MusicSessionRepository(
     // used instead of ConcurrentHashMap because a failed resolution stores null
     // and ConcurrentHashMap forbids null values.
     private val sourceIconCache = mutableMapOf<String, ImageBitmap?>()
+
+    // media3 controller over the watched primary session's platform token.
+    // Shuffle / repeat have no platform-API surface (verified via javap against
+    // the API 37 android.jar) and the androidx.media compat layer is deprecated,
+    // so media3 is the sanctioned route for their state, capability, and
+    // setters. Everything here is Main-thread confined (the session flow and
+    // send() both run on Main); `media3Generation` discards async results that
+    // land after the watched session changed.
+    private var media3Controller: Media3Controller? = null
+    private var media3Future: ListenableFuture<Media3Controller>? = null
+    private var media3PackageName: String? = null
+    private var media3Generation = 0
+
+    private fun releaseMedia3() {
+        media3Generation++
+        media3Controller?.release()
+        media3Controller = null
+        media3Future?.let { runCatching { Media3Controller.releaseFuture(it) } }
+        media3Future = null
+        media3PackageName = null
+    }
+
+    /**
+     * Asynchronously connect a media3 controller to [controller]'s session and
+     * invoke [onChanged] once connected — and again on every shuffle / repeat /
+     * capability change — so the session flow re-emits with the fresh state.
+     */
+    private fun connectMedia3(
+        controller: MediaController,
+        onChanged: () -> Unit,
+    ) {
+        releaseMedia3()
+        val generation = media3Generation
+        val mainExecutor = ContextCompat.getMainExecutor(context)
+        val tokenFuture = SessionToken.createSessionToken(context, controller.sessionToken)
+        tokenFuture.addListener({
+            if (generation != media3Generation) return@addListener
+            val token =
+                runCatching { tokenFuture.get() }
+                    .onFailure { Log.w(TAG, "media3 token failed for ${controller.packageName}", it) }
+                    .getOrNull() ?: return@addListener
+            val controllerFuture = Media3Controller.Builder(context, token).buildAsync()
+            media3Future = controllerFuture
+            controllerFuture.addListener({
+                if (generation != media3Generation) {
+                    // A rewatch happened while connecting; this controller belongs
+                    // to a session we no longer track — release, don't leak.
+                    runCatching { Media3Controller.releaseFuture(controllerFuture) }
+                    return@addListener
+                }
+                val connected =
+                    runCatching { controllerFuture.get() }
+                        .onFailure { Log.w(TAG, "media3 connect failed for ${controller.packageName}", it) }
+                        .getOrNull() ?: return@addListener
+                media3Controller = connected
+                media3Future = null
+                media3PackageName = controller.packageName
+                connected.addListener(
+                    object : Player.Listener {
+                        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) = onChanged()
+
+                        override fun onRepeatModeChanged(repeatMode: Int) = onChanged()
+
+                        override fun onAvailableCommandsChanged(availableCommands: Player.Commands) = onChanged()
+                    },
+                )
+                onChanged()
+            }, mainExecutor)
+        }, mainExecutor)
+    }
 
     fun stateFlow(): Flow<MusicCardState> =
         combine(permissionFlow(), activeControllersFlow()) { hasPermission, controllers ->
@@ -81,6 +157,32 @@ internal class MusicSessionRepository(
 
             MusicCommand.SkipPrevious -> {
                 transport.skipToPrevious()
+            }
+
+            is MusicCommand.SeekTo -> {
+                transport.seekTo(command.positionMs)
+            }
+
+            is MusicCommand.SkipToQueueItem -> {
+                transport.skipToQueueItem(command.queueItemId)
+            }
+
+            MusicCommand.ToggleShuffle -> {
+                // Toggle computed from the live controller state, mirroring the
+                // PlayPause idiom (read current state at dispatch time). Guard on
+                // the package like toNowPlaying does: the media3 controller trails
+                // the platform session set, so in the window around a session
+                // switch it may still belong to the previous app — better to drop
+                // the tap than toggle the wrong session.
+                media3Controller
+                    ?.takeIf { media3PackageName == controller.packageName }
+                    ?.let { it.setShuffleModeEnabled(!it.shuffleModeEnabled) }
+            }
+
+            MusicCommand.CycleRepeat -> {
+                media3Controller
+                    ?.takeIf { media3PackageName == controller.packageName }
+                    ?.let { it.setRepeatMode(nextRepeatMode(repeatModeOf(it.repeatMode)).toPlayerMode()) }
             }
         }
     }
@@ -128,6 +230,10 @@ internal class MusicSessionRepository(
                     override fun onSessionDestroyed() {
                         trySend(current)
                     }
+
+                    override fun onQueueChanged(queue: MutableList<MediaSession.QueueItem>?) {
+                        trySend(current)
+                    }
                 }
 
             fun rewatch(controllers: List<MediaController>) {
@@ -142,6 +248,15 @@ internal class MusicSessionRepository(
                     // while it looks healthy; leave a trail.
                     runCatching { watched?.registerCallback(watcher) }
                         .onFailure { Log.w(TAG, "registerCallback failed for ${next?.packageName}", it) }
+                    // Shuffle / repeat state only surfaces through the media3
+                    // controller; without it the panel's toggles would stay
+                    // hidden (capability false) for a capable session.
+                    val nextController = next
+                    if (nextController != null) {
+                        connectMedia3(nextController) { trySend(current) }
+                    } else {
+                        releaseMedia3()
+                    }
                 }
             }
 
@@ -163,6 +278,7 @@ internal class MusicSessionRepository(
             }
 
             awaitClose {
+                releaseMedia3()
                 runCatching { watched?.unregisterCallback(watcher) }
                 runCatching { sessionManager.removeOnActiveSessionsChangedListener(sessionsListener) }
             }
@@ -178,13 +294,38 @@ internal class MusicSessionRepository(
                 // or a metadata-less stream). Degrade to NoActiveSession upstream
                 // rather than render a blank, broken-looking card.
                 controller.metadata?.let { metadata ->
+                    // The media3 controller trails the platform one (async
+                    // connect); only trust it for the package it was built for.
+                    val media3 = media3Controller?.takeIf { media3PackageName == controller.packageName }
                     nowPlayingOf(
                         metadata = metadata,
                         playbackState = controller.playbackState,
                         packageName = controller.packageName,
                         fallbackTitle = { sourceLabel(controller.packageName) },
+                        canShuffle = media3?.isCommandAvailable(Player.COMMAND_SET_SHUFFLE_MODE) ?: false,
+                        canRepeat = media3?.isCommandAvailable(Player.COMMAND_SET_REPEAT_MODE) ?: false,
+                        shuffleOn = media3?.shuffleModeEnabled ?: false,
+                        repeatMode = media3?.let { repeatModeOf(it.repeatMode) } ?: RepeatMode.NONE,
+                        queue =
+                            upcomingQueue(
+                                entries = controller.queueEntries(),
+                                activeQueueItemId = controller.playbackState?.activeQueueItemId ?: -1L,
+                            ),
                     )
                 }
+            }
+
+    private fun MediaController.queueEntries(): List<QueueEntry> =
+        runCatching { queue.orEmpty() }
+            .getOrDefault(emptyList())
+            .map { item ->
+                QueueEntry(
+                    id = item.queueId,
+                    title = item.description.title
+                        ?.toString()
+                        .orEmpty(),
+                    subtitle = item.description.subtitle?.toString(),
+                )
             }
 
     // Attach the source-app icon to a Playing state, leaving the other variants
@@ -272,32 +413,59 @@ internal fun musicCardStateOf(
  * Map one session's extracted fields to the card's [NowPlaying]. Operates on
  * plain values so the fallback branches are unit-testable without a
  * [MediaController]; [fallbackTitle] is a lambda so the source-label lookup
- * runs only when both metadata titles are blank.
+ * runs only when both metadata titles are blank. [canShuffle], [canRepeat],
+ * [shuffleOn], [repeatMode], and [queue] pass through: shuffle/repeat state and
+ * capability arrive as plain values from the media3 controller, which has no
+ * platform getter.
  */
 internal fun nowPlayingOf(
     metadata: MediaMetadata,
     playbackState: PlaybackState?,
     packageName: String,
     fallbackTitle: () -> String,
+    canShuffle: Boolean = false,
+    canRepeat: Boolean = false,
+    shuffleOn: Boolean = false,
+    repeatMode: RepeatMode = RepeatMode.NONE,
+    queue: List<QueueEntry> = emptyList(),
 ): NowPlaying =
-    NowPlaying(
-        // METADATA_KEY_TITLE is empty for many podcast / radio / stream
-        // sessions; fall back to the display title and finally the source
-        // label so the 23sp title line is never blank.
-        title =
-            metadata.getString(MediaMetadata.METADATA_KEY_TITLE)?.takeIf { it.isNotBlank() }
-                ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)?.takeIf { it.isNotBlank() }
-                ?: fallbackTitle(),
-        artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST),
-        album = metadata.getString(MediaMetadata.METADATA_KEY_ALBUM),
-        albumArt = metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)?.asImageBitmap(),
-        // sourceIcon is resolved downstream off Main (see stateFlow).
-        // A paused controller renders with isPlaying=false (Play icon,
-        // resumable), but stays on screen via selectPrimaryController.
-        isPlaying = playbackState?.state == PlaybackState.STATE_PLAYING,
-        positionMs = playbackState?.position ?: 0L,
-        durationMs = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION),
-        packageName = packageName,
-        playbackSpeed = playbackState?.playbackSpeed ?: 1f,
-        positionUpdateTimeMs = playbackState?.lastPositionUpdateTime ?: 0L,
-    )
+    (playbackState?.actions ?: 0L).let { actions ->
+        NowPlaying(
+            // METADATA_KEY_TITLE is empty for many podcast / radio / stream
+            // sessions; fall back to the display title and finally the source
+            // label so the 23sp title line is never blank.
+            title =
+                metadata.getString(MediaMetadata.METADATA_KEY_TITLE)?.takeIf { it.isNotBlank() }
+                    ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)?.takeIf { it.isNotBlank() }
+                    ?: fallbackTitle(),
+            artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST),
+            album = metadata.getString(MediaMetadata.METADATA_KEY_ALBUM),
+            // Prefer METADATA_KEY_ART — the full-size artwork some apps publish
+            // beside the album thumb — so the expanded panel gets the sharpest
+            // bitmap available; the small card scales it down regardless.
+            albumArt =
+                (
+                    metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)
+                        ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+                )?.asImageBitmap(),
+            // sourceIcon is resolved downstream off Main (see stateFlow).
+            // A paused controller renders with isPlaying=false (Play icon,
+            // resumable), but stays on screen via selectPrimaryController.
+            isPlaying = playbackState?.state == PlaybackState.STATE_PLAYING,
+            positionMs = playbackState?.position ?: 0L,
+            durationMs = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION),
+            packageName = packageName,
+            playbackSpeed = playbackState?.playbackSpeed ?: 1f,
+            positionUpdateTimeMs = playbackState?.lastPositionUpdateTime ?: 0L,
+            canSeek = (actions and PlaybackState.ACTION_SEEK_TO) != 0L,
+            // Shuffle / repeat capability is a media3-controller fact (command
+            // availability), not an action bit — supplied by the repository once
+            // the async controller connects; false until then.
+            canShuffle = canShuffle,
+            canRepeat = canRepeat,
+            canSkipToQueueItem = (actions and PlaybackState.ACTION_SKIP_TO_QUEUE_ITEM) != 0L,
+            shuffleOn = shuffleOn,
+            repeatMode = repeatMode,
+            queue = queue,
+        )
+    }

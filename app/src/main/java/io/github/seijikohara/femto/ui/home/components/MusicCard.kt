@@ -55,6 +55,7 @@ internal fun MusicCard(
     onCommand: (MusicCommand) -> Unit,
     onConnect: () -> Unit,
     onLaunchSource: (String) -> Unit,
+    onExpand: () -> Unit,
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
@@ -70,7 +71,7 @@ internal fun MusicCard(
     when (state) {
         MusicCardState.NeedsPermission -> MusicConnectState(onConnect = onConnect)
         MusicCardState.NoActiveSession -> MusicEmptyState()
-        is MusicCardState.Playing -> PlayingState(state.nowPlaying, onCommand, onLaunchSource, spectrum)
+        is MusicCardState.Playing -> PlayingState(state.nowPlaying, onCommand, onLaunchSource, onExpand, spectrum)
     }
 }
 
@@ -79,6 +80,7 @@ private fun PlayingState(
     nowPlaying: NowPlaying,
     onCommand: (MusicCommand) -> Unit,
     onLaunchSource: (String) -> Unit,
+    onExpand: () -> Unit,
     spectrum: StateFlow<FloatArray?>?,
 ) {
     // The whole card (except the transport controls, which consume their own taps)
@@ -107,6 +109,7 @@ private fun PlayingState(
             // card's height via fillMaxHeight on a shorter card.
             AlbumArt(
                 nowPlaying = nowPlaying,
+                onTap = onExpand,
                 modifier = Modifier.heightIn(max = FemtoDimens.MusicArtSize).fillMaxHeight().aspectRatio(1f),
             )
             Column(
@@ -169,6 +172,7 @@ private fun MusicCardPlayingPreview() {
             onCommand = {},
             onConnect = {},
             onLaunchSource = {},
+            onExpand = {},
         )
     }
 }
@@ -184,6 +188,7 @@ private fun MusicCardEmptyPreview() {
             onCommand = {},
             onConnect = {},
             onLaunchSource = {},
+            onExpand = {},
         )
     }
 }

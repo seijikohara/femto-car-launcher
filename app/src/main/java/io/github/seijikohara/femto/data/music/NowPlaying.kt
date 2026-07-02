@@ -25,7 +25,28 @@ internal data class NowPlaying(
      * as a tap-to-open affordance.
      */
     val sourceIcon: ImageBitmap? = null,
+    /** True when the session advertises ACTION_SEEK_TO; gates drag-to-seek. */
+    val canSeek: Boolean = false,
+    /** True when the media3 controller reports COMMAND_SET_SHUFFLE_MODE available. */
+    val canShuffle: Boolean = false,
+    /** True when the media3 controller reports COMMAND_SET_REPEAT_MODE available. */
+    val canRepeat: Boolean = false,
+    /** True when the session advertises ACTION_SKIP_TO_QUEUE_ITEM. */
+    val canSkipToQueueItem: Boolean = false,
+    /** Current shuffle toggle, read via the media3 controller (no platform getter exists). */
+    val shuffleOn: Boolean = false,
+    /** Current repeat mode, read via the media3 controller (no platform getter exists). */
+    val repeatMode: RepeatMode = RepeatMode.NONE,
+    /** Upcoming tracks after the active queue item, capped at [QUEUE_UPCOMING_LIMIT]. */
+    val queue: List<QueueEntry> = emptyList(),
 )
+
+/**
+ * Track identity for change-driven animation (the art dissolve and the
+ * metadata cross-fade). Keys on the track fields, never the NowPlaying
+ * instance, because the session re-wraps a fresh value on every playback tick.
+ */
+internal val NowPlaying.trackKey: String get() = "$packageName $title $album"
 
 /**
  * Map a media-session package name to a human-readable source label. This is the

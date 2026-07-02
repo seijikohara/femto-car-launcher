@@ -1,5 +1,11 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -17,11 +23,13 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +42,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
@@ -146,6 +155,21 @@ private fun DashboardContent(
     // panel carries uniform margins on all four sides (gap-to-neighbour == edge-margin).
     val cardGap = outerPad
     val hasCards = panels.anyInfoPanel
+    // Full-screen Now Playing panel (issue #231). Pure UI state — saveable so a
+    // rotation keeps the panel open — auto-collapsed when the session leaves
+    // Playing so a dead session never strands an empty panel over the map.
+    var nowPlayingExpanded by rememberSaveable { mutableStateOf(false) }
+    val expandedNowPlaying = (uiState.musicState as? MusicCardState.Playing)?.nowPlaying
+    LaunchedEffect(expandedNowPlaying == null) {
+        if (expandedNowPlaying == null) nowPlayingExpanded = false
+    }
+    // Hold the last live track so the collapse animation still renders content
+    // when the session ends (expandedNowPlaying goes null the same frame the
+    // panel starts fading out) rather than flashing empty mid-exit.
+    var panelNowPlaying by remember { mutableStateOf(expandedNowPlaying) }
+    LaunchedEffect(expandedNowPlaying) {
+        if (expandedNowPlaying != null) panelNowPlaying = expandedNowPlaying
+    }
     // Landscape floats the cards as a right-hand column over the map; portrait drops
     // them to a bottom band. The column compresses to the available height on a short
     // landscape (a phone) and caps on a tall one, so the map keeps the left either way.
@@ -311,6 +335,7 @@ private fun DashboardContent(
                 hazeState = hazeState,
                 glassConfig = glassConfig,
                 onAction = onAction,
+                onExpandNowPlaying = { nowPlayingExpanded = true },
                 spectrum = spectrum,
                 modifier =
                     if (bottomCards) {
@@ -331,6 +356,32 @@ private fun DashboardContent(
                             .padding(top = outerPad, bottom = outerPad, end = outerPad)
                     },
             )
+        }
+
+        // Drawn after (over) the cards but before the dock, which is a later
+        // sibling of this Box — so the panel reaches exactly to the dock edge,
+        // the map blurs through the glass, and the dock stays operable. The
+        // maximize/minimize fades with a subtle scale so the panel grows into
+        // place rather than popping; the exit renders panelNowPlaying so a
+        // session ending mid-collapse still fades its last frame.
+        AnimatedVisibility(
+            visible = nowPlayingExpanded && expandedNowPlaying != null,
+            enter = fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.92f),
+            exit = fadeOut(tween(180)) + scaleOut(tween(180), targetScale = 0.92f),
+            modifier = Modifier.fillMaxSize().padding(outerPad),
+        ) {
+            panelNowPlaying?.let { nowPlaying ->
+                NowPlayingPanel(
+                    nowPlaying = nowPlaying,
+                    onCommand = { command -> onAction(HomeAction.Music(command)) },
+                    onLaunchSource = { packageName -> onAction(HomeAction.LaunchMusicSource(packageName)) },
+                    onClose = { nowPlayingExpanded = false },
+                    hazeState = hazeState,
+                    glassConfig = glassConfig,
+                    spectrum = spectrum,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
     }
 
@@ -408,6 +459,7 @@ private fun FloatingCardColumn(
     hazeState: HazeState,
     glassConfig: GlassConfig,
     onAction: (HomeAction) -> Unit,
+    onExpandNowPlaying: () -> Unit,
     modifier: Modifier = Modifier,
     spectrum: StateFlow<FloatArray?>? = null,
 ) {
@@ -439,6 +491,7 @@ private fun FloatingCardColumn(
             onCommand = { command -> onAction(HomeAction.Music(command)) },
             onConnect = { onAction(HomeAction.ConnectMusicPlayer) },
             onLaunchSource = { packageName -> onAction(HomeAction.LaunchMusicSource(packageName)) },
+            onExpand = onExpandNowPlaying,
             hazeState = hazeState,
             glassConfig = glassConfig,
             modifier = cardModifier,
