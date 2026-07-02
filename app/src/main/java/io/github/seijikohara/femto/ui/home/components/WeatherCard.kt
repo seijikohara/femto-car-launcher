@@ -128,7 +128,7 @@ internal fun WeatherCard(
         ) {
             Head(snapshot, temperatureUnit, asOf)
             Metrics(snapshot, temperatureUnit, speedUnit)
-            Forecast(snapshot.hourly, snapshot.sunrise, snapshot.sunset, temperatureUnit, is24Hour)
+            Forecast(snapshot.hourly.take(5), snapshot.sunrise, snapshot.sunset, temperatureUnit, is24Hour)
         }
     } else {
         EmptyState()
