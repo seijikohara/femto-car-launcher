@@ -1,7 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -17,6 +16,7 @@ import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.test.assertTrue
 
 class WeatherCardTest {
     @get:Rule
@@ -31,7 +31,7 @@ class WeatherCardTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     is24Hour = true,
-                    onOpen = {},
+                    onExpand = {},
                 )
             }
         }
@@ -48,7 +48,7 @@ class WeatherCardTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     is24Hour = true,
-                    onOpen = {},
+                    onExpand = {},
                 )
             }
         }
@@ -66,7 +66,7 @@ class WeatherCardTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     is24Hour = true,
-                    onOpen = {},
+                    onExpand = {},
                 )
             }
         }
@@ -84,7 +84,7 @@ class WeatherCardTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     is24Hour = true,
-                    onOpen = {},
+                    onExpand = {},
                 )
             }
         }
@@ -104,7 +104,7 @@ class WeatherCardTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     is24Hour = true,
-                    onOpen = {},
+                    onExpand = {},
                 )
             }
         }
@@ -122,7 +122,7 @@ class WeatherCardTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     is24Hour = false,
-                    onOpen = {},
+                    onExpand = {},
                 )
             }
         }
@@ -150,7 +150,7 @@ class WeatherCardTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     is24Hour = true,
-                    onOpen = {},
+                    onExpand = {},
                 )
             }
         }
@@ -166,7 +166,7 @@ class WeatherCardTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     is24Hour = true,
-                    onOpen = {},
+                    onExpand = {},
                 )
             }
         }
@@ -174,8 +174,8 @@ class WeatherCardTest {
     }
 
     @Test
-    fun tapping_the_card_dispatches_open() {
-        var opened = false
+    fun header_tap_invokes_onExpand() {
+        var expanded = false
         rule.setContent {
             FemtoTheme {
                 WeatherCard(
@@ -183,11 +183,11 @@ class WeatherCardTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     is24Hour = true,
-                    onOpen = { opened = true },
+                    onExpand = { expanded = true },
                 )
             }
         }
-        rule.onNode(hasClickAction()).performClick()
-        assert(opened) { "expected the card tap to dispatch onOpen" }
+        rule.onNodeWithContentDescription("Open full-screen weather").performClick()
+        assertTrue(expanded)
     }
 }

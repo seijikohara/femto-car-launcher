@@ -192,6 +192,8 @@ internal class CalendarRepository(
                         CalendarContract.Instances.BEGIN,
                         CalendarContract.Instances.TITLE,
                         CalendarContract.Instances.ALL_DAY,
+                        CalendarContract.Instances.END,
+                        CalendarContract.Instances.EVENT_LOCATION,
                     ),
                     selection,
                     null,
@@ -203,6 +205,8 @@ internal class CalendarRepository(
                         // must not contribute to its day's list either.
                         val title = cursor.getString(1) ?: continue
                         val allDay = cursor.getInt(2) != 0
+                        val endMs = cursor.getLong(3)
+                        val location = cursor.getString(4)?.takeUnless { it.isBlank() }
                         byDay.getOrPut(localDateOf(startMs, allDay, zone)) { mutableListOf() } +=
                             EventItem(
                                 // All-day rows carry no clock time; surface null
@@ -210,6 +214,10 @@ internal class CalendarRepository(
                                 // of a spurious 00:00 derived from the system zone.
                                 time = if (allDay) null else LocalTime.ofInstant(Instant.ofEpochMilli(startMs), zone),
                                 title = title,
+                                // All-day END is the next-midnight boundary, not a
+                                // meaningful clock time, so drop it too.
+                                endTime = if (allDay) null else LocalTime.ofInstant(Instant.ofEpochMilli(endMs), zone),
+                                location = location,
                             )
                     }
                 }

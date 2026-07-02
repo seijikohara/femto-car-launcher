@@ -16,8 +16,8 @@ internal fun fakeCalendarSnapshot(
                 LocalDate.of(2026, 5, 1),
                 "Fri",
                 listOf(
-                    EventItem(LocalTime.of(10, 30), "Team standup"),
-                    EventItem(LocalTime.of(14, 0), "Pick up kids"),
+                    EventItem(LocalTime.of(10, 30), "Team standup", endTime = LocalTime.of(11, 0), location = "Room 4"),
+                    EventItem(LocalTime.of(14, 0), "Pick up kids", endTime = LocalTime.of(14, 30)),
                 ),
             ),
             DayCell(LocalDate.of(2026, 5, 2), "Sat", emptyList()),

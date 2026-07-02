@@ -33,14 +33,19 @@
     <string name="speed_metric_avg">AVG.</string>
 
     <!-- Calendar card -->
+    <string name="calendar_title">Calendar</string>
     <string name="calendar_permission_denied">Calendar access not granted</string>
     <string name="calendar_all_day">All day</string>
     <string name="calendar_open_app">Open calendar</string>
     <string name="calendar_no_events">No events</string>
 
     <!-- Weather card -->
+    <string name="weather_title">Weather</string>
     <string name="weather_unavailable">Weather unavailable</string>
     <string name="weather_open_app">Open weather</string>
+    <string name="weather_uv">UV %1$s</string>
+    <string name="weather_sunrise">Sunrise %1$s</string>
+    <string name="weather_sunset">Sunset %1$s</string>
     <!-- Shown on the weather card when the data is stale (a refresh outage); %1$s is the local fetch time. -->
     <string name="weather_as_of">as of %1$s</string>
     <string name="weather_metric_feels">FEELS</string>
@@ -59,6 +64,11 @@
     <string name="weather_cond_snow_showers">Snow showers</string>
     <string name="weather_cond_thunderstorm">Thunderstorm</string>
     <string name="weather_cond_unknown"></string>
+
+    <!-- Maximize panels (calendar / weather) -->
+    <string name="panel_collapse">Collapse</string>
+    <string name="calendar_expand">Open full-screen calendar</string>
+    <string name="weather_expand">Open full-screen weather</string>
 
     <!-- Music card -->
     <string name="music_connect_cta">Tap to connect a player</string>

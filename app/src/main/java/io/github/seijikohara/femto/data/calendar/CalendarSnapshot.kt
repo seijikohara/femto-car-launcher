@@ -31,7 +31,11 @@ data class CalendarSnapshot(
     // so the empty list is a fault, not "nothing scheduled"; the card shows the
     // failure message instead of a hollow agenda.
     val queryFailed: Boolean = false,
-)
+) {
+    // Days worth showing on the dashboard: those with events, plus today even
+    // when free. The card and the maximize panel share this so they cannot drift.
+    val visibleDays: List<DayCell> get() = days.filter { it.hasEvent || it.date == today }
+}
 
 @Immutable
 data class DayCell(
@@ -49,4 +53,9 @@ data class EventItem(
     // an "all day" label instead of a formatted time.
     val time: LocalTime?,
     val title: String,
+    // Event end (clock time); null for all-day or open-ended events. Shown only
+    // in the maximized calendar panel — the compact card shows the start alone.
+    val endTime: LocalTime? = null,
+    // Event location; null/blank when the calendar carries none. Panel-only.
+    val location: String? = null,
 )

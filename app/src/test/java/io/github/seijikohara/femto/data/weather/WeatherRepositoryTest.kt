@@ -83,7 +83,7 @@ class WeatherRepositoryTest {
         }
 
     @Test
-    fun `slices the next five hourly entries starting at the current hour`() =
+    fun `slices up to twelve hourly entries starting at the current hour`() =
         runTest {
             server.enqueue(MockResponse().setBody(FORECAST_BODY))
 
@@ -98,9 +98,12 @@ class WeatherRepositoryTest {
 
             repo.snapshotFlow().test {
                 val snapshot = assertNotNull(awaitItem())
-                assertEquals(5, snapshot.hourly.size)
+                // The fake API carries 9 hourly-resolution entries (a next_1_hours
+                // block) spread across all three fixture days, not just day 1; the
+                // 12-cap returns them all (was capped at 5, day-1 only, before).
+                assertEquals(9, snapshot.hourly.size)
                 assertEquals(LocalTime.of(5, 0), snapshot.hourly[0].time)
-                assertEquals(LocalTime.of(9, 0), snapshot.hourly[4].time)
+                assertEquals(LocalTime.of(6, 0), snapshot.hourly[8].time)
                 assertEquals(17.5, snapshot.hourly[1].tempC, 0.0)
                 assertEquals(WeatherCode.PARTLY_CLOUDY, snapshot.hourly[2].code)
                 cancelAndIgnoreRemainingEvents()
@@ -386,9 +389,10 @@ class WeatherRepositoryTest {
         val NOW: Instant = Instant.parse("2026-05-01T05:32:00Z")
 
         // Three local days (UTC in tests). Day 1 starts at the current hour (05:00)
-        // with six hourly entries plus a midday entry; the hourly slice takes the
-        // first five, and daily aggregation reduces each day to max/min temp and the
-        // symbol of the entry nearest local noon.
+        // with six hourly entries plus a midday entry; days 2 and 3 add three more
+        // hourly entries alongside their own midday entries. The hourly slice takes
+        // all nine hourly entries (within the 12-cap), and daily aggregation reduces
+        // each day to max/min temp and the symbol of the entry nearest local noon.
         const val FORECAST_BODY = """
             {
               "properties": {

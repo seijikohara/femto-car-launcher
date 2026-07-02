@@ -183,9 +183,11 @@ internal class WeatherRepository(
         val MIN_RETRY_INTERVAL: Duration = Duration.ofMinutes(1)
         const val REFRESH_DISTANCE_M = 5_000f
 
-        // Card layout: a fixed 5-day strip and a 5-hour row.
+        // Card layout: a fixed 5-day strip. The maximize panel shows a longer
+        // hourly timeline, so the slice carries up to 12; the compact card caps
+        // its own display at 5 (see WeatherCard.Forecast).
         const val FORECAST_DAYS = 5
-        const val HOURLY_SLICE_LENGTH = 5
+        const val HOURLY_SLICE_LENGTH = 12
         const val NOON_HOUR = 12
 
         const val MS_TO_KMH = 3.6
