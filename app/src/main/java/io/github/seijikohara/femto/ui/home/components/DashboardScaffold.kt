@@ -170,6 +170,18 @@ private fun DashboardContent(
     LaunchedEffect(expandedNowPlaying) {
         if (expandedNowPlaying != null) panelNowPlaying = expandedNowPlaying
     }
+    // Full-screen calendar panel, mirroring the Now Playing panel above: pure UI
+    // state, saveable across rotation, auto-collapsed once the snapshot no longer
+    // has real data to show (permission revoked mid-session or a query fault).
+    var calendarExpanded by rememberSaveable { mutableStateOf(false) }
+    val expandedCalendar = uiState.calendar?.takeIf { it.hasCalendarAccess && !it.queryFailed }
+    LaunchedEffect(expandedCalendar == null) {
+        if (expandedCalendar == null) calendarExpanded = false
+    }
+    var panelCalendar by remember { mutableStateOf(expandedCalendar) }
+    LaunchedEffect(expandedCalendar) {
+        if (expandedCalendar != null) panelCalendar = expandedCalendar
+    }
     // Landscape floats the cards as a right-hand column over the map; portrait drops
     // them to a bottom band. The column compresses to the available height on a short
     // landscape (a phone) and caps on a tall one, so the map keeps the left either way.
@@ -336,6 +348,7 @@ private fun DashboardContent(
                 glassConfig = glassConfig,
                 onAction = onAction,
                 onExpandNowPlaying = { nowPlayingExpanded = true },
+                onExpandCalendar = { calendarExpanded = true },
                 spectrum = spectrum,
                 modifier =
                     if (bottomCards) {
@@ -379,6 +392,25 @@ private fun DashboardContent(
                     hazeState = hazeState,
                     glassConfig = glassConfig,
                     spectrum = spectrum,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = calendarExpanded && expandedCalendar != null,
+            enter = fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.92f),
+            exit = fadeOut(tween(180)) + scaleOut(tween(180), targetScale = 0.92f),
+            modifier = Modifier.fillMaxSize().padding(outerPad),
+        ) {
+            panelCalendar?.let { snapshot ->
+                CalendarPanel(
+                    snapshot = snapshot,
+                    is24Hour = is24Hour,
+                    onOpenExternal = { onAction(HomeAction.OpenCalendar) },
+                    onClose = { calendarExpanded = false },
+                    hazeState = hazeState,
+                    glassConfig = glassConfig,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -460,6 +492,7 @@ private fun FloatingCardColumn(
     glassConfig: GlassConfig,
     onAction: (HomeAction) -> Unit,
     onExpandNowPlaying: () -> Unit,
+    onExpandCalendar: () -> Unit,
     modifier: Modifier = Modifier,
     spectrum: StateFlow<FloatArray?>? = null,
 ) {
@@ -467,7 +500,7 @@ private fun FloatingCardColumn(
         CalendarCard(
             snapshot = uiState.calendar,
             is24Hour = is24Hour,
-            onOpen = { onAction(HomeAction.OpenCalendar) },
+            onExpand = onExpandCalendar,
             hazeState = hazeState,
             glassConfig = glassConfig,
             modifier = cardModifier,

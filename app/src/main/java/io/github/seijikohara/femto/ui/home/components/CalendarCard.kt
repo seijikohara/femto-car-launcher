@@ -22,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -67,7 +69,7 @@ import java.time.format.DateTimeFormatter
 internal fun CalendarCard(
     snapshot: CalendarSnapshot?,
     is24Hour: Boolean,
-    onOpen: () -> Unit,
+    onExpand: () -> Unit,
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
@@ -77,16 +79,7 @@ internal fun CalendarCard(
     color = Color.Transparent,
     contentColor = MaterialTheme.colorScheme.onSurface,
 ) {
-    // The whole card opens the default calendar app (CATEGORY_APP_CALENDAR),
-    // in every state: even the denial/failed hints lead somewhere useful.
-    // Inner clickable (not on the Surface modifier) so the ripple stays
-    // inside the rounded shape — the MusicCard pattern.
-    Box(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .clickable(onClickLabel = stringResource(R.string.calendar_open_app)) { onOpen() },
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
         when {
             // null is the loading frame: render nothing rather than a denial the
             // user has not earned yet.
@@ -100,7 +93,7 @@ internal fun CalendarCard(
             // a read failure, not a free month, so say so rather than fake it.
             snapshot.queryFailed -> CenteredHint(stringResource(R.string.calendar_query_failed))
 
-            else -> CalendarContent(snapshot, is24Hour)
+            else -> CalendarContent(snapshot, is24Hour, onExpand)
         }
     }
 }
@@ -109,6 +102,7 @@ internal fun CalendarCard(
 private fun CalendarContent(
     snapshot: CalendarSnapshot,
     is24Hour: Boolean,
+    onExpand: () -> Unit,
 ) = Column(
     modifier =
         Modifier
@@ -118,7 +112,7 @@ private fun CalendarContent(
             .padding(FemtoDimens.CardPaddingCompact),
     verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
 ) {
-    Head(snapshot)
+    Head(snapshot, onExpand)
     // Free days are dropped rather than rendered as placeholder rows: the
     // glance question is "what is coming up", and on the short head-unit card
     // a six-row continuous agenda clipped before reaching the real entries.
@@ -138,8 +132,21 @@ private fun CalendarContent(
 }
 
 @Composable
-private fun Head(snapshot: CalendarSnapshot) =
+private fun Head(
+    snapshot: CalendarSnapshot,
+    onExpand: () -> Unit,
+) {
+    // clickable + an explicit contentDescription (the AlbumArt idiom in
+    // MusicCardMeta): onClickLabel alone sets only the OnClick action label, not
+    // the node's content description, so the maximize entry stays discoverable.
+    // Hoisted out of the semantics lambda, which is not @Composable.
+    val calendarExpandLabel = stringResource(R.string.calendar_expand)
     Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable { onExpand() }
+                .semantics { contentDescription = calendarExpandLabel },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -169,6 +176,7 @@ private fun Head(snapshot: CalendarSnapshot) =
             )
         }
     }
+}
 
 // One agenda row: a fixed-width date gutter on the left (today tinted primary) and
 // the day's events on the right — every event for the day, or a muted dash when the
@@ -351,7 +359,7 @@ private fun CalendarCardPreview() {
                     hasCalendarAccess = true,
                 ),
             is24Hour = true,
-            onOpen = {},
+            onExpand = {},
         )
     }
 }

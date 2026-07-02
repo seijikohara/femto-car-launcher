@@ -33,6 +33,7 @@
     <string name="speed_metric_avg">AVG.</string>
 
     <!-- Calendar card -->
+    <string name="calendar_title">Calendar</string>
     <string name="calendar_permission_denied">Calendar access not granted</string>
     <string name="calendar_all_day">All day</string>
     <string name="calendar_open_app">Open calendar</string>
