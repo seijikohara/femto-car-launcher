@@ -1,6 +1,5 @@
 package io.github.seijikohara.femto.ui.home.components
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,11 +27,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Cloud
-import com.composables.icons.lucide.CloudSun
 import com.composables.icons.lucide.Droplet
 import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.Moon
-import com.composables.icons.lucide.Sun
 import com.composables.icons.lucide.Thermometer
 import com.composables.icons.lucide.Wind
 import dev.chrisbanes.haze.HazeState
@@ -52,7 +48,6 @@ import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.TabularFigures
-import io.github.seijikohara.femto.ui.theme.WeatherGlyphColors
 import io.github.seijikohara.femto.ui.theme.bigNumber
 import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.sectionLabel
@@ -394,88 +389,6 @@ private fun EmptyState() =
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(48.dp),
         )
-    }
-
-// Forecast hour label in the same notation family as the clock and the
-// calendar ("12:00" / "12 PM" via the locale's meridiem word), so the
-// 12/24-hour setting is visibly honoured. The earlier compact "12h" / "12p"
-// forms read as setting-agnostic shorthand.
-private val ForecastHourFormatter24: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-private val ForecastHourFormatter12: DateTimeFormatter = DateTimeFormatter.ofPattern("h a")
-
-private fun forecastHourLabel(
-    time: LocalTime,
-    is24Hour: Boolean,
-): String = time.format(if (is24Hour) ForecastHourFormatter24 else ForecastHourFormatter12)
-
-// Fixed daylight window used only when the snapshot carries no sunrise/sunset
-// bounds, so a forecast hour past sunset still reads as night.
-private val FallbackDaylightHours = 6..18
-
-// Day/night drives the sun-vs-moon glyph for CLEAR. Use the snapshot's real
-// sunrise/sunset when present; fall back to [FallbackDaylightHours] only when
-// either bound is missing.
-private fun isDaylight(
-    time: LocalTime,
-    sunrise: LocalTime?,
-    sunset: LocalTime?,
-): Boolean =
-    if (sunrise != null && sunset != null) {
-        time >= sunrise && time < sunset
-    } else {
-        time.hour in FallbackDaylightHours
-    }
-
-private fun glyphIconFor(
-    code: WeatherCode,
-    isDay: Boolean,
-): ImageVector =
-    when (code) {
-        WeatherCode.CLEAR -> if (isDay) Lucide.Sun else Lucide.Moon
-
-        WeatherCode.PARTLY_CLOUDY -> Lucide.CloudSun
-
-        WeatherCode.CLOUDY,
-        WeatherCode.FOG,
-        WeatherCode.DRIZZLE,
-        WeatherCode.RAIN,
-        WeatherCode.FREEZING_RAIN,
-        WeatherCode.SNOW,
-        WeatherCode.SNOW_GRAINS,
-        WeatherCode.RAIN_SHOWERS,
-        WeatherCode.SNOW_SHOWERS,
-        WeatherCode.THUNDERSTORM,
-        WeatherCode.UNKNOWN,
-        -> Lucide.Cloud
-    }
-
-private fun glyphTintFor(
-    code: WeatherCode,
-    isDay: Boolean,
-    glyphs: WeatherGlyphColors,
-): Color =
-    when (code) {
-        WeatherCode.CLEAR -> if (isDay) glyphs.sun else glyphs.moon
-        WeatherCode.PARTLY_CLOUDY -> glyphs.cloudSun
-        else -> glyphs.cloud
-    }
-
-@StringRes
-private fun labelResFor(code: WeatherCode): Int =
-    when (code) {
-        WeatherCode.CLEAR -> R.string.weather_cond_sunny
-        WeatherCode.PARTLY_CLOUDY -> R.string.weather_cond_partly_cloudy
-        WeatherCode.CLOUDY -> R.string.weather_cond_cloudy
-        WeatherCode.FOG -> R.string.weather_cond_fog
-        WeatherCode.DRIZZLE -> R.string.weather_cond_drizzle
-        WeatherCode.RAIN -> R.string.weather_cond_rain
-        WeatherCode.FREEZING_RAIN -> R.string.weather_cond_freezing_rain
-        WeatherCode.SNOW -> R.string.weather_cond_snow
-        WeatherCode.SNOW_GRAINS -> R.string.weather_cond_snow_grains
-        WeatherCode.RAIN_SHOWERS -> R.string.weather_cond_rain_showers
-        WeatherCode.SNOW_SHOWERS -> R.string.weather_cond_snow_showers
-        WeatherCode.THUNDERSTORM -> R.string.weather_cond_thunderstorm
-        WeatherCode.UNKNOWN -> R.string.weather_cond_unknown
     }
 
 // Sized to the head-unit binding: each top-row card is ~165 x 207 dp (half the
