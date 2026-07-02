@@ -1,13 +1,11 @@
 package io.github.seijikohara.femto.data.music
 
-import android.support.v4.media.session.PlaybackStateCompat
+import androidx.media3.common.Player
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -46,28 +44,12 @@ class PlayQueueTest {
     }
 
     @Test
-    fun `shuffle mode maps to the boolean toggle`() {
-        assertTrue(isShuffleOn(PlaybackStateCompat.SHUFFLE_MODE_ALL))
-        assertTrue(isShuffleOn(PlaybackStateCompat.SHUFFLE_MODE_GROUP))
-        assertFalse(isShuffleOn(PlaybackStateCompat.SHUFFLE_MODE_NONE))
-        assertFalse(isShuffleOn(PlaybackStateCompat.SHUFFLE_MODE_INVALID))
-    }
-
-    @Test
-    fun `repeat mode maps compat ints and back`() {
-        assertEquals(RepeatMode.ONE, repeatModeOf(PlaybackStateCompat.REPEAT_MODE_ONE))
-        assertEquals(RepeatMode.ALL, repeatModeOf(PlaybackStateCompat.REPEAT_MODE_ALL))
-        assertEquals(RepeatMode.ALL, repeatModeOf(PlaybackStateCompat.REPEAT_MODE_GROUP))
-        assertEquals(RepeatMode.NONE, repeatModeOf(PlaybackStateCompat.REPEAT_MODE_NONE))
-        assertEquals(RepeatMode.NONE, repeatModeOf(PlaybackStateCompat.REPEAT_MODE_INVALID))
-        assertEquals(PlaybackStateCompat.REPEAT_MODE_ONE, RepeatMode.ONE.toCompatMode())
-        assertEquals(PlaybackStateCompat.REPEAT_MODE_ALL, RepeatMode.ALL.toCompatMode())
-        assertEquals(PlaybackStateCompat.REPEAT_MODE_NONE, RepeatMode.NONE.toCompatMode())
-    }
-
-    @Test
-    fun `shuffleModeFor maps the toggle to compat ints`() {
-        assertEquals(PlaybackStateCompat.SHUFFLE_MODE_ALL, shuffleModeFor(true))
-        assertEquals(PlaybackStateCompat.SHUFFLE_MODE_NONE, shuffleModeFor(false))
+    fun `repeat mode maps player ints and back`() {
+        assertEquals(RepeatMode.ONE, repeatModeOf(Player.REPEAT_MODE_ONE))
+        assertEquals(RepeatMode.ALL, repeatModeOf(Player.REPEAT_MODE_ALL))
+        assertEquals(RepeatMode.NONE, repeatModeOf(Player.REPEAT_MODE_OFF))
+        assertEquals(Player.REPEAT_MODE_ONE, RepeatMode.ONE.toPlayerMode())
+        assertEquals(Player.REPEAT_MODE_ALL, RepeatMode.ALL.toPlayerMode())
+        assertEquals(Player.REPEAT_MODE_OFF, RepeatMode.NONE.toPlayerMode())
     }
 }

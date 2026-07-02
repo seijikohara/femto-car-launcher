@@ -27,15 +27,15 @@ internal data class NowPlaying(
     val sourceIcon: ImageBitmap? = null,
     /** True when the session advertises ACTION_SEEK_TO; gates drag-to-seek. */
     val canSeek: Boolean = false,
-    /** True when the session advertises the compat ACTION_SET_SHUFFLE_MODE bit. */
+    /** True when the media3 controller reports COMMAND_SET_SHUFFLE_MODE available. */
     val canShuffle: Boolean = false,
-    /** True when the session advertises the compat ACTION_SET_REPEAT_MODE bit. */
+    /** True when the media3 controller reports COMMAND_SET_REPEAT_MODE available. */
     val canRepeat: Boolean = false,
     /** True when the session advertises ACTION_SKIP_TO_QUEUE_ITEM. */
     val canSkipToQueueItem: Boolean = false,
-    /** Current shuffle toggle, read via MediaControllerCompat (no platform getter exists). */
+    /** Current shuffle toggle, read via the media3 controller (no platform getter exists). */
     val shuffleOn: Boolean = false,
-    /** Current repeat mode, read via MediaControllerCompat (no platform getter exists). */
+    /** Current repeat mode, read via the media3 controller (no platform getter exists). */
     val repeatMode: RepeatMode = RepeatMode.NONE,
     /** Upcoming tracks after the active queue item, capped at [QUEUE_UPCOMING_LIMIT]. */
     val queue: List<QueueEntry> = emptyList(),

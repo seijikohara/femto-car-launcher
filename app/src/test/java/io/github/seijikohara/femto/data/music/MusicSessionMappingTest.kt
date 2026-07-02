@@ -3,7 +3,6 @@ package io.github.seijikohara.femto.data.music
 import android.graphics.Bitmap
 import android.media.MediaMetadata
 import android.media.session.PlaybackState
-import android.support.v4.media.session.PlaybackStateCompat
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -307,18 +306,14 @@ class MusicSessionMappingTest {
     }
 
     @Test
-    fun `nowPlayingOf derives capability flags from the action bits`() {
+    fun `nowPlayingOf derives seek and queue capabilities from the action bits`() {
         val result =
             nowPlayingOf(
                 metadata = metadata(title = "Strobe"),
                 playbackState =
                     playbackState(
                         PlaybackState.STATE_PLAYING,
-                        actions =
-                            PlaybackState.ACTION_SEEK_TO or
-                                PlaybackState.ACTION_SKIP_TO_QUEUE_ITEM or
-                                PlaybackStateCompat.ACTION_SET_SHUFFLE_MODE or
-                                PlaybackStateCompat.ACTION_SET_REPEAT_MODE,
+                        actions = PlaybackState.ACTION_SEEK_TO or PlaybackState.ACTION_SKIP_TO_QUEUE_ITEM,
                     ),
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
@@ -326,8 +321,10 @@ class MusicSessionMappingTest {
 
         assertTrue(result.canSeek)
         assertTrue(result.canSkipToQueueItem)
-        assertTrue(result.canShuffle)
-        assertTrue(result.canRepeat)
+        // Shuffle / repeat capability comes from the media3 controller, not the
+        // action bits, so it stays false unless passed in.
+        assertFalse(result.canShuffle)
+        assertFalse(result.canRepeat)
     }
 
     @Test
@@ -379,7 +376,7 @@ class MusicSessionMappingTest {
     }
 
     @Test
-    fun `nowPlayingOf passes through shuffle, repeat, and queue`() {
+    fun `nowPlayingOf passes through shuffle, repeat, capabilities, and queue`() {
         val queue = listOf(QueueEntry(7L, "Next", null))
 
         val result =
@@ -388,11 +385,15 @@ class MusicSessionMappingTest {
                 playbackState = null,
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
+                canShuffle = true,
+                canRepeat = true,
                 shuffleOn = true,
                 repeatMode = RepeatMode.ONE,
                 queue = queue,
             )
 
+        assertTrue(result.canShuffle)
+        assertTrue(result.canRepeat)
         assertTrue(result.shuffleOn)
         assertEquals(RepeatMode.ONE, result.repeatMode)
         assertEquals(queue, result.queue)

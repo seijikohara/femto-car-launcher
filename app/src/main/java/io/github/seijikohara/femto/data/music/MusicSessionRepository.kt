@@ -10,7 +10,6 @@ import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
-import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -273,15 +272,18 @@ internal fun musicCardStateOf(
  * Map one session's extracted fields to the card's [NowPlaying]. Operates on
  * plain values so the fallback branches are unit-testable without a
  * [MediaController]; [fallbackTitle] is a lambda so the source-label lookup
- * runs only when both metadata titles are blank. [shuffleOn], [repeatMode],
- * and [queue] pass through session state that has no platform getter and must
- * be read via `MediaControllerCompat` upstream.
+ * runs only when both metadata titles are blank. [canShuffle], [canRepeat],
+ * [shuffleOn], [repeatMode], and [queue] pass through session state and
+ * capability that have no platform getter and must be read via the media3
+ * controller upstream.
  */
 internal fun nowPlayingOf(
     metadata: MediaMetadata,
     playbackState: PlaybackState?,
     packageName: String,
     fallbackTitle: () -> String,
+    canShuffle: Boolean = false,
+    canRepeat: Boolean = false,
     shuffleOn: Boolean = false,
     repeatMode: RepeatMode = RepeatMode.NONE,
     queue: List<QueueEntry> = emptyList(),
@@ -315,8 +317,11 @@ internal fun nowPlayingOf(
             playbackSpeed = playbackState?.playbackSpeed ?: 1f,
             positionUpdateTimeMs = playbackState?.lastPositionUpdateTime ?: 0L,
             canSeek = (actions and PlaybackState.ACTION_SEEK_TO) != 0L,
-            canShuffle = (actions and PlaybackStateCompat.ACTION_SET_SHUFFLE_MODE) != 0L,
-            canRepeat = (actions and PlaybackStateCompat.ACTION_SET_REPEAT_MODE) != 0L,
+            // Shuffle / repeat capability is a media3-controller fact (command
+            // availability), not an action bit — supplied by the repository once
+            // the async controller connects; false until then.
+            canShuffle = canShuffle,
+            canRepeat = canRepeat,
             canSkipToQueueItem = (actions and PlaybackState.ACTION_SKIP_TO_QUEUE_ITEM) != 0L,
             shuffleOn = shuffleOn,
             repeatMode = repeatMode,

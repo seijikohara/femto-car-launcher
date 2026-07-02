@@ -19,7 +19,7 @@ ktlintComposeRules = "0.6.2"
 lifecycle = "2.11.0"
 material = "1.14.0"
 materialKolor = "4.1.1"
-media = "1.8.0"
+media3 = "1.10.1"
 nodeGradle = "7.1.0"
 okhttp = "5.4.0"
 robolectric = "4.16.1"
@@ -48,7 +48,7 @@ androidx-espresso-core = { module = "androidx.test.espresso:espresso-core", vers
 androidx-junit = { module = "androidx.test.ext:junit", version.ref = "junitVersion" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
-androidx-media = { module = "androidx.media:media", version.ref = "media" }
+androidx-media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
 androidx-webkit = { module = "androidx.webkit:webkit", version.ref = "webkit" }
 composables-icons-lucide = { module = "com.composables:icons-lucide", version.ref = "composablesIconsLucide" }

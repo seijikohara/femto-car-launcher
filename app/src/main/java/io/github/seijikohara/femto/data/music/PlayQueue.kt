@@ -1,13 +1,13 @@
 package io.github.seijikohara.femto.data.music
 
-import android.support.v4.media.session.PlaybackStateCompat
+import androidx.media3.common.Player
 
 /**
- * Repeat mode of the active media session, projected from the compat layer's
- * int constants so `ui/` never touches framework session types. Shuffle and
- * repeat have no platform-API surface at all (verified via javap against the
- * API 37 android.jar) — the compat layer is the only route, hence the
- * mapping helpers below.
+ * Repeat mode of the active media session, projected from the media3 Player
+ * repeat-mode ints so `ui/` never touches player types. Shuffle and repeat
+ * have no platform-API surface at all (verified via javap against the API 37
+ * android.jar), and the androidx.media compat layer is deprecated — a media3
+ * MediaController over the session's platform token is the sanctioned route.
  */
 internal enum class RepeatMode { NONE, ALL, ONE }
 
@@ -51,25 +51,17 @@ internal fun upcomingQueue(
         .drop(entries.indexOfFirst { it.id == activeQueueItemId } + 1)
         .take(limit)
 
-/** Map the compat shuffle-mode int to the panel's boolean toggle. */
-internal fun isShuffleOn(compatShuffleMode: Int): Boolean =
-    compatShuffleMode == PlaybackStateCompat.SHUFFLE_MODE_ALL ||
-        compatShuffleMode == PlaybackStateCompat.SHUFFLE_MODE_GROUP
-
-/** Map the compat repeat-mode int to [RepeatMode]; GROUP collapses to ALL. */
-internal fun repeatModeOf(compatRepeatMode: Int): RepeatMode =
-    when (compatRepeatMode) {
-        PlaybackStateCompat.REPEAT_MODE_ONE -> RepeatMode.ONE
-        PlaybackStateCompat.REPEAT_MODE_ALL, PlaybackStateCompat.REPEAT_MODE_GROUP -> RepeatMode.ALL
+/** Map the media3 Player repeat-mode int to [RepeatMode]. */
+internal fun repeatModeOf(playerRepeatMode: Int): RepeatMode =
+    when (playerRepeatMode) {
+        Player.REPEAT_MODE_ONE -> RepeatMode.ONE
+        Player.REPEAT_MODE_ALL -> RepeatMode.ALL
         else -> RepeatMode.NONE
     }
 
-internal fun RepeatMode.toCompatMode(): Int =
+internal fun RepeatMode.toPlayerMode(): Int =
     when (this) {
-        RepeatMode.NONE -> PlaybackStateCompat.REPEAT_MODE_NONE
-        RepeatMode.ALL -> PlaybackStateCompat.REPEAT_MODE_ALL
-        RepeatMode.ONE -> PlaybackStateCompat.REPEAT_MODE_ONE
+        RepeatMode.NONE -> Player.REPEAT_MODE_OFF
+        RepeatMode.ALL -> Player.REPEAT_MODE_ALL
+        RepeatMode.ONE -> Player.REPEAT_MODE_ONE
     }
-
-internal fun shuffleModeFor(on: Boolean): Int =
-    if (on) PlaybackStateCompat.SHUFFLE_MODE_ALL else PlaybackStateCompat.SHUFFLE_MODE_NONE
