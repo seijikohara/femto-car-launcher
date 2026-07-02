@@ -208,12 +208,14 @@ private fun PanelControls(
     verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap, Alignment.CenterVertically),
 ) {
     ExpandedMeta(nowPlaying = nowPlaying)
-    Progress(
+    PlaybackSeekBar(
         positionMs = nowPlaying.positionMs,
         durationMs = nowPlaying.durationMs,
         positionUpdateTimeMs = nowPlaying.positionUpdateTimeMs,
         isPlaying = nowPlaying.isPlaying,
         playbackSpeed = nowPlaying.playbackSpeed,
+        canSeek = nowPlaying.canSeek,
+        onSeek = { targetMs -> onCommand(MusicCommand.SeekTo(targetMs)) },
     )
     // The spectrum paints behind the transport strip only, exactly like the
     // card: matchParentSize keeps the Box sized by the controls, and the

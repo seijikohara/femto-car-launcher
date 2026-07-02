@@ -66,4 +66,34 @@ class NowPlayingPanelTest {
         rule.onNodeWithContentDescription("Open Spotify").performClick()
         assertEquals("com.spotify.music", launched)
     }
+
+    @Test
+    fun seek_gesture_surface_is_absent_without_the_capability() {
+        rule.setContent {
+            FemtoTheme {
+                NowPlayingPanel(
+                    nowPlaying = fakeNowPlaying(canSeek = false),
+                    onCommand = {},
+                    onLaunchSource = {},
+                    onClose = {},
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("Seek").assertDoesNotExist()
+    }
+
+    @Test
+    fun seek_gesture_surface_is_present_with_the_capability() {
+        rule.setContent {
+            FemtoTheme {
+                NowPlayingPanel(
+                    nowPlaying = fakeNowPlaying(canSeek = true),
+                    onCommand = {},
+                    onLaunchSource = {},
+                    onClose = {},
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("Seek").assertIsDisplayed()
+    }
 }
