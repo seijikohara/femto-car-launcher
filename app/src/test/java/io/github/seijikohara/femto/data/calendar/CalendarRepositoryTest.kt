@@ -232,7 +232,8 @@ class CalendarRepositoryTest {
             assertEquals(LocalTime.of(10, 0), first.endTime)
             assertEquals("Room 4", first.location)
 
-            // "B" has no location → null; still carries an end time.
+            // "B" has a blank ("") location in the provider → mapped to null;
+            // still carries an end time.
             val second = today.events.first { it.title == "B" }
             assertEquals(LocalTime.of(11, 0), second.endTime)
             assertNull(second.location)
@@ -456,7 +457,11 @@ class CalendarRepositoryTest {
                             }
 
                             CalendarContract.Instances.EVENT_LOCATION -> {
-                                if (title == "A") "Room 4" else null
+                                when (title) {
+                                    "A" -> "Room 4"
+                                    "B" -> ""
+                                    else -> null
+                                }
                             }
 
                             else -> {

@@ -33,7 +33,6 @@ import io.github.seijikohara.femto.ui.theme.eyebrow
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
 
 /**
  * Full-screen calendar panel: a multi-day agenda over the live map. Shows the
@@ -58,10 +57,7 @@ internal fun CalendarPanel(
     hazeState = hazeState,
     glassConfig = glassConfig,
 ) {
-    val visibleDays =
-        remember(snapshot) {
-            snapshot.days.filter { it.hasEvent || it.date == snapshot.today }
-        }
+    val visibleDays = remember(snapshot) { snapshot.visibleDays }
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
@@ -154,16 +150,13 @@ private fun AgendaEvent(
     }
 }
 
-private val PanelTimeFormatter24: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-private val PanelTimeFormatter12: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
-
 // "10:30 – 11:00", "10:30" (no end), or "All day".
 @Composable
 private fun eventTimeRange(
     event: EventItem,
     is24Hour: Boolean,
 ): String {
-    val formatter = if (is24Hour) PanelTimeFormatter24 else PanelTimeFormatter12
+    val formatter = clockTimeFormatter(is24Hour)
     val start = event.time ?: return stringResource(R.string.calendar_all_day)
     return event.endTime?.let { "${start.format(formatter)} – ${it.format(formatter)}" }
         ?: start.format(formatter)

@@ -75,6 +75,9 @@ internal fun labelResFor(code: WeatherCode): Int =
 // bounds, so a forecast hour past sunset still reads as night.
 private val FallbackDaylightHours = 6..18
 
+// Day/night drives the sun-vs-moon glyph for CLEAR. Use the snapshot's real
+// sunrise/sunset when present; fall back to [FallbackDaylightHours] only when
+// either bound is missing.
 internal fun isDaylight(
     time: LocalTime,
     sunrise: LocalTime?,
@@ -86,6 +89,9 @@ internal fun isDaylight(
         time.hour in FallbackDaylightHours
     }
 
+// Forecast hour label in the same notation family as the clock and the
+// calendar ("12:00" / "12 PM" via the locale's meridiem word), so the
+// 12/24-hour setting is visibly honoured.
 // internal (not file-private): WeatherCard.kt's asOfTimeLabel reuses this for
 // its 24h "as of" caption instead of keeping a duplicate formatter.
 internal val ForecastHourFormatter24: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")

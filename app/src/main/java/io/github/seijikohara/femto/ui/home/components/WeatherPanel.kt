@@ -43,7 +43,6 @@ import io.github.seijikohara.femto.ui.theme.weatherGlyphs
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import kotlin.math.roundToInt
 
@@ -237,15 +236,12 @@ private fun DailyList(
     }
 }
 
-private val DetailTimeFormatter24: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-private val DetailTimeFormatter12: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
-
 @Composable
 private fun Details(
     snapshot: WeatherSnapshot,
     is24Hour: Boolean,
 ) {
-    val formatter = if (is24Hour) DetailTimeFormatter24 else DetailTimeFormatter12
+    val formatter = clockTimeFormatter(is24Hour)
     val parts =
         buildList {
             snapshot.uvIndex?.let { add(stringResource(R.string.weather_uv, it.roundToInt().toString())) }

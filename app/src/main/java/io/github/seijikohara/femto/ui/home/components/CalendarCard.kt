@@ -50,7 +50,6 @@ import io.github.seijikohara.femto.ui.theme.glanceMetric
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
 
 /**
  * Calendar card:
@@ -117,10 +116,7 @@ private fun CalendarContent(
     // glance question is "what is coming up", and on the short head-unit card
     // a six-row continuous agenda clipped before reaching the real entries.
     // Today is the one exception — it stays visible even when free.
-    val visibleDays =
-        remember(snapshot) {
-            snapshot.days.filter { it.hasEvent || it.date == snapshot.today }
-        }
+    val visibleDays = remember(snapshot) { snapshot.visibleDays }
     LazyColumn(
         modifier = Modifier.fillMaxWidth().weight(1f),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -247,7 +243,7 @@ private fun DayRow(
                     // the dashboard clock rather than always printing 24-hour; "All
                     // day" in the same slot marks the untimed events.
                     time =
-                        event.time?.format(eventTimeFormatter(is24Hour))
+                        event.time?.format(clockTimeFormatter(is24Hour))
                             ?: stringResource(R.string.calendar_all_day),
                     title = event.title,
                 )
@@ -307,14 +303,6 @@ private fun CenteredHint(text: String) =
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-
-// 24-hour "14:30" or compact 12-hour "2:30 PM"; the latter stays short enough to
-// keep the narrow agenda row from clipping the event title.
-private val EventTimeFormatter24: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-private val EventTimeFormatter12: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
-
-private fun eventTimeFormatter(is24Hour: Boolean): DateTimeFormatter =
-    if (is24Hour) EventTimeFormatter24 else EventTimeFormatter12
 
 // Sized to the head-unit binding: each top-row card is ~165 x 207 dp (half the
 // info pane on the 853 x 512 dp / 5:3 projection). Wider panels only add slack.
