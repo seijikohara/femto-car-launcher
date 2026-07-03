@@ -110,7 +110,15 @@ internal fun DiagnosticSection.issues(): List<DiagnosticFact> =
                 payload.extras.filter { it.health == FactHealth.WARNING || it.health == FactHealth.ERROR }
         }
 
-        is SectionPayload.LogTail, SectionPayload.Unavailable, null -> {
+        // A failed collector is itself a finding: it must reach the badge,
+        // the problems-only filter, and the report's Issues block — hidden
+        // collection failures are exactly the silent degradation this
+        // surface exists to expose.
+        SectionPayload.Unavailable -> {
+            listOf(DiagnosticFact("Collection", FactValue.Status("UNAVAILABLE", FactHealth.WARNING)))
+        }
+
+        is SectionPayload.LogTail, null -> {
             emptyList()
         }
     }

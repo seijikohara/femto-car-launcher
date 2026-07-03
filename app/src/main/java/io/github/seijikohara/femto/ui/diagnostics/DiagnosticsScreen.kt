@@ -84,8 +84,15 @@ internal fun DiagnosticsScreen(
         }
         if (uiState.problemsOnly && uiState.sections.issueCount() == 0) {
             item {
+                // Claim health only once every collector has reported; while
+                // sections are still streaming in, an all-clear would be a
+                // verdict on data that does not exist yet.
+                val collected = uiState.sections.all { it.payload != null }
                 Text(
-                    text = stringResource(R.string.diagnostics_no_problems),
+                    text =
+                        stringResource(
+                            if (collected) R.string.diagnostics_no_problems else R.string.diagnostics_section_collecting,
+                        ),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

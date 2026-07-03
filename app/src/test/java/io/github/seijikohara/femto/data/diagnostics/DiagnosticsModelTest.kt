@@ -45,7 +45,7 @@ class DiagnosticsModelTest {
     }
 
     @Test
-    fun `issueCount sums across sections and ignores unavailable and pending payloads`() {
+    fun `issueCount counts a failed collector as an issue but ignores pending payloads`() {
         val sections =
             listOf(
                 DiagnosticSection(
@@ -57,7 +57,16 @@ class DiagnosticsModelTest {
                 DiagnosticSection(SectionId.LOGS, SectionPayload.Unavailable),
                 DiagnosticSection(SectionId.DEVICE, payload = null),
             )
-        assertEquals(1, sections.issueCount())
+        assertEquals(2, sections.issueCount())
+    }
+
+    @Test
+    fun `an unavailable section surfaces a collection warning as its issue`() {
+        val section = DiagnosticSection(SectionId.STORAGE, SectionPayload.Unavailable)
+        assertEquals(
+            listOf(DiagnosticFact("Collection", FactValue.Status("UNAVAILABLE", FactHealth.WARNING))),
+            section.issues(),
+        )
     }
 
     @Test
