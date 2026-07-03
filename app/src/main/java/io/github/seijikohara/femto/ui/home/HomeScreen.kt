@@ -34,6 +34,7 @@ internal fun HomeScreen(
     musicShowArt: Boolean = true,
     spectrum: StateFlow<FloatArray?>? = null,
     activePreset: PresetId = PresetId.COCKPIT,
+    passengerUnlocked: Boolean = false,
     motionTier: MotionTier = MotionTier.STANDARD,
 ) = Surface(
     modifier = modifier.fillMaxSize(),
@@ -55,6 +56,7 @@ internal fun HomeScreen(
         musicShowArt = musicShowArt,
         spectrum = spectrum,
         activePreset = activePreset,
+        passengerUnlocked = passengerUnlocked,
         motionTier = motionTier,
     )
 }

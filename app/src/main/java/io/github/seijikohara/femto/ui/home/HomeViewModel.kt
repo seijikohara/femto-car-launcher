@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -129,6 +130,10 @@ internal class HomeViewModel(
     // (a safety default — the full cockpit while moving is a deliberate, per-drive
     // choice). Flipped by HomeAction.SetPassengerUnlock.
     private val passengerUnlock = MutableStateFlow(false)
+
+    // Exposed so the dashboard's passenger pill reflects the current on/off state.
+    // The toggle is fire-and-flip (SetPassengerUnlock) and reads the value back here.
+    val passengerUnlockState: StateFlow<Boolean> = passengerUnlock.asStateFlow()
 
     // The resolved dashboard face. Kept OUT of HomeUiState (a low-frequency signal;
     // routing it through uiState would recompose the whole dashboard on every fix).

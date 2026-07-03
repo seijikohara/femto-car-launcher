@@ -1,6 +1,8 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -14,9 +16,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,21 +35,30 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.Lock
+import com.composables.icons.lucide.LockOpen
+import com.composables.icons.lucide.Lucide
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
+import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
 import io.github.seijikohara.femto.ui.home.PresetId
+import io.github.seijikohara.femto.ui.home.components.driving.DrivingOverlays
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
@@ -112,6 +126,7 @@ internal fun DashboardScaffold(
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
     activePreset: PresetId = PresetId.COCKPIT,
+    passengerUnlocked: Boolean = false,
     motionTier: MotionTier = MotionTier.STANDARD,
 ) = DashboardContent(
     uiState = uiState,
@@ -132,6 +147,7 @@ internal fun DashboardScaffold(
     musicShowAlbum = musicShowAlbum,
     musicShowArt = musicShowArt,
     activePreset = activePreset,
+    passengerUnlocked = passengerUnlocked,
     motionTier = motionTier,
 )
 
@@ -156,6 +172,7 @@ private fun DashboardContent(
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
     activePreset: PresetId = PresetId.COCKPIT,
+    passengerUnlocked: Boolean = false,
     motionTier: MotionTier = MotionTier.STANDARD,
 ) = BoxWithConstraints(modifier = modifier) {
     val compact = maxHeight < CompactHeightBreakpoint || maxWidth < CompactWidthBreakpoint
@@ -235,13 +252,26 @@ private fun DashboardContent(
             }
         }
 
-    // The map fills the whole viewport, behind the dock and every overlay.
+    // The map reads ONE safe-area pair, picked by the visible face, so its camera
+    // padding tracks whichever overlay tree is on screen. Cockpit reserves the
+    // right column + bottom band computed above; driving clears only a bottom band
+    // for its bar plus the dock. Changing these pushes camera padding through
+    // MapPanel's LaunchedEffect — it never recreates the WebView.
+    val (activeRightSafe, activeBottomSafe) =
+        when (activePreset) {
+            PresetId.COCKPIT -> rightSafeFraction to bottomSafeFraction
+            PresetId.DRIVING -> 0f to DRIVING_BOTTOM_SAFE_FRACTION
+        }
+
+    // The map fills the whole viewport, behind the dock and every overlay. It is a
+    // single instance OUTSIDE the crossfade below: the preset switch cross-fades
+    // only the overlays, so the WebView is never torn down and rebuilt.
     MapPanel(
         location = uiState.location,
         mapConfig =
             mapConfig.copy(
-                bottomSafeFraction = bottomSafeFraction,
-                rightSafeFraction = rightSafeFraction,
+                bottomSafeFraction = activeBottomSafe,
+                rightSafeFraction = activeRightSafe,
             ),
         onTap = { onAction(HomeAction.OpenMaps) },
         modifier = Modifier.fillMaxSize().hazeSource(hazeState),
@@ -250,38 +280,60 @@ private fun DashboardContent(
         onBearingChange = { bearingDeg = it },
     )
 
-    // Every overlay lives in a region inset from the dock edge, so the cards,
-    // controls, and speed overlay never sit under the dock's nav buttons while the
-    // map still shows through behind the dock. The cockpit face is extracted so the
-    // map (blur source) and the dock stay composed once at this level, outside any
-    // future preset branch.
-    CockpitOverlays(
-        uiState = uiState,
-        is24Hour = is24Hour,
-        showClockSeconds = showClockSeconds,
-        speedUnit = speedUnit,
-        temperatureUnit = temperatureUnit,
-        panels = panels,
-        glassConfig = glassConfig,
-        outerPad = outerPad,
-        cardGap = cardGap,
-        landscapeCards = landscapeCards,
-        bottomCards = bottomCards,
-        bottomCardBand = bottomCardBand,
-        floatingCardWidth = floatingCardWidth,
-        hasCards = hasCards,
-        hazeState = hazeState,
-        following = following,
-        bearingDeg = bearingDeg,
-        motionTier = motionTier,
-        onRecenter = { recenterNonce++ },
-        onOverlayHeightChange = { overlayHeightPx = it },
-        onAction = onAction,
-        modifier = Modifier.fillMaxSize().padding(dockEdgePadding(dockPosition, dockExtent)),
-        spectrum = spectrum,
-        musicShowAlbum = musicShowAlbum,
-        musicShowArt = musicShowArt,
-    )
+    // Only the two overlay faces cross-fade; the map (blur source) and the dock
+    // stay composed once, outside this animated content, so switching preset never
+    // tears down the WebView. Both faces inset by the dock footprint so their glass
+    // never sits under the dock's nav buttons while the map shows through behind it.
+    Crossfade(
+        targetState = activePreset,
+        animationSpec = Motion.presetCrossfade(motionTier),
+        label = "preset",
+        modifier = Modifier.fillMaxSize(),
+    ) { preset ->
+        when (preset) {
+            PresetId.COCKPIT -> {
+                CockpitOverlays(
+                    uiState = uiState,
+                    is24Hour = is24Hour,
+                    showClockSeconds = showClockSeconds,
+                    speedUnit = speedUnit,
+                    temperatureUnit = temperatureUnit,
+                    panels = panels,
+                    glassConfig = glassConfig,
+                    outerPad = outerPad,
+                    cardGap = cardGap,
+                    landscapeCards = landscapeCards,
+                    bottomCards = bottomCards,
+                    bottomCardBand = bottomCardBand,
+                    floatingCardWidth = floatingCardWidth,
+                    hasCards = hasCards,
+                    hazeState = hazeState,
+                    following = following,
+                    bearingDeg = bearingDeg,
+                    motionTier = motionTier,
+                    onRecenter = { recenterNonce++ },
+                    onOverlayHeightChange = { overlayHeightPx = it },
+                    onAction = onAction,
+                    modifier = Modifier.fillMaxSize().padding(dockEdgePadding(dockPosition, dockExtent)),
+                    spectrum = spectrum,
+                    musicShowAlbum = musicShowAlbum,
+                    musicShowArt = musicShowArt,
+                )
+            }
+
+            PresetId.DRIVING -> {
+                DrivingOverlays(
+                    uiState = uiState,
+                    speedUnit = speedUnit,
+                    temperatureUnit = temperatureUnit,
+                    glassConfig = glassConfig,
+                    hazeState = hazeState,
+                    onAction = onAction,
+                    modifier = Modifier.fillMaxSize().padding(dockEdgePadding(dockPosition, dockExtent)),
+                )
+            }
+        }
+    }
 
     // The dock as a glass bar / rail on its edge, drawn over the full-bleed map.
     DashboardDock(
@@ -307,6 +359,70 @@ private fun DashboardContent(
                 }
             },
     )
+
+    // Passenger-unlock pill: persistent chrome like the dock, a TOP-LEVEL SIBLING
+    // OUTSIDE the crossfade so it survives the face switch rather than fading with a
+    // face. Shown only while the driving face is on screen or the user has already
+    // unlocked, so the resting cockpit (the default) renders no pill. Pinned
+    // top-centre, clear of the clock (top-end), the cards, the speed / driving bar
+    // (bottom-centre), and the dock (inset by its footprint).
+    val showPassengerPill = passengerUnlocked || activePreset == PresetId.DRIVING
+    if (showPassengerPill) {
+        PassengerPill(
+            unlocked = passengerUnlocked,
+            onToggle = { onAction(HomeAction.SetPassengerUnlock(!passengerUnlocked)) },
+            hazeState = hazeState,
+            glassConfig = glassConfig,
+            modifier =
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(dockEdgePadding(dockPosition, dockExtent))
+                    .padding(outerPad),
+        )
+    }
+}
+
+// A glass pill that toggles the transient passenger unlock — keep the full cockpit
+// while the vehicle is moving instead of auto-switching to the driving glance. The
+// icon reflects state (open when unlocked); the accessible name states the action
+// rather than relying on onClickLabel (the CalendarCard head idiom). Sized to the
+// [FemtoDimens.MinTouchTarget] floor so it stays a safe tap on the move.
+@Composable
+private fun PassengerPill(
+    unlocked: Boolean,
+    onToggle: () -> Unit,
+    hazeState: HazeState,
+    glassConfig: GlassConfig,
+    modifier: Modifier = Modifier,
+) {
+    val description = stringResource(R.string.passenger_unlock_desc)
+    Row(
+        modifier =
+            modifier
+                .semantics { contentDescription = description }
+                .heightIn(min = FemtoDimens.MinTouchTarget)
+                .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
+                .clickable(onClick = onToggle)
+                .padding(
+                    horizontal = FemtoDimens.OverlayPaddingHorizontal,
+                    vertical = FemtoDimens.OverlayPaddingVertical,
+                ),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        FemtoIcon(
+            imageVector = if (unlocked) Lucide.LockOpen else Lucide.Lock,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(FemtoDimens.InlineIconSize),
+        )
+        Text(
+            text = stringResource(R.string.passenger_unlock_label),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+        )
+    }
 }
 
 // The cockpit face: the glass overlay tree that floats over the map — map controls,
@@ -704,6 +820,14 @@ private val CardClusterMaxHeight: Dp = 680.dp
 // The share of the height the portrait bottom card band takes (capped by
 // CardClusterMaxHeight on tall panels).
 private const val PORTRAIT_CARD_HEIGHT_FRACTION = 0.52f
+
+// The bottom safe band the map reserves under the DRIVING face: the full-width
+// driving bar (big speed + now-playing + briefing) plus the dock beneath it, so
+// the self-marker drops above the bar rather than behind it. Fixed (the driving
+// bar's height is layout-stable, unlike the cockpit's card cluster), and a share
+// of the viewport so it eases off on tall displays. Sized against the 512 dp head
+// unit where the bar + dock are the tallest proportion.
+private const val DRIVING_BOTTOM_SAFE_FRACTION = 0.32f
 
 // The music card's weight against the calendar + weather row in the floating column.
 // It carries the most content (album art + title / artist / album + progress + the

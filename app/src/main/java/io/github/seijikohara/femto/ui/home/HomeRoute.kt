@@ -42,6 +42,7 @@ internal fun HomeRoute(
         viewModel(factory = HomeViewModelFactory(context.applicationContext as Application))
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val activePreset by viewModel.activePreset.collectAsStateWithLifecycle()
+    val passengerUnlocked by viewModel.passengerUnlockState.collectAsStateWithLifecycle()
     LocationPermissionRequest()
     val currentOnEvent by rememberUpdatedState(onEvent)
     LaunchedEffect(viewModel) {
@@ -63,6 +64,7 @@ internal fun HomeRoute(
         musicShowArt = musicShowArt,
         spectrum = viewModel.audioSpectrum,
         activePreset = activePreset,
+        passengerUnlocked = passengerUnlocked,
         motionTier = motionTier,
     )
 }
