@@ -29,6 +29,8 @@ internal fun HomeScreen(
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
     dockPosition: DockPosition = DockPosition.BOTTOM,
+    musicShowAlbum: Boolean = true,
+    musicShowArt: Boolean = true,
     spectrum: StateFlow<FloatArray?>? = null,
 ) = Surface(
     modifier = modifier.fillMaxSize(),
@@ -46,6 +48,8 @@ internal fun HomeScreen(
         onAction = onAction,
         modifier = Modifier.fillMaxSize(),
         dockPosition = dockPosition,
+        musicShowAlbum = musicShowAlbum,
+        musicShowArt = musicShowArt,
         spectrum = spectrum,
     )
 }

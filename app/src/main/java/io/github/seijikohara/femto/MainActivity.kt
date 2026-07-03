@@ -192,6 +192,8 @@ class MainActivity : ComponentActivity() {
                             weather = display.showWeather,
                             music = display.showMusic,
                         ),
+                    musicShowAlbum = display.musicShowAlbum,
+                    musicShowArt = display.musicShowArt,
                     glassConfig =
                         GlassConfig(
                             blurRadius = display.glassBlurRadius.dp,

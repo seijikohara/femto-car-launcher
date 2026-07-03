@@ -191,4 +191,59 @@ class MusicCardTest {
         rule.onNodeWithContentDescription("Open full-screen player").performClick()
         assertTrue(expanded)
     }
+
+    @Test
+    fun hides_album_when_musicShowAlbum_false() {
+        rule.setContent {
+            FemtoTheme {
+                MusicCard(
+                    state = MusicCardState.Playing(fakeNowPlaying(album = "For Lack of a Better Name")),
+                    onCommand = {},
+                    onConnect = {},
+                    onLaunchSource = {},
+                    onExpand = {},
+                    showAlbum = false,
+                )
+            }
+        }
+        rule.onNodeWithText("For Lack of a Better Name").assertDoesNotExist()
+    }
+
+    @Test
+    fun source_eyebrow_tap_invokes_onExpand() {
+        var expanded = false
+        rule.setContent {
+            FemtoTheme {
+                MusicCard(
+                    state = MusicCardState.Playing(fakeNowPlaying()),
+                    onCommand = {},
+                    onConnect = {},
+                    onLaunchSource = {},
+                    onExpand = { expanded = true },
+                    showArt = false,
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("Open the full-screen player").performClick()
+        assertTrue(expanded)
+    }
+
+    @Test
+    fun eyebrow_expand_is_distinct_from_art_expand() {
+        rule.setContent {
+            FemtoTheme {
+                MusicCard(
+                    state = MusicCardState.Playing(fakeNowPlaying()),
+                    onCommand = {},
+                    onConnect = {},
+                    onLaunchSource = {},
+                    onExpand = {},
+                )
+            }
+        }
+        // Both affordances coexist when art is shown; distinct labels keep each
+        // addressable and keep album_art_tap_invokes_onExpand unambiguous.
+        rule.onNodeWithContentDescription("Open full-screen player").assertExists()
+        rule.onNodeWithContentDescription("Open the full-screen player").assertExists()
+    }
 }

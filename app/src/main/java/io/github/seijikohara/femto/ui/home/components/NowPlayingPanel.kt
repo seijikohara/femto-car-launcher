@@ -85,6 +85,8 @@ internal fun NowPlayingPanel(
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
     spectrum: StateFlow<FloatArray?>? = null,
+    showAlbum: Boolean = true,
+    showArt: Boolean = true,
 ) {
     BackHandler(onBack = onClose)
     Surface(
@@ -106,10 +108,12 @@ internal fun NowPlayingPanel(
             ) {
                 PanelTopBar(nowPlaying = nowPlaying, onLaunchSource = onLaunchSource, onClose = onClose)
                 if (portrait) {
-                    AlbumArt(
-                        nowPlaying = nowPlaying,
-                        modifier = Modifier.align(Alignment.CenterHorizontally).size(artSize),
-                    )
+                    if (showArt) {
+                        AlbumArt(
+                            nowPlaying = nowPlaying,
+                            modifier = Modifier.align(Alignment.CenterHorizontally).size(artSize),
+                        )
+                    }
                     PanelControls(
                         nowPlaying = nowPlaying,
                         onCommand = onCommand,
@@ -117,6 +121,7 @@ internal fun NowPlayingPanel(
                         // Portrait is tall and narrow: keep the shuffle / repeat
                         // toggles on their own row below the transport controls.
                         inlineToggles = false,
+                        showAlbum = showAlbum,
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )
                 } else {
@@ -125,7 +130,9 @@ internal fun NowPlayingPanel(
                         horizontalArrangement = Arrangement.spacedBy(FemtoDimens.ScreenPadding),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        AlbumArt(nowPlaying = nowPlaying, modifier = Modifier.size(artSize))
+                        if (showArt) {
+                            AlbumArt(nowPlaying = nowPlaying, modifier = Modifier.size(artSize))
+                        }
                         PanelControls(
                             nowPlaying = nowPlaying,
                             onCommand = onCommand,
@@ -135,6 +142,7 @@ internal fun NowPlayingPanel(
                             // transport row so the controls fit the limited height
                             // without the toggles clipping below the fold.
                             inlineToggles = true,
+                            showAlbum = showAlbum,
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                         )
                     }
@@ -226,12 +234,13 @@ private fun PanelControls(
     onCommand: (MusicCommand) -> Unit,
     spectrum: StateFlow<FloatArray?>?,
     inlineToggles: Boolean,
+    showAlbum: Boolean,
     modifier: Modifier = Modifier,
 ) = Column(
     modifier = modifier.verticalScroll(rememberScrollState()),
     verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap, Alignment.CenterVertically),
 ) {
-    ExpandedMeta(nowPlaying = nowPlaying)
+    ExpandedMeta(nowPlaying = nowPlaying, showAlbum = showAlbum)
     PlaybackSeekBar(
         positionMs = nowPlaying.positionMs,
         durationMs = nowPlaying.durationMs,
@@ -395,6 +404,7 @@ private fun PlayingNextList(
 private fun ExpandedMeta(
     nowPlaying: NowPlaying,
     modifier: Modifier = Modifier,
+    showAlbum: Boolean = true,
 ) = Crossfade(
     targetState = Triple(nowPlaying.title, nowPlaying.artist, nowPlaying.album),
     label = "expandedMeta",
@@ -418,13 +428,15 @@ private fun ExpandedMeta(
             color = MaterialTheme.colorScheme.onSurface,
             iconSize = FemtoDimens.InlineIconSize,
         )
-        MarqueeMetaLine(
-            icon = Lucide.Disc,
-            text = album?.takeUnless { it.isBlank() } ?: "—",
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            iconSize = FemtoDimens.InlineIconSize,
-        )
+        if (showAlbum) {
+            MarqueeMetaLine(
+                icon = Lucide.Disc,
+                text = album?.takeUnless { it.isBlank() } ?: "—",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                iconSize = FemtoDimens.InlineIconSize,
+            )
+        }
     }
 }
 

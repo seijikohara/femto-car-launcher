@@ -122,6 +122,31 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `SetMusicShowAlbum writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetMusicShowAlbum(false))
+            advanceUntilIdle()
+            assertEquals(false, store.settings.first().musicShowAlbum)
+        }
+
+    @Test
+    fun `SetMusicShowArt writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetMusicShowArt(false))
+            advanceUntilIdle()
+            assertEquals(false, store.settings.first().musicShowArt)
+        }
+
+    @Test
+    fun `music meta toggles default on`() =
+        runTest(dispatcher) {
+            store.settings.first().let {
+                assertEquals(true, it.musicShowAlbum)
+                assertEquals(true, it.musicShowArt)
+            }
+        }
+
+    @Test
     fun `SetShowClockSeconds writes the value to the store`() =
         runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetShowClockSeconds(false))

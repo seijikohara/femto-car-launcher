@@ -147,6 +147,12 @@ internal fun Meta(
     artist: String?,
     album: String?,
     modifier: Modifier = Modifier,
+    showAlbum: Boolean = true,
+    // When non-null, the source eyebrow row becomes a tap-to-expand affordance —
+    // the card's entry to the full-screen player, kept reachable even when the
+    // album art (the other expand affordance) is hidden. Mirrors the calendar /
+    // weather card header-tap entry.
+    onExpand: (() -> Unit)? = null,
 ) {
     // Title, artist and album styles derive from the M3 type roles once and are
     // remembered so a track-change recomposition doesn't reallocate them.
@@ -158,7 +164,16 @@ internal fun Meta(
         horizontalAlignment = Alignment.Start,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
+        val eyebrowTap =
+            onExpand?.let { tap ->
+                val label = stringResource(R.string.music_expand_player_header)
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = tap)
+                    .semantics { contentDescription = label }
+            } ?: Modifier
         Row(
+            modifier = eyebrowTap,
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -211,14 +226,16 @@ internal fun Meta(
                     style = secondaryStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                MetaLine(
-                    icon = Lucide.Disc,
-                    // Album is absent for many radio / stream sessions; show an em dash
-                    // rather than substituting another field, matching the artist line.
-                    text = fadedAlbum?.takeUnless { it.isBlank() } ?: "—",
-                    style = secondaryStyle,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (showAlbum) {
+                    MetaLine(
+                        icon = Lucide.Disc,
+                        // Album is absent for many radio / stream sessions; show an em dash
+                        // rather than substituting another field, matching the artist line.
+                        text = fadedAlbum?.takeUnless { it.isBlank() } ?: "—",
+                        style = secondaryStyle,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }

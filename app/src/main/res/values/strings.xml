@@ -80,6 +80,7 @@
     <string name="music_skip_next">Skip next</string>
     <string name="music_open_source">Open %1$s</string>
     <string name="music_expand_player">Open full-screen player</string>
+    <string name="music_expand_player_header">Open the full-screen player</string>
     <string name="music_collapse_player">Collapse player</string>
     <string name="music_seek">Seek</string>
     <string name="music_shuffle">Shuffle</string>
@@ -296,6 +297,10 @@
     <string name="settings_group_panel_music">Music panel</string>
     <string name="settings_group_panel_music_spectrum">Music spectrum</string>
     <string name="settings_panel_music_spectrum_desc">Show a spectrum of the playing audio behind the playback controls; uses the audio-capture (microphone) permission.</string>
+    <string name="settings_group_panel_music_album">Album name</string>
+    <string name="settings_panel_music_album_desc">Show the album name on the music card and the full-screen player.</string>
+    <string name="settings_group_panel_music_art">Cover art</string>
+    <string name="settings_panel_music_art_desc">Show the album artwork on the music card and the full-screen player.</string>
     <string name="settings_visible_calendars">Visible calendars</string>
     <string name="settings_visible_calendars_all">All calendars</string>
     <string name="settings_visible_calendars_count">%1$d of %2$d shown</string>

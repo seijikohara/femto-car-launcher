@@ -111,6 +111,10 @@ internal class FakeDisplaySettingsStore(
 
     override suspend fun setMusicSpectrum(value: Boolean) = state.update { it.copy(musicSpectrum = value) }
 
+    override suspend fun setMusicShowAlbum(value: Boolean) = state.update { it.copy(musicShowAlbum = value) }
+
+    override suspend fun setMusicShowArt(value: Boolean) = state.update { it.copy(musicShowArt = value) }
+
     override suspend fun setMapBackend(value: MapBackend) = state.update { it.copy(mapBackend = value) }
 
     override suspend fun setMapboxStyle(value: MapboxStyle) = state.update { it.copy(mapboxStyle = value) }
