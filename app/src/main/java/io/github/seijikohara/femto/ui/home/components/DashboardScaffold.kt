@@ -1,11 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -42,6 +37,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
@@ -49,6 +45,7 @@ import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import kotlinx.coroutines.flow.StateFlow
 
@@ -400,8 +397,8 @@ private fun DashboardContent(
         // session ending mid-collapse still fades its last frame.
         AnimatedVisibility(
             visible = nowPlayingExpanded && expandedNowPlaying != null,
-            enter = fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.92f),
-            exit = fadeOut(tween(180)) + scaleOut(tween(180), targetScale = 0.92f),
+            enter = Motion.panelEnter(MotionTier.STANDARD),
+            exit = Motion.panelExit(MotionTier.STANDARD),
             modifier = Modifier.fillMaxSize().padding(outerPad),
         ) {
             panelNowPlaying?.let { nowPlaying ->
@@ -422,8 +419,8 @@ private fun DashboardContent(
 
         AnimatedVisibility(
             visible = calendarExpanded && expandedCalendar != null,
-            enter = fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.92f),
-            exit = fadeOut(tween(180)) + scaleOut(tween(180), targetScale = 0.92f),
+            enter = Motion.panelEnter(MotionTier.STANDARD),
+            exit = Motion.panelExit(MotionTier.STANDARD),
             modifier = Modifier.fillMaxSize().padding(outerPad),
         ) {
             panelCalendar?.let { snapshot ->
@@ -441,8 +438,8 @@ private fun DashboardContent(
 
         AnimatedVisibility(
             visible = weatherExpanded && expandedWeather != null,
-            enter = fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.92f),
-            exit = fadeOut(tween(180)) + scaleOut(tween(180), targetScale = 0.92f),
+            enter = Motion.panelEnter(MotionTier.STANDARD),
+            exit = Motion.panelExit(MotionTier.STANDARD),
             modifier = Modifier.fillMaxSize().padding(outerPad),
         ) {
             panelWeather?.let { snapshot ->
