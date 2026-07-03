@@ -46,6 +46,13 @@ class NowPlayingPanelScreenshotTest {
     @Config(qualifiers = "w412dp-h915dp-mdpi")
     fun nowplaying_phone_portrait_no_capabilities() = capture("phone-portrait-412x915-bare", BARE)
 
+    // A short, wide bar-style head unit: the height that previously clipped the
+    // shuffle / repeat toggles below the fold. Regression cover for the
+    // landscape inline-toggle reflow that keeps the controls inside the panel.
+    @Test
+    @Config(qualifiers = "w1280dp-h360dp-mdpi")
+    fun nowplaying_bar_full_capabilities() = capture("bar-1280x360-full", FULL)
+
     @Test
     @Config(qualifiers = "w853dp-h512dp-mdpi")
     fun nowplaying_head_unit_spectrum() = capture("head-unit-853x512-spectrum", FULL, mockSpectrum())

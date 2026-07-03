@@ -114,6 +114,9 @@ internal fun NowPlayingPanel(
                         nowPlaying = nowPlaying,
                         onCommand = onCommand,
                         spectrum = spectrum,
+                        // Portrait is tall and narrow: keep the shuffle / repeat
+                        // toggles on their own row below the transport controls.
+                        inlineToggles = false,
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )
                 } else {
@@ -127,6 +130,11 @@ internal fun NowPlayingPanel(
                             nowPlaying = nowPlaying,
                             onCommand = onCommand,
                             spectrum = spectrum,
+                            // Landscape is wide but often short (bar-style head
+                            // units): fold the shuffle / repeat toggles onto the
+                            // transport row so the controls fit the limited height
+                            // without the toggles clipping below the fold.
+                            inlineToggles = true,
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                         )
                     }
@@ -217,6 +225,7 @@ private fun PanelControls(
     nowPlaying: NowPlaying,
     onCommand: (MusicCommand) -> Unit,
     spectrum: StateFlow<FloatArray?>?,
+    inlineToggles: Boolean,
     modifier: Modifier = Modifier,
 ) = Column(
     modifier = modifier.verticalScroll(rememberScrollState()),
@@ -232,6 +241,7 @@ private fun PanelControls(
         canSeek = nowPlaying.canSeek,
         onSeek = { targetMs -> onCommand(MusicCommand.SeekTo(targetMs)) },
     )
+    val hasToggles = nowPlaying.canShuffle || nowPlaying.canRepeat
     // The spectrum paints behind the transport strip only, exactly like the
     // card: matchParentSize keeps the Box sized by the controls, and the
     // canvas never consumes input.
@@ -239,13 +249,29 @@ private fun PanelControls(
         spectrum?.let {
             SpectrumBackground(spectrum = it, modifier = Modifier.matchParentSize())
         }
-        TransportRow(
-            isPlaying = nowPlaying.isPlaying,
-            onCommand = onCommand,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        if (inlineToggles && hasToggles) {
+            // Wide-but-short layout: the transport buttons and the shuffle /
+            // repeat toggles share one centred row, so the controls fit the
+            // limited height instead of the toggles clipping below the fold.
+            // Both inner rows wrap their content (no fillMaxWidth), so the two
+            // clusters sit side by side rather than each spanning the width.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(FemtoDimens.ScreenPadding, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TransportRow(isPlaying = nowPlaying.isPlaying, onCommand = onCommand)
+                TransportToggles(nowPlaying = nowPlaying, onCommand = onCommand)
+            }
+        } else {
+            TransportRow(
+                isPlaying = nowPlaying.isPlaying,
+                onCommand = onCommand,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
-    if (nowPlaying.canShuffle || nowPlaying.canRepeat) {
+    if (!inlineToggles && hasToggles) {
         TransportToggles(
             nowPlaying = nowPlaying,
             onCommand = onCommand,
