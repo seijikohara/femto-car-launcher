@@ -66,6 +66,8 @@ internal class SettingsViewModel(
                 showWeather = display.showWeather,
                 showMusic = display.showMusic,
                 musicSpectrum = display.musicSpectrum,
+                musicShowAlbum = display.musicShowAlbum,
+                musicShowArt = display.musicShowArt,
                 mapBackend = display.mapBackend,
                 mapboxStyle = display.mapboxStyle,
                 mapboxTraffic = display.mapboxTraffic,
@@ -200,6 +202,14 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetMusicSpectrum -> {
                     displayPreferences.setMusicSpectrum(action.value)
+                }
+
+                is SettingsAction.SetMusicShowAlbum -> {
+                    displayPreferences.setMusicShowAlbum(action.value)
+                }
+
+                is SettingsAction.SetMusicShowArt -> {
+                    displayPreferences.setMusicShowArt(action.value)
                 }
 
                 is SettingsAction.SetLocationQuality -> {

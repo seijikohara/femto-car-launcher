@@ -80,6 +80,18 @@ internal fun PanelsSection(
         onCheckedChange = { onAction(SettingsAction.SetMusicSpectrum(it)) },
         summary = stringResource(R.string.settings_panel_music_spectrum_desc),
     )
+    SwitchRow(
+        title = stringResource(R.string.settings_group_panel_music_album),
+        checked = uiState.musicShowAlbum,
+        onCheckedChange = { onAction(SettingsAction.SetMusicShowAlbum(it)) },
+        summary = stringResource(R.string.settings_panel_music_album_desc),
+    )
+    SwitchRow(
+        title = stringResource(R.string.settings_group_panel_music_art),
+        checked = uiState.musicShowArt,
+        onCheckedChange = { onAction(SettingsAction.SetMusicShowArt(it)) },
+        summary = stringResource(R.string.settings_panel_music_art_desc),
+    )
 }
 
 // Summarises the current visible-calendar selection in one line for the row subtitle.
