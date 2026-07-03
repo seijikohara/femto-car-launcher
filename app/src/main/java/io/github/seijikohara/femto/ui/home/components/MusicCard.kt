@@ -62,6 +62,10 @@ internal fun MusicCard(
     // Spectrum band levels for the transport strip's background, or null when
     // the visualization is absent (setting off, previews, tests).
     spectrum: StateFlow<FloatArray?>? = null,
+    // Whether to render the album line / album art; both default true. Off yields
+    // a metadata-only, minimal card (album line dropped, art block dropped).
+    showAlbum: Boolean = true,
+    showArt: Boolean = true,
 ) = Surface(
     modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
     shape = MaterialTheme.shapes.large,
@@ -69,9 +73,17 @@ internal fun MusicCard(
     contentColor = MaterialTheme.colorScheme.onSurface,
 ) {
     when (state) {
-        MusicCardState.NeedsPermission -> MusicConnectState(onConnect = onConnect)
-        MusicCardState.NoActiveSession -> MusicEmptyState()
-        is MusicCardState.Playing -> PlayingState(state.nowPlaying, onCommand, onLaunchSource, onExpand, spectrum)
+        MusicCardState.NeedsPermission -> {
+            MusicConnectState(onConnect = onConnect)
+        }
+
+        MusicCardState.NoActiveSession -> {
+            MusicEmptyState()
+        }
+
+        is MusicCardState.Playing -> {
+            PlayingState(state.nowPlaying, onCommand, onLaunchSource, onExpand, spectrum, showAlbum, showArt)
+        }
     }
 }
 
@@ -82,6 +94,8 @@ private fun PlayingState(
     onLaunchSource: (String) -> Unit,
     onExpand: () -> Unit,
     spectrum: StateFlow<FloatArray?>?,
+    showAlbum: Boolean,
+    showArt: Boolean,
 ) {
     // The whole card (except the transport controls, which consume their own taps)
     // opens the source app. The transport buttons are clickable children, so they
@@ -106,12 +120,15 @@ private fun PlayingState(
         ) {
             // Cap the art at its design size so it does not dominate a tall card and
             // starve the title / artist column beside it; it still shrinks to the
-            // card's height via fillMaxHeight on a shorter card.
-            AlbumArt(
-                nowPlaying = nowPlaying,
-                onTap = onExpand,
-                modifier = Modifier.heightIn(max = FemtoDimens.MusicArtSize).fillMaxHeight().aspectRatio(1f),
-            )
+            // card's height via fillMaxHeight on a shorter card. Hidden entirely when
+            // showArt is off, so the meta column takes the full width.
+            if (showArt) {
+                AlbumArt(
+                    nowPlaying = nowPlaying,
+                    onTap = onExpand,
+                    modifier = Modifier.heightIn(max = FemtoDimens.MusicArtSize).fillMaxHeight().aspectRatio(1f),
+                )
+            }
             Column(
                 modifier = Modifier.weight(1f).fillMaxHeight(),
                 verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
@@ -122,6 +139,8 @@ private fun PlayingState(
                     title = nowPlaying.title,
                     artist = nowPlaying.artist,
                     album = nowPlaying.album,
+                    showAlbum = showAlbum,
+                    onExpand = onExpand,
                 )
                 Progress(
                     positionMs = nowPlaying.positionMs,
