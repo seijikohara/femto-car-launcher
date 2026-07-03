@@ -10,7 +10,9 @@ import io.github.seijikohara.femto.data.display.GoogleMapType
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapboxStyle
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.display.OrientationSetting
+import io.github.seijikohara.femto.data.display.PresetMode
 import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
@@ -292,6 +294,30 @@ class SettingsViewModelTest {
             viewModel().onAction(SettingsAction.SetDockPosition(DockPosition.LEFT))
             advanceUntilIdle()
             assertEquals(DockPosition.LEFT, store.settings.first().dockPosition)
+        }
+
+    @Test
+    fun `SetPresetMode writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetPresetMode(PresetMode.DRIVING))
+            advanceUntilIdle()
+            assertEquals(PresetMode.DRIVING, store.settings.first().presetMode)
+        }
+
+    @Test
+    fun `SetDrivingThresholdKmh writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetDrivingThresholdKmh(20))
+            advanceUntilIdle()
+            assertEquals(20, store.settings.first().drivingThresholdKmh)
+        }
+
+    @Test
+    fun `SetMotionTier writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetMotionTier(MotionTier.OFF))
+            advanceUntilIdle()
+            assertEquals(MotionTier.OFF, store.settings.first().motionTier)
         }
 
     @Test

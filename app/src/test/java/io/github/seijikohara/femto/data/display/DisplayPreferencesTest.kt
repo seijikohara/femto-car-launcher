@@ -43,12 +43,21 @@ class DisplayPreferencesTest {
             store.setMusicSpectrum(true)
             store.setMusicShowAlbum(false)
             store.setMusicShowArt(false)
+            store.setPresetMode(PresetMode.DRIVING)
+            store.setDrivingThresholdKmh(20)
+            store.setMotionTier(MotionTier.OFF)
             assertNotEquals(DisplaySettings.Default, store.settings.first())
 
             // The two music-meta toggles persist and read back independently.
             store.settings.first().let { persisted ->
                 assertFalse(persisted.musicShowAlbum)
                 assertFalse(persisted.musicShowArt)
+            }
+
+            store.settings.first().let { persisted ->
+                assertEquals(PresetMode.DRIVING, persisted.presetMode)
+                assertEquals(20, persisted.drivingThresholdKmh)
+                assertEquals(MotionTier.OFF, persisted.motionTier)
             }
 
             // resetToDefaults() clears every key, so the read falls back to Default

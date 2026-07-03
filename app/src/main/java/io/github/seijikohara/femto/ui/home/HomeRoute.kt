@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.location.hasFineLocationPermission
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
@@ -34,11 +35,14 @@ internal fun HomeRoute(
     dockPosition: DockPosition = DockPosition.BOTTOM,
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
+    motionTier: MotionTier = MotionTier.STANDARD,
 ) {
     val context = LocalContext.current
     val viewModel: HomeViewModel =
         viewModel(factory = HomeViewModelFactory(context.applicationContext as Application))
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val activePreset by viewModel.activePreset.collectAsStateWithLifecycle()
+    val passengerUnlocked by viewModel.passengerUnlockState.collectAsStateWithLifecycle()
     LocationPermissionRequest()
     val currentOnEvent by rememberUpdatedState(onEvent)
     LaunchedEffect(viewModel) {
@@ -59,6 +63,9 @@ internal fun HomeRoute(
         musicShowAlbum = musicShowAlbum,
         musicShowArt = musicShowArt,
         spectrum = viewModel.audioSpectrum,
+        activePreset = activePreset,
+        passengerUnlocked = passengerUnlocked,
+        motionTier = motionTier,
     )
 }
 

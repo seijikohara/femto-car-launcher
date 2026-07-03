@@ -18,6 +18,7 @@ import io.github.seijikohara.femto.data.clock.ClockRepository
 import io.github.seijikohara.femto.data.clock.ClockTick
 import io.github.seijikohara.femto.data.common.WhileUiSubscribed
 import io.github.seijikohara.femto.data.display.DisplayPreferences
+import io.github.seijikohara.femto.data.display.PresetMode
 import io.github.seijikohara.femto.data.geocoding.NominatimApi
 import io.github.seijikohara.femto.data.geocoding.NominatimReverseGeocoder
 import io.github.seijikohara.femto.data.geocoding.PlatformReverseGeocoder
@@ -38,14 +39,17 @@ import io.github.seijikohara.femto.data.weather.WeatherSnapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
 import okhttp3.OkHttpClient
 import java.util.Locale
@@ -66,6 +70,7 @@ internal class HomeViewModel(
     private val resolveMusicSourceComponent: (String) -> ComponentName? = { null },
     private val spectrumEnabledFlow: Flow<Boolean> = flowOf(false),
     private val spectrumBandsFor: (Flow<Boolean>) -> Flow<FloatArray?> = { flowOf(null) },
+    private val presetSwitchFlow: Flow<PresetSwitchConfig> = flowOf(PresetSwitchConfig(PresetMode.AUTO, 8)),
 ) : ViewModel() {
     // Kotlin's typed combine overloads cover at most 5 flows. Stage the eight
     // sources through a typed intermediate (CoreSignals) so the compiler enforces
@@ -120,6 +125,27 @@ internal class HomeViewModel(
                 enabled && (state.musicState as? MusicCardState.Playing)?.nowPlaying?.isPlaying == true
             }.distinctUntilChanged(),
         ).stateIn(viewModelScope, WhileUiSubscribed, null)
+
+    // Transient passenger unlock: NOT persisted, resets to false on relaunch
+    // (a safety default — the full cockpit while moving is a deliberate, per-drive
+    // choice). Flipped by HomeAction.SetPassengerUnlock.
+    private val passengerUnlock = MutableStateFlow(false)
+
+    // Exposed so the dashboard's passenger pill reflects the current on/off state.
+    // The toggle is fire-and-flip (SetPassengerUnlock) and reads the value back here.
+    val passengerUnlockState: StateFlow<Boolean> = passengerUnlock.asStateFlow()
+
+    // The resolved dashboard face. Kept OUT of HomeUiState (a low-frequency signal;
+    // routing it through uiState would recompose the whole dashboard on every fix).
+    // scan carries the previous PresetId so the resolver's hysteresis holds across
+    // fixes; distinctUntilChanged so only real face changes reach the UI.
+    val activePreset: StateFlow<PresetId> =
+        combine(tripStateFlow, presetSwitchFlow, passengerUnlock) { trip, config, passenger ->
+            SwitchInput(speedKmh = trip.currentSpeedMs * MS_TO_KMH, config = config, passengerUnlock = passenger)
+        }.scan(PresetId.COCKPIT) { previous, input ->
+            resolvePreset(input.config.mode, input.speedKmh, input.config.thresholdKmh, previous, input.passengerUnlock)
+        }.distinctUntilChanged()
+            .stateIn(viewModelScope, WhileUiSubscribed, PresetId.COCKPIT)
 
     // extraBufferCapacity = 1 lets a single tryEmit succeed without a live collector,
     // matching the semantics of a one-shot navigation request that is dropped if the
@@ -204,6 +230,10 @@ internal class HomeViewModel(
             HomeAction.ResetTrip -> {
                 resetTrip()
             }
+
+            is HomeAction.SetPassengerUnlock -> {
+                passengerUnlock.value = action.unlocked
+            }
         }
     }
 }
@@ -233,6 +263,15 @@ private data class CoreSignals(
     val weather: WeatherSnapshot?,
     val music: MusicCardState,
 )
+
+// File-private holder for the activePreset combine's three sources.
+private data class SwitchInput(
+    val speedKmh: Double,
+    val config: PresetSwitchConfig,
+    val passengerUnlock: Boolean,
+)
+
+private const val MS_TO_KMH = 3.6
 
 internal class HomeViewModelFactory(
     private val application: Application,
@@ -288,6 +327,7 @@ internal class HomeViewModelFactory(
         val calendar = CalendarRepository(application, clockFlow, calendarPreferences.hiddenCalendarIds)
         val systemStatus = SystemStatusRepository(application, locationFlow)
         val apps = AppsRepository(application)
+        val displayPreferences = DisplayPreferences(application)
 
         @Suppress("UNCHECKED_CAST")
         return HomeViewModel(
@@ -303,11 +343,14 @@ internal class HomeViewModelFactory(
             resetTrip = locationGraph::resetTrip,
             resolveMusicSourceComponent = apps::launcherComponentFor,
             spectrumEnabledFlow =
-                DisplayPreferences(application)
-                    .settings
+                displayPreferences.settings
                     .map { it.musicSpectrum }
                     .distinctUntilChanged(),
             spectrumBandsFor = audioSpectrum::bandsFlow,
+            presetSwitchFlow =
+                displayPreferences.settings
+                    .map { PresetSwitchConfig(it.presetMode, it.drivingThresholdKmh) }
+                    .distinctUntilChanged(),
         ) as T
     }
 }

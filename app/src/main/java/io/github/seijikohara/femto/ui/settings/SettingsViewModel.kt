@@ -48,6 +48,9 @@ internal class SettingsViewModel(
                 showClockSeconds = display.showClockSeconds,
                 fullscreen = display.fullscreen,
                 dockPosition = display.dockPosition,
+                presetMode = display.presetMode,
+                drivingThresholdKmh = display.drivingThresholdKmh,
+                motionTier = display.motionTier,
                 orientation = display.orientation,
                 keepScreenOn = display.keepScreenOn,
                 assistantLaunch = display.assistantLaunch,
@@ -126,6 +129,18 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetDockPosition -> {
                     displayPreferences.setDockPosition(action.value)
+                }
+
+                is SettingsAction.SetPresetMode -> {
+                    displayPreferences.setPresetMode(action.value)
+                }
+
+                is SettingsAction.SetDrivingThresholdKmh -> {
+                    displayPreferences.setDrivingThresholdKmh(action.value)
+                }
+
+                is SettingsAction.SetMotionTier -> {
+                    displayPreferences.setMotionTier(action.value)
                 }
 
                 is SettingsAction.SetOrientation -> {
