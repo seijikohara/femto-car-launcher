@@ -65,6 +65,7 @@ internal object AddressComposer {
         val fine = dropContained(listOfNotNull(subWard, district, chome))
 
         val line = (listOfNotNull(prefecture, municipality) + fine + listOfNotNull(houseNumber)).joinToString("")
+        // road stays null here for the same reason it is excluded from `line` above.
         return ShortAddress(
             locality = municipality.orEmpty(),
             region = prefecture,
@@ -106,6 +107,7 @@ internal object AddressComposer {
         return ShortAddress(
             locality = city.orEmpty(),
             region = state,
+            road = address.road?.takeIf { it.isNotBlank() },
             line = line,
         )
     }

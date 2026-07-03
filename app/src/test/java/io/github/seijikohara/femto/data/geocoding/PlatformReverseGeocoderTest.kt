@@ -51,4 +51,21 @@ class PlatformReverseGeocoderTest {
     fun `returns null when no place name is present`() {
         assertNull(Address(Locale.getDefault()).toShortAddressOrNull())
     }
+
+    @Test
+    fun `carries the thoroughfare as the road name`() {
+        val address =
+            Address(Locale.US).apply {
+                locality = "Mountain View"
+                adminArea = "California"
+                thoroughfare = "Amphitheatre Parkway"
+            }
+        assertEquals("Amphitheatre Parkway", address.toShortAddressOrNull()?.road)
+    }
+
+    @Test
+    fun `road is null when the geocoder gives no thoroughfare`() {
+        val address = Address(Locale.JAPAN).apply { locality = "新宿区" }
+        assertNull(address.toShortAddressOrNull()?.road)
+    }
 }
