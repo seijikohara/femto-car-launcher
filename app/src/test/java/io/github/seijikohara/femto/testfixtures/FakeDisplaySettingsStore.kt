@@ -14,7 +14,9 @@ import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.display.MapboxStyle
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.display.OrientationSetting
+import io.github.seijikohara.femto.data.display.PresetMode
 import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
@@ -64,6 +66,12 @@ internal class FakeDisplaySettingsStore(
     override suspend fun setFullscreen(value: FullscreenSetting) = state.update { it.copy(fullscreen = value) }
 
     override suspend fun setDockPosition(value: DockPosition) = state.update { it.copy(dockPosition = value) }
+
+    override suspend fun setPresetMode(value: PresetMode) = state.update { it.copy(presetMode = value) }
+
+    override suspend fun setDrivingThresholdKmh(value: Int) = state.update { it.copy(drivingThresholdKmh = value) }
+
+    override suspend fun setMotionTier(value: MotionTier) = state.update { it.copy(motionTier = value) }
 
     override suspend fun setOrientation(value: OrientationSetting) = state.update { it.copy(orientation = value) }
 

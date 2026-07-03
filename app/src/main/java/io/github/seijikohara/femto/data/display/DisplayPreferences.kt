@@ -51,6 +51,12 @@ internal interface DisplaySettingsStore {
 
     suspend fun setDockPosition(value: DockPosition)
 
+    suspend fun setPresetMode(value: PresetMode)
+
+    suspend fun setDrivingThresholdKmh(value: Int)
+
+    suspend fun setMotionTier(value: MotionTier)
+
     suspend fun setOrientation(value: OrientationSetting)
 
     suspend fun setKeepScreenOn(value: Boolean)
@@ -147,6 +153,9 @@ internal class DisplayPreferences(
                     showClockSeconds = prefs[SHOW_CLOCK_SECONDS_KEY] ?: false,
                     fullscreen = prefs[FULLSCREEN_KEY].toEnumOr(FullscreenSetting.ON),
                     dockPosition = prefs[DOCK_POSITION_KEY].toEnumOr(DockPosition.BOTTOM),
+                    presetMode = prefs[PRESET_MODE_KEY].toEnumOr(PresetMode.AUTO),
+                    drivingThresholdKmh = prefs[DRIVING_THRESHOLD_KMH_KEY] ?: 8,
+                    motionTier = prefs[MOTION_TIER_KEY].toEnumOr(MotionTier.STANDARD),
                     orientation = prefs[ORIENTATION_KEY].toEnumOr(OrientationSetting.AUTO),
                     keepScreenOn = prefs[KEEP_SCREEN_ON_KEY] ?: true,
                     assistantLaunch = prefs[ASSISTANT_LAUNCH_KEY].toEnumOr(AssistantLaunchSetting.SYSTEM),
@@ -216,6 +225,18 @@ internal class DisplayPreferences(
 
     override suspend fun setDockPosition(value: DockPosition) {
         context.displayDataStore.editOrLog(TAG) { it[DOCK_POSITION_KEY] = value.name }
+    }
+
+    override suspend fun setPresetMode(value: PresetMode) {
+        context.displayDataStore.editOrLog(TAG) { it[PRESET_MODE_KEY] = value.name }
+    }
+
+    override suspend fun setDrivingThresholdKmh(value: Int) {
+        context.displayDataStore.editOrLog(TAG) { it[DRIVING_THRESHOLD_KMH_KEY] = value }
+    }
+
+    override suspend fun setMotionTier(value: MotionTier) {
+        context.displayDataStore.editOrLog(TAG) { it[MOTION_TIER_KEY] = value.name }
     }
 
     override suspend fun setOrientation(value: OrientationSetting) {
@@ -361,6 +382,9 @@ internal class DisplayPreferences(
         val SHOW_CLOCK_SECONDS_KEY = booleanPreferencesKey("show_clock_seconds")
         val FULLSCREEN_KEY = stringPreferencesKey("fullscreen")
         val DOCK_POSITION_KEY = stringPreferencesKey("dock_position")
+        val PRESET_MODE_KEY = stringPreferencesKey("preset_mode")
+        val DRIVING_THRESHOLD_KMH_KEY = intPreferencesKey("driving_threshold_kmh")
+        val MOTION_TIER_KEY = stringPreferencesKey("motion_tier")
         val ORIENTATION_KEY = stringPreferencesKey("orientation")
         val KEEP_SCREEN_ON_KEY = booleanPreferencesKey("keep_screen_on")
         val ASSISTANT_LAUNCH_KEY = stringPreferencesKey("assistant_launch")
