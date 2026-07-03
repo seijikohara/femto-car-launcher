@@ -12,7 +12,9 @@ import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.display.MapboxStyle
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.display.OrientationSetting
+import io.github.seijikohara.femto.data.display.PresetMode
 import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
@@ -32,6 +34,9 @@ internal data class SettingsUiState(
     val showClockSeconds: Boolean,
     val fullscreen: FullscreenSetting,
     val dockPosition: DockPosition,
+    val presetMode: PresetMode,
+    val drivingThresholdKmh: Int,
+    val motionTier: MotionTier,
     val orientation: OrientationSetting,
     val keepScreenOn: Boolean,
     val assistantLaunch: AssistantLaunchSetting,
@@ -88,6 +93,9 @@ internal data class SettingsUiState(
                 showClockSeconds = DisplaySettings.Default.showClockSeconds,
                 fullscreen = DisplaySettings.Default.fullscreen,
                 dockPosition = DisplaySettings.Default.dockPosition,
+                presetMode = DisplaySettings.Default.presetMode,
+                drivingThresholdKmh = DisplaySettings.Default.drivingThresholdKmh,
+                motionTier = DisplaySettings.Default.motionTier,
                 orientation = DisplaySettings.Default.orientation,
                 keepScreenOn = DisplaySettings.Default.keepScreenOn,
                 assistantLaunch = DisplaySettings.Default.assistantLaunch,
@@ -167,6 +175,18 @@ internal sealed interface SettingsAction {
 
     data class SetDockPosition(
         val value: DockPosition,
+    ) : SettingsAction
+
+    data class SetPresetMode(
+        val value: PresetMode,
+    ) : SettingsAction
+
+    data class SetDrivingThresholdKmh(
+        val value: Int,
+    ) : SettingsAction
+
+    data class SetMotionTier(
+        val value: MotionTier,
     ) : SettingsAction
 
     data class SetOrientation(

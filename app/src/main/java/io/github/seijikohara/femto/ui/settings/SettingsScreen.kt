@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.ui.settings.components.AppearanceSection
+import io.github.seijikohara.femto.ui.settings.components.DrivingSection
 import io.github.seijikohara.femto.ui.settings.components.Header
 import io.github.seijikohara.femto.ui.settings.components.LocationSection
 import io.github.seijikohara.femto.ui.settings.components.MapSection
@@ -66,6 +67,8 @@ internal fun SettingsScreen(
         AppearanceSection(uiState = uiState, onAction = onAction, onOpenFontPicker = onOpenFontPicker)
 
         ScreenSection(uiState = uiState, onAction = onAction)
+
+        DrivingSection(uiState = uiState, onAction = onAction)
 
         UnitsSection(uiState = uiState, onAction = onAction)
 
