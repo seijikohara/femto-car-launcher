@@ -47,4 +47,9 @@ internal sealed interface HomeAction {
     data object OpenAssistant : HomeAction
 
     data object ResetTrip : HomeAction
+
+    /** Toggle the transient passenger unlock (keep the cockpit while moving). Not persisted. */
+    data class SetPassengerUnlock(
+        val unlocked: Boolean,
+    ) : HomeAction
 }
