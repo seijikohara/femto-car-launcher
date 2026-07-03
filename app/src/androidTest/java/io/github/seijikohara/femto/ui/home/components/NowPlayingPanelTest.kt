@@ -36,6 +36,23 @@ class NowPlayingPanelTest {
     }
 
     @Test
+    fun hides_album_when_showAlbum_false() {
+        rule.setContent {
+            FemtoTheme {
+                NowPlayingPanel(
+                    nowPlaying = fakeNowPlaying(),
+                    onCommand = {},
+                    onLaunchSource = {},
+                    onClose = {},
+                    showAlbum = false,
+                )
+            }
+        }
+        rule.onNodeWithText("Strobe").assertIsDisplayed()
+        rule.onNodeWithText("For Lack of a Better Name").assertDoesNotExist()
+    }
+
+    @Test
     fun collapse_button_invokes_onClose() {
         var closed = false
         rule.setContent {
