@@ -1,8 +1,8 @@
 package io.github.seijikohara.femto.testfixtures
 
 import android.Manifest
-import io.github.seijikohara.femto.data.system.DiagnosticPermission
-import io.github.seijikohara.femto.data.system.DiagnosticsSnapshot
+import io.github.seijikohara.femto.data.diagnostics.DiagnosticPermission
+import io.github.seijikohara.femto.data.diagnostics.DiagnosticsSnapshot
 
 internal fun fakeDiagnosticsSnapshot(
     permissions: List<DiagnosticPermission> =

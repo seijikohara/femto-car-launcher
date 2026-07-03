@@ -24,9 +24,9 @@ import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Lucide
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.diagnostics.DiagnosticsSnapshot
+import io.github.seijikohara.femto.data.diagnostics.PerformanceSnapshot
 import io.github.seijikohara.femto.data.music.SpectrumDiagnosis
-import io.github.seijikohara.femto.data.system.DiagnosticsSnapshot
-import io.github.seijikohara.femto.data.system.PerformanceSnapshot
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme

@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.data.diagnostics
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.hardware.Sensor
@@ -143,6 +144,7 @@ internal class EnvironmentFactsCollector(
     // Privacy floor: only the fix's age and accuracy render, never
     // latitude/longitude — a diagnostics report is meant to be pasted into a
     // public issue tracker.
+    @SuppressLint("MissingPermission") // Permission is checked via hasFineLocationPermission().
     private fun lastGpsFixFact(locationManager: LocationManager): DiagnosticFact {
         if (!context.hasFineLocationPermission()) {
             return DiagnosticFact("Last GPS fix", FactValue.Text("ACCESS_FINE_LOCATION denied"))

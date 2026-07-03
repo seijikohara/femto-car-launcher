@@ -1,7 +1,7 @@
 package io.github.seijikohara.femto.ui.diagnostics
 
+import io.github.seijikohara.femto.data.diagnostics.PerformanceSnapshot
 import io.github.seijikohara.femto.data.music.MusicCardState
-import io.github.seijikohara.femto.data.system.PerformanceSnapshot
 import java.util.Locale
 
 /**

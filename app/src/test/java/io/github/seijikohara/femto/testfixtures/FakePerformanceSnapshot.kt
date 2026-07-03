@@ -1,9 +1,9 @@
 package io.github.seijikohara.femto.testfixtures
 
-import io.github.seijikohara.femto.data.system.DiagnosticEntry
-import io.github.seijikohara.femto.data.system.FrameStats
-import io.github.seijikohara.femto.data.system.PerformanceSnapshot
-import io.github.seijikohara.femto.data.system.ThermalLevel
+import io.github.seijikohara.femto.data.diagnostics.DiagnosticEntry
+import io.github.seijikohara.femto.data.diagnostics.FrameStats
+import io.github.seijikohara.femto.data.diagnostics.PerformanceSnapshot
+import io.github.seijikohara.femto.data.diagnostics.ThermalLevel
 
 internal fun fakePerformanceSnapshot(
     thermal: ThermalLevel = ThermalLevel.NONE,

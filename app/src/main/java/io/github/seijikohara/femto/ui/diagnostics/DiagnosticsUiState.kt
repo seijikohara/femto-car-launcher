@@ -1,9 +1,9 @@
 package io.github.seijikohara.femto.ui.diagnostics
 
+import io.github.seijikohara.femto.data.diagnostics.DiagnosticsSnapshot
+import io.github.seijikohara.femto.data.diagnostics.PerformanceSnapshot
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.SpectrumDiagnosis
-import io.github.seijikohara.femto.data.system.DiagnosticsSnapshot
-import io.github.seijikohara.femto.data.system.PerformanceSnapshot
 
 internal data class DiagnosticsUiState(
     val isLoading: Boolean = true,

@@ -87,6 +87,12 @@ internal data class DiagnosticSection(
     val payload: SectionPayload?,
 )
 
+/** One section's producer; the production set lives in `DiagnosticsCollectors.kt`. */
+internal data class SectionCollector(
+    val id: SectionId,
+    val collect: suspend () -> SectionPayload,
+)
+
 /** Facts with a WARNING/ERROR verdict — the badge, summary, and TL;DR feed. */
 internal fun DiagnosticSection.issues(): List<DiagnosticFact> =
     when (val payload = payload) {

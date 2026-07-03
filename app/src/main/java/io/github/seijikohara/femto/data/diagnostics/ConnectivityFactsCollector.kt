@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.data.diagnostics
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.Context
@@ -140,6 +141,7 @@ internal class ConnectivityFactsCollector(
         return DiagnosticFact("Data saver", FactValue.Status(value, if (enabled) FactHealth.WARNING else FactHealth.OK))
     }
 
+    @SuppressLint("MissingPermission") // Permission is checked via hasBluetoothConnectPermission().
     private fun bluetoothFact(): DiagnosticFact {
         if (!context.hasBluetoothConnectPermission()) {
             return DiagnosticFact("Bluetooth", FactValue.Text("BLUETOOTH_CONNECT denied"))
