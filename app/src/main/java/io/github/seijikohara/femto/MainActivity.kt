@@ -194,6 +194,7 @@ class MainActivity : ComponentActivity() {
                         ),
                     musicShowAlbum = display.musicShowAlbum,
                     musicShowArt = display.musicShowArt,
+                    motionTier = display.motionTier,
                     glassConfig =
                         GlassConfig(
                             blurRadius = display.glassBlurRadius.dp,

@@ -6,6 +6,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
@@ -32,6 +33,8 @@ internal fun HomeScreen(
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
     spectrum: StateFlow<FloatArray?>? = null,
+    activePreset: PresetId = PresetId.COCKPIT,
+    motionTier: MotionTier = MotionTier.STANDARD,
 ) = Surface(
     modifier = modifier.fillMaxSize(),
     color = MaterialTheme.colorScheme.background,
@@ -51,6 +54,8 @@ internal fun HomeScreen(
         musicShowAlbum = musicShowAlbum,
         musicShowArt = musicShowArt,
         spectrum = spectrum,
+        activePreset = activePreset,
+        motionTier = motionTier,
     )
 }
 

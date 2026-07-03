@@ -41,6 +41,7 @@ import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
+import io.github.seijikohara.femto.ui.home.PresetId
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -110,6 +111,8 @@ internal fun DashboardScaffold(
     spectrum: StateFlow<FloatArray?>? = null,
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
+    activePreset: PresetId = PresetId.COCKPIT,
+    motionTier: MotionTier = MotionTier.STANDARD,
 ) = DashboardContent(
     uiState = uiState,
     is24Hour = is24Hour,
@@ -128,6 +131,8 @@ internal fun DashboardScaffold(
     spectrum = spectrum,
     musicShowAlbum = musicShowAlbum,
     musicShowArt = musicShowArt,
+    activePreset = activePreset,
+    motionTier = motionTier,
 )
 
 // The full-screen dashboard body: the map fills the viewport as the background
@@ -150,6 +155,8 @@ private fun DashboardContent(
     spectrum: StateFlow<FloatArray?>? = null,
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
+    activePreset: PresetId = PresetId.COCKPIT,
+    motionTier: MotionTier = MotionTier.STANDARD,
 ) = BoxWithConstraints(modifier = modifier) {
     val compact = maxHeight < CompactHeightBreakpoint || maxWidth < CompactWidthBreakpoint
     val portrait = maxHeight > maxWidth
@@ -158,45 +165,6 @@ private fun DashboardContent(
     // panel carries uniform margins on all four sides (gap-to-neighbour == edge-margin).
     val cardGap = outerPad
     val hasCards = panels.anyInfoPanel
-    // Full-screen Now Playing panel (issue #231). Pure UI state — saveable so a
-    // rotation keeps the panel open — auto-collapsed when the session leaves
-    // Playing so a dead session never strands an empty panel over the map.
-    var nowPlayingExpanded by rememberSaveable { mutableStateOf(false) }
-    val expandedNowPlaying = (uiState.musicState as? MusicCardState.Playing)?.nowPlaying
-    LaunchedEffect(expandedNowPlaying == null) {
-        if (expandedNowPlaying == null) nowPlayingExpanded = false
-    }
-    // Hold the last live track so the collapse animation still renders content
-    // when the session ends (expandedNowPlaying goes null the same frame the
-    // panel starts fading out) rather than flashing empty mid-exit.
-    var panelNowPlaying by remember { mutableStateOf(expandedNowPlaying) }
-    LaunchedEffect(expandedNowPlaying) {
-        if (expandedNowPlaying != null) panelNowPlaying = expandedNowPlaying
-    }
-    // Full-screen calendar panel, mirroring the Now Playing panel above: pure UI
-    // state, saveable across rotation, auto-collapsed once the snapshot no longer
-    // has real data to show (permission revoked mid-session or a query fault).
-    var calendarExpanded by rememberSaveable { mutableStateOf(false) }
-    val expandedCalendar = uiState.calendar?.takeIf { it.hasCalendarAccess && !it.queryFailed }
-    LaunchedEffect(expandedCalendar == null) {
-        if (expandedCalendar == null) calendarExpanded = false
-    }
-    var panelCalendar by remember { mutableStateOf(expandedCalendar) }
-    LaunchedEffect(expandedCalendar) {
-        if (expandedCalendar != null) panelCalendar = expandedCalendar
-    }
-    // Full-screen weather panel, mirroring the calendar panel above: pure UI
-    // state, saveable across rotation, auto-collapsed once the snapshot goes
-    // null (e.g. a cold-start window with no cached data yet).
-    var weatherExpanded by rememberSaveable { mutableStateOf(false) }
-    val expandedWeather = uiState.weather
-    LaunchedEffect(expandedWeather == null) {
-        if (expandedWeather == null) weatherExpanded = false
-    }
-    var panelWeather by remember { mutableStateOf(expandedWeather) }
-    LaunchedEffect(expandedWeather) {
-        if (expandedWeather != null) panelWeather = expandedWeather
-    }
     // Landscape floats the cards as a right-hand column over the map; portrait drops
     // them to a bottom band. The column compresses to the available height on a short
     // landscape (a phone) and caps on a tall one, so the map keeps the left either way.
@@ -284,8 +252,139 @@ private fun DashboardContent(
 
     // Every overlay lives in a region inset from the dock edge, so the cards,
     // controls, and speed overlay never sit under the dock's nav buttons while the
-    // map still shows through behind the dock.
-    Box(modifier = Modifier.fillMaxSize().padding(dockEdgePadding(dockPosition, dockExtent))) {
+    // map still shows through behind the dock. The cockpit face is extracted so the
+    // map (blur source) and the dock stay composed once at this level, outside any
+    // future preset branch.
+    CockpitOverlays(
+        uiState = uiState,
+        is24Hour = is24Hour,
+        showClockSeconds = showClockSeconds,
+        speedUnit = speedUnit,
+        temperatureUnit = temperatureUnit,
+        panels = panels,
+        glassConfig = glassConfig,
+        outerPad = outerPad,
+        cardGap = cardGap,
+        landscapeCards = landscapeCards,
+        bottomCards = bottomCards,
+        bottomCardBand = bottomCardBand,
+        floatingCardWidth = floatingCardWidth,
+        hasCards = hasCards,
+        hazeState = hazeState,
+        following = following,
+        bearingDeg = bearingDeg,
+        motionTier = motionTier,
+        onRecenter = { recenterNonce++ },
+        onOverlayHeightChange = { overlayHeightPx = it },
+        onAction = onAction,
+        modifier = Modifier.fillMaxSize().padding(dockEdgePadding(dockPosition, dockExtent)),
+        spectrum = spectrum,
+        musicShowAlbum = musicShowAlbum,
+        musicShowArt = musicShowArt,
+    )
+
+    // The dock as a glass bar / rail on its edge, drawn over the full-bleed map.
+    DashboardDock(
+        systemStatus = uiState.systemStatus,
+        onAction = onAction,
+        position = dockPosition,
+        hazeState = hazeState,
+        glassConfig = glassConfig,
+        modifier =
+            when (dockPosition) {
+                DockPosition.BOTTOM, DockPosition.TOP -> {
+                    Modifier
+                        .align(dockAlignment(dockPosition))
+                        .fillMaxWidth()
+                        .padding(dockFloatPadding(dockPosition, outerPad))
+                }
+
+                DockPosition.LEFT, DockPosition.RIGHT -> {
+                    Modifier
+                        .align(dockAlignment(dockPosition))
+                        .fillMaxHeight()
+                        .padding(dockFloatPadding(dockPosition, outerPad))
+                }
+            },
+    )
+}
+
+// The cockpit face: the glass overlay tree that floats over the map — map controls,
+// the clock and speed overlays, the floating info cards, and the three maximize
+// panels. The caller keeps the map (the blur source) and the dock composed one level
+// up, outside this face, and supplies the dock-edge inset through [modifier] so the
+// overlays never sit under the dock's nav buttons while the map shows through behind
+// it. Extracting the face keeps that map/dock pair stable across a future preset
+// switch instead of tearing down the WebView.
+@Composable
+private fun CockpitOverlays(
+    uiState: HomeUiState,
+    is24Hour: Boolean,
+    showClockSeconds: Boolean,
+    speedUnit: SpeedUnit,
+    temperatureUnit: TemperatureUnit,
+    panels: PanelVisibility,
+    glassConfig: GlassConfig,
+    outerPad: Dp,
+    cardGap: Dp,
+    landscapeCards: Boolean,
+    bottomCards: Boolean,
+    bottomCardBand: Dp,
+    floatingCardWidth: Dp,
+    hasCards: Boolean,
+    hazeState: HazeState,
+    following: Boolean,
+    bearingDeg: Float,
+    motionTier: MotionTier,
+    onRecenter: () -> Unit,
+    onOverlayHeightChange: (Int) -> Unit,
+    onAction: (HomeAction) -> Unit,
+    modifier: Modifier = Modifier,
+    spectrum: StateFlow<FloatArray?>? = null,
+    musicShowAlbum: Boolean = true,
+    musicShowArt: Boolean = true,
+) {
+    // Full-screen Now Playing panel (issue #231). Pure UI state — saveable so a
+    // rotation keeps the panel open — auto-collapsed when the session leaves
+    // Playing so a dead session never strands an empty panel over the map.
+    var nowPlayingExpanded by rememberSaveable { mutableStateOf(false) }
+    val expandedNowPlaying = (uiState.musicState as? MusicCardState.Playing)?.nowPlaying
+    LaunchedEffect(expandedNowPlaying == null) {
+        if (expandedNowPlaying == null) nowPlayingExpanded = false
+    }
+    // Hold the last live track so the collapse animation still renders content
+    // when the session ends (expandedNowPlaying goes null the same frame the
+    // panel starts fading out) rather than flashing empty mid-exit.
+    var panelNowPlaying by remember { mutableStateOf(expandedNowPlaying) }
+    LaunchedEffect(expandedNowPlaying) {
+        if (expandedNowPlaying != null) panelNowPlaying = expandedNowPlaying
+    }
+    // Full-screen calendar panel, mirroring the Now Playing panel above: pure UI
+    // state, saveable across rotation, auto-collapsed once the snapshot no longer
+    // has real data to show (permission revoked mid-session or a query fault).
+    var calendarExpanded by rememberSaveable { mutableStateOf(false) }
+    val expandedCalendar = uiState.calendar?.takeIf { it.hasCalendarAccess && !it.queryFailed }
+    LaunchedEffect(expandedCalendar == null) {
+        if (expandedCalendar == null) calendarExpanded = false
+    }
+    var panelCalendar by remember { mutableStateOf(expandedCalendar) }
+    LaunchedEffect(expandedCalendar) {
+        if (expandedCalendar != null) panelCalendar = expandedCalendar
+    }
+    // Full-screen weather panel, mirroring the calendar panel above: pure UI
+    // state, saveable across rotation, auto-collapsed once the snapshot goes
+    // null (e.g. a cold-start window with no cached data yet).
+    var weatherExpanded by rememberSaveable { mutableStateOf(false) }
+    val expandedWeather = uiState.weather
+    LaunchedEffect(expandedWeather == null) {
+        if (expandedWeather == null) weatherExpanded = false
+    }
+    var panelWeather by remember { mutableStateOf(expandedWeather) }
+    LaunchedEffect(expandedWeather) {
+        if (expandedWeather != null) panelWeather = expandedWeather
+    }
+
+    Box(modifier = modifier) {
         // Map controls render only when the map does (a fix exists).
         if (uiState.location != null) {
             MapCompass(
@@ -298,7 +397,7 @@ private fun DashboardContent(
             MapControlColumn(
                 showLocate = true,
                 following = following,
-                onLocate = { recenterNonce++ },
+                onLocate = onRecenter,
                 onZoomIn = { onAction(HomeAction.AdjustMapZoom(1)) },
                 onZoomOut = { onAction(HomeAction.AdjustMapZoom(-1)) },
                 hazeState = hazeState,
@@ -347,7 +446,7 @@ private fun DashboardContent(
                 onReset = { onAction(HomeAction.ResetTrip) },
                 hazeState = hazeState,
                 glassConfig = glassConfig,
-                modifier = Modifier.onSizeChanged { overlayHeightPx = it.height },
+                modifier = Modifier.onSizeChanged { onOverlayHeightChange(it.height) },
             )
         }
 
@@ -397,8 +496,8 @@ private fun DashboardContent(
         // session ending mid-collapse still fades its last frame.
         AnimatedVisibility(
             visible = nowPlayingExpanded && expandedNowPlaying != null,
-            enter = Motion.panelEnter(MotionTier.STANDARD),
-            exit = Motion.panelExit(MotionTier.STANDARD),
+            enter = Motion.panelEnter(motionTier),
+            exit = Motion.panelExit(motionTier),
             modifier = Modifier.fillMaxSize().padding(outerPad),
         ) {
             panelNowPlaying?.let { nowPlaying ->
@@ -419,8 +518,8 @@ private fun DashboardContent(
 
         AnimatedVisibility(
             visible = calendarExpanded && expandedCalendar != null,
-            enter = Motion.panelEnter(MotionTier.STANDARD),
-            exit = Motion.panelExit(MotionTier.STANDARD),
+            enter = Motion.panelEnter(motionTier),
+            exit = Motion.panelExit(motionTier),
             modifier = Modifier.fillMaxSize().padding(outerPad),
         ) {
             panelCalendar?.let { snapshot ->
@@ -438,8 +537,8 @@ private fun DashboardContent(
 
         AnimatedVisibility(
             visible = weatherExpanded && expandedWeather != null,
-            enter = Motion.panelEnter(MotionTier.STANDARD),
-            exit = Motion.panelExit(MotionTier.STANDARD),
+            enter = Motion.panelEnter(motionTier),
+            exit = Motion.panelExit(motionTier),
             modifier = Modifier.fillMaxSize().padding(outerPad),
         ) {
             panelWeather?.let { snapshot ->
@@ -457,31 +556,6 @@ private fun DashboardContent(
             }
         }
     }
-
-    // The dock as a glass bar / rail on its edge, drawn over the full-bleed map.
-    DashboardDock(
-        systemStatus = uiState.systemStatus,
-        onAction = onAction,
-        position = dockPosition,
-        hazeState = hazeState,
-        glassConfig = glassConfig,
-        modifier =
-            when (dockPosition) {
-                DockPosition.BOTTOM, DockPosition.TOP -> {
-                    Modifier
-                        .align(dockAlignment(dockPosition))
-                        .fillMaxWidth()
-                        .padding(dockFloatPadding(dockPosition, outerPad))
-                }
-
-                DockPosition.LEFT, DockPosition.RIGHT -> {
-                    Modifier
-                        .align(dockAlignment(dockPosition))
-                        .fillMaxHeight()
-                        .padding(dockFloatPadding(dockPosition, outerPad))
-                }
-            },
-    )
 }
 
 // Margins that float the dock off its three free edges (the inner edge faces the
