@@ -44,7 +44,7 @@ internal const val COPY_CONFIRM_MS = 2_000L
  * are plain seams so JVM tests drive every transition without Android types.
  */
 internal class DiagnosticsViewModel(
-    private val collectors: List<SectionCollector>,
+    private val collectorsProvider: () -> List<SectionCollector>,
     musicStateFlow: Flow<MusicCardState>,
     private val copyToClipboard: suspend (String) -> Unit,
     private val nowEpochMs: () -> Long = System::currentTimeMillis,
@@ -101,6 +101,11 @@ internal class DiagnosticsViewModel(
         payloads.value = emptyPayloads()
         collectionJob =
             viewModelScope.launch {
+                // Fresh registry per refresh: the production registry's
+                // spectrum→logs gate is a single-use CompletableDeferred, so
+                // reusing collectors across refreshes would leave it already
+                // completed and the log tail would stop waiting on it.
+                val collectors = collectorsProvider()
                 // One child per section: a slow or wedged collector delays its
                 // own row only, and every other section streams in around it.
                 collectors.forEach { collector ->
@@ -150,7 +155,7 @@ internal val DiagnosticsViewModelFactory: ViewModelProvider.Factory =
         initializer {
             val application = checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
             DiagnosticsViewModel(
-                collectors = diagnosticsCollectors(application),
+                collectorsProvider = { diagnosticsCollectors(application) },
                 musicStateFlow = MusicSessionRepository(application).stateFlow(),
                 copyToClipboard = { text ->
                     // The platform clipboard expects main-thread writes.

@@ -8,7 +8,6 @@ import io.github.seijikohara.femto.data.diagnostics.PermissionRow
 import io.github.seijikohara.femto.data.diagnostics.SectionId
 import io.github.seijikohara.femto.data.diagnostics.SectionPayload
 import org.junit.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 

@@ -10,6 +10,11 @@ import kotlinx.coroutines.withTimeoutOrNull
  * complete before the log tail is dumped — its Visualizer errors are exactly
  * what the tail exists to carry — so that ordering is an explicit await, not
  * a call-order comment (the v1 fragility this registry replaces).
+ *
+ * Build a fresh registry per refresh (never reuse a returned list across
+ * collections): the spectrum→logs gate is a single-use [CompletableDeferred],
+ * already completed on a reused registry, so the log tail would stop waiting
+ * on it from the second refresh onward.
  */
 internal fun diagnosticsCollectors(context: Context): List<SectionCollector> {
     val app = AppFactsCollector(context)
@@ -24,7 +29,7 @@ internal fun diagnosticsCollectors(context: Context): List<SectionCollector> {
     val storage = StorageFactsCollector(context)
     val webView = WebViewFactsCollector(context)
     val settings = SettingsFactsCollector(context)
-    val logs = LogTailCollector(context)
+    val logs = LogTailCollector()
     val spectrumProbed = CompletableDeferred<Unit>()
     return listOf(
         SectionCollector(SectionId.APP, app::appFacts),

@@ -213,7 +213,10 @@ class DiagnosticsViewModelTest {
         copyToClipboard: suspend (String) -> Unit = {},
     ): DiagnosticsViewModel =
         DiagnosticsViewModel(
-            collectors = collectors,
+            // A lambda capturing one fixed list still returns the same
+            // collector instances on every refresh — the freshness guarantee
+            // matters only for the production registry's spectrum→logs gate.
+            collectorsProvider = { collectors },
             musicStateFlow = musicStateFlow,
             copyToClipboard = copyToClipboard,
         )

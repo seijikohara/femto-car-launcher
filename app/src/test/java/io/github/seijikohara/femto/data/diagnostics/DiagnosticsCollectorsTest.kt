@@ -39,4 +39,28 @@ class DiagnosticsCollectorsTest {
                 logs.await()
             }
         }
+
+    @Test
+    fun `a freshly built registry re-arms the spectrum gate after a prior registry's gate completed`() =
+        runTest {
+            // Run a first registry's MUSIC+LOGS pair to completion, exactly like
+            // a first Refresh would: its spectrum gate ends up completed.
+            val first = diagnosticsCollectors(context).associateBy { it.id }
+            withContext(Dispatchers.Default) {
+                first.getValue(SectionId.MUSIC).collect()
+                first.getValue(SectionId.LOGS).collect()
+            }
+
+            // A second, independently built registry — what `collectorsProvider()`
+            // returns on the next Refresh — must own its own unstarted gate,
+            // not inherit the first registry's already-completed one.
+            val second = diagnosticsCollectors(context).associateBy { it.id }
+            withContext(Dispatchers.Default) {
+                val logs = async { second.getValue(SectionId.LOGS).collect() }
+                delay(100)
+                assertFalse(logs.isCompleted) // parked on the SECOND registry's own gate
+                second.getValue(SectionId.MUSIC).collect() // releases it
+                logs.await()
+            }
+        }
 }

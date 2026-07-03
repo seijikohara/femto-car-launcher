@@ -1,6 +1,5 @@
 package io.github.seijikohara.femto.data.diagnostics
 
-import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -17,9 +16,7 @@ private const val MAX_LOG_LINES = 80
  * `READ_LOGS` (uid-filtered since Android 4.1); on builds that restrict even
  * that, the section degrades to empty with one WARN.
  */
-internal class LogTailCollector(
-    private val context: Context,
-) {
+internal class LogTailCollector {
     suspend fun logTail(): SectionPayload.LogTail =
         withContext(Dispatchers.IO) {
             SectionPayload.LogTail(recentWarningLinesOrEmpty())
