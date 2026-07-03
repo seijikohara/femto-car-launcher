@@ -111,6 +111,8 @@ internal fun DashboardScaffold(
     modifier: Modifier = Modifier,
     dockPosition: DockPosition = DockPosition.BOTTOM,
     spectrum: StateFlow<FloatArray?>? = null,
+    musicShowAlbum: Boolean = true,
+    musicShowArt: Boolean = true,
 ) = DashboardContent(
     uiState = uiState,
     is24Hour = is24Hour,
@@ -127,6 +129,8 @@ internal fun DashboardScaffold(
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.systemBars),
     spectrum = spectrum,
+    musicShowAlbum = musicShowAlbum,
+    musicShowArt = musicShowArt,
 )
 
 // The full-screen dashboard body: the map fills the viewport as the background
@@ -147,6 +151,8 @@ private fun DashboardContent(
     dockPosition: DockPosition,
     modifier: Modifier = Modifier,
     spectrum: StateFlow<FloatArray?>? = null,
+    musicShowAlbum: Boolean = true,
+    musicShowArt: Boolean = true,
 ) = BoxWithConstraints(modifier = modifier) {
     val compact = maxHeight < CompactHeightBreakpoint || maxWidth < CompactWidthBreakpoint
     val portrait = maxHeight > maxWidth
@@ -363,6 +369,8 @@ private fun DashboardContent(
                 onExpandCalendar = { calendarExpanded = true },
                 onExpandWeather = { weatherExpanded = true },
                 spectrum = spectrum,
+                musicShowAlbum = musicShowAlbum,
+                musicShowArt = musicShowArt,
                 modifier =
                     if (bottomCards) {
                         Modifier
@@ -405,6 +413,8 @@ private fun DashboardContent(
                     hazeState = hazeState,
                     glassConfig = glassConfig,
                     spectrum = spectrum,
+                    showAlbum = musicShowAlbum,
+                    showArt = musicShowArt,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -530,6 +540,8 @@ private fun FloatingCardColumn(
     onExpandWeather: () -> Unit,
     modifier: Modifier = Modifier,
     spectrum: StateFlow<FloatArray?>? = null,
+    musicShowAlbum: Boolean = true,
+    musicShowArt: Boolean = true,
 ) {
     val calendar: @Composable (Modifier) -> Unit = { cardModifier ->
         CalendarCard(
@@ -564,6 +576,8 @@ private fun FloatingCardColumn(
             glassConfig = glassConfig,
             modifier = cardModifier,
             spectrum = spectrum,
+            showAlbum = musicShowAlbum,
+            showArt = musicShowArt,
         )
     }
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(cardGap)) {

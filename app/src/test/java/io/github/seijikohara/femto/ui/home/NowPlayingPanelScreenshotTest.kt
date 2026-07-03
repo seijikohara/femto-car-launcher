@@ -61,10 +61,18 @@ class NowPlayingPanelScreenshotTest {
     @Config(qualifiers = "w412dp-h915dp-mdpi")
     fun nowplaying_phone_portrait_spectrum() = capture("phone-portrait-412x915-spectrum", FULL, mockSpectrum())
 
+    // Both meta toggles off: the minimal, metadata-only player (no album line,
+    // no cover art) that the album/art visibility settings produce.
+    @Test
+    @Config(qualifiers = "w853dp-h512dp-mdpi")
+    fun nowplaying_head_unit_minimal() = capture("head-unit-853x512-minimal", FULL, showAlbum = false, showArt = false)
+
     private fun capture(
         name: String,
         state: NowPlaying,
         spectrum: StateFlow<FloatArray?>? = null,
+        showAlbum: Boolean = true,
+        showArt: Boolean = true,
     ) {
         captureRoboImage(filePath = "src/test/screenshots/nowplaying-$name.png", roborazziOptions = OPTIONS) {
             FemtoTheme {
@@ -75,6 +83,8 @@ class NowPlayingPanelScreenshotTest {
                     onClose = {},
                     modifier = Modifier.fillMaxSize(),
                     spectrum = spectrum,
+                    showAlbum = showAlbum,
+                    showArt = showArt,
                 )
             }
         }

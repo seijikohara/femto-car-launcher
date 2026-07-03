@@ -32,6 +32,8 @@ internal fun HomeRoute(
     onEvent: (HomeEvent) -> Unit,
     modifier: Modifier = Modifier,
     dockPosition: DockPosition = DockPosition.BOTTOM,
+    musicShowAlbum: Boolean = true,
+    musicShowArt: Boolean = true,
 ) {
     val context = LocalContext.current
     val viewModel: HomeViewModel =
@@ -54,6 +56,8 @@ internal fun HomeRoute(
         onAction = viewModel::onAction,
         modifier = modifier,
         dockPosition = dockPosition,
+        musicShowAlbum = musicShowAlbum,
+        musicShowArt = musicShowArt,
         spectrum = viewModel.audioSpectrum,
     )
 }
