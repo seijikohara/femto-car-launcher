@@ -88,11 +88,10 @@ internal fun DiagnosticsScreen(
                 // sections are still streaming in, an all-clear would be a
                 // verdict on data that does not exist yet.
                 val collected = uiState.sections.all { it.payload != null }
+                val emptyStateRes =
+                    if (collected) R.string.diagnostics_no_problems else R.string.diagnostics_section_collecting
                 Text(
-                    text =
-                        stringResource(
-                            if (collected) R.string.diagnostics_no_problems else R.string.diagnostics_section_collecting,
-                        ),
+                    text = stringResource(emptyStateRes),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
