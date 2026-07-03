@@ -82,10 +82,8 @@ internal fun computeFrameStats(
 // Capture vsync-callback intervals on the main thread for a short window.
 // postFrameCallback re-arms every vsync whether or not content changed, so
 // a stretched interval means the MAIN THREAD was busy past its deadline —
-// the direct cause of "taps feel laggy" — independent of GPU load. Internal
-// (not private to the collector) so the legacy PerformanceProbe shares this
-// one mechanism until the ViewModel/UI swap task deletes it.
-internal suspend fun sampleFrameStats(delayedThresholdMs: Long): FrameStats? =
+// the direct cause of "taps feel laggy" — independent of GPU load.
+private suspend fun sampleFrameStats(delayedThresholdMs: Long): FrameStats? =
     withContext(Dispatchers.Main) {
         val intervals = mutableListOf<Long>()
         // The Choreographer goes quiet when the display sleeps or the host

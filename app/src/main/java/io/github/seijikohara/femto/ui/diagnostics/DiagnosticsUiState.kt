@@ -1,28 +1,26 @@
 package io.github.seijikohara.femto.ui.diagnostics
 
-import io.github.seijikohara.femto.data.diagnostics.DiagnosticsSnapshot
-import io.github.seijikohara.femto.data.diagnostics.PerformanceSnapshot
-import io.github.seijikohara.femto.data.music.MusicCardState
-import io.github.seijikohara.femto.data.music.SpectrumDiagnosis
+import io.github.seijikohara.femto.data.diagnostics.DiagnosticSection
+import io.github.seijikohara.femto.data.diagnostics.SectionId
 
 internal data class DiagnosticsUiState(
-    val isLoading: Boolean = true,
-    // null until the first collection lands (or when it failed — the screen
-    // shows the unavailable row and the report says so explicitly).
-    val snapshot: DiagnosticsSnapshot? = null,
-    // null until the first probe completes; the probe is only meaningful
-    // while music is playing, which the screen calls out.
-    val spectrum: SpectrumDiagnosis? = null,
-    val musicState: MusicCardState? = null,
-    // null until the first collection lands; degrades independently like the
-    // other probes.
-    val performance: PerformanceSnapshot? = null,
+    // Always one section per SectionId, in enum order; a null payload means
+    // that collector is still running (the streaming skeleton).
+    val sections: List<DiagnosticSection>,
+    val problemsOnly: Boolean = false,
+    // True for a short pulse after a copy so the button can confirm.
+    val copyConfirmed: Boolean = false,
 ) {
     companion object {
-        val Initial: DiagnosticsUiState = DiagnosticsUiState()
+        val Initial: DiagnosticsUiState =
+            DiagnosticsUiState(SectionId.entries.map { DiagnosticSection(it, null) })
     }
 }
 
 internal sealed interface DiagnosticsAction {
     data object Refresh : DiagnosticsAction
+
+    data object CopyReport : DiagnosticsAction
+
+    data object ToggleProblemsOnly : DiagnosticsAction
 }

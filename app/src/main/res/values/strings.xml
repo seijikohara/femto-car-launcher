@@ -318,6 +318,7 @@
     <string name="diagnostics_refresh">Refresh</string>
     <string name="diagnostics_loading">Collecting…</string>
     <string name="diagnostics_copy">Copy report</string>
+    <string name="diagnostics_copied">Copied</string>
     <string name="diagnostics_unavailable">Diagnostics collection failed; see the app logs.</string>
     <string name="diagnostics_section_build">Build</string>
     <string name="diagnostics_section_permissions">Permissions</string>
