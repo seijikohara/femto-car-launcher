@@ -41,7 +41,15 @@ class DisplayPreferencesTest {
             store.setKeepScreenOn(false)
             store.setMapZoom(DEFAULT_MAP_ZOOM + 2)
             store.setMusicSpectrum(true)
+            store.setMusicShowAlbum(false)
+            store.setMusicShowArt(false)
             assertNotEquals(DisplaySettings.Default, store.settings.first())
+
+            // The two music-meta toggles persist and read back independently.
+            store.settings.first().let { persisted ->
+                assertFalse(persisted.musicShowAlbum)
+                assertFalse(persisted.musicShowArt)
+            }
 
             // resetToDefaults() clears every key, so the read falls back to Default
             // for all fields at once.

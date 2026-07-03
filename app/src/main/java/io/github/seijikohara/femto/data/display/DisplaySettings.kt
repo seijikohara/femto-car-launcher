@@ -162,6 +162,13 @@ internal data class DisplaySettings(
     // and its Visualizer capture sits behind the RECORD_AUDIO runtime grant,
     // so a fresh install must never prompt for it.
     val musicSpectrum: Boolean,
+    // Whether the music card and the full-screen player show the album name.
+    // Defaults true (the album line is shown); users who find it redundant with
+    // the title can hide it. See musicShowArt for the cover-art counterpart.
+    val musicShowAlbum: Boolean,
+    // Whether the music card and the full-screen player show the album artwork.
+    // Defaults true; hiding it yields a metadata-only, minimal player.
+    val musicShowArt: Boolean,
     // Map backend: OSM (MapLibre + OpenFreeMap, free) or MAPBOX (requires a user-supplied token).
     val mapBackend: MapBackend = MapBackend.OSM,
     // Mapbox base style, only meaningful when mapBackend == MAPBOX.
@@ -209,6 +216,8 @@ internal data class DisplaySettings(
                 showWeather = true,
                 showMusic = true,
                 musicSpectrum = false,
+                musicShowAlbum = true,
+                musicShowArt = true,
                 mapBackend = MapBackend.OSM,
                 mapboxStyle = MapboxStyle.STANDARD,
                 mapboxTraffic = false,

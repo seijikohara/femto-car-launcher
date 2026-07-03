@@ -99,6 +99,10 @@ internal interface DisplaySettingsStore {
 
     suspend fun setMusicSpectrum(value: Boolean)
 
+    suspend fun setMusicShowAlbum(value: Boolean)
+
+    suspend fun setMusicShowArt(value: Boolean)
+
     suspend fun setMapBackend(value: MapBackend)
 
     suspend fun setMapboxStyle(value: MapboxStyle)
@@ -161,6 +165,8 @@ internal class DisplayPreferences(
                     showWeather = prefs[SHOW_WEATHER_KEY] ?: true,
                     showMusic = prefs[SHOW_MUSIC_KEY] ?: true,
                     musicSpectrum = prefs[MUSIC_SPECTRUM_KEY] ?: false,
+                    musicShowAlbum = prefs[MUSIC_SHOW_ALBUM_KEY] ?: true,
+                    musicShowArt = prefs[MUSIC_SHOW_ART_KEY] ?: true,
                     mapBackend = prefs[MAP_BACKEND_KEY].toEnumOr(MapBackend.OSM),
                     mapboxStyle = prefs[MAPBOX_STYLE_KEY].toEnumOr(MapboxStyle.STANDARD),
                     mapboxTraffic = prefs[MAPBOX_TRAFFIC_KEY] ?: false,
@@ -298,6 +304,14 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[MUSIC_SPECTRUM_KEY] = value }
     }
 
+    override suspend fun setMusicShowAlbum(value: Boolean) {
+        context.displayDataStore.editOrLog(TAG) { it[MUSIC_SHOW_ALBUM_KEY] = value }
+    }
+
+    override suspend fun setMusicShowArt(value: Boolean) {
+        context.displayDataStore.editOrLog(TAG) { it[MUSIC_SHOW_ART_KEY] = value }
+    }
+
     override suspend fun setMapBackend(value: MapBackend) {
         context.displayDataStore.editOrLog(TAG) { it[MAP_BACKEND_KEY] = value.name }
     }
@@ -365,6 +379,8 @@ internal class DisplayPreferences(
         val SHOW_WEATHER_KEY = booleanPreferencesKey("show_weather")
         val SHOW_MUSIC_KEY = booleanPreferencesKey("show_music")
         val MUSIC_SPECTRUM_KEY = booleanPreferencesKey("music_spectrum")
+        val MUSIC_SHOW_ALBUM_KEY = booleanPreferencesKey("music_show_album")
+        val MUSIC_SHOW_ART_KEY = booleanPreferencesKey("music_show_art")
         val MAP_BACKEND_KEY = stringPreferencesKey("map_backend")
         val MAPBOX_STYLE_KEY = stringPreferencesKey("mapbox_style")
         val MAPBOX_TRAFFIC_KEY = booleanPreferencesKey("mapbox_traffic")
