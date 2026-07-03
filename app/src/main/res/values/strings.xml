@@ -313,45 +313,41 @@
     <string name="settings_open_licenses">Open source licenses</string>
     <string name="settings_open_privacy">Privacy policy</string>
 
-    <!-- Diagnostics sheet -->
+    <!-- Diagnostics sheet. Section titles and UI chrome are localized; fact
+         labels and values render the model's raw English tokens (the report's
+         grep contract, see DiagnosticsModel.kt). -->
     <string name="diagnostics_title">Diagnostics</string>
     <string name="diagnostics_refresh">Refresh</string>
     <string name="diagnostics_loading">Collecting…</string>
     <string name="diagnostics_copy">Copy report</string>
-    <string name="diagnostics_unavailable">Diagnostics collection failed; see the app logs.</string>
-    <string name="diagnostics_section_build">Build</string>
+    <string name="diagnostics_copied">Copied</string>
+    <string name="diagnostics_summary_issues">%1$d issue(s) found</string>
+    <string name="diagnostics_summary_ok">No issues detected</string>
+    <string name="diagnostics_summary_collecting">Collecting…</string>
+    <string name="diagnostics_problems_only">Problems only</string>
+    <string name="diagnostics_copy_logs">Copy log section</string>
+    <string name="diagnostics_expand_section">Expand %1$s</string>
+    <string name="diagnostics_collapse_section">Collapse %1$s</string>
+    <string name="diagnostics_section_unavailable">Unavailable (collection failed)</string>
+    <string name="diagnostics_section_collecting">Collecting…</string>
+    <string name="diagnostics_no_problems">Everything looks healthy.</string>
+    <string name="diagnostics_section_app">App</string>
+    <string name="diagnostics_section_crash_history">Crash history</string>
+    <string name="diagnostics_section_device">Device</string>
+    <string name="diagnostics_section_display">Display</string>
+    <string name="diagnostics_section_graphics">Graphics</string>
     <string name="diagnostics_section_permissions">Permissions</string>
     <string name="diagnostics_section_music">Music</string>
     <string name="diagnostics_section_network">Network</string>
-    <string name="diagnostics_section_logs">Recent warnings (%1$d)</string>
+    <string name="diagnostics_section_location">Location &amp; sensors</string>
+    <string name="diagnostics_section_locale_time">Locale &amp; time</string>
     <string name="diagnostics_section_performance">Performance</string>
-    <string name="diagnostics_section_map_settings">Map settings</string>
-    <string name="diagnostics_thermal">Thermal status</string>
-    <string name="diagnostics_device_memory">Device memory free</string>
-    <string name="diagnostics_app_memory">App: PSS %1$d MB · Java heap %2$d/%3$d MB · native %4$d MB</string>
-    <string name="diagnostics_uptime">Uptime: process %1$dh %2$dm · device %3$dh %4$dm</string>
-    <string name="diagnostics_frames">UI frames</string>
-    <string name="diagnostics_frames_value">med %1$d ms · worst %2$d ms · delayed %3$d%%</string>
-    <string name="diagnostics_thermal_headroom">%1$s · headroom %2$s</string>
-    <string name="diagnostics_webview_value">WebView: %1$s</string>
-    <string name="diagnostics_webview_unknown">WebView: unknown provider</string>
-    <string name="diagnostics_granted">Granted</string>
-    <string name="diagnostics_denied">Denied</string>
-    <string name="diagnostics_enabled">Enabled</string>
-    <string name="diagnostics_disabled">Disabled</string>
-    <string name="diagnostics_listener">Notification listener</string>
-    <string name="diagnostics_music_session">Session: %1$s</string>
-    <string name="diagnostics_spectrum">Spectrum capture</string>
-    <string name="diagnostics_spectrum_active">Signal detected</string>
-    <string name="diagnostics_spectrum_silent">Running, stream silent</string>
-    <string name="diagnostics_spectrum_engine">Engine unavailable</string>
-    <string name="diagnostics_spectrum_no_permission">No mic permission</string>
-    <string name="diagnostics_spectrum_not_probed">Not probed</string>
+    <string name="diagnostics_section_storage">Storage</string>
+    <string name="diagnostics_section_input">Input</string>
+    <string name="diagnostics_section_webview">WebView</string>
+    <string name="diagnostics_section_settings">Settings</string>
+    <string name="diagnostics_section_logs">Recent warnings (%1$d)</string>
     <string name="diagnostics_spectrum_hint">Probe the spectrum while music is playing: silence here with an active session means the player bypasses the audio mixer.</string>
-    <string name="diagnostics_network">Connectivity</string>
-    <string name="diagnostics_online">Online (%1$s)</string>
-    <string name="diagnostics_offline">Offline</string>
-    <string name="diagnostics_logs_empty">No recent warnings, or log access is restricted on this device.</string>
 
     <string name="settings_reset_to_defaults">Reset to defaults</string>
     <string name="settings_reset_confirm_title">Reset all settings?</string>
