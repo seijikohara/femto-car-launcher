@@ -2,22 +2,23 @@ package io.github.seijikohara.femto.ui.home.components.driving
 
 import android.location.Location
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Lucide
@@ -52,7 +53,6 @@ import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.bigNumber
-import io.github.seijikohara.femto.ui.theme.glanceBody
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import io.github.seijikohara.femto.ui.theme.weatherGlyphs
 import java.time.Instant
@@ -76,6 +76,12 @@ import kotlin.math.roundToInt
  * overlay's per-fix EMA smoothing. Every glass surface samples the shared
  * [hazeState] + [glassConfig], so the driving face blurs the same map the
  * cockpit face does.
+ *
+ * The face is a [BoxWithConstraints] so the bottom bar reflows against the actual
+ * pane width, and it takes the responsive [outerPad] its host computes so its
+ * margins match the cockpit and dock. It reports the bar's glass-card height via
+ * [onBarHeightChange] so the host can reserve a bottom safe band exactly tall
+ * enough to keep the self-marker above the bar.
  */
 @Composable
 internal fun DrivingOverlays(
@@ -84,9 +90,11 @@ internal fun DrivingOverlays(
     temperatureUnit: TemperatureUnit,
     glassConfig: GlassConfig,
     hazeState: HazeState,
+    outerPad: Dp,
+    onBarHeightChange: (Int) -> Unit,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
-) = Box(modifier = modifier.fillMaxSize()) {
+) = BoxWithConstraints(modifier = modifier.fillMaxSize()) {
     // Location strip, top: road name + city, plus a heading badge. Rendered only
     // when a road or city has resolved so the face never floats an empty glass
     // pill before the first reverse-geocode lands.
@@ -104,13 +112,20 @@ internal fun DrivingOverlays(
         LocationStrip(
             road = road,
             city = city,
-            heading = heading,
+            // The centred PassengerPill leaves a narrow pane too little room for the
+            // road AND the heading badge, so the badge drops there and the road keeps
+            // the space; wide panes show both.
+            heading = heading.takeIf { maxWidth >= BarTitleBreakpoint },
             hazeState = hazeState,
             glassConfig = glassConfig,
             modifier =
                 Modifier
                     .align(Alignment.TopStart)
-                    .padding(FemtoDimens.ScreenPadding),
+                    .padding(outerPad)
+                    // Cap the strip so it ellipsizes before reaching the centred
+                    // PassengerPill (a top-level sibling drawn over this face). Without
+                    // the cap a long road + city runs under the pill on a narrow pane.
+                    .widthIn(max = (maxWidth / 2 - PassengerPillClearance).coerceAtLeast(0.dp)),
         )
     }
 
@@ -121,11 +136,19 @@ internal fun DrivingOverlays(
         onAction = onAction,
         hazeState = hazeState,
         glassConfig = glassConfig,
+        // Below the narrow breakpoint the big speed + full transport already fill the
+        // bar, so the now-playing title and the briefing are dropped in turn as the
+        // pane widens: transport-only, then title, then the briefing.
+        showTitle = maxWidth >= BarTitleBreakpoint,
+        showBriefing = maxWidth >= BarBriefingBreakpoint,
         modifier =
             Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(FemtoDimens.ScreenPadding),
+                .padding(outerPad)
+                // Report the bar's glass-card height (outerPad is applied above this
+                // node, so it is excluded) so the host reserves the marker's bottom band.
+                .onSizeChanged { onBarHeightChange(it.height) },
     )
 }
 
@@ -152,7 +175,7 @@ private fun LocationStrip(
         imageVector = Lucide.MapPin,
         contentDescription = null,
         tint = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.size(FemtoDimens.WeatherGlyphSmall),
+        modifier = Modifier.size(FemtoDimens.InlineIconSize),
     )
     Text(
         text = listOfNotNull(road, city.takeIf { it.isNotBlank() }).joinToString(" · "),
@@ -160,6 +183,9 @@ private fun LocationStrip(
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
+        // Weight lets the road + city ellipsize within the strip's capped width while
+        // the fixed heading badge beside it always keeps its two letters.
+        modifier = Modifier.weight(1f, fill = false),
     )
     // The heading badge never wraps or shrinks — a two-letter point label always
     // fits, and truncating it would leave an ambiguous single letter behind.
@@ -182,6 +208,8 @@ private fun DrivingBar(
     onAction: (HomeAction) -> Unit,
     hazeState: HazeState,
     glassConfig: GlassConfig,
+    showTitle: Boolean,
+    showBriefing: Boolean,
     modifier: Modifier = Modifier,
 ) = Row(
     modifier =
@@ -192,25 +220,40 @@ private fun DrivingBar(
                 vertical = FemtoDimens.OverlayPaddingVertical,
             ),
     verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(16.dp),
+    // Spread the segments across the full bar: big speed pinned left, the briefing
+    // (widest panes only) pinned right, the now-playing cluster centred between them.
+    // The bar reads balanced with or without music instead of huddling to the left,
+    // and every child keeps its intrinsic width so none collapses to zero.
+    horizontalArrangement = Arrangement.SpaceBetween,
 ) {
-    BigSpeed(location = uiState.location, tripState = uiState.tripState, speedUnit = speedUnit)
+    // The narrow bar shrinks the hero numeral so the fixed-width transport row still
+    // fits beside it; the wider bars keep the full-size speed.
+    BigSpeed(
+        location = uiState.location,
+        tripState = uiState.tripState,
+        speedUnit = speedUnit,
+        numeralSize = if (showTitle) BigSpeedFontFull else BigSpeedFontCompact,
+    )
 
-    // Now-playing mini + transport, gated on Playing exactly like the music card.
+    // Now-playing, gated on Playing exactly like the music card. A narrow bar has no
+    // room for the title beside the big speed, so it keeps just the transport controls
+    // (playback stays operable); wider bars add the music glyph + ellipsizing title.
     (uiState.musicState as? MusicCardState.Playing)?.let { playing ->
-        BarDivider()
-        NowPlayingMini(
-            nowPlaying = playing.nowPlaying,
-            onAction = onAction,
-            modifier = Modifier.weight(1f),
-        )
+        if (showTitle) {
+            NowPlayingMini(nowPlaying = playing.nowPlaying, onAction = onAction)
+        } else {
+            TransportRow(
+                isPlaying = playing.nowPlaying.isPlaying,
+                onCommand = { onAction(HomeAction.Music(it)) },
+            )
+        }
     }
 
-    // Briefing line: next event + weather one-liner. Rendered only when at least
-    // one half has data so an empty bar segment never carries a stray divider.
+    // Briefing line: next event + weather one-liner. Only the widest bars carry it —
+    // it needs room the big speed + transport leave on a narrow pane — and only when
+    // at least one half has data.
     val nextEvent = uiState.calendar.nextUpcomingEventOrNull(uiState.clock)
-    if (nextEvent != null || uiState.weather != null) {
-        BarDivider()
+    if (showBriefing && (nextEvent != null || uiState.weather != null)) {
         Briefing(nextEvent = nextEvent, weather = uiState.weather, temperatureUnit = temperatureUnit)
     }
 }
@@ -220,6 +263,7 @@ private fun BigSpeed(
     location: Location?,
     tripState: TripState,
     speedUnit: SpeedUnit,
+    numeralSize: TextUnit,
 ) = Row(
     verticalAlignment = Alignment.Bottom,
     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -232,7 +276,7 @@ private fun BigSpeed(
             ?: NO_SPEED_PLACEHOLDER
     Text(
         text = speedText,
-        style = MaterialTheme.typography.bigNumber(size = 72.sp),
+        style = MaterialTheme.typography.bigNumber(size = numeralSize),
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
     )
@@ -267,7 +311,9 @@ private fun NowPlayingMini(
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.weight(1f),
+        // Cap the title and let it ellipsize so the transport stays attached to it as
+        // one compact cluster rather than drifting to the far edge on a wide bar.
+        modifier = Modifier.widthIn(max = NowPlayingTitleMaxWidth),
     )
     TransportRow(
         isPlaying = nowPlaying.isPlaying,
@@ -287,16 +333,19 @@ private fun Briefing(
     if (nextEvent != null) {
         Text(
             text = nextEvent.briefingLabel(),
-            style = MaterialTheme.typography.glanceBody().copy(fontWeight = FontWeight.Medium),
+            style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            // Cap the event so a long title ellipsizes instead of pushing the weather
+            // off a tight bar; the weather half keeps its intrinsic width.
+            modifier = Modifier.widthIn(max = BriefingEventMaxWidth),
         )
     }
     if (nextEvent != null && weather != null) {
         Text(
             text = "·",
-            style = MaterialTheme.typography.glanceBody(),
+            style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
@@ -316,7 +365,7 @@ private fun WeatherOneLiner(
     val glyphs = weatherGlyphs()
     Text(
         text = "${temperatureUnit.fromCelsius(weather.tempC).roundToInt()}${temperatureUnit.label()}",
-        style = MaterialTheme.typography.glanceBody().copy(fontWeight = FontWeight.Medium),
+        style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
     )
@@ -324,18 +373,9 @@ private fun WeatherOneLiner(
         imageVector = glyphIconFor(weather.code, weather.isDay),
         contentDescription = null,
         tint = glyphTintFor(weather.code, weather.isDay, glyphs),
-        modifier = Modifier.size(FemtoDimens.WeatherGlyphSmall),
+        modifier = Modifier.size(FemtoDimens.InlineIconSize),
     )
 }
-
-// A thin vertical hairline between the bar's segments, at the shared divider
-// weight the dashboard's other overlays use.
-@Composable
-private fun BarDivider() =
-    VerticalDivider(
-        modifier = Modifier.height(40.dp),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha),
-    )
 
 // "10:30 Team standup" for a timed event, the title alone for an all-day one.
 // 24-hour notation for v1 — the driving face carries no 12/24h setting yet.
@@ -346,6 +386,26 @@ private val BriefingTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPatte
 // Em-dash stands in for the live speed with no fix, mirroring SpeedOverlay's
 // permissions contract (an unknown speed is never shown as "0").
 private const val NO_SPEED_PLACEHOLDER = "—"
+
+// Horizontal room reserved between the location strip and the centred PassengerPill:
+// the strip caps its width to `paneWidth / 2 - this` so it ellipsizes before the pill.
+private val PassengerPillClearance = 90.dp
+
+// Bar breakpoints on the pane width. Below [BarTitleBreakpoint] the big speed shrinks
+// and the now-playing title drops (transport only) so the fixed transport row fits;
+// [BarBriefingBreakpoint] is where the briefing has room to join the speed + music.
+private val BarTitleBreakpoint = 720.dp
+private val BarBriefingBreakpoint = 840.dp
+
+// Hero-speed numeral sizes: the full glance size on wide bars, a compact size on the
+// narrow bar so the big number and the fixed-width transport row coexist.
+private val BigSpeedFontFull = 72.sp
+private val BigSpeedFontCompact = 40.sp
+
+// Caps that keep the now-playing title and the briefing event ellipsizing instead of
+// stretching the bar or shoving the weather / transport off a tight pane.
+private val NowPlayingTitleMaxWidth = 220.dp
+private val BriefingEventMaxWidth = 200.dp
 
 @PreviewLightDark
 @Preview(name = "Driving face", widthDp = 640, heightDp = 360)
@@ -358,6 +418,8 @@ private fun DrivingOverlaysPreview() {
             temperatureUnit = TemperatureUnit.CELSIUS,
             glassConfig = GlassConfig(),
             hazeState = rememberHazeState(),
+            outerPad = FemtoDimens.ScreenPadding,
+            onBarHeightChange = {},
             onAction = {},
         )
     }

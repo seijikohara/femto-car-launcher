@@ -16,6 +16,7 @@ import io.github.seijikohara.femto.ui.home.HomeUiState
 import io.github.seijikohara.femto.ui.home.components.driving.DrivingOverlays
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
+import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
@@ -45,6 +46,8 @@ class DrivingOverlaysTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     glassConfig = GlassConfig(),
                     hazeState = rememberHazeState(),
+                    outerPad = FemtoDimens.ScreenPadding,
+                    onBarHeightChange = {},
                     onAction = {},
                 )
             }

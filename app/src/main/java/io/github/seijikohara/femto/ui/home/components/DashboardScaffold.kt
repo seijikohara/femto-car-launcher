@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -204,6 +205,7 @@ private fun DashboardContent(
     var bearingDeg by remember { mutableFloatStateOf(0f) }
     var recenterNonce by remember { mutableIntStateOf(0) }
     var overlayHeightPx by remember { mutableIntStateOf(0) }
+    var drivingBarHeightPx by remember { mutableIntStateOf(0) }
 
     val density = LocalDensity.current
     // The dock floats over the map as a rounded panel, inset from its edge by
@@ -252,6 +254,23 @@ private fun DashboardContent(
             }
         }
 
+    // The driving face reserves a measured bottom band: the driving bar's glass-card
+    // height (reported below via onBarHeightChange) plus the dock, the panel gap, and
+    // the marker clearance — mirroring the cockpit speed-overlay reservation above so
+    // the self-marker drops above the bar on any geometry / UI-scale instead of behind
+    // a hand-tuned constant.
+    val drivingBottomSafeFraction =
+        with(density) {
+            val heightPx = maxHeight.roundToPx()
+            if (heightPx > 0) {
+                val dockBottom = if (dockPosition == DockPosition.BOTTOM) dockExtent else 0.dp
+                val reserved = drivingBarHeightPx + (dockBottom + cardGap + MarkerOverlayClearance).toPx()
+                (reserved / heightPx).coerceIn(0f, 0.5f)
+            } else {
+                0f
+            }
+        }
+
     // The map reads ONE safe-area pair, picked by the visible face, so its camera
     // padding tracks whichever overlay tree is on screen. Cockpit reserves the
     // right column + bottom band computed above; driving clears only a bottom band
@@ -260,7 +279,7 @@ private fun DashboardContent(
     val (activeRightSafe, activeBottomSafe) =
         when (activePreset) {
             PresetId.COCKPIT -> rightSafeFraction to bottomSafeFraction
-            PresetId.DRIVING -> 0f to DRIVING_BOTTOM_SAFE_FRACTION
+            PresetId.DRIVING -> 0f to drivingBottomSafeFraction
         }
 
     // The map fills the whole viewport, behind the dock and every overlay. It is a
@@ -328,6 +347,8 @@ private fun DashboardContent(
                     temperatureUnit = temperatureUnit,
                     glassConfig = glassConfig,
                     hazeState = hazeState,
+                    outerPad = outerPad,
+                    onBarHeightChange = { drivingBarHeightPx = it },
                     onAction = onAction,
                     modifier = Modifier.fillMaxSize().padding(dockEdgePadding(dockPosition, dockExtent)),
                 )
@@ -402,6 +423,11 @@ private fun PassengerPill(
                 .semantics { contentDescription = description }
                 .heightIn(min = FemtoDimens.MinTouchTarget)
                 .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
+                // Unlike the frameless map overlays, this control carries a hairline
+                // outline so the affordance stays legible where the glass tint alone
+                // vanishes into a light map (the frameless-glass exception noted in
+                // glassChrome's KDoc).
+                .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.large)
                 .clickable(onClick = onToggle)
                 .padding(
                     horizontal = FemtoDimens.OverlayPaddingHorizontal,
@@ -820,14 +846,6 @@ private val CardClusterMaxHeight: Dp = 680.dp
 // The share of the height the portrait bottom card band takes (capped by
 // CardClusterMaxHeight on tall panels).
 private const val PORTRAIT_CARD_HEIGHT_FRACTION = 0.52f
-
-// The bottom safe band the map reserves under the DRIVING face: the full-width
-// driving bar (big speed + now-playing + briefing) plus the dock beneath it, so
-// the self-marker drops above the bar rather than behind it. Fixed (the driving
-// bar's height is layout-stable, unlike the cockpit's card cluster), and a share
-// of the viewport so it eases off on tall displays. Sized against the 512 dp head
-// unit where the bar + dock are the tallest proportion.
-private const val DRIVING_BOTTOM_SAFE_FRACTION = 0.32f
 
 // The music card's weight against the calendar + weather row in the floating column.
 // It carries the most content (album art + title / artist / album + progress + the
