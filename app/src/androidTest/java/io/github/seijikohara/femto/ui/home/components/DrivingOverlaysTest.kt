@@ -54,7 +54,7 @@ class DrivingOverlaysTest {
         }
         // 18 m/s -> 64.8 km/h -> 65: the big-speed numeral renders the rounded value.
         rule.onNodeWithText("65").assertExists()
-        // The now-playing mini reuses TransportRow, so the play/pause button shows.
+        // Transport controls render (reusing TransportRow) so play/pause is reachable.
         rule.onNodeWithContentDescription("Play / pause").assertIsDisplayed()
         // The location strip shows the road name...
         rule.onNodeWithText("Oak St", substring = true).assertIsDisplayed()

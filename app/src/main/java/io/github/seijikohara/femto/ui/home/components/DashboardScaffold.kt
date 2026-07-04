@@ -384,9 +384,10 @@ private fun DashboardContent(
     // Passenger-unlock pill: persistent chrome like the dock, a TOP-LEVEL SIBLING
     // OUTSIDE the crossfade so it survives the face switch rather than fading with a
     // face. Shown only while the driving face is on screen or the user has already
-    // unlocked, so the resting cockpit (the default) renders no pill. Pinned
-    // top-centre, clear of the clock (top-end), the cards, the speed / driving bar
-    // (bottom-centre), and the dock (inset by its footprint).
+    // unlocked, so the resting cockpit (the default) renders no pill. On the driving
+    // face it anchors top-end — that face has no card column, so the corner is free and
+    // the location strip keeps the whole top-start; the passenger-unlocked cockpit keeps
+    // it top-centre, clear of the cards at top-end. Inset by the dock footprint.
     val showPassengerPill = passengerUnlocked || activePreset == PresetId.DRIVING
     if (showPassengerPill) {
         PassengerPill(
@@ -396,7 +397,7 @@ private fun DashboardContent(
             glassConfig = glassConfig,
             modifier =
                 Modifier
-                    .align(Alignment.TopCenter)
+                    .align(if (activePreset == PresetId.DRIVING) Alignment.TopEnd else Alignment.TopCenter)
                     .padding(dockEdgePadding(dockPosition, dockExtent))
                     .padding(outerPad),
         )

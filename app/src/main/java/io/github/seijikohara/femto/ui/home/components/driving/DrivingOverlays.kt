@@ -112,20 +112,17 @@ internal fun DrivingOverlays(
         LocationStrip(
             road = road,
             city = city,
-            // The centred PassengerPill leaves a narrow pane too little room for the
-            // road AND the heading badge, so the badge drops there and the road keeps
-            // the space; wide panes show both.
-            heading = heading.takeIf { maxWidth >= BarTitleBreakpoint },
+            heading = heading,
             hazeState = hazeState,
             glassConfig = glassConfig,
             modifier =
                 Modifier
                     .align(Alignment.TopStart)
                     .padding(outerPad)
-                    // Cap the strip so it ellipsizes before reaching the centred
-                    // PassengerPill (a top-level sibling drawn over this face). Without
-                    // the cap a long road + city runs under the pill on a narrow pane.
-                    .widthIn(max = (maxWidth / 2 - PassengerPillClearance).coerceAtLeast(0.dp)),
+                    // Reserve the top-right for the PassengerPill (a top-level sibling
+                    // anchored top-end on the driving face) so a long road + city
+                    // ellipsizes before reaching it rather than running underneath.
+                    .widthIn(max = (maxWidth - PassengerPillReserve).coerceAtLeast(0.dp)),
         )
     }
 
@@ -387,9 +384,10 @@ private val BriefingTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPatte
 // permissions contract (an unknown speed is never shown as "0").
 private const val NO_SPEED_PLACEHOLDER = "—"
 
-// Horizontal room reserved between the location strip and the centred PassengerPill:
-// the strip caps its width to `paneWidth / 2 - this` so it ellipsizes before the pill.
-private val PassengerPillClearance = 90.dp
+// Right-side room the location strip leaves for the PassengerPill (top-end on the
+// driving face): the pill's own width plus its edge margin, so a long road + city
+// ellipsizes before reaching it.
+private val PassengerPillReserve = 190.dp
 
 // Bar breakpoints on the pane width. Below [BarTitleBreakpoint] the big speed shrinks
 // and the now-playing title drops (transport only) so the fixed transport row fits;
