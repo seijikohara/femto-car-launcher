@@ -33,8 +33,9 @@ class DrivingOverlaysTest {
                         HomeUiState.Initial.copy(
                             // A non-null fix keeps the hero numeral on the live-speed
                             // path (not the no-fix em-dash); the trip supplies the value.
-                            location = fakeLocation(),
-                            address = fakeAddress(),
+                            // A 90 degree bearing also exercises the heading badge (-> "E").
+                            location = fakeLocation(bearingDegrees = 90f),
+                            address = fakeAddress(road = "Oak St"),
                             tripState = fakeTripState(currentSpeedMs = 18.0),
                             musicState = MusicCardState.Playing(fakeNowPlaying()),
                             weather = fakeWeatherSnapshot(),
@@ -52,5 +53,9 @@ class DrivingOverlaysTest {
         rule.onNodeWithText("65").assertExists()
         // The now-playing mini reuses TransportRow, so the play/pause button shows.
         rule.onNodeWithContentDescription("Play / pause").assertIsDisplayed()
+        // The location strip shows the road name...
+        rule.onNodeWithText("Oak St", substring = true).assertIsDisplayed()
+        // ...and a 90 degree GPS-fix bearing renders as the "E" heading badge.
+        rule.onNodeWithText("E").assertIsDisplayed()
     }
 }
