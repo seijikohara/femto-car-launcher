@@ -81,8 +81,8 @@ class DashboardPresetScreenshotTest {
         val STATE =
             HomeUiState.Initial.copy(
                 clock = ClockTick(LocalTime.of(14, 32), LocalDate.of(2026, 5, 1)),
-                location = fakeLocation(),
-                address = fakeAddress(),
+                location = fakeLocation(bearingDegrees = 45f),
+                address = fakeAddress(road = "Oak St"),
                 weather = fakeWeatherSnapshot(),
                 calendar = fakeCalendarSnapshot(),
                 musicState = MusicCardState.Playing(fakeNowPlaying()),
