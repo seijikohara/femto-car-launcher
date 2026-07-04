@@ -2,13 +2,6 @@ package io.github.seijikohara.femto.ui.home.components
 
 import android.location.Location
 import android.os.SystemClock
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,20 +16,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Lucide
@@ -47,7 +31,6 @@ import io.github.seijikohara.femto.data.location.isFresh
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import kotlinx.coroutines.delay
-import kotlin.math.roundToInt
 
 /**
  * Map tile surface + permission fallback. Renders via [WebMapView] (MapLibre GL JS
@@ -127,21 +110,21 @@ internal fun Attribution(
     val text = base + (if (showTerrainCredit) " · $terrain" else "")
     Text(
         text = text,
-        // Legal credit, not glance content — OSM ODbL / OpenMapTiles CC-BY require
-        // it but it is not read on the move, so it sits well below the body-text
-        // floor and is shrunk further here so the centred speed overlay does not
-        // bury it on a narrow map pane.
+        // Legal credit, not glance content — OSM ODbL / OpenMapTiles CC-BY require it
+        // and it is not read on the move, so it stays below the body-text floor. It was
+        // illegibly small at arm's length, so it is sized up to [ATTRIBUTION_FONT_SIZE]
+        // and carries full-strength onSurfaceVariant over a faint scrim for contrast.
         style = MaterialTheme.typography.labelSmall.copy(
             fontSize = ATTRIBUTION_FONT_SIZE,
             lineHeight = ATTRIBUTION_FONT_SIZE,
         ),
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier =
             modifier
                 .padding(4.dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
-                .padding(horizontal = 4.dp, vertical = 1.dp),
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f))
+                .padding(horizontal = 5.dp, vertical = 2.dp),
     )
 }
 
@@ -161,100 +144,6 @@ internal fun rememberLocationFresh(location: Location): Boolean =
             delay(1_000L)
         }
     }.value
-
-// Current-location puck: a heading-up navigation chevron at a fixed on-screen spot
-// (the camera look-ahead keeps the location there, so the chevron stays still while
-// the map slides beneath it). The map is heading-up, so the chevron always points
-// toward the top of the frame (forward); rotationX lays it onto the oblique ground
-// plane so it matches the map's tilt and reads as a nav arrow resting on the road
-// rather than a flat sticker.
-//
-// While [fresh] the chevron is the Material primary and emits a restrained ripple
-// (a live-position cue); once the fix is stale it greys out and the ripple stops,
-// matching the LIVE chevron's `.stale` state in webmap (main.ts).
-@Composable
-internal fun LocationMarker(
-    xPx: Float,
-    yPx: Float,
-    tiltDeg: Int,
-    fresh: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    // The box is larger than the chevron so the ripple has room to expand beyond
-    // the arrow; the chevron is drawn centred at its own size inside it.
-    val half = with(LocalDensity.current) { MARKER_BOX_SIZE.toPx() } / 2f
-    val fill = if (fresh) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    val outlinePx = with(LocalDensity.current) { 1.5.dp.toPx() }
-    Box(
-        modifier =
-            modifier
-                .offset { IntOffset((xPx - half).roundToInt(), (yPx - half).roundToInt()) }
-                .size(MARKER_BOX_SIZE)
-                .graphicsLayer {
-                    // Lay the chevron back onto the tilted ground plane so it sits in
-                    // the same perspective as the map. transformOrigin centres the
-                    // pivot on the rendered pixel; cameraDistance softens the foreshorten.
-                    rotationX = tiltDeg.toFloat()
-                    cameraDistance = MARKER_CAMERA_DISTANCE * density
-                    transformOrigin = TransformOrigin(0.5f, 0.5f)
-                },
-    ) {
-        // Composed only while fresh, so the infinite animation (and the
-        // recompositions it drives) stops entirely once the fix goes stale. Drawn
-        // before the chevron, so it sits behind the arrow.
-        if (fresh) {
-            MarkerRipple(color = MaterialTheme.colorScheme.primary, strokeWidthPx = outlinePx)
-        }
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            // An upward arrowhead with a concave tail notch (the classic nav chevron):
-            // tip at top-centre, the two base corners, and a notch rising from the base.
-            // Centred at MARKER_ARROW_SIZE within the larger ripple box.
-            val arrow = MARKER_ARROW_SIZE.toPx()
-            val left = (size.width - arrow) / 2f
-            val top = (size.height - arrow) / 2f
-            val chevron =
-                Path().apply {
-                    moveTo(left + arrow / 2f, top)
-                    lineTo(left + arrow, top + arrow)
-                    lineTo(left + arrow / 2f, top + arrow * 0.72f)
-                    lineTo(left, top + arrow)
-                    close()
-                }
-            drawPath(chevron, color = fill)
-            drawPath(chevron, color = Color.White, style = Stroke(width = outlinePx))
-        }
-    }
-}
-
-// One fading pulse per period: an expanding disc with a ring on its leading edge
-// so it reads clearly. A separate composable so the host only places it while the
-// fix is fresh — keeping the infinite animation out of the tree when it would
-// draw nothing.
-@Composable
-private fun MarkerRipple(
-    color: Color,
-    strokeWidthPx: Float,
-    modifier: Modifier = Modifier,
-) {
-    val ripple = rememberInfiniteTransition(label = "marker-ripple")
-    val progress by ripple.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(MARKER_RIPPLE_PERIOD_MS, easing = LinearEasing)),
-        label = "marker-ripple-progress",
-    )
-    Canvas(modifier = modifier.fillMaxSize()) {
-        val radius = (size.minDimension / 2f) * progress
-        val fade = 1f - progress
-        drawCircle(color = color.copy(alpha = MARKER_RIPPLE_MAX_ALPHA * fade), radius = radius, center = center)
-        drawCircle(
-            color = color.copy(alpha = MARKER_RIPPLE_EDGE_ALPHA * fade),
-            radius = radius,
-            center = center,
-            style = Stroke(width = strokeWidthPx),
-        )
-    }
-}
 
 @Composable
 internal fun Fallback(modifier: Modifier = Modifier) =
@@ -283,23 +172,6 @@ internal fun Fallback(modifier: Modifier = Modifier) =
         )
     }
 
-// Heading-up nav chevron size, the larger box that gives the ripple room to
-// expand past the arrow, and the graphicsLayer camera distance (multiplied by
-// density) that softens the perspective when the chevron is laid onto the tilt.
-private val MARKER_ARROW_SIZE = 30.dp
-
-// Ripple headroom around the arrow; its 64 dp equality with
-// FemtoDimens.MinTouchTarget is coincidental — this is not a tap target.
-private val MARKER_BOX_SIZE = 64.dp
-private const val MARKER_CAMERA_DISTANCE = 12f
-
-// Live-position ripple: one disc per period expanding to the box edge, with a
-// faint ring on its leading edge so the pulse stays legible. Peak opacity is
-// kept moderate — a clear pulse, not a beacon. Mirrored in webmap (main.ts).
-private const val MARKER_RIPPLE_PERIOD_MS = 2_800
-private const val MARKER_RIPPLE_MAX_ALPHA = 0.38f
-private const val MARKER_RIPPLE_EDGE_ALPHA = 0.55f
-
-// Small attribution type: legal credit only, deliberately tiny so the centred
-// speed overlay does not bury it on a narrow map pane.
-private val ATTRIBUTION_FONT_SIZE = 6.sp
+// Attribution type: legal credit only, kept below the body-text floor but large
+// enough to read at arm's length on a head unit (raised from an illegible 6 sp).
+private val ATTRIBUTION_FONT_SIZE = 9.sp

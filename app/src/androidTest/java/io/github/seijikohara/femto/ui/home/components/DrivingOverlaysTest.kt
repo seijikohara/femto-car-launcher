@@ -16,6 +16,7 @@ import io.github.seijikohara.femto.ui.home.HomeUiState
 import io.github.seijikohara.femto.ui.home.components.driving.DrivingOverlays
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
+import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
@@ -45,13 +46,15 @@ class DrivingOverlaysTest {
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     glassConfig = GlassConfig(),
                     hazeState = rememberHazeState(),
+                    outerPad = FemtoDimens.ScreenPadding,
+                    onBarHeightChange = {},
                     onAction = {},
                 )
             }
         }
         // 18 m/s -> 64.8 km/h -> 65: the big-speed numeral renders the rounded value.
         rule.onNodeWithText("65").assertExists()
-        // The now-playing mini reuses TransportRow, so the play/pause button shows.
+        // Transport controls render (reusing TransportRow) so play/pause is reachable.
         rule.onNodeWithContentDescription("Play / pause").assertIsDisplayed()
         // The location strip shows the road name...
         rule.onNodeWithText("Oak St", substring = true).assertIsDisplayed()
