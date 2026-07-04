@@ -28,6 +28,7 @@ import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.calendar.DayCell
 import io.github.seijikohara.femto.data.calendar.EventItem
+import io.github.seijikohara.femto.data.calendar.nextUpcomingEventOrNull
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.music.MusicCardState
@@ -66,8 +67,10 @@ import kotlin.math.roundToInt
  * variant A: a top glass location strip and a bottom glass bar carrying the big
  * speed, a now-playing mini + transport, and a one-line briefing.
  *
- * PR1 keeps the location strip driver-agnostic — the city only; road + heading
- * arrive in PR2. The big speed reuses [SpeedOverlay]'s reading rule (source
+ * The location strip shows the current road name and GPS-fix heading alongside
+ * the city — either may be absent (an East-Asian address carries no road; a fix
+ * with no heading omits the badge) and the strip degrades gracefully. The big
+ * speed reuses [SpeedOverlay]'s reading rule (source
  * `tripState.currentSpeedMs`, converted through [speedUnit], em-dash when there
  * is no fix) but shows the raw rounded value: a driving glance does not need the
  * overlay's per-fix EMA smoothing. Every glass surface samples the shared
@@ -84,12 +87,24 @@ internal fun DrivingOverlays(
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Box(modifier = modifier.fillMaxSize()) {
-    // Location strip, top. Rendered only when a city has resolved so the face
-    // never floats an empty glass pill before the first reverse-geocode lands.
-    val city = uiState.address?.displayString().orEmpty()
-    if (city.isNotBlank()) {
+    // Location strip, top: road name + city, plus a heading badge. Rendered only
+    // when a road or city has resolved so the face never floats an empty glass
+    // pill before the first reverse-geocode lands.
+    val road = uiState.address?.road
+    val city = uiState.address?.locality?.takeIf { it.isNotBlank() } ?: uiState.address?.displayString().orEmpty()
+    // The GPS-fix bearing (not the map camera bearing, [DashboardScaffold]'s
+    // `bearingDeg`). A 0f reading is indistinguishable from an unset bearing on
+    // many fixes, so it is treated as "no heading" rather than due north.
+    val heading = uiState.location?.takeIf { it.hasBearing() && it.bearing != 0f }?.let {
+        compassDirectionOf(
+            it.bearing,
+        )
+    }
+    if (road != null || city.isNotBlank()) {
         LocationStrip(
+            road = road,
             city = city,
+            heading = heading,
             hazeState = hazeState,
             glassConfig = glassConfig,
             modifier =
@@ -116,7 +131,9 @@ internal fun DrivingOverlays(
 
 @Composable
 private fun LocationStrip(
+    road: String?,
     city: String,
+    heading: CompassDirection?,
     hazeState: HazeState,
     glassConfig: GlassConfig,
     modifier: Modifier = Modifier,
@@ -138,12 +155,23 @@ private fun LocationStrip(
         modifier = Modifier.size(FemtoDimens.WeatherGlyphSmall),
     )
     Text(
-        text = city,
+        text = listOfNotNull(road, city.takeIf { it.isNotBlank() }).joinToString(" · "),
         style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
+    // The heading badge never wraps or shrinks — a two-letter point label always
+    // fits, and truncating it would leave an ambiguous single letter behind.
+    if (heading != null) {
+        Text(
+            text = heading.label(),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            overflow = TextOverflow.Visible,
+        )
+    }
 }
 
 @Composable
@@ -180,7 +208,7 @@ private fun DrivingBar(
 
     // Briefing line: next event + weather one-liner. Rendered only when at least
     // one half has data so an empty bar segment never carries a stray divider.
-    val nextEvent = uiState.calendar.nextEventOrNull()
+    val nextEvent = uiState.calendar.nextUpcomingEventOrNull(uiState.clock)
     if (nextEvent != null || uiState.weather != null) {
         BarDivider()
         Briefing(nextEvent = nextEvent, weather = uiState.weather, temperatureUnit = temperatureUnit)
@@ -309,20 +337,6 @@ private fun BarDivider() =
         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha),
     )
 
-// The earliest event to surface in the briefing: the first event of the first
-// forward-rolling day that has one. Calendar access / query faults degrade to
-// null so a denied or broken calendar shows no briefing rather than a false
-// "free" line. Null-safe on the whole snapshot so a not-yet-loaded calendar is
-// simply empty. A pure extension so the selection is unit-testable without
-// Compose.
-private fun CalendarSnapshot?.nextEventOrNull(): EventItem? =
-    this
-        ?.takeIf { it.hasCalendarAccess && !it.queryFailed }
-        ?.days
-        ?.firstOrNull { it.hasEvent }
-        ?.events
-        ?.firstOrNull()
-
 // "10:30 Team standup" for a timed event, the title alone for an all-day one.
 // 24-hour notation for v1 — the driving face carries no 12/24h setting yet.
 private fun EventItem.briefingLabel(): String = time?.let { "${it.format(BriefingTimeFormatter)} $title" } ?: title
@@ -353,8 +367,12 @@ private fun DrivingOverlaysPreview() {
 // fixtures, so the driving face builds its own from production types.
 private fun drivingPreviewUiState(): HomeUiState =
     HomeUiState.Initial.copy(
-        location = Location("preview").apply { speed = 13.2f },
-        address = ShortAddress(locality = "Shibuya", region = "Tokyo"),
+        location =
+            Location("preview").apply {
+                speed = 13.2f
+                bearing = 45f
+            },
+        address = ShortAddress(locality = "Shibuya", region = "Tokyo", road = "Oak St"),
         tripState = TripState(distanceMeters = 24_400.0, avgSpeedMs = 11.7, currentSpeedMs = 13.2),
         musicState =
             MusicCardState.Playing(

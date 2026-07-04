@@ -36,6 +36,16 @@
     <string name="speed_metric_distance">DISTANCE</string>
     <string name="speed_metric_avg">AVG.</string>
 
+    <!-- Driving face: compass heading badge -->
+    <string name="driving_compass_n">N</string>
+    <string name="driving_compass_ne">NE</string>
+    <string name="driving_compass_e">E</string>
+    <string name="driving_compass_se">SE</string>
+    <string name="driving_compass_s">S</string>
+    <string name="driving_compass_sw">SW</string>
+    <string name="driving_compass_w">W</string>
+    <string name="driving_compass_nw">NW</string>
+
     <!-- Calendar card -->
     <string name="calendar_title">Calendar</string>
     <string name="calendar_permission_denied">Calendar access not granted</string>

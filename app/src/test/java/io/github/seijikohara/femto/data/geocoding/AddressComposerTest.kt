@@ -4,6 +4,7 @@ import io.github.seijikohara.femto.data.geocoding.NominatimApi.NominatimAddress
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 class AddressComposerTest {
     @Test
@@ -86,6 +87,22 @@ class AddressComposerTest {
     }
 
     @Test
+    fun `carries the road name for mountain view`() {
+        val address =
+            NominatimAddress(
+                houseNumber = "1600",
+                road = "Amphitheatre Parkway",
+                city = "Mountain View",
+                isoLvl4 = "US-CA",
+                countryCode = "us",
+            )
+
+        val result = assertNotNull(AddressComposer.composeAddress(address))
+
+        assertEquals("Amphitheatre Parkway", result.road)
+    }
+
+    @Test
     fun `derives western state from iso suffix for mountain view`() {
         val address =
             NominatimAddress(
@@ -133,6 +150,23 @@ class AddressComposerTest {
         val result = assertNotNull(AddressComposer.composeAddress(address))
 
         assertEquals("東京都新宿区新宿三丁目", result.line)
+    }
+
+    @Test
+    fun `leaves road null for a japanese address`() {
+        val address =
+            NominatimAddress(
+                road = "JR新宿駅;1階;15番線",
+                neighbourhood = "新宿三丁目",
+                quarter = "新宿",
+                city = "新宿区",
+                isoLvl4 = "JP-13",
+                countryCode = "jp",
+            )
+
+        val result = assertNotNull(AddressComposer.composeAddress(address))
+
+        assertNull(result.road)
     }
 
     @Test
