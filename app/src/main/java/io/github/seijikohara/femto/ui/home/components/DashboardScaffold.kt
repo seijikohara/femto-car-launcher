@@ -50,6 +50,7 @@ import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.ui.home.HomeAction
@@ -123,6 +124,7 @@ internal fun DashboardScaffold(
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
     dockPosition: DockPosition = DockPosition.BOTTOM,
+    driverSide: DriverSide = DriverSide.RIGHT,
     spectrum: StateFlow<FloatArray?>? = null,
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
@@ -140,6 +142,7 @@ internal fun DashboardScaffold(
     glassConfig = glassConfig,
     onAction = onAction,
     dockPosition = dockPosition,
+    driverSide = driverSide,
     modifier =
         modifier
             .fillMaxSize()
@@ -168,6 +171,7 @@ private fun DashboardContent(
     glassConfig: GlassConfig,
     onAction: (HomeAction) -> Unit,
     dockPosition: DockPosition,
+    driverSide: DriverSide,
     modifier: Modifier = Modifier,
     spectrum: StateFlow<FloatArray?>? = null,
     musicShowAlbum: Boolean = true,
@@ -330,6 +334,7 @@ private fun DashboardContent(
                     following = following,
                     bearingDeg = bearingDeg,
                     motionTier = motionTier,
+                    driverSide = driverSide,
                     onRecenter = { recenterNonce++ },
                     onOverlayHeightChange = { overlayHeightPx = it },
                     onAction = onAction,
@@ -479,6 +484,9 @@ private fun CockpitOverlays(
     following: Boolean,
     bearingDeg: Float,
     motionTier: MotionTier,
+    // Threaded for the driver-side cockpit mirroring landed in a follow-up task;
+    // unused here (every alignment/padding site still reads as the RIGHT default).
+    driverSide: DriverSide,
     onRecenter: () -> Unit,
     onOverlayHeightChange: (Int) -> Unit,
     onAction: (HomeAction) -> Unit,

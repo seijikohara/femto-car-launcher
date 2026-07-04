@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.location.hasFineLocationPermission
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
@@ -33,6 +34,7 @@ internal fun HomeRoute(
     onEvent: (HomeEvent) -> Unit,
     modifier: Modifier = Modifier,
     dockPosition: DockPosition = DockPosition.BOTTOM,
+    driverSide: DriverSide = DriverSide.RIGHT,
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
     motionTier: MotionTier = MotionTier.STANDARD,
@@ -60,6 +62,7 @@ internal fun HomeRoute(
         onAction = viewModel::onAction,
         modifier = modifier,
         dockPosition = dockPosition,
+        driverSide = driverSide,
         musicShowAlbum = musicShowAlbum,
         musicShowArt = musicShowArt,
         spectrum = viewModel.audioSpectrum,

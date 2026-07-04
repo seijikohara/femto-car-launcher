@@ -46,6 +46,7 @@ class DisplayPreferencesTest {
             store.setPresetMode(PresetMode.DRIVING)
             store.setDrivingThresholdKmh(20)
             store.setMotionTier(MotionTier.OFF)
+            store.setDriverSide(DriverSide.LEFT)
             assertNotEquals(DisplaySettings.Default, store.settings.first())
 
             // The two music-meta toggles persist and read back independently.
@@ -58,12 +59,15 @@ class DisplayPreferencesTest {
                 assertEquals(PresetMode.DRIVING, persisted.presetMode)
                 assertEquals(20, persisted.drivingThresholdKmh)
                 assertEquals(MotionTier.OFF, persisted.motionTier)
+                assertEquals(DriverSide.LEFT, persisted.driverSide)
             }
 
             // resetToDefaults() clears every key, so the read falls back to Default
-            // for all fields at once.
+            // for all fields at once — including driverSide, whose fallback (RIGHT)
+            // already matches DisplaySettings.Default.
             store.resetToDefaults()
             assertEquals(DisplaySettings.Default, store.settings.first())
+            assertEquals(DriverSide.RIGHT, store.settings.first().driverSide)
         }
 
     // All three backend-settings cases share one test method because the

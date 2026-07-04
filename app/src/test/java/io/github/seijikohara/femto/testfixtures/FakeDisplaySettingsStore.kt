@@ -6,6 +6,7 @@ import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DisplaySettingsStore
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.GoogleMapType
 import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
@@ -66,6 +67,8 @@ internal class FakeDisplaySettingsStore(
     override suspend fun setFullscreen(value: FullscreenSetting) = state.update { it.copy(fullscreen = value) }
 
     override suspend fun setDockPosition(value: DockPosition) = state.update { it.copy(dockPosition = value) }
+
+    override suspend fun setDriverSide(value: DriverSide) = state.update { it.copy(driverSide = value) }
 
     override suspend fun setPresetMode(value: PresetMode) = state.update { it.copy(presetMode = value) }
 
