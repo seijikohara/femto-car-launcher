@@ -1,5 +1,7 @@
 package io.github.seijikohara.femto.ui.settings.components
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,16 +29,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.Lucide
@@ -76,29 +83,68 @@ internal fun Header(
     )
 }
 
-// A category: a small colored header above a flat (0 dp) rounded card holding the
-// section's rows, echoing the Android Settings app's grouped layout.
+// A collapsible category: a tap-to-toggle header row (colored title + rotating
+// chevron) over a flat (0 dp) rounded card holding the section's rows. Collapsed
+// by default so opening Settings shows a scannable list of category headers; the
+// rows compose only once the section is expanded. Mirrors the diagnostics section
+// idiom (DiagnosticsSectionCard). Each section is a distinct call site, so the
+// expand state is positionally scoped by rememberSaveable — one independent,
+// config-change-surviving flag per section, no explicit key needed.
 @Composable
 internal fun SettingsSection(
     title: String,
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
-) = Column(
-    modifier = modifier.fillMaxWidth(),
-    verticalArrangement = Arrangement.spacedBy(8.dp),
 ) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 12.dp),
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        label = "sectionChevron",
     )
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
+    val toggleDescription =
+        stringResource(
+            if (expanded) R.string.settings_section_collapse else R.string.settings_section_expand,
+            title,
+        )
+    Column(
+        modifier = modifier.fillMaxWidth().animateContentSize(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Column(content = content)
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = FemtoDimens.MinTouchTarget)
+                    .clickable { expanded = !expanded }
+                    .semantics { contentDescription = toggleDescription }
+                    .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.weight(1f),
+            )
+            FemtoIcon(
+                imageVector = Lucide.ChevronDown,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier =
+                    Modifier
+                        .size(FemtoDimens.InlineIconSize)
+                        .rotate(chevronRotation),
+            )
+        }
+        if (expanded) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainer,
+            ) {
+                Column(content = content)
+            }
+        }
     }
 }
 

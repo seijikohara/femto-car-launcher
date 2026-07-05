@@ -29,6 +29,8 @@ class SettingsScreenTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val appearanceSectionLabel = context.getString(R.string.settings_section_appearance)
     private val screenSectionLabel = context.getString(R.string.settings_section_screen)
+    private val drivingSectionLabel = context.getString(R.string.settings_section_driving)
+    private val driverSideLabel = context.getString(R.string.settings_group_driver_side)
     private val fullscreenLabel = context.getString(R.string.settings_group_fullscreen)
     private val themeLabel = context.getString(R.string.settings_group_theme)
     private val darkLabel = context.getString(R.string.settings_theme_dark)
@@ -583,10 +585,26 @@ class SettingsScreenTest {
         assertEquals(listOf(SettingsAction.SetCalendarHidden(id = 1L, hidden = true)), actions)
     }
 
+    @Test
+    fun section_rows_are_absent_until_the_header_is_tapped() {
+        // Sections are collapsed by default, so the driver-side row (which now lives
+        // under Driving) is not composed until the Driving header is tapped.
+        setScreen(expandSections = false)
+        rule.onNodeWithText(driverSideLabel).assertDoesNotExist()
+        rule
+            .onNodeWithContentDescription(expandCd(R.string.settings_section_driving))
+            .performScrollTo()
+            .performClick()
+        rule.onNodeWithText(driverSideLabel).performScrollTo().assertIsDisplayed()
+    }
+
     private fun setScreen(
         uiState: SettingsUiState = SettingsUiState.Initial,
         onAction: (SettingsAction) -> Unit = {},
         darkTheme: Boolean = false,
+        // Sections collapse by default; most tests interact with rows, so expand
+        // every section after composing. The collapse-behavior test opts out.
+        expandSections: Boolean = true,
     ) {
         rule.setContent {
             FemtoTheme(darkTheme = darkTheme) {
@@ -603,5 +621,35 @@ class SettingsScreenTest {
                 )
             }
         }
+        if (expandSections) {
+            expandAllSections()
+        }
     }
+
+    // Expand every collapsible section so the existing row-level interactions find
+    // their targets, then scroll back to the top so no-scroll clicks and header
+    // assertions start from a fresh-screen position. Header taps toggle only local
+    // expand state — they dispatch no SettingsAction — so this never pollutes a
+    // captured-action assertion.
+    private fun expandAllSections() {
+        listOf(
+            R.string.settings_section_appearance,
+            R.string.settings_section_screen,
+            R.string.settings_section_driving,
+            R.string.settings_section_units,
+            R.string.settings_section_map,
+            R.string.settings_section_location,
+            R.string.settings_section_panels,
+            R.string.settings_group_system,
+        ).forEach { titleRes ->
+            rule.onNodeWithContentDescription(expandCd(titleRes)).performScrollTo().performClick()
+        }
+        rule.onNodeWithContentDescription(collapseCd(R.string.settings_section_appearance)).performScrollTo()
+    }
+
+    private fun expandCd(titleRes: Int) =
+        context.getString(R.string.settings_section_expand, context.getString(titleRes))
+
+    private fun collapseCd(titleRes: Int) =
+        context.getString(R.string.settings_section_collapse, context.getString(titleRes))
 }
