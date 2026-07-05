@@ -217,10 +217,12 @@ private fun DashboardContent(
     // margin + the thickness) so none sit under it.
     val dockExtent = FemtoDimens.DockThickness + outerPad
 
-    // The right cards push the marker left; the bottom (portrait) cards and the
-    // bottom dock extend the bottom safe band so the marker clears them. Each
-    // orientation feeds one axis.
-    val rightSafeFraction =
+    // The landscape card column reserves a horizontal band the marker must clear; the
+    // bottom (portrait) cards and the bottom dock extend the bottom safe band so the
+    // marker clears them. Each orientation feeds one axis. This reserve is assigned to
+    // the right OR left safe-fraction below by the driver side; the dock term stays on
+    // the RIGHT edge (a left driver with a right dock is a rare combo, out of scope).
+    val cardSafeFraction =
         if (landscapeCards) {
             with(density) {
                 val widthPx = maxWidth.toPx()
@@ -275,15 +277,23 @@ private fun DashboardContent(
             }
         }
 
-    // The map reads ONE safe-area pair, picked by the visible face, so its camera
-    // padding tracks whichever overlay tree is on screen. Cockpit reserves the
-    // right column + bottom band computed above; driving clears only a bottom band
-    // for its bar plus the dock. Changing these pushes camera padding through
-    // MapPanel's LaunchedEffect — it never recreates the WebView.
-    val (activeRightSafe, activeBottomSafe) =
+    // The map reads ONE safe-area triple, picked by the visible face, so its camera
+    // padding tracks whichever overlay tree is on screen. The cockpit reserves the
+    // card column on the driver's side (the right by default, the left when mirrored)
+    // plus the bottom band computed above; driving clears only a bottom band for its
+    // bar plus the dock. Only one horizontal reserve is ever non-zero. Changing these
+    // pushes camera padding through MapPanel's LaunchedEffect — it never recreates the
+    // WebView.
+    val mirror = driverSide == DriverSide.LEFT
+    val (activeRightSafe, activeLeftSafe) =
         when (activePreset) {
-            PresetId.COCKPIT -> rightSafeFraction to bottomSafeFraction
-            PresetId.DRIVING -> 0f to drivingBottomSafeFraction
+            PresetId.COCKPIT -> if (mirror) 0f to cardSafeFraction else cardSafeFraction to 0f
+            PresetId.DRIVING -> 0f to 0f
+        }
+    val activeBottomSafe =
+        when (activePreset) {
+            PresetId.COCKPIT -> bottomSafeFraction
+            PresetId.DRIVING -> drivingBottomSafeFraction
         }
 
     // The map fills the whole viewport, behind the dock and every overlay. It is a
@@ -295,6 +305,7 @@ private fun DashboardContent(
             mapConfig.copy(
                 bottomSafeFraction = activeBottomSafe,
                 rightSafeFraction = activeRightSafe,
+                leftSafeFraction = activeLeftSafe,
             ),
         onTap = { onAction(HomeAction.OpenMaps) },
         modifier = Modifier.fillMaxSize().hazeSource(hazeState),
@@ -484,8 +495,9 @@ private fun CockpitOverlays(
     following: Boolean,
     bearingDeg: Float,
     motionTier: MotionTier,
-    // Threaded for the driver-side cockpit mirroring landed in a follow-up task;
-    // unused here (every alignment/padding site still reads as the RIGHT default).
+    // Which side the info-dense cockpit anchors to: RIGHT (default) keeps today's
+    // layout; LEFT mirrors every alignment/padding site (start <-> end) so the cards,
+    // clock, map controls, and speed reserve all flip to the driver's side.
     driverSide: DriverSide,
     onRecenter: () -> Unit,
     onOverlayHeightChange: (Int) -> Unit,
@@ -535,15 +547,22 @@ private fun CockpitOverlays(
         if (expandedWeather != null) panelWeather = expandedWeather
     }
 
+    // LEFT driver side mirrors the cockpit start <-> end: the cards, clock, and speed
+    // reserve move to the left; the map controls (opposite the cards) move to the
+    // right. Each site below reduces to its current RIGHT expression when !mirror.
+    val mirror = driverSide == DriverSide.LEFT
+
     Box(modifier = modifier) {
-        // Map controls render only when the map does (a fix exists).
+        // Map controls render only when the map does (a fix exists). The compass pins
+        // to the top corner opposite the cards; the control column to the mid edge
+        // opposite the cards — both flip with the driver side.
         if (uiState.location != null) {
             MapCompass(
                 bearingDeg = bearingDeg,
                 onTap = { onAction(HomeAction.ToggleMapNorthUp) },
                 hazeState = hazeState,
                 glassConfig = glassConfig,
-                modifier = Modifier.align(Alignment.TopStart).padding(outerPad),
+                modifier = Modifier.align(if (mirror) Alignment.TopEnd else Alignment.TopStart).padding(outerPad),
             )
             MapControlColumn(
                 showLocate = true,
@@ -553,14 +572,18 @@ private fun CockpitOverlays(
                 onZoomOut = { onAction(HomeAction.AdjustMapZoom(-1)) },
                 hazeState = hazeState,
                 glassConfig = glassConfig,
-                modifier = Modifier.align(Alignment.CenterStart).padding(start = outerPad),
+                modifier =
+                    Modifier
+                        .align(if (mirror) Alignment.CenterEnd else Alignment.CenterStart)
+                        .padding(if (mirror) PaddingValues(end = outerPad) else PaddingValues(start = outerPad)),
             )
         }
 
-        // Clock beside the date: in landscape it sits just left of the calendar card
-        // (the top of the right column), reading as a pair with the date; in portrait
-        // the right column is absent, so it sits in the top-right corner, clear of
-        // the bottom cards.
+        // Clock beside the date: in landscape it sits just inside the card column's
+        // outer edge (the top of that column), reading as a pair with the date; in
+        // portrait the column is absent, so it sits in the top corner on the card
+        // side, clear of the bottom cards. Both flip to the opposite corner/edge on a
+        // LEFT driver side.
         ClockOverlay(
             is24Hour = is24Hour,
             showSeconds = showClockSeconds,
@@ -568,24 +591,31 @@ private fun CockpitOverlays(
             glassConfig = glassConfig,
             modifier =
                 Modifier
-                    .align(Alignment.TopEnd)
+                    .align(if (mirror) Alignment.TopStart else Alignment.TopEnd)
                     .padding(
-                        top = outerPad,
-                        end = if (landscapeCards) floatingCardWidth + outerPad + cardGap else outerPad,
+                        cardSideInset(
+                            mirror = mirror,
+                            horizontal = if (landscapeCards) floatingCardWidth + outerPad + cardGap else outerPad,
+                            top = outerPad,
+                        ),
                     ),
         )
 
         // Speed overlay centred in the exposed map area above the dock, held clear of
-        // the right cards (landscape) or the bottom card band (portrait) by reserving
-        // their footprint so it centres in the visible map strip.
+        // the card column (landscape, on the driver's side) or the bottom card band
+        // (portrait) by reserving their footprint so it centres in the visible map
+        // strip. The horizontal reserve flips to the start edge on a LEFT driver side.
         Box(
             modifier =
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(
-                        bottom = cardGap + if (bottomCards) bottomCardBand else 0.dp,
-                        end = if (landscapeCards) floatingCardWidth + outerPad + cardGap else 0.dp,
+                        cardSideInset(
+                            mirror = mirror,
+                            horizontal = if (landscapeCards) floatingCardWidth + outerPad + cardGap else 0.dp,
+                            bottom = cardGap + if (bottomCards) bottomCardBand else 0.dp,
+                        ),
                     ),
             contentAlignment = Alignment.BottomCenter,
         ) {
@@ -626,15 +656,23 @@ private fun CockpitOverlays(
                             .height(bottomCardBand)
                             .padding(horizontal = outerPad, vertical = outerPad)
                     } else {
-                        // Cards in a right-hand column, top-anchored and height-capped
-                        // so they pair with the clock and never stretch; the map keeps
-                        // the left.
+                        // Cards in a column on the driver's side, top-anchored and
+                        // height-capped so they pair with the clock and never stretch;
+                        // the map keeps the opposite side. Mirrors to the start edge on
+                        // a LEFT driver side.
                         Modifier
-                            .align(Alignment.TopEnd)
+                            .align(if (mirror) Alignment.TopStart else Alignment.TopEnd)
                             .width(floatingCardWidth)
                             .heightIn(max = CardClusterMaxHeight)
                             .fillMaxHeight()
-                            .padding(top = outerPad, bottom = outerPad, end = outerPad)
+                            .padding(
+                                cardSideInset(
+                                    mirror = mirror,
+                                    horizontal = outerPad,
+                                    top = outerPad,
+                                    bottom = outerPad,
+                                ),
+                            )
                     },
             )
         }
@@ -708,6 +746,23 @@ private fun CockpitOverlays(
         }
     }
 }
+
+// The horizontal inset for a cockpit overlay that sits on the card side of the
+// screen — [horizontal] rides the end edge for the default RIGHT driver and flips to
+// the start edge when [mirror] anchors the cockpit to a LEFT driver. [top] / [bottom]
+// carry the unchanged vertical insets. Overlays opposite the cards (the map controls)
+// invert the alignment themselves; this helper only builds the card-side reserve.
+private fun cardSideInset(
+    mirror: Boolean,
+    horizontal: Dp,
+    top: Dp = 0.dp,
+    bottom: Dp = 0.dp,
+): PaddingValues =
+    if (mirror) {
+        PaddingValues(start = horizontal, top = top, bottom = bottom)
+    } else {
+        PaddingValues(end = horizontal, top = top, bottom = bottom)
+    }
 
 // Margins that float the dock off its three free edges (the inner edge faces the
 // dashboard, where the overlay inset already opens the gap).
