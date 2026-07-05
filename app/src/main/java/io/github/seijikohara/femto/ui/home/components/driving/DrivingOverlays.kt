@@ -2,8 +2,11 @@ package io.github.seijikohara.femto.ui.home.components.driving
 
 import android.location.Location
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,7 +17,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -29,7 +35,6 @@ import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.calendar.DayCell
 import io.github.seijikohara.femto.data.calendar.EventItem
-import io.github.seijikohara.femto.data.calendar.UpcomingEvent
 import io.github.seijikohara.femto.data.calendar.nextUpcomingEventOrNull
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.TripState
@@ -221,11 +226,14 @@ private fun DrivingBar(
                 vertical = FemtoDimens.OverlayPaddingVertical,
             ),
     verticalAlignment = Alignment.CenterVertically,
-    // Spread the segments across the full bar: big speed pinned left, the briefing
-    // (widest panes only) pinned right, the now-playing cluster centred between them.
-    // The bar reads balanced with or without music instead of huddling to the left,
-    // and every child keeps its intrinsic width so none collapses to zero.
-    horizontalArrangement = Arrangement.SpaceBetween,
+    // A stable two-cluster layout: the speed + now-playing anchor left, the briefing
+    // (event + weather) anchors right, with a flexible spacer between. Everything that
+    // changes width as the drive updates — the speed's digit count, the music title,
+    // the next event's presence and length — grows into the middle spacer, so the
+    // anchored elements never shift. (SpaceBetween re-centred the middle cluster on
+    // every such change, and even jumped the music to the far edge when the briefing
+    // was absent, because it distributes by child count + width.)
+    horizontalArrangement = Arrangement.spacedBy(DrivingBarSegmentGap),
 ) {
     // The narrow bar shrinks the hero numeral so the fixed-width transport row still
     // fits beside it; the wider bars keep the full-size speed.
@@ -250,27 +258,38 @@ private fun DrivingBar(
         }
     }
 
-    // Briefing line: next event + weather one-liner. Only the widest bars carry it —
-    // it needs room the big speed + transport leave on a narrow pane — and only when
-    // at least one enabled half has data. Each half is independently gated by
-    // [briefingConfig]: the event is looked up within its scope only when enabled, and
-    // the weather half is dropped when disabled, so a fully-off briefing renders
-    // nothing (and no stray divider — Briefing draws the separator only between two
-    // present halves).
+    // The next event ellipsizes into the flexible middle (right-aligned so it groups
+    // with the weather), or a spacer holds the gap when there is none — either way the
+    // left cluster and the weather anchor stay put. Each half is gated by
+    // [briefingConfig] and by [showBriefing] (dropped on a narrow pane); the weather
+    // block anchors the right and is never squeezed, so the event yields first.
     val upcomingEvent =
-        if (briefingConfig.showEvent) {
+        if (showBriefing && briefingConfig.showEvent) {
             uiState.calendar.nextUpcomingEventOrNull(uiState.clock, briefingConfig.scope)
         } else {
             null
         }
-    val weather = uiState.weather.takeIf { briefingConfig.showWeather }
-    if (showBriefing && (upcomingEvent != null || weather != null)) {
-        Briefing(
-            upcomingEvent = upcomingEvent,
-            today = uiState.clock.date,
-            weather = weather,
-            temperatureUnit = temperatureUnit,
+    val weather = uiState.weather.takeIf { showBriefing && briefingConfig.showWeather }
+    if (upcomingEvent != null) {
+        Text(
+            text =
+                briefingLabel(
+                    event = upcomingEvent.event,
+                    eventDate = upcomingEvent.date,
+                    today = uiState.clock.date,
+                ),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f),
         )
+    } else {
+        Spacer(Modifier.weight(1f))
+    }
+    if (weather != null) {
+        WeatherBlock(weather = weather, temperatureUnit = temperatureUnit)
     }
 }
 
@@ -290,12 +309,26 @@ private fun BigSpeed(
         location
             ?.let { "${speedUnit.fromMetersPerSecond(tripState.currentSpeedMs.toFloat()).roundToInt()}" }
             ?: NO_SPEED_PLACEHOLDER
-    Text(
-        text = speedText,
-        style = MaterialTheme.typography.bigNumber(size = numeralSize),
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-    )
+    // Reserve the widest realistic (3-digit) numeral so the rest of the bar never
+    // shifts as the speed's digit count changes; the live value right-aligns into
+    // the fixed slot (bigNumber's tabular digits keep it steady within a count).
+    Box(contentAlignment = Alignment.BottomEnd) {
+        Text(
+            text = SPEED_NUMERAL_SIZER,
+            style = MaterialTheme.typography.bigNumber(size = numeralSize),
+            maxLines = 1,
+            // Invisible width reservation only: alpha hides it from sight,
+            // clearAndSetSemantics keeps the placeholder digits out of the
+            // accessibility tree so a screen reader announces just the live speed.
+            modifier = Modifier.alpha(0f).clearAndSetSemantics {},
+        )
+        Text(
+            text = speedText,
+            style = MaterialTheme.typography.bigNumber(size = numeralSize),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+        )
+    }
     Text(
         text = speedUnit.label(),
         style = MaterialTheme.typography.sectionLabel(12, 0.12f),
@@ -337,66 +370,40 @@ private fun NowPlayingMini(
     )
 }
 
+// Weather as a compact stacked block (glyph over the temperature) so both read at
+// a glance on the driving bar — the horizontal one-liner made each element too
+// small. The glyph sizes up to [FemtoDimens.WeatherGlyphMedium] and the temp to
+// titleLarge.
 @Composable
-private fun Briefing(
-    upcomingEvent: UpcomingEvent?,
-    today: LocalDate,
-    weather: WeatherSnapshot?,
-    temperatureUnit: TemperatureUnit,
-) = Row(
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(8.dp),
-) {
-    if (upcomingEvent != null) {
-        Text(
-            text = briefingLabel(event = upcomingEvent.event, eventDate = upcomingEvent.date, today = today),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            // Cap the event so a long title ellipsizes instead of pushing the weather
-            // off a tight bar; the weather half keeps its intrinsic width.
-            modifier = Modifier.widthIn(max = BriefingEventMaxWidth),
-        )
-    }
-    if (upcomingEvent != null && weather != null) {
-        Text(
-            text = "·",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-    if (weather != null) {
-        WeatherOneLiner(weather = weather, temperatureUnit = temperatureUnit)
-    }
-}
-
-@Composable
-private fun WeatherOneLiner(
+private fun WeatherBlock(
     weather: WeatherSnapshot,
     temperatureUnit: TemperatureUnit,
-) = Row(
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(4.dp),
+) = Column(
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(1.dp),
 ) {
     val glyphs = weatherGlyphs()
-    Text(
-        text = "${temperatureUnit.fromCelsius(weather.tempC).roundToInt()}${temperatureUnit.label()}",
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-    )
     FemtoIcon(
         imageVector = glyphIconFor(weather.code, weather.isDay),
         contentDescription = null,
         tint = glyphTintFor(weather.code, weather.isDay, glyphs),
-        modifier = Modifier.size(FemtoDimens.InlineIconSize),
+        modifier = Modifier.size(FemtoDimens.WeatherGlyphMedium),
+    )
+    Text(
+        text = "${temperatureUnit.fromCelsius(weather.tempC).roundToInt()}${temperatureUnit.label()}",
+        style = MaterialTheme.typography.titleLarge,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
     )
 }
 
 // Em-dash stands in for the live speed with no fix, mirroring SpeedOverlay's
 // permissions contract (an unknown speed is never shown as "0").
 private const val NO_SPEED_PLACEHOLDER = "—"
+
+// The widest realistic speed (three tabular digits) the numeral slot reserves so
+// the bar's layout is stable across 1–3 digit speeds.
+private const val SPEED_NUMERAL_SIZER = "000"
 
 // Right-side room the location strip leaves for the PassengerPill (top-end on the
 // driving face): the pill's own width plus its edge margin, so a long road + city
@@ -414,10 +421,14 @@ private val BarBriefingBreakpoint = 840.dp
 private val BigSpeedFontFull = 72.sp
 private val BigSpeedFontCompact = 40.sp
 
-// Caps that keep the now-playing title and the briefing event ellipsizing instead of
-// stretching the bar or shoving the weather / transport off a tight pane.
-private val NowPlayingTitleMaxWidth = 220.dp
-private val BriefingEventMaxWidth = 200.dp
+// Cap that keeps the now-playing title ellipsizing so the transport stays attached
+// as one cluster instead of drifting on a wide bar. (The event needs no cap — it
+// takes the flexible middle and ellipsizes into whatever the anchors leave.)
+private val NowPlayingTitleMaxWidth = 200.dp
+
+// Gap between adjacent segments within a cluster (speed ↔ music); the flexible
+// middle spacer opens the wider gap between the left and right clusters.
+private val DrivingBarSegmentGap = 20.dp
 
 @PreviewLightDark
 @Preview(name = "Driving face", widthDp = 640, heightDp = 360)
