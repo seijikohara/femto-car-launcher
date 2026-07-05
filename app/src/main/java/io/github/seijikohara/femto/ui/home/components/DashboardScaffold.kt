@@ -106,6 +106,8 @@ internal data class PanelVisibility(
  * dock ([MapConfig.bottomSafeFraction]) — rather than pinned to screen centre. A
  * [BoxWithConstraints] reads the viewport to pick the orientation and tighten the
  * spacing on a compact panel, so the layout keys off geometry, never a device.
+ * The whole arrangement above mirrors to the driver's side via [driverSide]
+ * ([DriverSide.RIGHT] is the default and the layout drawn here).
  *
  * `enableEdgeToEdge()` lets the activity paint under the system bars; the scaffold
  * reserves them back with [windowInsetsPadding] so the dock never hides behind the
