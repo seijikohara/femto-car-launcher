@@ -6,6 +6,7 @@ import androidx.compose.ui.res.stringResource
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.UiScale
@@ -61,6 +62,16 @@ internal fun ScreenSection(
             ),
         selected = uiState.dockPosition,
         onSelect = { onAction(SettingsAction.SetDockPosition(it)) },
+    )
+    ChoiceRow(
+        title = stringResource(R.string.settings_group_driver_side),
+        options =
+            listOf(
+                DriverSide.RIGHT to stringResource(R.string.settings_driver_side_right),
+                DriverSide.LEFT to stringResource(R.string.settings_driver_side_left),
+            ),
+        selected = uiState.driverSide,
+        onSelect = { onAction(SettingsAction.SetDriverSide(it)) },
     )
     ChoiceRow(
         title = stringResource(R.string.settings_group_assistant),
