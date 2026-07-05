@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -34,7 +35,6 @@ import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.calendar.DayCell
 import io.github.seijikohara.femto.data.calendar.EventItem
-import io.github.seijikohara.femto.data.calendar.UpcomingEvent
 import io.github.seijikohara.femto.data.calendar.nextUpcomingEventOrNull
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.TripState
@@ -317,7 +317,10 @@ private fun BigSpeed(
             text = SPEED_NUMERAL_SIZER,
             style = MaterialTheme.typography.bigNumber(size = numeralSize),
             maxLines = 1,
-            modifier = Modifier.alpha(0f),
+            // Invisible width reservation only: alpha hides it from sight,
+            // clearAndSetSemantics keeps the placeholder digits out of the
+            // accessibility tree so a screen reader announces just the live speed.
+            modifier = Modifier.alpha(0f).clearAndSetSemantics {},
         )
         Text(
             text = speedText,
