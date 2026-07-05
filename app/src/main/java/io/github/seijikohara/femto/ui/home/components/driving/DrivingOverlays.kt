@@ -2,7 +2,9 @@ package io.github.seijikohara.femto.ui.home.components.driving
 
 import android.location.Location
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -290,12 +293,23 @@ private fun BigSpeed(
         location
             ?.let { "${speedUnit.fromMetersPerSecond(tripState.currentSpeedMs.toFloat()).roundToInt()}" }
             ?: NO_SPEED_PLACEHOLDER
-    Text(
-        text = speedText,
-        style = MaterialTheme.typography.bigNumber(size = numeralSize),
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-    )
+    // Reserve the widest realistic (3-digit) numeral so the rest of the bar never
+    // shifts as the speed's digit count changes; the live value right-aligns into
+    // the fixed slot (bigNumber's tabular digits keep it steady within a count).
+    Box(contentAlignment = Alignment.BottomEnd) {
+        Text(
+            text = SPEED_NUMERAL_SIZER,
+            style = MaterialTheme.typography.bigNumber(size = numeralSize),
+            maxLines = 1,
+            modifier = Modifier.alpha(0f),
+        )
+        Text(
+            text = speedText,
+            style = MaterialTheme.typography.bigNumber(size = numeralSize),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+        )
+    }
     Text(
         text = speedUnit.label(),
         style = MaterialTheme.typography.sectionLabel(12, 0.12f),
@@ -367,36 +381,44 @@ private fun Briefing(
         )
     }
     if (weather != null) {
-        WeatherOneLiner(weather = weather, temperatureUnit = temperatureUnit)
+        WeatherBlock(weather = weather, temperatureUnit = temperatureUnit)
     }
 }
 
+// Weather as a compact stacked block (glyph over the temperature) so both read at
+// a glance on the driving bar — the horizontal one-liner made each element too
+// small. The glyph sizes up to [FemtoDimens.WeatherGlyphMedium] and the temp to
+// titleLarge.
 @Composable
-private fun WeatherOneLiner(
+private fun WeatherBlock(
     weather: WeatherSnapshot,
     temperatureUnit: TemperatureUnit,
-) = Row(
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(4.dp),
+) = Column(
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(1.dp),
 ) {
     val glyphs = weatherGlyphs()
-    Text(
-        text = "${temperatureUnit.fromCelsius(weather.tempC).roundToInt()}${temperatureUnit.label()}",
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-    )
     FemtoIcon(
         imageVector = glyphIconFor(weather.code, weather.isDay),
         contentDescription = null,
         tint = glyphTintFor(weather.code, weather.isDay, glyphs),
-        modifier = Modifier.size(FemtoDimens.InlineIconSize),
+        modifier = Modifier.size(FemtoDimens.WeatherGlyphMedium),
+    )
+    Text(
+        text = "${temperatureUnit.fromCelsius(weather.tempC).roundToInt()}${temperatureUnit.label()}",
+        style = MaterialTheme.typography.titleLarge,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
     )
 }
 
 // Em-dash stands in for the live speed with no fix, mirroring SpeedOverlay's
 // permissions contract (an unknown speed is never shown as "0").
 private const val NO_SPEED_PLACEHOLDER = "—"
+
+// The widest realistic speed (three tabular digits) the numeral slot reserves so
+// the bar's layout is stable across 1–3 digit speeds.
+private const val SPEED_NUMERAL_SIZER = "000"
 
 // Right-side room the location strip leaves for the PassengerPill (top-end on the
 // driving face): the pill's own width plus its edge margin, so a long road + city

@@ -92,6 +92,9 @@ object FemtoDimens {
     /** Hero weather glyph in the head row, sized to balance the big temperature. */
     val WeatherGlyphHero = 44.dp
 
+    /** Weather glyph for the driving-face weather block (stacked over the temp). */
+    val WeatherGlyphMedium = 30.dp
+
     /** Weather glyph inside the forecast chips. */
     val WeatherGlyphSmall = 18.dp
 
