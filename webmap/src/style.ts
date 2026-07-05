@@ -77,25 +77,37 @@ export function markerPadTop(
 	return 2 * markerDrop(markerPos, bottomSafe) * containerHeight;
 }
 
-// Marker shift LEFT of centre as a fraction of map width, to clear the right
-// floating cards. Half the safe zone lands the marker mid-way across the exposed
-// left strip; capped at 0.35 so a wide card set never pushes it off the left
-// quarter. Independent of markerPos. Mirrors markerXFraction in MapSnapshot.kt.
-export function markerXFraction(rightSafe: number): number {
-	// Clamp both ends, mirroring MapSnapshot.kt's coerceIn(0f, 0.35f): a negative
-	// rightSafe (a layout/rounding glitch upstream) must not shift the marker right
-	// of centre, only toward the exposed left of the map.
-	return Math.max(0, Math.min(0.35, (rightSafe || 0) / 2));
+// Magnitude of the marker's horizontal shift from centre as a fraction of map
+// width, to clear the floating cards on one side. Half the safe zone lands the
+// marker mid-way across the exposed strip; capped at 0.35 so a wide card set never
+// pushes it past the opposite quarter. Independent of markerPos; the caller applies
+// the direction (LEFT for a right-card reserve, RIGHT for a left-card reserve).
+// Reused for both [markerPadRight] and [markerPadLeft].
+export function markerXFraction(safe: number): number {
+	// Clamp both ends, mirroring the Kotlin coerceIn(0f, 0.35f): a negative safe
+	// fraction (a layout/rounding glitch upstream) must not shift the marker past
+	// centre the wrong way, only toward the exposed side of the map.
+	return Math.max(0, Math.min(0.35, (safe || 0) / 2));
 }
 
 // Right camera padding (px) that shifts the focal point left so the location sits
 // left of centre, clear of the right cards; the 2x compensates the half-of-padding
-// geometry. Mirrors the SNAPSHOT cameraFor lookRightM — keep in sync.
+// geometry.
 export function markerPadRight(
 	rightSafe: number,
 	containerWidth: number,
 ): number {
 	return 2 * markerXFraction(rightSafe) * containerWidth;
+}
+
+// Left camera padding (px) that shifts the focal point right so the location sits
+// right of centre, clear of the left cards; the horizontal mirror of
+// [markerPadRight] for a left-side (driver's-left) card reserve.
+export function markerPadLeft(
+	leftSafe: number,
+	containerWidth: number,
+): number {
+	return 2 * markerXFraction(leftSafe) * containerWidth;
 }
 
 // The first vector source id in a style (the OpenMapTiles source), so 3D

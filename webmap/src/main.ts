@@ -16,6 +16,7 @@ import {
 	type AccentColors,
 	injectFeatures,
 	markerDrop,
+	markerPadLeft,
 	markerPadRight,
 	markerPadTop,
 	markerXFraction,
@@ -37,6 +38,7 @@ declare global {
 			markerPos: number,
 			bottomSafe: number,
 			rightSafe: number,
+			leftSafe: number,
 			markerColor: string,
 		) => void;
 		setStyleUrl: (
@@ -135,6 +137,7 @@ const state = {
 		markerPos: number;
 		bottomSafe: number;
 		rightSafe: number;
+		leftSafe: number;
 	} | null,
 	// The zoom last pushed by the host; a change while detached is the user's
 	// +/- button, applied to the free camera around its own centre.
@@ -394,7 +397,10 @@ try {
 					liveMap.getContainer().clientHeight || 0,
 				),
 				bottom: 0,
-				left: 0,
+				left: markerPadLeft(
+					fix.leftSafe,
+					liveMap.getContainer().clientWidth || 0,
+				),
 				right: markerPadRight(
 					fix.rightSafe,
 					liveMap.getContainer().clientWidth || 0,
@@ -504,6 +510,7 @@ try {
 		markerPos,
 		bottomSafe,
 		rightSafe,
+		leftSafe,
 		markerColor,
 	) => {
 		// Measure the inter-fix interval BEFORE refreshing lastFixMs: the ease
@@ -534,6 +541,7 @@ try {
 			markerPos: markerPos || 0,
 			bottomSafe: bottomSafe || 0,
 			rightSafe: rightSafe || 0,
+			leftSafe: leftSafe || 0,
 		};
 		if (!state.following) {
 			// Detached (free pan): the camera stays the user's, the geo-anchored
@@ -549,7 +557,7 @@ try {
 			}
 			return;
 		}
-		markerEl.style.left = `${(0.5 - markerXFraction(rightSafe)) * 100}%`;
+		markerEl.style.left = `${(0.5 - markerXFraction(rightSafe) + markerXFraction(leftSafe)) * 100}%`;
 		markerEl.style.top = `${50 + markerDrop(markerPos, bottomSafe) * 100}%`;
 		syncChevronTransform(tilt || 0, heading);
 		markerEl.style.display = "block";
@@ -565,7 +573,7 @@ try {
 					liveMap.getContainer().clientHeight || 0,
 				),
 				bottom: 0,
-				left: 0,
+				left: markerPadLeft(leftSafe, liveMap.getContainer().clientWidth || 0),
 				right: markerPadRight(
 					rightSafe,
 					liveMap.getContainer().clientWidth || 0,
