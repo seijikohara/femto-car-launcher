@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
+import io.github.seijikohara.femto.ui.home.components.BriefingConfig
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
@@ -38,6 +39,7 @@ internal fun HomeScreen(
     activePreset: PresetId = PresetId.COCKPIT,
     passengerUnlocked: Boolean = false,
     motionTier: MotionTier = MotionTier.STANDARD,
+    briefingConfig: BriefingConfig = BriefingConfig(),
 ) = Surface(
     modifier = modifier.fillMaxSize(),
     color = MaterialTheme.colorScheme.background,
@@ -61,6 +63,7 @@ internal fun HomeScreen(
         activePreset = activePreset,
         passengerUnlocked = passengerUnlocked,
         motionTier = motionTier,
+        briefingConfig = briefingConfig,
     )
 }
 

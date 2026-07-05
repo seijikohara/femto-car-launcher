@@ -31,7 +31,6 @@ import io.github.seijikohara.femto.data.calendar.DayCell
 import io.github.seijikohara.femto.data.calendar.EventItem
 import io.github.seijikohara.femto.data.calendar.UpcomingEvent
 import io.github.seijikohara.femto.data.calendar.nextUpcomingEventOrNull
-import io.github.seijikohara.femto.data.display.BriefingScope
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.music.MusicCardState
@@ -40,6 +39,7 @@ import io.github.seijikohara.femto.data.weather.WeatherCode
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
+import io.github.seijikohara.femto.ui.home.components.BriefingConfig
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.TransportRow
 import io.github.seijikohara.femto.ui.home.components.glassChrome
@@ -92,6 +92,7 @@ internal fun DrivingOverlays(
     glassConfig: GlassConfig,
     hazeState: HazeState,
     outerPad: Dp,
+    briefingConfig: BriefingConfig,
     onBarHeightChange: (Int) -> Unit,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
@@ -131,6 +132,7 @@ internal fun DrivingOverlays(
         uiState = uiState,
         speedUnit = speedUnit,
         temperatureUnit = temperatureUnit,
+        briefingConfig = briefingConfig,
         onAction = onAction,
         hazeState = hazeState,
         glassConfig = glassConfig,
@@ -203,6 +205,7 @@ private fun DrivingBar(
     uiState: HomeUiState,
     speedUnit: SpeedUnit,
     temperatureUnit: TemperatureUnit,
+    briefingConfig: BriefingConfig,
     onAction: (HomeAction) -> Unit,
     hazeState: HazeState,
     glassConfig: GlassConfig,
@@ -249,15 +252,23 @@ private fun DrivingBar(
 
     // Briefing line: next event + weather one-liner. Only the widest bars carry it —
     // it needs room the big speed + transport leave on a narrow pane — and only when
-    // at least one half has data.
-    // BriefingScope.UPCOMING preserves the pre-scope behavior for now; the real
-    // scope/toggle wiring (BriefingConfig) lands in a later task.
-    val upcomingEvent = uiState.calendar.nextUpcomingEventOrNull(uiState.clock, BriefingScope.UPCOMING)
-    if (showBriefing && (upcomingEvent != null || uiState.weather != null)) {
+    // at least one enabled half has data. Each half is independently gated by
+    // [briefingConfig]: the event is looked up within its scope only when enabled, and
+    // the weather half is dropped when disabled, so a fully-off briefing renders
+    // nothing (and no stray divider — Briefing draws the separator only between two
+    // present halves).
+    val upcomingEvent =
+        if (briefingConfig.showEvent) {
+            uiState.calendar.nextUpcomingEventOrNull(uiState.clock, briefingConfig.scope)
+        } else {
+            null
+        }
+    val weather = uiState.weather.takeIf { briefingConfig.showWeather }
+    if (showBriefing && (upcomingEvent != null || weather != null)) {
         Briefing(
             upcomingEvent = upcomingEvent,
             today = uiState.clock.date,
-            weather = uiState.weather,
+            weather = weather,
             temperatureUnit = temperatureUnit,
         )
     }
@@ -420,6 +431,7 @@ private fun DrivingOverlaysPreview() {
             glassConfig = GlassConfig(),
             hazeState = rememberHazeState(),
             outerPad = FemtoDimens.ScreenPadding,
+            briefingConfig = BriefingConfig(),
             onBarHeightChange = {},
             onAction = {},
         )
