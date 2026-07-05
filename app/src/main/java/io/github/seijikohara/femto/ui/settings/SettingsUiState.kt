@@ -6,6 +6,7 @@ import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.GoogleMapType
 import io.github.seijikohara.femto.data.display.MapBackend
@@ -34,6 +35,7 @@ internal data class SettingsUiState(
     val showClockSeconds: Boolean,
     val fullscreen: FullscreenSetting,
     val dockPosition: DockPosition,
+    val driverSide: DriverSide,
     val presetMode: PresetMode,
     val drivingThresholdKmh: Int,
     val motionTier: MotionTier,
@@ -93,6 +95,7 @@ internal data class SettingsUiState(
                 showClockSeconds = DisplaySettings.Default.showClockSeconds,
                 fullscreen = DisplaySettings.Default.fullscreen,
                 dockPosition = DisplaySettings.Default.dockPosition,
+                driverSide = DisplaySettings.Default.driverSide,
                 presetMode = DisplaySettings.Default.presetMode,
                 drivingThresholdKmh = DisplaySettings.Default.drivingThresholdKmh,
                 motionTier = DisplaySettings.Default.motionTier,
@@ -175,6 +178,10 @@ internal sealed interface SettingsAction {
 
     data class SetDockPosition(
         val value: DockPosition,
+    ) : SettingsAction
+
+    data class SetDriverSide(
+        val value: DriverSide,
     ) : SettingsAction
 
     data class SetPresetMode(

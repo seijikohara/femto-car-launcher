@@ -51,6 +51,8 @@ internal interface DisplaySettingsStore {
 
     suspend fun setDockPosition(value: DockPosition)
 
+    suspend fun setDriverSide(value: DriverSide)
+
     suspend fun setPresetMode(value: PresetMode)
 
     suspend fun setDrivingThresholdKmh(value: Int)
@@ -153,6 +155,7 @@ internal class DisplayPreferences(
                     showClockSeconds = prefs[SHOW_CLOCK_SECONDS_KEY] ?: false,
                     fullscreen = prefs[FULLSCREEN_KEY].toEnumOr(FullscreenSetting.ON),
                     dockPosition = prefs[DOCK_POSITION_KEY].toEnumOr(DockPosition.BOTTOM),
+                    driverSide = prefs[DRIVER_SIDE_KEY].toEnumOr(DriverSide.RIGHT),
                     presetMode = prefs[PRESET_MODE_KEY].toEnumOr(PresetMode.AUTO),
                     drivingThresholdKmh = prefs[DRIVING_THRESHOLD_KMH_KEY] ?: 8,
                     motionTier = prefs[MOTION_TIER_KEY].toEnumOr(MotionTier.STANDARD),
@@ -225,6 +228,10 @@ internal class DisplayPreferences(
 
     override suspend fun setDockPosition(value: DockPosition) {
         context.displayDataStore.editOrLog(TAG) { it[DOCK_POSITION_KEY] = value.name }
+    }
+
+    override suspend fun setDriverSide(value: DriverSide) {
+        context.displayDataStore.editOrLog(TAG) { it[DRIVER_SIDE_KEY] = value.name }
     }
 
     override suspend fun setPresetMode(value: PresetMode) {
@@ -382,6 +389,7 @@ internal class DisplayPreferences(
         val SHOW_CLOCK_SECONDS_KEY = booleanPreferencesKey("show_clock_seconds")
         val FULLSCREEN_KEY = stringPreferencesKey("fullscreen")
         val DOCK_POSITION_KEY = stringPreferencesKey("dock_position")
+        val DRIVER_SIDE_KEY = stringPreferencesKey("driver_side")
         val PRESET_MODE_KEY = stringPreferencesKey("preset_mode")
         val DRIVING_THRESHOLD_KMH_KEY = intPreferencesKey("driving_threshold_kmh")
         val MOTION_TIER_KEY = stringPreferencesKey("motion_tier")

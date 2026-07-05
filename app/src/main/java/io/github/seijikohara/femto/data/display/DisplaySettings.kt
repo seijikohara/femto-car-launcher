@@ -58,6 +58,14 @@ internal enum class AssistantLaunchSetting { SYSTEM, IN_APP }
 internal enum class DockPosition { BOTTOM, TOP, LEFT, RIGHT }
 
 /**
+ * Which side the driver sits on. The cockpit face anchors its info-dense
+ * layout (floating cards, clock, speed reserve, map controls, self-marker) to
+ * this side so it stays within the driver's reach/glance instead of behind the
+ * wheel. [RIGHT] is the default — today's layout, unchanged for a fresh install.
+ */
+internal enum class DriverSide { RIGHT, LEFT }
+
+/**
  * How the dashboard chooses its preset (whole-dashboard face). AUTO switches
  * on speed (see [DisplaySettings.drivingThresholdKmh]); COCKPIT/DRIVING pin one
  * face. The choice is the user's — the driving simplification is a default,
@@ -135,6 +143,9 @@ internal data class DisplaySettings(
     val fullscreen: FullscreenSetting,
     // Which screen edge hosts the dashboard dock; BOTTOM is the classic dock.
     val dockPosition: DockPosition,
+    // Which side the driver sits on; the cockpit face anchors to it. RIGHT is
+    // today's layout, unchanged for a fresh install.
+    val driverSide: DriverSide,
     // Which dashboard preset the driving-switch resolves to; AUTO follows speed.
     val presetMode: PresetMode,
     // Speed (km/h) at/above which AUTO switches to the driving face; a hysteresis
@@ -220,6 +231,7 @@ internal data class DisplaySettings(
                 showClockSeconds = false,
                 fullscreen = FullscreenSetting.ON,
                 dockPosition = DockPosition.BOTTOM,
+                driverSide = DriverSide.RIGHT,
                 presetMode = PresetMode.AUTO,
                 drivingThresholdKmh = 8,
                 motionTier = MotionTier.STANDARD,

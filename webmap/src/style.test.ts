@@ -7,6 +7,7 @@ import {
 	MAPTERHORN_DEM_URL,
 	MAX_MARKER_DROP,
 	markerDrop,
+	markerPadLeft,
 	markerPadRight,
 	markerPadTop,
 	markerXFraction,
@@ -363,6 +364,17 @@ describe("markerPadRight", () => {
 
 	it("pads the right by 2 * the marker shift of the width", () => {
 		expect(markerPadRight(0.3, 1000)).toBeCloseTo(2 * 0.15 * 1000);
+	});
+});
+
+describe("markerPadLeft", () => {
+	it("keeps the focal point centred when no left cards are present", () => {
+		expect(markerPadLeft(0, 1000)).toBe(0);
+	});
+
+	it("pads the left by 2 * the marker shift of the width, mirroring the right", () => {
+		expect(markerPadLeft(0.3, 1000)).toBeCloseTo(2 * 0.15 * 1000);
+		expect(markerPadLeft(0.3, 1000)).toBe(markerPadRight(0.3, 1000));
 	});
 });
 

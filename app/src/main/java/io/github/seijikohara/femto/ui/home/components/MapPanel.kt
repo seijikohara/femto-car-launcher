@@ -68,15 +68,17 @@ internal fun MapPanel(
                 onBearingChange = onBearingChange,
             )
         } else {
-            // Centre the placeholder in the exposed map region — left of the right
-            // cards and above the bottom overlays (the same safe fractions the marker
-            // honours) — instead of the full screen, so its text does not slide under
-            // the floating cards and read as off-centre.
+            // Centre the placeholder in the exposed map region — clear of the side
+            // cards (left OR right, whichever the driver-side reserve occupies) and
+            // above the bottom overlays (the same safe fractions the marker honours) —
+            // instead of the full screen, so its text does not slide under the
+            // floating cards and read as off-centre. Only one horizontal reserve is
+            // ever non-zero; a left reserve pins the exposed region to the end side.
             Box(
                 modifier =
                     Modifier
-                        .align(Alignment.TopStart)
-                        .fillMaxWidth(1f - mapConfig.rightSafeFraction)
+                        .align(if (mapConfig.leftSafeFraction > 0f) Alignment.TopEnd else Alignment.TopStart)
+                        .fillMaxWidth(1f - mapConfig.rightSafeFraction - mapConfig.leftSafeFraction)
                         .fillMaxHeight(1f - mapConfig.bottomSafeFraction),
                 contentAlignment = Alignment.Center,
             ) {

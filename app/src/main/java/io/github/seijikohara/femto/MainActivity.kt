@@ -164,6 +164,7 @@ class MainActivity : ComponentActivity() {
                     is24Hour = resolveIs24Hour(display.clock),
                     showClockSeconds = display.showClockSeconds,
                     dockPosition = display.dockPosition,
+                    driverSide = display.driverSide,
                     speedUnit = display.speedUnit.resolved(),
                     temperatureUnit = display.temperatureUnit.resolved(),
                     mapConfig =

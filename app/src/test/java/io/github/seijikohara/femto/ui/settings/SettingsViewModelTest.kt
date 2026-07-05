@@ -5,6 +5,7 @@ import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.GoogleMapType
 import io.github.seijikohara.femto.data.display.MapBackend
@@ -294,6 +295,14 @@ class SettingsViewModelTest {
             viewModel().onAction(SettingsAction.SetDockPosition(DockPosition.LEFT))
             advanceUntilIdle()
             assertEquals(DockPosition.LEFT, store.settings.first().dockPosition)
+        }
+
+    @Test
+    fun `SetDriverSide writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetDriverSide(DriverSide.LEFT))
+            advanceUntilIdle()
+            assertEquals(DriverSide.LEFT, store.settings.first().driverSide)
         }
 
     @Test

@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.seijikohara.femto.data.clock.ClockTick
+import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.testfixtures.fakeAddress
@@ -132,9 +133,22 @@ class DashboardScreenshotTest {
     @Config(qualifiers = "w853dp-h512dp-mdpi")
     fun dashboard_head_unit_large_scale() = capture("head-unit-853x512-large", UiScale.LARGE)
 
+    // --- Driver-side opt-ins: LEFT mirrors the cockpit column to the driver's
+    // left. Default RIGHT is the no-op baseline of every case above. ---
+
+    @Test
+    @Config(qualifiers = "w853dp-h512dp-mdpi")
+    fun dashboard_head_unit_driver_left() = capture("head-unit-853x512-driver-left", driverSide = DriverSide.LEFT)
+
+    @Test
+    @Config(qualifiers = "w412dp-h915dp-mdpi")
+    fun dashboard_phone_portrait_driver_left() =
+        capture("phone-portrait-412x915-driver-left", driverSide = DriverSide.LEFT)
+
     private fun capture(
         name: String,
         uiScale: UiScale = UiScale.MEDIUM,
+        driverSide: DriverSide = DriverSide.RIGHT,
     ) {
         captureRoboImage(filePath = "src/test/screenshots/dashboard-$name.png", roborazziOptions = OPTIONS) {
             FemtoTheme(uiScale = uiScale) {
@@ -149,6 +163,7 @@ class DashboardScreenshotTest {
                     glassConfig = GlassConfig(),
                     onAction = {},
                     modifier = Modifier.fillMaxSize(),
+                    driverSide = driverSide,
                 )
             }
         }

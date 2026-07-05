@@ -75,6 +75,7 @@ declare global {
 			markerPos: number,
 			bottomSafe: number,
 			rightSafe: number,
+			leftSafe: number,
 			markerColor: string,
 		) => void;
 		setFollow: (follow: boolean) => void;
@@ -216,9 +217,9 @@ const state = {
 	// events fire well within the window while user input between fixes does not.
 	programmaticUntil: 0,
 	// tilt is used only on a VECTOR map; a raster map ignores it. markerPos /
-	// bottomSafe / rightSafe are the host's safe-zone fractions, kept so a
-	// re-follow (easeHome) reproduces the same chevron/camera offset as the live
-	// updateCamera push.
+	// bottomSafe / rightSafe / leftSafe are the host's safe-zone fractions, kept
+	// so a re-follow (easeHome) reproduces the same chevron/camera offset as the
+	// live updateCamera push.
 	lastFix: null as {
 		lat: number;
 		lng: number;
@@ -228,6 +229,7 @@ const state = {
 		markerPos: number;
 		bottomSafe: number;
 		rightSafe: number;
+		leftSafe: number;
 	} | null,
 };
 
@@ -463,8 +465,11 @@ async function initMap(): Promise<void> {
 		markerPos: number,
 		bottomSafe: number,
 		rightSafe: number,
+		leftSafe: number,
 	): void {
-		const mx = markerXFraction(rightSafe);
+		// Net horizontal shift: a right-card reserve shifts the marker left, a
+		// left-card reserve shifts it right. Only one is ever non-zero.
+		const mx = markerXFraction(rightSafe) - markerXFraction(leftSafe);
 		const drop = markerDrop(markerPos, bottomSafe);
 		const center =
 			offsetCenterFor(
@@ -502,6 +507,7 @@ async function initMap(): Promise<void> {
 			fix.markerPos,
 			fix.bottomSafe,
 			fix.rightSafe,
+			fix.leftSafe,
 		);
 	}
 
@@ -638,6 +644,7 @@ async function initMap(): Promise<void> {
 		markerPos,
 		bottomSafe,
 		rightSafe,
+		leftSafe,
 		markerColor,
 	) => {
 		const now = Date.now();
@@ -664,6 +671,7 @@ async function initMap(): Promise<void> {
 			markerPos,
 			bottomSafe,
 			rightSafe,
+			leftSafe,
 		};
 
 		if (!state.following) {
@@ -691,6 +699,7 @@ async function initMap(): Promise<void> {
 			markerPos,
 			bottomSafe,
 			rightSafe,
+			leftSafe,
 		);
 	};
 
