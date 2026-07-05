@@ -29,6 +29,7 @@ import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.calendar.DayCell
 import io.github.seijikohara.femto.data.calendar.EventItem
+import io.github.seijikohara.femto.data.calendar.UpcomingEvent
 import io.github.seijikohara.femto.data.calendar.nextUpcomingEventOrNull
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.TripState
@@ -38,6 +39,7 @@ import io.github.seijikohara.femto.data.weather.WeatherCode
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
+import io.github.seijikohara.femto.ui.home.components.BriefingConfig
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.TransportRow
 import io.github.seijikohara.femto.ui.home.components.glassChrome
@@ -58,7 +60,6 @@ import io.github.seijikohara.femto.ui.theme.weatherGlyphs
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
 /**
@@ -91,6 +92,7 @@ internal fun DrivingOverlays(
     glassConfig: GlassConfig,
     hazeState: HazeState,
     outerPad: Dp,
+    briefingConfig: BriefingConfig,
     onBarHeightChange: (Int) -> Unit,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
@@ -130,6 +132,7 @@ internal fun DrivingOverlays(
         uiState = uiState,
         speedUnit = speedUnit,
         temperatureUnit = temperatureUnit,
+        briefingConfig = briefingConfig,
         onAction = onAction,
         hazeState = hazeState,
         glassConfig = glassConfig,
@@ -202,6 +205,7 @@ private fun DrivingBar(
     uiState: HomeUiState,
     speedUnit: SpeedUnit,
     temperatureUnit: TemperatureUnit,
+    briefingConfig: BriefingConfig,
     onAction: (HomeAction) -> Unit,
     hazeState: HazeState,
     glassConfig: GlassConfig,
@@ -248,10 +252,25 @@ private fun DrivingBar(
 
     // Briefing line: next event + weather one-liner. Only the widest bars carry it —
     // it needs room the big speed + transport leave on a narrow pane — and only when
-    // at least one half has data.
-    val nextEvent = uiState.calendar.nextUpcomingEventOrNull(uiState.clock)
-    if (showBriefing && (nextEvent != null || uiState.weather != null)) {
-        Briefing(nextEvent = nextEvent, weather = uiState.weather, temperatureUnit = temperatureUnit)
+    // at least one enabled half has data. Each half is independently gated by
+    // [briefingConfig]: the event is looked up within its scope only when enabled, and
+    // the weather half is dropped when disabled, so a fully-off briefing renders
+    // nothing (and no stray divider — Briefing draws the separator only between two
+    // present halves).
+    val upcomingEvent =
+        if (briefingConfig.showEvent) {
+            uiState.calendar.nextUpcomingEventOrNull(uiState.clock, briefingConfig.scope)
+        } else {
+            null
+        }
+    val weather = uiState.weather.takeIf { briefingConfig.showWeather }
+    if (showBriefing && (upcomingEvent != null || weather != null)) {
+        Briefing(
+            upcomingEvent = upcomingEvent,
+            today = uiState.clock.date,
+            weather = weather,
+            temperatureUnit = temperatureUnit,
+        )
     }
 }
 
@@ -320,16 +339,17 @@ private fun NowPlayingMini(
 
 @Composable
 private fun Briefing(
-    nextEvent: EventItem?,
+    upcomingEvent: UpcomingEvent?,
+    today: LocalDate,
     weather: WeatherSnapshot?,
     temperatureUnit: TemperatureUnit,
 ) = Row(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(8.dp),
 ) {
-    if (nextEvent != null) {
+    if (upcomingEvent != null) {
         Text(
-            text = nextEvent.briefingLabel(),
+            text = briefingLabel(event = upcomingEvent.event, eventDate = upcomingEvent.date, today = today),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
@@ -339,7 +359,7 @@ private fun Briefing(
             modifier = Modifier.widthIn(max = BriefingEventMaxWidth),
         )
     }
-    if (nextEvent != null && weather != null) {
+    if (upcomingEvent != null && weather != null) {
         Text(
             text = "·",
             style = MaterialTheme.typography.titleMedium,
@@ -373,12 +393,6 @@ private fun WeatherOneLiner(
         modifier = Modifier.size(FemtoDimens.InlineIconSize),
     )
 }
-
-// "10:30 Team standup" for a timed event, the title alone for an all-day one.
-// 24-hour notation for v1 — the driving face carries no 12/24h setting yet.
-private fun EventItem.briefingLabel(): String = time?.let { "${it.format(BriefingTimeFormatter)} $title" } ?: title
-
-private val BriefingTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 // Em-dash stands in for the live speed with no fix, mirroring SpeedOverlay's
 // permissions contract (an unknown speed is never shown as "0").
@@ -417,6 +431,7 @@ private fun DrivingOverlaysPreview() {
             glassConfig = GlassConfig(),
             hazeState = rememberHazeState(),
             outerPad = FemtoDimens.ScreenPadding,
+            briefingConfig = BriefingConfig(),
             onBarHeightChange = {},
             onAction = {},
         )

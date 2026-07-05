@@ -58,6 +58,7 @@ import io.github.seijikohara.femto.ui.drawer.AppDrawerSheet
 import io.github.seijikohara.femto.ui.fontpicker.FontPickerSheet
 import io.github.seijikohara.femto.ui.home.HomeEvent
 import io.github.seijikohara.femto.ui.home.HomeRoute
+import io.github.seijikohara.femto.ui.home.components.BriefingConfig
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
 import io.github.seijikohara.femto.ui.home.components.PanelVisibility
@@ -192,6 +193,12 @@ class MainActivity : ComponentActivity() {
                             calendar = display.showCalendar,
                             weather = display.showWeather,
                             music = display.showMusic,
+                        ),
+                    briefingConfig =
+                        BriefingConfig(
+                            scope = display.briefingScope,
+                            showEvent = display.briefingShowEvent,
+                            showWeather = display.briefingShowWeather,
                         ),
                     musicShowAlbum = display.musicShowAlbum,
                     musicShowArt = display.musicShowArt,

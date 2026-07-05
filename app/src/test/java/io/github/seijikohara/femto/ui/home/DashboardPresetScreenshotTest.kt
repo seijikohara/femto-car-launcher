@@ -80,7 +80,10 @@ class DashboardPresetScreenshotTest {
 
         val STATE =
             HomeUiState.Initial.copy(
-                clock = ClockTick(LocalTime.of(14, 32), LocalDate.of(2026, 5, 1)),
+                // 09:00 so the fixture's 10:30 event is still upcoming today — the
+                // default THROUGH_TOMORROW briefing scope then surfaces it (at 14:32 both
+                // of today's events are past and the scope would show only weather).
+                clock = ClockTick(LocalTime.of(9, 0), LocalDate.of(2026, 5, 1)),
                 location = fakeLocation(bearingDegrees = 45f),
                 address = fakeAddress(road = "Oak St"),
                 weather = fakeWeatherSnapshot(),

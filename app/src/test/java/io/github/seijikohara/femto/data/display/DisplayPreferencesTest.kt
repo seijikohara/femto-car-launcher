@@ -47,6 +47,9 @@ class DisplayPreferencesTest {
             store.setDrivingThresholdKmh(20)
             store.setMotionTier(MotionTier.OFF)
             store.setDriverSide(DriverSide.LEFT)
+            store.setBriefingScope(BriefingScope.TODAY)
+            store.setBriefingShowEvent(false)
+            store.setBriefingShowWeather(false)
             assertNotEquals(DisplaySettings.Default, store.settings.first())
 
             // The two music-meta toggles persist and read back independently.
@@ -60,6 +63,9 @@ class DisplayPreferencesTest {
                 assertEquals(20, persisted.drivingThresholdKmh)
                 assertEquals(MotionTier.OFF, persisted.motionTier)
                 assertEquals(DriverSide.LEFT, persisted.driverSide)
+                assertEquals(BriefingScope.TODAY, persisted.briefingScope)
+                assertFalse(persisted.briefingShowEvent)
+                assertFalse(persisted.briefingShowWeather)
             }
 
             // resetToDefaults() clears every key, so the read falls back to Default

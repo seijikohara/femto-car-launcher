@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import dev.chrisbanes.haze.rememberHazeState
+import io.github.seijikohara.femto.data.clock.ClockTick
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
@@ -20,6 +21,8 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
+import java.time.LocalDate
+import java.time.LocalTime
 
 class DrivingOverlaysTest {
     @get:Rule
@@ -47,6 +50,7 @@ class DrivingOverlaysTest {
                     glassConfig = GlassConfig(),
                     hazeState = rememberHazeState(),
                     outerPad = FemtoDimens.ScreenPadding,
+                    briefingConfig = BriefingConfig(),
                     onBarHeightChange = {},
                     onAction = {},
                 )
@@ -60,5 +64,37 @@ class DrivingOverlaysTest {
         rule.onNodeWithText("Oak St", substring = true).assertIsDisplayed()
         // ...and a 90 degree GPS-fix bearing renders as the "E" heading badge.
         rule.onNodeWithText("E").assertIsDisplayed()
+    }
+
+    @Test
+    fun hides_the_event_half_when_show_event_is_off() {
+        rule.setContent {
+            FemtoTheme {
+                DrivingOverlays(
+                    uiState =
+                        HomeUiState.Initial.copy(
+                            location = fakeLocation(),
+                            // The clock is aligned to the fixture's date and set before the
+                            // 10:30 "Team standup", so THROUGH_TOMORROW would surface that
+                            // event if the event half were enabled.
+                            clock = ClockTick(LocalTime.of(9, 0), LocalDate.of(2026, 5, 1)),
+                            tripState = fakeTripState(currentSpeedMs = 18.0),
+                            weather = fakeWeatherSnapshot(),
+                            calendar = fakeCalendarSnapshot(),
+                        ),
+                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    temperatureUnit = TemperatureUnit.CELSIUS,
+                    glassConfig = GlassConfig(),
+                    hazeState = rememberHazeState(),
+                    outerPad = FemtoDimens.ScreenPadding,
+                    briefingConfig = BriefingConfig(showEvent = false),
+                    onBarHeightChange = {},
+                    onAction = {},
+                )
+            }
+        }
+        // The event half is disabled, so the next-event title never renders even
+        // though the calendar has an in-scope upcoming event.
+        rule.onNodeWithText("Team standup", substring = true).assertDoesNotExist()
     }
 }

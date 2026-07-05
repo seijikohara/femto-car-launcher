@@ -49,6 +49,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.display.BriefingScope
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
@@ -78,6 +79,17 @@ internal data class PanelVisibility(
     // overlay is dropped entirely so the map shows uncovered.
     val anyInfoPanel: Boolean get() = calendar || weather || music
 }
+
+// How the driving face composes its one-line briefing: how far ahead [scope]
+// looks for the next event, and whether the event / weather halves are shown.
+// Only the driving face reads this. Sourced from DisplaySettings and threaded
+// down like PanelVisibility; the field defaults mirror DisplaySettings.Default
+// (THROUGH_TOMORROW, both halves on) so a fresh install shows the full briefing.
+internal data class BriefingConfig(
+    val scope: BriefingScope = BriefingScope.THROUGH_TOMORROW,
+    val showEvent: Boolean = true,
+    val showWeather: Boolean = true,
+)
 
 /**
  * Top-level dashboard layout: the map is the full-screen background and
@@ -133,6 +145,7 @@ internal fun DashboardScaffold(
     activePreset: PresetId = PresetId.COCKPIT,
     passengerUnlocked: Boolean = false,
     motionTier: MotionTier = MotionTier.STANDARD,
+    briefingConfig: BriefingConfig = BriefingConfig(),
 ) = DashboardContent(
     uiState = uiState,
     is24Hour = is24Hour,
@@ -155,6 +168,7 @@ internal fun DashboardScaffold(
     activePreset = activePreset,
     passengerUnlocked = passengerUnlocked,
     motionTier = motionTier,
+    briefingConfig = briefingConfig,
 )
 
 // The full-screen dashboard body: the map fills the viewport as the background
@@ -181,6 +195,7 @@ private fun DashboardContent(
     activePreset: PresetId = PresetId.COCKPIT,
     passengerUnlocked: Boolean = false,
     motionTier: MotionTier = MotionTier.STANDARD,
+    briefingConfig: BriefingConfig = BriefingConfig(),
 ) = BoxWithConstraints(modifier = modifier) {
     val compact = maxHeight < CompactHeightBreakpoint || maxWidth < CompactWidthBreakpoint
     val portrait = maxHeight > maxWidth
@@ -366,6 +381,7 @@ private fun DashboardContent(
                     glassConfig = glassConfig,
                     hazeState = hazeState,
                     outerPad = outerPad,
+                    briefingConfig = briefingConfig,
                     onBarHeightChange = { drivingBarHeightPx = it },
                     onAction = onAction,
                     modifier = Modifier.fillMaxSize().padding(dockEdgePadding(dockPosition, dockExtent)),

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.display.BriefingScope
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.display.PresetMode
 import io.github.seijikohara.femto.ui.settings.SettingsAction
@@ -47,5 +48,27 @@ internal fun DrivingSection(
             ),
         selected = uiState.motionTier,
         onSelect = { onAction(SettingsAction.SetMotionTier(it)) },
+    )
+    SettingsSubheader(stringResource(R.string.settings_group_briefing))
+    ChoiceRow(
+        title = stringResource(R.string.settings_briefing_scope),
+        options =
+            listOf(
+                BriefingScope.TODAY to stringResource(R.string.settings_briefing_scope_today),
+                BriefingScope.THROUGH_TOMORROW to stringResource(R.string.settings_briefing_scope_tomorrow),
+                BriefingScope.UPCOMING to stringResource(R.string.settings_briefing_scope_all),
+            ),
+        selected = uiState.briefingScope,
+        onSelect = { onAction(SettingsAction.SetBriefingScope(it)) },
+    )
+    SwitchRow(
+        title = stringResource(R.string.settings_briefing_show_event),
+        checked = uiState.briefingShowEvent,
+        onCheckedChange = { onAction(SettingsAction.SetBriefingShowEvent(it)) },
+    )
+    SwitchRow(
+        title = stringResource(R.string.settings_briefing_show_weather),
+        checked = uiState.briefingShowWeather,
+        onCheckedChange = { onAction(SettingsAction.SetBriefingShowWeather(it)) },
     )
 }

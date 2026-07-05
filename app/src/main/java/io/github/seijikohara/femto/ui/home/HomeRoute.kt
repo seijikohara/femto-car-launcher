@@ -16,6 +16,7 @@ import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.location.hasFineLocationPermission
+import io.github.seijikohara.femto.ui.home.components.BriefingConfig
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
 import io.github.seijikohara.femto.ui.home.components.PanelVisibility
@@ -38,6 +39,7 @@ internal fun HomeRoute(
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
     motionTier: MotionTier = MotionTier.STANDARD,
+    briefingConfig: BriefingConfig = BriefingConfig(),
 ) {
     val context = LocalContext.current
     val viewModel: HomeViewModel =
@@ -69,6 +71,7 @@ internal fun HomeRoute(
         activePreset = activePreset,
         passengerUnlocked = passengerUnlocked,
         motionTier = motionTier,
+        briefingConfig = briefingConfig,
     )
 }
 
