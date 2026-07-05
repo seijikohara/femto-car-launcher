@@ -61,6 +61,12 @@ internal interface DisplaySettingsStore {
 
     suspend fun setOrientation(value: OrientationSetting)
 
+    suspend fun setBriefingScope(value: BriefingScope)
+
+    suspend fun setBriefingShowEvent(value: Boolean)
+
+    suspend fun setBriefingShowWeather(value: Boolean)
+
     suspend fun setKeepScreenOn(value: Boolean)
 
     suspend fun setAssistantLaunch(value: AssistantLaunchSetting)
@@ -160,6 +166,9 @@ internal class DisplayPreferences(
                     drivingThresholdKmh = prefs[DRIVING_THRESHOLD_KMH_KEY] ?: 8,
                     motionTier = prefs[MOTION_TIER_KEY].toEnumOr(MotionTier.STANDARD),
                     orientation = prefs[ORIENTATION_KEY].toEnumOr(OrientationSetting.AUTO),
+                    briefingScope = prefs[BRIEFING_SCOPE_KEY].toEnumOr(BriefingScope.THROUGH_TOMORROW),
+                    briefingShowEvent = prefs[BRIEFING_SHOW_EVENT_KEY] ?: true,
+                    briefingShowWeather = prefs[BRIEFING_SHOW_WEATHER_KEY] ?: true,
                     keepScreenOn = prefs[KEEP_SCREEN_ON_KEY] ?: true,
                     assistantLaunch = prefs[ASSISTANT_LAUNCH_KEY].toEnumOr(AssistantLaunchSetting.SYSTEM),
                     mapStyle = prefs[MAP_STYLE_KEY].toEnumOr(MapStyleSetting.AUTO),
@@ -248,6 +257,18 @@ internal class DisplayPreferences(
 
     override suspend fun setOrientation(value: OrientationSetting) {
         context.displayDataStore.editOrLog(TAG) { it[ORIENTATION_KEY] = value.name }
+    }
+
+    override suspend fun setBriefingScope(value: BriefingScope) {
+        context.displayDataStore.editOrLog(TAG) { it[BRIEFING_SCOPE_KEY] = value.name }
+    }
+
+    override suspend fun setBriefingShowEvent(value: Boolean) {
+        context.displayDataStore.editOrLog(TAG) { it[BRIEFING_SHOW_EVENT_KEY] = value }
+    }
+
+    override suspend fun setBriefingShowWeather(value: Boolean) {
+        context.displayDataStore.editOrLog(TAG) { it[BRIEFING_SHOW_WEATHER_KEY] = value }
     }
 
     override suspend fun setUiScale(value: UiScale) {
@@ -394,6 +415,9 @@ internal class DisplayPreferences(
         val DRIVING_THRESHOLD_KMH_KEY = intPreferencesKey("driving_threshold_kmh")
         val MOTION_TIER_KEY = stringPreferencesKey("motion_tier")
         val ORIENTATION_KEY = stringPreferencesKey("orientation")
+        val BRIEFING_SCOPE_KEY = stringPreferencesKey("briefing_scope")
+        val BRIEFING_SHOW_EVENT_KEY = booleanPreferencesKey("briefing_show_event")
+        val BRIEFING_SHOW_WEATHER_KEY = booleanPreferencesKey("briefing_show_weather")
         val KEEP_SCREEN_ON_KEY = booleanPreferencesKey("keep_screen_on")
         val ASSISTANT_LAUNCH_KEY = stringPreferencesKey("assistant_launch")
         val MAP_STYLE_KEY = stringPreferencesKey("map_style")
