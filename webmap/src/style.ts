@@ -56,7 +56,7 @@ export function clampMarkerPos(markerPos: number): number {
 // the lowest the centre may sit is 0.5 - bottomSafe, where bottomSafe is the
 // overlay's measured footprint (plus marker clearance) the host pushes. A short
 // map pane or a tall overlay shrinks the usable range instead of burying the
-// marker. Mirrors markerDropFraction in MapSnapshot.kt — keep in sync.
+// marker.
 export function markerDrop(markerPos: number, bottomSafe: number): number {
 	const maxDrop = Math.max(
 		0,
