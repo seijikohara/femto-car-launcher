@@ -30,6 +30,7 @@ import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.calendar.DayCell
 import io.github.seijikohara.femto.data.calendar.EventItem
 import io.github.seijikohara.femto.data.calendar.nextUpcomingEventOrNull
+import io.github.seijikohara.femto.data.display.BriefingScope
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.music.MusicCardState
@@ -249,7 +250,9 @@ private fun DrivingBar(
     // Briefing line: next event + weather one-liner. Only the widest bars carry it —
     // it needs room the big speed + transport leave on a narrow pane — and only when
     // at least one half has data.
-    val nextEvent = uiState.calendar.nextUpcomingEventOrNull(uiState.clock)
+    // BriefingScope.UPCOMING preserves the pre-scope behavior for now; the real
+    // scope/toggle wiring (BriefingConfig) lands in a later task.
+    val nextEvent = uiState.calendar.nextUpcomingEventOrNull(uiState.clock, BriefingScope.UPCOMING)?.event
     if (showBriefing && (nextEvent != null || uiState.weather != null)) {
         Briefing(nextEvent = nextEvent, weather = uiState.weather, temperatureUnit = temperatureUnit)
     }
