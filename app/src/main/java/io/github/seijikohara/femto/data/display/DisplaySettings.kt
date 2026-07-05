@@ -189,8 +189,10 @@ internal data class DisplaySettings(
     // Location-marker vertical position (0..100): 0 = map centre, 100 = just above
     // the speed overlay. Applied to both backends.
     val mapMarkerPos: Int,
-    // OSM-map (WebGL) feature toggles. Both default off. 3D buildings extrude the
-    // OpenMapTiles building layer; terrain adds raster-DEM relief. Ignored when
+    // OSM-map (WebGL) feature toggles. 3D buildings extrude the OpenMapTiles building
+    // layer (default on); terrain adds raster-DEM relief and defaults OFF — it fetches
+    // a separate elevation-tile source and is the heavier of the two on the weakest
+    // head-unit GPUs, so a fresh install stays light and the user opts in. Ignored when
     // backend == MAPBOX (Mapbox GL JS manages its own layer stack).
     val map3dBuildings: Boolean,
     val mapTerrain: Boolean,
@@ -263,7 +265,7 @@ internal data class DisplaySettings(
                 mapNorthUp = false,
                 mapMarkerPos = DEFAULT_MAP_MARKER_POS,
                 map3dBuildings = true,
-                mapTerrain = true,
+                mapTerrain = false,
                 glassBlurRadius = DEFAULT_GLASS_BLUR_DP,
                 glassTintScale = DEFAULT_GLASS_TINT_SCALE,
                 showCalendar = true,

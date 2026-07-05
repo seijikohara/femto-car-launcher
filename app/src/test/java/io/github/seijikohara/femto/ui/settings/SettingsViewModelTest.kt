@@ -273,7 +273,7 @@ class SettingsViewModelTest {
             val defaults = DisplaySettings.Default
             assertEquals(FullscreenSetting.ON, defaults.fullscreen)
             assertEquals(true, defaults.map3dBuildings)
-            assertEquals(true, defaults.mapTerrain)
+            assertEquals(false, defaults.mapTerrain)
             assertEquals(false, defaults.showClockSeconds)
         }
 

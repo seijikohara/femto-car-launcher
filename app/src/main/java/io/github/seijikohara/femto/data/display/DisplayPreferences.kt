@@ -179,7 +179,7 @@ internal class DisplayPreferences(
                     mapNorthUp = prefs[MAP_NORTH_UP_KEY] ?: false,
                     mapMarkerPos = prefs[MAP_MARKER_POS_KEY] ?: DEFAULT_MAP_MARKER_POS,
                     map3dBuildings = prefs[MAP_3D_BUILDINGS_KEY] ?: true,
-                    mapTerrain = prefs[MAP_TERRAIN_KEY] ?: true,
+                    mapTerrain = prefs[MAP_TERRAIN_KEY] ?: false,
                     glassBlurRadius = prefs[GLASS_BLUR_KEY] ?: DEFAULT_GLASS_BLUR_DP,
                     glassTintScale = prefs[GLASS_TINT_KEY] ?: DEFAULT_GLASS_TINT_SCALE,
                     showCalendar = prefs[SHOW_CALENDAR_KEY] ?: true,
