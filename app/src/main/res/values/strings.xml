@@ -172,6 +172,8 @@
     <string name="settings_section_location">Location</string>
     <string name="settings_section_panels">Panels</string>
     <string name="settings_section_driving">Driving</string>
+    <string name="settings_section_expand">Expand %1$s</string>
+    <string name="settings_section_collapse">Collapse %1$s</string>
     <string name="settings_mapbox_token">Mapbox access token</string>
     <string name="settings_mapbox_token_unset">Not set — tap to enter your token</string>
     <string name="settings_mapbox_token_hint">Paste your Mapbox public token (pk.…)</string>

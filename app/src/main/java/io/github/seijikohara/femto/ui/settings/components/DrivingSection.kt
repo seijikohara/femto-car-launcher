@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.BriefingScope
+import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.display.PresetMode
 import io.github.seijikohara.femto.ui.settings.SettingsAction
@@ -29,6 +30,18 @@ internal fun DrivingSection(
             ),
         selected = uiState.presetMode,
         onSelect = { onAction(SettingsAction.SetPresetMode(it)) },
+    )
+    // Driver side is the most fundamental cockpit-layout choice, so it sits right
+    // under the auto-switch face at the top of the Driving section.
+    ChoiceRow(
+        title = stringResource(R.string.settings_group_driver_side),
+        options =
+            listOf(
+                DriverSide.RIGHT to stringResource(R.string.settings_driver_side_right),
+                DriverSide.LEFT to stringResource(R.string.settings_driver_side_left),
+            ),
+        selected = uiState.driverSide,
+        onSelect = { onAction(SettingsAction.SetDriverSide(it)) },
     )
     SliderRow(
         title = stringResource(R.string.settings_group_driving_threshold),
