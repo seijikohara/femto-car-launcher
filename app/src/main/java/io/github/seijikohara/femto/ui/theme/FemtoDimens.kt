@@ -49,6 +49,17 @@ object FemtoDimens {
     /** Album art size inside the music card's vertical playing layout. */
     val MusicArtSize = 140.dp
 
+    /**
+     * Minimum width guaranteed to the music card's title / artist / album
+     * column before the album art is allowed to claim its full [MusicArtSize].
+     * The art's width is height-driven (a square that grows with the row's
+     * available height via `aspectRatio`), so on a tall card it can otherwise
+     * grow wide enough to squeeze the text column below what a track's title
+     * or album name needs, truncating it despite the card having plenty of
+     * width overall — the art shrinks first instead.
+     */
+    val MusicMetaMinWidth = 190.dp
+
     /** Skip-previous / skip-next transport button hit area. */
     val MusicTransportButton = 64.dp
 

@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -55,10 +53,11 @@ import java.time.LocalTime
  * Calendar card:
  *
  *  1. Head — big day number (neutral onSurface) + weekday + month label, always today.
- *  2. Days — a scrollable vertical list of the coming days (today first), each row
- *     showing that day's full set of events. Days with no events are omitted so
- *     the short card spends every row on real entries; only today stays when
- *     free, carrying an explicit no-events line.
+ *  2. Days — the coming days (today first), each row showing that day's full set
+ *     of events, sized to fit the card's capped height via [FitWholeRows]: a day
+ *     whose events don't fully fit is dropped whole rather than sliced mid-row.
+ *     Days with no events are omitted so the short card spends every row on real
+ *     entries; only today stays when free, carrying an explicit no-events line.
  *
  * Typography and spacing originated in the retired dashboard-v2 design mockup;
  * the dashboard's 18sp body-size floor is intentionally relaxed here so the
@@ -117,11 +116,17 @@ private fun CalendarContent(
     // a six-row continuous agenda clipped before reaching the real entries.
     // Today is the one exception — it stays visible even when free.
     val visibleDays = remember(snapshot) { snapshot.visibleDays }
-    LazyColumn(
+    // FitWholeRows (not a scrolling list): a day whose events don't fully fit the
+    // capped card height is dropped whole rather than sliced, which is what used
+    // to leave a stray dash-only remnant (the clipped top of the next day's first
+    // event line) below the last full row. Today is always first and always
+    // shown, even on the shortest card, so the agenda never renders empty.
+    FitWholeRows(
         modifier = Modifier.fillMaxWidth().weight(1f),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalGap = 8.dp,
+        mandatoryCount = 1,
     ) {
-        items(items = visibleDays, key = { it.date.toString() }) { day ->
+        visibleDays.forEach { day ->
             DayRow(day = day, isToday = day.date == snapshot.today, is24Hour = is24Hour)
         }
     }

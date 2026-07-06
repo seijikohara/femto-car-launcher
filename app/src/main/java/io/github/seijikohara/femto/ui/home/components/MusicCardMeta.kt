@@ -6,8 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
@@ -28,11 +28,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Disc
 import com.composables.icons.lucide.Lucide
@@ -139,13 +143,49 @@ internal fun AlbumArt(
     }
 }
 
+// Slot indices into MusicMetaAndProgress's Layout children — see the fit
+// algorithm below.
+private const val EYEBROW_SLOT = 0
+private const val TITLE_SLOT = 1
+private const val ARTIST_SLOT = 2
+private const val ALBUM_SLOT = 3
+private const val PROGRESS_SLOT = 4
+
+// Gap between the source eyebrow / title / artist / album lines — the tight
+// rhythm the mockup used for this block.
+private val MetaLineGap: Dp = 2.dp
+
+/**
+ * Title, artist, album, source eyebrow, and the playback progress row, laid
+ * out to fit whatever height the music card's row allocates. The title and
+ * the progress row are mandatory; the artist, source eyebrow, and album lines
+ * are dropped — album first, then the eyebrow, then the artist — once the
+ * available height is too tight for all of them. The artist is the most
+ * protected of the three; the eyebrow outranks the album because it also
+ * carries the tap-to-expand affordance ([onExpand]), so dropping it would cost
+ * the card its full-screen-player entry when the album art is hidden.
+ *
+ * This replaces a fixed-height [Column] (`Arrangement.spacedBy(_, CenterVertically)`
+ * over lines clamped to their nominal `lineHeight`): squeezed by an ancestor
+ * shorter than the block's natural content — the LARGE display-scale, smallest
+ * head-unit combination — that fixed height still let each line's *unbounded*
+ * text render at full size while its *box* shrank, so neighbouring lines'
+ * glyphs spilled into each other instead of one of them stepping aside. This
+ * layout measures every line at its natural (unbounded) height first, then
+ * greedily keeps only what actually fits — never a squeeze, never an overlap.
+ */
 @Composable
-internal fun Meta(
+internal fun MusicMetaAndProgress(
     source: String,
     sourceIcon: ImageBitmap?,
     title: String,
     artist: String?,
     album: String?,
+    positionMs: Long,
+    durationMs: Long,
+    positionUpdateTimeMs: Long,
+    isPlaying: Boolean,
+    playbackSpeed: Float,
     modifier: Modifier = Modifier,
     showAlbum: Boolean = true,
     // When non-null, the source eyebrow row becomes a tap-to-expand affordance —
@@ -159,92 +199,151 @@ internal fun Meta(
     val typography = MaterialTheme.typography
     val titleStyle = remember(typography) { typography.cardTitle() }
     val secondaryStyle = remember(typography) { typography.cardMeta() }
-    Column(
+    val density = LocalDensity.current
+    val lineGapPx = with(density) { MetaLineGap.roundToPx() }
+    val progressGapPx = with(density) { FemtoDimens.CardSectionGapCompact.roundToPx() }
+    Layout(
         modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.Start,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        val eyebrowTap =
-            onExpand?.let { tap ->
-                val label = stringResource(R.string.music_expand_player_header)
-                Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = tap)
-                    .semantics { contentDescription = label }
-            } ?: Modifier
-        Row(
-            modifier = eyebrowTap,
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            // The source app's own icon precedes its name; fall back to a generic
-            // music glyph when the icon could not be resolved (rare).
-            if (sourceIcon != null) {
-                Image(
-                    bitmap = sourceIcon,
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp).clip(RoundedCornerShape(4.dp)),
-                )
-            } else {
-                FemtoIcon(
-                    imageVector = Lucide.Music,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(12.dp),
-                )
-            }
-            Text(
-                text = source.uppercase(),
-                style = MaterialTheme.typography.eyebrow(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+        content = {
+            EyebrowLine(source = source, sourceIcon = sourceIcon, onExpand = onExpand)
+            MetaLine(
+                icon = Lucide.Music,
+                text = title,
+                style = titleStyle,
+                color = MaterialTheme.colorScheme.onSurface,
             )
-        }
-        // Track changes dissolve the text in step with the album art's
-        // Crossfade. Key on the track fields, never the emission, so per-tick
-        // re-wraps (position updates) do not re-fire the fade. The source
-        // eyebrow stays outside: it only changes when the whole session does.
-        Crossfade(
-            targetState = Triple(title, artist, album),
-            label = "musicMeta",
-        ) { (fadedTitle, fadedArtist, fadedAlbum) ->
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                // Title, then artist + album, each with a leading glyph (track /
-                // person / disc) so the lines parse at a glance.
+            MetaLine(
+                icon = Lucide.User,
+                // Radio / stream tracks often carry no artist; show an em dash so the
+                // line height stays stable rather than the title jumping down.
+                text = artist?.takeUnless { it.isBlank() } ?: "—",
+                style = secondaryStyle,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            // Composed only when showAlbum is on: the setting hides the album line
+            // unconditionally, so its text must never exist in the tree (not merely
+            // go unplaced) — a zero-size Spacer keeps ALBUM_SLOT's index stable for
+            // the measurables below either way.
+            if (showAlbum) {
                 MetaLine(
-                    icon = Lucide.Music,
-                    text = fadedTitle,
-                    style = titleStyle,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                MetaLine(
-                    icon = Lucide.User,
-                    // Radio / stream tracks often carry no artist; show an em dash so the
-                    // line height stays stable rather than the title jumping down.
-                    text = fadedArtist?.takeUnless { it.isBlank() } ?: "—",
+                    icon = Lucide.Disc,
+                    // Album is absent for many radio / stream sessions; show an em
+                    // dash rather than substituting another field, matching artist.
+                    text = album?.takeUnless { it.isBlank() } ?: "—",
                     style = secondaryStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (showAlbum) {
-                    MetaLine(
-                        icon = Lucide.Disc,
-                        // Album is absent for many radio / stream sessions; show an em dash
-                        // rather than substituting another field, matching the artist line.
-                        text = fadedAlbum?.takeUnless { it.isBlank() } ?: "—",
-                        style = secondaryStyle,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+            } else {
+                Spacer(modifier = Modifier.size(0.dp))
+            }
+            Progress(
+                positionMs = positionMs,
+                durationMs = durationMs,
+                positionUpdateTimeMs = positionUpdateTimeMs,
+                isPlaying = isPlaying,
+                playbackSpeed = playbackSpeed,
+            )
+        },
+    ) { measurables, constraints ->
+        val loose = constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity)
+        val placeables = measurables.map { it.measure(loose) }
+
+        fun gapBefore(slot: Int) = if (slot == PROGRESS_SLOT) progressGapPx else lineGapPx
+
+        fun heightOf(slots: List<Int>): Int {
+            val sorted = slots.sorted()
+            var total = 0
+            sorted.forEachIndexed { position, slot ->
+                if (position > 0) total += gapBefore(slot)
+                total += placeables[slot].height
+            }
+            return total
+        }
+
+        val budget = if (constraints.hasBoundedHeight) constraints.maxHeight else Int.MAX_VALUE
+        val included = mutableListOf(TITLE_SLOT, PROGRESS_SLOT)
+        val optionalPriority =
+            buildList {
+                add(ARTIST_SLOT)
+                add(EYEBROW_SLOT)
+                if (showAlbum) add(ALBUM_SLOT)
+            }
+        for (candidate in optionalPriority) {
+            if (heightOf(included + candidate) <= budget) {
+                included += candidate
+            }
+        }
+
+        val orderedIncluded = included.sorted()
+        val naturalHeight = heightOf(orderedIncluded)
+        val width = if (constraints.hasBoundedWidth) constraints.maxWidth else placeables.maxOf { it.width }
+        val height = if (constraints.hasBoundedHeight) constraints.maxHeight else naturalHeight
+        layout(width, height) {
+            var y = 0
+            orderedIncluded.forEachIndexed { position, slot ->
+                if (position > 0) y += gapBefore(slot)
+                placeables[slot].placeRelative(0, y)
+                y += placeables[slot].height
             }
         }
     }
 }
 
+// The source eyebrow row: the source app's own icon precedes its name; falls
+// back to a generic music glyph when the icon could not be resolved (rare).
+// The tap-to-expand affordance stays scoped to this row alone — never widened
+// to the whole meta block — so it stays distinct from the card-wide
+// "open the source app" tap the title / artist / album lines fall through to.
+@Composable
+private fun EyebrowLine(
+    source: String,
+    sourceIcon: ImageBitmap?,
+    onExpand: (() -> Unit)?,
+) {
+    val eyebrowTap =
+        onExpand?.let { tap ->
+            val label = stringResource(R.string.music_expand_player_header)
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = tap)
+                .semantics { contentDescription = label }
+        } ?: Modifier
+    Row(
+        modifier = eyebrowTap,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (sourceIcon != null) {
+            Image(
+                bitmap = sourceIcon,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp).clip(RoundedCornerShape(4.dp)),
+            )
+        } else {
+            FemtoIcon(
+                imageVector = Lucide.Music,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(12.dp),
+            )
+        }
+        Text(
+            text = source.uppercase(),
+            style = MaterialTheme.typography.eyebrow(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
 // One metadata line: a leading glyph + the text. The text is clamped to its
 // style's lineHeight so a CJK line and a Latin line measure identically — without
-// this the vertically centred meta block shifts a few px on script changes between
-// tracks (fallback line spacing; see singleLineBox).
+// this a line's row height shifts a few px on script changes between tracks
+// (fallback line spacing; see singleLineBox). MusicMetaAndProgress always
+// measures this against an unbounded height, so the clamp never gets squeezed
+// smaller than its nominal size the way it could inside the old fixed-height
+// meta column.
 @Composable
 private fun MetaLine(
     icon: ImageVector,

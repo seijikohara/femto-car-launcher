@@ -6,12 +6,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -53,6 +52,7 @@ import io.github.seijikohara.femto.ui.theme.TabularFigures
 import io.github.seijikohara.femto.ui.theme.bigNumber
 import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.sectionLabel
+import io.github.seijikohara.femto.ui.theme.singleLineBox
 import io.github.seijikohara.femto.ui.theme.weatherGlyphs
 import kotlinx.coroutines.delay
 import java.time.Instant
@@ -63,13 +63,16 @@ import kotlin.math.roundToInt
 
 /**
  * Weather card. Three vertical sections stacked on the
- * [FemtoDimens.CardSectionGap] rhythm ([Arrangement.spacedBy]); the content is
- * top-aligned and scrolls if the card is too short to fit all three:
+ * [FemtoDimens.CardSectionGapCompact] rhythm, sized to fit the card's capped
+ * height via [FitWholeRows]:
  *
- *  1. Head — big temperature + a hero per-condition glyph.
- *  2. Metrics — Feels / Wind / Humid row.
- *  3. Forecast — hourly chips in a 3-column grid; the card's vertical scroll
- *     reveals further rows.
+ *  1. Head — big temperature + a hero per-condition glyph. Always shown.
+ *  2. Metrics — Feels / Wind / Humid row. Always shown.
+ *  3. Forecast — hourly chips in a 3-column grid, one row per [FitWholeRows]
+ *     child; only whole rows that fit the remaining height render; a row
+ *     that would clip mid-glyph (a time label with no icon, or an icon with
+ *     no temperature) is dropped instead, so a taller card simply shows more
+ *     hours rather than capping the timeline at a fixed count.
  *
  * Typography and spacing originated in the `.weather-card` rules of the
  * retired dashboard-v2 design mockup — the same intentional relaxation of
@@ -87,8 +90,8 @@ internal fun WeatherCard(
     glassConfig: GlassConfig = GlassConfig(),
 ) = Surface(
     // glassChrome clips to the rounded shape (keeping the ripple inside) and
-    // paints the frosted-glass backdrop over the map; the inner Column scrolls,
-    // so the maximize tap lives on the Head row rather than competing with it.
+    // paints the frosted-glass backdrop over the map; the maximize tap lives on
+    // the Head row rather than competing with the fitted content below it.
     modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
     shape = MaterialTheme.shapes.large,
     color = Color.Transparent,
@@ -105,23 +108,27 @@ internal fun WeatherCard(
             } else {
                 stringResource(R.string.weather_as_of, asOfTimeLabel(snapshot.fetchedAt, is24Hour))
             }
-        // verticalScroll is a safety net: fillMaxWidth (not fillMaxSize) lets the
-        // content keep its intrinsic height, so on a card too short for the full
-        // head + metrics + forecast it scrolls instead of clipping; on a tall
-        // enough card it simply sits top-aligned.
-        Column(
+        // FitWholeRows (not a scrolling column): Head + Metrics always show, and
+        // only as many forecast rows as fully fit the remaining height render —
+        // a row that would clip mid-glyph is dropped instead, which is what used
+        // to leave a label-less trailing icon row (or, on the shortest card, a
+        // temperature row sliced off entirely).
+        FitWholeRows(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
+                    .fillMaxHeight()
                     // Compact padding/gap so head + metrics + forecast pack into the
-                    // short head-unit info-pane card without needing to scroll/clip.
+                    // short head-unit info-pane card without needing to clip.
                     .padding(FemtoDimens.CardPaddingCompact),
-            verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
+            verticalGap = FemtoDimens.CardSectionGapCompact,
+            mandatoryCount = 2,
         ) {
             Head(snapshot, temperatureUnit, asOf, onExpand)
             Metrics(snapshot, temperatureUnit, speedUnit)
-            Forecast(snapshot.hourly.take(5), snapshot.sunrise, snapshot.sunset, temperatureUnit, is24Hour)
+            snapshot.hourly.chunked(FORECAST_COLUMNS).forEach { rowHours ->
+                ForecastRow(rowHours, snapshot.sunrise, snapshot.sunset, temperatureUnit, is24Hour)
+            }
         }
     } else {
         EmptyState()
@@ -199,11 +206,18 @@ private fun Head(
                 )
             }
             Row(verticalAlignment = Alignment.Top) {
+                // Clamped to its own lineHeight: without this, the platform's default
+                // font padding inflates the hero numeral's measured height well past
+                // its nominal line box (55px vs. 42px at this size), which is exactly
+                // the slack the forecast grid below needs to fit its first whole row
+                // inside the card's capped height.
+                val tempStyle = MaterialTheme.typography.bigNumber(size = 46.sp)
                 Text(
                     text = tempLabel,
-                    style = MaterialTheme.typography.bigNumber(size = 46.sp),
+                    style = tempStyle,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
+                    modifier = Modifier.singleLineBox(tempStyle),
                 )
                 Text(
                     text = temperatureUnit.label(),
@@ -294,43 +308,41 @@ private fun Metric(
     )
 }
 
-// The forecast lays its hours out three to a row; the card's vertical scroll reveals
-// further rows. Three keeps the chips legible even on the narrow head-unit card.
+// The forecast lays its hours out three to a row (left-to-right, then
+// top-to-bottom). Three keeps the chips legible even on the narrow head-unit
+// card; [FitWholeRows] (the WeatherCard body) decides how many of these rows
+// actually fit the card's remaining height, so the source hourly list is
+// never pre-truncated here — a taller card simply gets more rows.
 private const val FORECAST_COLUMNS = 3
 
+// One forecast row: up to [FORECAST_COLUMNS] hour chips, padded with spacers on
+// a short final row so the columns stay aligned. One top-level child of the
+// WeatherCard body's [FitWholeRows] — accepted or dropped as a whole row, never
+// mid-glyph.
 @Composable
-private fun Forecast(
-    hourly: List<HourlyForecast>,
+private fun ForecastRow(
+    rowHours: List<HourlyForecast>,
     sunrise: LocalTime?,
     sunset: LocalTime?,
     temperatureUnit: TemperatureUnit,
     is24Hour: Boolean,
 ) {
-    if (hourly.isEmpty()) return
-    // Hours laid out three to a row (left-to-right, then top-to-bottom); the card's
-    // vertical scroll reveals further rows, so a card shows several hours at a glance
-    // and scrolls down to the rest rather than capping the timeline. A short final
-    // row is padded with spacers so the columns stay aligned.
-    Column(verticalArrangement = Arrangement.spacedBy(FemtoDimens.ForecastChipGap)) {
-        hourly.chunked(FORECAST_COLUMNS).forEach { rowHours ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(FemtoDimens.ForecastChipGap),
-            ) {
-                rowHours.forEach { hour ->
-                    ForecastChip(
-                        hour,
-                        sunrise,
-                        sunset,
-                        temperatureUnit,
-                        is24Hour,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                repeat(FORECAST_COLUMNS - rowHours.size) {
-                    Spacer(modifier = Modifier.weight(1f))
-                }
-            }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.ForecastChipGap),
+    ) {
+        rowHours.forEach { hour ->
+            ForecastChip(
+                hour,
+                sunrise,
+                sunset,
+                temperatureUnit,
+                is24Hour,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        repeat(FORECAST_COLUMNS - rowHours.size) {
+            Spacer(modifier = Modifier.weight(1f))
         }
     }
 }
