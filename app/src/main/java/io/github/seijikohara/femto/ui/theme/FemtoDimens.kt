@@ -169,10 +169,15 @@ object FemtoDimens {
 
     /**
      * Shared opacity for the dashboard's content dividers — the dock's nav /
-     * status separator, the speed overlay's metric separators and metric / address
-     * rule, and the map-control pill's segment dividers — so every hairline reads
-     * at the same weight over the glass. A plain `val`, not `const val`: ktlint
-     * reserves SCREAMING_SNAKE_CASE for compile-time constants.
+     * status separator, the driving bar's cluster separators, the speed
+     * overlay's metric separators and metric / address rule, and the
+     * map-control pill's segment dividers — so every hairline reads at the
+     * same weight over the glass. The dock and the driving bar consume this
+     * through the shared `FemtoVerticalDivider` / `FemtoHorizontalDivider`
+     * (`ui/home/components/Dividers.kt`); the speed overlay and the map
+     * control pill still build their own divider primitive but reference the
+     * same alpha. A plain `val`, not `const val`: ktlint reserves
+     * SCREAMING_SNAKE_CASE for compile-time constants.
      */
     val DividerAlpha = 0.5f
 

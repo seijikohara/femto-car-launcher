@@ -17,10 +17,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -346,26 +344,26 @@ private fun VerticalDock(
 // The seam divider used at both boundaries of the horizontal bar's actionable
 // nav: between the seven buttons and the passenger toggle, and between the nav
 // (buttons + optional toggle) and the read-only status cluster. One thin,
-// low-alpha rule shared by both seams so they read as the same kind of chrome.
+// low-alpha rule shared by both seams so they read as the same kind of chrome;
+// the color + thickness recipe itself lives in FemtoVerticalDivider so it is
+// not re-copied here.
 @Composable
 private fun HorizontalDockDivider(modifier: Modifier = Modifier) =
-    VerticalDivider(
+    FemtoVerticalDivider(
         modifier =
             modifier
                 .padding(start = 4.dp)
                 .height(48.dp),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha),
     )
 
 // [HorizontalDockDivider]'s counterpart for the vertical rail, turned 90 degrees.
 @Composable
 private fun VerticalDockDivider(modifier: Modifier = Modifier) =
-    HorizontalDivider(
+    FemtoHorizontalDivider(
         modifier =
             modifier
                 .padding(top = 4.dp)
                 .width(48.dp),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha),
     )
 
 @Composable
