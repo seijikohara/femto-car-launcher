@@ -320,18 +320,33 @@ private fun PanelControls(
                 TransportToggles(nowPlaying = nowPlaying, onCommand = onCommand)
             }
         } else {
+            // This branch also covers landscape with no toggle capability (a
+            // fillMaxWidth row there too), so the wider gap is gated on
+            // [portrait] specifically — only the portrait panel has the wide
+            // flanking-margin problem this widens for; see
+            // FemtoDimens.NowPlayingPanelTransportGap. Portrait's fixed-width
+            // panel leaves this row much wider than its content, and
+            // Arrangement.CenterHorizontally already centres that content
+            // regardless of the row's own width, so only widening the cluster
+            // itself (not capping the row) tightens the margins while it stays
+            // centred.
             TransportRow(
                 isPlaying = nowPlaying.isPlaying,
                 onCommand = onCommand,
                 modifier = Modifier.fillMaxWidth(),
+                gap = if (portrait) FemtoDimens.NowPlayingPanelTransportGap else FemtoDimens.MusicTransportGap,
             )
         }
     }
+    // inlineToggles is always the complement of portrait (see NowPlayingPanel's
+    // two call sites below), so this standalone toggle row only ever renders in
+    // portrait — the wider gap always applies here.
     if (!inlineToggles && hasToggles) {
         TransportToggles(
             nowPlaying = nowPlaying,
             onCommand = onCommand,
             modifier = Modifier.fillMaxWidth(),
+            gap = FemtoDimens.NowPlayingPanelTransportGap,
         )
     }
     if (nowPlaying.canSkipToQueueItem && nowPlaying.queue.isNotEmpty()) {
@@ -360,9 +375,13 @@ private fun TransportToggles(
     nowPlaying: NowPlaying,
     onCommand: (MusicCommand) -> Unit,
     modifier: Modifier = Modifier,
+    // Widened at the portrait call site to match TransportRow's own
+    // [FemtoDimens.NowPlayingPanelTransportGap] override, so the two stacked
+    // centred rows read as one consistently spaced family.
+    gap: Dp = FemtoDimens.MusicTransportGap,
 ) = Row(
     modifier = modifier,
-    horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
+    horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
     verticalAlignment = Alignment.CenterVertically,
 ) {
     if (nowPlaying.canShuffle) {
