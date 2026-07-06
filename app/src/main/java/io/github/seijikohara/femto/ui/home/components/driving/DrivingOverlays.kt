@@ -1,6 +1,8 @@
 package io.github.seijikohara.femto.ui.home.components.driving
 
 import android.location.Location
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -9,8 +11,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -18,6 +22,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextAlign
@@ -30,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPin
 import com.composables.icons.lucide.Music
+import com.composables.icons.lucide.Navigation2
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
@@ -45,6 +55,7 @@ import io.github.seijikohara.femto.data.weather.WeatherSnapshot
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
 import io.github.seijikohara.femto.ui.home.components.BriefingConfig
+import io.github.seijikohara.femto.ui.home.components.FemtoVerticalDivider
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.TransportRow
 import io.github.seijikohara.femto.ui.home.components.glassChrome
@@ -188,15 +199,18 @@ private fun LocationStrip(
         // the fixed heading badge beside it always keeps its two letters.
         modifier = Modifier.weight(1f, fill = false),
     )
-    // The heading badge never wraps or shrinks — a two-letter point label always
-    // fits, and truncating it would leave an ambiguous single letter behind.
+    // The heading badge is a small arrow rather than a compass-point letter, so
+    // it reads at a glance without stopping to parse an abbreviation; north is
+    // "up" on this fixed (never map-rotated) strip, so rotating the glyph by
+    // the point's angle alone points it at the travel direction. The
+    // compass-point label still backs the content description for
+    // accessibility parity with the text it replaces.
     if (heading != null) {
-        Text(
-            text = heading.label(),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
-            maxLines = 1,
-            overflow = TextOverflow.Visible,
+        FemtoIcon(
+            imageVector = Lucide.Navigation2,
+            contentDescription = heading.label(),
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(FemtoDimens.InlineIconSize).rotate(heading.degrees),
         )
     }
 }
@@ -238,7 +252,13 @@ private fun DrivingBar(
         // anchored elements never shift. (SpaceBetween re-centred the middle cluster on
         // every such change, and even jumped the music to the far edge when the briefing
         // was absent, because it distributes by child count + width.)
-        horizontalArrangement = Arrangement.spacedBy(DrivingBarSegmentGap),
+        //
+        // No Arrangement.spacedBy here — the gaps are explicit Spacers below so a cluster
+        // divider can use its own tighter flank (see DrivingBarDividerFlankGap) instead of
+        // the full cluster gap on both sides. spacedBy would insert the divider as one more
+        // fully-gapped child, doubling that gap's cost; at the reference 853 dp head unit
+        // that extra width, stacked on the now-fixed-width now-playing title, squeezed the
+        // flexible event text down to nothing.
     ) {
         // The narrow bar shrinks the hero numeral so the fixed-width transport row still
         // fits beside it; the wider bars keep the full-size speed.
@@ -254,8 +274,13 @@ private fun DrivingBar(
         // (playback stays operable); wider bars add the music glyph + ellipsizing title.
         // Aligned by baseline (with the event text and WeatherBlock below) so the
         // now-playing title reads on the same visual line as its siblings regardless of
-        // the taller transport row / weather glyph beside it.
+        // the taller transport row / weather glyph beside it. The divider ahead of it is
+        // gated on the same `?.let` — never drawn against the flexible middle spacer that
+        // follows when there is no music.
         (uiState.musicState as? MusicCardState.Playing)?.let { playing ->
+            Spacer(Modifier.width(DrivingBarSegmentGap))
+            DrivingBarDivider()
+            Spacer(Modifier.width(DrivingBarDividerFlankGap))
             if (showTitle) {
                 NowPlayingMini(
                     nowPlaying = playing.nowPlaying,
@@ -269,6 +294,8 @@ private fun DrivingBar(
                 )
             }
         }
+
+        Spacer(Modifier.width(DrivingBarSegmentGap))
 
         // The next event ellipsizes into the flexible middle (right-aligned so it groups
         // with the weather), or a spacer holds the gap when there is none — either way the
@@ -300,6 +327,14 @@ private fun DrivingBar(
         } else {
             Spacer(Modifier.weight(1f))
         }
+        // The event ↔ weather divider requires BOTH to be present: with no event, the
+        // element ahead of the weather block is the flexible (blank) spacer above, and a
+        // divider there would float against empty space rather than sit between two
+        // segments that are actually on screen.
+        if (upcomingEvent != null && weather != null) {
+            Spacer(Modifier.width(DrivingBarDividerFlankGap))
+            DrivingBarDivider()
+        }
         // Aligned by baseline (see above) so the temperature — the meaningful line in
         // this stacked glyph-over-temp block — reads level with the event/music text
         // instead of sitting lower, which a plain centre alignment left it (the block's
@@ -307,6 +342,11 @@ private fun DrivingBar(
         // its whole bounding box centred the glyph too and dropped the text below the
         // other clusters' shared line).
         if (weather != null) {
+            Spacer(
+                Modifier.width(
+                    if (upcomingEvent != null) DrivingBarDividerFlankGap else DrivingBarSegmentGap,
+                ),
+            )
             WeatherBlock(
                 weather = weather,
                 temperatureUnit = temperatureUnit,
@@ -315,6 +355,16 @@ private fun DrivingBar(
         }
     }
 }
+
+// Cluster-boundary divider for the driving bar (speed ↔ now-playing, event ↔
+// weather), matching the dock's dividers (same FemtoVerticalDivider recipe,
+// same 48 dp height) so the bar's chrome reads as one family with the rest of
+// the dashboard. Its own flanking gap ([DrivingBarDividerFlankGap], set by the
+// call sites above) is deliberately tighter than the ordinary cluster gap — see
+// the gating comment there. Never call this beside the flexible middle spacer
+// or an absent segment.
+@Composable
+private fun DrivingBarDivider() = FemtoVerticalDivider(modifier = Modifier.height(DrivingBarDividerHeight))
 
 @Composable
 private fun BigSpeed(
@@ -373,11 +423,9 @@ private fun NowPlayingMini(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(10.dp),
 ) {
-    FemtoIcon(
-        imageVector = Lucide.Music,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.size(FemtoDimens.InlineIconSize),
+    NowPlayingArt(
+        albumArt = nowPlaying.albumArt,
+        modifier = Modifier.size(NowPlayingArtSize),
     )
     Text(
         text = nowPlaying.title,
@@ -385,14 +433,61 @@ private fun NowPlayingMini(
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        // Cap the title and let it ellipsize so the transport stays attached to it as
-        // one compact cluster rather than drifting to the far edge on a wide bar.
-        modifier = Modifier.widthIn(max = NowPlayingTitleMaxWidth),
+        // Fixed (not capped) width: a widthIn(max = …) let the attached transport
+        // row slide horizontally as the title's rendered length changed track to
+        // track, since a shorter title only shrank the Row's content instead of
+        // reserving the full slot. A fixed width keeps the whole now-playing
+        // cluster (art + title + transport) glued in place regardless of the
+        // title's length.
+        modifier = Modifier.width(NowPlayingTitleWidth),
     )
     TransportRow(
         isPlaying = nowPlaying.isPlaying,
         onCommand = { onAction(HomeAction.Music(it)) },
     )
+}
+
+// The now-playing mini's leading album-art thumbnail: a plain crossfade-free Image
+// when art is available, or a primary→tertiary gradient with a music glyph when it
+// is not — the same idiom as MusicCardMeta's AlbumArt, simplified for this glance
+// bar (no hold / grace-window / dissolve: a bar-width thumbnail does not need to
+// bridge a staged metadata update the way the full music card's larger art does).
+@Composable
+private fun NowPlayingArt(
+    albumArt: ImageBitmap?,
+    modifier: Modifier = Modifier,
+) = Box(
+    modifier =
+        modifier
+            .clip(MaterialTheme.shapes.small)
+            .then(
+                if (albumArt == null) {
+                    Modifier.background(
+                        Brush.linearGradient(
+                            listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary),
+                        ),
+                    )
+                } else {
+                    Modifier
+                },
+            ),
+    contentAlignment = Alignment.Center,
+) {
+    if (albumArt != null) {
+        Image(
+            bitmap = albumArt,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+    } else {
+        FemtoIcon(
+            imageVector = Lucide.Music,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.size(NowPlayingArtPlaceholderGlyphSize),
+        )
+    }
 }
 
 // Weather as a compact stacked block (glyph over the temperature) so both read at
@@ -443,14 +538,49 @@ private val BarBriefingBreakpoint = 840.dp
 private val BigSpeedFontFull = 72.sp
 private val BigSpeedFontCompact = 40.sp
 
-// Cap that keeps the now-playing title ellipsizing so the transport stays attached
-// as one cluster instead of drifting on a wide bar. (The event needs no cap — it
-// takes the flexible middle and ellipsizes into whatever the anchors leave.)
-private val NowPlayingTitleMaxWidth = 200.dp
+// Fixed width for the now-playing title so it always ellipsizes to the same slot
+// and the transport row stays attached to it as one cluster instead of sliding
+// horizontally as the title's rendered length changes between tracks. (The event
+// text alongside it needs no such fix — it takes the flexible middle and
+// ellipsizes into whatever the anchors leave, so there is no attached sibling to
+// keep in place.)
+//
+// Trimmed down from the old widthIn(max = 200.dp) cap: that cap was rarely fully
+// claimed (most titles render well under 200 dp), so the flexible event text next
+// to it in practice got most of that width back. Reserving it unconditionally
+// (this dimen's whole point) claims it every time instead, and at the reference
+// 853 dp head unit that left only a couple of characters for the event text —
+// worse than the modest extra title truncation this smaller width costs on a
+// long title.
+private val NowPlayingTitleWidth = 150.dp
 
-// Gap between adjacent segments within a cluster (speed ↔ music); the flexible
-// middle spacer opens the wider gap between the left and right clusters.
+// The now-playing mini's album-art thumbnail: a touch larger than the inline
+// icon it replaces so a small piece of real artwork still reads as art rather
+// than another glyph-sized icon.
+private val NowPlayingArtSize = 22.dp
+
+// Placeholder music glyph inside NowPlayingArt when there is no album art —
+// smaller than the art slot itself so it reads as a centred icon, not a crop.
+private val NowPlayingArtPlaceholderGlyphSize = 14.dp
+
+// Gap between clusters (speed ↔ now-playing, now-playing ↔ briefing middle);
+// applied as explicit Spacers rather than Arrangement.spacedBy (see DrivingBar)
+// so a cluster divider can substitute its own tighter DrivingBarDividerFlankGap
+// on either side instead of this full gap twice over.
 private val DrivingBarSegmentGap = 20.dp
+
+// Cluster-divider height, matching DashboardDock's HorizontalDockDivider so the
+// bar's chrome reads as the same family as the dock's.
+private val DrivingBarDividerHeight = 48.dp
+
+// Gap flanking a cluster divider (speed ↔ now-playing, event ↔ weather) — tighter
+// than [DrivingBarSegmentGap] so inserting the divider costs roughly the same
+// total width as the plain gap it replaces (2 * flank + the 1 dp rule ≈ the
+// original gap), instead of adding a second full segment gap on top of it. At
+// the reference 853 dp head unit, the now-playing title's new fixed width
+// already claims most of the room the flexible event text used to get; a
+// double-gapped divider was enough to squeeze that text down to nothing.
+private val DrivingBarDividerFlankGap = 10.dp
 
 @PreviewLightDark
 @Preview(name = "Driving face", widthDp = 640, heightDp = 360)

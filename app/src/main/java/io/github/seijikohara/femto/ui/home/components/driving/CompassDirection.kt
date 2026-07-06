@@ -33,3 +33,22 @@ internal fun CompassDirection.label(): String =
             CompassDirection.NW -> R.string.driving_compass_nw
         },
     )
+
+/**
+ * Degrees (0 = north, clockwise) this eight-point compass direction snaps to —
+ * the angle the driving-face heading glyph rotates to. Mirrors the same eight
+ * 45°-wide sectors [compassDirectionOf] already snapped the raw GPS bearing
+ * into, so the glyph's rotation never disagrees with the point it represents.
+ */
+internal val CompassDirection.degrees: Float
+    get() =
+        when (this) {
+            CompassDirection.N -> 0f
+            CompassDirection.NE -> 45f
+            CompassDirection.E -> 90f
+            CompassDirection.SE -> 135f
+            CompassDirection.S -> 180f
+            CompassDirection.SW -> 225f
+            CompassDirection.W -> 270f
+            CompassDirection.NW -> 315f
+        }
