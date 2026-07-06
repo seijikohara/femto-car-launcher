@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Pause
@@ -99,9 +100,15 @@ internal fun TransportRow(
     isPlaying: Boolean,
     onCommand: (MusicCommand) -> Unit,
     modifier: Modifier = Modifier,
+    // Overridable only for the Now Playing panel's portrait layout, which
+    // widens it to tighten the centred row's flanking margins — see
+    // [FemtoDimens.NowPlayingPanelTransportGap]. Every other call site (the
+    // small card, the driving bar, the panel's landscape row) relies on this
+    // default, so it must not change.
+    gap: Dp = FemtoDimens.MusicTransportGap,
 ) = Row(
     modifier = modifier,
-    horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
+    horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
     verticalAlignment = Alignment.CenterVertically,
 ) {
     TransportButton(

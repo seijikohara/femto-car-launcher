@@ -35,6 +35,7 @@ import com.composables.icons.lucide.Wind
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.weather.HourlyForecast
 import io.github.seijikohara.femto.data.weather.WeatherCode
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
@@ -47,6 +48,7 @@ import io.github.seijikohara.femto.ui.locale.windLabel
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.TabularFigures
 import io.github.seijikohara.femto.ui.theme.bigNumber
@@ -88,10 +90,11 @@ internal fun WeatherCard(
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
+    motionTier: MotionTier = MotionTier.STANDARD,
 ) = Surface(
     // glassChrome clips to the rounded shape (keeping the ripple inside) and
     // paints the frosted-glass backdrop over the map; the maximize tap lives on
-    // the Head row rather than competing with the fitted content below it.
+    // the whole populated card (see the FitWholeRows modifier below).
     modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
     shape = MaterialTheme.shapes.large,
     color = Color.Transparent,
@@ -108,6 +111,14 @@ internal fun WeatherCard(
             } else {
                 stringResource(R.string.weather_as_of, asOfTimeLabel(snapshot.fetchedAt, is24Hour))
             }
+        // clickable + an explicit contentDescription (the AlbumArt idiom in
+        // MusicCardMeta): onClickLabel alone sets only the OnClick action label, not
+        // the node's content description, so the maximize entry stays discoverable.
+        // Hoisted out of the semantics lambda, which is not @Composable. Applied to
+        // the whole populated card (not just the head) so tapping anywhere opens the
+        // full-screen panel; the content below has no other clickable children, so
+        // there is no nested-click conflict.
+        val weatherExpandLabel = stringResource(R.string.weather_expand)
         // FitWholeRows (not a scrolling column): Head + Metrics always show, and
         // only as many forecast rows as fully fit the remaining height render —
         // a row that would clip mid-glyph is dropped instead, which is what used
@@ -118,14 +129,25 @@ internal fun WeatherCard(
                 Modifier
                     .fillMaxWidth()
                     .fillMaxHeight()
+                    .clickable { onExpand() }
+                    .semantics { contentDescription = weatherExpandLabel }
                     // Compact padding/gap so head + metrics + forecast pack into the
                     // short head-unit info-pane card without needing to clip.
                     .padding(FemtoDimens.CardPaddingCompact),
             verticalGap = FemtoDimens.CardSectionGapCompact,
             mandatoryCount = 2,
         ) {
-            Head(snapshot, temperatureUnit, asOf, onExpand)
-            Metrics(snapshot, temperatureUnit, speedUnit)
+            // Head and Metrics each dissolve independently on a data refresh
+            // (keyed on the whole snapshot, so a genuinely new fetch — not a
+            // per-frame value — drives the fade); kept as two separate
+            // Crossfade nodes rather than one wrapping both, so FitWholeRows
+            // still sees them as the same two mandatory children it did before.
+            Motion.ContentCrossfade(targetState = snapshot, tier = motionTier, label = "weatherHead") { current ->
+                Head(current, temperatureUnit, asOf)
+            }
+            Motion.ContentCrossfade(targetState = snapshot, tier = motionTier, label = "weatherMetrics") { current ->
+                Metrics(current, temperatureUnit, speedUnit)
+            }
             snapshot.hourly.chunked(FORECAST_COLUMNS).forEach { rowHours ->
                 ForecastRow(rowHours, snapshot.sunrise, snapshot.sunset, temperatureUnit, is24Hour)
             }
@@ -174,23 +196,13 @@ private fun Head(
     snapshot: WeatherSnapshot,
     temperatureUnit: TemperatureUnit,
     asOfLabel: String?,
-    onExpand: () -> Unit,
 ) {
     val tempLabel = "${temperatureUnit.fromCelsius(snapshot.tempC).roundToInt()}"
     val glyphs = weatherGlyphs()
-    // clickable + an explicit contentDescription (the AlbumArt idiom in
-    // MusicCardMeta): onClickLabel alone sets only the OnClick action label, not
-    // the node's content description, so the maximize entry stays discoverable.
-    // Hoisted out of the semantics lambda, which is not @Composable.
-    val weatherExpandLabel = stringResource(R.string.weather_expand)
     // Big temperature on the left, the hero condition glyph beside it on the right;
     // SpaceBetween balances the two across the card width.
     Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clickable { onExpand() }
-                .semantics { contentDescription = weatherExpandLabel },
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {

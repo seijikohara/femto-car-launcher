@@ -1,7 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
@@ -49,6 +48,7 @@ import com.composables.icons.lucide.User
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.NowPlaying
 import io.github.seijikohara.femto.data.music.QueueEntry
@@ -57,6 +57,7 @@ import io.github.seijikohara.femto.data.music.sourceLabel
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import io.github.seijikohara.femto.ui.theme.cardCta
@@ -91,6 +92,7 @@ internal fun NowPlayingPanel(
     spectrum: StateFlow<FloatArray?>? = null,
     showAlbum: Boolean = true,
     showArt: Boolean = true,
+    motionTier: MotionTier = MotionTier.STANDARD,
 ) {
     BackHandler(onBack = onClose)
     Surface(
@@ -125,6 +127,7 @@ internal fun NowPlayingPanel(
                         AlbumArt(
                             nowPlaying = nowPlaying,
                             modifier = Modifier.size(artSize),
+                            motionTier = motionTier,
                         )
                     }
                     PanelControls(
@@ -137,6 +140,7 @@ internal fun NowPlayingPanel(
                         showAlbum = showAlbum,
                         portrait = true,
                         queueMaxHeight = queueMaxHeight,
+                        motionTier = motionTier,
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )
                 } else {
@@ -146,7 +150,11 @@ internal fun NowPlayingPanel(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (showArt) {
-                            AlbumArt(nowPlaying = nowPlaying, modifier = Modifier.size(artSize))
+                            AlbumArt(
+                                nowPlaying = nowPlaying,
+                                modifier = Modifier.size(artSize),
+                                motionTier = motionTier,
+                            )
                         }
                         PanelControls(
                             nowPlaying = nowPlaying,
@@ -160,6 +168,7 @@ internal fun NowPlayingPanel(
                             showAlbum = showAlbum,
                             portrait = false,
                             queueMaxHeight = queueMaxHeight,
+                            motionTier = motionTier,
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                         )
                     }
@@ -262,6 +271,7 @@ private fun PanelControls(
     showAlbum: Boolean,
     portrait: Boolean,
     queueMaxHeight: Dp,
+    motionTier: MotionTier,
     modifier: Modifier = Modifier,
 ) = Column(
     modifier = if (portrait) modifier else modifier.verticalScroll(rememberScrollState()),
@@ -277,7 +287,7 @@ private fun PanelControls(
             Arrangement.spacedBy(FemtoDimens.CardSectionGap, Alignment.CenterVertically)
         },
 ) {
-    ExpandedMeta(nowPlaying = nowPlaying, portrait = portrait, showAlbum = showAlbum)
+    ExpandedMeta(nowPlaying = nowPlaying, portrait = portrait, motionTier = motionTier, showAlbum = showAlbum)
     PlaybackSeekBar(
         positionMs = nowPlaying.positionMs,
         durationMs = nowPlaying.durationMs,
@@ -320,18 +330,33 @@ private fun PanelControls(
                 TransportToggles(nowPlaying = nowPlaying, onCommand = onCommand)
             }
         } else {
+            // This branch also covers landscape with no toggle capability (a
+            // fillMaxWidth row there too), so the wider gap is gated on
+            // [portrait] specifically — only the portrait panel has the wide
+            // flanking-margin problem this widens for; see
+            // FemtoDimens.NowPlayingPanelTransportGap. Portrait's fixed-width
+            // panel leaves this row much wider than its content, and
+            // Arrangement.CenterHorizontally already centres that content
+            // regardless of the row's own width, so only widening the cluster
+            // itself (not capping the row) tightens the margins while it stays
+            // centred.
             TransportRow(
                 isPlaying = nowPlaying.isPlaying,
                 onCommand = onCommand,
                 modifier = Modifier.fillMaxWidth(),
+                gap = if (portrait) FemtoDimens.NowPlayingPanelTransportGap else FemtoDimens.MusicTransportGap,
             )
         }
     }
+    // inlineToggles is always the complement of portrait (see NowPlayingPanel's
+    // two call sites below), so this standalone toggle row only ever renders in
+    // portrait — the wider gap always applies here.
     if (!inlineToggles && hasToggles) {
         TransportToggles(
             nowPlaying = nowPlaying,
             onCommand = onCommand,
             modifier = Modifier.fillMaxWidth(),
+            gap = FemtoDimens.NowPlayingPanelTransportGap,
         )
     }
     if (nowPlaying.canSkipToQueueItem && nowPlaying.queue.isNotEmpty()) {
@@ -360,9 +385,13 @@ private fun TransportToggles(
     nowPlaying: NowPlaying,
     onCommand: (MusicCommand) -> Unit,
     modifier: Modifier = Modifier,
+    // Widened at the portrait call site to match TransportRow's own
+    // [FemtoDimens.NowPlayingPanelTransportGap] override, so the two stacked
+    // centred rows read as one consistently spaced family.
+    gap: Dp = FemtoDimens.MusicTransportGap,
 ) = Row(
     modifier = modifier,
-    horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
+    horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
     verticalAlignment = Alignment.CenterVertically,
 ) {
     if (nowPlaying.canShuffle) {
@@ -466,15 +495,18 @@ private fun PlayingNextList(
 // each, marquee on overflow (the deliberate inverse of the card's ellipsis +
 // FitText, which shrink; here there is room to scroll instead). The title
 // wraps + ellipsizes instead (see [TitleLine]). Cross-fades on track change
-// in step with the art.
+// in step with the art, honoring [motionTier] like every other content fade
+// (Motion.contentFadeSpec) instead of the plain default Crossfade spec.
 @Composable
 private fun ExpandedMeta(
     nowPlaying: NowPlaying,
     portrait: Boolean,
+    motionTier: MotionTier,
     modifier: Modifier = Modifier,
     showAlbum: Boolean = true,
-) = Crossfade(
+) = Motion.ContentCrossfade(
     targetState = Triple(nowPlaying.title, nowPlaying.artist, nowPlaying.album),
+    tier = motionTier,
     label = "expandedMeta",
     modifier = modifier,
 ) { (title, artist, album) ->

@@ -66,6 +66,25 @@ object FemtoDimens {
     /** Centre play / pause button — slightly wider so it reads as primary. */
     val MusicPlayButton = 72.dp
 
+    /**
+     * Gap between the transport buttons (skip-previous / play-pause /
+     * skip-next), and independently between the shuffle / repeat toggles.
+     * Shared by the music card, the driving bar, and the Now Playing panel's
+     * landscape (inline-toggle) row — all of which size the row to wrap its
+     * content, so the buttons sit as a tight cluster regardless of gap.
+     */
+    val MusicTransportGap = 24.dp
+
+    /**
+     * Tighter transport / toggle button gap for the Now Playing panel's
+     * PORTRAIT layout only. The panel's oversized prev/play/next buttons read
+     * as too far apart at the shared [MusicTransportGap]; a smaller gap draws
+     * them into one compact cluster. Applied panel-only via `TransportRow`'s
+     * and `TransportToggles`' own `gap` parameter, leaving the card + driving
+     * bar (which wrap their content) on the shared value.
+     */
+    val NowPlayingPanelTransportGap = 12.dp
+
     /** Cap on the Now Playing panel's album art so it never dominates a tall panel. */
     val NowPlayingArtMax = 320.dp
 

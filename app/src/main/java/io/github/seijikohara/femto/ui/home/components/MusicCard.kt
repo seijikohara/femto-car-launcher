@@ -27,6 +27,7 @@ import com.composables.icons.lucide.Music
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.NowPlaying
@@ -54,8 +55,9 @@ private val RowContentGap = 14.dp
  *  3. Transport row — 64 dp prev / next + 72 dp primary play / pause
  *
  * Empty variants render in the same outer dimensions: `NeedsPermission` is
- * the connect CTA, `NoActiveSession` is the "nothing is playing" copy
- * straight from the mockup (assistant hint included).
+ * the connect CTA; `NoActiveSession` is a "nothing is playing" Play
+ * affordance (tap resumes the last session via a media key, falling back to
+ * launching the user's music app — see [MusicEmptyState]).
  */
 @Composable
 internal fun MusicCard(
@@ -64,6 +66,7 @@ internal fun MusicCard(
     onConnect: () -> Unit,
     onLaunchSource: (String) -> Unit,
     onExpand: () -> Unit,
+    onPlay: () -> Unit,
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
@@ -74,6 +77,7 @@ internal fun MusicCard(
     // a metadata-only, minimal card (album line dropped, art block dropped).
     showAlbum: Boolean = true,
     showArt: Boolean = true,
+    motionTier: MotionTier = MotionTier.STANDARD,
 ) = Surface(
     modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
     shape = MaterialTheme.shapes.large,
@@ -86,11 +90,20 @@ internal fun MusicCard(
         }
 
         MusicCardState.NoActiveSession -> {
-            MusicEmptyState()
+            MusicEmptyState(onPlay = onPlay)
         }
 
         is MusicCardState.Playing -> {
-            PlayingState(state.nowPlaying, onCommand, onLaunchSource, onExpand, spectrum, showAlbum, showArt)
+            PlayingState(
+                state.nowPlaying,
+                onCommand,
+                onLaunchSource,
+                onExpand,
+                spectrum,
+                showAlbum,
+                showArt,
+                motionTier,
+            )
         }
     }
 }
@@ -104,6 +117,7 @@ private fun PlayingState(
     spectrum: StateFlow<FloatArray?>?,
     showAlbum: Boolean,
     showArt: Boolean,
+    motionTier: MotionTier,
 ) {
     // The whole card (except the transport controls, which consume their own taps)
     // opens the source app. The transport buttons are clickable children, so they
@@ -151,6 +165,7 @@ private fun PlayingState(
                         nowPlaying = nowPlaying,
                         onTap = onExpand,
                         modifier = Modifier.heightIn(max = artMax).fillMaxHeight().aspectRatio(1f),
+                        motionTier = motionTier,
                     )
                 }
                 MusicMetaAndProgress(
@@ -166,6 +181,7 @@ private fun PlayingState(
                     playbackSpeed = nowPlaying.playbackSpeed,
                     showAlbum = showAlbum,
                     onExpand = onExpand,
+                    motionTier = motionTier,
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
             }
@@ -211,6 +227,7 @@ private fun MusicCardPlayingPreview() {
             onConnect = {},
             onLaunchSource = {},
             onExpand = {},
+            onPlay = {},
         )
     }
 }
@@ -227,6 +244,7 @@ private fun MusicCardEmptyPreview() {
             onConnect = {},
             onLaunchSource = {},
             onExpand = {},
+            onPlay = {},
         )
     }
 }

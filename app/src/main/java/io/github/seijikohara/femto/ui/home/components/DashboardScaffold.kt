@@ -329,7 +329,7 @@ private fun DashboardContent(
     // never sits under the dock's nav buttons while the map shows through behind it.
     Crossfade(
         targetState = activePreset,
-        animationSpec = Motion.presetCrossfade(motionTier),
+        animationSpec = Motion.contentFadeSpec(motionTier),
         label = "preset",
         modifier = Modifier.fillMaxSize(),
     ) { preset ->
@@ -377,6 +377,7 @@ private fun DashboardContent(
                     following = following,
                     bearingDeg = bearingDeg,
                     driverSide = driverSide,
+                    motionTier = motionTier,
                     onBarHeightChange = { drivingBarHeightPx = it },
                     onRecenter = { recenterNonce++ },
                     onAction = onAction,
@@ -600,6 +601,7 @@ private fun CockpitOverlays(
                 spectrum = spectrum,
                 musicShowAlbum = musicShowAlbum,
                 musicShowArt = musicShowArt,
+                motionTier = motionTier,
                 modifier =
                     if (bottomCards) {
                         Modifier
@@ -652,6 +654,7 @@ private fun CockpitOverlays(
                     spectrum = spectrum,
                     showAlbum = musicShowAlbum,
                     showArt = musicShowArt,
+                    motionTier = motionTier,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -767,6 +770,7 @@ private fun FloatingCardColumn(
     onExpandNowPlaying: () -> Unit,
     onExpandCalendar: () -> Unit,
     onExpandWeather: () -> Unit,
+    motionTier: MotionTier,
     modifier: Modifier = Modifier,
     spectrum: StateFlow<FloatArray?>? = null,
     musicShowAlbum: Boolean = true,
@@ -779,6 +783,7 @@ private fun FloatingCardColumn(
             onExpand = onExpandCalendar,
             hazeState = hazeState,
             glassConfig = glassConfig,
+            motionTier = motionTier,
             modifier = cardModifier,
         )
     }
@@ -791,6 +796,7 @@ private fun FloatingCardColumn(
             onExpand = onExpandWeather,
             hazeState = hazeState,
             glassConfig = glassConfig,
+            motionTier = motionTier,
             modifier = cardModifier,
         )
     }
@@ -801,12 +807,14 @@ private fun FloatingCardColumn(
             onConnect = { onAction(HomeAction.ConnectMusicPlayer) },
             onLaunchSource = { packageName -> onAction(HomeAction.LaunchMusicSource(packageName)) },
             onExpand = onExpandNowPlaying,
+            onPlay = { onAction(HomeAction.PlayDefaultMusic) },
             hazeState = hazeState,
             glassConfig = glassConfig,
             modifier = cardModifier,
             spectrum = spectrum,
             showAlbum = musicShowAlbum,
             showArt = musicShowArt,
+            motionTier = motionTier,
         )
     }
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(cardGap)) {

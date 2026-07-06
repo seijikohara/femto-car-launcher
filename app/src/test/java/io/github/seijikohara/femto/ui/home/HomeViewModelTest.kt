@@ -345,6 +345,22 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun `onAction PlayDefaultMusic resumes the last session and emits LaunchAppCategory APP_MUSIC`() =
+        runTest {
+            var resumeCount = 0
+            val viewModel = stubViewModel(resumeLastMusicSession = { resumeCount++ })
+            viewModel.events.test {
+                viewModel.onAction(HomeAction.PlayDefaultMusic)
+                assertEquals(HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_MUSIC), awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+            // Both the best-effort resume and the launch fallback fire on every
+            // tap — there is no callback confirming whether the media key alone
+            // resumed a session, so the launch always happens too.
+            assertEquals(1, resumeCount)
+        }
+
+    @Test
     fun `audioSpectrum emits bands while the spectrum is enabled and music is playing`() =
         runTest {
             val bands = FloatArray(SPECTRUM_BAND_COUNT) { 0.5f }
@@ -470,6 +486,7 @@ class HomeViewModelTest {
 
     private fun stubViewModel(
         sendMusicCommand: (MusicCommand) -> Unit = {},
+        resumeLastMusicSession: () -> Unit = {},
         resetTrip: () -> Unit = {},
         resolveMusicSourceComponent: (String) -> ComponentName? = { null },
     ): HomeViewModel =
@@ -483,6 +500,7 @@ class HomeViewModelTest {
             systemStatusFlow = emptyFlow(),
             tripStateFlow = emptyFlow(),
             sendMusicCommand = sendMusicCommand,
+            resumeLastMusicSession = resumeLastMusicSession,
             resetTrip = resetTrip,
             resolveMusicSourceComponent = resolveMusicSourceComponent,
         )

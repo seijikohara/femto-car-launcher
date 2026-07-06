@@ -34,9 +34,11 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.calendar.DayCell
 import io.github.seijikohara.femto.data.calendar.EventItem
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.FitText
+import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import io.github.seijikohara.femto.ui.theme.TabularFigures
@@ -71,6 +73,7 @@ internal fun CalendarCard(
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
+    motionTier: MotionTier = MotionTier.STANDARD,
 ) = Surface(
     modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
     shape = MaterialTheme.shapes.large,
@@ -91,7 +94,7 @@ internal fun CalendarCard(
             // a read failure, not a free month, so say so rather than fake it.
             snapshot.queryFailed -> CenteredHint(stringResource(R.string.calendar_query_failed))
 
-            else -> CalendarContent(snapshot, is24Hour, onExpand)
+            else -> CalendarContent(snapshot, is24Hour, motionTier, onExpand)
         }
     }
 }
@@ -100,54 +103,66 @@ internal fun CalendarCard(
 private fun CalendarContent(
     snapshot: CalendarSnapshot,
     is24Hour: Boolean,
-    onExpand: () -> Unit,
-) = Column(
-    modifier =
-        Modifier
-            .fillMaxSize()
-            // Tighter than the shared card padding/gap: the head-unit info-pane
-            // card is short, so pack the head and the list to avoid a clip.
-            .padding(FemtoDimens.CardPaddingCompact),
-    verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
-) {
-    Head(snapshot, onExpand)
-    // Free days are dropped rather than rendered as placeholder rows: the
-    // glance question is "what is coming up", and on the short head-unit card
-    // a six-row continuous agenda clipped before reaching the real entries.
-    // Today is the one exception — it stays visible even when free.
-    val visibleDays = remember(snapshot) { snapshot.visibleDays }
-    // FitWholeRows (not a scrolling list): a day whose events don't fully fit the
-    // capped card height is dropped whole rather than sliced, which is what used
-    // to leave a stray dash-only remnant (the clipped top of the next day's first
-    // event line) below the last full row. Today is always first and always
-    // shown, even on the shortest card, so the agenda never renders empty.
-    FitWholeRows(
-        modifier = Modifier.fillMaxWidth().weight(1f),
-        verticalGap = 8.dp,
-        mandatoryCount = 1,
-    ) {
-        visibleDays.forEach { day ->
-            DayRow(day = day, isToday = day.date == snapshot.today, is24Hour = is24Hour)
-        }
-    }
-}
-
-@Composable
-private fun Head(
-    snapshot: CalendarSnapshot,
+    motionTier: MotionTier,
     onExpand: () -> Unit,
 ) {
     // clickable + an explicit contentDescription (the AlbumArt idiom in
     // MusicCardMeta): onClickLabel alone sets only the OnClick action label, not
     // the node's content description, so the maximize entry stays discoverable.
-    // Hoisted out of the semantics lambda, which is not @Composable.
+    // Hoisted out of the semantics lambda, which is not @Composable. Applied to
+    // the whole populated agenda (not just the head) so tapping anywhere on the
+    // card opens the full-screen panel; the agenda below has no other clickable
+    // children, so there is no nested-click conflict.
     val calendarExpandLabel = stringResource(R.string.calendar_expand)
-    Row(
+    Column(
         modifier =
             Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .clickable { onExpand() }
-                .semantics { contentDescription = calendarExpandLabel },
+                .semantics { contentDescription = calendarExpandLabel }
+                // Tighter than the shared card padding/gap: the head-unit info-pane
+                // card is short, so pack the head and the list to avoid a clip.
+                .padding(FemtoDimens.CardPaddingCompact),
+        verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
+    ) {
+        Head(snapshot)
+        // The agenda dissolves as a whole on a data refresh (keyed on the
+        // snapshot's own identity, so it only fires on a real refresh, never a
+        // per-frame value) rather than popping; each fade layer derives its
+        // rows from its OWN snapshot ([agendaSnapshot], not the outer one) so
+        // the outgoing frame still shows the previous day list mid-transition.
+        Motion.ContentCrossfade(
+            targetState = snapshot,
+            tier = motionTier,
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            label = "calendarAgenda",
+        ) { agendaSnapshot ->
+            // Free days are dropped rather than rendered as placeholder rows: the
+            // glance question is "what is coming up", and on the short head-unit
+            // card a six-row continuous agenda clipped before reaching the real
+            // entries. Today is the one exception — it stays visible even when free.
+            val visibleDays = remember(agendaSnapshot) { agendaSnapshot.visibleDays }
+            // FitWholeRows (not a scrolling list): a day whose events don't fully fit the
+            // capped card height is dropped whole rather than sliced, which is what used
+            // to leave a stray dash-only remnant (the clipped top of the next day's first
+            // event line) below the last full row. Today is always first and always
+            // shown, even on the shortest card, so the agenda never renders empty.
+            FitWholeRows(
+                verticalGap = 8.dp,
+                mandatoryCount = 1,
+            ) {
+                visibleDays.forEach { day ->
+                    DayRow(day = day, isToday = day.date == agendaSnapshot.today, is24Hour = is24Hour)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Head(snapshot: CalendarSnapshot) =
+    Row(
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -177,7 +192,6 @@ private fun Head(
             )
         }
     }
-}
 
 // One agenda row: a fixed-width date gutter on the left (today tinted primary) and
 // the day's events on the right — every event for the day, or a muted dash when the

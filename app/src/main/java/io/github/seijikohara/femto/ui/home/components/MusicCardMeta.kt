@@ -1,6 +1,5 @@
 package io.github.seijikohara.femto.ui.home.components
 
-import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -43,10 +42,12 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.User
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.NowPlaying
 import io.github.seijikohara.femto.data.music.trackKey
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
+import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.cardTitle
 import io.github.seijikohara.femto.ui.theme.eyebrow
@@ -62,8 +63,9 @@ private const val ART_GRACE_WINDOW_MS = 600L
 @Composable
 internal fun AlbumArt(
     nowPlaying: NowPlaying,
-    onTap: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onTap: (() -> Unit)? = null,
+    motionTier: MotionTier = MotionTier.STANDARD,
 ) {
     // Optional tap: on the dashboard card the art is the expand-to-panel
     // affordance (the TransportButton idiom: clickable + explicit content
@@ -108,7 +110,7 @@ internal fun AlbumArt(
         // The dissolve targets the held art, so it fires only on a real artwork
         // change (track switch, or art conceded after the grace window) — never on
         // the per-emission re-wrap or a transient gap mid-track-change.
-        Crossfade(targetState = shownArt, label = "albumArt") { art ->
+        Motion.ContentCrossfade(targetState = shownArt, tier = motionTier, label = "albumArt") { art ->
             if (art != null) {
                 Image(
                     bitmap = art,
@@ -190,9 +192,11 @@ internal fun MusicMetaAndProgress(
     showAlbum: Boolean = true,
     // When non-null, the source eyebrow row becomes a tap-to-expand affordance —
     // the card's entry to the full-screen player, kept reachable even when the
-    // album art (the other expand affordance) is hidden. Mirrors the calendar /
-    // weather card header-tap entry.
+    // album art (the other expand affordance) is hidden. The calendar / weather
+    // cards apply the same tap-to-expand idiom to their whole card instead of a
+    // single row, since (unlike this one) they have no other clickable children.
     onExpand: (() -> Unit)? = null,
+    motionTier: MotionTier = MotionTier.STANDARD,
 ) {
     // Title, artist and album styles derive from the M3 type roles once and are
     // remembered so a track-change recomposition doesn't reallocate them.
@@ -211,6 +215,7 @@ internal fun MusicMetaAndProgress(
                 text = title,
                 style = titleStyle,
                 color = MaterialTheme.colorScheme.onSurface,
+                tier = motionTier,
             )
             MetaLine(
                 icon = Lucide.User,
@@ -219,6 +224,7 @@ internal fun MusicMetaAndProgress(
                 text = artist?.takeUnless { it.isBlank() } ?: "—",
                 style = secondaryStyle,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                tier = motionTier,
             )
             // Composed only when showAlbum is on: the setting hides the album line
             // unconditionally, so its text must never exist in the tree (not merely
@@ -232,6 +238,7 @@ internal fun MusicMetaAndProgress(
                     text = album?.takeUnless { it.isBlank() } ?: "—",
                     style = secondaryStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tier = motionTier,
                 )
             } else {
                 Spacer(modifier = Modifier.size(0.dp))
@@ -343,13 +350,17 @@ private fun EyebrowLine(
 // (fallback line spacing; see singleLineBox). MusicMetaAndProgress always
 // measures this against an unbounded height, so the clamp never gets squeezed
 // smaller than its nominal size the way it could inside the old fixed-height
-// meta column.
+// meta column. The text itself dissolves on a track change (Motion.ContentCrossfade
+// keyed on its own value, which only changes on a real track switch) rather than
+// popping, matching the album art beside it and the full-screen panel's metadata;
+// the leading glyph stays static since it never changes within a MetaLine.
 @Composable
 private fun MetaLine(
     icon: ImageVector,
     text: String,
     style: TextStyle,
     color: Color,
+    tier: MotionTier,
     modifier: Modifier = Modifier,
 ) = Row(
     modifier = modifier,
@@ -362,12 +373,14 @@ private fun MetaLine(
         tint = color,
         modifier = Modifier.size(14.dp),
     )
-    Text(
-        text = text,
-        style = style,
-        color = color,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.singleLineBox(style),
-    )
+    Motion.ContentCrossfade(targetState = text, tier = tier, label = "musicMetaLine") { lineText ->
+        Text(
+            text = lineText,
+            style = style,
+            color = color,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.singleLineBox(style),
+        )
+    }
 }
