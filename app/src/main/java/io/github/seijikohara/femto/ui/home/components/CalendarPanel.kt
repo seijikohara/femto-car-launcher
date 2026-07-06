@@ -3,11 +3,11 @@ package io.github.seijikohara.femto.ui.home.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,9 +35,23 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * Full-screen calendar panel: a multi-day agenda over the live map. Shows the
- * same day filter as the compact card (days with events + today) but with room
- * for every event, untruncated titles, and the panel-only end time + location.
+ * Full-screen calendar panel: a multi-day agenda over the live map.
+ *
+ * Unlike the compact card — which only ever lists days that already carry an
+ * event, so a glance never scrolls past blank days — the panel has room to
+ * spend on rhythm: it walks [CalendarSnapshot.days] itself for up to
+ * [CalendarPanelWindowDays] days (today, every day with an event, and the free
+ * days between them) instead of reusing [CalendarSnapshot.visibleDays], so the
+ * agenda reads as a real look-ahead rather than a handful of sparse rows
+ * floating in an otherwise-empty sheet. Every event carries its end time and
+ * location, both panel-only fields the compact card omits.
+ *
+ * A landscape panel (wider than tall — the reference head unit and beyond)
+ * splits the agenda into two load-balanced columns so the days use the full
+ * width instead of a single left-packed column; a portrait panel (the
+ * phone-mount case) keeps one full-width column. Either way, each column is
+ * capped to whatever [FitWholeRows] fits its height, dropping only whole
+ * trailing days rather than clipping mid-event.
  */
 @Composable
 internal fun CalendarPanel(
@@ -57,62 +71,133 @@ internal fun CalendarPanel(
     hazeState = hazeState,
     glassConfig = glassConfig,
 ) {
-    val visibleDays = remember(snapshot) { snapshot.visibleDays }
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
-    ) {
-        visibleDays.forEach { day ->
-            AgendaDay(day = day, isToday = day.date == snapshot.today, is24Hour = is24Hour)
+    val panelDays = remember(snapshot) { snapshot.days.take(CALENDAR_PANEL_WINDOW_DAYS) }
+    // Landscape reads wider than tall (the reference head unit is 853x512);
+    // portrait (the phone-mount case, 412x915) keeps a single full-width
+    // column instead of splitting an already-narrow column in two.
+    if (maxHeight > maxWidth) {
+        AgendaColumn(
+            days = panelDays,
+            today = snapshot.today,
+            is24Hour = is24Hour,
+            modifier = Modifier.fillMaxSize(),
+        )
+    } else {
+        val (left, right) = remember(panelDays) { panelDays.splitAgendaColumns() }
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(FemtoDimens.ScreenPadding),
+        ) {
+            AgendaColumn(left, snapshot.today, is24Hour, modifier = Modifier.weight(1f).fillMaxHeight())
+            AgendaColumn(right, snapshot.today, is24Hour, modifier = Modifier.weight(1f).fillMaxHeight())
         }
     }
 }
 
+// Two weeks is enough room to catch every upcoming event without turning a
+// quiet month into a scroll of blank "No events" rows; FitWholeRows caps the
+// rendered count further to whatever the panel's actual height admits.
+private const val CALENDAR_PANEL_WINDOW_DAYS = 14
+
+// Greedy load-balance: each day goes to whichever column currently carries
+// less content (event count as a cheap proxy for row height), so a busy day
+// does not stack against an equally busy neighbour in the same column while
+// the other column runs light. A literal alternating split would not notice
+// that imbalance.
+private fun List<DayCell>.splitAgendaColumns(): Pair<List<DayCell>, List<DayCell>> {
+    val left = mutableListOf<DayCell>()
+    val right = mutableListOf<DayCell>()
+    var leftWeight = 0
+    var rightWeight = 0
+    forEach { day ->
+        val weight = day.events.size.coerceAtLeast(1)
+        if (leftWeight <= rightWeight) {
+            left += day
+            leftWeight += weight
+        } else {
+            right += day
+            rightWeight += weight
+        }
+    }
+    return left to right
+}
+
+// One agenda column: every day is a single FitWholeRows child (its leading
+// divider travels with it), so a day dropped for lack of height never leaves
+// an orphaned rule behind. mandatoryCount = 1 keeps the column's nearest day
+// visible even on a panel too short for it to fully fit.
+@Composable
+private fun AgendaColumn(
+    days: List<DayCell>,
+    today: LocalDate,
+    is24Hour: Boolean,
+    modifier: Modifier = Modifier,
+) = FitWholeRows(
+    modifier = modifier,
+    verticalGap = FemtoDimens.CardSectionGap,
+    mandatoryCount = 1,
+) {
+    days.forEachIndexed { index, day ->
+        AgendaDay(day = day, isToday = day.date == today, isFirst = index == 0, is24Hour = is24Hour)
+    }
+}
+
 // One day of the agenda: a date gutter + the day's events (untruncated title,
-// time range, optional location). Today's gutter is tinted primary.
+// time range, optional location). Today's gutter is tinted primary. A
+// hairline divider precedes every day but the column's first, so day groups
+// read as distinct beats instead of one continuous run of events.
 @Composable
 private fun AgendaDay(
     day: DayCell,
     isToday: Boolean,
+    isFirst: Boolean,
     is24Hour: Boolean,
     modifier: Modifier = Modifier,
-) = Row(
+) = Column(
     modifier = modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.spacedBy(14.dp),
-    verticalAlignment = Alignment.Top,
+    verticalArrangement = Arrangement.spacedBy(10.dp),
 ) {
-    val accent = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-    Column(
-        modifier = Modifier.width(44.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = day.weekdayLetter.take(3).uppercase(),
-            style = MaterialTheme.typography.sectionLabel(11, 0.08f),
-            color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            softWrap = false,
-        )
-        Text(
-            text = "${day.date.dayOfMonth}",
-            style = MaterialTheme.typography.calendarWeekday(),
-            color = accent,
-            maxLines = 1,
-        )
+    if (!isFirst) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha))
     }
-    Column(
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.Top,
     ) {
-        if (day.events.isEmpty()) {
+        val accent = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+        Column(
+            modifier = Modifier.width(44.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             Text(
-                text = stringResource(R.string.calendar_no_events),
-                style = MaterialTheme.typography.cardMeta(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = day.weekdayLetter.take(3).uppercase(),
+                style = MaterialTheme.typography.sectionLabel(11, 0.08f),
+                color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                softWrap = false,
+            )
+            Text(
+                text = "${day.date.dayOfMonth}",
+                style = MaterialTheme.typography.calendarWeekday(),
+                color = accent,
                 maxLines = 1,
             )
-        } else {
-            day.events.forEach { event -> AgendaEvent(event = event, is24Hour = is24Hour) }
+        }
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (day.events.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.calendar_no_events),
+                    style = MaterialTheme.typography.cardMeta(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            } else {
+                day.events.forEach { event -> AgendaEvent(event = event, is24Hour = is24Hour) }
+            }
         }
     }
 }
@@ -165,6 +250,7 @@ private fun eventTimeRange(
 @PreviewLightDark
 @PreviewTextStress
 @androidx.compose.ui.tooling.preview.Preview(name = "Calendar panel · head unit", widthDp = 805, heightDp = 400)
+@androidx.compose.ui.tooling.preview.Preview(name = "Calendar panel · portrait", widthDp = 364, heightDp = 700)
 @Composable
 private fun CalendarPanelPreview() {
     FemtoTheme {
@@ -189,6 +275,7 @@ private fun CalendarPanelPreview() {
                                     EventItem(null, "Company holiday"),
                                 ),
                             ),
+                            DayCell(LocalDate.of(2026, 5, 2), "Sat", emptyList()),
                             DayCell(
                                 LocalDate.of(2026, 5, 3),
                                 "Sun",
@@ -200,6 +287,7 @@ private fun CalendarPanelPreview() {
                                     ),
                                 ),
                             ),
+                            DayCell(LocalDate.of(2026, 5, 4), "Mon", emptyList()),
                         ),
                     hasCalendarAccess = true,
                 ),
