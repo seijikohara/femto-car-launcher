@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -49,6 +50,7 @@ import io.github.seijikohara.femto.data.calendar.DayCell
 import io.github.seijikohara.femto.data.calendar.EventItem
 import io.github.seijikohara.femto.data.calendar.UpcomingEvent
 import io.github.seijikohara.femto.data.calendar.todayEventOrNull
+import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.music.MusicCardState
@@ -60,6 +62,8 @@ import io.github.seijikohara.femto.ui.home.HomeUiState
 import io.github.seijikohara.femto.ui.home.components.BriefingConfig
 import io.github.seijikohara.femto.ui.home.components.FemtoVerticalDivider
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
+import io.github.seijikohara.femto.ui.home.components.MapCompass
+import io.github.seijikohara.femto.ui.home.components.MapControlColumn
 import io.github.seijikohara.femto.ui.home.components.TransportRow
 import io.github.seijikohara.femto.ui.home.components.glassChrome
 import io.github.seijikohara.femto.ui.home.components.glyphIconFor
@@ -103,6 +107,13 @@ import kotlin.math.roundToInt
  * margins match the cockpit and dock. It reports the bar's glass-card height via
  * [onBarHeightChange] so the host can reserve a bottom safe band exactly tall
  * enough to keep the self-marker above the bar.
+ *
+ * The map controls (compass + zoom/recenter column) mirror the cockpit face's
+ * — same composables, same [driverSide]-mirrored side — but stacked together at
+ * the pane's vertical centre instead of the cockpit's top-corner compass /
+ * mid-edge column split: the top corner on the [driverSide]-unmirrored side is
+ * already claimed by the location strip above, so a top-anchored compass would
+ * collide with it every time the driver side is not mirrored.
  */
 @Composable
 internal fun DrivingOverlays(
@@ -113,7 +124,11 @@ internal fun DrivingOverlays(
     hazeState: HazeState,
     outerPad: Dp,
     briefingConfig: BriefingConfig,
+    following: Boolean,
+    bearingDeg: Float,
+    driverSide: DriverSide,
     onBarHeightChange: (Int) -> Unit,
+    onRecenter: () -> Unit,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = BoxWithConstraints(modifier = modifier.fillMaxSize()) {
@@ -142,6 +157,38 @@ internal fun DrivingOverlays(
                     .align(Alignment.TopStart)
                     .padding(outerPad),
         )
+    }
+
+    // Map controls render only when the map does (a fix exists) — same gate the
+    // cockpit face uses. Stacked (compass above the zoom/recenter column) at the
+    // pane's vertical centre on the [driverSide]-mirrored side; see the class KDoc
+    // for why this face stacks them instead of cockpit's top-corner + mid-edge split.
+    if (uiState.location != null) {
+        val mirror = driverSide == DriverSide.LEFT
+        Column(
+            modifier =
+                Modifier
+                    .align(if (mirror) Alignment.CenterEnd else Alignment.CenterStart)
+                    .padding(if (mirror) PaddingValues(end = outerPad) else PaddingValues(start = outerPad)),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(MapControlsStackGap),
+        ) {
+            MapCompass(
+                bearingDeg = bearingDeg,
+                onTap = { onAction(HomeAction.ToggleMapNorthUp) },
+                hazeState = hazeState,
+                glassConfig = glassConfig,
+            )
+            MapControlColumn(
+                showLocate = true,
+                following = following,
+                onLocate = onRecenter,
+                onZoomIn = { onAction(HomeAction.AdjustMapZoom(1)) },
+                onZoomOut = { onAction(HomeAction.AdjustMapZoom(-1)) },
+                hazeState = hazeState,
+                glassConfig = glassConfig,
+            )
+        }
     }
 
     DrivingBar(
@@ -615,6 +662,11 @@ private val DrivingBarDividerHeight = 48.dp
 // double-gapped divider was enough to squeeze that text down to nothing.
 private val DrivingBarDividerFlankGap = 10.dp
 
+// Gap between the stacked compass and zoom/recenter column (see the class KDoc
+// for why this face stacks them). Matches the spacing MapControlsPreview
+// (MapControls.kt) already establishes between the same two composables.
+private val MapControlsStackGap = 12.dp
+
 // The event block's time header — bare "HH:mm", matching [WeatherBlock]'s plain
 // numeric temperature (no day-relative prefix: the event is always today's, by
 // construction of [todayEventOrNull]).
@@ -633,7 +685,11 @@ private fun DrivingOverlaysPreview() {
             hazeState = rememberHazeState(),
             outerPad = FemtoDimens.ScreenPadding,
             briefingConfig = BriefingConfig(),
+            following = true,
+            bearingDeg = 0f,
+            driverSide = DriverSide.RIGHT,
             onBarHeightChange = {},
+            onRecenter = {},
             onAction = {},
         )
     }

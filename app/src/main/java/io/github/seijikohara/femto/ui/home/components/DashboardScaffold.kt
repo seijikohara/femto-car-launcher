@@ -376,7 +376,11 @@ private fun DashboardContent(
                     hazeState = hazeState,
                     outerPad = outerPad,
                     briefingConfig = briefingConfig,
+                    following = following,
+                    bearingDeg = bearingDeg,
+                    driverSide = driverSide,
                     onBarHeightChange = { drivingBarHeightPx = it },
+                    onRecenter = { recenterNonce++ },
                     onAction = onAction,
                     modifier = Modifier.fillMaxSize().padding(dockEdgePadding(dockPosition, dockExtent)),
                 )
