@@ -33,6 +33,10 @@
 // One divergence from the OSM/Mapbox pages remains: while detached (free pan) the
 // chevron is hidden rather than swapped to a geo-anchored clone — see setFollowing
 // for why (no mapId-free, non-deprecated geo-marker).
+//
+// A second, related divergence: this page has no preset-switch reflow lockstep
+// timing (contrast camera.ts isPaddingOnlyReflow + marker-motion.ts, used by the
+// OSM/Mapbox pages) because it needs none — see the moveCam doc below.
 import {
 	AUTO_REFOLLOW_MS,
 	appliedBearing,
@@ -412,6 +416,18 @@ async function initMap(): Promise<void> {
 	// A programmatic move opens the gesture-suppression window, then issues the
 	// immediate (un-animated) camera move. Camera-change events fired by this
 	// call land inside the window and are ignored by the gesture detacher.
+	//
+	// This is also why this page needs no preset-reflow lockstep timing (the
+	// mechanism the OSM/Mapbox pages add — see camera.ts isPaddingOnlyReflow
+	// and marker-motion.ts): moveCamera is documented as setting the camera
+	// "immediately... without animation" (there is no promise-based easeTo
+	// equivalent here; smooth motion at GPS cadence relies on frequent small
+	// jumps, not a single interpolated call — see the updateCamera doc below).
+	// So this call and the marker's left/top write in placeFollowCamera below
+	// already land in the same synchronous tick on EVERY push, a genuine fix
+	// or a preset-switch reflow alike: there is no separate "camera glide"
+	// phase for the marker to fall behind, so both already move in lockstep
+	// (a synchronized snap) by construction.
 	function moveCam(opts: GMCameraOptions): void {
 		state.programmaticUntil = Date.now() + GESTURE_SUPPRESS_MS;
 		liveMap.moveCamera(opts);

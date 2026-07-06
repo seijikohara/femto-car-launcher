@@ -76,3 +76,65 @@ export const AUTO_REFOLLOW_MS = 15_000;
 export function appliedBearing(northUp: boolean, heading: number): number {
 	return northUp ? 0 : heading;
 }
+
+// --- Preset-reflow lockstep --------------------------------------------------
+// A Cockpit<->Driving preset switch (see DashboardScaffold.kt) changes which
+// overlay reserves screen space, so the host re-derives MapConfig's safe-area
+// fractions and re-pushes the SAME GPS fix through updateCamera with only the
+// padding changed — a "reflow", as opposed to a genuine fix where the center
+// itself moves. The screen-pinned marker is normally repositioned with an
+// instant style write while the camera eases toward the new padding over the
+// GPS-cadence duration (easeDurationMs); on a reflow that reads as the marker
+// snapping ahead of the map sliding underneath it. isPaddingOnlyReflow tells
+// the two apart so the caller can glide both together instead.
+
+// Tolerance for "same center", in degrees. Far tighter than any real
+// fix-to-fix GPS movement (even a parked vehicle's noise floor is orders of
+// magnitude above this) but loose enough to absorb the Kotlin-double ->
+// JS-string -> JS-double round-trip through evaluateJavascript.
+const REFLOW_CENTER_EPSILON_DEG = 1e-7;
+
+// The camera-relevant fields of one host push. lon/lat name the coordinate
+// pair generically — the Google Maps page's lat/lng fix maps onto the same
+// shape at its call site.
+export interface ReflowFix {
+	lon: number;
+	lat: number;
+	markerPos: number;
+	bottomSafe: number;
+	rightSafe: number;
+	leftSafe: number;
+}
+
+// True when [next] holds the same center as [previous] but a different
+// safe-area padding (a preset-switch reflow, not a new fix). A null
+// [previous] (no push yet) or a moved center (a genuine fix, coincidentally
+// alongside a padding change) both return false — see the call sites, which
+// additionally gate this on "not the first camera push" and "not a signal
+// gap" (those already force the existing snap path regardless).
+export function isPaddingOnlyReflow(
+	previous: ReflowFix | null,
+	next: ReflowFix,
+): boolean {
+	if (!previous) return false;
+	const sameCenter =
+		Math.abs(previous.lon - next.lon) < REFLOW_CENTER_EPSILON_DEG &&
+		Math.abs(previous.lat - next.lat) < REFLOW_CENTER_EPSILON_DEG;
+	if (!sameCenter) return false;
+	return (
+		previous.markerPos !== next.markerPos ||
+		previous.bottomSafe !== next.bottomSafe ||
+		previous.rightSafe !== next.rightSafe ||
+		previous.leftSafe !== next.leftSafe
+	);
+}
+
+// Fixed lockstep duration for a padding-only reflow, used by the OSM/Mapbox
+// pages: the marker's CSS transition and the camera's easeTo both run this
+// long, so they land together. (The Google Maps page needs no such constant —
+// its camera has no native easing to lock the marker against; see the note in
+// googlemaps-main.ts.) A reflow is driven by the preset Crossfade, not a new
+// GPS fix, so it uses a fixed duration matched to that Crossfade's pace
+// (Motion.kt's STANDARD tween is 220 ms) rather than easeDurationMs's
+// cadence-matched (and much wider, up to MAX_EASE_MS) range.
+export const PRESET_REFLOW_MS = 260;

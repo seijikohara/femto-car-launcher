@@ -3,9 +3,11 @@ import {
 	appliedBearing,
 	BEARING_SNAP_DELTA_DEG,
 	easeDurationMs,
+	isPaddingOnlyReflow,
 	linearEase,
 	MAX_EASE_MS,
 	MIN_EASE_MS,
+	type ReflowFix,
 	shortestBearingDelta,
 	smoothedBearing,
 } from "./camera";
@@ -84,5 +86,55 @@ describe("appliedBearing", () => {
 
 	it("follows the travel heading when north-up is off", () => {
 		expect(appliedBearing(false, 137)).toBe(137);
+	});
+});
+
+describe("isPaddingOnlyReflow", () => {
+	const fix: ReflowFix = {
+		lon: 139.767,
+		lat: 35.681,
+		markerPos: 70,
+		bottomSafe: 0.1,
+		rightSafe: 0.4,
+		leftSafe: 0,
+	};
+
+	it("is false with no previous push", () => {
+		expect(isPaddingOnlyReflow(null, fix)).toBe(false);
+	});
+
+	it("is false when neither the center nor the padding changed", () => {
+		expect(isPaddingOnlyReflow(fix, { ...fix })).toBe(false);
+	});
+
+	it("is true when the center holds but a safe fraction changed (a preset switch)", () => {
+		expect(
+			isPaddingOnlyReflow(fix, { ...fix, rightSafe: 0, leftSafe: 0 }),
+		).toBe(true);
+	});
+
+	it("is true when only markerPos changed", () => {
+		expect(isPaddingOnlyReflow(fix, { ...fix, markerPos: 40 })).toBe(true);
+	});
+
+	it("is false when the center moved (a genuine GPS fix), even alongside a padding change", () => {
+		expect(
+			isPaddingOnlyReflow(fix, {
+				...fix,
+				lon: fix.lon + 0.001,
+				rightSafe: 0,
+				leftSafe: 0,
+			}),
+		).toBe(false);
+	});
+
+	it("tolerates float round-trip noise in the center without flagging a fix", () => {
+		expect(
+			isPaddingOnlyReflow(fix, {
+				...fix,
+				lat: fix.lat + 1e-9,
+				bottomSafe: 0,
+			}),
+		).toBe(true);
 	});
 });

@@ -8,10 +8,13 @@ import {
 	AUTO_REFOLLOW_MS,
 	appliedBearing,
 	easeDurationMs,
+	isPaddingOnlyReflow,
 	LOCATION_STALE_THRESHOLD_MS,
 	linearEase,
+	PRESET_REFLOW_MS,
 	smoothedBearing,
 } from "./camera";
+import { createMarkerTransition } from "./marker-motion";
 import {
 	type AccentColors,
 	injectFeatures,
@@ -316,6 +319,9 @@ try {
 	// travel bearing; rotateX lays it onto the tilted ground plane.
 	const markerEl = document.getElementById("self-marker") as HTMLElement;
 	const markerPath = markerEl.querySelector("path");
+	// Lockstep control for a preset-switch reflow — see isPaddingOnlyReflow
+	// and marker-motion.ts.
+	const markerTransition = createMarkerTransition(markerEl, PRESET_REFLOW_MS);
 
 	// Grey the chevron and stop its ripple once fixes stop arriving (signal lost
 	// in a tunnel): the host pushes a fix per update and goes quiet on loss, so
@@ -513,6 +519,11 @@ try {
 		leftSafe,
 		markerColor,
 	) => {
+		// Captured before state.lastFix below is overwritten with this push:
+		// compared against it to tell a genuine GPS fix (the center moves) from
+		// a preset-switch reflow (the center holds, only the safe-area padding
+		// changes) — see isPaddingOnlyReflow.
+		const previousFix = state.lastFix;
 		// Measure the inter-fix interval BEFORE refreshing lastFixMs: the ease
 		// duration matches it so each ease finishes as the next fix lands.
 		const now = Date.now();
@@ -557,6 +568,24 @@ try {
 			}
 			return;
 		}
+		// A preset switch re-pushes the SAME fix with only the padding changed;
+		// a signal gap always takes the jumpTo path below regardless, so it can
+		// never qualify as a reflow.
+		const isReflow =
+			!signalGap &&
+			isPaddingOnlyReflow(previousFix, {
+				lon,
+				lat,
+				markerPos: markerPos || 0,
+				bottomSafe: bottomSafe || 0,
+				rightSafe: rightSafe || 0,
+				leftSafe: leftSafe || 0,
+			});
+		// Lockstep: arm the marker's CSS transition on a reflow so its left/top
+		// write below glides instead of jumping; clear it otherwise so a real
+		// fix keeps snapping the screen-pinned marker while the camera eases
+		// the ground underneath it.
+		markerTransition.setActive(isReflow);
 		markerEl.style.left = `${(0.5 - markerXFraction(rightSafe) + markerXFraction(leftSafe)) * 100}%`;
 		markerEl.style.top = `${50 + markerDrop(markerPos, bottomSafe) * 100}%`;
 		syncChevronTransform(tilt || 0, heading);
@@ -583,6 +612,15 @@ try {
 		if (state.firstCamera || signalGap) {
 			state.firstCamera = false;
 			liveMap.jumpTo(opts);
+		} else if (isReflow) {
+			// Fixed lockstep duration (not the cadence-matched one below) so the
+			// camera lands exactly when the marker's CSS transition finishes.
+			liveMap.easeTo({
+				...opts,
+				duration: PRESET_REFLOW_MS,
+				easing: linearEase,
+				essential: true,
+			});
 		} else {
 			// Cadence-matched duration + linear easing: back-to-back segments
 			// compose into one continuous glide instead of the fixed-1000 ms
