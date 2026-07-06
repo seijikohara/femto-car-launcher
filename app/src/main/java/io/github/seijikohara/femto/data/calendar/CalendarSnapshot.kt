@@ -32,8 +32,12 @@ data class CalendarSnapshot(
     // failure message instead of a hollow agenda.
     val queryFailed: Boolean = false,
 ) {
-    // Days worth showing on the dashboard: those with events, plus today even
-    // when free. The card and the maximize panel share this so they cannot drift.
+    // Days worth showing on the compact dashboard card: those with events,
+    // plus today even when free. The card is short on room, so it skips every
+    // other free day rather than clip before reaching a real entry. The
+    // full-screen maximize panel has room to spare; it walks [days] itself for
+    // a wider look-ahead (see CalendarPanel.kt) instead of reusing this
+    // narrower filter, so the two intentionally diverge.
     val visibleDays: List<DayCell> get() = days.filter { it.hasEvent || it.date == today }
 }
 
