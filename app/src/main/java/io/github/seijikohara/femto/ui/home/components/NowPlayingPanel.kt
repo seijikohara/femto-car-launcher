@@ -64,6 +64,12 @@ import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.eyebrow
 import kotlinx.coroutines.flow.StateFlow
 
+// Fraction of the panel's own height reserved for the upcoming-queue list, so
+// it scales with the panel's geometry instead of eating whatever leftover
+// space the enclosing scroll column happens to have (which could run to the
+// panel's very bottom edge — see PlayingNextList / FitWholeRows).
+private const val QUEUE_HEIGHT_FRACTION = 0.3f
+
 /**
  * Full-screen "Now Playing" panel (issue #231): one large glass sheet floated
  * inside the dock-inset overlay region of the dashboard, so the live map stays
@@ -72,8 +78,12 @@ import kotlinx.coroutines.flow.StateFlow
  * card's album art; left via the collapse button, the system back gesture, or
  * automatically when the session stops playing (the host drops the panel).
  *
- * The whole point over the card is untruncated metadata: every line renders
- * at display size and scrolls (marquee) instead of ellipsizing.
+ * The whole point over the card is untruncated metadata: the artist and album
+ * lines render at display size and scroll (marquee) instead of ellipsizing.
+ * The title is the one exception — it can run to headline length (see the
+ * screenshot fixture), so it wraps up to two lines and then ellipsizes rather
+ * than marqueeing a single line, which used to hard-clip long titles at the
+ * panel's right edge (see [TitleLine]).
  */
 @Composable
 internal fun NowPlayingPanel(
@@ -102,6 +112,12 @@ internal fun NowPlayingPanel(
             val artSize = (if (portrait) maxHeight * 0.35f else maxHeight * 0.6f).coerceAtMost(
                 FemtoDimens.NowPlayingArtMax,
             )
+            // The queue is capped to a fraction of the panel's own height
+            // (rather than its parent's leftover scroll space, which is
+            // unbounded) so it always reserves a sane, geometry-proportional
+            // slice instead of growing to fit however many entries the queue
+            // holds — see PlayingNextList / FitWholeRows.
+            val queueMaxHeight = maxHeight * QUEUE_HEIGHT_FRACTION
             Column(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
@@ -109,9 +125,12 @@ internal fun NowPlayingPanel(
                 PanelTopBar(nowPlaying = nowPlaying, onLaunchSource = onLaunchSource, onClose = onClose)
                 if (portrait) {
                     if (showArt) {
+                        // Left-aligned, not centred: centring the art alone made
+                        // it the one element off the shared left gutter that the
+                        // metadata / seek / queue rows below it all sit on.
                         AlbumArt(
                             nowPlaying = nowPlaying,
-                            modifier = Modifier.align(Alignment.CenterHorizontally).size(artSize),
+                            modifier = Modifier.size(artSize),
                         )
                     }
                     PanelControls(
@@ -122,6 +141,8 @@ internal fun NowPlayingPanel(
                         // toggles on their own row below the transport controls.
                         inlineToggles = false,
                         showAlbum = showAlbum,
+                        portrait = true,
+                        queueMaxHeight = queueMaxHeight,
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )
                 } else {
@@ -143,6 +164,8 @@ internal fun NowPlayingPanel(
                             // without the toggles clipping below the fold.
                             inlineToggles = true,
                             showAlbum = showAlbum,
+                            portrait = false,
+                            queueMaxHeight = queueMaxHeight,
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                         )
                     }
@@ -225,9 +248,17 @@ private fun PanelIconButton(
     )
 }
 
-// Everything below the art: metadata, progress, transport. Scrolls when the
-// gated sections (Tasks 6-7) outgrow a short panel. Tasks 5-7 extend this
-// column in place.
+// Everything below the art: metadata, progress, transport, queue.
+//
+// Portrait stacks this column directly under the art and does NOT scroll: the
+// meta / seek / transport stay fixed and the queue takes the leftover height
+// (weight), so FitWholeRows clips it to whole rows against a bounded height —
+// a scrolling column would instead hand the queue unbounded height, render
+// every row, and let the panel's own edge slice the tail mid-row.
+//
+// Landscape sits this column beside the art and keeps the scroll + centring:
+// a short bar-style head unit can be too short even for the fixed controls, so
+// the column scrolls and the queue is bounded by an explicit height cap.
 @Composable
 private fun PanelControls(
     nowPlaying: NowPlaying,
@@ -235,12 +266,24 @@ private fun PanelControls(
     spectrum: StateFlow<FloatArray?>?,
     inlineToggles: Boolean,
     showAlbum: Boolean,
+    portrait: Boolean,
+    queueMaxHeight: Dp,
     modifier: Modifier = Modifier,
 ) = Column(
-    modifier = modifier.verticalScroll(rememberScrollState()),
-    verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap, Alignment.CenterVertically),
+    modifier = if (portrait) modifier else modifier.verticalScroll(rememberScrollState()),
+    verticalArrangement =
+        if (portrait) {
+            // Hug the art like every row below it; centring in the leftover
+            // height (as landscape does) opened a large empty gap under the art
+            // for the shorter capability states (fewer rows -> more leftover).
+            Arrangement.spacedBy(FemtoDimens.CardSectionGap)
+        } else {
+            // The art is vertically centred in the Row (see NowPlayingPanel);
+            // matching that centring keeps the two visually paired.
+            Arrangement.spacedBy(FemtoDimens.CardSectionGap, Alignment.CenterVertically)
+        },
 ) {
-    ExpandedMeta(nowPlaying = nowPlaying, showAlbum = showAlbum)
+    ExpandedMeta(nowPlaying = nowPlaying, portrait = portrait, showAlbum = showAlbum)
     PlaybackSeekBar(
         positionMs = nowPlaying.positionMs,
         durationMs = nowPlaying.durationMs,
@@ -253,10 +296,20 @@ private fun PanelControls(
     val hasToggles = nowPlaying.canShuffle || nowPlaying.canRepeat
     // The spectrum paints behind the transport strip only, exactly like the
     // card: matchParentSize keeps the Box sized by the controls, and the
-    // canvas never consumes input.
+    // canvas never consumes input. It is inset horizontally to the seek bar /
+    // metadata column's extent rather than spanning the full row: the seek
+    // bar and metadata rows are themselves inset by a time label or a leading
+    // icon, so an edge-to-edge spectrum read as wider than everything else it
+    // sits behind.
     Box(modifier = Modifier.fillMaxWidth()) {
         spectrum?.let {
-            SpectrumBackground(spectrum = it, modifier = Modifier.matchParentSize())
+            SpectrumBackground(
+                spectrum = it,
+                modifier =
+                    Modifier
+                        .matchParentSize()
+                        .padding(horizontal = FemtoDimens.SpectrumHorizontalInset),
+            )
         }
         if (inlineToggles && hasToggles) {
             // Wide-but-short layout: the transport buttons and the shuffle /
@@ -291,7 +344,15 @@ private fun PanelControls(
         PlayingNextList(
             queue = nowPlaying.queue,
             onSelect = { id -> onCommand(MusicCommand.SkipToQueueItem(id)) },
-            modifier = Modifier.fillMaxWidth(),
+            // Portrait: absorb the leftover height so FitWholeRows clips against
+            // a bounded space (weight is undefined inside the landscape scroll,
+            // so there the explicit height cap bounds it instead).
+            modifier =
+                if (portrait) {
+                    Modifier.fillMaxWidth().weight(1f)
+                } else {
+                    Modifier.fillMaxWidth().heightIn(max = queueMaxHeight)
+                },
         )
     }
 }
@@ -339,9 +400,11 @@ private fun TransportToggles(
 }
 
 // Upcoming queue entries (already sliced to the items after the active track
-// and capped at QUEUE_UPCOMING_LIMIT by the data layer). A plain Column: the
-// parent PanelControls scrolls, and nesting a lazy list inside a scrollable
-// column is both forbidden and unnecessary at <= 12 rows.
+// and capped at QUEUE_UPCOMING_LIMIT by the data layer). The caller bounds the
+// list's height (leftover weight in portrait, an explicit cap in the landscape
+// scroll); FitWholeRows fills that bound and drops any row that would not fit
+// whole, so the queue always ends on a full row instead of a slice cut off by
+// the panel edge.
 @Composable
 private fun PlayingNextList(
     queue: List<QueueEntry>,
@@ -356,53 +419,64 @@ private fun PlayingNextList(
         style = MaterialTheme.typography.eyebrow(),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    queue.forEach { entry ->
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = FemtoDimens.MinTouchTarget)
-                    .clip(MaterialTheme.shapes.small)
-                    .clickable { onSelect(entry.id) }
-                    .padding(horizontal = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            FemtoIcon(
-                imageVector = Lucide.ListMusic,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(FemtoDimens.InlineIconSize),
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = entry.title,
-                    style = MaterialTheme.typography.cardCta(),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+    FitWholeRows(
+        modifier = Modifier.fillMaxWidth().weight(1f),
+        verticalGap = 2.dp,
+        // The immediate next-up track is worth showing even if the panel is
+        // so short the bound would otherwise drop it — mirrors the
+        // calendar/weather cards always keeping their first mandatory row.
+        mandatoryCount = 1,
+    ) {
+        queue.forEach { entry ->
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = FemtoDimens.MinTouchTarget)
+                        .clip(MaterialTheme.shapes.small)
+                        .clickable { onSelect(entry.id) }
+                        .padding(horizontal = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                FemtoIcon(
+                    imageVector = Lucide.ListMusic,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(FemtoDimens.InlineIconSize),
                 )
-                entry.subtitle?.takeUnless { it.isBlank() }?.let { subtitle ->
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.cardMeta(),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = entry.title,
+                        style = MaterialTheme.typography.cardCta(),
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    entry.subtitle?.takeUnless { it.isBlank() }?.let { subtitle ->
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.cardMeta(),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-// Display-size metadata that never truncates: one line each, marquee on
-// overflow (the deliberate inverse of the card's ellipsis + FitText, which
-// shrink; here there is room to scroll instead). Cross-fades on track change
+// Display-size metadata. The artist / album lines never truncate: one line
+// each, marquee on overflow (the deliberate inverse of the card's ellipsis +
+// FitText, which shrink; here there is room to scroll instead). The title
+// wraps + ellipsizes instead (see [TitleLine]). Cross-fades on track change
 // in step with the art.
 @Composable
 private fun ExpandedMeta(
     nowPlaying: NowPlaying,
+    portrait: Boolean,
     modifier: Modifier = Modifier,
     showAlbum: Boolean = true,
 ) = Crossfade(
@@ -411,15 +485,16 @@ private fun ExpandedMeta(
     modifier = modifier,
 ) { (title, artist, album) ->
     // A leading glyph per line (track / person / disc) mirrors the small card's
-    // Meta so the two read the same; unlike the card, the text marquees instead
-    // of ellipsizing so a long title is shown in full.
+    // Meta so the two read the same; unlike the card, the artist / album text
+    // marquees instead of ellipsizing so a long value is shown in full.
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        MarqueeMetaLine(
+        TitleLine(
             icon = Lucide.Music,
             text = title,
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            iconSize = 28.dp,
+            // Portrait's headline column is narrow, so a long title needs the
+            // second line before ellipsizing; landscape has width to spare
+            // for one.
+            maxLines = if (portrait) 2 else 1,
         )
         MarqueeMetaLine(
             icon = Lucide.User,
@@ -438,6 +513,38 @@ private fun ExpandedMeta(
             )
         }
     }
+}
+
+// The track title: unlike the artist / album lines, a title can run to
+// headline length (see the panel's screenshot fixture), and a single-line
+// marquee left it hard-clipped at the panel's right edge with no ellipsis —
+// mid-word in landscape, mid-letter against the narrower portrait headline
+// column. Wrapping to [maxLines] and then ellipsizing keeps it fully inside
+// the content column regardless of width.
+@Composable
+private fun TitleLine(
+    icon: ImageVector,
+    text: String,
+    maxLines: Int,
+    modifier: Modifier = Modifier,
+) = Row(
+    modifier = modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.spacedBy(10.dp),
+) {
+    FemtoIcon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.padding(top = 6.dp).size(28.dp),
+    )
+    Text(
+        text = text,
+        style = MaterialTheme.typography.headlineLarge,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.weight(1f),
+    )
 }
 
 // One panel metadata line: a leading glyph sized to the line + the marquee text

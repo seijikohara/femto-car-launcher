@@ -15,7 +15,8 @@ import androidx.compose.ui.unit.dp
  * calendar and weather cards. A `LazyColumn` (or a plain scrollable `Column`)
  * bounded by an ancestor's height cap still composes and lays out its next
  * item even when only a sliver of it is visible, which is how the calendar's
- * stray dash remnant and the weather's label-less trailing icon row happened
+ * stray dash remnant, the weather's label-less trailing icon row, and the
+ * Now Playing panel's half-cut queue row happened
  * (both cards share the same capped-height cluster; see
  * `DashboardScaffold`'s `CardClusterMaxHeight`). This layout instead measures
  * every child against an unbounded height first, then accepts children in
