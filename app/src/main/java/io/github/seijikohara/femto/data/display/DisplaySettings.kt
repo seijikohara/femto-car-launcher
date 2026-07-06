@@ -25,17 +25,23 @@ enum class AccentColor { DYNAMIC, BLUE, TEAL, GREEN, AMBER, ORANGE, RED, VIOLET,
 
 /**
  * Global UI scale, applied as a density multiplier over the whole UI (text, icons,
- * and layout). [MEDIUM] is the safe default that honours the automotive floors
- * (CLAUDE.md#automotive-overrides); [SMALL] and [LARGE] are explicit user opt-ins
- * that may fall below / rise above them — sanctioned because this ships as a general
- * Play-Store app, mirroring the system font-size / display-size controls. Public
- * (like [AccentColor]) because the public [FemtoTheme] takes it.
+ * and layout). Five steps, symmetric around [MEDIUM] (factor 1.0): [COMPACT] and
+ * [COMFORTABLE] are the midpoints between [MEDIUM] and each anchor. [MEDIUM] is the
+ * safe default that honours the automotive floors (CLAUDE.md#automotive-overrides);
+ * [SMALL] and [LARGE] are explicit user opt-ins that may fall below / rise above them
+ * — sanctioned because this ships as a general Play-Store app, mirroring the system
+ * font-size / display-size controls. [COMPACT] and [COMFORTABLE] stay within
+ * [SMALL]..[LARGE], so they never cross further below / above the floors than those
+ * anchors already do. Public (like [AccentColor]) because the public [FemtoTheme]
+ * takes it.
  */
 enum class UiScale(
     val factor: Float,
 ) {
     SMALL(2f / 3f),
+    COMPACT(5f / 6f),
     MEDIUM(1f),
+    COMFORTABLE(7f / 6f),
     LARGE(4f / 3f),
 }
 

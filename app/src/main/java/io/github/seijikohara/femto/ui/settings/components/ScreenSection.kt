@@ -18,16 +18,12 @@ internal fun ScreenSection(
     onAction: (SettingsAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = SettingsSection(title = stringResource(R.string.settings_section_screen), modifier = modifier) {
-    ChoiceRow(
+    SliderRow(
         title = stringResource(R.string.settings_group_ui_scale),
-        options =
-            listOf(
-                UiScale.SMALL to stringResource(R.string.settings_ui_scale_small),
-                UiScale.MEDIUM to stringResource(R.string.settings_ui_scale_medium),
-                UiScale.LARGE to stringResource(R.string.settings_ui_scale_large),
-            ),
-        selected = uiState.uiScale,
-        onSelect = { onAction(SettingsAction.SetUiScale(it)) },
+        valueLabel = stringResource(uiState.uiScale.labelRes()),
+        value = UiScale.entries.indexOf(uiState.uiScale),
+        range = 0..UiScale.entries.lastIndex,
+        onValueChange = { onAction(SettingsAction.SetUiScale(UiScale.entries[it])) },
     )
     ChoiceRow(
         title = stringResource(R.string.settings_group_orientation),
@@ -75,3 +71,14 @@ internal fun ScreenSection(
 }
 
 private fun Boolean.toFullscreen(): FullscreenSetting = if (this) FullscreenSetting.ON else FullscreenSetting.OFF
+
+// The human-readable label for a display-size step, shown as the slider's current
+// value (the row title already reads "Display size", so this names only the step).
+private fun UiScale.labelRes(): Int =
+    when (this) {
+        UiScale.SMALL -> R.string.settings_ui_scale_small
+        UiScale.COMPACT -> R.string.settings_ui_scale_compact
+        UiScale.MEDIUM -> R.string.settings_ui_scale_medium
+        UiScale.COMFORTABLE -> R.string.settings_ui_scale_comfortable
+        UiScale.LARGE -> R.string.settings_ui_scale_large
+    }

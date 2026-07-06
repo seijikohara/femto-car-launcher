@@ -186,7 +186,9 @@
     <string name="settings_orientation_portrait">Portrait</string>
     <string name="settings_group_ui_scale">Display size</string>
     <string name="settings_ui_scale_small">Small</string>
+    <string name="settings_ui_scale_compact">Compact</string>
     <string name="settings_ui_scale_medium">Medium</string>
+    <string name="settings_ui_scale_comfortable">Comfortable</string>
     <string name="settings_ui_scale_large">Large</string>
     <string name="settings_group_dock_position">Dock position</string>
     <string name="settings_dock_bottom">Bottom</string>
