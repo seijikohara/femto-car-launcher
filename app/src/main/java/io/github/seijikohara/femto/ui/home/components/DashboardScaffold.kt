@@ -2,8 +2,6 @@ package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -17,12 +15,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,19 +31,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.Lock
-import com.composables.icons.lucide.LockOpen
-import com.composables.icons.lucide.Lucide
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
-import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.BriefingScope
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.DriverSide
@@ -61,7 +49,6 @@ import io.github.seijikohara.femto.ui.home.components.driving.DrivingOverlays
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
-import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
@@ -234,6 +221,12 @@ private fun DashboardContent(
     // margin + the thickness) so none sit under it.
     val dockExtent = FemtoDimens.DockThickness + outerPad
 
+    // The map's bottom-start attribution credit sits at the very edge of the map
+    // surface, underneath the dock when the dock hosts the bottom edge — inset it by
+    // the dock's whole footprint so it clears the dock's nav buttons. Left/right/top
+    // dock positions never cover that corner, so they get no extra inset.
+    val attributionBottomInset = if (dockPosition == DockPosition.BOTTOM) dockExtent else 0.dp
+
     // The landscape card column reserves a horizontal band the marker must clear; the
     // bottom (portrait) cards and the bottom dock extend the bottom safe band so the
     // marker clears them. Each orientation feeds one axis. This reserve is assigned to
@@ -329,6 +322,7 @@ private fun DashboardContent(
         recenterNonce = recenterNonce,
         onFollowChange = { following = it },
         onBearingChange = { bearingDeg = it },
+        attributionBottomInset = attributionBottomInset,
     )
 
     // Only the two overlay faces cross-fade; the map (blur source) and the dock
@@ -390,6 +384,12 @@ private fun DashboardContent(
         }
     }
 
+    // Passenger-unlock visibility: shown while the driving face is on screen or the
+    // user has already unlocked, so the resting cockpit (the default) shows no
+    // toggle. Threaded into the dock (below) rather than a separate floating pill —
+    // the pill used to anchor top-centre / top-end, overlapping the clock.
+    val showPassengerToggle = passengerUnlocked || activePreset == PresetId.DRIVING
+
     // The dock as a glass bar / rail on its edge, drawn over the full-bleed map.
     DashboardDock(
         systemStatus = uiState.systemStatus,
@@ -397,6 +397,8 @@ private fun DashboardContent(
         position = dockPosition,
         hazeState = hazeState,
         glassConfig = glassConfig,
+        showPassengerToggle = showPassengerToggle,
+        passengerUnlocked = passengerUnlocked,
         modifier =
             when (dockPosition) {
                 DockPosition.BOTTOM, DockPosition.TOP -> {
@@ -414,76 +416,6 @@ private fun DashboardContent(
                 }
             },
     )
-
-    // Passenger-unlock pill: persistent chrome like the dock, a TOP-LEVEL SIBLING
-    // OUTSIDE the crossfade so it survives the face switch rather than fading with a
-    // face. Shown only while the driving face is on screen or the user has already
-    // unlocked, so the resting cockpit (the default) renders no pill. On the driving
-    // face it anchors top-end — that face has no card column, so the corner is free and
-    // the location strip keeps the whole top-start; the passenger-unlocked cockpit keeps
-    // it top-centre, clear of the cards at top-end. Inset by the dock footprint.
-    val showPassengerPill = passengerUnlocked || activePreset == PresetId.DRIVING
-    if (showPassengerPill) {
-        PassengerPill(
-            unlocked = passengerUnlocked,
-            onToggle = { onAction(HomeAction.SetPassengerUnlock(!passengerUnlocked)) },
-            hazeState = hazeState,
-            glassConfig = glassConfig,
-            modifier =
-                Modifier
-                    .align(if (activePreset == PresetId.DRIVING) Alignment.TopEnd else Alignment.TopCenter)
-                    .padding(dockEdgePadding(dockPosition, dockExtent))
-                    .padding(outerPad),
-        )
-    }
-}
-
-// A glass pill that toggles the transient passenger unlock — keep the full cockpit
-// while the vehicle is moving instead of auto-switching to the driving glance. The
-// icon reflects state (open when unlocked); the accessible name states the action
-// rather than relying on onClickLabel (the CalendarCard head idiom). Sized to the
-// [FemtoDimens.MinTouchTarget] floor so it stays a safe tap on the move.
-@Composable
-private fun PassengerPill(
-    unlocked: Boolean,
-    onToggle: () -> Unit,
-    hazeState: HazeState,
-    glassConfig: GlassConfig,
-    modifier: Modifier = Modifier,
-) {
-    val description = stringResource(R.string.passenger_unlock_desc)
-    Row(
-        modifier =
-            modifier
-                .semantics { contentDescription = description }
-                .heightIn(min = FemtoDimens.MinTouchTarget)
-                .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
-                // Unlike the frameless map overlays, this control carries a hairline
-                // outline so the affordance stays legible where the glass tint alone
-                // vanishes into a light map (the frameless-glass exception noted in
-                // glassChrome's KDoc).
-                .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.large)
-                .clickable(onClick = onToggle)
-                .padding(
-                    horizontal = FemtoDimens.OverlayPaddingHorizontal,
-                    vertical = FemtoDimens.OverlayPaddingVertical,
-                ),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        FemtoIcon(
-            imageVector = if (unlocked) Lucide.LockOpen else Lucide.Lock,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(FemtoDimens.InlineIconSize),
-        )
-        Text(
-            text = stringResource(R.string.passenger_unlock_label),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-        )
-    }
 }
 
 // The cockpit face: the glass overlay tree that floats over the map — map controls,

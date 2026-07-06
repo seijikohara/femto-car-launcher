@@ -125,11 +125,7 @@ internal fun DrivingOverlays(
             modifier =
                 Modifier
                     .align(Alignment.TopStart)
-                    .padding(outerPad)
-                    // Reserve the top-right for the PassengerPill (a top-level sibling
-                    // anchored top-end on the driving face) so a long road + city
-                    // ellipsizes before reaching it rather than running underneath.
-                    .widthIn(max = (maxWidth - PassengerPillReserve).coerceAtLeast(0.dp)),
+                    .padding(outerPad),
         )
     }
 
@@ -217,79 +213,106 @@ private fun DrivingBar(
     showTitle: Boolean,
     showBriefing: Boolean,
     modifier: Modifier = Modifier,
-) = Row(
-    modifier =
-        modifier
-            .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
-            .padding(
-                horizontal = FemtoDimens.OverlayPaddingHorizontal,
-                vertical = FemtoDimens.OverlayPaddingVertical,
-            ),
-    verticalAlignment = Alignment.CenterVertically,
-    // A stable two-cluster layout: the speed + now-playing anchor left, the briefing
-    // (event + weather) anchors right, with a flexible spacer between. Everything that
-    // changes width as the drive updates — the speed's digit count, the music title,
-    // the next event's presence and length — grows into the middle spacer, so the
-    // anchored elements never shift. (SpaceBetween re-centred the middle cluster on
-    // every such change, and even jumped the music to the far edge when the briefing
-    // was absent, because it distributes by child count + width.)
-    horizontalArrangement = Arrangement.spacedBy(DrivingBarSegmentGap),
+) = Box(
+    // The glass card itself stays a full-width floating shelf; only the content
+    // row below is capped + centred (see FemtoDimens.DrivingBarContentMaxWidth),
+    // so a wide bar does not stretch the anti-reflow spacer between the two
+    // anchored clusters into a large empty middle.
+    modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
+    contentAlignment = Alignment.Center,
 ) {
-    // The narrow bar shrinks the hero numeral so the fixed-width transport row still
-    // fits beside it; the wider bars keep the full-size speed.
-    BigSpeed(
-        location = uiState.location,
-        tripState = uiState.tripState,
-        speedUnit = speedUnit,
-        numeralSize = if (showTitle) BigSpeedFontFull else BigSpeedFontCompact,
-    )
+    Row(
+        modifier =
+            Modifier
+                .widthIn(max = FemtoDimens.DrivingBarContentMaxWidth)
+                .fillMaxWidth()
+                .padding(
+                    horizontal = FemtoDimens.OverlayPaddingHorizontal,
+                    vertical = FemtoDimens.OverlayPaddingVertical,
+                ),
+        verticalAlignment = Alignment.CenterVertically,
+        // A stable two-cluster layout: the speed + now-playing anchor left, the briefing
+        // (event + weather) anchors right, with a flexible spacer between. Everything that
+        // changes width as the drive updates — the speed's digit count, the music title,
+        // the next event's presence and length — grows into the middle spacer, so the
+        // anchored elements never shift. (SpaceBetween re-centred the middle cluster on
+        // every such change, and even jumped the music to the far edge when the briefing
+        // was absent, because it distributes by child count + width.)
+        horizontalArrangement = Arrangement.spacedBy(DrivingBarSegmentGap),
+    ) {
+        // The narrow bar shrinks the hero numeral so the fixed-width transport row still
+        // fits beside it; the wider bars keep the full-size speed.
+        BigSpeed(
+            location = uiState.location,
+            tripState = uiState.tripState,
+            speedUnit = speedUnit,
+            numeralSize = if (showTitle) BigSpeedFontFull else BigSpeedFontCompact,
+        )
 
-    // Now-playing, gated on Playing exactly like the music card. A narrow bar has no
-    // room for the title beside the big speed, so it keeps just the transport controls
-    // (playback stays operable); wider bars add the music glyph + ellipsizing title.
-    (uiState.musicState as? MusicCardState.Playing)?.let { playing ->
-        if (showTitle) {
-            NowPlayingMini(nowPlaying = playing.nowPlaying, onAction = onAction)
+        // Now-playing, gated on Playing exactly like the music card. A narrow bar has no
+        // room for the title beside the big speed, so it keeps just the transport controls
+        // (playback stays operable); wider bars add the music glyph + ellipsizing title.
+        // Aligned by baseline (with the event text and WeatherBlock below) so the
+        // now-playing title reads on the same visual line as its siblings regardless of
+        // the taller transport row / weather glyph beside it.
+        (uiState.musicState as? MusicCardState.Playing)?.let { playing ->
+            if (showTitle) {
+                NowPlayingMini(
+                    nowPlaying = playing.nowPlaying,
+                    onAction = onAction,
+                    modifier = Modifier.alignByBaseline(),
+                )
+            } else {
+                TransportRow(
+                    isPlaying = playing.nowPlaying.isPlaying,
+                    onCommand = { onAction(HomeAction.Music(it)) },
+                )
+            }
+        }
+
+        // The next event ellipsizes into the flexible middle (right-aligned so it groups
+        // with the weather), or a spacer holds the gap when there is none — either way the
+        // left cluster and the weather anchor stay put. Each half is gated by
+        // [briefingConfig] and by [showBriefing] (dropped on a narrow pane); the weather
+        // block anchors the right and is never squeezed, so the event yields first.
+        val upcomingEvent =
+            if (showBriefing && briefingConfig.showEvent) {
+                uiState.calendar.nextUpcomingEventOrNull(uiState.clock, briefingConfig.scope)
+            } else {
+                null
+            }
+        val weather = uiState.weather.takeIf { showBriefing && briefingConfig.showWeather }
+        if (upcomingEvent != null) {
+            Text(
+                text =
+                    briefingLabel(
+                        event = upcomingEvent.event,
+                        eventDate = upcomingEvent.date,
+                        today = uiState.clock.date,
+                    ),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.End,
+                modifier = Modifier.weight(1f).alignByBaseline(),
+            )
         } else {
-            TransportRow(
-                isPlaying = playing.nowPlaying.isPlaying,
-                onCommand = { onAction(HomeAction.Music(it)) },
+            Spacer(Modifier.weight(1f))
+        }
+        // Aligned by baseline (see above) so the temperature — the meaningful line in
+        // this stacked glyph-over-temp block — reads level with the event/music text
+        // instead of sitting lower, which a plain centre alignment left it (the block's
+        // own height, glyph + temp, is much taller than a single text line, so centring
+        // its whole bounding box centred the glyph too and dropped the text below the
+        // other clusters' shared line).
+        if (weather != null) {
+            WeatherBlock(
+                weather = weather,
+                temperatureUnit = temperatureUnit,
+                modifier = Modifier.alignByBaseline(),
             )
         }
-    }
-
-    // The next event ellipsizes into the flexible middle (right-aligned so it groups
-    // with the weather), or a spacer holds the gap when there is none — either way the
-    // left cluster and the weather anchor stay put. Each half is gated by
-    // [briefingConfig] and by [showBriefing] (dropped on a narrow pane); the weather
-    // block anchors the right and is never squeezed, so the event yields first.
-    val upcomingEvent =
-        if (showBriefing && briefingConfig.showEvent) {
-            uiState.calendar.nextUpcomingEventOrNull(uiState.clock, briefingConfig.scope)
-        } else {
-            null
-        }
-    val weather = uiState.weather.takeIf { showBriefing && briefingConfig.showWeather }
-    if (upcomingEvent != null) {
-        Text(
-            text =
-                briefingLabel(
-                    event = upcomingEvent.event,
-                    eventDate = upcomingEvent.date,
-                    today = uiState.clock.date,
-                ),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.End,
-            modifier = Modifier.weight(1f),
-        )
-    } else {
-        Spacer(Modifier.weight(1f))
-    }
-    if (weather != null) {
-        WeatherBlock(weather = weather, temperatureUnit = temperatureUnit)
     }
 }
 
@@ -332,7 +355,9 @@ private fun BigSpeed(
     Text(
         text = speedUnit.label(),
         style = MaterialTheme.typography.sectionLabel(12, 0.12f),
-        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        // Full-strength onSurfaceVariant: the prior 0.7 alpha read as too faint at a
+        // glance next to the hero numeral (onSurface already carries the hierarchy).
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
         modifier = Modifier.padding(bottom = 10.dp),
     )
@@ -378,7 +403,9 @@ private fun NowPlayingMini(
 private fun WeatherBlock(
     weather: WeatherSnapshot,
     temperatureUnit: TemperatureUnit,
+    modifier: Modifier = Modifier,
 ) = Column(
+    modifier = modifier,
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(1.dp),
 ) {
@@ -404,11 +431,6 @@ private const val NO_SPEED_PLACEHOLDER = "—"
 // The widest realistic speed (three tabular digits) the numeral slot reserves so
 // the bar's layout is stable across 1–3 digit speeds.
 private const val SPEED_NUMERAL_SIZER = "000"
-
-// Right-side room the location strip leaves for the PassengerPill (top-end on the
-// driving face): the pill's own width plus its edge margin, so a long road + city
-// ellipsizes before reaching it.
-private val PassengerPillReserve = 190.dp
 
 // Bar breakpoints on the pane width. Below [BarTitleBreakpoint] the big speed shrinks
 // and the now-playing title drops (transport only) so the fixed transport row fits;
