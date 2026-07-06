@@ -125,7 +125,7 @@ internal class MusicFactsCollector(
         val value =
             "${audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)}/" +
                 "${audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)}" +
-                if (audioManager.isVolumeFixed) " (FIXED)" else ""
+                if (audioManager.isVolumeFixed) " (fixed)" else ""
         return DiagnosticFact(
             "Volume",
             if (audioManager.isVolumeFixed) FactValue.Status(value, FactHealth.WARNING) else FactValue.Text(value),
