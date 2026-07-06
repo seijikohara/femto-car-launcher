@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
@@ -216,14 +217,22 @@ internal fun MusicMetaAndProgress(
                 style = secondaryStyle,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            MetaLine(
-                icon = Lucide.Disc,
-                // Album is absent for many radio / stream sessions; show an em dash
-                // rather than substituting another field, matching the artist line.
-                text = album?.takeUnless { it.isBlank() } ?: "—",
-                style = secondaryStyle,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            // Composed only when showAlbum is on: the setting hides the album line
+            // unconditionally, so its text must never exist in the tree (not merely
+            // go unplaced) — a zero-size Spacer keeps ALBUM_SLOT's index stable for
+            // the measurables below either way.
+            if (showAlbum) {
+                MetaLine(
+                    icon = Lucide.Disc,
+                    // Album is absent for many radio / stream sessions; show an em
+                    // dash rather than substituting another field, matching artist.
+                    text = album?.takeUnless { it.isBlank() } ?: "—",
+                    style = secondaryStyle,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Spacer(modifier = Modifier.size(0.dp))
+            }
             Progress(
                 positionMs = positionMs,
                 durationMs = durationMs,
@@ -327,8 +336,11 @@ private fun EyebrowLine(
 
 // One metadata line: a leading glyph + the text. The text is clamped to its
 // style's lineHeight so a CJK line and a Latin line measure identically — without
-// this the vertically centred meta block shifts a few px on script changes between
-// tracks (fallback line spacing; see singleLineBox).
+// this a line's row height shifts a few px on script changes between tracks
+// (fallback line spacing; see singleLineBox). MusicMetaAndProgress always
+// measures this against an unbounded height, so the clamp never gets squeezed
+// smaller than its nominal size the way it could inside the old fixed-height
+// meta column.
 @Composable
 private fun MetaLine(
     icon: ImageVector,
