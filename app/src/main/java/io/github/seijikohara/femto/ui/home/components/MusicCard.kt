@@ -49,8 +49,8 @@ private val RowContentGap = 14.dp
  *     the width ([FemtoDimens.MusicMetaMinWidth]).
  *  2. Meta — uppercase source eyebrow (10sp / 0.16em), 20sp title, 14sp artist
  *     / album, plus the progress bar. Title and progress always show; the
- *     eyebrow, artist, and album lines drop in that priority order when the
- *     row is too short for all of them ([MusicMetaAndProgress]).
+ *     album drops first, then the eyebrow, then the artist when the row is too
+ *     short for all of them ([MusicMetaAndProgress]).
  *  3. Transport row — 64 dp prev / next + 72 dp primary play / pause
  *
  * Empty variants render in the same outer dimensions: `NeedsPermission` is

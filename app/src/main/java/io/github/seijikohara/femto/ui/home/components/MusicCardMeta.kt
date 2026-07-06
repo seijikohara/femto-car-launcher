@@ -158,9 +158,12 @@ private val MetaLineGap: Dp = 2.dp
 /**
  * Title, artist, album, source eyebrow, and the playback progress row, laid
  * out to fit whatever height the music card's row allocates. The title and
- * the progress row are mandatory; the eyebrow, artist, and album lines are
- * dropped — in that priority order (artist first to go, then eyebrow, then
- * album) — once the available height is too tight for all of them.
+ * the progress row are mandatory; the artist, source eyebrow, and album lines
+ * are dropped — album first, then the eyebrow, then the artist — once the
+ * available height is too tight for all of them. The artist is the most
+ * protected of the three; the eyebrow outranks the album because it also
+ * carries the tap-to-expand affordance ([onExpand]), so dropping it would cost
+ * the card its full-screen-player entry when the album art is hidden.
  *
  * This replaces a fixed-height [Column] (`Arrangement.spacedBy(_, CenterVertically)`
  * over lines clamped to their nominal `lineHeight`): squeezed by an ancestor
