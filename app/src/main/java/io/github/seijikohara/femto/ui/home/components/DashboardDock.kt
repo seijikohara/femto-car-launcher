@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -192,36 +194,51 @@ private fun HorizontalDock(
                 modifier = Modifier.fillMaxSize(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
+                // The slot competing with the status cluster for width; centred so
+                // the capped cluster below sits in the middle of its share instead
+                // of hugging the leading edge on a wide dock.
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    // Each button takes an equal weight so the nav row shares the
-                    // width and shrinks toward FemtoDimens.MinTouchTarget instead of
-                    // clipping when the row is narrow.
-                    NavSpecs.forEach { spec ->
-                        NavButton(
-                            icon = spec.icon,
-                            description = stringResource(spec.labelRes),
-                            onClick = { onAction(spec.action) },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    // The passenger-unlock toggle joins the weighted row as an eighth
-                    // equal-share element — never a fixed-width sibling outside it —
-                    // so a narrow dock shrinks it in lockstep with the seven nav
-                    // buttons instead of carving a fixed slot out of their shared
-                    // width. The divider (matching the one ahead of the status
-                    // cluster below) keeps it visually distinct as dock chrome
-                    // rather than an eighth launcher icon.
-                    if (showPassengerToggle) {
-                        HorizontalDockDivider()
-                        PassengerToggleButton(
-                            unlocked = passengerUnlocked,
-                            onToggle = { onAction(HomeAction.SetPassengerUnlock(!passengerUnlocked)) },
-                            modifier = Modifier.weight(1f),
-                        )
+                    Row(
+                        // Fill the slot up to the cap: a normal / narrow dock's slot is
+                        // already under the cap (no-op, buttons still fill it via
+                        // weight); an ultrawide dock's slot is clamped so the buttons
+                        // stay a comfortable cluster instead of spreading edge to edge.
+                        modifier =
+                            Modifier
+                                .widthIn(max = FemtoDimens.DockNavClusterMaxWidth)
+                                .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // Each button takes an equal weight so the nav row shares the
+                        // width and shrinks toward FemtoDimens.MinTouchTarget instead of
+                        // clipping when the row is narrow.
+                        NavSpecs.forEach { spec ->
+                            NavButton(
+                                icon = spec.icon,
+                                description = stringResource(spec.labelRes),
+                                onClick = { onAction(spec.action) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        // The passenger-unlock toggle joins the weighted row as an eighth
+                        // equal-share element — never a fixed-width sibling outside it —
+                        // so a narrow dock shrinks it in lockstep with the seven nav
+                        // buttons instead of carving a fixed slot out of their shared
+                        // width. The divider (matching the one ahead of the status
+                        // cluster below) keeps it visually distinct as dock chrome
+                        // rather than an eighth launcher icon.
+                        if (showPassengerToggle) {
+                            HorizontalDockDivider()
+                            PassengerToggleButton(
+                                unlocked = passengerUnlocked,
+                                onToggle = { onAction(HomeAction.SetPassengerUnlock(!passengerUnlocked)) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
                     }
                 }
                 if (showStatusCluster) {
@@ -272,31 +289,45 @@ private fun VerticalDock(
                 modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.SpaceBetween,
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                // The slot competing with the status cluster for height; centred so
+                // the capped cluster below sits in the middle of its share instead
+                // of hugging the leading edge on a tall rail — mirrors the
+                // horizontal bar's Box wrapper, turned 90 degrees.
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    // The same equal-weight sharing as the horizontal bar, on the
-                    // height instead of the width.
-                    NavSpecs.forEach { spec ->
-                        NavButton(
-                            icon = spec.icon,
-                            description = stringResource(spec.labelRes),
-                            onClick = { onAction(spec.action) },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    // The passenger-unlock toggle joins the weighted column as an
-                    // eighth equal-share element — see the horizontal bar's matching
-                    // comment above for the rationale.
-                    if (showPassengerToggle) {
-                        VerticalDockDivider()
-                        PassengerToggleButton(
-                            unlocked = passengerUnlocked,
-                            onToggle = { onAction(HomeAction.SetPassengerUnlock(!passengerUnlocked)) },
-                            modifier = Modifier.weight(1f),
-                        )
+                    Column(
+                        // Fill the slot up to the cap — see the horizontal bar's
+                        // matching comment above for the rationale.
+                        modifier =
+                            Modifier
+                                .heightIn(max = FemtoDimens.DockNavClusterMaxWidth)
+                                .fillMaxHeight(),
+                        verticalArrangement = Arrangement.SpaceBetween,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        // The same equal-weight sharing as the horizontal bar, on the
+                        // height instead of the width.
+                        NavSpecs.forEach { spec ->
+                            NavButton(
+                                icon = spec.icon,
+                                description = stringResource(spec.labelRes),
+                                onClick = { onAction(spec.action) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        // The passenger-unlock toggle joins the weighted column as an
+                        // eighth equal-share element — see the horizontal bar's matching
+                        // comment above for the rationale.
+                        if (showPassengerToggle) {
+                            VerticalDockDivider()
+                            PassengerToggleButton(
+                                unlocked = passengerUnlocked,
+                                onToggle = { onAction(HomeAction.SetPassengerUnlock(!passengerUnlocked)) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
                     }
                 }
                 if (showStatusCluster) {

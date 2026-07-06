@@ -334,7 +334,11 @@ private fun ResetButton(
     FemtoIcon(
         imageVector = Lucide.RotateCcw,
         contentDescription = stringResource(R.string.speed_reset_trip),
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        // onSurface (not onSurfaceVariant): this is the overlay's one actionable
+        // control, and the variant tone read as disabled/decorative next to the
+        // hairline-thin Lucide stroke. Full onSurface still stays secondary to
+        // the saturated 40 sp speed numeral by virtue of its much smaller size.
+        tint = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.size(FemtoDimens.InlineIconSize),
     )
 }

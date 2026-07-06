@@ -37,7 +37,9 @@ internal fun MusicConnectState(onConnect: () -> Unit) =
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(FemtoDimens.CardPadding),
+            // Compact padding matches the Playing state's inset (MusicCard.kt) so
+            // the card's edge does not visibly jump when playback starts / stops.
+            modifier = Modifier.fillMaxSize().padding(FemtoDimens.CardPaddingCompact),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -74,7 +76,9 @@ internal fun MusicConnectState(onConnect: () -> Unit) =
 @Composable
 internal fun MusicEmptyState() =
     Column(
-        modifier = Modifier.fillMaxSize().padding(FemtoDimens.CardPadding),
+        // Compact padding matches the Playing state's inset (MusicCard.kt) so
+        // the card's edge does not visibly jump when playback starts / stops.
+        modifier = Modifier.fillMaxSize().padding(FemtoDimens.CardPaddingCompact),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // Mockup `.music-card.empty` = `grid-template-rows: 1fr auto auto 1fr`
