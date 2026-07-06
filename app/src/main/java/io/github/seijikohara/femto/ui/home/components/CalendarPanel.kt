@@ -99,24 +99,24 @@ internal fun CalendarPanel(
 // rendered count further to whatever the panel's actual height admits.
 private const val CALENDAR_PANEL_WINDOW_DAYS = 14
 
-// Greedy load-balance: each day goes to whichever column currently carries
-// less content (event count as a cheap proxy for row height), so a busy day
-// does not stack against an equally busy neighbour in the same column while
-// the other column runs light. A literal alternating split would not notice
-// that imbalance.
+// Chronological split: earlier days fill the left column, later days the
+// right, so reading the left column top-to-bottom then the right stays in
+// date order — the scannability an agenda lives on (an interleaving
+// load-balance would break that). The cut still balances height: days fill the
+// left until its running weight (event count as a cheap proxy for row height)
+// passes half the total, so a run of busy early days does not tower over a
+// light right column. At least one day always goes right.
 private fun List<DayCell>.splitAgendaColumns(): Pair<List<DayCell>, List<DayCell>> {
+    val total = sumOf { it.events.size.coerceAtLeast(1) }
     val left = mutableListOf<DayCell>()
     val right = mutableListOf<DayCell>()
     var leftWeight = 0
-    var rightWeight = 0
     forEach { day ->
-        val weight = day.events.size.coerceAtLeast(1)
-        if (leftWeight <= rightWeight) {
+        if (leftWeight * 2 < total && left.size < size - 1) {
             left += day
-            leftWeight += weight
+            leftWeight += day.events.size.coerceAtLeast(1)
         } else {
             right += day
-            rightWeight += weight
         }
     }
     return left to right
