@@ -208,10 +208,6 @@
     <string name="settings_motion_reduced">Reduced</string>
     <string name="settings_motion_off">Off</string>
     <string name="settings_group_briefing">Briefing</string>
-    <string name="settings_briefing_scope">Look ahead</string>
-    <string name="settings_briefing_scope_today">Today</string>
-    <string name="settings_briefing_scope_tomorrow">Today + tomorrow</string>
-    <string name="settings_briefing_scope_all">All upcoming</string>
     <string name="settings_briefing_show_event">Show next event</string>
     <string name="settings_briefing_show_weather">Show weather</string>
     <string name="settings_subheader_fonts">Fonts</string>

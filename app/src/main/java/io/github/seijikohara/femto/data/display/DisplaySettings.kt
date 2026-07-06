@@ -87,13 +87,6 @@ internal enum class MotionTier { STANDARD, REDUCED, OFF }
  */
 internal enum class OrientationSetting { AUTO, LANDSCAPE, PORTRAIT }
 
-/**
- * How far ahead the driving briefing looks for the next event: [TODAY] only
- * today's remaining events, [THROUGH_TOMORROW] (the default) also includes
- * tomorrow, [UPCOMING] any future event regardless of distance.
- */
-internal enum class BriefingScope { TODAY, THROUGH_TOMORROW, UPCOMING }
-
 /** Map light/dark style: follow the system theme, or force light / dark. */
 internal enum class MapStyleSetting { AUTO, LIGHT, DARK }
 
@@ -162,9 +155,6 @@ internal data class DisplaySettings(
     val motionTier: MotionTier,
     // Screen orientation; AUTO follows the head unit's natural orientation.
     val orientation: OrientationSetting,
-    // How far ahead the driving briefing looks for the next event. Defaults to
-    // THROUGH_TOMORROW (today + tomorrow) — see BriefingScope.
-    val briefingScope: BriefingScope,
     // Whether the driving briefing shows its next-event half / weather half.
     // Both default true so a fresh install shows the full one-line briefing.
     val briefingShowEvent: Boolean,
@@ -252,7 +242,6 @@ internal data class DisplaySettings(
                 drivingThresholdKmh = 8,
                 motionTier = MotionTier.STANDARD,
                 orientation = OrientationSetting.AUTO,
-                briefingScope = BriefingScope.THROUGH_TOMORROW,
                 briefingShowEvent = true,
                 briefingShowWeather = true,
                 keepScreenOn = true,

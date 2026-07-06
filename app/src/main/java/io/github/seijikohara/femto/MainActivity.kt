@@ -196,7 +196,6 @@ class MainActivity : ComponentActivity() {
                         ),
                     briefingConfig =
                         BriefingConfig(
-                            scope = display.briefingScope,
                             showEvent = display.briefingShowEvent,
                             showWeather = display.briefingShowWeather,
                         ),

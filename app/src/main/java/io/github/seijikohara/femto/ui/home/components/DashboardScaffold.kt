@@ -37,7 +37,6 @@ import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
-import io.github.seijikohara.femto.data.display.BriefingScope
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
@@ -67,13 +66,12 @@ internal data class PanelVisibility(
     val anyInfoPanel: Boolean get() = calendar || weather || music
 }
 
-// How the driving face composes its one-line briefing: how far ahead [scope]
-// looks for the next event, and whether the event / weather halves are shown.
-// Only the driving face reads this. Sourced from DisplaySettings and threaded
-// down like PanelVisibility; the field defaults mirror DisplaySettings.Default
-// (THROUGH_TOMORROW, both halves on) so a fresh install shows the full briefing.
+// How the driving face composes its one-line briefing: whether the event /
+// weather halves are shown. Only the driving face reads this. Sourced from
+// DisplaySettings and threaded down like PanelVisibility; the field defaults
+// mirror DisplaySettings.Default (both halves on) so a fresh install shows
+// the full briefing.
 internal data class BriefingConfig(
-    val scope: BriefingScope = BriefingScope.THROUGH_TOMORROW,
     val showEvent: Boolean = true,
     val showWeather: Boolean = true,
 )

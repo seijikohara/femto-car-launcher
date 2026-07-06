@@ -2,7 +2,6 @@ package io.github.seijikohara.femto.testfixtures
 
 import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
-import io.github.seijikohara.femto.data.display.BriefingScope
 import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DisplaySettingsStore
@@ -78,8 +77,6 @@ internal class FakeDisplaySettingsStore(
     override suspend fun setMotionTier(value: MotionTier) = state.update { it.copy(motionTier = value) }
 
     override suspend fun setOrientation(value: OrientationSetting) = state.update { it.copy(orientation = value) }
-
-    override suspend fun setBriefingScope(value: BriefingScope) = state.update { it.copy(briefingScope = value) }
 
     override suspend fun setBriefingShowEvent(value: Boolean) = state.update { it.copy(briefingShowEvent = value) }
 
