@@ -190,8 +190,9 @@ internal fun MusicMetaAndProgress(
     showAlbum: Boolean = true,
     // When non-null, the source eyebrow row becomes a tap-to-expand affordance —
     // the card's entry to the full-screen player, kept reachable even when the
-    // album art (the other expand affordance) is hidden. Mirrors the calendar /
-    // weather card header-tap entry.
+    // album art (the other expand affordance) is hidden. The calendar / weather
+    // cards apply the same tap-to-expand idiom to their whole card instead of a
+    // single row, since (unlike this one) they have no other clickable children.
     onExpand: (() -> Unit)? = null,
 ) {
     // Title, artist and album styles derive from the M3 type roles once and are

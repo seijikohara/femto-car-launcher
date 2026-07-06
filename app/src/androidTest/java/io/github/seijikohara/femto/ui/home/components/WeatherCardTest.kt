@@ -174,7 +174,7 @@ class WeatherCardTest {
     }
 
     @Test
-    fun header_tap_invokes_onExpand() {
+    fun card_tap_invokes_onExpand() {
         var expanded = false
         rule.setContent {
             FemtoTheme {
@@ -188,6 +188,27 @@ class WeatherCardTest {
             }
         }
         rule.onNodeWithContentDescription("Open full-screen weather").performClick()
+        assertTrue(expanded)
+    }
+
+    @Test
+    fun tapping_the_forecast_also_invokes_onExpand() {
+        // The maximize tap sits on the whole populated card, not just the head,
+        // so a tap on a forecast chip (which carries no click of its own) still
+        // opens the full-screen panel.
+        var expanded = false
+        rule.setContent {
+            FemtoTheme {
+                WeatherCard(
+                    snapshot = fakeWeatherSnapshot(),
+                    temperatureUnit = TemperatureUnit.CELSIUS,
+                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    is24Hour = true,
+                    onExpand = { expanded = true },
+                )
+            }
+        }
+        rule.onNodeWithText("12:00").performClick()
         assertTrue(expanded)
     }
 }

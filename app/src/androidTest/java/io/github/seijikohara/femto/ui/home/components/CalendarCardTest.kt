@@ -83,7 +83,7 @@ class CalendarCardTest {
     }
 
     @Test
-    fun header_tap_invokes_onExpand() {
+    fun card_tap_invokes_onExpand() {
         var expanded = false
         rule.setContent {
             FemtoTheme {
@@ -95,6 +95,25 @@ class CalendarCardTest {
             }
         }
         rule.onNodeWithContentDescription("Open full-screen calendar").performClick()
+        assertTrue(expanded)
+    }
+
+    @Test
+    fun tapping_an_agenda_row_also_invokes_onExpand() {
+        // The maximize tap sits on the whole populated agenda, not just the head,
+        // so a tap on an event row (which carries no click of its own) still opens
+        // the full-screen panel.
+        var expanded = false
+        rule.setContent {
+            FemtoTheme {
+                CalendarCard(
+                    snapshot = fakeCalendarSnapshot(),
+                    is24Hour = true,
+                    onExpand = { expanded = true },
+                )
+            }
+        }
+        rule.onNodeWithText("Team standup").performClick()
         assertTrue(expanded)
     }
 

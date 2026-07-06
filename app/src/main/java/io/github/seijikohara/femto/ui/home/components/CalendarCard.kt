@@ -101,53 +101,53 @@ private fun CalendarContent(
     snapshot: CalendarSnapshot,
     is24Hour: Boolean,
     onExpand: () -> Unit,
-) = Column(
-    modifier =
-        Modifier
-            .fillMaxSize()
-            // Tighter than the shared card padding/gap: the head-unit info-pane
-            // card is short, so pack the head and the list to avoid a clip.
-            .padding(FemtoDimens.CardPaddingCompact),
-    verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
 ) {
-    Head(snapshot, onExpand)
-    // Free days are dropped rather than rendered as placeholder rows: the
-    // glance question is "what is coming up", and on the short head-unit card
-    // a six-row continuous agenda clipped before reaching the real entries.
-    // Today is the one exception — it stays visible even when free.
-    val visibleDays = remember(snapshot) { snapshot.visibleDays }
-    // FitWholeRows (not a scrolling list): a day whose events don't fully fit the
-    // capped card height is dropped whole rather than sliced, which is what used
-    // to leave a stray dash-only remnant (the clipped top of the next day's first
-    // event line) below the last full row. Today is always first and always
-    // shown, even on the shortest card, so the agenda never renders empty.
-    FitWholeRows(
-        modifier = Modifier.fillMaxWidth().weight(1f),
-        verticalGap = 8.dp,
-        mandatoryCount = 1,
+    // clickable + an explicit contentDescription (the AlbumArt idiom in
+    // MusicCardMeta): onClickLabel alone sets only the OnClick action label, not
+    // the node's content description, so the maximize entry stays discoverable.
+    // Hoisted out of the semantics lambda, which is not @Composable. Applied to
+    // the whole populated agenda (not just the head) so tapping anywhere on the
+    // card opens the full-screen panel; the agenda below has no other clickable
+    // children, so there is no nested-click conflict.
+    val calendarExpandLabel = stringResource(R.string.calendar_expand)
+    Column(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .clickable { onExpand() }
+                .semantics { contentDescription = calendarExpandLabel }
+                // Tighter than the shared card padding/gap: the head-unit info-pane
+                // card is short, so pack the head and the list to avoid a clip.
+                .padding(FemtoDimens.CardPaddingCompact),
+        verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
     ) {
-        visibleDays.forEach { day ->
-            DayRow(day = day, isToday = day.date == snapshot.today, is24Hour = is24Hour)
+        Head(snapshot)
+        // Free days are dropped rather than rendered as placeholder rows: the
+        // glance question is "what is coming up", and on the short head-unit card
+        // a six-row continuous agenda clipped before reaching the real entries.
+        // Today is the one exception — it stays visible even when free.
+        val visibleDays = remember(snapshot) { snapshot.visibleDays }
+        // FitWholeRows (not a scrolling list): a day whose events don't fully fit the
+        // capped card height is dropped whole rather than sliced, which is what used
+        // to leave a stray dash-only remnant (the clipped top of the next day's first
+        // event line) below the last full row. Today is always first and always
+        // shown, even on the shortest card, so the agenda never renders empty.
+        FitWholeRows(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            verticalGap = 8.dp,
+            mandatoryCount = 1,
+        ) {
+            visibleDays.forEach { day ->
+                DayRow(day = day, isToday = day.date == snapshot.today, is24Hour = is24Hour)
+            }
         }
     }
 }
 
 @Composable
-private fun Head(
-    snapshot: CalendarSnapshot,
-    onExpand: () -> Unit,
-) {
-    // clickable + an explicit contentDescription (the AlbumArt idiom in
-    // MusicCardMeta): onClickLabel alone sets only the OnClick action label, not
-    // the node's content description, so the maximize entry stays discoverable.
-    // Hoisted out of the semantics lambda, which is not @Composable.
-    val calendarExpandLabel = stringResource(R.string.calendar_expand)
+private fun Head(snapshot: CalendarSnapshot) =
     Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clickable { onExpand() }
-                .semantics { contentDescription = calendarExpandLabel },
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -177,7 +177,6 @@ private fun Head(
             )
         }
     }
-}
 
 // One agenda row: a fixed-width date gutter on the left (today tinted primary) and
 // the day's events on the right — every event for the day, or a muted dash when the
