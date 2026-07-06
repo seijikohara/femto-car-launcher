@@ -3,7 +3,6 @@ package io.github.seijikohara.femto.ui.settings
 import io.github.seijikohara.femto.data.calendar.CalendarInfo
 import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
-import io.github.seijikohara.femto.data.display.BriefingScope
 import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DockPosition
@@ -41,9 +40,8 @@ internal data class SettingsUiState(
     val drivingThresholdKmh: Int,
     val motionTier: MotionTier,
     val orientation: OrientationSetting,
-    // Driving-briefing configuration: how far ahead the one-line briefing looks
-    // for the next event, and whether it shows the event / weather halves.
-    val briefingScope: BriefingScope,
+    // Driving-briefing configuration: whether the one-line briefing shows the
+    // event / weather halves.
     val briefingShowEvent: Boolean,
     val briefingShowWeather: Boolean,
     val keepScreenOn: Boolean,
@@ -106,7 +104,6 @@ internal data class SettingsUiState(
                 drivingThresholdKmh = DisplaySettings.Default.drivingThresholdKmh,
                 motionTier = DisplaySettings.Default.motionTier,
                 orientation = DisplaySettings.Default.orientation,
-                briefingScope = DisplaySettings.Default.briefingScope,
                 briefingShowEvent = DisplaySettings.Default.briefingShowEvent,
                 briefingShowWeather = DisplaySettings.Default.briefingShowWeather,
                 keepScreenOn = DisplaySettings.Default.keepScreenOn,
@@ -207,10 +204,6 @@ internal sealed interface SettingsAction {
 
     data class SetOrientation(
         val value: OrientationSetting,
-    ) : SettingsAction
-
-    data class SetBriefingScope(
-        val value: BriefingScope,
     ) : SettingsAction
 
     data class SetBriefingShowEvent(

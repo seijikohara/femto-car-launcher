@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.data.clock.ClockTick
+import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
@@ -51,7 +52,11 @@ class DrivingOverlaysTest {
                     hazeState = rememberHazeState(),
                     outerPad = FemtoDimens.ScreenPadding,
                     briefingConfig = BriefingConfig(),
+                    following = true,
+                    bearingDeg = 0f,
+                    driverSide = DriverSide.RIGHT,
                     onBarHeightChange = {},
+                    onRecenter = {},
                     onAction = {},
                 )
             }
@@ -75,7 +80,7 @@ class DrivingOverlaysTest {
                         HomeUiState.Initial.copy(
                             location = fakeLocation(),
                             // The clock is aligned to the fixture's date and set before the
-                            // 10:30 "Team standup", so THROUGH_TOMORROW would surface that
+                            // 10:30 "Team standup", so todayEventOrNull would surface that
                             // event if the event half were enabled.
                             clock = ClockTick(LocalTime.of(9, 0), LocalDate.of(2026, 5, 1)),
                             tripState = fakeTripState(currentSpeedMs = 18.0),
@@ -88,13 +93,17 @@ class DrivingOverlaysTest {
                     hazeState = rememberHazeState(),
                     outerPad = FemtoDimens.ScreenPadding,
                     briefingConfig = BriefingConfig(showEvent = false),
+                    following = true,
+                    bearingDeg = 0f,
+                    driverSide = DriverSide.RIGHT,
                     onBarHeightChange = {},
+                    onRecenter = {},
                     onAction = {},
                 )
             }
         }
         // The event half is disabled, so the next-event title never renders even
-        // though the calendar has an in-scope upcoming event.
+        // though the calendar has an upcoming event today.
         rule.onNodeWithText("Team standup", substring = true).assertDoesNotExist()
     }
 }

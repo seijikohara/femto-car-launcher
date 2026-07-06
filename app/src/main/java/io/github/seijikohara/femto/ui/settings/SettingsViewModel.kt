@@ -53,7 +53,6 @@ internal class SettingsViewModel(
                 drivingThresholdKmh = display.drivingThresholdKmh,
                 motionTier = display.motionTier,
                 orientation = display.orientation,
-                briefingScope = display.briefingScope,
                 briefingShowEvent = display.briefingShowEvent,
                 briefingShowWeather = display.briefingShowWeather,
                 keepScreenOn = display.keepScreenOn,
@@ -153,10 +152,6 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetOrientation -> {
                     displayPreferences.setOrientation(action.value)
-                }
-
-                is SettingsAction.SetBriefingScope -> {
-                    displayPreferences.setBriefingScope(action.value)
                 }
 
                 is SettingsAction.SetBriefingShowEvent -> {

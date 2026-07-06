@@ -61,8 +61,6 @@ internal interface DisplaySettingsStore {
 
     suspend fun setOrientation(value: OrientationSetting)
 
-    suspend fun setBriefingScope(value: BriefingScope)
-
     suspend fun setBriefingShowEvent(value: Boolean)
 
     suspend fun setBriefingShowWeather(value: Boolean)
@@ -166,7 +164,6 @@ internal class DisplayPreferences(
                     drivingThresholdKmh = prefs[DRIVING_THRESHOLD_KMH_KEY] ?: 8,
                     motionTier = prefs[MOTION_TIER_KEY].toEnumOr(MotionTier.STANDARD),
                     orientation = prefs[ORIENTATION_KEY].toEnumOr(OrientationSetting.AUTO),
-                    briefingScope = prefs[BRIEFING_SCOPE_KEY].toEnumOr(BriefingScope.THROUGH_TOMORROW),
                     briefingShowEvent = prefs[BRIEFING_SHOW_EVENT_KEY] ?: true,
                     briefingShowWeather = prefs[BRIEFING_SHOW_WEATHER_KEY] ?: true,
                     keepScreenOn = prefs[KEEP_SCREEN_ON_KEY] ?: true,
@@ -257,10 +254,6 @@ internal class DisplayPreferences(
 
     override suspend fun setOrientation(value: OrientationSetting) {
         context.displayDataStore.editOrLog(TAG) { it[ORIENTATION_KEY] = value.name }
-    }
-
-    override suspend fun setBriefingScope(value: BriefingScope) {
-        context.displayDataStore.editOrLog(TAG) { it[BRIEFING_SCOPE_KEY] = value.name }
     }
 
     override suspend fun setBriefingShowEvent(value: Boolean) {
@@ -415,7 +408,6 @@ internal class DisplayPreferences(
         val DRIVING_THRESHOLD_KMH_KEY = intPreferencesKey("driving_threshold_kmh")
         val MOTION_TIER_KEY = stringPreferencesKey("motion_tier")
         val ORIENTATION_KEY = stringPreferencesKey("orientation")
-        val BRIEFING_SCOPE_KEY = stringPreferencesKey("briefing_scope")
         val BRIEFING_SHOW_EVENT_KEY = booleanPreferencesKey("briefing_show_event")
         val BRIEFING_SHOW_WEATHER_KEY = booleanPreferencesKey("briefing_show_weather")
         val KEEP_SCREEN_ON_KEY = booleanPreferencesKey("keep_screen_on")

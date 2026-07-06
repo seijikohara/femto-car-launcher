@@ -24,4 +24,15 @@ class CompassDirectionTest {
         assertEquals(CompassDirection.N, compassDirectionOf(720f))
         assertEquals(CompassDirection.W, compassDirectionOf(-90f))
     }
+
+    @Test fun `degrees maps each point to its 45-degree step`() {
+        assertEquals(0f, CompassDirection.N.degrees)
+        assertEquals(45f, CompassDirection.NE.degrees)
+        assertEquals(90f, CompassDirection.E.degrees)
+        assertEquals(135f, CompassDirection.SE.degrees)
+        assertEquals(180f, CompassDirection.S.degrees)
+        assertEquals(225f, CompassDirection.SW.degrees)
+        assertEquals(270f, CompassDirection.W.degrees)
+        assertEquals(315f, CompassDirection.NW.degrees)
+    }
 }

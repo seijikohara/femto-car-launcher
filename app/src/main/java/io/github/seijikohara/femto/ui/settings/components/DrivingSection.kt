@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.display.BriefingScope
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.display.PresetMode
@@ -63,17 +62,6 @@ internal fun DrivingSection(
         onSelect = { onAction(SettingsAction.SetMotionTier(it)) },
     )
     SettingsSubheader(stringResource(R.string.settings_group_briefing))
-    ChoiceRow(
-        title = stringResource(R.string.settings_briefing_scope),
-        options =
-            listOf(
-                BriefingScope.TODAY to stringResource(R.string.settings_briefing_scope_today),
-                BriefingScope.THROUGH_TOMORROW to stringResource(R.string.settings_briefing_scope_tomorrow),
-                BriefingScope.UPCOMING to stringResource(R.string.settings_briefing_scope_all),
-            ),
-        selected = uiState.briefingScope,
-        onSelect = { onAction(SettingsAction.SetBriefingScope(it)) },
-    )
     SwitchRow(
         title = stringResource(R.string.settings_briefing_show_event),
         checked = uiState.briefingShowEvent,

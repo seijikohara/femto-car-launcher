@@ -3,7 +3,6 @@ package io.github.seijikohara.femto.ui.settings
 import io.github.seijikohara.femto.data.calendar.CalendarCatalogState
 import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
-import io.github.seijikohara.femto.data.display.BriefingScope
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.DriverSide
@@ -336,14 +335,6 @@ class SettingsViewModelTest {
             viewModel().onAction(SettingsAction.SetOrientation(OrientationSetting.LANDSCAPE))
             advanceUntilIdle()
             assertEquals(OrientationSetting.LANDSCAPE, store.settings.first().orientation)
-        }
-
-    @Test
-    fun `SetBriefingScope writes the value to the store`() =
-        runTest(dispatcher) {
-            viewModel().onAction(SettingsAction.SetBriefingScope(BriefingScope.TODAY))
-            advanceUntilIdle()
-            assertEquals(BriefingScope.TODAY, store.settings.first().briefingScope)
         }
 
     @Test
