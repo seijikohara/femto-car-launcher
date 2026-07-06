@@ -361,7 +361,10 @@
     <string name="diagnostics_loading">Collecting…</string>
     <string name="diagnostics_copy">Copy report</string>
     <string name="diagnostics_copied">Copied</string>
-    <string name="diagnostics_summary_issues">%1$d issue(s) found</string>
+    <plurals name="diagnostics_summary_issues">
+        <item quantity="one">%1$d issue found</item>
+        <item quantity="other">%1$d issues found</item>
+    </plurals>
     <string name="diagnostics_summary_ok">No issues detected</string>
     <string name="diagnostics_summary_collecting">Collecting…</string>
     <string name="diagnostics_problems_only">Problems only</string>

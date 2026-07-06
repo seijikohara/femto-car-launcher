@@ -191,7 +191,7 @@ internal class PerformanceFactsCollector(
         return DiagnosticFact(
             "Device memory",
             if (memory.lowMemory) {
-                FactValue.Status("$availMb / $totalMb MB free (LOW MEMORY)", FactHealth.WARNING)
+                FactValue.Status("$availMb / $totalMb MB free (low memory)", FactHealth.WARNING)
             } else {
                 FactValue.Text("$availMb / $totalMb MB free")
             },
@@ -236,7 +236,7 @@ internal class PerformanceFactsCollector(
     private fun memoryClassFact(activityManager: ActivityManager): DiagnosticFact {
         val value =
             "${activityManager.memoryClass} MB (large ${activityManager.largeMemoryClass} MB" +
-                "${if (activityManager.isLowRamDevice) ", LOW RAM" else ""})"
+                "${if (activityManager.isLowRamDevice) ", low RAM" else ""})"
         return DiagnosticFact(
             "Memory class",
             if (activityManager.isLowRamDevice) {

@@ -72,7 +72,7 @@ private fun sessionFact(musicState: MusicCardState?): DiagnosticFact =
             }
 
             MusicCardState.NeedsPermission -> {
-                FactValue.Status("notification listener NOT granted", FactHealth.WARNING)
+                FactValue.Status("notification listener not granted", FactHealth.WARNING)
             }
 
             null -> {
@@ -125,7 +125,7 @@ internal class MusicFactsCollector(
         val value =
             "${audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)}/" +
                 "${audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)}" +
-                if (audioManager.isVolumeFixed) " (FIXED)" else ""
+                if (audioManager.isVolumeFixed) " (fixed)" else ""
         return DiagnosticFact(
             "Volume",
             if (audioManager.isVolumeFixed) FactValue.Status(value, FactHealth.WARNING) else FactValue.Text(value),

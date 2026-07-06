@@ -76,7 +76,7 @@ internal class PermissionFactsCollector(
         return DiagnosticFact(
             "Notification listener",
             FactValue.Status(
-                if (enabled) "enabled" else "DISABLED",
+                if (enabled) "enabled" else "disabled",
                 if (enabled) FactHealth.OK else FactHealth.ERROR,
             ),
         )
@@ -116,7 +116,7 @@ internal class PermissionFactsCollector(
         return DiagnosticFact(
             "Notifications",
             FactValue.Status(
-                if (enabled) "enabled" else "DISABLED",
+                if (enabled) "enabled" else "disabled",
                 if (enabled) FactHealth.OK else FactHealth.WARNING,
             ),
         )
@@ -127,7 +127,7 @@ internal class PermissionFactsCollector(
         return DiagnosticFact(
             "Background",
             FactValue.Status(
-                if (restricted) "RESTRICTED" else "unrestricted",
+                if (restricted) "restricted" else "unrestricted",
                 if (restricted) FactHealth.WARNING else FactHealth.OK,
             ),
         )

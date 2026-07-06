@@ -119,6 +119,19 @@ object FemtoDimens {
      */
     val DrivingBarContentMaxWidth = 1040.dp
 
+    /**
+     * Upper bound on the dashboard dock's nav-button cluster (the reference-binding
+     * rationale mirrors [SpeedOverlayMaxWidth] / [DrivingBarContentMaxWidth]). The
+     * seven buttons share their slot's width equally via `Modifier.weight`, so on
+     * an ultrawide / premium head unit that slot grows far past the buttons'
+     * comfortable size and each one ends up centred inside a wide, sparse-looking
+     * gap. Capping the cluster (not the dock bar itself, which stays full-width)
+     * keeps the buttons a tight, tappable group and centres the leftover space
+     * around them, while the reference 853 dp-wide 5:3 head unit's narrower
+     * cluster stays under the cap and is unaffected.
+     */
+    val DockNavClusterMaxWidth = 760.dp
+
     /** Weather glyph beside the city name in the weather card head row. */
     val WeatherGlyphLarge = 20.dp
 
