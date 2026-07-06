@@ -76,19 +76,14 @@ object FemtoDimens {
     val MusicTransportGap = 24.dp
 
     /**
-     * Wider transport / toggle button gap for the Now Playing panel's
-     * PORTRAIT layout only. There, unlike every other consumer of
-     * [MusicTransportGap], each row is a `fillMaxWidth` row centred in the
-     * panel's full content width, so the shared gap left the button cluster
-     * reading as a small, floating group with a wide empty band on both
-     * sides. Widening the gap (panel-only, via `TransportRow`'s and
-     * `TransportToggles`' own `gap` parameter) grows the cluster itself,
-     * tightening that flanking margin while it stays centred — shrinking the
-     * row's own bounding box cannot do this, since
-     * `Arrangement.CenterHorizontally` already centres the content within
-     * whatever width the row is given.
+     * Tighter transport / toggle button gap for the Now Playing panel's
+     * PORTRAIT layout only. The panel's oversized prev/play/next buttons read
+     * as too far apart at the shared [MusicTransportGap]; a smaller gap draws
+     * them into one compact cluster. Applied panel-only via `TransportRow`'s
+     * and `TransportToggles`' own `gap` parameter, leaving the card + driving
+     * bar (which wrap their content) on the shared value.
      */
-    val NowPlayingPanelTransportGap = 48.dp
+    val NowPlayingPanelTransportGap = 12.dp
 
     /** Cap on the Now Playing panel's album art so it never dominates a tall panel. */
     val NowPlayingArtMax = 320.dp
