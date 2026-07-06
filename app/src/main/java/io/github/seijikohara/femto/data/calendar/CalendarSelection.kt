@@ -16,15 +16,20 @@ internal data class UpcomingEvent(
 )
 
 /**
- * The next event on or after [now] within [scope]'s horizon, for the
- * driving-face one-line briefing. Unlike the cockpit agenda (which lists a
- * whole day, past events included), a single "next" glance must not surface
- * an already-started event, so today's timed events are filtered by start
- * time. An all-day event (`time == null`) on today counts as upcoming; every
- * later day's events (within the horizon) are unconditionally future.
- * [scope] bounds how far ahead the search looks — a far-off event must never
- * surface while driving. Null-safe on the whole snapshot; null when access is
- * denied or the query failed. Pure — unit-testable without Compose.
+ * The next event on or after [now] within [scope]'s horizon. Unlike the
+ * cockpit agenda (which lists a whole day, past events included), a single
+ * "next" glance must not surface an already-started event, so today's timed
+ * events are filtered by start time. An all-day event (`time == null`) on
+ * today counts as upcoming; every later day's events (within the horizon)
+ * are unconditionally future. [scope] bounds how far ahead the search looks.
+ * Null-safe on the whole snapshot; null when access is denied or the query
+ * failed. Pure — unit-testable without Compose.
+ *
+ * NOTE: the driving-face event block now calls [todayEventOrNull] instead
+ * (a strictly-today selection with no [BriefingScope] horizon), so this
+ * function currently has no production caller — [BriefingScope] is vestigial
+ * for driving until its Settings wiring is reconsidered. Kept (and still
+ * tested) as the scope-aware primitive in case a future surface needs it.
  */
 internal fun CalendarSnapshot?.nextUpcomingEventOrNull(
     now: ClockTick,
@@ -50,3 +55,28 @@ internal fun CalendarSnapshot?.nextUpcomingEventOrNull(
 }
 
 private fun EventItem.isUpcomingAt(now: LocalTime): Boolean = time == null || time >= now
+
+/**
+ * TODAY's next-up event for the driving-face event block — deliberately
+ * narrower than [nextUpcomingEventOrNull]: it never looks past today (a bare
+ * glance while driving must not surface tomorrow's event as if it were
+ * happening now, so [BriefingScope] does not apply here), and it prefers a
+ * timed event over an all-day one even when the all-day entry sorts earlier
+ * in [DayCell.events]. Selection is: the nearest upcoming timed event today
+ * (start >= [now]'s time); else today's all-day event, if any, as a fallback;
+ * else null. Null-safe on the whole snapshot; null when access is denied or
+ * the query failed. Pure — unit-testable without Compose.
+ */
+internal fun CalendarSnapshot?.todayEventOrNull(now: ClockTick): UpcomingEvent? =
+    this
+        ?.takeIf { it.hasCalendarAccess && !it.queryFailed }
+        ?.days
+        ?.firstOrNull { it.date == now.date }
+        ?.events
+        ?.let { events ->
+            events
+                .asSequence()
+                .filter { it.time != null && it.time >= now.time }
+                .minByOrNull { requireNotNull(it.time) }
+                ?: events.firstOrNull { it.time == null }
+        }?.let { UpcomingEvent(it, now.date) }

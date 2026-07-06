@@ -45,9 +45,6 @@
     <string name="driving_compass_w">W</string>
     <string name="driving_compass_nw">NW</string>
 
-    <!-- Driving face: relative-day briefing label -->
-    <string name="briefing_tomorrow">Tomorrow</string>
-
     <!-- Calendar card -->
     <string name="calendar_title">Calendar</string>
     <string name="calendar_permission_denied">Calendar access not granted</string>

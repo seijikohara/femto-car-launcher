@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,10 +43,12 @@ import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Navigation2
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
+import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.calendar.DayCell
 import io.github.seijikohara.femto.data.calendar.EventItem
-import io.github.seijikohara.femto.data.calendar.nextUpcomingEventOrNull
+import io.github.seijikohara.femto.data.calendar.UpcomingEvent
+import io.github.seijikohara.femto.data.calendar.todayEventOrNull
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.music.MusicCardState
@@ -76,6 +79,7 @@ import io.github.seijikohara.femto.ui.theme.weatherGlyphs
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
 /**
@@ -297,41 +301,39 @@ private fun DrivingBar(
 
         Spacer(Modifier.width(DrivingBarSegmentGap))
 
-        // The next event ellipsizes into the flexible middle (right-aligned so it groups
-        // with the weather), or a spacer holds the gap when there is none — either way the
-        // left cluster and the weather anchor stay put. Each half is gated by
-        // [briefingConfig] and by [showBriefing] (dropped on a narrow pane); the weather
-        // block anchors the right and is never squeezed, so the event yields first.
-        val upcomingEvent =
-            if (showBriefing && briefingConfig.showEvent) {
-                uiState.calendar.nextUpcomingEventOrNull(uiState.clock, briefingConfig.scope)
-            } else {
-                null
-            }
+        // The event block (or, absent a today event, a "No events" label) fills the
+        // flexible middle — right-aligned so it groups with the weather — or a spacer
+        // holds the gap when the event half is toggled off entirely; either way the
+        // left cluster and the weather anchor stay put. Gated by [briefingConfig] and
+        // by [showBriefing] (dropped on a narrow pane); the weather block anchors the
+        // right and is never squeezed, so the event yields first. TODAY-only: see
+        // [todayEventOrNull] — [BriefingConfig.scope] no longer bears on this half.
+        val showEventHalf = showBriefing && briefingConfig.showEvent
+        val todaysEvent = if (showEventHalf) uiState.calendar.todayEventOrNull(uiState.clock) else null
         val weather = uiState.weather.takeIf { showBriefing && briefingConfig.showWeather }
-        if (upcomingEvent != null) {
-            Text(
-                text =
-                    briefingLabel(
-                        event = upcomingEvent.event,
-                        eventDate = upcomingEvent.date,
-                        today = uiState.clock.date,
-                    ),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.End,
-                modifier = Modifier.weight(1f).alignByBaseline(),
-            )
+        if (showEventHalf) {
+            if (todaysEvent != null) {
+                EventBlock(event = todaysEvent, modifier = Modifier.weight(1f).alignByBaseline())
+            } else {
+                Text(
+                    text = stringResource(R.string.calendar_no_events),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.weight(1f).alignByBaseline(),
+                )
+            }
         } else {
             Spacer(Modifier.weight(1f))
         }
-        // The event ↔ weather divider requires BOTH to be present: with no event, the
-        // element ahead of the weather block is the flexible (blank) spacer above, and a
-        // divider there would float against empty space rather than sit between two
-        // segments that are actually on screen.
-        if (upcomingEvent != null && weather != null) {
+        // The event ↔ weather divider requires BOTH halves on screen: with the event
+        // half toggled off, the element ahead of the weather block is the flexible
+        // (blank) spacer above, and a divider there would float against empty space
+        // rather than sit between two segments that are actually on screen. The
+        // "No events" label still counts as the event half being on screen.
+        if (showEventHalf && weather != null) {
             Spacer(Modifier.width(DrivingBarDividerFlankGap))
             DrivingBarDivider()
         }
@@ -344,7 +346,7 @@ private fun DrivingBar(
         if (weather != null) {
             Spacer(
                 Modifier.width(
-                    if (upcomingEvent != null) DrivingBarDividerFlankGap else DrivingBarSegmentGap,
+                    if (showEventHalf) DrivingBarDividerFlankGap else DrivingBarSegmentGap,
                 ),
             )
             WeatherBlock(
@@ -519,6 +521,37 @@ private fun WeatherBlock(
     )
 }
 
+// TODAY's next-up event as a compact stacked block (a small time header over the
+// title) so it reads with the same at-a-glance parity as [WeatherBlock]'s
+// glyph-over-temp beside it — the plain single-line "HH:mm title" this replaces
+// had no visual pairing with the weather block. All-day events show the "All
+// day" label (the same string CalendarCard / CalendarPanel use for the same
+// case) as the header instead of a time. 24-hour notation for v1 — the driving
+// face carries no 12/24h setting yet.
+@Composable
+private fun EventBlock(
+    event: UpcomingEvent,
+    modifier: Modifier = Modifier,
+) = Column(
+    modifier = modifier,
+    horizontalAlignment = Alignment.End,
+    verticalArrangement = Arrangement.spacedBy(1.dp),
+) {
+    Text(
+        text = event.event.time?.format(EventTimeFormatter) ?: stringResource(R.string.calendar_all_day),
+        style = MaterialTheme.typography.sectionLabel(12, 0.12f),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+    )
+    Text(
+        text = event.event.title,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
 // Em-dash stands in for the live speed with no fix, mirroring SpeedOverlay's
 // permissions contract (an unknown speed is never shown as "0").
 private const val NO_SPEED_PLACEHOLDER = "—"
@@ -581,6 +614,11 @@ private val DrivingBarDividerHeight = 48.dp
 // already claims most of the room the flexible event text used to get; a
 // double-gapped divider was enough to squeeze that text down to nothing.
 private val DrivingBarDividerFlankGap = 10.dp
+
+// The event block's time header — bare "HH:mm", matching [WeatherBlock]'s plain
+// numeric temperature (no day-relative prefix: the event is always today's, by
+// construction of [todayEventOrNull]).
+private val EventTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 @PreviewLightDark
 @Preview(name = "Driving face", widthDp = 640, heightDp = 360)
