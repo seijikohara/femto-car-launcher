@@ -52,6 +52,7 @@ import io.github.seijikohara.femto.ui.theme.TabularFigures
 import io.github.seijikohara.femto.ui.theme.bigNumber
 import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.sectionLabel
+import io.github.seijikohara.femto.ui.theme.singleLineBox
 import io.github.seijikohara.femto.ui.theme.weatherGlyphs
 import kotlinx.coroutines.delay
 import java.time.Instant
@@ -205,11 +206,18 @@ private fun Head(
                 )
             }
             Row(verticalAlignment = Alignment.Top) {
+                // Clamped to its own lineHeight: without this, the platform's default
+                // font padding inflates the hero numeral's measured height well past
+                // its nominal line box (55px vs. 42px at this size), which is exactly
+                // the slack the forecast grid below needs to fit its first whole row
+                // inside the card's capped height.
+                val tempStyle = MaterialTheme.typography.bigNumber(size = 46.sp)
                 Text(
                     text = tempLabel,
-                    style = MaterialTheme.typography.bigNumber(size = 46.sp),
+                    style = tempStyle,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
+                    modifier = Modifier.singleLineBox(tempStyle),
                 )
                 Text(
                     text = temperatureUnit.label(),
