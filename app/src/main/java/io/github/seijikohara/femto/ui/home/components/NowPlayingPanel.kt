@@ -64,12 +64,6 @@ import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.eyebrow
 import kotlinx.coroutines.flow.StateFlow
 
-// Fraction of the panel's own height reserved for the upcoming-queue list, so
-// it scales with the panel's geometry instead of eating whatever leftover
-// space the enclosing scroll column happens to have (which could run to the
-// panel's very bottom edge — see PlayingNextList / FitWholeRows).
-private const val QUEUE_HEIGHT_FRACTION = 0.3f
-
 /**
  * Full-screen "Now Playing" panel (issue #231): one large glass sheet floated
  * inside the dock-inset overlay region of the dashboard, so the live map stays
@@ -117,7 +111,7 @@ internal fun NowPlayingPanel(
             // unbounded) so it always reserves a sane, geometry-proportional
             // slice instead of growing to fit however many entries the queue
             // holds — see PlayingNextList / FitWholeRows.
-            val queueMaxHeight = maxHeight * QUEUE_HEIGHT_FRACTION
+            val queueMaxHeight = maxHeight * FemtoDimens.NowPlayingQueueHeightFraction
             Column(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),

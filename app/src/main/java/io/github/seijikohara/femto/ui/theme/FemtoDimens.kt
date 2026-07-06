@@ -163,4 +163,12 @@ object FemtoDimens {
      * of every Google Fonts family and benefits from the extra rows.
      */
     val FontPickerSheetHeightFraction = 0.92f
+
+    /**
+     * Fraction of the Now-Playing panel's height reserved for the upcoming-queue
+     * list, so it scales with the panel geometry instead of eating whatever
+     * leftover space the enclosing scroll column has (which could run to the
+     * panel's very bottom edge). See `PlayingNextList` / `FitWholeRows`.
+     */
+    val NowPlayingQueueHeightFraction = 0.3f
 }
