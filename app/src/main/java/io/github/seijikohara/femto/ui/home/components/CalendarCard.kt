@@ -34,9 +34,11 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.calendar.DayCell
 import io.github.seijikohara.femto.data.calendar.EventItem
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.FitText
+import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import io.github.seijikohara.femto.ui.theme.TabularFigures
@@ -71,6 +73,7 @@ internal fun CalendarCard(
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
+    motionTier: MotionTier = MotionTier.STANDARD,
 ) = Surface(
     modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
     shape = MaterialTheme.shapes.large,
@@ -91,7 +94,7 @@ internal fun CalendarCard(
             // a read failure, not a free month, so say so rather than fake it.
             snapshot.queryFailed -> CenteredHint(stringResource(R.string.calendar_query_failed))
 
-            else -> CalendarContent(snapshot, is24Hour, onExpand)
+            else -> CalendarContent(snapshot, is24Hour, motionTier, onExpand)
         }
     }
 }
@@ -100,6 +103,7 @@ internal fun CalendarCard(
 private fun CalendarContent(
     snapshot: CalendarSnapshot,
     is24Hour: Boolean,
+    motionTier: MotionTier,
     onExpand: () -> Unit,
 ) {
     // clickable + an explicit contentDescription (the AlbumArt idiom in
@@ -122,23 +126,34 @@ private fun CalendarContent(
         verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
     ) {
         Head(snapshot)
-        // Free days are dropped rather than rendered as placeholder rows: the
-        // glance question is "what is coming up", and on the short head-unit card
-        // a six-row continuous agenda clipped before reaching the real entries.
-        // Today is the one exception — it stays visible even when free.
-        val visibleDays = remember(snapshot) { snapshot.visibleDays }
-        // FitWholeRows (not a scrolling list): a day whose events don't fully fit the
-        // capped card height is dropped whole rather than sliced, which is what used
-        // to leave a stray dash-only remnant (the clipped top of the next day's first
-        // event line) below the last full row. Today is always first and always
-        // shown, even on the shortest card, so the agenda never renders empty.
-        FitWholeRows(
+        // The agenda dissolves as a whole on a data refresh (keyed on the
+        // snapshot's own identity, so it only fires on a real refresh, never a
+        // per-frame value) rather than popping; each fade layer derives its
+        // rows from its OWN snapshot ([agendaSnapshot], not the outer one) so
+        // the outgoing frame still shows the previous day list mid-transition.
+        Motion.ContentCrossfade(
+            targetState = snapshot,
+            tier = motionTier,
             modifier = Modifier.fillMaxWidth().weight(1f),
-            verticalGap = 8.dp,
-            mandatoryCount = 1,
-        ) {
-            visibleDays.forEach { day ->
-                DayRow(day = day, isToday = day.date == snapshot.today, is24Hour = is24Hour)
+            label = "calendarAgenda",
+        ) { agendaSnapshot ->
+            // Free days are dropped rather than rendered as placeholder rows: the
+            // glance question is "what is coming up", and on the short head-unit
+            // card a six-row continuous agenda clipped before reaching the real
+            // entries. Today is the one exception — it stays visible even when free.
+            val visibleDays = remember(agendaSnapshot) { agendaSnapshot.visibleDays }
+            // FitWholeRows (not a scrolling list): a day whose events don't fully fit the
+            // capped card height is dropped whole rather than sliced, which is what used
+            // to leave a stray dash-only remnant (the clipped top of the next day's first
+            // event line) below the last full row. Today is always first and always
+            // shown, even on the shortest card, so the agenda never renders empty.
+            FitWholeRows(
+                verticalGap = 8.dp,
+                mandatoryCount = 1,
+            ) {
+                visibleDays.forEach { day ->
+                    DayRow(day = day, isToday = day.date == agendaSnapshot.today, is24Hour = is24Hour)
+                }
             }
         }
     }

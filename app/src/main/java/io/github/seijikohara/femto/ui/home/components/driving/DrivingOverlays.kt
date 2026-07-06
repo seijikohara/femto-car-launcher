@@ -51,6 +51,7 @@ import io.github.seijikohara.femto.data.calendar.EventItem
 import io.github.seijikohara.femto.data.calendar.UpcomingEvent
 import io.github.seijikohara.femto.data.calendar.todayEventOrNull
 import io.github.seijikohara.femto.data.display.DriverSide
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.music.MusicCardState
@@ -77,6 +78,7 @@ import io.github.seijikohara.femto.ui.locale.label
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.bigNumber
 import io.github.seijikohara.femto.ui.theme.sectionLabel
@@ -132,6 +134,7 @@ internal fun DrivingOverlays(
     onRecenter: () -> Unit,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
+    motionTier: MotionTier = MotionTier.STANDARD,
 ) = BoxWithConstraints(modifier = modifier.fillMaxSize()) {
     // Location strip, top: road name + city, plus a heading badge. Rendered only
     // when a road or city has resolved so the face never floats an empty glass
@@ -151,6 +154,7 @@ internal fun DrivingOverlays(
             road = road,
             city = city,
             heading = heading,
+            motionTier = motionTier,
             hazeState = hazeState,
             glassConfig = glassConfig,
             modifier =
@@ -221,6 +225,7 @@ private fun LocationStrip(
     road: String?,
     city: String,
     heading: CompassDirection?,
+    motionTier: MotionTier,
     hazeState: HazeState,
     glassConfig: GlassConfig,
     modifier: Modifier = Modifier,
@@ -244,16 +249,27 @@ private fun LocationStrip(
         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.86f),
         modifier = Modifier.size(FemtoDimens.InlineIconSize),
     )
-    Text(
-        text = listOfNotNull(road, city.takeIf { it.isNotBlank() }).joinToString(" · "),
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
+    // The address text dissolves on change (keyed on its own discrete string,
+    // which only changes when the reverse-geocode result changes) instead of
+    // popping; the heading badge beside it stays untouched — it rotates from
+    // a live GPS bearing, not a discrete swap, so it must not fade.
+    val addressText = listOfNotNull(road, city.takeIf { it.isNotBlank() }).joinToString(" · ")
+    Motion.ContentCrossfade(
+        targetState = addressText,
+        tier = motionTier,
         // Weight lets the road + city ellipsize within the strip's capped width while
         // the fixed heading badge beside it always keeps its two letters.
         modifier = Modifier.weight(1f, fill = false),
-    )
+        label = "locationStripAddress",
+    ) { text ->
+        Text(
+            text = text,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
     // The heading badge is a small arrow rather than a compass-point letter, so
     // it reads at a glance without stopping to parse an abbreviation; north is
     // "up" on this fixed (never map-rotated) strip, so rotating the glyph by

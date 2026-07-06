@@ -35,6 +35,7 @@ import com.composables.icons.lucide.Wind
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.weather.HourlyForecast
 import io.github.seijikohara.femto.data.weather.WeatherCode
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
@@ -47,6 +48,7 @@ import io.github.seijikohara.femto.ui.locale.windLabel
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.TabularFigures
 import io.github.seijikohara.femto.ui.theme.bigNumber
@@ -88,6 +90,7 @@ internal fun WeatherCard(
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
+    motionTier: MotionTier = MotionTier.STANDARD,
 ) = Surface(
     // glassChrome clips to the rounded shape (keeping the ripple inside) and
     // paints the frosted-glass backdrop over the map; the maximize tap lives on
@@ -134,8 +137,17 @@ internal fun WeatherCard(
             verticalGap = FemtoDimens.CardSectionGapCompact,
             mandatoryCount = 2,
         ) {
-            Head(snapshot, temperatureUnit, asOf)
-            Metrics(snapshot, temperatureUnit, speedUnit)
+            // Head and Metrics each dissolve independently on a data refresh
+            // (keyed on the whole snapshot, so a genuinely new fetch — not a
+            // per-frame value — drives the fade); kept as two separate
+            // Crossfade nodes rather than one wrapping both, so FitWholeRows
+            // still sees them as the same two mandatory children it did before.
+            Motion.ContentCrossfade(targetState = snapshot, tier = motionTier, label = "weatherHead") { current ->
+                Head(current, temperatureUnit, asOf)
+            }
+            Motion.ContentCrossfade(targetState = snapshot, tier = motionTier, label = "weatherMetrics") { current ->
+                Metrics(current, temperatureUnit, speedUnit)
+            }
             snapshot.hourly.chunked(FORECAST_COLUMNS).forEach { rowHours ->
                 ForecastRow(rowHours, snapshot.sunrise, snapshot.sunset, temperatureUnit, is24Hour)
             }
