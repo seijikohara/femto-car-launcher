@@ -55,8 +55,9 @@ private val RowContentGap = 14.dp
  *  3. Transport row — 64 dp prev / next + 72 dp primary play / pause
  *
  * Empty variants render in the same outer dimensions: `NeedsPermission` is
- * the connect CTA, `NoActiveSession` is the "nothing is playing" copy
- * straight from the mockup (assistant hint included).
+ * the connect CTA; `NoActiveSession` is a "nothing is playing" Play
+ * affordance (tap resumes the last session via a media key, falling back to
+ * launching the user's music app — see [MusicEmptyState]).
  */
 @Composable
 internal fun MusicCard(
@@ -65,6 +66,7 @@ internal fun MusicCard(
     onConnect: () -> Unit,
     onLaunchSource: (String) -> Unit,
     onExpand: () -> Unit,
+    onPlay: () -> Unit,
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
@@ -88,7 +90,7 @@ internal fun MusicCard(
         }
 
         MusicCardState.NoActiveSession -> {
-            MusicEmptyState()
+            MusicEmptyState(onPlay = onPlay)
         }
 
         is MusicCardState.Playing -> {
@@ -225,6 +227,7 @@ private fun MusicCardPlayingPreview() {
             onConnect = {},
             onLaunchSource = {},
             onExpand = {},
+            onPlay = {},
         )
     }
 }
@@ -241,6 +244,7 @@ private fun MusicCardEmptyPreview() {
             onConnect = {},
             onLaunchSource = {},
             onExpand = {},
+            onPlay = {},
         )
     }
 }

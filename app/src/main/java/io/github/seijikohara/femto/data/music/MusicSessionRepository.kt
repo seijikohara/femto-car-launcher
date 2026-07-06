@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.data.music
 import android.content.ComponentName
 import android.content.Context
 import android.database.ContentObserver
+import android.media.AudioManager
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSession
@@ -10,8 +11,10 @@ import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
+import android.view.KeyEvent
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.app.NotificationManagerCompat
@@ -36,6 +39,7 @@ internal class MusicSessionRepository(
     private val context: Context,
 ) {
     private val sessionManager: MediaSessionManager = checkNotNull(context.getSystemService())
+    private val audioManager: AudioManager = checkNotNull(context.getSystemService())
     private val componentName = ComponentName(context, MusicSessionListenerService::class.java)
 
     // Source-app icons keyed by package. Resolved once per package: the icon is
@@ -184,6 +188,26 @@ internal class MusicSessionRepository(
                     ?.takeIf { media3PackageName == controller.packageName }
                     ?.let { it.setRepeatMode(nextRepeatMode(repeatModeOf(it.repeatMode)).toPlayerMode()) }
             }
+        }
+    }
+
+    /**
+     * Best-effort resume of whatever session last held playback: a synthetic
+     * KEYCODE_MEDIA_PLAY press routed through [AudioManager.dispatchMediaKeyEvent],
+     * the same path a physical or Bluetooth media button uses. Many media apps
+     * register a `MEDIA_BUTTON` receiver precisely so a key press resumes them
+     * even while stopped or backgrounded — without the launcher targeting any
+     * package by name, unlike [send] (which requires an already
+     * playing/paused [MediaController] via [selectPrimaryController] and is a
+     * no-op with [MusicCardState.NoActiveSession]). There is no callback
+     * confirming a session actually resumed, so the caller (the music card's
+     * empty-state Play tap, `HomeAction.PlayDefaultMusic`) also launches the
+     * default music app as a visible fallback regardless of this call's outcome.
+     */
+    fun dispatchPlayMediaKey() {
+        val eventTime = SystemClock.uptimeMillis()
+        listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP).forEach { action ->
+            audioManager.dispatchMediaKeyEvent(KeyEvent(eventTime, eventTime, action, KeyEvent.KEYCODE_MEDIA_PLAY, 0))
         }
     }
 

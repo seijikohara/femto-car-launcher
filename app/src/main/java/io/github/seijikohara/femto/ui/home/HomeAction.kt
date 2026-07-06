@@ -28,6 +28,14 @@ internal sealed interface HomeAction {
         val command: MusicCommand,
     ) : HomeAction
 
+    /**
+     * The empty music card's Play affordance. The host best-effort resumes the
+     * last session via a synthetic media key and unconditionally also launches
+     * the user's default music app, so the tap always visibly responds — there
+     * is no callback confirming whether any app resumed from the key alone.
+     */
+    data object PlayDefaultMusic : HomeAction
+
     data object OpenBrowser : HomeAction
 
     data object OpenCalendar : HomeAction

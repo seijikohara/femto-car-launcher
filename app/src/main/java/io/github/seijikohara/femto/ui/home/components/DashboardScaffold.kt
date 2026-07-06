@@ -807,6 +807,7 @@ private fun FloatingCardColumn(
             onConnect = { onAction(HomeAction.ConnectMusicPlayer) },
             onLaunchSource = { packageName -> onAction(HomeAction.LaunchMusicSource(packageName)) },
             onExpand = onExpandNowPlaying,
+            onPlay = { onAction(HomeAction.PlayDefaultMusic) },
             hazeState = hazeState,
             glassConfig = glassConfig,
             modifier = cardModifier,

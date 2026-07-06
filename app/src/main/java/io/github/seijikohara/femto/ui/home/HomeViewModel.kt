@@ -66,6 +66,7 @@ internal class HomeViewModel(
     private val systemStatusFlow: Flow<SystemStatus>,
     private val tripStateFlow: Flow<TripState>,
     private val sendMusicCommand: (MusicCommand) -> Unit = {},
+    private val resumeLastMusicSession: () -> Unit = {},
     private val resetTrip: () -> Unit = {},
     private val resolveMusicSourceComponent: (String) -> ComponentName? = { null },
     private val spectrumEnabledFlow: Flow<Boolean> = flowOf(false),
@@ -194,6 +195,15 @@ internal class HomeViewModel(
 
             is HomeAction.Music -> {
                 sendMusicCommand(action.command)
+            }
+
+            HomeAction.PlayDefaultMusic -> {
+                // Best-effort resume first, then unconditionally launch the
+                // default music app: there is no callback confirming whether the
+                // media key actually resumed a session, so the launch fallback
+                // always fires too, guaranteeing the tap visibly responds.
+                resumeLastMusicSession()
+                mutableEvents.tryEmit(HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_MUSIC))
             }
 
             HomeAction.OpenBrowser -> {
@@ -340,6 +350,7 @@ internal class HomeViewModelFactory(
             systemStatusFlow = systemStatus.statusFlow(),
             tripStateFlow = locationGraph.tripState,
             sendMusicCommand = music::send,
+            resumeLastMusicSession = music::dispatchPlayMediaKey,
             resetTrip = locationGraph::resetTrip,
             resolveMusicSourceComponent = apps::launcherComponentFor,
             spectrumEnabledFlow =

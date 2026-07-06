@@ -30,6 +30,7 @@ class MusicCardTest {
                     onConnect = {},
                     onLaunchSource = {},
                     onExpand = {},
+                    onPlay = {},
                 )
             }
         }
@@ -48,6 +49,7 @@ class MusicCardTest {
                     onConnect = {},
                     onLaunchSource = {},
                     onExpand = {},
+                    onPlay = {},
                 )
             }
         }
@@ -64,6 +66,7 @@ class MusicCardTest {
                     onConnect = {},
                     onLaunchSource = {},
                     onExpand = {},
+                    onPlay = {},
                 )
             }
         }
@@ -82,6 +85,7 @@ class MusicCardTest {
                     onConnect = {},
                     onLaunchSource = { launched = it },
                     onExpand = {},
+                    onPlay = {},
                 )
             }
         }
@@ -103,6 +107,7 @@ class MusicCardTest {
                     onConnect = {},
                     onLaunchSource = { launched = it },
                     onExpand = {},
+                    onPlay = {},
                 )
             }
         }
@@ -130,6 +135,7 @@ class MusicCardTest {
                     onConnect = {},
                     onLaunchSource = {},
                     onExpand = {},
+                    onPlay = {},
                     spectrum = MutableStateFlow(FloatArray(SPECTRUM_BAND_COUNT) { 0.6f }),
                 )
             }
@@ -151,6 +157,7 @@ class MusicCardTest {
                     onConnect = { tapped = true },
                     onLaunchSource = {},
                     onExpand = {},
+                    onPlay = {},
                 )
             }
         }
@@ -168,10 +175,30 @@ class MusicCardTest {
                     onConnect = {},
                     onLaunchSource = {},
                     onExpand = {},
+                    onPlay = {},
                 )
             }
         }
         rule.onNodeWithText("Nothing is playing").assertIsDisplayed()
+    }
+
+    @Test
+    fun tapping_the_empty_state_invokes_onPlay() {
+        var played = false
+        rule.setContent {
+            FemtoTheme {
+                MusicCard(
+                    state = MusicCardState.NoActiveSession,
+                    onCommand = {},
+                    onConnect = {},
+                    onLaunchSource = {},
+                    onExpand = {},
+                    onPlay = { played = true },
+                )
+            }
+        }
+        rule.onNodeWithText("Nothing is playing").performClick()
+        assertTrue(played)
     }
 
     @Test
@@ -185,6 +212,7 @@ class MusicCardTest {
                     onConnect = {},
                     onLaunchSource = {},
                     onExpand = { expanded = true },
+                    onPlay = {},
                 )
             }
         }
@@ -202,6 +230,7 @@ class MusicCardTest {
                     onConnect = {},
                     onLaunchSource = {},
                     onExpand = {},
+                    onPlay = {},
                     showAlbum = false,
                 )
             }
@@ -220,6 +249,7 @@ class MusicCardTest {
                     onConnect = {},
                     onLaunchSource = {},
                     onExpand = { expanded = true },
+                    onPlay = {},
                     showArt = false,
                 )
             }
@@ -238,6 +268,7 @@ class MusicCardTest {
                     onConnect = {},
                     onLaunchSource = {},
                     onExpand = {},
+                    onPlay = {},
                 )
             }
         }
