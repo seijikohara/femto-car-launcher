@@ -60,6 +60,7 @@ import io.github.seijikohara.femto.data.weather.WeatherSnapshot
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
 import io.github.seijikohara.femto.ui.home.components.BriefingConfig
+import io.github.seijikohara.femto.ui.home.components.FemtoDividerLength
 import io.github.seijikohara.femto.ui.home.components.FemtoVerticalDivider
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapCompass
@@ -353,8 +354,8 @@ private fun DrivingBar(
         // holds the gap when the event half is toggled off entirely; either way the
         // left cluster and the weather anchor stay put. Gated by [briefingConfig] and
         // by [showBriefing] (dropped on a narrow pane); the weather block anchors the
-        // right and is never squeezed, so the event yields first. TODAY-only: see
-        // [todayEventOrNull] — [BriefingConfig.scope] no longer bears on this half.
+        // right and is never squeezed, so the event yields first. TODAY-only via
+        // [todayEventOrNull] — [BriefingConfig] carries no look-ahead scope.
         val showEventHalf = showBriefing && briefingConfig.showEvent
         val todaysEvent = if (showEventHalf) uiState.calendar.todayEventOrNull(uiState.clock) else null
         val weather = uiState.weather.takeIf { showBriefing && briefingConfig.showWeather }
@@ -407,13 +408,13 @@ private fun DrivingBar(
 
 // Cluster-boundary divider for the driving bar (speed ↔ now-playing, event ↔
 // weather), matching the dock's dividers (same FemtoVerticalDivider recipe,
-// same 48 dp height) so the bar's chrome reads as one family with the rest of
-// the dashboard. Its own flanking gap ([DrivingBarDividerFlankGap], set by the
-// call sites above) is deliberately tighter than the ordinary cluster gap — see
-// the gating comment there. Never call this beside the flexible middle spacer
-// or an absent segment.
+// same FemtoDividerLength height) so the bar's chrome reads as one family with
+// the rest of the dashboard. Its own flanking gap ([DrivingBarDividerFlankGap],
+// set by the call sites above) is deliberately tighter than the ordinary
+// cluster gap — see the gating comment there. Never call this beside the
+// flexible middle spacer or an absent segment.
 @Composable
-private fun DrivingBarDivider() = FemtoVerticalDivider(modifier = Modifier.height(DrivingBarDividerHeight))
+private fun DrivingBarDivider() = FemtoVerticalDivider(modifier = Modifier.height(FemtoDividerLength))
 
 @Composable
 private fun BigSpeed(
@@ -648,10 +649,6 @@ private val NowPlayingArtPlaceholderGlyphSize = 14.dp
 // so a cluster divider can substitute its own tighter DrivingBarDividerFlankGap
 // on either side instead of this full gap twice over.
 private val DrivingBarSegmentGap = 20.dp
-
-// Cluster-divider height, matching DashboardDock's HorizontalDockDivider so the
-// bar's chrome reads as the same family as the dock's.
-private val DrivingBarDividerHeight = 48.dp
 
 // Gap flanking a cluster divider (speed ↔ now-playing, event ↔ weather) — tighter
 // than [DrivingBarSegmentGap] so inserting the divider costs roughly the same

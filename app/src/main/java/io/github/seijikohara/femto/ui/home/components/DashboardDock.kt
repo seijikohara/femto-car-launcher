@@ -346,14 +346,15 @@ private fun VerticalDock(
 // (buttons + optional toggle) and the read-only status cluster. One thin,
 // low-alpha rule shared by both seams so they read as the same kind of chrome;
 // the color + thickness recipe itself lives in FemtoVerticalDivider so it is
-// not re-copied here.
+// not re-copied here. Its length is [FemtoDividerLength], shared with the
+// driving bar's cluster dividers.
 @Composable
 private fun HorizontalDockDivider(modifier: Modifier = Modifier) =
     FemtoVerticalDivider(
         modifier =
             modifier
                 .padding(start = 4.dp)
-                .height(48.dp),
+                .height(FemtoDividerLength),
     )
 
 // [HorizontalDockDivider]'s counterpart for the vertical rail, turned 90 degrees.
@@ -363,7 +364,7 @@ private fun VerticalDockDivider(modifier: Modifier = Modifier) =
         modifier =
             modifier
                 .padding(top = 4.dp)
-                .width(48.dp),
+                .width(FemtoDividerLength),
     )
 
 @Composable

@@ -103,7 +103,7 @@ class DrivingOverlaysTest {
             }
         }
         // The event half is disabled, so the next-event title never renders even
-        // though the calendar has an in-scope upcoming event.
+        // though the calendar has an upcoming event today.
         rule.onNodeWithText("Team standup", substring = true).assertDoesNotExist()
     }
 }
