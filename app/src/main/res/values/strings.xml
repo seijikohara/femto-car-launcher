@@ -245,13 +245,7 @@
     <string name="settings_accent_red">Red</string>
     <string name="settings_accent_violet">Violet</string>
     <string name="settings_accent_pink">Pink</string>
-    <string name="settings_group_theme_preset">Theme preset</string>
-    <string name="settings_theme_preset_custom">Custom</string>
     <string name="settings_subheader_map_color">Map color</string>
-    <string name="theme_preset_dynamic">Dynamic</string>
-    <string name="theme_preset_ocean">Ocean</string>
-    <string name="theme_preset_forest">Forest</string>
-    <string name="theme_preset_dusk">Dusk</string>
     <string name="settings_speed_km">km/h</string>
     <string name="settings_speed_mi">mph</string>
     <string name="settings_temp_celsius">°C</string>

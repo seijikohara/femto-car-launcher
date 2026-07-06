@@ -21,7 +21,6 @@ import io.github.seijikohara.femto.data.display.PresetMode
 import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
-import io.github.seijikohara.femto.data.display.ThemePreset
 import io.github.seijikohara.femto.data.display.UiScale
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,15 +42,6 @@ internal class FakeDisplaySettingsStore(
     override suspend fun setAccentColor(value: AccentColor) = state.update { it.copy(accentColor = value) }
 
     override suspend fun setUiScale(value: UiScale) = state.update { it.copy(uiScale = value) }
-
-    override suspend fun applyThemePreset(preset: ThemePreset) =
-        state.update {
-            it.copy(
-                accentColor = preset.accentColor,
-                mapSchemeLight = preset.mapSchemeLight,
-                mapSchemeDark = preset.mapSchemeDark,
-            )
-        }
 
     override suspend fun setSpeedUnit(value: SpeedUnitSetting) = state.update { it.copy(speedUnit = value) }
 

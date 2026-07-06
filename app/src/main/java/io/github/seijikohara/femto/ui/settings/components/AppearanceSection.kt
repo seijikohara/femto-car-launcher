@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -32,8 +31,6 @@ import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
-import io.github.seijikohara.femto.data.display.ThemePreset
-import io.github.seijikohara.femto.data.display.ThemePresets
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
@@ -68,16 +65,6 @@ internal fun AppearanceSection(
     AccentRow(
         selected = uiState.accentColor,
         onSelect = { onAction(SettingsAction.SetAccentColor(it)) },
-    )
-    ThemePresetRow(
-        accentColor = uiState.accentColor,
-        selectedPreset =
-            ThemePresets.matchingOrNull(
-                accentColor = uiState.accentColor,
-                mapSchemeLight = uiState.mapSchemeLight,
-                mapSchemeDark = uiState.mapSchemeDark,
-            ),
-        onSelect = { onAction(SettingsAction.ApplyThemePreset(it)) },
     )
     SettingsSubheader(stringResource(R.string.settings_subheader_map_color))
     MapThemeMatchRow(
@@ -271,134 +258,6 @@ private fun AccentSwatch(
     }
 }
 
-// The theme-preset picker: named bundles of accent + map colour schemes from the
-// ThemePresets registry. Tapping one applies the whole look at once; the accent
-// and map-scheme controls then reflect it. The data-driven "theme as data"
-// surface — mass-producing a theme is a registry entry, not new UI here. When the
-// current accent/map-scheme combination matches no registered bundle, a
-// non-interactive "Custom" chip renders instead of leaving every chip unselected,
-// so a fine-tuned combination reads as a deliberate state rather than a stale one.
-@Composable
-private fun ThemePresetRow(
-    accentColor: AccentColor,
-    selectedPreset: ThemePreset?,
-    onSelect: (ThemePreset) -> Unit,
-    modifier: Modifier = Modifier,
-) = Column(
-    modifier =
-        modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-    verticalArrangement = Arrangement.spacedBy(10.dp),
-) {
-    Text(
-        text = stringResource(R.string.settings_group_theme_preset),
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onSurface,
-    )
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        ThemePresets.all.forEach { preset ->
-            ThemePresetChip(
-                preset = preset,
-                selected = preset == selectedPreset,
-                onClick = { onSelect(preset) },
-            )
-        }
-        if (selectedPreset == null) {
-            CustomPresetChip(accentColor = accentColor)
-        }
-    }
-}
-
-// One preset chip: the accent seed dot + the preset name, in a >= MinTouchTarget
-// tap target. Selected swaps to the secondaryContainer fill + a primary border
-// (the same color-agnostic emphasis the accent swatch uses).
-@Composable
-private fun ThemePresetChip(
-    preset: ThemePreset,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val seed = preset.accentColor.accentSeedColor()
-    val fill =
-        if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
-    val border =
-        if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-    val labelColor =
-        if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
-    Row(
-        modifier =
-            modifier
-                .heightIn(min = FemtoDimens.MinTouchTarget)
-                .clip(MaterialTheme.shapes.large)
-                .background(fill)
-                .border(width = if (selected) 2.dp else 1.dp, color = border, shape = MaterialTheme.shapes.large)
-                .clickable(onClick = onClick)
-                .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        val dot =
-            if (seed !=
-                null
-            ) {
-                Modifier.background(seed)
-            } else {
-                Modifier.background(Brush.sweepGradient(DynamicAccentSweep))
-            }
-        Box(modifier = Modifier.size(20.dp).clip(CircleShape).then(dot))
-        Text(
-            text = stringResource(preset.labelRes()),
-            style = MaterialTheme.typography.titleMedium,
-            color = labelColor,
-        )
-    }
-}
-
-// The "you are here" readout when no preset bundle matches: same visual weight as
-// a selected ThemePresetChip (secondaryContainer fill + primary border) but not
-// clickable — Custom is a status, not an action to invoke. The dot shows the
-// CURRENT accent live, since there is no single preset color to show.
-@Composable
-private fun CustomPresetChip(
-    accentColor: AccentColor,
-    modifier: Modifier = Modifier,
-) {
-    val seed = accentColor.accentSeedColor()
-    Row(
-        modifier =
-            modifier
-                .heightIn(min = FemtoDimens.MinTouchTarget)
-                .clip(MaterialTheme.shapes.large)
-                .background(MaterialTheme.colorScheme.secondaryContainer)
-                .border(width = 2.dp, color = MaterialTheme.colorScheme.primary, shape = MaterialTheme.shapes.large)
-                .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        val dot = if (seed !=
-            null
-        ) {
-            Modifier.background(seed)
-        } else {
-            Modifier.background(Brush.sweepGradient(DynamicAccentSweep))
-        }
-        Box(modifier = Modifier.size(20.dp).clip(CircleShape).then(dot))
-        Text(
-            text = stringResource(R.string.settings_theme_preset_custom),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-        )
-    }
-}
-
 // The human-readable label for an accent, used as each swatch's content
 // description (the swatches are color-only, so they need an accessible name).
 private fun AccentColor.labelRes(): Int =
@@ -412,14 +271,4 @@ private fun AccentColor.labelRes(): Int =
         AccentColor.RED -> R.string.settings_accent_red
         AccentColor.VIOLET -> R.string.settings_accent_violet
         AccentColor.PINK -> R.string.settings_accent_pink
-    }
-
-// The display name for a theme preset (keyed by ThemePreset.key, so the registry
-// stays free of any resource dependency).
-private fun ThemePreset.labelRes(): Int =
-    when (key) {
-        "ocean" -> R.string.theme_preset_ocean
-        "forest" -> R.string.theme_preset_forest
-        "dusk" -> R.string.theme_preset_dusk
-        else -> R.string.theme_preset_dynamic
     }

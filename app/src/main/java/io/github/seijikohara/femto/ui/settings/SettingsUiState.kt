@@ -19,7 +19,6 @@ import io.github.seijikohara.femto.data.display.PresetMode
 import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
-import io.github.seijikohara.femto.data.display.ThemePreset
 import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
@@ -151,11 +150,6 @@ internal sealed interface SettingsAction {
 
     data class SetAccentColor(
         val value: AccentColor,
-    ) : SettingsAction
-
-    /** Apply a whole theme preset (accent + both map schemes) at once. */
-    data class ApplyThemePreset(
-        val preset: ThemePreset,
     ) : SettingsAction
 
     data class SetUiScale(
