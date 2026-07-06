@@ -14,10 +14,11 @@ import io.github.seijikohara.femto.data.location.hasBluetoothConnectPermission
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-// Reproduces the v1 wording verbatim (data/system/DiagnosticsRepository.kt +
-// ui/diagnostics/DiagnosticsReport.kt, both retired by this registry) so the
-// "Online (Wi-Fi, Cellular)" / "OFFLINE" tokens stay grep-stable across the
-// rewrite.
+// Reproduces the v1 wording (data/system/DiagnosticsRepository.kt +
+// ui/diagnostics/DiagnosticsReport.kt, both retired by this registry), lowercased
+// so the "online (Wi-Fi, Cellular)" / "offline" tokens read at the same voice as
+// every other status value on the diagnostics screen — the shout-cased original
+// was the one outlier a WARNING/ERROR color already carries the emphasis for.
 private fun NetworkCapabilities.transportLabels(): List<String> =
     listOfNotNull(
         "Wi-Fi".takeIf { hasTransport(NetworkCapabilities.TRANSPORT_WIFI) },
@@ -63,9 +64,9 @@ internal class ConnectivityFactsCollector(
         val online = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
         return if (online) {
             val transports = capabilities.transportLabels().joinToString().ifEmpty { "unknown transport" }
-            DiagnosticFact("Online", FactValue.Status("Online ($transports)", FactHealth.OK))
+            DiagnosticFact("Online", FactValue.Status("online ($transports)", FactHealth.OK))
         } else {
-            DiagnosticFact("Online", FactValue.Status("OFFLINE", FactHealth.ERROR))
+            DiagnosticFact("Online", FactValue.Status("offline", FactHealth.ERROR))
         }
     }
 

@@ -142,7 +142,7 @@ private fun DiagnosticsScreenPreview() {
                             DiagnosticSection(
                                 SectionId.NETWORK,
                                 SectionPayload.Facts(
-                                    listOf(DiagnosticFact("Online", FactValue.Status("OFFLINE", FactHealth.ERROR))),
+                                    listOf(DiagnosticFact("Online", FactValue.Status("offline", FactHealth.ERROR))),
                                 ),
                             ),
                             DiagnosticSection(SectionId.LOGS, null),

@@ -100,7 +100,7 @@ class MusicFactsTest {
             ) as SectionPayload.Facts
 
         assertEquals(
-            DiagnosticFact("Session", FactValue.Status("notification listener NOT granted", FactHealth.WARNING)),
+            DiagnosticFact("Session", FactValue.Status("notification listener not granted", FactHealth.WARNING)),
             section.facts.first(),
         )
     }

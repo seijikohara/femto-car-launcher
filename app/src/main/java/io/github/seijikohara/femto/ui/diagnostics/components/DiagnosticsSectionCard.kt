@@ -175,7 +175,10 @@ private fun IssueBadge(
 ) = Text(
     text = count.toString(),
     style = MaterialTheme.typography.bodyLarge,
-    color = MaterialTheme.colorScheme.error,
+    // onErrorContainer, not error: M3 pairs error with the base surface, not
+    // with errorContainer — the two are close enough in tone on this fill that
+    // the count read as low-contrast on the glance surface.
+    color = MaterialTheme.colorScheme.onErrorContainer,
     modifier =
         modifier
             .background(
@@ -244,7 +247,10 @@ private fun SectionBody(
             payload.rows.forEach { row ->
                 StatusRow(
                     label = row.name,
-                    value = if (row.granted) "granted" else "DENIED",
+                    // Lowercase in both branches: an uppercase "DENIED" read as a
+                    // different, shoutier voice than every other status value on the
+                    // screen — the WARNING color already carries the emphasis.
+                    value = if (row.granted) "granted" else "denied",
                     // A denied install-time permission is informational, not a
                     // failure — only a denied runtime grant tints as an issue.
                     health = if (row.granted || !row.dangerous) FactHealth.OK else FactHealth.WARNING,

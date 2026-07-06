@@ -72,7 +72,7 @@ private fun sessionFact(musicState: MusicCardState?): DiagnosticFact =
             }
 
             MusicCardState.NeedsPermission -> {
-                FactValue.Status("notification listener NOT granted", FactHealth.WARNING)
+                FactValue.Status("notification listener not granted", FactHealth.WARNING)
             }
 
             null -> {

@@ -77,7 +77,7 @@ private fun stableDensityFact(
         DiagnosticFact(
             "Stable density",
             FactValue.Status(
-                "$stableDensityDpi dpi (current $currentDensityDpi — OVERRIDDEN)",
+                "$stableDensityDpi dpi (current $currentDensityDpi — overridden)",
                 FactHealth.WARNING,
             ),
         )

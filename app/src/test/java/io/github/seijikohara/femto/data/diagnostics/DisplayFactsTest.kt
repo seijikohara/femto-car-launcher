@@ -40,7 +40,7 @@ class DisplayFactsTest {
         assertEquals(
             DiagnosticFact(
                 "Stable density",
-                FactValue.Status("160 dpi (current 200 — OVERRIDDEN)", FactHealth.WARNING),
+                FactValue.Status("160 dpi (current 200 — overridden)", FactHealth.WARNING),
             ),
             facts.first { it.label == "Stable density" },
         )
