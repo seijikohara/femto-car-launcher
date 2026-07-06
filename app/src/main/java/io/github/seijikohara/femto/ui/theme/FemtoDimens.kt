@@ -69,6 +69,15 @@ object FemtoDimens {
     /** Cap on the Now Playing panel's album art so it never dominates a tall panel. */
     val NowPlayingArtMax = 320.dp
 
+    /**
+     * Horizontal inset for the Now Playing panel's spectrum background, so the
+     * bars stop where the seek bar's track and the metadata text start rather
+     * than spanning the full content column — the seek bar and metadata rows
+     * are themselves inset by a leading icon or a time label, so an edge-to-edge
+     * spectrum reads as wider than everything else it sits behind.
+     */
+    val SpectrumHorizontalInset = 40.dp
+
     /** Inner padding for the small glass map overlays (clock / speed pill). */
     val OverlayPaddingHorizontal = 16.dp
     val OverlayPaddingVertical = 6.dp
@@ -154,4 +163,12 @@ object FemtoDimens {
      * of every Google Fonts family and benefits from the extra rows.
      */
     val FontPickerSheetHeightFraction = 0.92f
+
+    /**
+     * Fraction of the Now-Playing panel's height reserved for the upcoming-queue
+     * list, so it scales with the panel geometry instead of eating whatever
+     * leftover space the enclosing scroll column has (which could run to the
+     * panel's very bottom edge). See `PlayingNextList` / `FitWholeRows`.
+     */
+    val NowPlayingQueueHeightFraction = 0.3f
 }
