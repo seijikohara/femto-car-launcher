@@ -238,7 +238,10 @@ private fun LocationStrip(
     FemtoIcon(
         imageVector = Lucide.MapPin,
         contentDescription = null,
-        tint = MaterialTheme.colorScheme.primary,
+        // Plain, not accent: this chrome is always-on location context, not an
+        // active/live state, matching SpeedOverlay's cockpit AddressRow pin
+        // (CLAUDE.md house rule: primary is reserved for active/selected/live).
+        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.86f),
         modifier = Modifier.size(FemtoDimens.InlineIconSize),
     )
     Text(
@@ -261,7 +264,9 @@ private fun LocationStrip(
         FemtoIcon(
             imageVector = Lucide.Navigation2,
             contentDescription = heading.label(),
-            tint = MaterialTheme.colorScheme.primary,
+            // Plain, matching the MapPin beside it: the heading badge is
+            // always-on location chrome, not an active/live state.
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.86f),
             modifier = Modifier.size(FemtoDimens.InlineIconSize).rotate(heading.degrees),
         )
     }
