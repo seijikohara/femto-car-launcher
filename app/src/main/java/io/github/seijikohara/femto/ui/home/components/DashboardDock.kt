@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Bluetooth
 import com.composables.icons.lucide.Globe
 import com.composables.icons.lucide.LayoutGrid
+import com.composables.icons.lucide.Lock
+import com.composables.icons.lucide.LockOpen
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Mic
 import com.composables.icons.lucide.Music
@@ -59,6 +61,12 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 // + dividers and padding (~70 dp) ~= 660 dp, rounded up for headroom.
 // Adding an eighth button raises the button term by one MinTouchTarget.
 private val CompactDockExtent: Dp = 700.dp
+
+// Gap ahead of the passenger-unlock toggle, setting it apart from the equal-weight
+// nav row (the same idea as the divider's own leading gap ahead of the status
+// cluster) so it reads as a standalone piece of chrome rather than an eighth
+// launcher icon crowded against the seventh.
+private val PassengerToggleGap: Dp = 16.dp
 
 // The seven dock destinations in display order. This app IS the launcher, so no
 // Home button. Shared by the horizontal bar and the vertical rail so the set
@@ -109,6 +117,12 @@ internal fun DashboardDock(
     position: DockPosition = DockPosition.BOTTOM,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
+    // The passenger-unlock toggle: a persistent chrome element distinct from the
+    // seven nav buttons, shown while the driving face is on screen or the user has
+    // already unlocked (computed by the caller — DashboardScaffold). Replaces the
+    // former floating PassengerPill, which overlapped the clock.
+    showPassengerToggle: Boolean = false,
+    passengerUnlocked: Boolean = false,
 ) = when (position) {
     DockPosition.BOTTOM, DockPosition.TOP -> {
         HorizontalDock(
@@ -117,6 +131,8 @@ internal fun DashboardDock(
             hazeState = hazeState,
             glassConfig = glassConfig,
             modifier = modifier,
+            showPassengerToggle = showPassengerToggle,
+            passengerUnlocked = passengerUnlocked,
         )
     }
 
@@ -127,6 +143,8 @@ internal fun DashboardDock(
             hazeState = hazeState,
             glassConfig = glassConfig,
             modifier = modifier,
+            showPassengerToggle = showPassengerToggle,
+            passengerUnlocked = passengerUnlocked,
         )
     }
 }
@@ -138,6 +156,8 @@ private fun HorizontalDock(
     hazeState: HazeState,
     glassConfig: GlassConfig,
     modifier: Modifier = Modifier,
+    showPassengerToggle: Boolean = false,
+    passengerUnlocked: Boolean = false,
 ) = Surface(
     // Floating rounded glass bar: transparent + glassChrome (rounded clip + the
     // frosted backdrop) so it reads as a panel over the full-bleed map like the
@@ -183,6 +203,16 @@ private fun HorizontalDock(
                         )
                     }
                 }
+                // A distinct element set apart from the equal-weight nav row by a gap
+                // (chrome, not an eighth launcher icon) — placed between the nav
+                // buttons and the status cluster, mirroring the divider's own gap.
+                if (showPassengerToggle) {
+                    PassengerToggleButton(
+                        unlocked = passengerUnlocked,
+                        onToggle = { onAction(HomeAction.SetPassengerUnlock(!passengerUnlocked)) },
+                        modifier = Modifier.padding(start = PassengerToggleGap),
+                    )
+                }
                 if (showStatusCluster) {
                     VerticalDivider(
                         modifier =
@@ -211,6 +241,8 @@ private fun VerticalDock(
     hazeState: HazeState,
     glassConfig: GlassConfig,
     modifier: Modifier = Modifier,
+    showPassengerToggle: Boolean = false,
+    passengerUnlocked: Boolean = false,
 ) = Surface(
     // Floating rounded glass rail, mirroring HorizontalDock on the width; on the
     // Live backend the blur falls back to the tint.
@@ -250,6 +282,16 @@ private fun VerticalDock(
                         )
                     }
                 }
+                // A distinct element set apart from the equal-weight nav column by a
+                // gap (chrome, not an eighth launcher icon) — placed between the nav
+                // buttons and the status cluster, mirroring the divider's own gap.
+                if (showPassengerToggle) {
+                    PassengerToggleButton(
+                        unlocked = passengerUnlocked,
+                        onToggle = { onAction(HomeAction.SetPassengerUnlock(!passengerUnlocked)) },
+                        modifier = Modifier.padding(top = PassengerToggleGap),
+                    )
+                }
                 if (showStatusCluster) {
                     HorizontalDivider(
                         modifier =
@@ -275,6 +317,7 @@ private fun NavButton(
     description: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) = Box(
     // The minimum floor keeps every tap target legal in both orientations; the
     // hosting bar / rail stretches the free axis through the weight.
@@ -289,10 +332,30 @@ private fun NavButton(
     FemtoIcon(
         imageVector = icon,
         contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        tint = tint,
         modifier = Modifier.size(26.dp),
     )
 }
+
+// The passenger-unlock toggle: reuses [NavButton]'s icon-button primitive (same
+// >= FemtoDimens.MinTouchTarget tap target) so it matches the dock's other
+// controls, but is placed by the caller as a standalone element (a gap, not a
+// weighted share of the nav row) so it reads as dock chrome rather than an
+// eighth launcher shortcut. The icon and tint reflect the unlock state — primary
+// accent when unlocked, matching the icon this control replaced (the former
+// floating PassengerPill).
+@Composable
+private fun PassengerToggleButton(
+    unlocked: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+) = NavButton(
+    icon = if (unlocked) Lucide.LockOpen else Lucide.Lock,
+    description = stringResource(R.string.passenger_unlock_desc),
+    onClick = onToggle,
+    modifier = modifier,
+    tint = if (unlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+)
 
 @PreviewLightDark
 @Preview(name = "Dashboard dock", widthDp = 1280, heightDp = 64)
@@ -314,6 +377,34 @@ private fun DashboardDockPreview() {
                     gpsSatelliteCount = 9,
                 ),
             onAction = {},
+        )
+    }
+}
+
+// Passenger unlocked (or the driving face on screen): the toggle renders between
+// the nav row and the status cluster, tinted primary to reflect the unlocked state.
+@PreviewLightDark
+@Preview(name = "Dashboard dock (passenger unlocked)", widthDp = 1280, heightDp = 64)
+@Composable
+private fun DashboardDockPassengerUnlockedPreview() {
+    FemtoTheme {
+        DashboardDock(
+            systemStatus =
+                SystemStatus(
+                    cellularConnected = true,
+                    cellularSignalLevel = 3,
+                    wifiConnected = true,
+                    wifiSignalLevel = 4,
+                    bluetoothEnabled = true,
+                    bluetoothConnected = true,
+                    batteryPercent = 78,
+                    charging = true,
+                    gpsFixed = true,
+                    gpsSatelliteCount = 9,
+                ),
+            onAction = {},
+            showPassengerToggle = true,
+            passengerUnlocked = true,
         )
     }
 }

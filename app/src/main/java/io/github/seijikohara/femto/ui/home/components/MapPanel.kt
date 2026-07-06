@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Lucide
@@ -47,6 +48,10 @@ internal fun MapPanel(
     recenterNonce: Int = 0,
     onFollowChange: (Boolean) -> Unit = {},
     onBearingChange: (Float) -> Unit = {},
+    // Extra bottom padding for the bottom-start attribution credit, so it clears a
+    // bottom-hosted dock instead of sitting under its nav buttons. 0 when the dock
+    // hosts another edge (see DashboardScaffold's attributionBottomInset).
+    attributionBottomInset: Dp = 0.dp,
 ) = Surface(
     modifier = modifier,
     // Full-bleed: the map fills the dashboard to the screen edges, so it keeps
@@ -66,6 +71,7 @@ internal fun MapPanel(
                 recenterNonce = recenterNonce,
                 onFollowChange = onFollowChange,
                 onBearingChange = onBearingChange,
+                attributionBottomInset = attributionBottomInset,
             )
         } else {
             // Centre the placeholder in the exposed map region — clear of the side

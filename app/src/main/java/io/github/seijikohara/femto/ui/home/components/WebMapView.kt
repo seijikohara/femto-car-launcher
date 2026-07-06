@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -113,6 +114,7 @@ internal fun WebMapView(
     recenterNonce: Int = 0,
     onFollowChange: (Boolean) -> Unit = {},
     onBearingChange: (Float) -> Unit = {},
+    attributionBottomInset: Dp = 0.dp,
 ) {
     val context = LocalContext.current
     // The bridge object below is registered once per WebView instance and would
@@ -530,7 +532,10 @@ internal fun WebMapView(
         // ToS-mandated attribution inside the WebView (see showsNativeAttribution).
         if (showsNativeAttribution(mapConfig.backend)) {
             Attribution(
-                modifier = Modifier.align(Alignment.BottomStart),
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(bottom = attributionBottomInset),
                 showTerrainCredit = mapConfig.terrain,
             )
         }
