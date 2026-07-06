@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -36,14 +37,21 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import kotlinx.coroutines.flow.StateFlow
 
+// Gap between the album art and the meta column in the playing-state row.
+private val RowContentGap = 14.dp
+
 /**
  * Music card. Vertical layout inherited from the `.music-card` rules of the
  * retired dashboard-v2 design mockup:
  *
- *  1. Album art (140 dp, 14 dp corner)
+ *  1. Album art, up to 140 dp / 14 dp corner — narrower when the row is wide
+ *     but short on height, so the meta column beside it keeps a fair share of
+ *     the width ([FemtoDimens.MusicMetaMinWidth]).
  *  2. Meta — uppercase source eyebrow (10sp / 0.16em), 20sp title, 14sp artist
- *  3. Progress bar (4 dp) with 11sp position / duration labels
- *  4. Transport row — 64 dp prev / next + 72 dp primary play / pause
+ *     / album, plus the progress bar. Title and progress always show; the
+ *     eyebrow, artist, and album lines drop in that priority order when the
+ *     row is too short for all of them ([MusicMetaAndProgress]).
+ *  3. Transport row — 64 dp prev / next + 72 dp primary play / pause
  *
  * Empty variants render in the same outer dimensions: `NeedsPermission` is
  * the connect CTA, `NoActiveSession` is the "nothing is playing" copy
@@ -106,48 +114,59 @@ private fun PlayingState(
             Modifier
                 .fillMaxSize()
                 .clickable(onClickLabel = openLabel) { onLaunchSource(nowPlaying.packageName) }
-                .padding(FemtoDimens.CardPadding),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+                // Compact padding/gap so the row + transport strip pack into the
+                // card's capped cluster height without starving the meta block
+                // below — the same tightening CalendarCard / WeatherCard use.
+                .padding(FemtoDimens.CardPaddingCompact),
+        verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
     ) {
         // Album art + track info share the top region; the transport row spans the
         // full card width below. On a narrow info-pane card a square album beside the
         // three >= 64 dp controls leaves no room for them, so the controls drop to a
         // full-width strip where they always fit.
-        Row(
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Cap the art at its design size so it does not dominate a tall card and
-            // starve the title / artist column beside it; it still shrinks to the
-            // card's height via fillMaxHeight on a shorter card. Hidden entirely when
-            // showArt is off, so the meta column takes the full width.
-            if (showArt) {
-                AlbumArt(
-                    nowPlaying = nowPlaying,
-                    onTap = onExpand,
-                    modifier = Modifier.heightIn(max = FemtoDimens.MusicArtSize).fillMaxHeight().aspectRatio(1f),
-                )
-            }
-            Column(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f)) {
+            // The art is a square sized off the row's HEIGHT (fillMaxHeight +
+            // aspectRatio), so on a tall card it can grow to its full design size
+            // regardless of how much WIDTH is left over — squeezing the text
+            // column below what a track's title / album name needs even though
+            // the card has plenty of width overall. Capping the art by whatever
+            // width remains after reserving FemtoDimens.MusicMetaMinWidth for the
+            // text guarantees that column a fair, growing share instead.
+            val artMax =
+                if (showArt) {
+                    (maxWidth - FemtoDimens.MusicMetaMinWidth - RowContentGap)
+                        .coerceIn(0.dp, FemtoDimens.MusicArtSize)
+                } else {
+                    0.dp
+                }
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(RowContentGap),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Meta(
+                // Hidden entirely when showArt is off, so the meta column takes
+                // the full width.
+                if (showArt) {
+                    AlbumArt(
+                        nowPlaying = nowPlaying,
+                        onTap = onExpand,
+                        modifier = Modifier.heightIn(max = artMax).fillMaxHeight().aspectRatio(1f),
+                    )
+                }
+                MusicMetaAndProgress(
                     source = sourceLabel(nowPlaying.packageName),
                     sourceIcon = nowPlaying.sourceIcon,
                     title = nowPlaying.title,
                     artist = nowPlaying.artist,
                     album = nowPlaying.album,
-                    showAlbum = showAlbum,
-                    onExpand = onExpand,
-                )
-                Progress(
                     positionMs = nowPlaying.positionMs,
                     durationMs = nowPlaying.durationMs,
                     positionUpdateTimeMs = nowPlaying.positionUpdateTimeMs,
                     isPlaying = nowPlaying.isPlaying,
                     playbackSpeed = nowPlaying.playbackSpeed,
+                    showAlbum = showAlbum,
+                    onExpand = onExpand,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
             }
         }
