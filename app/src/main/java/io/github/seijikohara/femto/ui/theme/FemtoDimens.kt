@@ -106,6 +106,19 @@ object FemtoDimens {
      */
     val SpeedOverlayMaxWidth = 440.dp
 
+    /**
+     * Upper bound on the driving bar's content row (the reference-binding
+     * rationale mirrors [SpeedOverlayMaxWidth]). The bar's anti-reflow layout
+     * anchors the speed + now-playing cluster left and the briefing cluster
+     * right around a flexible middle spacer; on a wide bar that spacer grows
+     * unbounded and opens a large empty gap between the clusters. Capping the
+     * content (not the glass card itself, which stays full-width) bounds that
+     * gap while the reference 853 dp-wide 5:3 head unit still fills it end to
+     * end, so the cap is a no-op there and only centres the content with
+     * margins on wider panes.
+     */
+    val DrivingBarContentMaxWidth = 1040.dp
+
     /** Weather glyph beside the city name in the weather card head row. */
     val WeatherGlyphLarge = 20.dp
 
