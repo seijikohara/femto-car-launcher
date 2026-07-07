@@ -175,6 +175,13 @@ private val MetaLineGap: Dp = 2.dp
  * glyphs spilled into each other instead of one of them stepping aside. This
  * layout measures every line at its natural (unbounded) height first, then
  * greedily keeps only what actually fits — never a squeeze, never an overlap.
+ *
+ * The block always reports the *natural* height of whatever it kept — even
+ * when the incoming constraints are bounded — rather than stretching to fill
+ * a taller allocation: the caller ([PlayingState]) sizes the album art off the
+ * same bound, and a block that filled its full allocation while the art (a
+ * capped square) did not would leave the art's top centred below the title
+ * instead of level with it.
  */
 @Composable
 internal fun MusicMetaAndProgress(
@@ -210,8 +217,10 @@ internal fun MusicMetaAndProgress(
         modifier = modifier.fillMaxWidth(),
         content = {
             EyebrowLine(source = source, sourceIcon = sourceIcon, onExpand = onExpand)
+            // No leading glyph: the eyebrow above already carries the note/source
+            // icon, and a second one on the title read as a redundant repeat of the
+            // same affordance rather than a new piece of information.
             MetaLine(
-                icon = Lucide.Music,
                 text = title,
                 style = titleStyle,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -284,8 +293,7 @@ internal fun MusicMetaAndProgress(
         val orderedIncluded = included.sorted()
         val naturalHeight = heightOf(orderedIncluded)
         val width = if (constraints.hasBoundedWidth) constraints.maxWidth else placeables.maxOf { it.width }
-        val height = if (constraints.hasBoundedHeight) constraints.maxHeight else naturalHeight
-        layout(width, height) {
+        layout(width, naturalHeight) {
             var y = 0
             orderedIncluded.forEachIndexed { position, slot ->
                 if (position > 0) y += gapBefore(slot)
@@ -344,35 +352,39 @@ private fun EyebrowLine(
     }
 }
 
-// One metadata line: a leading glyph + the text. The text is clamped to its
-// style's lineHeight so a CJK line and a Latin line measure identically — without
-// this a line's row height shifts a few px on script changes between tracks
-// (fallback line spacing; see singleLineBox). MusicMetaAndProgress always
+// One metadata line: an optional leading glyph + the text. The text is clamped to
+// its style's lineHeight so a CJK line and a Latin line measure identically —
+// without this a line's row height shifts a few px on script changes between
+// tracks (fallback line spacing; see singleLineBox). MusicMetaAndProgress always
 // measures this against an unbounded height, so the clamp never gets squeezed
 // smaller than its nominal size the way it could inside the old fixed-height
 // meta column. The text itself dissolves on a track change (Motion.ContentCrossfade
 // keyed on its own value, which only changes on a real track switch) rather than
 // popping, matching the album art beside it and the full-screen panel's metadata;
-// the leading glyph stays static since it never changes within a MetaLine.
+// the leading glyph stays static since it never changes within a MetaLine. [icon]
+// is absent for the title line — see its call site — so it reads flush-left as
+// the block's headline rather than indented level with the icon-led lines below it.
 @Composable
 private fun MetaLine(
-    icon: ImageVector,
     text: String,
     style: TextStyle,
     color: Color,
     tier: MotionTier,
     modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
 ) = Row(
     modifier = modifier,
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(6.dp),
 ) {
-    FemtoIcon(
-        imageVector = icon,
-        contentDescription = null,
-        tint = color,
-        modifier = Modifier.size(14.dp),
-    )
+    if (icon != null) {
+        FemtoIcon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(14.dp),
+        )
+    }
     Motion.ContentCrossfade(targetState = text, tier = tier, label = "musicMetaLine") { lineText ->
         Text(
             text = lineText,
