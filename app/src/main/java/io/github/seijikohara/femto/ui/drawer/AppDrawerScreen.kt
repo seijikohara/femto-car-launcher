@@ -16,10 +16,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -34,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -57,6 +63,7 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
 import io.github.seijikohara.femto.data.apps.DrawerLayout
+import io.github.seijikohara.femto.ui.drawer.components.AlphabetIndexRail
 import io.github.seijikohara.femto.ui.drawer.components.AppListRow
 import io.github.seijikohara.femto.ui.drawer.components.AppTile
 import io.github.seijikohara.femto.ui.drawer.components.PinnedDock
@@ -65,6 +72,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import kotlinx.coroutines.launch
 
 // Per-preset drawer dimensions. MEDIUM matches the pre-preset values: a 120 dp
 // minimum tile yields ~5 columns on the 853 dp-wide reference head unit, giving
@@ -282,9 +290,12 @@ private fun ContentState(
     val pinnedSet = remember(pinned) { pinned.toSet() }
     // Prefix matches rank before substring matches; an empty query shows everything.
     val matched = remember(apps, query) { filterAndRank(apps, query) { it.label } }
-    // The Recent row is a browsing aid; it steps aside the moment a query is
-    // active, when the filtered flat list is the primary signal.
-    if (query.isBlank() && recentApps.isNotEmpty()) {
+    // Both the Recent row and the A-Z index are browsing aids; they step
+    // aside the moment a query is active, when the filtered flat list is the
+    // primary signal (and headers over a filtered subset would be confusing:
+    // the ranking is relevance, not alphabetical).
+    val isSearching = query.isNotBlank()
+    if (!isSearching && recentApps.isNotEmpty()) {
         RecentAppsRow(apps = recentApps, iconSize = iconSize, onLaunch = onLaunch)
     }
     Box(modifier = Modifier.weight(1f)) {
@@ -292,10 +303,50 @@ private fun ContentState(
             CenteredMessage(text = stringResource(R.string.drawer_no_matches))
         } else {
             val dimensions = iconSize.dimensions()
+            val entries: List<DrawerListEntry<AppEntry>> =
+                remember(matched, isSearching) {
+                    if (isSearching) {
+                        matched.map { DrawerListEntry.App(it) }
+                    } else {
+                        withSectionHeaders(matched) { it.label }
+                    }
+                }
+            val sectionKeys =
+                remember(matched, isSearching) {
+                    if (isSearching) emptyList() else availableSectionKeys(matched) { it.label }
+                }
             // A query forces the list layout so labels stay readable while searching.
-            when (effectiveLayout(layout, query)) {
-                DrawerLayout.GRID -> GridApps(matched, pinnedSet, dimensions, onLaunch, onTogglePin)
-                DrawerLayout.LIST -> ListApps(matched, pinnedSet, dimensions, onLaunch, onTogglePin)
+            val effective = effectiveLayout(layout, query)
+            val gridState = rememberLazyGridState()
+            val listState = rememberLazyListState()
+            val scope = rememberCoroutineScope()
+            Row(modifier = Modifier.fillMaxSize()) {
+                Box(modifier = Modifier.weight(1f)) {
+                    when (effective) {
+                        DrawerLayout.GRID -> {
+                            GridApps(entries, pinnedSet, dimensions, onLaunch, onTogglePin, state = gridState)
+                        }
+
+                        DrawerLayout.LIST -> {
+                            ListApps(entries, pinnedSet, dimensions, onLaunch, onTogglePin, state = listState)
+                        }
+                    }
+                }
+                // Only one bucket present (or none) means nothing to jump between.
+                if (sectionKeys.size > 1) {
+                    AlphabetIndexRail(
+                        letters = sectionKeys,
+                        onSelectLetter = { letter ->
+                            val index = headerIndexOf(entries, letter) ?: return@AlphabetIndexRail
+                            scope.launch {
+                                when (effective) {
+                                    DrawerLayout.GRID -> gridState.animateScrollToItem(index)
+                                    DrawerLayout.LIST -> listState.animateScrollToItem(index)
+                                }
+                            }
+                        },
+                    )
+                }
             }
         }
     }
@@ -406,53 +457,97 @@ private val IconSizeOptions =
         DrawerIconSize.LARGE to R.string.drawer_icon_size_large,
     )
 
+// Stable key for a mixed header/app entry: headers are keyed by their bucket
+// (prefixed so an app can never collide with one), apps by their component.
+private fun drawerEntryKey(entry: DrawerListEntry<AppEntry>): Any =
+    when (entry) {
+        is DrawerListEntry.Header -> "header:${entry.key}"
+        is DrawerListEntry.App -> entry.item.componentName.flattenToString()
+    }
+
 @Composable
 private fun GridApps(
-    apps: List<AppEntry>,
+    entries: List<DrawerListEntry<AppEntry>>,
     pinnedSet: Set<String>,
     dimensions: DrawerDimensions,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
+    state: LazyGridState = rememberLazyGridState(),
 ) = LazyVerticalGrid(
     modifier = modifier,
+    state = state,
     columns = GridCells.Adaptive(minSize = dimensions.minTileWidth),
     contentPadding = PaddingValues(FemtoDimens.ScreenPadding),
     horizontalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
     verticalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
 ) {
-    items(items = apps, key = { it.componentName.flattenToString() }) { entry ->
-        DrawerAppItem(
-            entry = entry,
-            layout = DrawerLayout.GRID,
-            dimensions = dimensions,
-            isPinned = entry.componentName.flattenToString() in pinnedSet,
-            onLaunch = onLaunch,
-            onTogglePin = onTogglePin,
-        )
+    items(
+        items = entries,
+        key = ::drawerEntryKey,
+        // A header spans the full grid width; an app keeps the default 1x1 cell.
+        span = { entry -> if (entry is DrawerListEntry.Header) GridItemSpan(maxLineSpan) else GridItemSpan(1) },
+    ) { entry ->
+        when (entry) {
+            is DrawerListEntry.Header -> {
+                SectionHeader(letter = entry.key)
+            }
+
+            is DrawerListEntry.App -> {
+                DrawerAppItem(
+                    entry = entry.item,
+                    layout = DrawerLayout.GRID,
+                    dimensions = dimensions,
+                    isPinned = entry.item.componentName.flattenToString() in pinnedSet,
+                    onLaunch = onLaunch,
+                    onTogglePin = onTogglePin,
+                )
+            }
+        }
     }
 }
 
 @Composable
 private fun ListApps(
-    apps: List<AppEntry>,
+    entries: List<DrawerListEntry<AppEntry>>,
     pinnedSet: Set<String>,
     dimensions: DrawerDimensions,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
-) = LazyColumn(modifier = modifier, contentPadding = PaddingValues(vertical = FemtoDimens.GridGutter)) {
-    items(items = apps, key = { it.componentName.flattenToString() }) { entry ->
-        DrawerAppItem(
-            entry = entry,
-            layout = DrawerLayout.LIST,
-            dimensions = dimensions,
-            isPinned = entry.componentName.flattenToString() in pinnedSet,
-            onLaunch = onLaunch,
-            onTogglePin = onTogglePin,
-        )
+    state: LazyListState = rememberLazyListState(),
+) = LazyColumn(modifier = modifier, state = state, contentPadding = PaddingValues(vertical = FemtoDimens.GridGutter)) {
+    items(items = entries, key = ::drawerEntryKey) { entry ->
+        when (entry) {
+            is DrawerListEntry.Header -> {
+                SectionHeader(letter = entry.key)
+            }
+
+            is DrawerListEntry.App -> {
+                DrawerAppItem(
+                    entry = entry.item,
+                    layout = DrawerLayout.LIST,
+                    dimensions = dimensions,
+                    isPinned = entry.item.componentName.flattenToString() in pinnedSet,
+                    onLaunch = onLaunch,
+                    onTogglePin = onTogglePin,
+                )
+            }
+        }
     }
 }
+
+// Full-span alphabetical section marker ("A", "B", ..., or NON_LETTER_SECTION_KEY).
+@Composable
+private fun SectionHeader(
+    letter: String,
+    modifier: Modifier = Modifier,
+) = Text(
+    text = letter,
+    style = MaterialTheme.typography.titleSmall,
+    color = MaterialTheme.colorScheme.primary,
+    modifier = modifier.fillMaxWidth().padding(horizontal = FemtoDimens.ScreenPadding, vertical = 4.dp),
+)
 
 // One app entry (grid tile or list row) wrapping a long-press pin / unpin menu.
 @Composable
