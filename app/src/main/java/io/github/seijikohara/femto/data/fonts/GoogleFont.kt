@@ -13,31 +13,40 @@ internal enum class FontSlot {
 }
 
 /**
- * The user's font choice for both slots. A null family means "use the system
- * font" (the default) — no download, no cache entry.
+ * The user's font choice for both slots. [FontSource.SystemDefault] means "use
+ * the system font" — no download, no cache entry, no on-disk lookup.
  */
 internal data class FontSelection(
-    val latinFamily: String? = null,
-    val cjkFamily: String? = null,
+    val latin: FontSource = FontSource.SystemDefault,
+    val cjk: FontSource = FontSource.SystemDefault,
 ) {
-    fun familyFor(slot: FontSlot): String? =
+    fun sourceFor(slot: FontSlot): FontSource =
         when (slot) {
-            FontSlot.LATIN -> latinFamily
-            FontSlot.CJK -> cjkFamily
+            FontSlot.LATIN -> latin
+            FontSlot.CJK -> cjk
         }
 
     fun with(
         slot: FontSlot,
-        family: String?,
+        source: FontSource,
     ): FontSelection =
         when (slot) {
-            FontSlot.LATIN -> copy(latinFamily = family)
-            FontSlot.CJK -> copy(cjkFamily = family)
+            FontSlot.LATIN -> copy(latin = source)
+            FontSlot.CJK -> copy(cjk = source)
         }
 
-    /** Every distinct family the selection references, for cache retention. */
-    val families: Set<String>
-        get() = setOfNotNull(latinFamily, cjkFamily)
+    /**
+     * Every distinct Google Fonts family the selection references, for cache
+     * retention. System-installed families are deliberately excluded — their
+     * files live outside `filesDir/google_fonts/` and [FontCache.evictExcept]
+     * must never be asked to keep (or evict) them.
+     */
+    val googleFamilies: Set<String>
+        get() =
+            setOfNotNull(
+                (latin as? FontSource.GoogleFonts)?.family,
+                (cjk as? FontSource.GoogleFonts)?.family,
+            )
 
     companion object {
         val System = FontSelection()

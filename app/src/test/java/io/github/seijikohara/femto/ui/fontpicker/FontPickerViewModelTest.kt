@@ -5,7 +5,10 @@ import app.cash.turbine.test
 import io.github.seijikohara.femto.data.fonts.FontCatalogSource
 import io.github.seijikohara.femto.data.fonts.FontRepository
 import io.github.seijikohara.femto.data.fonts.FontSlot
+import io.github.seijikohara.femto.data.fonts.FontSource
 import io.github.seijikohara.femto.data.fonts.GoogleFontFamily
+import io.github.seijikohara.femto.data.fonts.SystemFontFamily
+import io.github.seijikohara.femto.data.fonts.SystemFontSource
 import io.github.seijikohara.femto.testfixtures.FakeFontFaceStore
 import io.github.seijikohara.femto.testfixtures.FakeFontSelectionStore
 import kotlinx.coroutines.Dispatchers
@@ -87,19 +90,35 @@ class FontPickerViewModelTest {
             viewModel.uiState.test {
                 awaitUntil { it.status == PickerStatus.READY }
 
-                viewModel.onAction(FontPickerAction.Choose("Inter"))
+                viewModel.onAction(FontPickerAction.Choose(FontSource.GoogleFonts("Inter")))
 
                 val failed = awaitUntil { "Inter" in it.downloadFailed }
-                assertEquals("Inter", failed.selectedFamily)
+                assertEquals(FontSource.GoogleFonts("Inter"), failed.selectedSource)
                 // The selection and failure flows recombine once more after the
                 // matched event; the trailing emission is not under test.
                 cancelAndIgnoreRemainingEvents()
             }
         }
 
+    @Test
+    fun `installed fonts are filtered to the slot and the live search query`() =
+        runTest {
+            val systemFonts =
+                listOf(
+                    SystemFontFamily("Roboto Condensed", emptyList(), supportsLatin = true, supportsCjk = false),
+                    SystemFontFamily("Noto Sans CJK", emptyList(), supportsLatin = true, supportsCjk = true),
+                )
+            val viewModel = viewModel(FontSlot.CJK, systemFontSource = SystemFontSource { systemFonts })
+            viewModel.uiState.test {
+                val ready = awaitUntil { it.status == PickerStatus.READY }
+                assertEquals(listOf("Noto Sans CJK"), ready.systemFonts.map { it.familyName })
+            }
+        }
+
     private fun TestScope.viewModel(
         slot: FontSlot,
         cache: FakeFontFaceStore = FakeFontFaceStore(),
+        systemFontSource: SystemFontSource = SystemFontSource { emptyList() },
     ): FontPickerViewModel =
         FontPickerViewModel(
             repository =
@@ -107,6 +126,7 @@ class FontPickerViewModelTest {
                     api = FontCatalogSource { Catalog },
                     cache = cache,
                     preferences = FakeFontSelectionStore(),
+                    systemFontSource = systemFontSource,
                     catalogFile = File(tempFolder.root, "catalog.json"),
                     scope = backgroundScope,
                 ),

@@ -70,9 +70,9 @@ internal interface FontFaceStore {
 internal interface FontSelectionStore {
     val selection: Flow<FontSelection>
 
-    suspend fun setFamily(
+    suspend fun setSource(
         slot: FontSlot,
-        family: String?,
+        source: FontSource,
     )
 
     suspend fun resetToDefaults()
@@ -94,6 +94,10 @@ internal class FontRepository internal constructor(
     private val api: FontCatalogSource,
     private val cache: FontFaceStore,
     private val preferences: FontSelectionStore,
+    // Defaulted (unlike the other collaborators) so the many existing tests
+    // that do not care about installed fonts need no change; tests that do
+    // pass a fake explicitly.
+    private val systemFontSource: SystemFontSource = SystemFontSource { emptyList() },
     private val catalogFile: File,
     private val scope: CoroutineScope,
 ) {
@@ -127,39 +131,55 @@ internal class FontRepository internal constructor(
     // selections to force a fresh pass that retries the download.
     private val retryTrigger = MutableSharedFlow<Unit>()
 
+    // Loaded once at construction, independent of the font picker ever opening —
+    // a persisted SystemFont selection must resolve on a cold boot even if the
+    // user never revisits the picker. Starts empty; [resolved] below recombines
+    // once this populates, so a selection made before enumeration finishes
+    // self-heals instead of sticking on the system-font fallback.
+    private val _systemFonts = MutableStateFlow<List<SystemFontFamily>>(emptyList())
+
+    /** Installed font families available to the picker, filtered per slot there. */
+    val systemFonts: StateFlow<List<SystemFontFamily>> = _systemFonts.asStateFlow()
+
+    init {
+        scope.launch { _systemFonts.value = systemFontSource.families() }
+    }
+
     /**
-     * The resolved faces, recomputed whenever the selection changes (or a retry
-     * fires). Evicts the now-unused cache first, then ensures each selected
-     * family is downloaded — so a switch frees the previous font's bytes before
-     * fetching the new one. Families still downloading are protected from
-     * eviction: a fast re-selection cancels the previous mapLatest pass while
-     * its OkHttp call is still streaming, and deleting that directory would
-     * corrupt the write.
+     * The resolved faces, recomputed whenever the selection or the installed-font
+     * catalog changes (or a retry fires). Evicts the now-unused Google Fonts
+     * cache first, then resolves each selected slot — so a switch frees the
+     * previous download's bytes before fetching the new one. Families still
+     * downloading are protected from eviction: a fast re-selection cancels the
+     * previous mapLatest pass while its OkHttp call is still streaming, and
+     * deleting that directory would corrupt the write. System-installed families
+     * never enter the Google Fonts cache directory, so eviction never touches them.
      */
     val resolved: StateFlow<ResolvedFonts> =
-        combine(preferences.selection, retryTrigger.onStart { emit(Unit) }) { selection, _ -> selection }
-            .mapLatest { selection ->
-                // A failed family that is no longer selected has no retry surface;
-                // drop it so the picker does not flag a stale row.
-                _downloadFailed.update { failed -> failed intersect selection.families }
-                cache.evictExcept(selection.families, alsoProtect = _downloading.value)
-                ResolvedFonts(
-                    latin = resolveSlot(selection.latinFamily),
-                    cjk = resolveSlot(selection.cjkFamily),
-                )
-            }.stateIn(scope, SharingStarted.Eagerly, ResolvedFonts.System)
+        combine(preferences.selection, retryTrigger.onStart { emit(Unit) }, _systemFonts) { selection, _, systemFonts ->
+            selection to systemFonts
+        }.mapLatest { (selection, systemFonts) ->
+            // A failed family that is no longer selected has no retry surface;
+            // drop it so the picker does not flag a stale row.
+            _downloadFailed.update { failed -> failed intersect selection.googleFamilies }
+            cache.evictExcept(selection.googleFamilies, alsoProtect = _downloading.value)
+            ResolvedFonts(
+                latin = resolveSlot(selection.latin, systemFonts),
+                cjk = resolveSlot(selection.cjk, systemFonts),
+            )
+        }.stateIn(scope, SharingStarted.Eagerly, ResolvedFonts.System)
 
     private val _catalog = MutableStateFlow<CatalogState>(CatalogState.Idle)
     val catalog: StateFlow<CatalogState> = _catalog.asStateFlow()
 
-    /** Persist a slot choice; null restores that slot to the system font. */
+    /** Persist a slot choice. [FontSource.SystemDefault] restores that slot to the system font. */
     fun choose(
         slot: FontSlot,
-        family: String?,
+        source: FontSource,
     ) {
         scope.launch {
-            val unchanged = selection.value.familyFor(slot) == family
-            preferences.setFamily(slot, family)
+            val unchanged = selection.value.sourceFor(slot) == source
+            preferences.setSource(slot, source)
             if (unchanged) retryTrigger.emit(Unit)
         }
     }
@@ -193,8 +213,17 @@ internal class FontRepository internal constructor(
         }
     }
 
-    private suspend fun resolveSlot(family: String?): CachedFont? {
-        if (family == null) return null
+    private suspend fun resolveSlot(
+        source: FontSource,
+        systemFonts: List<SystemFontFamily>,
+    ): CachedFont? =
+        when (source) {
+            FontSource.SystemDefault -> null
+            is FontSource.GoogleFonts -> resolveGoogleFont(source.family)
+            is FontSource.SystemFont -> resolveSystemFont(source.familyName, systemFonts)
+        }
+
+    private suspend fun resolveGoogleFont(family: String): CachedFont? {
         cache.cachedFontOrNull(family)?.let { font ->
             _downloadFailed.update { it - family }
             return font
@@ -213,6 +242,36 @@ internal class FontRepository internal constructor(
             _downloading.update { it - family }
         }
     }
+
+    // The family's files already live on disk (enumerated by
+    // installedFontFamilies): no network, no cache write, no download-progress
+    // state. A family that has since disappeared — uninstalled, or not yet
+    // enumerated at cold boot (systemFonts still empty) — resolves to null,
+    // which falls back to the system font exactly like an unresolvable Google
+    // family; [resolved] recombines once enumeration lands, so this is a
+    // transient state rather than a stuck one.
+    //
+    // Non-upright files are dropped with [isUprightFileName] BEFORE the
+    // weight map is built: weightFromFileName has no italic token, so
+    // "Roboto-Regular.ttf" and "Roboto-Italic.ttf" both guess weight 400, and
+    // associateBy (last-write-wins) would let whichever one SystemFonts
+    // enumerates last silently win the slot — rendering the whole family
+    // slanted under the default FontStyle.Normal. A family with no upright
+    // file at all (pathological: italic-only) has nothing left to serve and
+    // falls back to null, same as a disappeared family, rather than serving
+    // an italic file as if it were upright.
+    private fun resolveSystemFont(
+        familyName: String,
+        systemFonts: List<SystemFontFamily>,
+    ): CachedFont? =
+        systemFonts
+            .firstOrNull { it.familyName == familyName }
+            ?.files
+            ?.filter { file -> isUprightFileName(file.name) }
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { uprightFiles ->
+                CachedFont.Static(uprightFiles.associateBy { file -> weightFromFileName(file.name) })
+            }
 
     private suspend fun readCatalogDisk(): List<GoogleFontFamily>? =
         withContext(Dispatchers.IO) {
@@ -245,6 +304,7 @@ internal class FontRepository internal constructor(
                 api = FontCatalogSource(api::catalog),
                 cache = FontCache(cacheRoot, api).asFaceStore(),
                 preferences = FontPreferences(app),
+                systemFontSource = SystemFontSource { installedFontFamilies() },
                 catalogFile = File(app.filesDir, "google_fonts_catalog.json"),
                 scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
             )
