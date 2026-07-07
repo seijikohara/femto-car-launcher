@@ -568,13 +568,27 @@ private fun CockpitOverlays(
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(
-                        cardSideInset(
-                            mirror = mirror,
-                            horizontal = if (landscapeCards) floatingCardWidth + outerPad + cardGap else 0.dp,
-                            bottom = cardGap + if (bottomCards) bottomCardBand else 0.dp,
-                        ),
+                        if (bottomCards) {
+                            // Portrait: the card band is a full-width bottom row inset
+                            // by outerPad. Match that inset and start-align the
+                            // speed/address (below) so their left edge lines up with the
+                            // cards instead of floating centred above a full-width band.
+                            PaddingValues(
+                                start = outerPad,
+                                end = outerPad,
+                                bottom = cardGap + bottomCardBand,
+                            )
+                        } else {
+                            cardSideInset(
+                                mirror = mirror,
+                                horizontal = if (landscapeCards) floatingCardWidth + outerPad + cardGap else 0.dp,
+                                bottom = cardGap,
+                            )
+                        },
                     ),
-            contentAlignment = Alignment.BottomCenter,
+            // Portrait aligns to the band's start edge; landscape centres in the
+            // exposed map strip.
+            contentAlignment = if (bottomCards) Alignment.BottomStart else Alignment.BottomCenter,
         ) {
             SpeedOverlay(
                 location = uiState.location,

@@ -63,7 +63,7 @@
     <string name="weather_as_of">as of %1$s</string>
     <string name="weather_metric_feels">FEELS</string>
     <string name="weather_metric_wind">WIND</string>
-    <string name="weather_metric_humidity">HUMID.</string>
+    <string name="weather_metric_humidity">HUMID</string>
     <string name="weather_cond_sunny">Sunny</string>
     <string name="weather_cond_partly_cloudy">Partly cloudy</string>
     <string name="weather_cond_cloudy">Cloudy</string>

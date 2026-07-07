@@ -7,12 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -123,40 +122,56 @@ private fun PlayingState(
     // opens the source app. The transport buttons are clickable children, so they
     // intercept their presses before this parent clickable fires.
     val openLabel = stringResource(R.string.music_open_source, sourceLabel(nowPlaying.packageName))
-    Column(
+    BoxWithConstraints(
         modifier =
             Modifier
                 .fillMaxSize()
                 .clickable(onClickLabel = openLabel) { onLaunchSource(nowPlaying.packageName) }
-                // Compact padding/gap so the row + transport strip pack into the
+                // Compact padding so the row + transport strip pack into the
                 // card's capped cluster height without starving the meta block
                 // below — the same tightening CalendarCard / WeatherCard use.
                 .padding(FemtoDimens.CardPaddingCompact),
-        verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
     ) {
-        // Album art + track info share the top region; the transport row spans the
-        // full card width below. On a narrow info-pane card a square album beside the
-        // three >= 64 dp controls leaves no room for them, so the controls drop to a
-        // full-width strip where they always fit.
-        BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f)) {
-            // The art is a square sized off the row's HEIGHT (fillMaxHeight +
-            // aspectRatio), so on a tall card it can grow to its full design size
-            // regardless of how much WIDTH is left over — squeezing the text
-            // column below what a track's title / album name needs even though
-            // the card has plenty of width overall. Capping the art by whatever
-            // width remains after reserving FemtoDimens.MusicMetaMinWidth for the
-            // text guarantees that column a fair, growing share instead.
-            val artMax =
-                if (showArt) {
-                    (maxWidth - FemtoDimens.MusicMetaMinWidth - RowContentGap)
-                        .coerceIn(0.dp, FemtoDimens.MusicArtSize)
-                } else {
-                    0.dp
-                }
+        // Height left for the art + meta row once the transport strip's own control
+        // height and the section gap are reserved. Capping the art (below) to this
+        // budget instead of the row's full available height is what keeps the art's
+        // top level with the meta block's top — the row no longer has leftover
+        // height for a shorter-than-the-row art to center within.
+        val artMetaMaxHeight =
+            (maxHeight - FemtoDimens.MusicTransportButton - FemtoDimens.CardSectionGapCompact)
+                .coerceAtLeast(0.dp)
+        // The art is a square sized off BOTH the row's available WIDTH (reserving
+        // FemtoDimens.MusicMetaMinWidth for the text column so a tall-but-narrow
+        // card can't starve it) and the HEIGHT budget above (so a tall card can't
+        // grow the art past what still leaves the transport strip its own row) —
+        // capped at FemtoDimens.MusicArtSize either way.
+        val artSize =
+            if (showArt) {
+                minOf(
+                    maxWidth - FemtoDimens.MusicMetaMinWidth - RowContentGap,
+                    artMetaMaxHeight,
+                    FemtoDimens.MusicArtSize,
+                ).coerceAtLeast(0.dp)
+            } else {
+                0.dp
+            }
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            // Neither child below is forced to fill: the art + meta row and the
+            // transport strip each size to their own content, so any leftover
+            // card height balances as outer whitespace around the pair instead of
+            // opening a dead band between the seek bar and the transport strip.
+            verticalArrangement =
+                Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact, Alignment.CenterVertically),
+        ) {
+            // Album art + track info share the top region; the transport row spans the
+            // full card width below. On a narrow info-pane card a square album beside the
+            // three >= 64 dp controls leaves no room for them, so the controls drop to a
+            // full-width strip where they always fit.
             Row(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(RowContentGap),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Top,
             ) {
                 // Hidden entirely when showArt is off, so the meta column takes
                 // the full width.
@@ -164,7 +179,7 @@ private fun PlayingState(
                     AlbumArt(
                         nowPlaying = nowPlaying,
                         onTap = onExpand,
-                        modifier = Modifier.heightIn(max = artMax).fillMaxHeight().aspectRatio(1f),
+                        modifier = Modifier.size(artSize),
                         motionTier = motionTier,
                     )
                 }
@@ -182,22 +197,22 @@ private fun PlayingState(
                     showAlbum = showAlbum,
                     onExpand = onExpand,
                     motionTier = motionTier,
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    modifier = Modifier.weight(1f).heightIn(max = artMetaMaxHeight),
                 )
             }
-        }
-        // The spectrum paints behind the transport strip only: matchParentSize
-        // keeps the Box sized by the controls, and the buttons (drawn on top)
-        // keep their own tap handling — the canvas never consumes input.
-        Box(modifier = Modifier.fillMaxWidth()) {
-            spectrum?.let {
-                SpectrumBackground(spectrum = it, modifier = Modifier.matchParentSize())
+            // The spectrum paints behind the transport strip only: matchParentSize
+            // keeps the Box sized by the controls, and the buttons (drawn on top)
+            // keep their own tap handling — the canvas never consumes input.
+            Box(modifier = Modifier.fillMaxWidth()) {
+                spectrum?.let {
+                    SpectrumBackground(spectrum = it, modifier = Modifier.matchParentSize())
+                }
+                TransportRow(
+                    isPlaying = nowPlaying.isPlaying,
+                    onCommand = onCommand,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
-            TransportRow(
-                isPlaying = nowPlaying.isPlaying,
-                onCommand = onCommand,
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
     }
 }

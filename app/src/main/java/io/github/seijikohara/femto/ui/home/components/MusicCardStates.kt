@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
@@ -34,7 +35,10 @@ internal fun MusicConnectState(onConnect: () -> Unit) =
     Surface(
         onClick = onConnect,
         modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.surfaceContainer,
+        // Transparent so the card's glass (the outer MusicCard's glassChrome) shows
+        // through in every state — the same translucency the Playing state has. An
+        // opaque colour here would paint over the blurred map behind the card.
+        color = Color.Transparent,
     ) {
         Column(
             // Compact padding matches the Playing state's inset (MusicCard.kt) so
@@ -86,7 +90,10 @@ internal fun MusicEmptyState(onPlay: () -> Unit) =
     Surface(
         onClick = onPlay,
         modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.surfaceContainer,
+        // Transparent so the card stays translucent glass when nothing is playing —
+        // this state was a plain Column (no surface) before it became tappable, and
+        // an opaque colour regressed it to a solid box over the map.
+        color = Color.Transparent,
     ) {
         Column(
             // Compact padding matches the Playing state's inset (MusicCard.kt) so

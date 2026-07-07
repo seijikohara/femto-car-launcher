@@ -382,7 +382,7 @@ private fun DrivingBar(
         val weather = uiState.weather.takeIf { showBriefing && briefingConfig.showWeather }
         if (showEventHalf) {
             if (todaysEvent != null) {
-                EventBlock(event = todaysEvent, modifier = Modifier.weight(1f).alignByBaseline())
+                EventBlock(event = todaysEvent, modifier = Modifier.weight(1f))
             } else {
                 Text(
                     text = stringResource(R.string.calendar_no_events),
@@ -391,7 +391,7 @@ private fun DrivingBar(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.End,
-                    modifier = Modifier.weight(1f).alignByBaseline(),
+                    modifier = Modifier.weight(1f),
                 )
             }
         } else {
@@ -406,12 +406,12 @@ private fun DrivingBar(
             Spacer(Modifier.width(DrivingBarDividerFlankGap))
             DrivingBarDivider()
         }
-        // Aligned by baseline (see above) so the temperature — the meaningful line in
-        // this stacked glyph-over-temp block — reads level with the event/music text
-        // instead of sitting lower, which a plain centre alignment left it (the block's
-        // own height, glyph + temp, is much taller than a single text line, so centring
-        // its whole bounding box centred the glyph too and dropped the text below the
-        // other clusters' shared line).
+        // The weather and event blocks are the briefing cluster: two glyph/text
+        // stacks of equal height that must read level WITH EACH OTHER. Centre both
+        // in the bar (the Row's CenterVertically) rather than baseline-aligning them
+        // — a shared baseline seats the weather's temp (its bottom line) and the
+        // event's time (its top line) on the same row, which splits the two blocks
+        // onto opposite sides of that line and makes the event sit visibly lower.
         if (weather != null) {
             Spacer(
                 Modifier.width(
@@ -421,7 +421,6 @@ private fun DrivingBar(
             WeatherBlock(
                 weather = weather,
                 temperatureUnit = temperatureUnit,
-                modifier = Modifier.alignByBaseline(),
             )
         }
     }
