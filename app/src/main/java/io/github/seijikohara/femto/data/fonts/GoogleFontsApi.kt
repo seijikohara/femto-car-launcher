@@ -185,7 +185,10 @@ internal sealed interface FontDownloadPlan {
 }
 
 // Upright static-weight filename suffixes Google uses, mapped to CSS weights.
-private enum class StaticWeightSuffix(
+// Internal (not private): SystemFontCatalog's weightFromFileName reuses this
+// same token set to guess a weight for an installed font file, so the two
+// filename-based weight heuristics in data/fonts share one token table.
+internal enum class StaticWeightSuffix(
     val token: String,
     val weight: Int,
 ) {
