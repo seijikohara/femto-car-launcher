@@ -124,6 +124,14 @@ internal interface DisplaySettingsStore {
 
     suspend fun setGoogleMapsTraffic(value: Boolean)
 
+    /**
+     * Remove exactly [keys] so their read falls back to [DisplaySettings.Default]
+     * for those fields only, leaving every other persisted field untouched.
+     * [SettingsSectionId]'s "reset this section" affordance drives this with
+     * one section's [SettingsSectionId.displayKeys].
+     */
+    suspend fun resetKeys(keys: Set<Preferences.Key<*>>)
+
     /** Restore every display setting to [DisplaySettings.Default]. */
     suspend fun resetToDefaults()
 }
@@ -371,6 +379,12 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[GOOGLE_MAPS_TRAFFIC_KEY] = value }
     }
 
+    // Removing only the given keys makes the read path above fall back to its
+    // per-field defaults for exactly those fields; every other key is left as-is.
+    override suspend fun resetKeys(keys: Set<Preferences.Key<*>>) {
+        context.displayDataStore.editOrLog(TAG) { prefs -> keys.forEach { prefs.remove(it) } }
+    }
+
     // Clearing every key makes the read path above fall back to its per-field
     // defaults, which are kept identical to DisplaySettings.Default — so a reset
     // restores the defaults without duplicating the default literals here.
@@ -378,7 +392,11 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it.clear() }
     }
 
-    private companion object {
+    // Internal (not private): SettingsSectionId groups these same key instances
+    // into per-section reset sets, and test fixtures reset individual fields by
+    // key — both need to reference the exact singletons declared here, the SSOT
+    // for a persisted field's key.
+    internal companion object {
         val THEME_KEY = stringPreferencesKey("theme_mode")
         val ACCENT_KEY = stringPreferencesKey("accent_color")
         val UI_SCALE_KEY = stringPreferencesKey("ui_scale")
@@ -422,5 +440,58 @@ internal class DisplayPreferences(
         val GOOGLE_MAPS_MAP_ID_KEY = stringPreferencesKey("google_maps_map_id")
         val GOOGLE_MAPS_MAP_TYPE_KEY = stringPreferencesKey("google_maps_map_type")
         val GOOGLE_MAPS_TRAFFIC_KEY = booleanPreferencesKey("google_maps_traffic")
+
+        /**
+         * Every key persisted above, declared once right beside them — the
+         * completeness check in `SettingsSectionIdTest` compares this set against
+         * the union of every [SettingsSectionId]'s [SettingsSectionId.displayKeys]
+         * so a key added here without a section assignment fails a test.
+         */
+        val ALL_KEYS: Set<Preferences.Key<*>> =
+            setOf(
+                THEME_KEY,
+                ACCENT_KEY,
+                UI_SCALE_KEY,
+                SPEED_KEY,
+                TEMPERATURE_KEY,
+                CLOCK_KEY,
+                SHOW_CLOCK_SECONDS_KEY,
+                FULLSCREEN_KEY,
+                DOCK_POSITION_KEY,
+                DRIVER_SIDE_KEY,
+                PRESET_MODE_KEY,
+                DRIVING_THRESHOLD_KMH_KEY,
+                MOTION_TIER_KEY,
+                ORIENTATION_KEY,
+                BRIEFING_SHOW_EVENT_KEY,
+                BRIEFING_SHOW_WEATHER_KEY,
+                KEEP_SCREEN_ON_KEY,
+                ASSISTANT_LAUNCH_KEY,
+                MAP_STYLE_KEY,
+                MAP_SCHEME_LIGHT_KEY,
+                MAP_SCHEME_DARK_KEY,
+                MAP_TILT_KEY,
+                MAP_ZOOM_KEY,
+                MAP_NORTH_UP_KEY,
+                MAP_MARKER_POS_KEY,
+                MAP_3D_BUILDINGS_KEY,
+                MAP_TERRAIN_KEY,
+                GLASS_BLUR_KEY,
+                GLASS_TINT_KEY,
+                SHOW_CALENDAR_KEY,
+                SHOW_WEATHER_KEY,
+                SHOW_MUSIC_KEY,
+                MUSIC_SPECTRUM_KEY,
+                MUSIC_SHOW_ALBUM_KEY,
+                MUSIC_SHOW_ART_KEY,
+                MAP_BACKEND_KEY,
+                MAPBOX_STYLE_KEY,
+                MAPBOX_TRAFFIC_KEY,
+                MAPBOX_ACCESS_TOKEN_KEY,
+                GOOGLE_MAPS_API_KEY_KEY,
+                GOOGLE_MAPS_MAP_ID_KEY,
+                GOOGLE_MAPS_MAP_TYPE_KEY,
+                GOOGLE_MAPS_TRAFFIC_KEY,
+            )
     }
 }

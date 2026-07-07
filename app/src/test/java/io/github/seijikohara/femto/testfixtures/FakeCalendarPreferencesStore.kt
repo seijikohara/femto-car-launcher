@@ -20,4 +20,8 @@ internal class FakeCalendarPreferencesStore(
         id: Long,
         hidden: Boolean,
     ) = state.update { if (hidden) it + id else it - id }
+
+    override suspend fun resetToDefaults() {
+        state.value = emptySet()
+    }
 }
