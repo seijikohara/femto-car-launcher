@@ -16,7 +16,10 @@ import kotlinx.coroutines.flow.map
 
 private const val TAG = "DisplayPreferences"
 
-private val Context.displayDataStore: DataStore<Preferences> by preferencesDataStore(name = "display_preferences")
+// Internal (not private): DisplayPreferencesTest reads the raw persisted key
+// set off this same DataStore instance to validate ALL_KEYS against reality,
+// rather than against another hand-typed set.
+internal val Context.displayDataStore: DataStore<Preferences> by preferencesDataStore(name = "display_preferences")
 
 /**
  * Read/write surface for [DisplaySettings]. [DisplayPreferences] is the
@@ -442,10 +445,15 @@ internal class DisplayPreferences(
         val GOOGLE_MAPS_TRAFFIC_KEY = booleanPreferencesKey("google_maps_traffic")
 
         /**
-         * Every key persisted above, declared once right beside them — the
-         * completeness check in `SettingsSectionIdTest` compares this set against
+         * Every key persisted above, declared once right beside them.
+         *
+         * Two drift guards depend on this set, since both compare against it
+         * rather than restating it: `SettingsSectionIdTest` compares it against
          * the union of every [SettingsSectionId]'s [SettingsSectionId.displayKeys]
-         * so a key added here without a section assignment fails a test.
+         * (a key added here without a section assignment fails that test), and
+         * `DisplayPreferencesTest` compares it against the real DataStore's
+         * persisted keys after writing through every setter (a setter added
+         * without a matching entry here — or vice versa — fails that test).
          */
         val ALL_KEYS: Set<Preferences.Key<*>> =
             setOf(

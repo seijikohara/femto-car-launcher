@@ -264,6 +264,28 @@ class DisplayPreferencesTest {
             assertEquals(mutated, store.settings.first())
         }
 
+    // ALL_KEYS and SettingsSectionIdTest's completeness check are both
+    // hand-typed sets compared against each other — a key omitted from BOTH
+    // would still pass that comparison and silently escape every section's
+    // reset. This test grounds ALL_KEYS in the real persisted surface instead:
+    // it writes through every setter via mutateAllAwayFromDefault(), then reads
+    // the DataStore's actual key set and asserts it is exactly ALL_KEYS. A
+    // setter added for a new field without a matching ALL_KEYS entry leaves an
+    // extra real key behind and fails this equality.
+    @Test
+    fun `every real persisted key exactly equals ALL_KEYS`() =
+        runTest {
+            val context = ApplicationProvider.getApplicationContext<Context>()
+            val store = DisplayPreferences(context)
+            store.mutateAllAwayFromDefault()
+
+            val persistedKeys = context.displayDataStore.data
+                .first()
+                .asMap()
+                .keys
+            assertEquals(DisplayPreferences.ALL_KEYS, persistedKeys)
+        }
+
     // Sets every persisted field to a value other than DisplaySettings.Default,
     // shared by every resetKeys(section) precision test above so each test
     // states only which fields its section owns, not how to mutate all 43.
