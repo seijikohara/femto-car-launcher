@@ -250,13 +250,28 @@ internal class FontRepository internal constructor(
     // which falls back to the system font exactly like an unresolvable Google
     // family; [resolved] recombines once enumeration lands, so this is a
     // transient state rather than a stuck one.
+    //
+    // Non-upright files are dropped with [isUprightFileName] BEFORE the
+    // weight map is built: weightFromFileName has no italic token, so
+    // "Roboto-Regular.ttf" and "Roboto-Italic.ttf" both guess weight 400, and
+    // associateBy (last-write-wins) would let whichever one SystemFonts
+    // enumerates last silently win the slot — rendering the whole family
+    // slanted under the default FontStyle.Normal. A family with no upright
+    // file at all (pathological: italic-only) has nothing left to serve and
+    // falls back to null, same as a disappeared family, rather than serving
+    // an italic file as if it were upright.
     private fun resolveSystemFont(
         familyName: String,
         systemFonts: List<SystemFontFamily>,
     ): CachedFont? =
         systemFonts
             .firstOrNull { it.familyName == familyName }
-            ?.let { family -> CachedFont.Static(family.files.associateBy { file -> weightFromFileName(file.name) }) }
+            ?.files
+            ?.filter { file -> isUprightFileName(file.name) }
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { uprightFiles ->
+                CachedFont.Static(uprightFiles.associateBy { file -> weightFromFileName(file.name) })
+            }
 
     private suspend fun readCatalogDisk(): List<GoogleFontFamily>? =
         withContext(Dispatchers.IO) {

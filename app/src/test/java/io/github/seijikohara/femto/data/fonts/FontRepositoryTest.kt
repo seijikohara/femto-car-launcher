@@ -177,6 +177,60 @@ class FontRepositoryTest {
         }
 
     @Test
+    fun `a system font family with italic files resolves to the upright file per weight regardless of file order`() =
+        runTest {
+            val regular = File("/system/fonts/Roboto-Regular.ttf")
+            val italic = File("/system/fonts/Roboto-Italic.ttf")
+            val bold = File("/system/fonts/Roboto-Bold.ttf")
+            val boldItalic = File("/system/fonts/Roboto-BoldItalic.ttf")
+
+            // weightFromFileName has no italic token, so Regular/Italic both guess
+            // 400 and Bold/BoldItalic both guess 700 — associateBy is
+            // last-write-wins, so without the upright filter the resolved file for
+            // a weight would depend on enumeration order. Assert both orderings so
+            // neither can hide the bug.
+            listOf(
+                listOf(italic, regular, boldItalic, bold),
+                listOf(regular, italic, bold, boldItalic),
+            ).forEach { fileOrder ->
+                val installed = SystemFontFamily("Roboto", fileOrder, supportsLatin = true, supportsCjk = false)
+                val repository =
+                    repository(
+                        FakeFontFaceStore(),
+                        FakeFontSelectionStore(FontSelection(latin = FontSource.SystemFont("Roboto"))),
+                        systemFontSource = SystemFontSource { listOf(installed) },
+                    )
+                runCurrent()
+
+                val resolved = assertIs<CachedFont.Static>(repository.resolved.value.latin)
+
+                assertEquals(regular, resolved.fileByWeight[400])
+                assertEquals(bold, resolved.fileByWeight[700])
+            }
+        }
+
+    @Test
+    fun `an italic-only system font family has no upright file and falls back to the system font`() =
+        runTest {
+            val installed =
+                SystemFontFamily(
+                    familyName = "Handwriting Italic",
+                    files = listOf(File("/system/fonts/HandwritingItalic-Italic.ttf")),
+                    supportsLatin = true,
+                    supportsCjk = false,
+                )
+            val repository =
+                repository(
+                    FakeFontFaceStore(),
+                    FakeFontSelectionStore(FontSelection(latin = FontSource.SystemFont("Handwriting Italic"))),
+                    systemFontSource = SystemFontSource { listOf(installed) },
+                )
+            runCurrent()
+
+            assertNull(repository.resolved.value.latin)
+        }
+
+    @Test
     fun `a system font selection is excluded from Google cache eviction`() =
         runTest {
             val cache = FakeFontFaceStore().apply { preload("Inter") }

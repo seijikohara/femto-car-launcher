@@ -134,14 +134,14 @@ internal class GoogleFontsApi(
         // the complete glyph set, which is essential for CJK faces the CSS API
         // would otherwise split into hundreds of unicode-range chunks.
         ttf
-            .firstOrNull { it.filename.contains("VariableFont") && !it.filename.contains("Italic", ignoreCase = true) }
+            .firstOrNull { it.filename.contains("VariableFont") && isUprightFileName(it.filename) }
             ?.let { return FontDownloadPlan.Variable(it.url) }
         // No variable font: collect the upright static weights we render at.
         val statics =
             StaticWeightSuffix.entries
                 .mapNotNull { suffix ->
                     ttf
-                        .filter { !it.filename.contains("Italic", ignoreCase = true) }
+                        .filter { isUprightFileName(it.filename) }
                         .firstOrNull { it.filename.endsWith("-${suffix.token}.ttf") }
                         ?.let { suffix.weight to it.url }
                 }.toMap()
@@ -202,3 +202,15 @@ internal enum class StaticWeightSuffix(
     EXTRA_BOLD("ExtraBold", 800),
     BLACK("Black", 900),
 }
+
+// Filename tokens marking a slanted style. Internal (not private): the same
+// filename-based italic exclusion is needed by FontRepository's
+// resolveSystemFont (an installed family's weight map must not let an
+// "-Italic.ttf" / "-Oblique.ttf" file win a weight slot from its upright
+// sibling), so both filename-based italic exclusions in data/fonts share one
+// token set instead of duplicating "italic" / "oblique" string literals.
+internal val ItalicTokens = setOf("italic", "oblique")
+
+/** True when [fileName] contains none of [ItalicTokens] — an upright style. */
+internal fun isUprightFileName(fileName: String): Boolean =
+    ItalicTokens.none { fileName.contains(it, ignoreCase = true) }
