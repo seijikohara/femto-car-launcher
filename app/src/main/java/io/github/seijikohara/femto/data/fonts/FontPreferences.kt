@@ -18,9 +18,12 @@ private const val TAG = "FontPreferences"
 /**
  * DataStore-backed [FontSelectionStore].
  *
- * Each slot stores a Google Fonts family name; an absent key means the system
- * font (the default), so a fresh install and a reset both fall back to the
- * platform typeface with no download.
+ * Each slot stores a [FontSource] encoded via [FontSource.toPersisted]; an
+ * absent key means the system font (the default), so a fresh install and a
+ * reset both fall back to the platform typeface with no download. Values
+ * written before the system-font source existed carry no prefix — read back
+ * as a legacy [FontSource.GoogleFonts] by [FontSource.fromPersisted], so an
+ * existing selection survives the upgrade unchanged.
  */
 internal class FontPreferences(
     private val context: Context,
@@ -29,17 +32,21 @@ internal class FontPreferences(
         context.fontDataStore.data
             .catchIoAsDefaults(TAG)
             .map { prefs ->
-                FontSelection(latinFamily = prefs[LATIN_KEY], cjkFamily = prefs[CJK_KEY])
+                FontSelection(
+                    latin = FontSource.fromPersisted(prefs[LATIN_KEY]),
+                    cjk = FontSource.fromPersisted(prefs[CJK_KEY]),
+                )
             }
 
-    /** Persist [family] for [slot]; a null family clears the slot to system. */
-    override suspend fun setFamily(
+    /** Persist [source] for [slot]; [FontSource.SystemDefault] clears the slot. */
+    override suspend fun setSource(
         slot: FontSlot,
-        family: String?,
+        source: FontSource,
     ) {
         val key = keyFor(slot)
+        val persisted = source.toPersisted()
         context.fontDataStore.editOrLog(TAG) { prefs ->
-            if (family == null) prefs.remove(key) else prefs[key] = family
+            if (persisted == null) prefs.remove(key) else prefs[key] = persisted
         }
     }
 
