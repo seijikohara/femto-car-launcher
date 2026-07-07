@@ -32,6 +32,15 @@ class FontSourceTest {
     }
 
     @Test
+    fun `an empty or blank persisted value is also read as the system default`() {
+        // Defense-in-depth: no code path is meant to persist "", but a value
+        // this malformed should still degrade to the safe default rather than
+        // being read as a Google Fonts family with an empty name.
+        assertEquals(FontSource.SystemDefault, FontSource.fromPersisted(""))
+        assertEquals(FontSource.SystemDefault, FontSource.fromPersisted("   "))
+    }
+
+    @Test
     fun `an unprefixed legacy value is read as a Google Fonts family`() {
         // Every value FontPreferences wrote before this feature was a bare Google
         // Fonts family name (no colon prefix) — an existing user's selection must

@@ -43,14 +43,15 @@ internal sealed interface FontSource {
 
     companion object {
         /**
-         * Parse a persisted slot value. A null value (absent key) is the system
+         * Parse a persisted slot value. A null or blank value (absent key, or an
+         * empty string that should never have been written) is the system
          * default; `google:` / `system:` prefixes select the matching source; an
          * unprefixed value is the pre-migration shape (a bare Google Fonts family
          * name) and is read as [GoogleFonts] so an existing selection keeps working.
          */
         fun fromPersisted(value: String?): FontSource =
             when {
-                value == null -> SystemDefault
+                value.isNullOrBlank() -> SystemDefault
                 value.startsWith(GOOGLE_PREFIX) -> GoogleFonts(value.removePrefix(GOOGLE_PREFIX))
                 value.startsWith(SYSTEM_PREFIX) -> SystemFont(value.removePrefix(SYSTEM_PREFIX))
                 else -> GoogleFonts(value)
