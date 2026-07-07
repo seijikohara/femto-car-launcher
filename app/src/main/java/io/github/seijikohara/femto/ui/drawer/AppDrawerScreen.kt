@@ -60,6 +60,7 @@ import io.github.seijikohara.femto.data.apps.DrawerLayout
 import io.github.seijikohara.femto.ui.drawer.components.AppListRow
 import io.github.seijikohara.femto.ui.drawer.components.AppTile
 import io.github.seijikohara.femto.ui.drawer.components.PinnedDock
+import io.github.seijikohara.femto.ui.drawer.components.RecentAppsRow
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -130,6 +131,7 @@ internal fun AppDrawerScreen(
                 layout = layout,
                 iconSize = iconSize,
                 pinned = pinned,
+                recentApps = uiState.recentApps,
                 onLaunch = onLaunch,
                 onTogglePin = onTogglePin,
                 onToggleLayout = onToggleLayout,
@@ -149,9 +151,10 @@ internal fun AppDrawerScreen(
 }
 
 /**
- * The quick pinned view the dock's apps button opens: just the pinned dock plus
- * an All-apps row that expands to the full drawer. Loading / error fall back to
- * a fixed-height placeholder so the wrap-content sheet never collapses to zero.
+ * The quick pinned view the dock's apps button opens: the Recent row (when
+ * there is any launch history) above the pinned dock, plus an All-apps row
+ * that expands to the full drawer. Loading / error fall back to a
+ * fixed-height placeholder so the wrap-content sheet never collapses to zero.
  */
 @Composable
 private fun CompactContent(
@@ -171,6 +174,9 @@ private fun CompactContent(
             // quick view is useless, so fall through to the full drawer.
             val currentOnExpand by rememberUpdatedState(onExpand)
             LaunchedEffect(dockApps.isEmpty()) { if (dockApps.isEmpty()) currentOnExpand() }
+            if (uiState.recentApps.isNotEmpty()) {
+                RecentAppsRow(apps = uiState.recentApps, iconSize = iconSize, onLaunch = onLaunch)
+            }
             PinnedDock(
                 apps = dockApps,
                 iconSize = iconSize,
@@ -238,11 +244,7 @@ private fun AllAppsRow(
 private fun rememberDockApps(
     apps: List<AppEntry>,
     pinned: List<String>,
-): List<AppEntry> =
-    remember(apps, pinned) {
-        val byComponent = apps.associateBy { it.componentName.flattenToString() }
-        pinned.mapNotNull { byComponent[it] }
-    }
+): List<AppEntry> = remember(apps, pinned) { resolveByOrder(apps, pinned) { it.componentName.flattenToString() } }
 
 @Composable
 private fun LoadingState(modifier: Modifier = Modifier) =
@@ -256,6 +258,7 @@ private fun ContentState(
     layout: DrawerLayout,
     iconSize: DrawerIconSize,
     pinned: List<String>,
+    recentApps: List<AppEntry>,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
     onToggleLayout: () -> Unit,
@@ -279,6 +282,11 @@ private fun ContentState(
     val pinnedSet = remember(pinned) { pinned.toSet() }
     // Prefix matches rank before substring matches; an empty query shows everything.
     val matched = remember(apps, query) { filterAndRank(apps, query) { it.label } }
+    // The Recent row is a browsing aid; it steps aside the moment a query is
+    // active, when the filtered flat list is the primary signal.
+    if (query.isBlank() && recentApps.isNotEmpty()) {
+        RecentAppsRow(apps = recentApps, iconSize = iconSize, onLaunch = onLaunch)
+    }
     Box(modifier = Modifier.weight(1f)) {
         if (matched.isEmpty()) {
             CenteredMessage(text = stringResource(R.string.drawer_no_matches))

@@ -65,13 +65,15 @@ private val DockVerticalPadding = 8.dp
 // Per-preset dock tile dimensions, scaled in step with the drawer grid's
 // presets (the dock previously hardcoded the MEDIUM values and ignored the
 // user's icon-size choice). Tile widths keep a readable one-line label and
-// stay above the touch-target floor via the tile's min height.
-private data class DockDimensions(
+// stay above the touch-target floor via the tile's min height. Internal (not
+// private): the Recent row wants tiles that look identical to the Pinned
+// dock's, so it reuses this same size mapping rather than duplicating it.
+internal data class DockDimensions(
     val tileWidth: Dp,
     val iconSize: Dp,
 )
 
-private fun DrawerIconSize.dockDimensions(): DockDimensions =
+internal fun DrawerIconSize.dockDimensions(): DockDimensions =
     when (this) {
         DrawerIconSize.SMALL -> DockDimensions(tileWidth = 80.dp, iconSize = 48.dp)
         DrawerIconSize.MEDIUM -> DockDimensions(tileWidth = 96.dp, iconSize = 64.dp)

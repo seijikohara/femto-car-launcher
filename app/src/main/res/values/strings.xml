@@ -142,6 +142,7 @@
     <string name="drawer_icon_size_medium">Medium</string>
     <string name="drawer_icon_size_large">Large</string>
     <string name="drawer_all_apps">All apps</string>
+    <string name="drawer_recent_apps">Recent</string>
 
     <!-- Assistant sheet -->
     <string name="assistant_sheet_title">Voice assistant</string>

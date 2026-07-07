@@ -42,4 +42,22 @@ class AppDrawerSearchTest {
         assertEquals(DrawerLayout.GRID, effectiveLayout(DrawerLayout.GRID, "   "))
         assertEquals(DrawerLayout.LIST, effectiveLayout(DrawerLayout.LIST, ""))
     }
+
+    @Test
+    fun `resolveByOrder preserves the order argument, not the items argument`() =
+        assertEquals(
+            listOf("music", "maps"),
+            resolveByOrder(items = listOf("maps", "music"), order = listOf("music", "maps")) { it },
+        )
+
+    @Test
+    fun `resolveByOrder drops a key with no matching item`() =
+        assertEquals(
+            listOf("maps"),
+            resolveByOrder(items = listOf("maps"), order = listOf("uninstalled", "maps")) { it },
+        )
+
+    @Test
+    fun `resolveByOrder returns empty for an empty order`() =
+        assertEquals(emptyList(), resolveByOrder(items = listOf("maps"), order = emptyList()) { it })
 }
