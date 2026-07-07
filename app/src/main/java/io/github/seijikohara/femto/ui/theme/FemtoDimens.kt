@@ -209,10 +209,20 @@ object FemtoDimens {
 
     /**
      * Font-picker bottom-sheet height as a fraction of the viewport. Taller than
-     * the drawer / settings sheets because the picker is a long, scrollable list
-     * of every Google Fonts family and benefits from the extra rows.
+     * the drawer sheet because the picker is a long, scrollable list of every
+     * Google Fonts family and benefits from the extra rows.
      */
     val FontPickerSheetHeightFraction = 0.92f
+
+    /**
+     * Settings bottom-sheet height as a fraction of the viewport. Taller than
+     * the drawer sheet (and equal to the font picker's) because the
+     * master-detail layout needs the extra room on both sides: the rail /
+     * list wants to show as many of the 8 categories as possible without
+     * scrolling, and the detail pane wants to show more than a couple of rows
+     * before its own scroll kicks in.
+     */
+    val SettingsSheetHeightFraction = 0.92f
 
     /**
      * Fraction of the Now-Playing panel's height reserved for the upcoming-queue

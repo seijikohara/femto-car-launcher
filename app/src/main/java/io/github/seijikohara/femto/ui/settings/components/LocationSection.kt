@@ -1,10 +1,10 @@
 package io.github.seijikohara.femto.ui.settings.components
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
@@ -15,16 +15,14 @@ private const val MAX_LOCATION_INTERVAL_STEPS = 8
 private const val MIN_LOCATION_MIN_DISTANCE = 0
 private const val MAX_LOCATION_MIN_DISTANCE = 25
 
+// The Location category's rows; see AppearanceSection's header comment on why
+// there is no title / reset wiring here.
 @Composable
 internal fun LocationSection(
     uiState: SettingsUiState,
     onAction: (SettingsAction) -> Unit,
     modifier: Modifier = Modifier,
-) = SettingsSection(
-    title = stringResource(R.string.settings_section_location),
-    modifier = modifier,
-    onReset = { onAction(SettingsAction.ResetSection(SettingsSectionId.LOCATION)) },
-) {
+) = Column(modifier = modifier) {
     ChoiceRow(
         title = stringResource(R.string.settings_group_location_quality),
         options =

@@ -1,26 +1,24 @@
 package io.github.seijikohara.femto.ui.settings.components
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.ClockSetting
-import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
 
+// The Units category's rows; see AppearanceSection's header comment on why
+// there is no title / reset wiring here.
 @Composable
 internal fun UnitsSection(
     uiState: SettingsUiState,
     onAction: (SettingsAction) -> Unit,
     modifier: Modifier = Modifier,
-) = SettingsSection(
-    title = stringResource(R.string.settings_section_units),
-    modifier = modifier,
-    onReset = { onAction(SettingsAction.ResetSection(SettingsSectionId.UNITS)) },
-) {
+) = Column(modifier = modifier) {
     ChoiceRow(
         title = stringResource(R.string.settings_group_speed),
         options =

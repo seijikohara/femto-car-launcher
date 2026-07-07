@@ -30,7 +30,6 @@ import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapStyleSetting
-import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.data.display.ThemeMode
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.ui.settings.SettingsAction
@@ -45,17 +44,16 @@ private const val MAX_GLASS_BLUR = 40
 private const val MIN_GLASS_OPACITY = 0
 private const val MAX_GLASS_OPACITY = 100
 
+// The Appearance category's rows: the detail-pane title and reset affordance
+// are owned by the shared master-detail wrapper (see SettingsCategoryId,
+// SettingsScreen), not this composable.
 @Composable
 internal fun AppearanceSection(
     uiState: SettingsUiState,
     onAction: (SettingsAction) -> Unit,
     onOpenFontPicker: (FontSlot) -> Unit,
     modifier: Modifier = Modifier,
-) = SettingsSection(
-    title = stringResource(R.string.settings_section_appearance),
-    modifier = modifier,
-    onReset = { onAction(SettingsAction.ResetSection(SettingsSectionId.APPEARANCE)) },
-) {
+) = Column(modifier = modifier) {
     ChoiceRow(
         title = stringResource(R.string.settings_group_theme),
         options =

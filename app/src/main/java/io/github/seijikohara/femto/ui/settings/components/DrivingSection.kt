@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.settings.components
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -7,23 +8,20 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.display.PresetMode
-import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
 
 private const val MIN_DRIVING_THRESHOLD_KMH = 3
 private const val MAX_DRIVING_THRESHOLD_KMH = 40
 
+// The Driving category's rows; see AppearanceSection's header comment on why
+// there is no title / reset wiring here.
 @Composable
 internal fun DrivingSection(
     uiState: SettingsUiState,
     onAction: (SettingsAction) -> Unit,
     modifier: Modifier = Modifier,
-) = SettingsSection(
-    title = stringResource(R.string.settings_section_driving),
-    modifier = modifier,
-    onReset = { onAction(SettingsAction.ResetSection(SettingsSectionId.DRIVING)) },
-) {
+) = Column(modifier = modifier) {
     ChoiceRow(
         title = stringResource(R.string.settings_group_preset_mode),
         options =

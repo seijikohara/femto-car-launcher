@@ -27,10 +27,8 @@ class SettingsScreenTest {
     val rule = createComposeRule()
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
-    private val appearanceSectionLabel = context.getString(R.string.settings_section_appearance)
-    private val screenSectionLabel = context.getString(R.string.settings_section_screen)
-    private val drivingSectionLabel = context.getString(R.string.settings_section_driving)
     private val driverSideLabel = context.getString(R.string.settings_group_driver_side)
+    private val dockPositionLabel = context.getString(R.string.settings_group_dock_position)
     private val fullscreenLabel = context.getString(R.string.settings_group_fullscreen)
     private val themeLabel = context.getString(R.string.settings_group_theme)
     private val darkLabel = context.getString(R.string.settings_theme_dark)
@@ -71,31 +69,30 @@ class SettingsScreenTest {
 
     @Test
     fun renders_fullscreen_row() {
-        setScreen()
-        // The Screen section now sits below the larger Appearance section (which
-        // absorbed the map-color rows), pushing Fullscreen below the fold on a
-        // short head unit; scroll it into view first.
+        setScreen(category = R.string.settings_section_screen)
         rule.onNodeWithText(fullscreenLabel).performScrollTo().assertIsDisplayed()
     }
 
     @Test
-    fun renders_appearance_section() {
+    fun appearance_category_is_selected_by_default() {
+        // Appearance is the master-detail layout's default category (both the
+        // wide rail and the narrow list start on it), so its rows show without
+        // any navigation — no `category` passed to setScreen here.
         setScreen()
-        rule.onNodeWithText(appearanceSectionLabel).assertIsDisplayed()
+        rule.onNodeWithText(themeLabel).assertIsDisplayed()
     }
 
     @Test
     fun renders_screen_section() {
-        setScreen()
-        rule.onNodeWithText(screenSectionLabel).performScrollTo().assertIsDisplayed()
+        setScreen(category = R.string.settings_section_screen)
+        rule.onNodeWithText(dockPositionLabel).performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun toggling_fullscreen_dispatches_set_fullscreen_off() {
         val actions = mutableListOf<SettingsAction>()
-        setScreen(onAction = { actions += it })
+        setScreen(onAction = { actions += it }, category = R.string.settings_section_screen)
         // Initial.fullscreen is now ON (the revised default), so tapping flips it off.
-        // Scroll first: see the comment on renders_fullscreen_row.
         rule.onNodeWithText(fullscreenLabel).performScrollTo().performClick()
         assertEquals(listOf(SettingsAction.SetFullscreen(FullscreenSetting.OFF)), actions)
     }
@@ -103,10 +100,9 @@ class SettingsScreenTest {
     @Test
     fun toggling_show_seconds_dispatches_set_show_clock_seconds_on() {
         val actions = mutableListOf<SettingsAction>()
-        setScreen(onAction = { actions += it })
-        // The row sits in the Units section, below the fold on a short head unit, so
-        // scroll it into view first. Initial.showClockSeconds is now false (the revised
-        // default), so tapping the row flips the switch on.
+        setScreen(onAction = { actions += it }, category = R.string.settings_section_units)
+        // Initial.showClockSeconds is now false (the revised default), so tapping
+        // the row flips the switch on.
         rule.onNodeWithText(showSecondsLabel).performScrollTo().performClick()
         assertEquals(listOf(SettingsAction.SetShowClockSeconds(true)), actions)
     }
@@ -114,7 +110,7 @@ class SettingsScreenTest {
     @Test
     fun tapping_an_accent_swatch_dispatches_set_accent_color() {
         val actions = mutableListOf<SettingsAction>()
-        setScreen(onAction = { actions += it })
+        setScreen(onAction = { actions += it }, category = R.string.settings_section_appearance)
         // The accent swatches scroll horizontally; bring the Teal chip into view,
         // then tapping it reports the matching AccentColor.
         rule.onNodeWithContentDescription(tealAccentLabel).performScrollTo().performClick()
@@ -124,7 +120,7 @@ class SettingsScreenTest {
     @Test
     fun choosing_theme_option_dispatches_set_theme_mode() {
         val actions = mutableListOf<SettingsAction>()
-        setScreen(onAction = { actions += it })
+        setScreen(onAction = { actions += it }, category = R.string.settings_section_appearance)
         // The Theme row opens a radio dialog; picking "Dark" reports the choice
         // and closes the dialog.
         rule.onNodeWithText(themeLabel).performClick()
@@ -135,9 +131,9 @@ class SettingsScreenTest {
     @Test
     fun confirming_reset_dispatches_reset_to_defaults() {
         val actions = mutableListOf<SettingsAction>()
-        setScreen(onAction = { actions += it })
-        // The reset row sits at the bottom (System section); scroll it in, tap to
-        // open the confirm dialog, then tap Reset to confirm.
+        setScreen(onAction = { actions += it }, category = R.string.settings_group_system)
+        // The reset row sits at the bottom of the System category; scroll it in,
+        // tap to open the confirm dialog, then tap Reset to confirm.
         rule.onNodeWithText(resetLabel).performScrollTo().performClick()
         rule.onNodeWithText(resetConfirmLabel).performClick()
         assertEquals(listOf(SettingsAction.ResetToDefaults), actions)
@@ -145,26 +141,29 @@ class SettingsScreenTest {
 
     @Test
     fun keep_screen_on_row_is_shown() {
-        setScreen()
+        setScreen(category = R.string.settings_section_screen)
         rule.onNodeWithText(keepScreenOnLabel).performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun glass_blur_row_is_shown() {
-        setScreen()
+        setScreen(category = R.string.settings_section_appearance)
         rule.onNodeWithText(glassBlurLabel).performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun location_interval_row_is_shown() {
-        setScreen()
+        setScreen(category = R.string.settings_section_location)
         rule.onNodeWithText(locationIntervalLabel).performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun auto_map_style_shows_both_scheme_rows() {
         // AUTO can use either scheme (the system theme decides), so both rows show.
-        setScreen(uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.AUTO))
+        setScreen(
+            uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.AUTO),
+            category = R.string.settings_section_appearance,
+        )
         rule.onNodeWithText(lightSchemeLabel).performScrollTo().assertIsDisplayed()
         rule.onNodeWithText(darkSchemeLabel).performScrollTo().assertIsDisplayed()
     }
@@ -172,7 +171,10 @@ class SettingsScreenTest {
     @Test
     fun light_map_style_hides_the_dark_scheme_row() {
         // A fixed LIGHT style never uses the dark scheme, so that row is hidden.
-        setScreen(uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.LIGHT))
+        setScreen(
+            uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.LIGHT),
+            category = R.string.settings_section_appearance,
+        )
         rule.onNodeWithText(lightSchemeLabel).performScrollTo().assertIsDisplayed()
         rule.onNodeWithText(darkSchemeLabel).assertDoesNotExist()
     }
@@ -180,7 +182,10 @@ class SettingsScreenTest {
     @Test
     fun dark_map_style_hides_the_light_scheme_row() {
         // A fixed DARK style never uses the light scheme, so that row is hidden.
-        setScreen(uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.DARK))
+        setScreen(
+            uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.DARK),
+            category = R.string.settings_section_appearance,
+        )
         rule.onNodeWithText(darkSchemeLabel).performScrollTo().assertIsDisplayed()
         rule.onNodeWithText(lightSchemeLabel).assertDoesNotExist()
     }
@@ -189,7 +194,10 @@ class SettingsScreenTest {
     fun map_style_override_choice_hidden_when_matching_app_theme() {
         // mapStyle == AUTO means "match app theme" is on, so the override
         // Light/Dark choice row must not be present.
-        setScreen(uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.AUTO))
+        setScreen(
+            uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.AUTO),
+            category = R.string.settings_section_appearance,
+        )
         rule.onNodeWithText(mapStyleLabel).assertDoesNotExist()
     }
 
@@ -199,6 +207,7 @@ class SettingsScreenTest {
         setScreen(
             uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.LIGHT),
             onAction = { actions += it },
+            category = R.string.settings_section_appearance,
         )
         rule.onNodeWithText(mapStyleLabel).performScrollTo().performClick()
         rule.onNodeWithText(darkLabel).performClick()
@@ -208,7 +217,7 @@ class SettingsScreenTest {
     @Test
     fun turning_off_match_app_theme_dispatches_set_map_style_dark_when_app_is_dark() {
         val actions = mutableListOf<SettingsAction>()
-        setScreen(darkTheme = true, onAction = { actions += it })
+        setScreen(darkTheme = true, onAction = { actions += it }, category = R.string.settings_section_appearance)
         // Initial.mapStyle is AUTO, so the toggle starts checked; tapping unchecks it.
         rule.onNodeWithText(matchAppThemeLabel).performScrollTo().performClick()
         assertEquals(listOf(SettingsAction.SetMapStyle(MapStyleSetting.DARK)), actions)
@@ -217,7 +226,7 @@ class SettingsScreenTest {
     @Test
     fun turning_off_match_app_theme_dispatches_set_map_style_light_when_app_is_light() {
         val actions = mutableListOf<SettingsAction>()
-        setScreen(darkTheme = false, onAction = { actions += it })
+        setScreen(darkTheme = false, onAction = { actions += it }, category = R.string.settings_section_appearance)
         rule.onNodeWithText(matchAppThemeLabel).performScrollTo().performClick()
         assertEquals(listOf(SettingsAction.SetMapStyle(MapStyleSetting.LIGHT)), actions)
     }
@@ -228,6 +237,7 @@ class SettingsScreenTest {
         setScreen(
             uiState = SettingsUiState.Initial.copy(mapStyle = MapStyleSetting.DARK),
             onAction = { actions += it },
+            category = R.string.settings_section_appearance,
         )
         rule.onNodeWithText(matchAppThemeLabel).performScrollTo().performClick()
         assertEquals(listOf(SettingsAction.SetMapStyle(MapStyleSetting.AUTO)), actions)
@@ -243,6 +253,7 @@ class SettingsScreenTest {
                     mapBackend = MapBackend.MAPBOX,
                     mapboxAccessToken = "pk.abc123",
                 ),
+            category = R.string.settings_section_map,
         )
         // "pk.abc123".takeLast(4) == "c123"
         rule.onNodeWithText("••••c123").performScrollTo().assertIsDisplayed()
@@ -256,6 +267,7 @@ class SettingsScreenTest {
                     mapBackend = MapBackend.MAPBOX,
                     mapboxAccessToken = "",
                 ),
+            category = R.string.settings_section_map,
         )
         rule.onNodeWithText(tokenUnsetLabel).performScrollTo().assertIsDisplayed()
     }
@@ -268,6 +280,7 @@ class SettingsScreenTest {
         setScreen(
             uiState = SettingsUiState.Initial.copy(mapboxAccessToken = ""),
             onAction = { actions += it },
+            category = R.string.settings_section_map,
         )
         rule.onNodeWithText(mapBackendLabel).performScrollTo().performClick()
         rule.onNodeWithText(mapboxLabel).performClick()
@@ -284,6 +297,7 @@ class SettingsScreenTest {
         setScreen(
             uiState = SettingsUiState.Initial.copy(mapboxAccessToken = ""),
             onAction = { actions += it },
+            category = R.string.settings_section_map,
         )
         rule.onNodeWithText(mapBackendLabel).performScrollTo().performClick()
         rule.onNodeWithText(mapboxLabel).performClick()
@@ -306,6 +320,7 @@ class SettingsScreenTest {
                     mapboxAccessToken = "pk.old",
                 ),
             onAction = { actions += it },
+            category = R.string.settings_section_map,
         )
         rule.onNodeWithText(tokenLabel).performScrollTo().performClick()
         rule.onNodeWithText(tokenClearLabel).performClick()
@@ -322,6 +337,7 @@ class SettingsScreenTest {
                     mapBackend = MapBackend.GOOGLEMAPS,
                     googleMapsApiKey = "AIzaTestKey",
                 ),
+            category = R.string.settings_section_map,
         )
         rule.onNodeWithText(googleMapsTypeLabel).performScrollTo().assertIsDisplayed()
         rule.onNodeWithText(googleMapsTrafficLabel).performScrollTo().assertIsDisplayed()
@@ -335,6 +351,7 @@ class SettingsScreenTest {
                     mapBackend = MapBackend.MAPBOX,
                     mapboxAccessToken = "pk.test",
                 ),
+            category = R.string.settings_section_map,
         )
         rule.onNodeWithText(accentOsmOnlyNoteLabel).performScrollTo().assertIsDisplayed()
     }
@@ -350,6 +367,7 @@ class SettingsScreenTest {
                     mapBackend = MapBackend.GOOGLEMAPS,
                     googleMapsApiKey = "AIzaTestKey",
                 ),
+            category = R.string.settings_section_map,
         )
         rule.onNodeWithText(accentOsmOnlyNoteLabel).performScrollTo().assertIsDisplayed()
     }
@@ -365,6 +383,7 @@ class SettingsScreenTest {
                     mapBackend = MapBackend.MAPBOX,
                     mapboxAccessToken = "pk.test",
                 ),
+            category = R.string.settings_section_map,
         )
         rule.onNodeWithText(mapRenderingSubheaderLabel).assertDoesNotExist()
     }
@@ -377,6 +396,7 @@ class SettingsScreenTest {
         setScreen(
             uiState = SettingsUiState.Initial.copy(googleMapsApiKey = ""),
             onAction = { actions += it },
+            category = R.string.settings_section_map,
         )
         rule.onNodeWithText(mapBackendLabel).performScrollTo().performClick()
         rule.onNodeWithText(googleMapsLabel).performClick()
@@ -394,6 +414,7 @@ class SettingsScreenTest {
                     mapBackend = MapBackend.GOOGLEMAPS,
                     googleMapsApiKey = "AIzaTestKey",
                 ),
+            category = R.string.settings_section_map,
         )
         // "AIzaTestKey".takeLast(4) == "tKey"
         rule.onNodeWithText("••••tKey").performScrollTo().assertIsDisplayed()
@@ -407,6 +428,7 @@ class SettingsScreenTest {
                     mapBackend = MapBackend.GOOGLEMAPS,
                     googleMapsApiKey = "",
                 ),
+            category = R.string.settings_section_map,
         )
         rule.onNodeWithText(googleMapsKeyUnsetLabel).performScrollTo().assertIsDisplayed()
     }
@@ -420,6 +442,7 @@ class SettingsScreenTest {
         setScreen(
             uiState = SettingsUiState.Initial.copy(googleMapsApiKey = ""),
             onAction = { actions += it },
+            category = R.string.settings_section_map,
         )
         rule.onNodeWithText(mapBackendLabel).performScrollTo().performClick()
         rule.onNodeWithText(googleMapsLabel).performClick()
@@ -443,6 +466,7 @@ class SettingsScreenTest {
                     googleMapsApiKey = "AIzaOld",
                 ),
             onAction = { actions += it },
+            category = R.string.settings_section_map,
         )
         rule.onNodeWithText(googleMapsKeyLabel).performScrollTo().performClick()
         rule.onNodeWithText(googleMapsKeyClearLabel).performClick()
@@ -459,6 +483,7 @@ class SettingsScreenTest {
                     googleMapsApiKey = "AIzaTestKey",
                 ),
             onAction = { actions += it },
+            category = R.string.settings_section_map,
         )
         val terrainLabel = context.getString(R.string.settings_google_maps_type_terrain)
         rule.onNodeWithText(googleMapsTypeLabel).performScrollTo().performClick()
@@ -476,6 +501,7 @@ class SettingsScreenTest {
                     mapBackend = MapBackend.GOOGLEMAPS,
                     googleMapsApiKey = "AIzaTestKey",
                 ),
+            category = R.string.settings_section_map,
         )
         rule.onNodeWithText(googleMapsMapIdLabel).performScrollTo().assertIsDisplayed()
     }
@@ -491,6 +517,7 @@ class SettingsScreenTest {
                     googleMapsApiKey = "AIzaTestKey",
                     googleMapsMapId = "",
                 ),
+            category = R.string.settings_section_map,
         )
         rule.onNodeWithText(googleMapsMapIdUnsetLabel).performScrollTo().assertIsDisplayed()
     }
@@ -505,6 +532,7 @@ class SettingsScreenTest {
                     googleMapsApiKey = "AIzaTestKey",
                     googleMapsMapId = "MAP_ID_42",
                 ),
+            category = R.string.settings_section_map,
         )
         rule.onNodeWithText("MAP_ID_42").performScrollTo().assertIsDisplayed()
     }
@@ -522,6 +550,7 @@ class SettingsScreenTest {
                     googleMapsMapId = "",
                 ),
             onAction = { actions += it },
+            category = R.string.settings_section_map,
         )
         rule.onNodeWithText(googleMapsMapIdLabel).performScrollTo().performClick()
         // The hint marks the dialog as open; the field label duplicates the row title,
@@ -543,6 +572,7 @@ class SettingsScreenTest {
                     googleMapsMapId = "MAP_ID_OLD",
                 ),
             onAction = { actions += it },
+            category = R.string.settings_section_map,
         )
         rule.onNodeWithText(googleMapsMapIdLabel).performScrollTo().performClick()
         rule.onNodeWithText(googleMapsMapIdClearLabel).performClick()
@@ -561,6 +591,7 @@ class SettingsScreenTest {
                     hiddenCalendarIds = emptySet(),
                 ),
             onAction = { actions += it },
+            category = R.string.settings_section_panels,
         )
         // Scroll the "Visible calendars" row into view and tap to open the dialog.
         rule.onNodeWithText(visibleCalendarsLabel).performScrollTo().performClick()
@@ -570,15 +601,14 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun section_rows_are_absent_until_the_header_is_tapped() {
-        // Sections are collapsed by default, so the driver-side row (which now lives
-        // under Driving) is not composed until the Driving header is tapped.
-        setScreen(expandSections = false)
+    fun driving_category_rows_are_absent_until_navigated_to() {
+        // Only the SELECTED category's rows are ever composed — Appearance is the
+        // default, not Driving, so the driver-side row starts absent. Navigating to
+        // Driving (via the rail in the wide layout, or the list in the narrow
+        // layout — navigateToCategory works either way) then shows it.
+        setScreen()
         rule.onNodeWithText(driverSideLabel).assertDoesNotExist()
-        rule
-            .onNodeWithContentDescription(expandCd(R.string.settings_section_driving))
-            .performScrollTo()
-            .performClick()
+        navigateToCategory(R.string.settings_section_driving)
         rule.onNodeWithText(driverSideLabel).performScrollTo().assertIsDisplayed()
     }
 
@@ -586,9 +616,10 @@ class SettingsScreenTest {
         uiState: SettingsUiState = SettingsUiState.Initial,
         onAction: (SettingsAction) -> Unit = {},
         darkTheme: Boolean = false,
-        // Sections collapse by default; most tests interact with rows, so expand
-        // every section after composing. The collapse-behavior test opts out.
-        expandSections: Boolean = true,
+        // The category to navigate to right after composing, or null to leave the
+        // screen on its initial state (the wide rail's default selection / the
+        // narrow layout's category list).
+        category: Int? = null,
     ) {
         rule.setContent {
             FemtoTheme(darkTheme = darkTheme) {
@@ -605,35 +636,21 @@ class SettingsScreenTest {
                 )
             }
         }
-        if (expandSections) {
-            expandAllSections()
+        if (category != null) {
+            navigateToCategory(category)
         }
     }
 
-    // Expand every collapsible section so the existing row-level interactions find
-    // their targets, then scroll back to the top so no-scroll clicks and header
-    // assertions start from a fresh-screen position. Header taps toggle only local
-    // expand state — they dispatch no SettingsAction — so this never pollutes a
-    // captured-action assertion.
-    private fun expandAllSections() {
-        listOf(
-            R.string.settings_section_appearance,
-            R.string.settings_section_screen,
-            R.string.settings_section_driving,
-            R.string.settings_section_units,
-            R.string.settings_section_map,
-            R.string.settings_section_location,
-            R.string.settings_section_panels,
-            R.string.settings_group_system,
-        ).forEach { titleRes ->
-            rule.onNodeWithContentDescription(expandCd(titleRes)).performScrollTo().performClick()
-        }
-        rule.onNodeWithContentDescription(collapseCd(R.string.settings_section_appearance)).performScrollTo()
+    // Selects [titleRes]'s category via its "Select <title>" click target
+    // (SettingsCategoryList). Works in both master-detail shapes: in the wide
+    // layout the rail is always visible, so this just changes the selection; in
+    // the narrow layout the category list is showing until this tap, which also
+    // navigates to the detail view — either way, the category's rows are
+    // composed and reachable afterward.
+    private fun navigateToCategory(titleRes: Int) {
+        rule.onNodeWithContentDescription(selectDescription(titleRes)).performScrollTo().performClick()
     }
 
-    private fun expandCd(titleRes: Int) =
-        context.getString(R.string.settings_section_expand, context.getString(titleRes))
-
-    private fun collapseCd(titleRes: Int) =
-        context.getString(R.string.settings_section_collapse, context.getString(titleRes))
+    private fun selectDescription(titleRes: Int) =
+        context.getString(R.string.settings_category_select, context.getString(titleRes))
 }

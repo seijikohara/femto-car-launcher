@@ -1,13 +1,11 @@
 package io.github.seijikohara.femto.ui.settings.components
 
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -29,12 +27,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -43,7 +39,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
-import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.Lucide
@@ -52,6 +47,12 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import kotlin.math.roundToInt
+
+// Shared back-arrow icon size: the screen-level Header (back to the
+// dashboard) and SettingsCategoryDetail's narrow-mode back arrow (back to the
+// category list) both use it, so the two back affordances read as the same
+// control at a glance.
+private val BackIconSize = 28.dp
 
 @Composable
 internal fun Header(
@@ -73,7 +74,7 @@ internal fun Header(
             imageVector = Lucide.ArrowLeft,
             contentDescription = stringResource(R.string.settings_back),
             tint = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.size(28.dp),
+            modifier = Modifier.size(BackIconSize),
         )
     }
     Text(
@@ -83,33 +84,25 @@ internal fun Header(
     )
 }
 
-// A collapsible category: a tap-to-toggle header row (colored title + rotating
-// chevron) over a flat (0 dp) rounded card holding the section's rows. Collapsed
-// by default so opening Settings shows a scannable list of category headers; the
-// rows compose only once the section is expanded. Mirrors the diagnostics section
-// idiom (DiagnosticsSectionCard). Each section is a distinct call site, so the
-// expand state is positionally scoped by rememberSaveable — one independent,
-// config-change-surviving flag per section, no explicit key needed.
+// The master-detail layout's right pane (wide) / detail view (narrow list-detail):
+// a header row (an optional back arrow for the narrow flow's return-to-list,
+// the category title, and an optional reset affordance) over a flat rounded
+// card holding the category's rows, scrolling independently of the rail /
+// list. Category SELECTION (the rail in wide, the list in narrow — see
+// SettingsCategoryList) is what used to be the collapsible per-section toggle;
+// this pane always shows its content, since only one category is ever mounted
+// at a time.
 @Composable
-internal fun SettingsSection(
+internal fun SettingsCategoryDetail(
     title: String,
     modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
     onReset: (() -> Unit)? = null,
-    content: @Composable ColumnScope.() -> Unit,
+    content: @Composable () -> Unit,
 ) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
     var resetDialogOpen by remember { mutableStateOf(false) }
-    val chevronRotation by animateFloatAsState(
-        targetValue = if (expanded) 180f else 0f,
-        label = "sectionChevron",
-    )
-    val toggleDescription =
-        stringResource(
-            if (expanded) R.string.settings_section_collapse else R.string.settings_section_expand,
-            title,
-        )
     Column(
-        modifier = modifier.fillMaxWidth().animateContentSize(),
+        modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(
@@ -117,39 +110,40 @@ internal fun SettingsSection(
                 Modifier
                     .fillMaxWidth()
                     .heightIn(min = FemtoDimens.MinTouchTarget)
-                    .clickable { expanded = !expanded }
-                    .semantics { contentDescription = toggleDescription }
                     .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            if (onBack != null) {
+                Box(
+                    modifier = Modifier.size(FemtoDimens.MinTouchTarget).clipClickable(onBack),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    FemtoIcon(
+                        imageVector = Lucide.ArrowLeft,
+                        contentDescription = stringResource(R.string.settings_category_back),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(BackIconSize),
+                    )
+                }
+            }
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f),
             )
-            // Only surfaced once expanded, alongside the rows it would reset — the
-            // collapsed header list stays a plain, scannable set of category names.
-            if (expanded && onReset != null) {
+            if (onReset != null) {
                 SectionResetButton(onClick = { resetDialogOpen = true })
             }
-            FemtoIcon(
-                imageVector = Lucide.ChevronDown,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier =
-                    Modifier
-                        .size(FemtoDimens.InlineIconSize)
-                        .rotate(chevronRotation),
-            )
         }
-        if (expanded) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surfaceContainer,
-            ) {
-                Column(content = content)
+        Surface(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surfaceContainer,
+        ) {
+            Box(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                content()
             }
         }
     }
@@ -166,11 +160,8 @@ internal fun SettingsSection(
     }
 }
 
-// A compact >= MinTouchTarget tap target for the per-section reset affordance,
-// distinct from the header row's expand/collapse toggle. Nesting a separately
-// clickable region inside the (also clickable) header row is the same pattern
-// as a list row hosting a trailing icon button: the inner tap consumes the
-// gesture before it reaches the outer toggle.
+// A compact >= MinTouchTarget tap target for the per-category reset
+// affordance in SettingsCategoryDetail's header row.
 @Composable
 private fun SectionResetButton(
     onClick: () -> Unit,
@@ -399,8 +390,8 @@ internal fun ResetRow(
 }
 
 // Shared confirm dialog for both the global reset (ResetRow) and the
-// per-section reset (SettingsSection's SectionResetButton) — title and message
-// vary by caller, the Reset / Cancel actions do not.
+// per-category reset (SettingsCategoryDetail's SectionResetButton) — title and
+// message vary by caller, the Reset / Cancel actions do not.
 @Composable
 private fun ResetConfirmDialog(
     title: String,
