@@ -109,6 +109,9 @@
     <string name="nav_assistant">Assistant</string>
     <string name="nav_settings">Settings</string>
 
+    <!-- Dashboard footer: long-press edit menu (nav buttons and status icons share it) -->
+    <string name="dock_hide">Hide</string>
+
     <!-- Dashboard footer: status cluster -->
     <string name="status_cellular_connected">Mobile data connected</string>
     <string name="status_cellular_disconnected">Mobile data disconnected</string>

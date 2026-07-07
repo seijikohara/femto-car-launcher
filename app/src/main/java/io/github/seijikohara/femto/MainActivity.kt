@@ -404,6 +404,26 @@ class MainActivity : ComponentActivity() {
                     setShowAssistant(true)
                 }
             }
+
+            is HomeEvent.MoveDockNav -> {
+                lifecycleScope.launch { dockPreferences.moveNav(event.id, event.direction) }
+            }
+
+            is HomeEvent.HideDockNav -> {
+                lifecycleScope.launch { dockPreferences.toggleNavHidden(event.id) }
+            }
+
+            is HomeEvent.MoveDockStatus -> {
+                lifecycleScope.launch { dockPreferences.moveStatus(event.id, event.direction) }
+            }
+
+            is HomeEvent.HideDockStatus -> {
+                lifecycleScope.launch { dockPreferences.toggleStatusHidden(event.id) }
+            }
+
+            HomeEvent.ResetDock -> {
+                lifecycleScope.launch { dockPreferences.resetToDefaults() }
+            }
         }
     }
 

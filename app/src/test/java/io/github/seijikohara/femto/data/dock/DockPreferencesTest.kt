@@ -60,6 +60,64 @@ class DockPreferencesTest {
         }
 
     @Test
+    fun `moveNav swaps an id with its right-hand visible neighbor`() =
+        runTest {
+            val store = DockPreferences(ApplicationProvider.getApplicationContext())
+            store.resetToDefaults()
+
+            store.moveNav(DockNavId.MUSIC, 1)
+
+            assertEquals(
+                listOf(
+                    DockNavId.PHONE,
+                    DockNavId.APPS,
+                    DockNavId.NAVIGATION,
+                    DockNavId.MUSIC,
+                    DockNavId.BROWSER,
+                    DockNavId.ASSISTANT,
+                    DockNavId.SETTINGS,
+                ),
+                store.navOrder.first(),
+            )
+        }
+
+    @Test
+    fun `moveNav is a no-op at the visible edge`() =
+        runTest {
+            val store = DockPreferences(ApplicationProvider.getApplicationContext())
+            store.resetToDefaults()
+
+            store.moveNav(DockNavId.PHONE, -1)
+
+            assertEquals(DockNavId.entries, store.navOrder.first())
+        }
+
+    @Test
+    fun `moveNav skips over a hidden id, which keeps its own slot`() =
+        runTest {
+            val store = DockPreferences(ApplicationProvider.getApplicationContext())
+            store.resetToDefaults()
+            store.toggleNavHidden(DockNavId.APPS)
+
+            // Visible order is PHONE, MUSIC, NAVIGATION, ...; PHONE's right-hand
+            // visible neighbor is MUSIC, not the hidden APPS between them.
+            store.moveNav(DockNavId.PHONE, 1)
+
+            assertEquals(
+                listOf(
+                    DockNavId.MUSIC,
+                    DockNavId.APPS,
+                    DockNavId.PHONE,
+                    DockNavId.NAVIGATION,
+                    DockNavId.BROWSER,
+                    DockNavId.ASSISTANT,
+                    DockNavId.SETTINGS,
+                ),
+                store.navOrder.first(),
+            )
+        }
+
+    @Test
     fun `setStatusOrder replaces the persisted status order wholesale`() =
         runTest {
             val store = DockPreferences(ApplicationProvider.getApplicationContext())
@@ -86,6 +144,37 @@ class DockPreferencesTest {
         }
 
     @Test
+    fun `moveStatus swaps an id with its right-hand visible neighbor`() =
+        runTest {
+            val store = DockPreferences(ApplicationProvider.getApplicationContext())
+            store.resetToDefaults()
+
+            store.moveStatus(DockStatusId.WIFI, 1)
+
+            assertEquals(
+                listOf(
+                    DockStatusId.CELLULAR,
+                    DockStatusId.BLUETOOTH,
+                    DockStatusId.WIFI,
+                    DockStatusId.GPS,
+                    DockStatusId.BATTERY,
+                ),
+                store.statusOrder.first(),
+            )
+        }
+
+    @Test
+    fun `moveStatus is a no-op at the visible edge`() =
+        runTest {
+            val store = DockPreferences(ApplicationProvider.getApplicationContext())
+            store.resetToDefaults()
+
+            store.moveStatus(DockStatusId.BATTERY, 1)
+
+            assertEquals(DockStatusId.entries, store.statusOrder.first())
+        }
+
+    @Test
     fun `resetToDefaults restores a mutated store to its factory defaults`() =
         runTest {
             val store = DockPreferences(ApplicationProvider.getApplicationContext())
@@ -105,6 +194,39 @@ class DockPreferencesTest {
             assertEquals(DockStatusId.entries, store.statusOrder.first())
             assertEquals(emptySet(), store.statusHidden.first())
         }
+}
+
+// Pure list-permutation logic, independent of DataStore / Robolectric — the
+// DockPreferencesTest.moveNav / moveStatus cases above cover the same
+// behavior through the atomic read-modify-write.
+class MoveWithinVisibleTest {
+    private val order = listOf("a", "b", "c", "d")
+
+    @Test
+    fun `swaps an id with its right-hand visible neighbor`() =
+        assertEquals(listOf("a", "c", "b", "d"), moveWithinVisible(order, emptySet(), "b", 1))
+
+    @Test
+    fun `swaps an id with its left-hand visible neighbor`() =
+        assertEquals(listOf("a", "c", "b", "d"), moveWithinVisible(order, emptySet(), "c", -1))
+
+    @Test
+    fun `is a no-op when the id is already the first visible entry`() =
+        assertEquals(order, moveWithinVisible(order, emptySet(), "a", -1))
+
+    @Test
+    fun `is a no-op when the id is already the last visible entry`() =
+        assertEquals(order, moveWithinVisible(order, emptySet(), "d", 1))
+
+    @Test
+    fun `is a no-op when the id is missing from the order`() =
+        assertEquals(order, moveWithinVisible(order, emptySet(), "z", 1))
+
+    @Test
+    fun `a hidden id between two visible ids keeps its own slot`() =
+        // "b" is hidden; "a" moving right swaps with its next VISIBLE neighbor
+        // "c", not the hidden "b" sitting between them.
+        assertEquals(listOf("c", "b", "a", "d"), moveWithinVisible(order, setOf("b"), "a", 1))
 }
 
 class ResolveDockOrderTest {

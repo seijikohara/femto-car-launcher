@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.testfixtures
 import io.github.seijikohara.femto.data.dock.DockNavId
 import io.github.seijikohara.femto.data.dock.DockSettingsStore
 import io.github.seijikohara.femto.data.dock.DockStatusId
+import io.github.seijikohara.femto.data.dock.moveWithinVisible
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -32,12 +33,26 @@ internal class FakeDockSettingsStore : DockSettingsStore {
         navHiddenState.update { if (id in it) it - id else it + id }
     }
 
+    override suspend fun moveNav(
+        id: DockNavId,
+        direction: Int,
+    ) {
+        navOrderState.update { moveWithinVisible(it, navHiddenState.value, id, direction) }
+    }
+
     override suspend fun setStatusOrder(value: List<DockStatusId>) {
         statusOrderState.value = value
     }
 
     override suspend fun toggleStatusHidden(id: DockStatusId) {
         statusHiddenState.update { if (id in it) it - id else it + id }
+    }
+
+    override suspend fun moveStatus(
+        id: DockStatusId,
+        direction: Int,
+    ) {
+        statusOrderState.update { moveWithinVisible(it, statusHiddenState.value, id, direction) }
     }
 
     override suspend fun resetToDefaults() {

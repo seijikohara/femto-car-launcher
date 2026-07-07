@@ -244,6 +244,26 @@ internal class HomeViewModel(
             is HomeAction.SetPassengerUnlock -> {
                 passengerUnlock.value = action.unlocked
             }
+
+            is HomeAction.MoveDockNav -> {
+                mutableEvents.tryEmit(HomeEvent.MoveDockNav(action.id, action.direction))
+            }
+
+            is HomeAction.HideDockNav -> {
+                mutableEvents.tryEmit(HomeEvent.HideDockNav(action.id))
+            }
+
+            is HomeAction.MoveDockStatus -> {
+                mutableEvents.tryEmit(HomeEvent.MoveDockStatus(action.id, action.direction))
+            }
+
+            is HomeAction.HideDockStatus -> {
+                mutableEvents.tryEmit(HomeEvent.HideDockStatus(action.id))
+            }
+
+            HomeAction.ResetDock -> {
+                mutableEvents.tryEmit(HomeEvent.ResetDock)
+            }
         }
     }
 }

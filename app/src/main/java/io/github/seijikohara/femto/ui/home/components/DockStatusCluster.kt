@@ -1,6 +1,8 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -8,9 +10,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -36,6 +44,7 @@ import com.composables.icons.lucide.WifiZero
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.dock.DockStatusId
 import io.github.seijikohara.femto.data.system.SystemStatus
+import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.TabularFigures
@@ -49,11 +58,26 @@ internal fun StatusCluster(
     // its declared order (today's factory cluster) so an omitted argument
     // renders byte-identical to before this parameter existed.
     order: List<DockStatusId> = DockStatusId.entries,
+    // Dispatches the long-press edit menu's Move/Hide/Reset actions; the
+    // default no-op keeps every caller that has nothing to wire (there is
+    // none left in production, but a stray preview or test) compiling.
+    onAction: (HomeAction) -> Unit = {},
 ) {
     // One content slot rendered into either axis container, so the indicator set
     // and order stay identical between the horizontal bar and the vertical rail.
     val indicators: @Composable () -> Unit = {
-        order.forEach { id -> StatusIndicator(id, status) }
+        order.forEachIndexed { index, id ->
+            key(id) {
+                EditableStatusIndicator(
+                    id = id,
+                    status = status,
+                    canMoveLeft = index > 0,
+                    canMoveRight = index < order.lastIndex,
+                    canHide = order.size > 1,
+                    onAction = onAction,
+                )
+            }
+        }
     }
     if (vertical) {
         Column(
@@ -71,6 +95,48 @@ internal fun StatusCluster(
         ) {
             indicators()
         }
+    }
+}
+
+/**
+ * Wraps one status indicator's rendered content with the long-press dock-edit
+ * menu ([DockEditMenu], shared with the dock's nav buttons — Move left / Move
+ * right / Hide / Reset dock). Status icons are read-only at rest — a tap does
+ * nothing — so the long press is wired via a raw [detectTapGestures] rather
+ * than `combinedClickable`: the latter would add a "double-tap to activate"
+ * semantics action for a control with no click behavior, a dead affordance for
+ * a screen reader. CELLULAR renders nothing when hidden on a telephony-less
+ * unit (see [StatusIndicator]), leaving a zero-size Box with nothing to
+ * long-press — consistent with today's absence, not a new empty tap target.
+ */
+@Composable
+private fun EditableStatusIndicator(
+    id: DockStatusId,
+    status: SystemStatus,
+    canMoveLeft: Boolean,
+    canMoveRight: Boolean,
+    canHide: Boolean,
+    onAction: (HomeAction) -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Box(
+        modifier =
+            Modifier.pointerInput(id) {
+                detectTapGestures(onLongPress = { menuOpen = true })
+            },
+    ) {
+        StatusIndicator(id, status)
+        DockEditMenu(
+            expanded = menuOpen,
+            onDismiss = { menuOpen = false },
+            canMoveLeft = canMoveLeft,
+            canMoveRight = canMoveRight,
+            canHide = canHide,
+            onMoveLeft = { onAction(HomeAction.MoveDockStatus(id, -1)) },
+            onMoveRight = { onAction(HomeAction.MoveDockStatus(id, 1)) },
+            onHide = { onAction(HomeAction.HideDockStatus(id)) },
+            onResetDock = { onAction(HomeAction.ResetDock) },
+        )
     }
 }
 

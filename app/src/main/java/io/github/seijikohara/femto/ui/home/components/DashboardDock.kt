@@ -1,6 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -20,6 +20,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -259,14 +264,17 @@ private fun HorizontalDock(
                         // Each button takes an equal weight so the nav row shares the
                         // width and shrinks toward FemtoDimens.MinTouchTarget instead of
                         // clipping when the row is narrow.
-                        visibleNav.forEach { id ->
-                            val spec = navSpecFor(id)
-                            NavButton(
-                                icon = spec.icon,
-                                description = stringResource(spec.labelRes),
-                                onClick = { onAction(spec.action) },
-                                modifier = Modifier.weight(1f),
-                            )
+                        visibleNav.forEachIndexed { index, id ->
+                            key(id) {
+                                EditableNavButton(
+                                    id = id,
+                                    canMoveLeft = index > 0,
+                                    canMoveRight = index < visibleNav.lastIndex,
+                                    canHide = visibleNav.size > 1,
+                                    onAction = onAction,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
                         }
                         // The passenger-unlock toggle joins the weighted row as an extra
                         // equal-share element — never a fixed-width sibling outside it —
@@ -291,6 +299,7 @@ private fun HorizontalDock(
                         status = systemStatus,
                         vertical = false,
                         order = dockConfig.visibleStatus,
+                        onAction = onAction,
                         modifier = Modifier.padding(start = 20.dp),
                     )
                 }
@@ -355,14 +364,17 @@ private fun VerticalDock(
                     ) {
                         // The same equal-weight sharing as the horizontal bar, on the
                         // height instead of the width.
-                        visibleNav.forEach { id ->
-                            val spec = navSpecFor(id)
-                            NavButton(
-                                icon = spec.icon,
-                                description = stringResource(spec.labelRes),
-                                onClick = { onAction(spec.action) },
-                                modifier = Modifier.weight(1f),
-                            )
+                        visibleNav.forEachIndexed { index, id ->
+                            key(id) {
+                                EditableNavButton(
+                                    id = id,
+                                    canMoveLeft = index > 0,
+                                    canMoveRight = index < visibleNav.lastIndex,
+                                    canHide = visibleNav.size > 1,
+                                    onAction = onAction,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
                         }
                         // The passenger-unlock toggle joins the weighted column as an
                         // extra equal-share element — see the horizontal bar's matching
@@ -383,6 +395,7 @@ private fun VerticalDock(
                         status = systemStatus,
                         vertical = true,
                         order = dockConfig.visibleStatus,
+                        onAction = onAction,
                         modifier = Modifier.padding(top = 20.dp),
                     )
                 }
@@ -423,7 +436,12 @@ private fun NavButton(
     description: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
     tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    // A long-press-triggered popup (the dock's edit menu) anchored to this same
+    // Box, so callers with nothing to attach (PassengerToggleButton) render
+    // byte-identical to before this parameter existed.
+    menu: @Composable () -> Unit = {},
 ) = Box(
     // The minimum floor keeps every tap target legal in both orientations; the
     // hosting bar / rail stretches the free axis through the weight.
@@ -431,7 +449,7 @@ private fun NavButton(
         modifier
             .defaultMinSize(minWidth = FemtoDimens.MinTouchTarget, minHeight = FemtoDimens.MinTouchTarget)
             .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
+            .combinedClickable(onLongClick = onLongClick, onClick = onClick)
             .semantics { contentDescription = description },
     contentAlignment = Alignment.Center,
 ) {
@@ -440,6 +458,50 @@ private fun NavButton(
         contentDescription = null,
         tint = tint,
         modifier = Modifier.size(26.dp),
+    )
+    menu()
+}
+
+/**
+ * A dock nav button wired for in-place editing: a normal tap still dispatches
+ * [id]'s launch action ([navSpecFor]); a long press opens [DockEditMenu] —
+ * Move left / Move right (swap [id] one step within the visible nav order) and
+ * Hide (drop it), governed by [canMoveLeft] / [canMoveRight] / [canHide] from
+ * the caller's position in the visible list, plus the always-present Reset
+ * dock. `combinedClickable` (not a second gesture detector layered over the
+ * tap) is the reliable tap-vs-long-press split here — see [NavButton] — so the
+ * gesture never leaks through to the map behind or fires a spurious launch.
+ */
+@Composable
+private fun EditableNavButton(
+    id: DockNavId,
+    canMoveLeft: Boolean,
+    canMoveRight: Boolean,
+    canHide: Boolean,
+    onAction: (HomeAction) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val spec = navSpecFor(id)
+    var menuOpen by remember { mutableStateOf(false) }
+    NavButton(
+        icon = spec.icon,
+        description = stringResource(spec.labelRes),
+        onClick = { onAction(spec.action) },
+        modifier = modifier,
+        onLongClick = { menuOpen = true },
+        menu = {
+            DockEditMenu(
+                expanded = menuOpen,
+                onDismiss = { menuOpen = false },
+                canMoveLeft = canMoveLeft,
+                canMoveRight = canMoveRight,
+                canHide = canHide,
+                onMoveLeft = { onAction(HomeAction.MoveDockNav(id, -1)) },
+                onMoveRight = { onAction(HomeAction.MoveDockNav(id, 1)) },
+                onHide = { onAction(HomeAction.HideDockNav(id)) },
+                onResetDock = { onAction(HomeAction.ResetDock) },
+            )
+        },
     )
 }
 

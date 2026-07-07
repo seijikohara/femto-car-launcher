@@ -66,6 +66,35 @@ internal inline fun <reified T : Enum<T>> resolveDockHidden(persisted: Set<Strin
         ?.toSet()
         ?: emptySet()
 
+/**
+ * Swap [id] one step toward [direction] (-1 = left/earlier, +1 = right/later)
+ * within the VISIBLE order — [order] with [hidden] filtered out — and return
+ * the resulting full order. The two visible ids trade places; every hidden id
+ * keeps its own slot in [order] exactly where it was, so a hidden id sitting
+ * between them is unaffected. A no-op (returns [order] unchanged) when [id] is
+ * missing from [order] or already at the visible edge in that direction —
+ * the caller (the dock's long-press menu) is expected to omit the Move item
+ * in that case, so this is a defensive fallback, not the primary guard.
+ */
+internal fun <T> moveWithinVisible(
+    order: List<T>,
+    hidden: Set<T>,
+    id: T,
+    direction: Int,
+): List<T> {
+    val visible = order.filterNot { it in hidden }
+    val fromVisibleIndex = visible.indexOf(id)
+    val toVisibleIndex = fromVisibleIndex + direction
+    if (fromVisibleIndex == -1 || toVisibleIndex !in visible.indices) return order
+    val neighbor = visible[toVisibleIndex]
+    val fromIndex = order.indexOf(id)
+    val neighborIndex = order.indexOf(neighbor)
+    return order.toMutableList().apply {
+        this[fromIndex] = neighbor
+        this[neighborIndex] = id
+    }
+}
+
 private val Context.dockDataStore: DataStore<Preferences> by preferencesDataStore(name = "dock_preferences")
 
 private const val TAG = "DockPreferences"
@@ -88,11 +117,23 @@ internal interface DockSettingsStore {
     /** Hide [id] if currently shown, show it again if currently hidden. */
     suspend fun toggleNavHidden(id: DockNavId)
 
+    /** Swap [id] one step left/earlier (-1) or right/later (+1) within the visible nav order. */
+    suspend fun moveNav(
+        id: DockNavId,
+        direction: Int,
+    )
+
     /** Replace the status-indicator order wholesale. */
     suspend fun setStatusOrder(value: List<DockStatusId>)
 
     /** Hide [id] if currently shown, show it again if currently hidden. */
     suspend fun toggleStatusHidden(id: DockStatusId)
+
+    /** Swap [id] one step left/earlier (-1) or right/later (+1) within the visible status order. */
+    suspend fun moveStatus(
+        id: DockStatusId,
+        direction: Int,
+    )
 
     /** Restore the nav and status order/hidden sets to their factory defaults. */
     suspend fun resetToDefaults()
@@ -135,6 +176,18 @@ internal class DockPreferences(
         }
     }
 
+    override suspend fun moveNav(
+        id: DockNavId,
+        direction: Int,
+    ) {
+        context.dockDataStore.editOrLog(TAG) { prefs ->
+            val order = resolveDockOrder<DockNavId>(prefs[NAV_ORDER_KEY])
+            val hidden = resolveDockHidden<DockNavId>(prefs[NAV_HIDDEN_KEY])
+            prefs[NAV_ORDER_KEY] =
+                moveWithinVisible(order, hidden, id, direction).joinToString(ORDER_SEPARATOR) { it.name }
+        }
+    }
+
     override suspend fun setStatusOrder(value: List<DockStatusId>) {
         context.dockDataStore.editOrLog(TAG) {
             it[STATUS_ORDER_KEY] = value.joinToString(ORDER_SEPARATOR) { id -> id.name }
@@ -146,6 +199,18 @@ internal class DockPreferences(
             val current = resolveDockHidden<DockStatusId>(prefs[STATUS_HIDDEN_KEY])
             val updated = if (id in current) current - id else current + id
             prefs[STATUS_HIDDEN_KEY] = updated.mapTo(mutableSetOf()) { it.name }
+        }
+    }
+
+    override suspend fun moveStatus(
+        id: DockStatusId,
+        direction: Int,
+    ) {
+        context.dockDataStore.editOrLog(TAG) { prefs ->
+            val order = resolveDockOrder<DockStatusId>(prefs[STATUS_ORDER_KEY])
+            val hidden = resolveDockHidden<DockStatusId>(prefs[STATUS_HIDDEN_KEY])
+            prefs[STATUS_ORDER_KEY] =
+                moveWithinVisible(order, hidden, id, direction).joinToString(ORDER_SEPARATOR) { it.name }
         }
     }
 
