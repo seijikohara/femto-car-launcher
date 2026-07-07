@@ -94,9 +94,11 @@ internal fun Header(
 internal fun SettingsSection(
     title: String,
     modifier: Modifier = Modifier,
+    onReset: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
+    var resetDialogOpen by remember { mutableStateOf(false) }
     val chevronRotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
         label = "sectionChevron",
@@ -126,6 +128,11 @@ internal fun SettingsSection(
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f),
             )
+            // Only surfaced once expanded, alongside the rows it would reset — the
+            // collapsed header list stays a plain, scannable set of category names.
+            if (expanded && onReset != null) {
+                SectionResetButton(onClick = { resetDialogOpen = true })
+            }
             FemtoIcon(
                 imageVector = Lucide.ChevronDown,
                 contentDescription = null,
@@ -145,6 +152,46 @@ internal fun SettingsSection(
                 Column(content = content)
             }
         }
+    }
+    if (onReset != null && resetDialogOpen) {
+        ResetConfirmDialog(
+            title = stringResource(R.string.settings_reset_section_confirm_title, title),
+            message = stringResource(R.string.settings_reset_section_confirm_message),
+            onConfirm = {
+                onReset()
+                resetDialogOpen = false
+            },
+            onDismiss = { resetDialogOpen = false },
+        )
+    }
+}
+
+// A compact >= MinTouchTarget tap target for the per-section reset affordance,
+// distinct from the header row's expand/collapse toggle. Nesting a separately
+// clickable region inside the (also clickable) header row is the same pattern
+// as a list row hosting a trailing icon button: the inner tap consumes the
+// gesture before it reaches the outer toggle.
+@Composable
+private fun SectionResetButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val description = stringResource(R.string.settings_reset_section)
+    Box(
+        modifier =
+            modifier
+                .size(FemtoDimens.MinTouchTarget)
+                .clip(RoundedCornerShape(percent = 50))
+                .clickable(onClick = onClick)
+                .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        FemtoIcon(
+            imageVector = Lucide.RotateCcw,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(FemtoDimens.InlineIconSize),
+        )
     }
 }
 
@@ -340,6 +387,8 @@ internal fun ResetRow(
     }
     if (dialogOpen) {
         ResetConfirmDialog(
+            title = stringResource(R.string.settings_reset_confirm_title),
+            message = stringResource(R.string.settings_reset_confirm_message),
             onConfirm = {
                 onConfirm()
                 dialogOpen = false
@@ -349,14 +398,19 @@ internal fun ResetRow(
     }
 }
 
+// Shared confirm dialog for both the global reset (ResetRow) and the
+// per-section reset (SettingsSection's SectionResetButton) — title and message
+// vary by caller, the Reset / Cancel actions do not.
 @Composable
 private fun ResetConfirmDialog(
+    title: String,
+    message: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) = AlertDialog(
     onDismissRequest = onDismiss,
-    title = { Text(text = stringResource(R.string.settings_reset_confirm_title)) },
-    text = { Text(text = stringResource(R.string.settings_reset_confirm_message)) },
+    title = { Text(text = title) },
+    text = { Text(text = message) },
     confirmButton = {
         TextButton(onClick = onConfirm) {
             Text(text = stringResource(R.string.settings_reset_confirm))

@@ -24,6 +24,9 @@ internal interface CalendarPreferencesStore {
         id: Long,
         hidden: Boolean,
     )
+
+    /** Restore the hidden-calendar set to its default (empty — every calendar shown). */
+    suspend fun resetToDefaults()
 }
 
 internal class CalendarPreferences(
@@ -46,6 +49,12 @@ internal class CalendarPreferences(
             if (hidden) current.add(id.toString()) else current.remove(id.toString())
             prefs[HIDDEN_IDS_KEY] = current
         }
+    }
+
+    // Clearing the key makes the read path above fall back to an empty set
+    // (every calendar shown), mirroring DisplayPreferences.resetToDefaults.
+    override suspend fun resetToDefaults() {
+        context.calendarDataStore.editOrLog(TAG) { it.clear() }
     }
 
     private companion object {

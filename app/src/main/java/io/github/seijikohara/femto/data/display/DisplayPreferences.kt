@@ -16,7 +16,10 @@ import kotlinx.coroutines.flow.map
 
 private const val TAG = "DisplayPreferences"
 
-private val Context.displayDataStore: DataStore<Preferences> by preferencesDataStore(name = "display_preferences")
+// Internal (not private): DisplayPreferencesTest reads the raw persisted key
+// set off this same DataStore instance to validate ALL_KEYS against reality,
+// rather than against another hand-typed set.
+internal val Context.displayDataStore: DataStore<Preferences> by preferencesDataStore(name = "display_preferences")
 
 /**
  * Read/write surface for [DisplaySettings]. [DisplayPreferences] is the
@@ -29,13 +32,6 @@ internal interface DisplaySettingsStore {
     suspend fun setThemeMode(value: ThemeMode)
 
     suspend fun setAccentColor(value: AccentColor)
-
-    /**
-     * Apply a [ThemePreset]'s look bundle (accent + both map colour schemes) in one
-     * atomic write, so the dashboard restyles without flickering through an
-     * intermediate state of half-applied fields.
-     */
-    suspend fun applyThemePreset(preset: ThemePreset)
 
     suspend fun setUiScale(value: UiScale)
 
@@ -131,6 +127,14 @@ internal interface DisplaySettingsStore {
 
     suspend fun setGoogleMapsTraffic(value: Boolean)
 
+    /**
+     * Remove exactly [keys] so their read falls back to [DisplaySettings.Default]
+     * for those fields only, leaving every other persisted field untouched.
+     * [SettingsSectionId]'s "reset this section" affordance drives this with
+     * one section's [SettingsSectionId.displayKeys].
+     */
+    suspend fun resetKeys(keys: Set<Preferences.Key<*>>)
+
     /** Restore every display setting to [DisplaySettings.Default]. */
     suspend fun resetToDefaults()
 }
@@ -202,14 +206,6 @@ internal class DisplayPreferences(
 
     override suspend fun setAccentColor(value: AccentColor) {
         context.displayDataStore.editOrLog(TAG) { it[ACCENT_KEY] = value.name }
-    }
-
-    override suspend fun applyThemePreset(preset: ThemePreset) {
-        context.displayDataStore.editOrLog(TAG) {
-            it[ACCENT_KEY] = preset.accentColor.name
-            it[MAP_SCHEME_LIGHT_KEY] = preset.mapSchemeLight.name
-            it[MAP_SCHEME_DARK_KEY] = preset.mapSchemeDark.name
-        }
     }
 
     override suspend fun setSpeedUnit(value: SpeedUnitSetting) {
@@ -386,6 +382,12 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[GOOGLE_MAPS_TRAFFIC_KEY] = value }
     }
 
+    // Removing only the given keys makes the read path above fall back to its
+    // per-field defaults for exactly those fields; every other key is left as-is.
+    override suspend fun resetKeys(keys: Set<Preferences.Key<*>>) {
+        context.displayDataStore.editOrLog(TAG) { prefs -> keys.forEach { prefs.remove(it) } }
+    }
+
     // Clearing every key makes the read path above fall back to its per-field
     // defaults, which are kept identical to DisplaySettings.Default — so a reset
     // restores the defaults without duplicating the default literals here.
@@ -393,7 +395,11 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it.clear() }
     }
 
-    private companion object {
+    // Internal (not private): SettingsSectionId groups these same key instances
+    // into per-section reset sets, and test fixtures reset individual fields by
+    // key — both need to reference the exact singletons declared here, the SSOT
+    // for a persisted field's key.
+    internal companion object {
         val THEME_KEY = stringPreferencesKey("theme_mode")
         val ACCENT_KEY = stringPreferencesKey("accent_color")
         val UI_SCALE_KEY = stringPreferencesKey("ui_scale")
@@ -437,5 +443,63 @@ internal class DisplayPreferences(
         val GOOGLE_MAPS_MAP_ID_KEY = stringPreferencesKey("google_maps_map_id")
         val GOOGLE_MAPS_MAP_TYPE_KEY = stringPreferencesKey("google_maps_map_type")
         val GOOGLE_MAPS_TRAFFIC_KEY = booleanPreferencesKey("google_maps_traffic")
+
+        /**
+         * Every key persisted above, declared once right beside them.
+         *
+         * Two drift guards depend on this set, since both compare against it
+         * rather than restating it: `SettingsSectionIdTest` compares it against
+         * the union of every [SettingsSectionId]'s [SettingsSectionId.displayKeys]
+         * (a key added here without a section assignment fails that test), and
+         * `DisplayPreferencesTest` compares it against the real DataStore's
+         * persisted keys after writing through every setter (a setter added
+         * without a matching entry here — or vice versa — fails that test).
+         */
+        val ALL_KEYS: Set<Preferences.Key<*>> =
+            setOf(
+                THEME_KEY,
+                ACCENT_KEY,
+                UI_SCALE_KEY,
+                SPEED_KEY,
+                TEMPERATURE_KEY,
+                CLOCK_KEY,
+                SHOW_CLOCK_SECONDS_KEY,
+                FULLSCREEN_KEY,
+                DOCK_POSITION_KEY,
+                DRIVER_SIDE_KEY,
+                PRESET_MODE_KEY,
+                DRIVING_THRESHOLD_KMH_KEY,
+                MOTION_TIER_KEY,
+                ORIENTATION_KEY,
+                BRIEFING_SHOW_EVENT_KEY,
+                BRIEFING_SHOW_WEATHER_KEY,
+                KEEP_SCREEN_ON_KEY,
+                ASSISTANT_LAUNCH_KEY,
+                MAP_STYLE_KEY,
+                MAP_SCHEME_LIGHT_KEY,
+                MAP_SCHEME_DARK_KEY,
+                MAP_TILT_KEY,
+                MAP_ZOOM_KEY,
+                MAP_NORTH_UP_KEY,
+                MAP_MARKER_POS_KEY,
+                MAP_3D_BUILDINGS_KEY,
+                MAP_TERRAIN_KEY,
+                GLASS_BLUR_KEY,
+                GLASS_TINT_KEY,
+                SHOW_CALENDAR_KEY,
+                SHOW_WEATHER_KEY,
+                SHOW_MUSIC_KEY,
+                MUSIC_SPECTRUM_KEY,
+                MUSIC_SHOW_ALBUM_KEY,
+                MUSIC_SHOW_ART_KEY,
+                MAP_BACKEND_KEY,
+                MAPBOX_STYLE_KEY,
+                MAPBOX_TRAFFIC_KEY,
+                MAPBOX_ACCESS_TOKEN_KEY,
+                GOOGLE_MAPS_API_KEY_KEY,
+                GOOGLE_MAPS_MAP_ID_KEY,
+                GOOGLE_MAPS_MAP_TYPE_KEY,
+                GOOGLE_MAPS_TRAFFIC_KEY,
+            )
     }
 }

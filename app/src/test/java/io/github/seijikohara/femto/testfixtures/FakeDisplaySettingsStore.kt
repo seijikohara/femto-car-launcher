@@ -1,8 +1,10 @@
 package io.github.seijikohara.femto.testfixtures
 
+import androidx.datastore.preferences.core.Preferences
 import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
+import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DisplaySettingsStore
 import io.github.seijikohara.femto.data.display.DockPosition
@@ -21,7 +23,6 @@ import io.github.seijikohara.femto.data.display.PresetMode
 import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
-import io.github.seijikohara.femto.data.display.ThemePreset
 import io.github.seijikohara.femto.data.display.UiScale
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,15 +44,6 @@ internal class FakeDisplaySettingsStore(
     override suspend fun setAccentColor(value: AccentColor) = state.update { it.copy(accentColor = value) }
 
     override suspend fun setUiScale(value: UiScale) = state.update { it.copy(uiScale = value) }
-
-    override suspend fun applyThemePreset(preset: ThemePreset) =
-        state.update {
-            it.copy(
-                accentColor = preset.accentColor,
-                mapSchemeLight = preset.mapSchemeLight,
-                mapSchemeDark = preset.mapSchemeDark,
-            )
-        }
 
     override suspend fun setSpeedUnit(value: SpeedUnitSetting) = state.update { it.copy(speedUnit = value) }
 
@@ -147,5 +139,66 @@ internal class FakeDisplaySettingsStore(
 
     override suspend fun setGoogleMapsTraffic(value: Boolean) = state.update { it.copy(googleMapsTraffic = value) }
 
+    // Mirrors DisplayPreferences.resetKeys field-by-field: the real store simply
+    // removes the DataStore key and lets its per-field read fallback (kept
+    // identical to DisplaySettings.Default) do the work, but this in-memory fake
+    // holds a fully-resolved DisplaySettings with no notion of an absent key, so
+    // each key needs an explicit reset-to-Default mapping here.
+    override suspend fun resetKeys(keys: Set<Preferences.Key<*>>) {
+        val default = DisplaySettings.Default
+        state.update { current -> keys.fold(current) { acc, key -> acc.resetField(key, default) } }
+    }
+
     override suspend fun resetToDefaults() = state.update { DisplaySettings.Default }
+
+    private fun DisplaySettings.resetField(
+        key: Preferences.Key<*>,
+        default: DisplaySettings,
+    ): DisplaySettings =
+        when (key) {
+            DisplayPreferences.THEME_KEY -> copy(themeMode = default.themeMode)
+            DisplayPreferences.ACCENT_KEY -> copy(accentColor = default.accentColor)
+            DisplayPreferences.UI_SCALE_KEY -> copy(uiScale = default.uiScale)
+            DisplayPreferences.SPEED_KEY -> copy(speedUnit = default.speedUnit)
+            DisplayPreferences.TEMPERATURE_KEY -> copy(temperatureUnit = default.temperatureUnit)
+            DisplayPreferences.CLOCK_KEY -> copy(clock = default.clock)
+            DisplayPreferences.SHOW_CLOCK_SECONDS_KEY -> copy(showClockSeconds = default.showClockSeconds)
+            DisplayPreferences.FULLSCREEN_KEY -> copy(fullscreen = default.fullscreen)
+            DisplayPreferences.DOCK_POSITION_KEY -> copy(dockPosition = default.dockPosition)
+            DisplayPreferences.DRIVER_SIDE_KEY -> copy(driverSide = default.driverSide)
+            DisplayPreferences.PRESET_MODE_KEY -> copy(presetMode = default.presetMode)
+            DisplayPreferences.DRIVING_THRESHOLD_KMH_KEY -> copy(drivingThresholdKmh = default.drivingThresholdKmh)
+            DisplayPreferences.MOTION_TIER_KEY -> copy(motionTier = default.motionTier)
+            DisplayPreferences.ORIENTATION_KEY -> copy(orientation = default.orientation)
+            DisplayPreferences.BRIEFING_SHOW_EVENT_KEY -> copy(briefingShowEvent = default.briefingShowEvent)
+            DisplayPreferences.BRIEFING_SHOW_WEATHER_KEY -> copy(briefingShowWeather = default.briefingShowWeather)
+            DisplayPreferences.KEEP_SCREEN_ON_KEY -> copy(keepScreenOn = default.keepScreenOn)
+            DisplayPreferences.ASSISTANT_LAUNCH_KEY -> copy(assistantLaunch = default.assistantLaunch)
+            DisplayPreferences.MAP_STYLE_KEY -> copy(mapStyle = default.mapStyle)
+            DisplayPreferences.MAP_SCHEME_LIGHT_KEY -> copy(mapSchemeLight = default.mapSchemeLight)
+            DisplayPreferences.MAP_SCHEME_DARK_KEY -> copy(mapSchemeDark = default.mapSchemeDark)
+            DisplayPreferences.MAP_TILT_KEY -> copy(mapTiltDeg = default.mapTiltDeg)
+            DisplayPreferences.MAP_ZOOM_KEY -> copy(mapZoom = default.mapZoom)
+            DisplayPreferences.MAP_NORTH_UP_KEY -> copy(mapNorthUp = default.mapNorthUp)
+            DisplayPreferences.MAP_MARKER_POS_KEY -> copy(mapMarkerPos = default.mapMarkerPos)
+            DisplayPreferences.MAP_3D_BUILDINGS_KEY -> copy(map3dBuildings = default.map3dBuildings)
+            DisplayPreferences.MAP_TERRAIN_KEY -> copy(mapTerrain = default.mapTerrain)
+            DisplayPreferences.GLASS_BLUR_KEY -> copy(glassBlurRadius = default.glassBlurRadius)
+            DisplayPreferences.GLASS_TINT_KEY -> copy(glassTintScale = default.glassTintScale)
+            DisplayPreferences.SHOW_CALENDAR_KEY -> copy(showCalendar = default.showCalendar)
+            DisplayPreferences.SHOW_WEATHER_KEY -> copy(showWeather = default.showWeather)
+            DisplayPreferences.SHOW_MUSIC_KEY -> copy(showMusic = default.showMusic)
+            DisplayPreferences.MUSIC_SPECTRUM_KEY -> copy(musicSpectrum = default.musicSpectrum)
+            DisplayPreferences.MUSIC_SHOW_ALBUM_KEY -> copy(musicShowAlbum = default.musicShowAlbum)
+            DisplayPreferences.MUSIC_SHOW_ART_KEY -> copy(musicShowArt = default.musicShowArt)
+            DisplayPreferences.MAP_BACKEND_KEY -> copy(mapBackend = default.mapBackend)
+            DisplayPreferences.MAPBOX_STYLE_KEY -> copy(mapboxStyle = default.mapboxStyle)
+            DisplayPreferences.MAPBOX_TRAFFIC_KEY -> copy(mapboxTraffic = default.mapboxTraffic)
+            DisplayPreferences.MAPBOX_ACCESS_TOKEN_KEY -> copy(mapboxAccessToken = default.mapboxAccessToken)
+            DisplayPreferences.GOOGLE_MAPS_API_KEY_KEY -> copy(googleMapsApiKey = default.googleMapsApiKey)
+            DisplayPreferences.GOOGLE_MAPS_MAP_ID_KEY -> copy(googleMapsMapId = default.googleMapsMapId)
+            DisplayPreferences.GOOGLE_MAPS_MAP_TYPE_KEY -> copy(googleMapsMapType = default.googleMapsMapType)
+            DisplayPreferences.GOOGLE_MAPS_TRAFFIC_KEY -> copy(googleMapsTraffic = default.googleMapsTraffic)
+            else -> this
+        }
 }

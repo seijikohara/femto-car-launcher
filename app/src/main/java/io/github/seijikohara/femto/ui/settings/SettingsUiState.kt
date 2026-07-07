@@ -16,10 +16,10 @@ import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.PresetMode
+import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
-import io.github.seijikohara.femto.data.display.ThemePreset
 import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
@@ -151,11 +151,6 @@ internal sealed interface SettingsAction {
 
     data class SetAccentColor(
         val value: AccentColor,
-    ) : SettingsAction
-
-    /** Apply a whole theme preset (accent + both map schemes) at once. */
-    data class ApplyThemePreset(
-        val preset: ThemePreset,
     ) : SettingsAction
 
     data class SetUiScale(
@@ -356,6 +351,11 @@ internal sealed interface SettingsAction {
         val hidden: Boolean,
     ) : SettingsAction
 
-    /** Restore every display + font + location setting to its default value. */
+    /** Restore every display + font + location + calendar setting to its default value. */
     data object ResetToDefaults : SettingsAction
+
+    /** Restore only [sectionId]'s own settings (and any store it owns) to their default value. */
+    data class ResetSection(
+        val sectionId: SettingsSectionId,
+    ) : SettingsAction
 }

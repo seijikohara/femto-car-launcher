@@ -132,4 +132,208 @@ class DisplayPreferencesTest {
             assertEquals(GoogleMapType.HYBRID, settings.googleMapsMapType)
             assertTrue(settings.googleMapsTraffic)
         }
+
+    // One test per section: mutate every field away from Default, resetKeys()
+    // just that section, then assert the whole DisplaySettings equals `mutated`
+    // with only that section's fields folded back to Default — a single
+    // equality that proves both halves at once (its own fields reset, every
+    // other field untouched).
+    @Test
+    fun `resetKeys(APPEARANCE) restores only the appearance fields`() =
+        runTest {
+            val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
+            val mutated = store.mutateAllAwayFromDefault()
+            store.resetKeys(SettingsSectionId.APPEARANCE.displayKeys)
+            val expected =
+                mutated.copy(
+                    themeMode = DisplaySettings.Default.themeMode,
+                    accentColor = DisplaySettings.Default.accentColor,
+                    mapStyle = DisplaySettings.Default.mapStyle,
+                    mapSchemeLight = DisplaySettings.Default.mapSchemeLight,
+                    mapSchemeDark = DisplaySettings.Default.mapSchemeDark,
+                    glassBlurRadius = DisplaySettings.Default.glassBlurRadius,
+                    glassTintScale = DisplaySettings.Default.glassTintScale,
+                )
+            assertEquals(expected, store.settings.first())
+        }
+
+    @Test
+    fun `resetKeys(SCREEN) restores only the screen fields`() =
+        runTest {
+            val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
+            val mutated = store.mutateAllAwayFromDefault()
+            store.resetKeys(SettingsSectionId.SCREEN.displayKeys)
+            val expected =
+                mutated.copy(
+                    uiScale = DisplaySettings.Default.uiScale,
+                    orientation = DisplaySettings.Default.orientation,
+                    fullscreen = DisplaySettings.Default.fullscreen,
+                    keepScreenOn = DisplaySettings.Default.keepScreenOn,
+                    dockPosition = DisplaySettings.Default.dockPosition,
+                    driverSide = DisplaySettings.Default.driverSide,
+                    assistantLaunch = DisplaySettings.Default.assistantLaunch,
+                )
+            assertEquals(expected, store.settings.first())
+        }
+
+    @Test
+    fun `resetKeys(DRIVING) restores only the driving fields`() =
+        runTest {
+            val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
+            val mutated = store.mutateAllAwayFromDefault()
+            store.resetKeys(SettingsSectionId.DRIVING.displayKeys)
+            val expected =
+                mutated.copy(
+                    presetMode = DisplaySettings.Default.presetMode,
+                    drivingThresholdKmh = DisplaySettings.Default.drivingThresholdKmh,
+                    motionTier = DisplaySettings.Default.motionTier,
+                    briefingShowEvent = DisplaySettings.Default.briefingShowEvent,
+                    briefingShowWeather = DisplaySettings.Default.briefingShowWeather,
+                )
+            assertEquals(expected, store.settings.first())
+        }
+
+    @Test
+    fun `resetKeys(UNITS) restores only the unit fields`() =
+        runTest {
+            val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
+            val mutated = store.mutateAllAwayFromDefault()
+            store.resetKeys(SettingsSectionId.UNITS.displayKeys)
+            val expected =
+                mutated.copy(
+                    speedUnit = DisplaySettings.Default.speedUnit,
+                    temperatureUnit = DisplaySettings.Default.temperatureUnit,
+                    clock = DisplaySettings.Default.clock,
+                    showClockSeconds = DisplaySettings.Default.showClockSeconds,
+                )
+            assertEquals(expected, store.settings.first())
+        }
+
+    @Test
+    fun `resetKeys(MAP) restores only the map fields`() =
+        runTest {
+            val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
+            val mutated = store.mutateAllAwayFromDefault()
+            store.resetKeys(SettingsSectionId.MAP.displayKeys)
+            val expected =
+                mutated.copy(
+                    mapBackend = DisplaySettings.Default.mapBackend,
+                    mapboxStyle = DisplaySettings.Default.mapboxStyle,
+                    mapboxTraffic = DisplaySettings.Default.mapboxTraffic,
+                    mapboxAccessToken = DisplaySettings.Default.mapboxAccessToken,
+                    googleMapsApiKey = DisplaySettings.Default.googleMapsApiKey,
+                    googleMapsMapId = DisplaySettings.Default.googleMapsMapId,
+                    googleMapsMapType = DisplaySettings.Default.googleMapsMapType,
+                    googleMapsTraffic = DisplaySettings.Default.googleMapsTraffic,
+                    map3dBuildings = DisplaySettings.Default.map3dBuildings,
+                    mapTerrain = DisplaySettings.Default.mapTerrain,
+                    mapTiltDeg = DisplaySettings.Default.mapTiltDeg,
+                    mapZoom = DisplaySettings.Default.mapZoom,
+                    mapNorthUp = DisplaySettings.Default.mapNorthUp,
+                    mapMarkerPos = DisplaySettings.Default.mapMarkerPos,
+                )
+            assertEquals(expected, store.settings.first())
+        }
+
+    @Test
+    fun `resetKeys(PANELS) restores only the panel fields`() =
+        runTest {
+            val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
+            val mutated = store.mutateAllAwayFromDefault()
+            store.resetKeys(SettingsSectionId.PANELS.displayKeys)
+            val expected =
+                mutated.copy(
+                    showCalendar = DisplaySettings.Default.showCalendar,
+                    showWeather = DisplaySettings.Default.showWeather,
+                    showMusic = DisplaySettings.Default.showMusic,
+                    musicSpectrum = DisplaySettings.Default.musicSpectrum,
+                    musicShowAlbum = DisplaySettings.Default.musicShowAlbum,
+                    musicShowArt = DisplaySettings.Default.musicShowArt,
+                )
+            assertEquals(expected, store.settings.first())
+        }
+
+    // LOCATION owns no DisplayPreferences key (its settings live entirely in the
+    // LOCATION store) — resetKeys(emptySet()) must be a true no-op here.
+    @Test
+    fun `resetKeys(LOCATION) is a no-op on DisplayPreferences`() =
+        runTest {
+            val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
+            val mutated = store.mutateAllAwayFromDefault()
+            store.resetKeys(SettingsSectionId.LOCATION.displayKeys)
+            assertEquals(mutated, store.settings.first())
+        }
+
+    // ALL_KEYS and SettingsSectionIdTest's completeness check are both
+    // hand-typed sets compared against each other — a key omitted from BOTH
+    // would still pass that comparison and silently escape every section's
+    // reset. This test grounds ALL_KEYS in the real persisted surface instead:
+    // it writes through every setter via mutateAllAwayFromDefault(), then reads
+    // the DataStore's actual key set and asserts it is exactly ALL_KEYS. A
+    // setter added for a new field without a matching ALL_KEYS entry leaves an
+    // extra real key behind and fails this equality.
+    @Test
+    fun `every real persisted key exactly equals ALL_KEYS`() =
+        runTest {
+            val context = ApplicationProvider.getApplicationContext<Context>()
+            val store = DisplayPreferences(context)
+            store.mutateAllAwayFromDefault()
+
+            val persistedKeys = context.displayDataStore.data
+                .first()
+                .asMap()
+                .keys
+            assertEquals(DisplayPreferences.ALL_KEYS, persistedKeys)
+        }
+
+    // Sets every persisted field to a value other than DisplaySettings.Default,
+    // shared by every resetKeys(section) precision test above so each test
+    // states only which fields its section owns, not how to mutate all 43.
+    private suspend fun DisplayPreferences.mutateAllAwayFromDefault(): DisplaySettings {
+        resetToDefaults()
+        setThemeMode(ThemeMode.DARK)
+        setAccentColor(AccentColor.TEAL)
+        setUiScale(UiScale.LARGE)
+        setSpeedUnit(SpeedUnitSetting.MILES)
+        setTemperatureUnit(TemperatureUnitSetting.FAHRENHEIT)
+        setClock(ClockSetting.TWENTY_FOUR_HOUR)
+        setShowClockSeconds(true)
+        setFullscreen(FullscreenSetting.OFF)
+        setDockPosition(DockPosition.LEFT)
+        setDriverSide(DriverSide.LEFT)
+        setPresetMode(PresetMode.DRIVING)
+        setDrivingThresholdKmh(30)
+        setMotionTier(MotionTier.OFF)
+        setOrientation(OrientationSetting.PORTRAIT)
+        setBriefingShowEvent(false)
+        setBriefingShowWeather(false)
+        setKeepScreenOn(false)
+        setAssistantLaunch(AssistantLaunchSetting.IN_APP)
+        setMapStyle(MapStyleSetting.DARK)
+        setMapSchemeLight(MapColorScheme.BRIGHT)
+        setMapSchemeDark(MapColorScheme.FIORD)
+        setMapTilt(40)
+        setMapZoom(MAX_MAP_ZOOM)
+        setMapNorthUp(true)
+        setMapMarkerPos(10)
+        setMap3dBuildings(false)
+        setMapTerrain(true)
+        setGlassBlurRadius(5)
+        setGlassTintScale(90)
+        setShowCalendar(false)
+        setShowWeather(false)
+        setShowMusic(false)
+        setMusicSpectrum(true)
+        setMusicShowAlbum(false)
+        setMusicShowArt(false)
+        setMapBackend(MapBackend.MAPBOX)
+        setMapboxStyle(MapboxStyle.SATELLITE)
+        setMapboxTraffic(true)
+        setMapboxAccessToken("pk.mutated")
+        setGoogleMapsApiKey("mutated-key")
+        setGoogleMapsMapId("mutated-id")
+        setGoogleMapsMapType(GoogleMapType.HYBRID)
+        setGoogleMapsTraffic(true)
+        return settings.first()
+    }
 }
