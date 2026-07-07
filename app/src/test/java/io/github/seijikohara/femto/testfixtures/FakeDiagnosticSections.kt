@@ -67,9 +67,12 @@ private fun fakePayload(
         SectionId.NETWORK -> {
             facts(
                 if (issue) {
-                    DiagnosticFact("Online", FactValue.Status("OFFLINE", FactHealth.ERROR))
+                    // Match ConnectivityFactsCollector's real output voice: a
+                    // lowercase "offline" (an uppercase "OFFLINE" reads shoutier
+                    // than every other status value — see StatusRow's KDoc).
+                    DiagnosticFact("Online", FactValue.Status("offline", FactHealth.ERROR))
                 } else {
-                    DiagnosticFact("Online", FactValue.Status("yes (Wi-Fi)", FactHealth.OK))
+                    DiagnosticFact("Online", FactValue.Status("online (Wi-Fi)", FactHealth.OK))
                 },
             )
         }
