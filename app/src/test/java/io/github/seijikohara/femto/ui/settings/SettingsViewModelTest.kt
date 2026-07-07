@@ -18,12 +18,14 @@ import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
 import io.github.seijikohara.femto.data.display.UiScale
+import io.github.seijikohara.femto.data.dock.DockNavId
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.data.fonts.FontSource
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
 import io.github.seijikohara.femto.testfixtures.FakeCalendarPreferencesStore
 import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
+import io.github.seijikohara.femto.testfixtures.FakeDockSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeFontSelectionStore
 import io.github.seijikohara.femto.testfixtures.FakeLocationSettingsStore
 import io.github.seijikohara.femto.testfixtures.fakeCalendarInfo
@@ -49,6 +51,7 @@ class SettingsViewModelTest {
     private val store = FakeDisplaySettingsStore()
     private val fontStore = FakeFontSelectionStore()
     private val locationStore = FakeLocationSettingsStore()
+    private val dockStore = FakeDockSettingsStore()
     private val dispatcher = StandardTestDispatcher()
 
     @Before
@@ -281,6 +284,7 @@ class SettingsViewModelTest {
                     fontStore,
                     locationStore,
                     calendarPrefs,
+                    dockStore,
                     availableCalendars = flowOf(CalendarCatalogState(hasAccess = true, calendars = emptyList())),
                 )
             vm.onAction(SettingsAction.ResetToDefaults)
@@ -404,6 +408,7 @@ class SettingsViewModelTest {
                     fontStore,
                     locationStore,
                     calendarPrefs,
+                    dockStore,
                     availableCalendars = flowOf(CalendarCatalogState(hasAccess = true, calendars = emptyList())),
                 )
             vm.onAction(SettingsAction.SetShowMusic(false))
@@ -563,6 +568,7 @@ class SettingsViewModelTest {
                     fontStore,
                     locationStore,
                     calendarPrefs,
+                    dockStore,
                     availableCalendars =
                         flowOf(
                             CalendarCatalogState(
@@ -621,12 +627,28 @@ class SettingsViewModelTest {
             assertEquals(true, vm.uiState.value.googleMapsTraffic)
         }
 
+    @Test
+    fun `ResetDock restores the dock store to its defaults`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            dockStore.toggleNavHidden(DockNavId.MUSIC)
+            dockStore.setNavOrder(listOf(DockNavId.SETTINGS) + DockNavId.entries.filterNot { it == DockNavId.SETTINGS })
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.ResetDock)
+            advanceUntilIdle()
+
+            assertEquals(DockNavId.entries, dockStore.navOrder.first())
+            assertEquals(emptySet(), dockStore.navHidden.first())
+        }
+
     private fun viewModel() =
         SettingsViewModel(
             store,
             fontStore,
             locationStore,
             FakeCalendarPreferencesStore(),
+            dockStore,
             availableCalendars = flowOf(CalendarCatalogState(hasAccess = true, calendars = emptyList())),
         )
 }

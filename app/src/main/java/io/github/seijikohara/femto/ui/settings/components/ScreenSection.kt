@@ -61,6 +61,16 @@ internal fun ScreenSection(
         selected = uiState.dockPosition,
         onSelect = { onAction(SettingsAction.SetDockPosition(it)) },
     )
+    // Restores the dock's own nav/status order + hidden sets (a separate
+    // DockPreferences store, not this section's DisplaySettings fields), so it
+    // is a standalone action rather than folded into the Screen category's
+    // whole-section reset — see SettingsAction.ResetDock.
+    ResetRow(
+        onConfirm = { onAction(SettingsAction.ResetDock) },
+        title = stringResource(R.string.settings_reset_dock),
+        confirmTitle = stringResource(R.string.settings_reset_dock_confirm_title),
+        confirmMessage = stringResource(R.string.settings_reset_dock_confirm_message),
+    )
     ChoiceRow(
         title = stringResource(R.string.settings_group_assistant),
         options =

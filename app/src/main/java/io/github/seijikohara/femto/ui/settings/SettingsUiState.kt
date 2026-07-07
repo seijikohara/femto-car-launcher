@@ -358,4 +358,15 @@ internal sealed interface SettingsAction {
     data class ResetSection(
         val sectionId: SettingsSectionId,
     ) : SettingsAction
+
+    /**
+     * Restore the dock's nav/status order and hidden sets to their defaults.
+     * A standalone action rather than folded into [ResetSection]: the dock
+     * lives in its own DockPreferences store, not DisplayPreferences, so no
+     * [SettingsSectionId] owns it (mirrors the calendar hidden-ID set, which
+     * IS folded into PANELS' section reset only because that store already
+     * has a section home; the dock's Screen-category placement is a plain
+     * settings row, not a whole-category reset).
+     */
+    data object ResetDock : SettingsAction
 }
