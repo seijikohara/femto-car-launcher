@@ -1,6 +1,8 @@
 package io.github.seijikohara.femto.ui.home
 
 import android.content.ComponentName
+import io.github.seijikohara.femto.data.dock.DockNavId
+import io.github.seijikohara.femto.data.dock.DockStatusId
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
 
@@ -60,4 +62,29 @@ internal sealed interface HomeAction {
     data class SetPassengerUnlock(
         val unlocked: Boolean,
     ) : HomeAction
+
+    /** The dock's long-press menu: swap a nav button one step within the visible order. */
+    data class MoveDockNav(
+        val id: DockNavId,
+        val direction: Int,
+    ) : HomeAction
+
+    /** The dock's long-press menu: drop a nav button from the visible order. */
+    data class HideDockNav(
+        val id: DockNavId,
+    ) : HomeAction
+
+    /** The status cluster's long-press menu: swap an indicator one step within the visible order. */
+    data class MoveDockStatus(
+        val id: DockStatusId,
+        val direction: Int,
+    ) : HomeAction
+
+    /** The status cluster's long-press menu: drop an indicator from the visible order. */
+    data class HideDockStatus(
+        val id: DockStatusId,
+    ) : HomeAction
+
+    /** The dock/status long-press menu's "Reset dock" entry — same recovery path as Settings. */
+    data object ResetDock : HomeAction
 }

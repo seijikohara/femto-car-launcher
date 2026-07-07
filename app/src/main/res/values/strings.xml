@@ -109,6 +109,9 @@
     <string name="nav_assistant">Assistant</string>
     <string name="nav_settings">Settings</string>
 
+    <!-- Dashboard footer: long-press edit menu (nav buttons and status icons share it) -->
+    <string name="dock_hide">Hide</string>
+
     <!-- Dashboard footer: status cluster -->
     <string name="status_cellular_connected">Mobile data connected</string>
     <string name="status_cellular_disconnected">Mobile data disconnected</string>
@@ -392,6 +395,9 @@
     <string name="settings_reset_section">Reset this section</string>
     <string name="settings_reset_section_confirm_title">Reset %1$s?</string>
     <string name="settings_reset_section_confirm_message">This restores every setting in this section to its default value.</string>
+    <string name="settings_reset_dock">Reset dock</string>
+    <string name="settings_reset_dock_confirm_title">Reset the dock?</string>
+    <string name="settings_reset_dock_confirm_message">This restores the dock\'s button order and visibility, and the status icons\' order and visibility, to their defaults.</string>
 
     <!-- Open source licenses sheet -->
     <string name="licenses_title">Open source licenses</string>

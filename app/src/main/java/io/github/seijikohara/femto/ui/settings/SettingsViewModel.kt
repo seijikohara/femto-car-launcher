@@ -14,6 +14,8 @@ import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.DisplaySettingsStore
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.SettingsSectionId
+import io.github.seijikohara.femto.data.dock.DockPreferences
+import io.github.seijikohara.femto.data.dock.DockSettingsStore
 import io.github.seijikohara.femto.data.fonts.FontPreferences
 import io.github.seijikohara.femto.data.fonts.FontSelectionStore
 import io.github.seijikohara.femto.data.location.LocationPreferences
@@ -29,6 +31,7 @@ internal class SettingsViewModel(
     private val fontPreferences: FontSelectionStore,
     private val locationPreferences: LocationSettingsStore,
     private val calendarPreferences: CalendarPreferencesStore,
+    private val dockPreferences: DockSettingsStore,
     availableCalendars: Flow<CalendarCatalogState>,
 ) : ViewModel() {
     val uiState: StateFlow<SettingsUiState> =
@@ -332,6 +335,10 @@ internal class SettingsViewModel(
                         -> Unit
                     }
                 }
+
+                SettingsAction.ResetDock -> {
+                    dockPreferences.resetToDefaults()
+                }
             }
         }
     }
@@ -350,6 +357,7 @@ internal class SettingsViewModelFactory(
             fontPreferences = FontPreferences(application),
             locationPreferences = LocationPreferences(application),
             calendarPreferences = CalendarPreferences(application),
+            dockPreferences = DockPreferences(application),
             availableCalendars = CalendarCatalog(application).availableCalendarsFlow(),
         ) as T
     }

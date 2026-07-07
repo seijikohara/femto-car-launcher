@@ -17,6 +17,7 @@ import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.location.hasFineLocationPermission
 import io.github.seijikohara.femto.ui.home.components.BriefingConfig
+import io.github.seijikohara.femto.ui.home.components.DockConfig
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
 import io.github.seijikohara.femto.ui.home.components.PanelVisibility
@@ -35,6 +36,7 @@ internal fun HomeRoute(
     onEvent: (HomeEvent) -> Unit,
     modifier: Modifier = Modifier,
     dockPosition: DockPosition = DockPosition.BOTTOM,
+    dockConfig: DockConfig = DockConfig(),
     driverSide: DriverSide = DriverSide.RIGHT,
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
@@ -64,6 +66,7 @@ internal fun HomeRoute(
         onAction = viewModel::onAction,
         modifier = modifier,
         dockPosition = dockPosition,
+        dockConfig = dockConfig,
         driverSide = driverSide,
         musicShowAlbum = musicShowAlbum,
         musicShowArt = musicShowArt,

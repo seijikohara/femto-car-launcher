@@ -5,6 +5,8 @@ import android.content.Intent
 import app.cash.turbine.test
 import io.github.seijikohara.femto.data.clock.ClockTick
 import io.github.seijikohara.femto.data.display.PresetMode
+import io.github.seijikohara.femto.data.dock.DockNavId
+import io.github.seijikohara.femto.data.dock.DockStatusId
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
@@ -261,6 +263,51 @@ class HomeViewModelTest {
             stubViewModel().assertEvent(
                 action = HomeAction.ToggleMapNorthUp,
                 expected = HomeEvent.ToggleMapNorthUp,
+            )
+        }
+
+    @Test
+    fun `onAction MoveDockNav emits MoveDockNav with the same id and direction`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.MoveDockNav(DockNavId.MUSIC, -1),
+                expected = HomeEvent.MoveDockNav(DockNavId.MUSIC, -1),
+            )
+        }
+
+    @Test
+    fun `onAction HideDockNav emits HideDockNav for the same id`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.HideDockNav(DockNavId.MUSIC),
+                expected = HomeEvent.HideDockNav(DockNavId.MUSIC),
+            )
+        }
+
+    @Test
+    fun `onAction MoveDockStatus emits MoveDockStatus with the same id and direction`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.MoveDockStatus(DockStatusId.WIFI, 1),
+                expected = HomeEvent.MoveDockStatus(DockStatusId.WIFI, 1),
+            )
+        }
+
+    @Test
+    fun `onAction HideDockStatus emits HideDockStatus for the same id`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.HideDockStatus(DockStatusId.WIFI),
+                expected = HomeEvent.HideDockStatus(DockStatusId.WIFI),
+            )
+        }
+
+    @Test
+    fun `onAction ResetDock emits ResetDock`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.ResetDock,
+                expected = HomeEvent.ResetDock,
             )
         }
 

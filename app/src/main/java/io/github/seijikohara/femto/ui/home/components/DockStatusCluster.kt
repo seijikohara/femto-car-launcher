@@ -1,6 +1,8 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -8,9 +10,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -34,7 +42,9 @@ import com.composables.icons.lucide.WifiHigh
 import com.composables.icons.lucide.WifiLow
 import com.composables.icons.lucide.WifiZero
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.dock.DockStatusId
 import io.github.seijikohara.femto.data.system.SystemStatus
+import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.TabularFigures
@@ -44,59 +54,30 @@ internal fun StatusCluster(
     status: SystemStatus,
     vertical: Boolean,
     modifier: Modifier = Modifier,
+    // The visible indicators in render order; defaults to every DockStatusId in
+    // its declared order (today's factory cluster) so an omitted argument
+    // renders byte-identical to before this parameter existed.
+    order: List<DockStatusId> = DockStatusId.entries,
+    // Dispatches the long-press edit menu's Move/Hide/Reset actions; the
+    // default no-op keeps every caller that has nothing to wire (there is
+    // none left in production, but a stray preview or test) compiling.
+    onAction: (HomeAction) -> Unit = {},
 ) {
     // One content slot rendered into either axis container, so the indicator set
     // and order stay identical between the horizontal bar and the vertical rail.
     val indicators: @Composable () -> Unit = {
-        // Cellular is hidden entirely on telephony-less units (null), rather than
-        // shown permanently disconnected.
-        status.cellularConnected?.let { connected ->
-            val level = status.cellularSignalLevel
-            // Drive the lit state off signal presence when the level is known: on a
-            // Wi-Fi-primary head unit the cellular network repeatedly drops in and out
-            // of NET_CAPABILITY_VALIDATED (Wi-Fi owns the default route), which flickered
-            // the icon. A known SignalStrength.level tracks the radio directly and is
-            // stable; fall back to the validated-connectivity flag only when the level is
-            // unknown (READ_PHONE_STATE withheld).
-            val active = level?.let { it > 0 } ?: connected
-            StatusIcon(
-                // A known level picks the graduated bars; a null level (READ_PHONE_STATE
-                // withheld / no reading yet) degrades to the binary connected icon.
-                icon = level?.let { cellularIconForLevel(it) } ?: Lucide.Signal,
-                active = active,
-                description =
-                    stringResource(
-                        if (active) R.string.status_cellular_connected else R.string.status_cellular_disconnected,
-                    ),
-            )
+        order.forEachIndexed { index, id ->
+            key(id) {
+                EditableStatusIndicator(
+                    id = id,
+                    status = status,
+                    canMoveLeft = index > 0,
+                    canMoveRight = index < order.lastIndex,
+                    canHide = order.size > 1,
+                    onAction = onAction,
+                )
+            }
         }
-        StatusIcon(
-            // The Wi-Fi level is always known once connected; degrade to the binary
-            // icon only when disconnected so a dimmed flat icon reads as "off".
-            icon = if (status.wifiConnected) wifiIconForLevel(status.wifiSignalLevel) else Lucide.Wifi,
-            active = status.wifiConnected,
-            description =
-                stringResource(
-                    if (status.wifiConnected) R.string.status_wifi_connected else R.string.status_wifi_disconnected,
-                ),
-        )
-        StatusIcon(
-            // Off / on / connected each get a distinct glyph: a crossed icon when the
-            // adapter is powered off, the plain glyph when on but unpaired, the linked
-            // glyph when a device is connected.
-            icon = bluetoothIconFor(enabled = status.bluetoothEnabled, connected = status.bluetoothConnected),
-            active = status.bluetoothEnabled,
-            description =
-                stringResource(
-                    when {
-                        status.bluetoothConnected -> R.string.status_bluetooth_connected
-                        status.bluetoothEnabled -> R.string.status_bluetooth_on
-                        else -> R.string.status_bluetooth_off
-                    },
-                ),
-        )
-        GpsIndicator(fixed = status.gpsFixed, satelliteCount = status.gpsSatelliteCount)
-        BatteryIndicator(percent = status.batteryPercent, charging = status.charging)
     }
     if (vertical) {
         Column(
@@ -113,6 +94,123 @@ internal fun StatusCluster(
             horizontalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             indicators()
+        }
+    }
+}
+
+/**
+ * Wraps one status indicator's rendered content with the long-press dock-edit
+ * menu ([DockEditMenu], shared with the dock's nav buttons — Move left / Move
+ * right / Hide / Reset dock). Status icons are read-only at rest — a tap does
+ * nothing — so the long press is wired via a raw [detectTapGestures] rather
+ * than `combinedClickable`: the latter would add a "double-tap to activate"
+ * semantics action for a control with no click behavior, a dead affordance for
+ * a screen reader. CELLULAR renders nothing when hidden on a telephony-less
+ * unit (see [StatusIndicator]), leaving a zero-size Box with nothing to
+ * long-press — consistent with today's absence, not a new empty tap target.
+ */
+@Composable
+private fun EditableStatusIndicator(
+    id: DockStatusId,
+    status: SystemStatus,
+    canMoveLeft: Boolean,
+    canMoveRight: Boolean,
+    canHide: Boolean,
+    onAction: (HomeAction) -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Box(
+        modifier =
+            Modifier.pointerInput(id) {
+                detectTapGestures(onLongPress = { menuOpen = true })
+            },
+    ) {
+        StatusIndicator(id, status)
+        DockEditMenu(
+            expanded = menuOpen,
+            onDismiss = { menuOpen = false },
+            canMoveLeft = canMoveLeft,
+            canMoveRight = canMoveRight,
+            canHide = canHide,
+            onMoveLeft = { onAction(HomeAction.MoveDockStatus(id, -1)) },
+            onMoveRight = { onAction(HomeAction.MoveDockStatus(id, 1)) },
+            onHide = { onAction(HomeAction.HideDockStatus(id)) },
+            onResetDock = { onAction(HomeAction.ResetDock) },
+        )
+    }
+}
+
+// One indicator's content for [id], keyed by DockStatusId so the caller
+// ([StatusCluster]'s order parameter) can reorder or hide indicators
+// independently of this dispatch. CELLULAR renders nothing when the signal is
+// null — hidden entirely on telephony-less units, rather than shown
+// permanently disconnected — mirroring the cluster's original inline check.
+@Composable
+private fun StatusIndicator(
+    id: DockStatusId,
+    status: SystemStatus,
+) {
+    when (id) {
+        DockStatusId.CELLULAR -> {
+            status.cellularConnected?.let { connected ->
+                val level = status.cellularSignalLevel
+                // Drive the lit state off signal presence when the level is known: on a
+                // Wi-Fi-primary head unit the cellular network repeatedly drops in and out
+                // of NET_CAPABILITY_VALIDATED (Wi-Fi owns the default route), which flickered
+                // the icon. A known SignalStrength.level tracks the radio directly and is
+                // stable; fall back to the validated-connectivity flag only when the level is
+                // unknown (READ_PHONE_STATE withheld).
+                val active = level?.let { it > 0 } ?: connected
+                StatusIcon(
+                    // A known level picks the graduated bars; a null level (READ_PHONE_STATE
+                    // withheld / no reading yet) degrades to the binary connected icon.
+                    icon = level?.let { cellularIconForLevel(it) } ?: Lucide.Signal,
+                    active = active,
+                    description =
+                        stringResource(
+                            if (active) R.string.status_cellular_connected else R.string.status_cellular_disconnected,
+                        ),
+                )
+            }
+        }
+
+        DockStatusId.WIFI -> {
+            StatusIcon(
+                // The Wi-Fi level is always known once connected; degrade to the binary
+                // icon only when disconnected so a dimmed flat icon reads as "off".
+                icon = if (status.wifiConnected) wifiIconForLevel(status.wifiSignalLevel) else Lucide.Wifi,
+                active = status.wifiConnected,
+                description =
+                    stringResource(
+                        if (status.wifiConnected) R.string.status_wifi_connected else R.string.status_wifi_disconnected,
+                    ),
+            )
+        }
+
+        DockStatusId.BLUETOOTH -> {
+            StatusIcon(
+                // Off / on / connected each get a distinct glyph: a crossed icon when the
+                // adapter is powered off, the plain glyph when on but unpaired, the linked
+                // glyph when a device is connected.
+                icon = bluetoothIconFor(enabled = status.bluetoothEnabled, connected = status.bluetoothConnected),
+                active = status.bluetoothEnabled,
+                description =
+                    stringResource(
+                        when {
+                            status.bluetoothConnected -> R.string.status_bluetooth_connected
+                            status.bluetoothEnabled -> R.string.status_bluetooth_on
+                            else -> R.string.status_bluetooth_off
+                        },
+                    ),
+            )
+        }
+
+        DockStatusId.GPS -> {
+            GpsIndicator(fixed = status.gpsFixed, satelliteCount = status.gpsSatelliteCount)
+        }
+
+        DockStatusId.BATTERY -> {
+            BatteryIndicator(percent = status.batteryPercent, charging = status.charging)
         }
     }
 }

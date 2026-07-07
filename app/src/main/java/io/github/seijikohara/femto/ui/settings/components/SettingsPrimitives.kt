@@ -361,25 +361,31 @@ internal fun ActionRow(
     TrailingIcon(Lucide.ExternalLink)
 }
 
-// A destructive row: resetting every setting to its default. Tapping opens a
-// confirm dialog — the only destructive action in Settings — so a stray tap on
-// the head unit never wipes the user's configuration.
+// A destructive row: resetting a group of settings to their defaults. Tapping
+// opens a confirm dialog — the only destructive action in Settings — so a
+// stray tap on the head unit never wipes the user's configuration. The three
+// text parameters default to the global "reset every setting" copy (this
+// row's original, single-purpose shape); a caller resetting a narrower group
+// (e.g. the dock) supplies its own row title and confirm-dialog copy.
 @Composable
 internal fun ResetRow(
     onConfirm: () -> Unit,
     modifier: Modifier = Modifier,
+    title: String = stringResource(R.string.settings_reset_to_defaults),
+    confirmTitle: String = stringResource(R.string.settings_reset_confirm_title),
+    confirmMessage: String = stringResource(R.string.settings_reset_confirm_message),
 ) {
     var dialogOpen by remember { mutableStateOf(false) }
     SettingRow(
-        title = stringResource(R.string.settings_reset_to_defaults),
+        title = title,
         modifier = modifier.clickable { dialogOpen = true },
     ) {
         TrailingIcon(Lucide.RotateCcw)
     }
     if (dialogOpen) {
         ResetConfirmDialog(
-            title = stringResource(R.string.settings_reset_confirm_title),
-            message = stringResource(R.string.settings_reset_confirm_message),
+            title = confirmTitle,
+            message = confirmMessage,
             onConfirm = {
                 onConfirm()
                 dialogOpen = false

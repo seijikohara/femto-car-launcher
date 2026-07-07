@@ -1,6 +1,8 @@
 package io.github.seijikohara.femto.ui.home
 
 import android.content.ComponentName
+import io.github.seijikohara.femto.data.dock.DockNavId
+import io.github.seijikohara.femto.data.dock.DockStatusId
 
 /**
  * One-shot side-effect signals emitted by [HomeViewModel] for the host to act on.
@@ -62,4 +64,29 @@ internal sealed interface HomeEvent {
      * the system assistant overlay, or the in-launcher voice sheet.
      */
     data object OpenAssistant : HomeEvent
+
+    /** Persist a nav-button reorder from the dock's long-press menu. */
+    data class MoveDockNav(
+        val id: DockNavId,
+        val direction: Int,
+    ) : HomeEvent
+
+    /** Persist a nav-button hide/show toggle from the dock's long-press menu. */
+    data class HideDockNav(
+        val id: DockNavId,
+    ) : HomeEvent
+
+    /** Persist a status-indicator reorder from the status cluster's long-press menu. */
+    data class MoveDockStatus(
+        val id: DockStatusId,
+        val direction: Int,
+    ) : HomeEvent
+
+    /** Persist a status-indicator hide/show toggle from the status cluster's long-press menu. */
+    data class HideDockStatus(
+        val id: DockStatusId,
+    ) : HomeEvent
+
+    /** Restore the dock's nav/status order and visibility to their factory defaults. */
+    data object ResetDock : HomeEvent
 }
