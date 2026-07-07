@@ -18,9 +18,11 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
  * mirroring [io.github.seijikohara.femto.ui.drawer.AppDrawerSheet]: the dashboard
  * stays composed underneath, so settings read as an overlay the user dismisses by
  * swiping down, tapping the scrim, or the header back button — rather than a
- * full-screen swap. The sheet height is the same viewport fraction as the drawer so
- * the dashboard stays visible behind it. [SettingsRoute] supplies the content inside
- * the height-bounded [Box] so its sections scroll within the sheet.
+ * full-screen swap. The sheet is taller than the drawer's — see
+ * [FemtoDimens.SettingsSheetHeightFraction] — so the master-detail rail / list
+ * and detail pane both have room to breathe. [SettingsRoute] supplies the
+ * content inside the height-bounded [Box] so its category rail / list and
+ * detail pane scroll independently within the sheet.
  *
  * No standalone preview: a [ModalBottomSheet] renders in a popup window Compose
  * previews do not capture, so [SettingsScreen]'s own @PreviewLightDark covers the
@@ -39,7 +41,7 @@ internal fun SettingsSheet(
     fullscreen: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val sheetHeight = rememberSheetHeight(FemtoDimens.DrawerSheetHeightFraction)
+    val sheetHeight = rememberSheetHeight(FemtoDimens.SettingsSheetHeightFraction)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = modifier,
