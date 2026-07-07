@@ -234,6 +234,9 @@
     <string name="font_picker_empty">No fonts available.</string>
     <string name="font_picker_no_matches">No fonts match the search.</string>
     <string name="font_picker_sort_popular">Most popular first</string>
+    <string name="font_picker_installed_header">Installed fonts</string>
+    <string name="font_picker_installed_subtitle">Installed on this device</string>
+    <string name="font_picker_installed_subtitle_cjk">Installed on this device · CJK</string>
     <string name="settings_option_auto">Auto</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>

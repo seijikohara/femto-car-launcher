@@ -19,6 +19,7 @@ import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
 import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.data.fonts.FontSlot
+import io.github.seijikohara.femto.data.fonts.FontSource
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
 import io.github.seijikohara.femto.testfixtures.FakeCalendarPreferencesStore
@@ -293,14 +294,14 @@ class SettingsViewModelTest {
             val vm = viewModel()
             vm.onAction(SettingsAction.SetThemeMode(ThemeMode.DARK))
             vm.onAction(SettingsAction.SetSpeedUnit(SpeedUnitSetting.MILES))
-            fontStore.setFamily(FontSlot.LATIN, "Roboto Slab")
+            fontStore.setSource(FontSlot.LATIN, FontSource.GoogleFonts("Roboto Slab"))
             advanceUntilIdle()
 
             vm.onAction(SettingsAction.ResetSection(SettingsSectionId.APPEARANCE))
             advanceUntilIdle()
 
             assertEquals(ThemeMode.SYSTEM, store.settings.first().themeMode)
-            assertEquals(null, fontStore.selection.first().latinFamily)
+            assertEquals(FontSource.SystemDefault, fontStore.selection.first().latin)
             // Units is a different section — untouched by an Appearance reset.
             assertEquals(SpeedUnitSetting.MILES, store.settings.first().speedUnit)
         }

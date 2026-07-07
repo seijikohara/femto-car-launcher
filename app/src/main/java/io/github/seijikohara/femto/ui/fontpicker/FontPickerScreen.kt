@@ -35,21 +35,27 @@ import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.X
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.fonts.FontSlot
+import io.github.seijikohara.femto.data.fonts.FontSource
 import io.github.seijikohara.femto.data.fonts.GoogleFontFamily
+import io.github.seijikohara.femto.data.fonts.SystemFontFamily
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
 private const val SYSTEM_KEY = "__system__"
+private const val INSTALLED_HEADER_KEY = "__installed_header__"
+private const val CATALOG_HEADER_KEY = "__catalog_header__"
 private const val STATUS_KEY = "__status__"
 
 /**
- * Google Fonts picker for one slot. A search field filters the full catalog
- * (CJK-capable families only for the fallback slot); the leading "system
- * default" entry needs no download. Selecting a family downloads it in the
- * background — the row shows a spinner until the cache is ready, a check once
- * it backs the live theme, and a retry hint when the download failed.
+ * Font picker for one slot: the system default, this device's own installed
+ * fonts, and the full Google Fonts catalog. A search field filters both the
+ * installed list and the catalog (CJK-capable entries only for the fallback
+ * slot). Selecting an installed font resolves instantly straight from disk —
+ * no spinner, no retry hint, unlike a Google family, which downloads in the
+ * background (the row shows a spinner until the cache is ready, a check once
+ * it backs the live theme, and a retry hint when the download failed).
  */
 @Composable
 internal fun FontPickerScreen(
@@ -73,31 +79,41 @@ internal fun FontPickerScreen(
             query = uiState.query,
             onQueryChange = { onAction(FontPickerAction.Search(it)) },
         )
-        // The catalog is served most-popular-first; name the order so it does not
-        // read as arbitrary. Static label — sorting is not user-switchable.
-        Text(
-            text = stringResource(R.string.font_picker_sort_popular),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 4.dp),
-        )
         LazyColumn(
             modifier = Modifier.fillMaxWidth().weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             item(key = SYSTEM_KEY) {
                 SystemRow(
-                    selected = uiState.selectedFamily == null,
-                    onClick = { onAction(FontPickerAction.Choose(null)) },
+                    selected = uiState.selectedSource == FontSource.SystemDefault,
+                    onClick = { onAction(FontPickerAction.Choose(FontSource.SystemDefault)) },
                 )
+            }
+            if (uiState.systemFonts.isNotEmpty()) {
+                item(key = INSTALLED_HEADER_KEY) {
+                    SectionLabel(stringResource(R.string.font_picker_installed_header))
+                }
+                items(uiState.systemFonts, key = { "installed:${it.familyName}" }) { installed ->
+                    InstalledFontRow(
+                        family = installed,
+                        selected = uiState.selectedSource == FontSource.SystemFont(installed.familyName),
+                        onClick = { onAction(FontPickerAction.Choose(FontSource.SystemFont(installed.familyName))) },
+                    )
+                }
+            }
+            item(key = CATALOG_HEADER_KEY) {
+                // The catalog is served most-popular-first; name the order so it
+                // does not read as arbitrary. Static label — sorting is not
+                // user-switchable.
+                SectionLabel(stringResource(R.string.font_picker_sort_popular))
             }
             items(uiState.families, key = { it.family }) { family ->
                 FontRow(
                     family = family,
-                    selected = family.family == uiState.selectedFamily,
+                    selected = uiState.selectedSource == FontSource.GoogleFonts(family.family),
                     downloading = family.family in uiState.downloading,
                     failed = family.family in uiState.downloadFailed,
-                    onClick = { onAction(FontPickerAction.Choose(family.family)) },
+                    onClick = { onAction(FontPickerAction.Choose(FontSource.GoogleFonts(family.family))) },
                 )
             }
             if (uiState.status != PickerStatus.READY || uiState.families.isEmpty()) {
@@ -108,6 +124,17 @@ internal fun FontPickerScreen(
         }
     }
 }
+
+@Composable
+private fun SectionLabel(
+    text: String,
+    modifier: Modifier = Modifier,
+) = Text(
+    text = text,
+    style = MaterialTheme.typography.labelLarge,
+    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    modifier = modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+)
 
 @Composable
 private fun Header(
@@ -215,6 +242,29 @@ private fun FontRow(
     selected = selected,
     downloading = downloading,
     failed = failed,
+    onClick = onClick,
+    modifier = modifier,
+)
+
+// An installed font resolves straight from disk: no download, so no spinner
+// and no failure state — unlike FontRow's Google Fonts row.
+@Composable
+private fun InstalledFontRow(
+    family: SystemFontFamily,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) = PickerRow(
+    title = family.familyName,
+    subtitle =
+        if (family.supportsCjk) {
+            stringResource(R.string.font_picker_installed_subtitle_cjk)
+        } else {
+            stringResource(R.string.font_picker_installed_subtitle)
+        },
+    selected = selected,
+    downloading = false,
+    failed = false,
     onClick = onClick,
     modifier = modifier,
 )
@@ -349,12 +399,27 @@ private fun FontPickerScreenPreview() {
             uiState =
                 FontPickerUiState(
                     slot = FontSlot.LATIN,
-                    selectedFamily = "Inter",
+                    selectedSource = FontSource.GoogleFonts("Inter"),
                     families =
                         listOf(
                             GoogleFontFamily("Roboto", "Sans Serif", listOf("latin")),
                             GoogleFontFamily("Inter", "Sans Serif", listOf("latin", "latin-ext")),
                             GoogleFontFamily("Noto Sans JP", "Sans Serif", listOf("latin", "japanese")),
+                        ),
+                    systemFonts =
+                        listOf(
+                            SystemFontFamily(
+                                familyName = "Roboto Condensed",
+                                files = emptyList(),
+                                supportsLatin = true,
+                                supportsCjk = false,
+                            ),
+                            SystemFontFamily(
+                                familyName = "Noto Sans CJK",
+                                files = emptyList(),
+                                supportsLatin = true,
+                                supportsCjk = true,
+                            ),
                         ),
                     downloading = setOf("Roboto"),
                     downloadFailed = setOf("Noto Sans JP"),

@@ -10,17 +10,19 @@ import io.github.seijikohara.femto.data.fonts.CatalogState
 import io.github.seijikohara.femto.data.fonts.FontRepository
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.data.fonts.GoogleFontFamily
+import io.github.seijikohara.femto.data.fonts.SystemFontFamily
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 
 /**
- * Binds the shared [FontRepository] to one [slot]'s picker: triggers the catalog
- * load, filters it to the slot and the live search query, and forwards the
- * choice back to the repository (which downloads, swaps the theme, and evicts
- * the old font). Re-choosing a failed family routes through the same path and
- * retries its download.
+ * Binds the shared [FontRepository] to one [slot]'s picker: triggers the Google
+ * Fonts catalog load, filters both it and the repository's installed-font
+ * catalog to the slot and the live search query, and forwards the choice back
+ * to the repository (which downloads / resolves from disk, swaps the theme,
+ * and evicts the old Google Fonts cache entry). Re-choosing a failed Google
+ * family routes through the same path and retries its download.
  */
 internal class FontPickerViewModel(
     private val repository: FontRepository,
@@ -30,18 +32,19 @@ internal class FontPickerViewModel(
 
     val uiState: StateFlow<FontPickerUiState> =
         combine(
-            repository.catalog,
+            combine(repository.catalog, repository.systemFonts, ::CatalogSnapshot),
             repository.selection,
             repository.downloading,
             repository.downloadFailed,
             query,
-        ) { catalog, selection, downloading, downloadFailed, currentQuery ->
-            val (families, status) = filterCatalog(catalog, currentQuery)
+        ) { snapshot, selection, downloading, downloadFailed, currentQuery ->
+            val (families, status) = filterCatalog(snapshot.catalog, currentQuery)
             FontPickerUiState(
                 slot = slot,
                 query = currentQuery,
-                selectedFamily = selection.familyFor(slot),
+                selectedSource = selection.sourceFor(slot),
                 families = families,
+                systemFonts = filterSystemFonts(snapshot.systemFonts, currentQuery),
                 downloading = downloading,
                 downloadFailed = downloadFailed,
                 status = status,
@@ -55,7 +58,7 @@ internal class FontPickerViewModel(
     fun onAction(action: FontPickerAction) {
         when (action) {
             is FontPickerAction.Search -> query.value = action.query
-            is FontPickerAction.Choose -> repository.choose(slot, action.family)
+            is FontPickerAction.Choose -> repository.choose(slot, action.source)
         }
     }
 
@@ -81,6 +84,24 @@ internal class FontPickerViewModel(
                 families to PickerStatus.READY
             }
         }
+
+    private fun filterSystemFonts(
+        all: List<SystemFontFamily>,
+        currentQuery: String,
+    ): List<SystemFontFamily> {
+        val trimmed = currentQuery.trim()
+        return all.filter { family ->
+            family.fits(slot) && (trimmed.isEmpty() || family.familyName.contains(trimmed, ignoreCase = true))
+        }
+    }
+
+    // Bundles the two independently-loaded catalogs so a 6th flow does not
+    // outgrow kotlinx.coroutines' typed combine() overloads (which top out at
+    // five); the outer combine's lambda destructures this by component.
+    private data class CatalogSnapshot(
+        val catalog: CatalogState,
+        val systemFonts: List<SystemFontFamily>,
+    )
 }
 
 internal class FontPickerViewModelFactory(
