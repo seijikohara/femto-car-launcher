@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.settings.components
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -8,21 +9,18 @@ import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.OrientationSetting
-import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
 
+// The Screen category's rows; see AppearanceSection's header comment on why
+// there is no title / reset wiring here.
 @Composable
 internal fun ScreenSection(
     uiState: SettingsUiState,
     onAction: (SettingsAction) -> Unit,
     modifier: Modifier = Modifier,
-) = SettingsSection(
-    title = stringResource(R.string.settings_section_screen),
-    modifier = modifier,
-    onReset = { onAction(SettingsAction.ResetSection(SettingsSectionId.SCREEN)) },
-) {
+) = Column(modifier = modifier) {
     SliderRow(
         title = stringResource(R.string.settings_group_ui_scale),
         valueLabel = stringResource(uiState.uiScale.labelRes()),
