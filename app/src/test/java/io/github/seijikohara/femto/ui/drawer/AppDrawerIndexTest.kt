@@ -2,7 +2,6 @@ package io.github.seijikohara.femto.ui.drawer
 
 import org.junit.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 
 class AppDrawerIndexTest {
     @Test
@@ -22,65 +21,36 @@ class AppDrawerIndexTest {
     fun `sectionKeyOf trims leading whitespace before bucketing`() = assertEquals("M", sectionKeyOf("  Maps"))
 
     @Test
-    fun `withSectionHeaders inserts one header per run of a shared bucket`() {
-        val entries = withSectionHeaders(listOf("alpha", "Amazon", "Bravo", "Charlie")) { it }
+    fun `sectionStartIndices maps each bucket to its first item's flat index`() {
+        val indices = sectionStartIndices(listOf("alpha", "Amazon", "Bravo", "Charlie")) { it }
 
+        assertEquals(mapOf("A" to 0, "B" to 2, "C" to 3), indices)
+    }
+
+    @Test
+    fun `sectionStartIndices orders keys by first appearance, not alphabetically`() {
+        val indices = sectionStartIndices(listOf("Zebra", "Alpha", "Amazon")) { it }
+
+        assertEquals(listOf("Z", "A"), indices.keys.toList())
+    }
+
+    @Test
+    fun `sectionStartIndices never emits a bucket with no items`() {
+        val indices = sectionStartIndices(listOf("Alpha", "Zebra")) { it }
+
+        assertEquals(mapOf("A" to 0, "Z" to 1), indices)
+    }
+
+    @Test
+    fun `sectionStartIndices returns an empty map for an empty input`() =
+        assertEquals(emptyMap(), sectionStartIndices(emptyList<String>()) { it })
+
+    @Test
+    fun `sectionStartIndices buckets a label with no leading letter under the shared key`() =
         assertEquals(
-            listOf(
-                DrawerListEntry.Header("A"),
-                DrawerListEntry.App("alpha"),
-                DrawerListEntry.App("Amazon"),
-                DrawerListEntry.Header("B"),
-                DrawerListEntry.App("Bravo"),
-                DrawerListEntry.Header("C"),
-                DrawerListEntry.App("Charlie"),
-            ),
-            entries,
+            mapOf("A" to 0, NON_LETTER_SECTION_KEY to 1, "Z" to 2),
+            sectionStartIndices(listOf("Alpha", "1Password", "Zebra")) { it },
         )
-    }
-
-    @Test
-    fun `withSectionHeaders never emits a header for a bucket with no items`() {
-        val entries = withSectionHeaders(listOf("Alpha", "Zebra")) { it }
-
-        assertEquals(
-            listOf(
-                DrawerListEntry.Header("A"),
-                DrawerListEntry.App("Alpha"),
-                DrawerListEntry.Header("Z"),
-                DrawerListEntry.App("Zebra"),
-            ),
-            entries,
-        )
-    }
-
-    @Test
-    fun `withSectionHeaders returns an empty list for an empty input`() =
-        assertEquals(emptyList(), withSectionHeaders(emptyList<String>()) { it })
-
-    @Test
-    fun `availableSectionKeys lists only the buckets present, in first-appearance order`() =
-        assertEquals(
-            listOf("A", NON_LETTER_SECTION_KEY, "Z"),
-            availableSectionKeys(listOf("Alpha", "Amazon", "1Password", "Zebra")) { it },
-        )
-
-    @Test
-    fun `headerIndexOf finds the flattened index of a bucket's header`() {
-        val entries = withSectionHeaders(listOf("Alpha", "Bravo", "Charlie")) { it }
-
-        // Header(A)=0, App(Alpha)=1, Header(B)=2, App(Bravo)=3, Header(C)=4, App(Charlie)=5.
-        assertEquals(0, headerIndexOf(entries, "A"))
-        assertEquals(2, headerIndexOf(entries, "B"))
-        assertEquals(4, headerIndexOf(entries, "C"))
-    }
-
-    @Test
-    fun `headerIndexOf returns null for an absent bucket`() {
-        val entries = withSectionHeaders(listOf("Alpha")) { it }
-
-        assertNull(headerIndexOf(entries, "Z"))
-    }
 
     @Test
     fun `letterIndexForOffset maps a proportional position to a letter index`() {

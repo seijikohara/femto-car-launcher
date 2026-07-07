@@ -1,22 +1,5 @@
 package io.github.seijikohara.femto.ui.drawer
 
-/**
- * One entry in the drawer's alphabetically-sectioned app list: either a
- * full-span section [Header] (its bucket key, e.g. "A", or [NON_LETTER_SECTION_KEY]
- * for a label with no leading letter) or a launchable [App]. Shared by the
- * grid and list layouts so both render the same header + fast-scroll
- * structure over the same item list.
- */
-internal sealed interface DrawerListEntry<out T> {
-    data class Header(
-        val key: String,
-    ) : DrawerListEntry<Nothing>
-
-    data class App<T>(
-        val item: T,
-    ) : DrawerListEntry<T>
-}
-
 /** Bucket for a label with no leading letter (digits, symbols, emoji). */
 internal const val NON_LETTER_SECTION_KEY = "#"
 
@@ -34,46 +17,26 @@ internal fun sectionKeyOf(label: String): String =
         ?.toString() ?: NON_LETTER_SECTION_KEY
 
 /**
- * Interleave alphabetical section headers into [items] (assumed pre-sorted by
- * [labelOf]): one [DrawerListEntry.Header] per run of a shared [sectionKeyOf]
- * bucket, immediately before that bucket's first item. A bucket with no items
- * never appears — the index only ever shows letters the list actually has.
+ * The flat-list index of the first item in each alphabetical bucket present in
+ * [items] (assumed pre-sorted by [labelOf]), keyed by [sectionKeyOf] and
+ * ordered by first appearance. The app grid/list flows continuously with no
+ * section-header items breaking it up (a header-per-letter forced a new row
+ * at every letter, leaving a car launcher's typically 1-2-app-per-letter list
+ * mostly empty space), so a rail letter jumps straight to its first app's own
+ * index rather than to a header above it. This one map feeds both the A-Z
+ * rail's letter set ([Map.keys]) and its `animateScrollToItem` target
+ * ([Map.values]).
  */
-internal fun <T> withSectionHeaders(
+internal fun <T> sectionStartIndices(
     items: List<T>,
     labelOf: (T) -> String,
-): List<DrawerListEntry<T>> {
-    val entries = mutableListOf<DrawerListEntry<T>>()
-    var currentKey: String? = null
-    for (item in items) {
-        val key = sectionKeyOf(labelOf(item))
-        if (key != currentKey) {
-            entries += DrawerListEntry.Header(key)
-            currentKey = key
-        }
-        entries += DrawerListEntry.App(item)
+): Map<String, Int> {
+    val indices = LinkedHashMap<String, Int>()
+    items.forEachIndexed { index, item ->
+        indices.getOrPut(sectionKeyOf(labelOf(item))) { index }
     }
-    return entries
+    return indices
 }
-
-/**
- * The section keys present in [items], in the order [withSectionHeaders]
- * would emit their headers — the letters the fast-scroll rail renders.
- */
-internal fun <T> availableSectionKeys(
-    items: List<T>,
-    labelOf: (T) -> String,
-): List<String> = items.map { sectionKeyOf(labelOf(it)) }.distinct()
-
-/**
- * The flattened-list index of [targetKey]'s header, or null when that section
- * is not present. Feeds the fast-scroll rail's `LazyGridState` /
- * `LazyListState` `.animateScrollToItem(...)` target.
- */
-internal fun <T> headerIndexOf(
-    entries: List<DrawerListEntry<T>>,
-    targetKey: String,
-): Int? = entries.indexOfFirst { it is DrawerListEntry.Header && it.key == targetKey }.takeIf { it >= 0 }
 
 // A drag that has not yet moved past the rail's bottom edge should still
 // resolve to the last letter, not roll over past it.
