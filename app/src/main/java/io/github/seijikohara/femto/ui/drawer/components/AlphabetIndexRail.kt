@@ -97,7 +97,10 @@ internal fun AlphabetIndexRail(
         letters.forEach { letter ->
             Text(
                 text = letter,
-                style = MaterialTheme.typography.labelSmall,
+                // titleSmall (18sp) keeps the rail's letters on the automotive body-text
+                // floor (CLAUDE.md#automotive-overrides) — this drawer is not one of the
+                // sanctioned relaxation surfaces. The letters distribute via weight(1f).
+                style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
