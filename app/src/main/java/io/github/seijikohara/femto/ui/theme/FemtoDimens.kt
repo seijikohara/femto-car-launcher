@@ -29,6 +29,14 @@ object FemtoDimens {
     /** Spacing between tiles in a launcher grid. */
     val GridGutter = 16.dp
 
+    /**
+     * Diameter of the app drawer's floating letter-indicator bubble, shown
+     * over the app list while the A-Z rail is being dragged. Decorative only
+     * (not itself a tap target), so it is sized independently of
+     * [MinTouchTarget].
+     */
+    val IndexBubbleSize = 72.dp
+
     /** Hero-block icon size for dashboard cards (e.g., the weather summary). */
     val HeroIconSize = 36.dp
 

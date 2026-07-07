@@ -31,3 +31,18 @@ internal fun effectiveLayout(
     persisted: DrawerLayout,
     query: String,
 ): DrawerLayout = if (query.isBlank()) persisted else DrawerLayout.LIST
+
+/**
+ * Resolve [order] (component/package keys) against [items] via [keyOf],
+ * preserving [order]'s sequence and silently dropping a key with no matching
+ * item. Shared by the Pinned dock and the Recent row — both can reference an
+ * app uninstalled since it was pinned / launched.
+ */
+internal fun <T> resolveByOrder(
+    items: List<T>,
+    order: List<String>,
+    keyOf: (T) -> String,
+): List<T> {
+    val byKey = items.associateBy(keyOf)
+    return order.mapNotNull { byKey[it] }
+}

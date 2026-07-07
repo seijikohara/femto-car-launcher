@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.seijikohara.femto.data.apps.AppsRepository
+import io.github.seijikohara.femto.data.apps.RecentAppsPreferences
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DisplayPreferences
@@ -73,6 +74,7 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val appsRepository by lazy { AppsRepository(this) }
+    private val recentAppsPreferences by lazy { RecentAppsPreferences(this) }
     private val displayPreferences by lazy { DisplayPreferences(this) }
     private val fontRepository by lazy { FontRepository.get(this) }
 
@@ -224,7 +226,16 @@ class MainActivity : ComponentActivity() {
                 if (showDrawer) {
                     AppDrawerSheet(
                         onLaunch = { component ->
-                            appsRepository.launch(component)
+                            // Only a resolved launch feeds the Recent row — a stale
+                            // tile (ActivityNotFoundException / SecurityException)
+                            // never actually opened anything worth surfacing again.
+                            if (appsRepository.launch(component)) {
+                                lifecycleScope.launch {
+                                    recentAppsPreferences.recordLaunch(
+                                        component.flattenToString(),
+                                    )
+                                }
+                            }
                             showDrawer = false
                         },
                         onDismiss = { showDrawer = false },

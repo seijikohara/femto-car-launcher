@@ -17,6 +17,13 @@ internal sealed interface AppDrawerUiState {
 
     data class Content(
         val apps: List<AppEntry>,
+        /**
+         * Top-N most-recently-launched apps, most-recent-first (see
+         * `RecentAppsPreferences.RECENT_APPS_MAX_COUNT`). Empty on a fresh
+         * install / before the first drawer launch — the Recent row hides
+         * itself entirely in that case rather than rendering blank.
+         */
+        val recentApps: List<AppEntry> = emptyList(),
     ) : AppDrawerUiState
 
     data object Error : AppDrawerUiState
