@@ -34,6 +34,7 @@ import com.composables.icons.lucide.WifiHigh
 import com.composables.icons.lucide.WifiLow
 import com.composables.icons.lucide.WifiZero
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.dock.DockStatusId
 import io.github.seijikohara.femto.data.system.SystemStatus
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
@@ -44,59 +45,15 @@ internal fun StatusCluster(
     status: SystemStatus,
     vertical: Boolean,
     modifier: Modifier = Modifier,
+    // The visible indicators in render order; defaults to every DockStatusId in
+    // its declared order (today's factory cluster) so an omitted argument
+    // renders byte-identical to before this parameter existed.
+    order: List<DockStatusId> = DockStatusId.entries,
 ) {
     // One content slot rendered into either axis container, so the indicator set
     // and order stay identical between the horizontal bar and the vertical rail.
     val indicators: @Composable () -> Unit = {
-        // Cellular is hidden entirely on telephony-less units (null), rather than
-        // shown permanently disconnected.
-        status.cellularConnected?.let { connected ->
-            val level = status.cellularSignalLevel
-            // Drive the lit state off signal presence when the level is known: on a
-            // Wi-Fi-primary head unit the cellular network repeatedly drops in and out
-            // of NET_CAPABILITY_VALIDATED (Wi-Fi owns the default route), which flickered
-            // the icon. A known SignalStrength.level tracks the radio directly and is
-            // stable; fall back to the validated-connectivity flag only when the level is
-            // unknown (READ_PHONE_STATE withheld).
-            val active = level?.let { it > 0 } ?: connected
-            StatusIcon(
-                // A known level picks the graduated bars; a null level (READ_PHONE_STATE
-                // withheld / no reading yet) degrades to the binary connected icon.
-                icon = level?.let { cellularIconForLevel(it) } ?: Lucide.Signal,
-                active = active,
-                description =
-                    stringResource(
-                        if (active) R.string.status_cellular_connected else R.string.status_cellular_disconnected,
-                    ),
-            )
-        }
-        StatusIcon(
-            // The Wi-Fi level is always known once connected; degrade to the binary
-            // icon only when disconnected so a dimmed flat icon reads as "off".
-            icon = if (status.wifiConnected) wifiIconForLevel(status.wifiSignalLevel) else Lucide.Wifi,
-            active = status.wifiConnected,
-            description =
-                stringResource(
-                    if (status.wifiConnected) R.string.status_wifi_connected else R.string.status_wifi_disconnected,
-                ),
-        )
-        StatusIcon(
-            // Off / on / connected each get a distinct glyph: a crossed icon when the
-            // adapter is powered off, the plain glyph when on but unpaired, the linked
-            // glyph when a device is connected.
-            icon = bluetoothIconFor(enabled = status.bluetoothEnabled, connected = status.bluetoothConnected),
-            active = status.bluetoothEnabled,
-            description =
-                stringResource(
-                    when {
-                        status.bluetoothConnected -> R.string.status_bluetooth_connected
-                        status.bluetoothEnabled -> R.string.status_bluetooth_on
-                        else -> R.string.status_bluetooth_off
-                    },
-                ),
-        )
-        GpsIndicator(fixed = status.gpsFixed, satelliteCount = status.gpsSatelliteCount)
-        BatteryIndicator(percent = status.batteryPercent, charging = status.charging)
+        order.forEach { id -> StatusIndicator(id, status) }
     }
     if (vertical) {
         Column(
@@ -113,6 +70,81 @@ internal fun StatusCluster(
             horizontalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             indicators()
+        }
+    }
+}
+
+// One indicator's content for [id], keyed by DockStatusId so the caller
+// ([StatusCluster]'s order parameter) can reorder or hide indicators
+// independently of this dispatch. CELLULAR renders nothing when the signal is
+// null — hidden entirely on telephony-less units, rather than shown
+// permanently disconnected — mirroring the cluster's original inline check.
+@Composable
+private fun StatusIndicator(
+    id: DockStatusId,
+    status: SystemStatus,
+) {
+    when (id) {
+        DockStatusId.CELLULAR -> {
+            status.cellularConnected?.let { connected ->
+                val level = status.cellularSignalLevel
+                // Drive the lit state off signal presence when the level is known: on a
+                // Wi-Fi-primary head unit the cellular network repeatedly drops in and out
+                // of NET_CAPABILITY_VALIDATED (Wi-Fi owns the default route), which flickered
+                // the icon. A known SignalStrength.level tracks the radio directly and is
+                // stable; fall back to the validated-connectivity flag only when the level is
+                // unknown (READ_PHONE_STATE withheld).
+                val active = level?.let { it > 0 } ?: connected
+                StatusIcon(
+                    // A known level picks the graduated bars; a null level (READ_PHONE_STATE
+                    // withheld / no reading yet) degrades to the binary connected icon.
+                    icon = level?.let { cellularIconForLevel(it) } ?: Lucide.Signal,
+                    active = active,
+                    description =
+                        stringResource(
+                            if (active) R.string.status_cellular_connected else R.string.status_cellular_disconnected,
+                        ),
+                )
+            }
+        }
+
+        DockStatusId.WIFI -> {
+            StatusIcon(
+                // The Wi-Fi level is always known once connected; degrade to the binary
+                // icon only when disconnected so a dimmed flat icon reads as "off".
+                icon = if (status.wifiConnected) wifiIconForLevel(status.wifiSignalLevel) else Lucide.Wifi,
+                active = status.wifiConnected,
+                description =
+                    stringResource(
+                        if (status.wifiConnected) R.string.status_wifi_connected else R.string.status_wifi_disconnected,
+                    ),
+            )
+        }
+
+        DockStatusId.BLUETOOTH -> {
+            StatusIcon(
+                // Off / on / connected each get a distinct glyph: a crossed icon when the
+                // adapter is powered off, the plain glyph when on but unpaired, the linked
+                // glyph when a device is connected.
+                icon = bluetoothIconFor(enabled = status.bluetoothEnabled, connected = status.bluetoothConnected),
+                active = status.bluetoothEnabled,
+                description =
+                    stringResource(
+                        when {
+                            status.bluetoothConnected -> R.string.status_bluetooth_connected
+                            status.bluetoothEnabled -> R.string.status_bluetooth_on
+                            else -> R.string.status_bluetooth_off
+                        },
+                    ),
+            )
+        }
+
+        DockStatusId.GPS -> {
+            GpsIndicator(fixed = status.gpsFixed, satelliteCount = status.gpsSatelliteCount)
+        }
+
+        DockStatusId.BATTERY -> {
+            BatteryIndicator(percent = status.batteryPercent, charging = status.charging)
         }
     }
 }

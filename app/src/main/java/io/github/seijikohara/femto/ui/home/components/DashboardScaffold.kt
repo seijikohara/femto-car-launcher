@@ -123,6 +123,7 @@ internal fun DashboardScaffold(
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
     dockPosition: DockPosition = DockPosition.BOTTOM,
+    dockConfig: DockConfig = DockConfig(),
     driverSide: DriverSide = DriverSide.RIGHT,
     spectrum: StateFlow<FloatArray?>? = null,
     musicShowAlbum: Boolean = true,
@@ -142,6 +143,7 @@ internal fun DashboardScaffold(
     glassConfig = glassConfig,
     onAction = onAction,
     dockPosition = dockPosition,
+    dockConfig = dockConfig,
     driverSide = driverSide,
     modifier =
         modifier
@@ -174,6 +176,7 @@ private fun DashboardContent(
     dockPosition: DockPosition,
     driverSide: DriverSide,
     modifier: Modifier = Modifier,
+    dockConfig: DockConfig = DockConfig(),
     spectrum: StateFlow<FloatArray?>? = null,
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
@@ -400,6 +403,7 @@ private fun DashboardContent(
         position = dockPosition,
         hazeState = hazeState,
         glassConfig = glassConfig,
+        dockConfig = dockConfig,
         showPassengerToggle = showPassengerToggle,
         passengerUnlocked = passengerUnlocked,
         modifier =

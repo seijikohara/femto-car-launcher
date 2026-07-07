@@ -10,6 +10,7 @@ import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.ui.home.components.BriefingConfig
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
+import io.github.seijikohara.femto.ui.home.components.DockConfig
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
 import io.github.seijikohara.femto.ui.home.components.PanelVisibility
@@ -32,6 +33,7 @@ internal fun HomeScreen(
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
     dockPosition: DockPosition = DockPosition.BOTTOM,
+    dockConfig: DockConfig = DockConfig(),
     driverSide: DriverSide = DriverSide.RIGHT,
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
@@ -56,6 +58,7 @@ internal fun HomeScreen(
         onAction = onAction,
         modifier = Modifier.fillMaxSize(),
         dockPosition = dockPosition,
+        dockConfig = dockConfig,
         driverSide = driverSide,
         musicShowAlbum = musicShowAlbum,
         musicShowArt = musicShowArt,

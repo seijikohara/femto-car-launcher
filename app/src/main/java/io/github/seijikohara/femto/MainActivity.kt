@@ -42,6 +42,7 @@ import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
+import io.github.seijikohara.femto.data.dock.DockPreferences
 import io.github.seijikohara.femto.data.fonts.FontRepository
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.data.location.LocationGraph
@@ -60,6 +61,7 @@ import io.github.seijikohara.femto.ui.fontpicker.FontPickerSheet
 import io.github.seijikohara.femto.ui.home.HomeEvent
 import io.github.seijikohara.femto.ui.home.HomeRoute
 import io.github.seijikohara.femto.ui.home.components.BriefingConfig
+import io.github.seijikohara.femto.ui.home.components.DockConfig
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
 import io.github.seijikohara.femto.ui.home.components.PanelVisibility
@@ -68,6 +70,7 @@ import io.github.seijikohara.femto.ui.locale.resolved
 import io.github.seijikohara.femto.ui.settings.SettingsSheet
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.buildFontFamily
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -76,6 +79,7 @@ class MainActivity : ComponentActivity() {
     private val appsRepository by lazy { AppsRepository(this) }
     private val recentAppsPreferences by lazy { RecentAppsPreferences(this) }
     private val displayPreferences by lazy { DisplayPreferences(this) }
+    private val dockPreferences by lazy { DockPreferences(this) }
     private val fontRepository by lazy { FontRepository.get(this) }
 
     // Cache the latest fullscreen choice so [onWindowFocusChanged] can re-hide the
@@ -146,6 +150,19 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(orientation) {
                 orientation?.let { applyOrientation(it) }
             }
+            // The dock's nav/status order + hidden sets, sourced from their own
+            // DataStore (not DisplaySettings — mirrors DrawerPreferences' separate
+            // store) and threaded down like `display` above.
+            val dockConfig by remember {
+                combine(
+                    dockPreferences.navOrder,
+                    dockPreferences.navHidden,
+                    dockPreferences.statusOrder,
+                    dockPreferences.statusHidden,
+                ) { navOrder, navHidden, statusOrder, statusHidden ->
+                    DockConfig(navOrder, navHidden, statusOrder, statusHidden)
+                }
+            }.collectAsStateWithLifecycle(initialValue = DockConfig())
             FemtoTheme(
                 fontFamily = fontFamily,
                 accent = display.accentColor,
@@ -167,6 +184,7 @@ class MainActivity : ComponentActivity() {
                     is24Hour = resolveIs24Hour(display.clock),
                     showClockSeconds = display.showClockSeconds,
                     dockPosition = display.dockPosition,
+                    dockConfig = dockConfig,
                     driverSide = display.driverSide,
                     speedUnit = display.speedUnit.resolved(),
                     temperatureUnit = display.temperatureUnit.resolved(),
