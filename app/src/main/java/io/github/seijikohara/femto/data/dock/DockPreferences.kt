@@ -171,7 +171,12 @@ internal class DockPreferences(
     override suspend fun toggleNavHidden(id: DockNavId) {
         context.dockDataStore.editOrLog(TAG) { prefs ->
             val current = resolveDockHidden<DockNavId>(prefs[NAV_HIDDEN_KEY])
-            val updated = if (id in current) current - id else current + id
+            val hiding = id !in current
+            // Never hide the last visible button — the dock must keep at least one
+            // actionable id. The edit menu gates this too, but the invariant belongs
+            // at the data SSOT so any future caller cannot empty the dock.
+            if (hiding && (current + id).containsAll(DockNavId.entries)) return@editOrLog
+            val updated = if (hiding) current + id else current - id
             prefs[NAV_HIDDEN_KEY] = updated.mapTo(mutableSetOf()) { it.name }
         }
     }
@@ -197,7 +202,10 @@ internal class DockPreferences(
     override suspend fun toggleStatusHidden(id: DockStatusId) {
         context.dockDataStore.editOrLog(TAG) { prefs ->
             val current = resolveDockHidden<DockStatusId>(prefs[STATUS_HIDDEN_KEY])
-            val updated = if (id in current) current - id else current + id
+            val hiding = id !in current
+            // Keep at least one status indicator, for the same reason as toggleNavHidden.
+            if (hiding && (current + id).containsAll(DockStatusId.entries)) return@editOrLog
+            val updated = if (hiding) current + id else current - id
             prefs[STATUS_HIDDEN_KEY] = updated.mapTo(mutableSetOf()) { it.name }
         }
     }

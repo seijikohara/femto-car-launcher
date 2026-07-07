@@ -60,6 +60,21 @@ class DockPreferencesTest {
         }
 
     @Test
+    fun `toggleNavHidden refuses to hide the last visible id`() =
+        runTest {
+            val store = DockPreferences(ApplicationProvider.getApplicationContext())
+            store.resetToDefaults()
+
+            // Hide every id but one; then attempt to hide the survivor.
+            val survivor = DockNavId.APPS
+            DockNavId.entries.filter { it != survivor }.forEach { store.toggleNavHidden(it) }
+            store.toggleNavHidden(survivor)
+
+            // The survivor stays visible — at least one id always remains.
+            assertEquals(DockNavId.entries.toSet() - survivor, store.navHidden.first())
+        }
+
+    @Test
     fun `moveNav swaps an id with its right-hand visible neighbor`() =
         runTest {
             val store = DockPreferences(ApplicationProvider.getApplicationContext())
