@@ -7,6 +7,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.ui.common.ImmersiveSheetEffect
@@ -45,6 +46,11 @@ internal fun SettingsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = modifier,
+        // Fill the head unit's full width. Material 3 caps a bottom sheet at 640dp
+        // by default, which on a wide head unit would keep the settings content
+        // below the master-detail breakpoint and render single-pane — defeating the
+        // two-pane layout. A full-width sheet lets the wide layout engage.
+        sheetMaxWidth = Dp.Unspecified,
     ) {
         ImmersiveSheetEffect(fullscreen)
         Box(
