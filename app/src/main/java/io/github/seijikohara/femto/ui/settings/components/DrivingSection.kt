@@ -7,6 +7,7 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.display.PresetMode
+import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
 
@@ -18,7 +19,11 @@ internal fun DrivingSection(
     uiState: SettingsUiState,
     onAction: (SettingsAction) -> Unit,
     modifier: Modifier = Modifier,
-) = SettingsSection(title = stringResource(R.string.settings_section_driving), modifier = modifier) {
+) = SettingsSection(
+    title = stringResource(R.string.settings_section_driving),
+    modifier = modifier,
+    onReset = { onAction(SettingsAction.ResetSection(SettingsSectionId.DRIVING)) },
+) {
     ChoiceRow(
         title = stringResource(R.string.settings_group_preset_mode),
         options =

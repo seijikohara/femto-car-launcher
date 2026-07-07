@@ -13,6 +13,7 @@ import io.github.seijikohara.femto.data.common.WhileUiSubscribed
 import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.DisplaySettingsStore
 import io.github.seijikohara.femto.data.display.MapBackend
+import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.data.fonts.FontPreferences
 import io.github.seijikohara.femto.data.fonts.FontSelectionStore
 import io.github.seijikohara.femto.data.location.LocationPreferences
@@ -310,6 +311,26 @@ internal class SettingsViewModel(
                     displayPreferences.resetToDefaults()
                     locationPreferences.resetToDefaults()
                     fontPreferences.resetToDefaults()
+                    calendarPreferences.resetToDefaults()
+                }
+
+                is SettingsAction.ResetSection -> {
+                    displayPreferences.resetKeys(action.sectionId.displayKeys)
+                    // The section's own DisplayPreferences keys are already cleared
+                    // above; only add the other-store reset a section additionally owns.
+                    when (action.sectionId) {
+                        SettingsSectionId.APPEARANCE -> fontPreferences.resetToDefaults()
+
+                        SettingsSectionId.LOCATION -> locationPreferences.resetToDefaults()
+
+                        SettingsSectionId.PANELS -> calendarPreferences.resetToDefaults()
+
+                        SettingsSectionId.SCREEN,
+                        SettingsSectionId.DRIVING,
+                        SettingsSectionId.UNITS,
+                        SettingsSectionId.MAP,
+                        -> Unit
+                    }
                 }
             }
         }

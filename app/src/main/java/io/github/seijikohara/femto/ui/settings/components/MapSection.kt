@@ -29,6 +29,7 @@ import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapboxStyle
+import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -47,7 +48,11 @@ internal fun MapSection(
     var showTokenDialog by remember { mutableStateOf(false) }
     var showGoogleKeyDialog by remember { mutableStateOf(false) }
     var showGoogleMapIdDialog by remember { mutableStateOf(false) }
-    SettingsSection(title = stringResource(R.string.settings_section_map), modifier = modifier) {
+    SettingsSection(
+        title = stringResource(R.string.settings_section_map),
+        modifier = modifier,
+        onReset = { onAction(SettingsAction.ResetSection(SettingsSectionId.MAP)) },
+    ) {
         // Selecting Mapbox without a token, or Google Maps without an API key, opens
         // the respective entry dialog instead of persisting the backend switch —
         // MapSection owns this interception because the dialogs live here.

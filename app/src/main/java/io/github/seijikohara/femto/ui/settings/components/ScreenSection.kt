@@ -8,6 +8,7 @@ import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.OrientationSetting
+import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
@@ -17,7 +18,11 @@ internal fun ScreenSection(
     uiState: SettingsUiState,
     onAction: (SettingsAction) -> Unit,
     modifier: Modifier = Modifier,
-) = SettingsSection(title = stringResource(R.string.settings_section_screen), modifier = modifier) {
+) = SettingsSection(
+    title = stringResource(R.string.settings_section_screen),
+    modifier = modifier,
+    onReset = { onAction(SettingsAction.ResetSection(SettingsSectionId.SCREEN)) },
+) {
     SliderRow(
         title = stringResource(R.string.settings_group_ui_scale),
         valueLabel = stringResource(uiState.uiScale.labelRes()),

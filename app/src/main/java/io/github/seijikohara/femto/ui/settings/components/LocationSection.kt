@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
@@ -19,7 +20,11 @@ internal fun LocationSection(
     uiState: SettingsUiState,
     onAction: (SettingsAction) -> Unit,
     modifier: Modifier = Modifier,
-) = SettingsSection(title = stringResource(R.string.settings_section_location), modifier = modifier) {
+) = SettingsSection(
+    title = stringResource(R.string.settings_section_location),
+    modifier = modifier,
+    onReset = { onAction(SettingsAction.ResetSection(SettingsSectionId.LOCATION)) },
+) {
     ChoiceRow(
         title = stringResource(R.string.settings_group_location_quality),
         options =

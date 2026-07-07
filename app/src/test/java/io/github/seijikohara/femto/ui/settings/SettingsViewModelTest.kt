@@ -14,7 +14,11 @@ import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.PresetMode
+import io.github.seijikohara.femto.data.display.SettingsSectionId
+import io.github.seijikohara.femto.data.display.SpeedUnitSetting
+import io.github.seijikohara.femto.data.display.ThemeMode
 import io.github.seijikohara.femto.data.display.UiScale
+import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
 import io.github.seijikohara.femto.testfixtures.FakeCalendarPreferencesStore
@@ -264,6 +268,156 @@ class SettingsViewModelTest {
             advanceUntilIdle()
             assertEquals(DisplaySettings.Default, store.settings.first())
             assertEquals(LocationSettings.Default, locationStore.settings.first())
+        }
+
+    @Test
+    fun `ResetToDefaults also clears the hidden calendar set`() =
+        runTest(dispatcher) {
+            val calendarPrefs = FakeCalendarPreferencesStore(initialHidden = setOf(1L, 2L))
+            val vm =
+                SettingsViewModel(
+                    store,
+                    fontStore,
+                    locationStore,
+                    calendarPrefs,
+                    availableCalendars = flowOf(CalendarCatalogState(hasAccess = true, calendars = emptyList())),
+                )
+            vm.onAction(SettingsAction.ResetToDefaults)
+            advanceUntilIdle()
+            assertEquals(emptySet(), calendarPrefs.hiddenCalendarIds.first())
+        }
+
+    @Test
+    fun `ResetSection(APPEARANCE) resets its fields and the font store, leaves other sections alone`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.SetThemeMode(ThemeMode.DARK))
+            vm.onAction(SettingsAction.SetSpeedUnit(SpeedUnitSetting.MILES))
+            fontStore.setFamily(FontSlot.LATIN, "Roboto Slab")
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.ResetSection(SettingsSectionId.APPEARANCE))
+            advanceUntilIdle()
+
+            assertEquals(ThemeMode.SYSTEM, store.settings.first().themeMode)
+            assertEquals(null, fontStore.selection.first().latinFamily)
+            // Units is a different section — untouched by an Appearance reset.
+            assertEquals(SpeedUnitSetting.MILES, store.settings.first().speedUnit)
+        }
+
+    @Test
+    fun `ResetSection(SCREEN) resets its fields, leaves other sections alone`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.SetFullscreen(FullscreenSetting.OFF))
+            vm.onAction(SettingsAction.SetDockPosition(DockPosition.LEFT))
+            vm.onAction(SettingsAction.SetShowMusic(false))
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.ResetSection(SettingsSectionId.SCREEN))
+            advanceUntilIdle()
+
+            assertEquals(FullscreenSetting.ON, store.settings.first().fullscreen)
+            assertEquals(DockPosition.BOTTOM, store.settings.first().dockPosition)
+            // Panels is a different section — untouched by a Screen reset.
+            assertEquals(false, store.settings.first().showMusic)
+        }
+
+    @Test
+    fun `ResetSection(DRIVING) resets its fields, leaves other sections alone`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.SetPresetMode(PresetMode.DRIVING))
+            vm.onAction(SettingsAction.SetMotionTier(MotionTier.OFF))
+            vm.onAction(SettingsAction.SetMapZoom(11))
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.ResetSection(SettingsSectionId.DRIVING))
+            advanceUntilIdle()
+
+            assertEquals(PresetMode.AUTO, store.settings.first().presetMode)
+            assertEquals(MotionTier.STANDARD, store.settings.first().motionTier)
+            // Map is a different section — untouched by a Driving reset.
+            assertEquals(11, store.settings.first().mapZoom)
+        }
+
+    @Test
+    fun `ResetSection(UNITS) resets its fields, leaves other sections alone`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.SetSpeedUnit(SpeedUnitSetting.MILES))
+            vm.onAction(SettingsAction.SetShowClockSeconds(true))
+            vm.onAction(SettingsAction.SetDriverSide(DriverSide.LEFT))
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.ResetSection(SettingsSectionId.UNITS))
+            advanceUntilIdle()
+
+            assertEquals(SpeedUnitSetting.AUTO, store.settings.first().speedUnit)
+            assertEquals(false, store.settings.first().showClockSeconds)
+            // Screen is a different section — untouched by a Units reset.
+            assertEquals(DriverSide.LEFT, store.settings.first().driverSide)
+        }
+
+    @Test
+    fun `ResetSection(MAP) resets its fields, leaves other sections alone`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.SetMapBackend(MapBackend.MAPBOX))
+            vm.onAction(SettingsAction.SetMapZoom(11))
+            vm.onAction(SettingsAction.SetShowMusic(false))
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.ResetSection(SettingsSectionId.MAP))
+            advanceUntilIdle()
+
+            assertEquals(MapBackend.OSM, store.settings.first().mapBackend)
+            assertEquals(16, store.settings.first().mapZoom)
+            // Panels is a different section — untouched by a Map reset.
+            assertEquals(false, store.settings.first().showMusic)
+        }
+
+    @Test
+    fun `ResetSection(LOCATION) resets the location store only, leaves the display store alone`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.SetLocationQuality(LocationQualitySetting.LOW_POWER))
+            vm.onAction(SettingsAction.SetMapZoom(11))
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.ResetSection(SettingsSectionId.LOCATION))
+            advanceUntilIdle()
+
+            assertEquals(LocationQualitySetting.HIGH_ACCURACY, locationStore.settings.first().quality)
+            // LOCATION owns no DisplayPreferences key, so the display store is untouched.
+            assertEquals(11, store.settings.first().mapZoom)
+        }
+
+    @Test
+    fun `ResetSection(PANELS) resets its fields and the calendar store, leaves other sections alone`() =
+        runTest(dispatcher) {
+            val calendarPrefs = FakeCalendarPreferencesStore(initialHidden = setOf(1L))
+            val vm =
+                SettingsViewModel(
+                    store,
+                    fontStore,
+                    locationStore,
+                    calendarPrefs,
+                    availableCalendars = flowOf(CalendarCatalogState(hasAccess = true, calendars = emptyList())),
+                )
+            vm.onAction(SettingsAction.SetShowMusic(false))
+            vm.onAction(SettingsAction.SetMusicSpectrum(true))
+            vm.onAction(SettingsAction.SetMapZoom(11))
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.ResetSection(SettingsSectionId.PANELS))
+            advanceUntilIdle()
+
+            assertEquals(true, store.settings.first().showMusic)
+            assertEquals(false, store.settings.first().musicSpectrum)
+            assertEquals(emptySet(), calendarPrefs.hiddenCalendarIds.first())
+            // Map is a different section — untouched by a Panels reset.
+            assertEquals(11, store.settings.first().mapZoom)
         }
 
     @Test

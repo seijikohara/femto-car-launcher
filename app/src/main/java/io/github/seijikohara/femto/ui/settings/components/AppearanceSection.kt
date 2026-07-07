@@ -30,6 +30,7 @@ import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapStyleSetting
+import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.data.display.ThemeMode
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.ui.settings.SettingsAction
@@ -50,7 +51,11 @@ internal fun AppearanceSection(
     onAction: (SettingsAction) -> Unit,
     onOpenFontPicker: (FontSlot) -> Unit,
     modifier: Modifier = Modifier,
-) = SettingsSection(title = stringResource(R.string.settings_section_appearance), modifier = modifier) {
+) = SettingsSection(
+    title = stringResource(R.string.settings_section_appearance),
+    modifier = modifier,
+    onReset = { onAction(SettingsAction.ResetSection(SettingsSectionId.APPEARANCE)) },
+) {
     ChoiceRow(
         title = stringResource(R.string.settings_group_theme),
         options =

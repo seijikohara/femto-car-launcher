@@ -383,8 +383,11 @@
 
     <string name="settings_reset_to_defaults">Reset to defaults</string>
     <string name="settings_reset_confirm_title">Reset all settings?</string>
-    <string name="settings_reset_confirm_message">This restores every display, unit, map, location, panel and font setting to its default value.</string>
+    <string name="settings_reset_confirm_message">This restores every display, unit, map, location, panel, font and calendar setting to its default value.</string>
     <string name="settings_reset_confirm">Reset</string>
+    <string name="settings_reset_section">Reset this section</string>
+    <string name="settings_reset_section_confirm_title">Reset %1$s?</string>
+    <string name="settings_reset_section_confirm_message">This restores every setting in this section to its default value.</string>
 
     <!-- Open source licenses sheet -->
     <string name="licenses_title">Open source licenses</string>

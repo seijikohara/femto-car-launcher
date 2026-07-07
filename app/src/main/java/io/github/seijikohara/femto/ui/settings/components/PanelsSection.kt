@@ -33,6 +33,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.calendar.CalendarInfo
+import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -43,7 +44,11 @@ internal fun PanelsSection(
     onAction: (SettingsAction) -> Unit,
     onOpenSystemSettings: () -> Unit,
     modifier: Modifier = Modifier,
-) = SettingsSection(title = stringResource(R.string.settings_section_panels), modifier = modifier) {
+) = SettingsSection(
+    title = stringResource(R.string.settings_section_panels),
+    modifier = modifier,
+    onReset = { onAction(SettingsAction.ResetSection(SettingsSectionId.PANELS)) },
+) {
     SwitchRow(
         title = stringResource(R.string.settings_group_panel_calendar),
         checked = uiState.showCalendar,

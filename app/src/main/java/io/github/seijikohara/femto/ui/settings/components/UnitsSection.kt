@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.ClockSetting
+import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
 import io.github.seijikohara.femto.ui.settings.SettingsAction
@@ -15,7 +16,11 @@ internal fun UnitsSection(
     uiState: SettingsUiState,
     onAction: (SettingsAction) -> Unit,
     modifier: Modifier = Modifier,
-) = SettingsSection(title = stringResource(R.string.settings_section_units), modifier = modifier) {
+) = SettingsSection(
+    title = stringResource(R.string.settings_section_units),
+    modifier = modifier,
+    onReset = { onAction(SettingsAction.ResetSection(SettingsSectionId.UNITS)) },
+) {
     ChoiceRow(
         title = stringResource(R.string.settings_group_speed),
         options =
