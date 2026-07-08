@@ -13,11 +13,10 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 /**
  * Shared hairline-divider recipe for the dashboard's glass chrome: a thin M3
  * divider at [FemtoDimens.DividerAlpha] over `outlineVariant`, so every seam
- * between adjacent segments (the dock's nav / status boundary, the driving
- * bar's cluster boundaries) reads at the same weight over the map. Callers
- * own their own sizing and insets (height / width, padding) — this composable
- * only owns the color + thickness recipe, so it does not get re-copied at
- * every call site.
+ * between adjacent segments (e.g. the dock's nav / status boundary) reads at
+ * the same weight over the map. Callers own their own sizing and insets
+ * (height / width, padding) — this composable only owns the color + thickness
+ * recipe, so it does not get re-copied at every call site.
  */
 @Composable
 internal fun FemtoVerticalDivider(
@@ -34,9 +33,7 @@ internal fun FemtoHorizontalDivider(
 
 /**
  * Shared cluster-divider length: the dock's nav/status seam dividers
- * ([DashboardDock]) and the driving bar's cluster dividers
- * ([io.github.seijikohara.femto.ui.home.components.driving.DrivingOverlays])
- * all size to this one constant so the chrome reads as the same family
- * across both surfaces.
+ * ([DashboardDock]) size to this one constant so the chrome reads as the
+ * same family across the dock's orientations.
  */
 internal val FemtoDividerLength: Dp = 48.dp

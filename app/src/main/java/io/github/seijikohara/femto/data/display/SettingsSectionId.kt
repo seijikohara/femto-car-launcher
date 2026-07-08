@@ -42,15 +42,7 @@ internal enum class SettingsSectionId(
             DisplayPreferences.DOCK_POSITION_KEY,
             DisplayPreferences.DRIVER_SIDE_KEY,
             DisplayPreferences.ASSISTANT_LAUNCH_KEY,
-        ),
-    ),
-    DRIVING(
-        setOf(
-            DisplayPreferences.PRESET_MODE_KEY,
-            DisplayPreferences.DRIVING_THRESHOLD_KMH_KEY,
             DisplayPreferences.MOTION_TIER_KEY,
-            DisplayPreferences.BRIEFING_SHOW_EVENT_KEY,
-            DisplayPreferences.BRIEFING_SHOW_WEATHER_KEY,
         ),
     ),
     UNITS(

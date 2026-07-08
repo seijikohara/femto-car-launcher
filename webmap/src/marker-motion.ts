@@ -6,14 +6,14 @@
 // googlemaps-main.ts), so its marker and camera already update in the same
 // synchronous call.
 //
-// A preset-switch reflow (see camera.ts isPaddingOnlyReflow) needs the marker
+// A layout reflow (see camera.ts isPaddingOnlyReflow) needs the marker
 // to glide left/top over the SAME fixed duration the camera eases over,
 // instead of the marker's normal instant (screen-pinned) jump; a genuine GPS
 // fix needs that instant jump back, so the transition must be armed only for
 // the span of one reflow and cleared immediately for the next real fix. An
 // in-flight reflow interrupted by a real fix simply snaps to its
 // already-settled target, since a fix and a reflow write the same left/top
-// for an unchanged preset.
+// for an unchanged layout.
 export interface MarkerTransition {
 	// Arms (or clears) the CSS transition; call before writing the new
 	// left/top so the write itself is what animates (or jumps).
@@ -26,7 +26,7 @@ export function createMarkerTransition(
 ): MarkerTransition {
 	// Mutable state in one const holder (let/var are banned — see biome.json
 	// and no-let.grit). Guards the self-clearing timeout below against a stale
-	// clear: two reflows in quick succession (a rapid preset toggle) must not
+	// clear: two reflows in quick succession (a rapid layout toggle) must not
 	// have the first reflow's timeout wipe out the second reflow's
 	// still-running transition.
 	const marker = { generation: 0 };

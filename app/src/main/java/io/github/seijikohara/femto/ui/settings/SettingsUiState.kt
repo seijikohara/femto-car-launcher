@@ -15,7 +15,6 @@ import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.display.OrientationSetting
-import io.github.seijikohara.femto.data.display.PresetMode
 import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
@@ -36,14 +35,8 @@ internal data class SettingsUiState(
     val fullscreen: FullscreenSetting,
     val dockPosition: DockPosition,
     val driverSide: DriverSide,
-    val presetMode: PresetMode,
-    val drivingThresholdKmh: Int,
     val motionTier: MotionTier,
     val orientation: OrientationSetting,
-    // Driving-briefing configuration: whether the one-line briefing shows the
-    // event / weather halves.
-    val briefingShowEvent: Boolean,
-    val briefingShowWeather: Boolean,
     val keepScreenOn: Boolean,
     val assistantLaunch: AssistantLaunchSetting,
     val mapStyle: MapStyleSetting,
@@ -100,12 +93,8 @@ internal data class SettingsUiState(
                 fullscreen = DisplaySettings.Default.fullscreen,
                 dockPosition = DisplaySettings.Default.dockPosition,
                 driverSide = DisplaySettings.Default.driverSide,
-                presetMode = DisplaySettings.Default.presetMode,
-                drivingThresholdKmh = DisplaySettings.Default.drivingThresholdKmh,
                 motionTier = DisplaySettings.Default.motionTier,
                 orientation = DisplaySettings.Default.orientation,
-                briefingShowEvent = DisplaySettings.Default.briefingShowEvent,
-                briefingShowWeather = DisplaySettings.Default.briefingShowWeather,
                 keepScreenOn = DisplaySettings.Default.keepScreenOn,
                 assistantLaunch = DisplaySettings.Default.assistantLaunch,
                 mapStyle = DisplaySettings.Default.mapStyle,
@@ -185,28 +174,12 @@ internal sealed interface SettingsAction {
         val value: DriverSide,
     ) : SettingsAction
 
-    data class SetPresetMode(
-        val value: PresetMode,
-    ) : SettingsAction
-
-    data class SetDrivingThresholdKmh(
-        val value: Int,
-    ) : SettingsAction
-
     data class SetMotionTier(
         val value: MotionTier,
     ) : SettingsAction
 
     data class SetOrientation(
         val value: OrientationSetting,
-    ) : SettingsAction
-
-    data class SetBriefingShowEvent(
-        val value: Boolean,
-    ) : SettingsAction
-
-    data class SetBriefingShowWeather(
-        val value: Boolean,
     ) : SettingsAction
 
     data class SetKeepScreenOn(

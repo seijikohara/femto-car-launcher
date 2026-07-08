@@ -22,9 +22,9 @@ import {
 	appliedBearing,
 	easeDurationMs,
 	isPaddingOnlyReflow,
+	LAYOUT_REFLOW_MS,
 	LOCATION_STALE_THRESHOLD_MS,
 	linearEase,
-	PRESET_REFLOW_MS,
 	smoothedBearing,
 } from "./camera";
 import {
@@ -219,9 +219,9 @@ function getMapboxGL(): MapboxGLNamespace {
 
 const markerEl = document.getElementById("self-marker") as HTMLElement;
 const markerPath = markerEl.querySelector("path");
-// Lockstep control for a preset-switch reflow — see isPaddingOnlyReflow
+// Lockstep control for a layout reflow — see isPaddingOnlyReflow
 // and marker-motion.ts.
-const markerTransition = createMarkerTransition(markerEl, PRESET_REFLOW_MS);
+const markerTransition = createMarkerTransition(markerEl, LAYOUT_REFLOW_MS);
 
 // The heading-up chevron stays fixed on screen; only the camera moves. North-up
 // mode keeps the map north-aligned and rotates the chevron to the travel bearing.
@@ -483,7 +483,7 @@ function initMap(): void {
 		) => {
 			// Captured before state.lastFix below is overwritten with this push:
 			// compared against it to tell a genuine GPS fix (the center moves)
-			// from a preset-switch reflow (the center holds, only the safe-area
+			// from a layout reflow (the center holds, only the safe-area
 			// padding changes) — see isPaddingOnlyReflow.
 			const previousFix = state.lastFix;
 			const now = Date.now();
@@ -528,9 +528,10 @@ function initMap(): void {
 				return;
 			}
 
-			// A preset switch re-pushes the SAME fix with only the padding
-			// changed; a signal gap always takes the jumpTo path below
-			// regardless, so it can never qualify as a reflow.
+			// A dashboard layout change (dock position, card visibility, driver
+			// side) re-pushes the SAME fix with only the padding changed; a
+			// signal gap always takes the jumpTo path below regardless, so it
+			// can never qualify as a reflow.
 			const isReflow =
 				!signalGap &&
 				isPaddingOnlyReflow(previousFix, {
@@ -582,7 +583,7 @@ function initMap(): void {
 				// finishes.
 				liveMap.easeTo({
 					...opts,
-					duration: PRESET_REFLOW_MS,
+					duration: LAYOUT_REFLOW_MS,
 					easing: linearEase,
 					essential: true,
 				});

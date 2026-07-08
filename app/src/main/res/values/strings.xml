@@ -26,24 +26,11 @@
     <string name="map_zoom_in_desc">Zoom in</string>
     <string name="map_zoom_out_desc">Zoom out</string>
 
-    <!-- Passenger unlock: toggle that keeps the full cockpit while the vehicle moves -->
-    <string name="passenger_unlock_desc">Passenger mode: keep the full dashboard while moving</string>
-
     <!-- Speed overlay -->
     <string name="speed_reset_trip">Reset trip</string>
     <string name="speed_altitude">ALT %1$d m</string>
     <string name="speed_metric_distance">DISTANCE</string>
     <string name="speed_metric_avg">AVG.</string>
-
-    <!-- Driving face: compass heading badge -->
-    <string name="driving_compass_n">N</string>
-    <string name="driving_compass_ne">NE</string>
-    <string name="driving_compass_e">E</string>
-    <string name="driving_compass_se">SE</string>
-    <string name="driving_compass_s">S</string>
-    <string name="driving_compass_sw">SW</string>
-    <string name="driving_compass_w">W</string>
-    <string name="driving_compass_nw">NW</string>
 
     <!-- Calendar card -->
     <string name="calendar_title">Calendar</string>
@@ -171,7 +158,6 @@
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_section_location">Location</string>
     <string name="settings_section_panels">Panels</string>
-    <string name="settings_section_driving">Driving</string>
     <string name="settings_category_select">Select %1$s</string>
     <string name="settings_category_back">Back to categories</string>
     <string name="settings_mapbox_token">Mapbox access token</string>
@@ -202,20 +188,10 @@
     <string name="settings_group_driver_side">Driver side</string>
     <string name="settings_driver_side_right">Right</string>
     <string name="settings_driver_side_left">Left</string>
-    <string name="settings_group_preset_mode">Auto-switch face</string>
-    <string name="settings_preset_auto">On (by speed)</string>
-    <string name="settings_preset_cockpit">Always full</string>
-    <string name="settings_preset_driving">Always simple</string>
-    <string name="settings_group_driving_threshold">Switch above</string>
-    <string name="settings_driving_threshold_value">%1$d km/h</string>
-    <string name="settings_driving_threshold_desc">Speed at which the dashboard simplifies to the driving face.</string>
     <string name="settings_group_motion">Motion</string>
     <string name="settings_motion_standard">Standard</string>
     <string name="settings_motion_reduced">Reduced</string>
     <string name="settings_motion_off">Off</string>
-    <string name="settings_group_briefing">Briefing</string>
-    <string name="settings_briefing_show_event">Show next event</string>
-    <string name="settings_briefing_show_weather">Show weather</string>
     <string name="settings_subheader_fonts">Fonts</string>
     <string name="settings_subheader_map_rendering">Rendering</string>
     <string name="settings_subheader_map_camera">Camera</string>

@@ -4,10 +4,8 @@ import android.content.ComponentName
 import android.content.Intent
 import app.cash.turbine.test
 import io.github.seijikohara.femto.data.clock.ClockTick
-import io.github.seijikohara.femto.data.display.PresetMode
 import io.github.seijikohara.femto.data.dock.DockNavId
 import io.github.seijikohara.femto.data.dock.DockStatusId
-import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.SPECTRUM_BAND_COUNT
@@ -21,8 +19,6 @@ import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
 import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -457,43 +453,6 @@ class HomeViewModelTest {
             }
         }
 
-    @Test
-    fun `activePreset switches to driving above threshold and back below with hysteresis`() =
-        runTest {
-            val trip = MutableStateFlow(TripState.Initial)
-            val vm =
-                homeViewModel(
-                    tripStateFlow = trip,
-                    presetSwitchFlow = flowOf(PresetSwitchConfig(PresetMode.AUTO, 8)),
-                )
-            vm.activePreset.test {
-                assertEquals(PresetId.COCKPIT, awaitItem())
-                trip.value = TripState(0.0, 0.0, 15.0 / 3.6) // 15 km/h ≥ 11 → driving
-                assertEquals(PresetId.DRIVING, awaitItem())
-                trip.value = TripState(0.0, 0.0, 6.0 / 3.6) // 6 km/h > 5 → still driving (band); no emit
-                trip.value = TripState(0.0, 0.0, 4.0 / 3.6) // 4 km/h ≤ 5 → cockpit
-                assertEquals(PresetId.COCKPIT, awaitItem())
-                cancelAndIgnoreRemainingEvents()
-            }
-        }
-
-    @Test
-    fun `passenger unlock forces cockpit while moving`() =
-        runTest {
-            val trip = MutableStateFlow(TripState(0.0, 0.0, 30.0 / 3.6))
-            val vm =
-                homeViewModel(
-                    tripStateFlow = trip,
-                    presetSwitchFlow = flowOf(PresetSwitchConfig(PresetMode.AUTO, 8)),
-                )
-            vm.activePreset.test {
-                assertEquals(PresetId.DRIVING, awaitItem())
-                vm.onAction(HomeAction.SetPassengerUnlock(true))
-                assertEquals(PresetId.COCKPIT, awaitItem())
-                cancelAndIgnoreRemainingEvents()
-            }
-        }
-
     /**
      * Build a view-model whose spectrum source maps the derived active gate
      * straight to [bands], so the assertions above pin the gating logic
@@ -550,27 +509,5 @@ class HomeViewModelTest {
             resumeLastMusicSession = resumeLastMusicSession,
             resetTrip = resetTrip,
             resolveMusicSourceComponent = resolveMusicSourceComponent,
-        )
-
-    /**
-     * Build a view-model for [HomeViewModel.activePreset] tests: every uiState
-     * source is an [emptyFlow] (activePreset never reads uiState) and only the
-     * two seams the resolver combines — [tripStateFlow] and [presetSwitchFlow] —
-     * carry real values.
-     */
-    private fun homeViewModel(
-        tripStateFlow: MutableStateFlow<TripState>,
-        presetSwitchFlow: Flow<PresetSwitchConfig>,
-    ): HomeViewModel =
-        HomeViewModel(
-            clockFlow = emptyFlow(),
-            locationFlow = emptyFlow(),
-            addressFlow = emptyFlow(),
-            weatherFlow = emptyFlow(),
-            musicStateFlow = emptyFlow(),
-            calendarFlow = emptyFlow(),
-            systemStatusFlow = emptyFlow(),
-            tripStateFlow = tripStateFlow,
-            presetSwitchFlow = presetSwitchFlow,
         )
 }

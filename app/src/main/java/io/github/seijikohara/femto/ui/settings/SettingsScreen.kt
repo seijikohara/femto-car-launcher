@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.ui.settings.components.AppearanceSection
-import io.github.seijikohara.femto.ui.settings.components.DrivingSection
 import io.github.seijikohara.femto.ui.settings.components.Header
 import io.github.seijikohara.femto.ui.settings.components.LocationSection
 import io.github.seijikohara.femto.ui.settings.components.MapSection
@@ -130,7 +129,7 @@ internal fun SettingsScreen(
 // The wide shape: a fixed-width category rail beside a detail pane filling
 // the rest of the row, both spanning the full available height so each
 // scrolls independently of the other (and of the rail's own scroll, if the
-// 8 categories ever outgrow it).
+// 7 categories ever outgrow it).
 @Composable
 private fun SettingsWidePane(
     entries: List<SettingsCategoryEntry>,
@@ -216,9 +215,6 @@ private fun settingsCategoryEntries(
         },
         SettingsCategoryEntry(SettingsCategoryId.SCREEN) {
             ScreenSection(uiState = uiState, onAction = onAction)
-        },
-        SettingsCategoryEntry(SettingsCategoryId.DRIVING) {
-            DrivingSection(uiState = uiState, onAction = onAction)
         },
         SettingsCategoryEntry(SettingsCategoryId.UNITS) {
             UnitsSection(uiState = uiState, onAction = onAction)

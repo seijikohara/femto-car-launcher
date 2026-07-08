@@ -43,12 +43,8 @@ class DisplayPreferencesTest {
             store.setMusicSpectrum(true)
             store.setMusicShowAlbum(false)
             store.setMusicShowArt(false)
-            store.setPresetMode(PresetMode.DRIVING)
-            store.setDrivingThresholdKmh(20)
             store.setMotionTier(MotionTier.OFF)
             store.setDriverSide(DriverSide.LEFT)
-            store.setBriefingShowEvent(false)
-            store.setBriefingShowWeather(false)
             assertNotEquals(DisplaySettings.Default, store.settings.first())
 
             // The two music-meta toggles persist and read back independently.
@@ -58,12 +54,8 @@ class DisplayPreferencesTest {
             }
 
             store.settings.first().let { persisted ->
-                assertEquals(PresetMode.DRIVING, persisted.presetMode)
-                assertEquals(20, persisted.drivingThresholdKmh)
                 assertEquals(MotionTier.OFF, persisted.motionTier)
                 assertEquals(DriverSide.LEFT, persisted.driverSide)
-                assertFalse(persisted.briefingShowEvent)
-                assertFalse(persisted.briefingShowWeather)
             }
 
             // resetToDefaults() clears every key, so the read falls back to Default
@@ -172,23 +164,7 @@ class DisplayPreferencesTest {
                     dockPosition = DisplaySettings.Default.dockPosition,
                     driverSide = DisplaySettings.Default.driverSide,
                     assistantLaunch = DisplaySettings.Default.assistantLaunch,
-                )
-            assertEquals(expected, store.settings.first())
-        }
-
-    @Test
-    fun `resetKeys(DRIVING) restores only the driving fields`() =
-        runTest {
-            val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
-            val mutated = store.mutateAllAwayFromDefault()
-            store.resetKeys(SettingsSectionId.DRIVING.displayKeys)
-            val expected =
-                mutated.copy(
-                    presetMode = DisplaySettings.Default.presetMode,
-                    drivingThresholdKmh = DisplaySettings.Default.drivingThresholdKmh,
                     motionTier = DisplaySettings.Default.motionTier,
-                    briefingShowEvent = DisplaySettings.Default.briefingShowEvent,
-                    briefingShowWeather = DisplaySettings.Default.briefingShowWeather,
                 )
             assertEquals(expected, store.settings.first())
         }
@@ -288,7 +264,7 @@ class DisplayPreferencesTest {
 
     // Sets every persisted field to a value other than DisplaySettings.Default,
     // shared by every resetKeys(section) precision test above so each test
-    // states only which fields its section owns, not how to mutate all 43.
+    // states only which fields its section owns, not how to mutate them all.
     private suspend fun DisplayPreferences.mutateAllAwayFromDefault(): DisplaySettings {
         resetToDefaults()
         setThemeMode(ThemeMode.DARK)
@@ -301,12 +277,8 @@ class DisplayPreferencesTest {
         setFullscreen(FullscreenSetting.OFF)
         setDockPosition(DockPosition.LEFT)
         setDriverSide(DriverSide.LEFT)
-        setPresetMode(PresetMode.DRIVING)
-        setDrivingThresholdKmh(30)
         setMotionTier(MotionTier.OFF)
         setOrientation(OrientationSetting.PORTRAIT)
-        setBriefingShowEvent(false)
-        setBriefingShowWeather(false)
         setKeepScreenOn(false)
         setAssistantLaunch(AssistantLaunchSetting.IN_APP)
         setMapStyle(MapStyleSetting.DARK)
