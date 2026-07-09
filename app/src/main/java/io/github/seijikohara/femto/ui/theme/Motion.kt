@@ -47,16 +47,16 @@ internal object Motion {
         }
 
     /**
-     * Tier-aware fade spec for a discrete content swap — the preset switch and
-     * every card-level `Crossfade` (album art, track metadata, a weather/calendar
-     * refresh, the driving location strip). STANDARD/REDUCED fade over their
-     * duration; OFF snaps instantly, so a MotionTier.OFF user never sees any of
-     * these dissolve. [targetState] at the call site must be a discrete identity
+     * Tier-aware fade spec for a discrete content swap — every card-level
+     * `Crossfade` (album art, track metadata, a weather/calendar refresh).
+     * STANDARD/REDUCED fade over their duration; OFF snaps instantly, so a
+     * MotionTier.OFF user never sees any of these dissolve. [targetState] at
+     * the call site must be a discrete identity
      * (a track key, a fetch timestamp, a snapshot) — never a per-frame value
      * (a progress fraction, a clock tick) — or the fade thrashes every frame
      * instead of firing once per real content change.
      */
-    fun contentFadeSpec(tier: MotionTier): FiniteAnimationSpec<Float> =
+    private fun contentFadeSpec(tier: MotionTier): FiniteAnimationSpec<Float> =
         when (tier) {
             MotionTier.STANDARD -> tween(STANDARD_IN_MS)
             MotionTier.REDUCED -> tween(REDUCED_MS)

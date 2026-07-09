@@ -77,9 +77,9 @@ object FemtoDimens {
     /**
      * Gap between the transport buttons (skip-previous / play-pause /
      * skip-next), and independently between the shuffle / repeat toggles.
-     * Shared by the music card, the driving bar, and the Now Playing panel's
-     * landscape (inline-toggle) row — all of which size the row to wrap its
-     * content, so the buttons sit as a tight cluster regardless of gap.
+     * Shared by the music card and the Now Playing panel's landscape
+     * (inline-toggle) row — both of which size the row to wrap its content,
+     * so the buttons sit as a tight cluster regardless of gap.
      */
     val MusicTransportGap = 24.dp
 
@@ -88,8 +88,8 @@ object FemtoDimens {
      * PORTRAIT layout only. The panel's oversized prev/play/next buttons read
      * as too far apart at the shared [MusicTransportGap]; a smaller gap draws
      * them into one compact cluster. Applied panel-only via `TransportRow`'s
-     * and `TransportToggles`' own `gap` parameter, leaving the card + driving
-     * bar (which wrap their content) on the shared value.
+     * and `TransportToggles`' own `gap` parameter, leaving the card (which
+     * wraps its content) on the shared value.
      */
     val NowPlayingPanelTransportGap = 12.dp
 
@@ -134,28 +134,15 @@ object FemtoDimens {
     val SpeedOverlayMaxWidth = 440.dp
 
     /**
-     * Upper bound on the driving bar's content row (the reference-binding
-     * rationale mirrors [SpeedOverlayMaxWidth]). The bar's anti-reflow layout
-     * anchors the speed + now-playing cluster left and the briefing cluster
-     * right around a flexible middle spacer; on a wide bar that spacer grows
-     * unbounded and opens a large empty gap between the clusters. Capping the
-     * content (not the glass card itself, which stays full-width) bounds that
-     * gap while the reference 853 dp-wide 5:3 head unit still fills it end to
-     * end, so the cap is a no-op there and only centres the content with
-     * margins on wider panes.
-     */
-    val DrivingBarContentMaxWidth = 1040.dp
-
-    /**
      * Upper bound on the dashboard dock's nav-button cluster (the reference-binding
-     * rationale mirrors [SpeedOverlayMaxWidth] / [DrivingBarContentMaxWidth]). The
-     * seven buttons share their slot's width equally via `Modifier.weight`, so on
-     * an ultrawide / premium head unit that slot grows far past the buttons'
-     * comfortable size and each one ends up centred inside a wide, sparse-looking
-     * gap. Capping the cluster (not the dock bar itself, which stays full-width)
-     * keeps the buttons a tight, tappable group and centres the leftover space
-     * around them, while the reference 853 dp-wide 5:3 head unit's narrower
-     * cluster stays under the cap and is unaffected.
+     * rationale mirrors [SpeedOverlayMaxWidth]). The seven buttons share their
+     * slot's width equally via `Modifier.weight`, so on an ultrawide / premium
+     * head unit that slot grows far past the buttons' comfortable size and each
+     * one ends up centred inside a wide, sparse-looking gap. Capping the cluster
+     * (not the dock bar itself, which stays full-width) keeps the buttons a
+     * tight, tappable group and centres the leftover space around them, while
+     * the reference 853 dp-wide 5:3 head unit's narrower cluster stays under
+     * the cap and is unaffected.
      */
     val DockNavClusterMaxWidth = 760.dp
 
@@ -164,9 +151,6 @@ object FemtoDimens {
 
     /** Hero weather glyph in the head row, sized to balance the big temperature. */
     val WeatherGlyphHero = 44.dp
-
-    /** Weather glyph for the driving-face weather block (stacked over the temp). */
-    val WeatherGlyphMedium = 30.dp
 
     /** Weather glyph inside the forecast chips. */
     val WeatherGlyphSmall = 18.dp
@@ -196,10 +180,9 @@ object FemtoDimens {
 
     /**
      * Shared opacity for the dashboard's content dividers — the dock's nav /
-     * status separator, the driving bar's cluster separators, the speed
-     * overlay's metric separators and metric / address rule, and the
-     * map-control pill's segment dividers — so every hairline reads at the
-     * same weight over the glass. The dock and the driving bar consume this
+     * status separator, the speed overlay's metric separators and metric /
+     * address rule, and the map-control pill's segment dividers — so every
+     * hairline reads at the same weight over the glass. The dock consumes this
      * through the shared `FemtoVerticalDivider` / `FemtoHorizontalDivider`
      * (`ui/home/components/Dividers.kt`); the speed overlay and the map
      * control pill still build their own divider primitive but reference the
@@ -226,7 +209,7 @@ object FemtoDimens {
      * Settings bottom-sheet height as a fraction of the viewport. Taller than
      * the drawer sheet (and equal to the font picker's) because the
      * master-detail layout needs the extra room on both sides: the rail /
-     * list wants to show as many of the 8 categories as possible without
+     * list wants to show as many of the 7 categories as possible without
      * scrolling, and the detail pane wants to show more than a couple of rows
      * before its own scroll kicks in.
      */

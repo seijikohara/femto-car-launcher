@@ -77,8 +77,9 @@ export function appliedBearing(northUp: boolean, heading: number): number {
 	return northUp ? 0 : heading;
 }
 
-// --- Preset-reflow lockstep --------------------------------------------------
-// A Cockpit<->Driving preset switch (see DashboardScaffold.kt) changes which
+// --- Layout-reflow lockstep --------------------------------------------------
+// A dashboard layout change (a dock-position change, a card-visibility
+// toggle, or a driver-side flip — see DashboardScaffold.kt) changes which
 // overlay reserves screen space, so the host re-derives MapConfig's safe-area
 // fractions and re-pushes the SAME GPS fix through updateCamera with only the
 // padding changed — a "reflow", as opposed to a genuine fix where the center
@@ -107,7 +108,7 @@ export interface ReflowFix {
 }
 
 // True when [next] holds the same center as [previous] but a different
-// safe-area padding (a preset-switch reflow, not a new fix). A null
+// safe-area padding (a layout reflow, not a new fix). A null
 // [previous] (no push yet) or a moved center (a genuine fix, coincidentally
 // alongside a padding change) both return false — see the call sites, which
 // additionally gate this on "not the first camera push" and "not a signal
@@ -133,8 +134,9 @@ export function isPaddingOnlyReflow(
 // pages: the marker's CSS transition and the camera's easeTo both run this
 // long, so they land together. (The Google Maps page needs no such constant —
 // its camera has no native easing to lock the marker against; see the note in
-// googlemaps-main.ts.) A reflow is driven by the preset Crossfade, not a new
-// GPS fix, so it uses a fixed duration matched to that Crossfade's pace
-// (Motion.kt's STANDARD tween is 220 ms) rather than easeDurationMs's
-// cadence-matched (and much wider, up to MAX_EASE_MS) range.
-export const PRESET_REFLOW_MS = 260;
+// googlemaps-main.ts.) A reflow is driven by a dashboard layout transition,
+// not a new GPS fix, so it uses a fixed duration matched to the app-side
+// layout-transition pace (Motion.kt's STANDARD tween is 220 ms, plus margin)
+// rather than easeDurationMs's cadence-matched (and much wider, up to
+// MAX_EASE_MS) range.
+export const LAYOUT_REFLOW_MS = 260;

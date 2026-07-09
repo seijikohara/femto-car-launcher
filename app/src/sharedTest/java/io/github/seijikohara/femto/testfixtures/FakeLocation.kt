@@ -15,9 +15,6 @@ internal fun fakeLocation(
     // Defaults to a neutral test provider; pass LocationManager.NETWORK_PROVIDER
     // to exercise the GPS-only trip-accrual path.
     provider: String = "test",
-    // Null leaves the fix bearing-less (Location.hasBearing() == false), mirroring
-    // a fix with no heading; non-null exercises the driving-face heading badge.
-    bearingDegrees: Float? = null,
 ): Location =
     Location(provider).apply {
         this.latitude = latitude
@@ -29,6 +26,4 @@ internal fun fakeLocation(
         // set a speed when the caller asks for one so the speed-less path
         // stays exercisable.
         if (hasSpeed) this.speed = speedMps else removeSpeed()
-        // setBearing flips hasBearing() to true; only set when the caller asks.
-        if (bearingDegrees != null) this.bearing = bearingDegrees
     }

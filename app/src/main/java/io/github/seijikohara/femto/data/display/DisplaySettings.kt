@@ -64,7 +64,7 @@ internal enum class AssistantLaunchSetting { SYSTEM, IN_APP }
 internal enum class DockPosition { BOTTOM, TOP, LEFT, RIGHT }
 
 /**
- * Which side the driver sits on. The cockpit face anchors its info-dense
+ * Which side the driver sits on. The dashboard anchors its info-dense
  * layout (floating cards, clock, speed reserve, map controls, self-marker) to
  * this side so it stays within the driver's reach/glance instead of behind the
  * wheel. [RIGHT] is the default — today's layout, unchanged for a fresh install.
@@ -72,17 +72,9 @@ internal enum class DockPosition { BOTTOM, TOP, LEFT, RIGHT }
 internal enum class DriverSide { RIGHT, LEFT }
 
 /**
- * How the dashboard chooses its preset (whole-dashboard face). AUTO switches
- * on speed (see [DisplaySettings.drivingThresholdKmh]); COCKPIT/DRIVING pin one
- * face. The choice is the user's — the driving simplification is a default,
- * not a mandate.
- */
-internal enum class PresetMode { AUTO, COCKPIT, DRIVING }
-
-/**
- * Motion intensity for preset cross-fades and panel transitions. STANDARD =
- * fade + subtle scale; REDUCED = short fade, no scale; OFF = instant (for the
- * weakest head-unit GPUs).
+ * Motion intensity for panel transitions and card content cross-fades.
+ * STANDARD = fade + subtle scale; REDUCED = short fade, no scale; OFF =
+ * instant (for the weakest head-unit GPUs).
  */
 internal enum class MotionTier { STANDARD, REDUCED, OFF }
 
@@ -149,22 +141,13 @@ internal data class DisplaySettings(
     val fullscreen: FullscreenSetting,
     // Which screen edge hosts the dashboard dock; BOTTOM is the classic dock.
     val dockPosition: DockPosition,
-    // Which side the driver sits on; the cockpit face anchors to it. RIGHT is
+    // Which side the driver sits on; the dashboard anchors to it. RIGHT is
     // today's layout, unchanged for a fresh install.
     val driverSide: DriverSide,
-    // Which dashboard preset the driving-switch resolves to; AUTO follows speed.
-    val presetMode: PresetMode,
-    // Speed (km/h) at/above which AUTO switches to the driving face; a hysteresis
-    // band around it prevents flapping at stop-lights.
-    val drivingThresholdKmh: Int,
-    // Motion intensity for preset cross-fades and panel transitions.
+    // Motion intensity for panel transitions and card content cross-fades.
     val motionTier: MotionTier,
     // Screen orientation; AUTO follows the head unit's natural orientation.
     val orientation: OrientationSetting,
-    // Whether the driving briefing shows its next-event half / weather half.
-    // Both default true so a fresh install shows the full one-line briefing.
-    val briefingShowEvent: Boolean,
-    val briefingShowWeather: Boolean,
     // Whether to keep the screen awake while the launcher is foreground. Defaults
     // to true: the head unit runs on vehicle power, so the dashboard should stay lit.
     val keepScreenOn: Boolean,
@@ -244,12 +227,8 @@ internal data class DisplaySettings(
                 fullscreen = FullscreenSetting.ON,
                 dockPosition = DockPosition.BOTTOM,
                 driverSide = DriverSide.RIGHT,
-                presetMode = PresetMode.AUTO,
-                drivingThresholdKmh = 8,
                 motionTier = MotionTier.STANDARD,
                 orientation = OrientationSetting.AUTO,
-                briefingShowEvent = true,
-                briefingShowWeather = true,
                 keepScreenOn = true,
                 assistantLaunch = AssistantLaunchSetting.SYSTEM,
                 mapStyle = MapStyleSetting.AUTO,

@@ -49,17 +49,9 @@ internal interface DisplaySettingsStore {
 
     suspend fun setDriverSide(value: DriverSide)
 
-    suspend fun setPresetMode(value: PresetMode)
-
-    suspend fun setDrivingThresholdKmh(value: Int)
-
     suspend fun setMotionTier(value: MotionTier)
 
     suspend fun setOrientation(value: OrientationSetting)
-
-    suspend fun setBriefingShowEvent(value: Boolean)
-
-    suspend fun setBriefingShowWeather(value: Boolean)
 
     suspend fun setKeepScreenOn(value: Boolean)
 
@@ -164,12 +156,8 @@ internal class DisplayPreferences(
                     fullscreen = prefs[FULLSCREEN_KEY].toEnumOr(FullscreenSetting.ON),
                     dockPosition = prefs[DOCK_POSITION_KEY].toEnumOr(DockPosition.BOTTOM),
                     driverSide = prefs[DRIVER_SIDE_KEY].toEnumOr(DriverSide.RIGHT),
-                    presetMode = prefs[PRESET_MODE_KEY].toEnumOr(PresetMode.AUTO),
-                    drivingThresholdKmh = prefs[DRIVING_THRESHOLD_KMH_KEY] ?: 8,
                     motionTier = prefs[MOTION_TIER_KEY].toEnumOr(MotionTier.STANDARD),
                     orientation = prefs[ORIENTATION_KEY].toEnumOr(OrientationSetting.AUTO),
-                    briefingShowEvent = prefs[BRIEFING_SHOW_EVENT_KEY] ?: true,
-                    briefingShowWeather = prefs[BRIEFING_SHOW_WEATHER_KEY] ?: true,
                     keepScreenOn = prefs[KEEP_SCREEN_ON_KEY] ?: true,
                     assistantLaunch = prefs[ASSISTANT_LAUNCH_KEY].toEnumOr(AssistantLaunchSetting.SYSTEM),
                     mapStyle = prefs[MAP_STYLE_KEY].toEnumOr(MapStyleSetting.AUTO),
@@ -236,28 +224,12 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[DRIVER_SIDE_KEY] = value.name }
     }
 
-    override suspend fun setPresetMode(value: PresetMode) {
-        context.displayDataStore.editOrLog(TAG) { it[PRESET_MODE_KEY] = value.name }
-    }
-
-    override suspend fun setDrivingThresholdKmh(value: Int) {
-        context.displayDataStore.editOrLog(TAG) { it[DRIVING_THRESHOLD_KMH_KEY] = value }
-    }
-
     override suspend fun setMotionTier(value: MotionTier) {
         context.displayDataStore.editOrLog(TAG) { it[MOTION_TIER_KEY] = value.name }
     }
 
     override suspend fun setOrientation(value: OrientationSetting) {
         context.displayDataStore.editOrLog(TAG) { it[ORIENTATION_KEY] = value.name }
-    }
-
-    override suspend fun setBriefingShowEvent(value: Boolean) {
-        context.displayDataStore.editOrLog(TAG) { it[BRIEFING_SHOW_EVENT_KEY] = value }
-    }
-
-    override suspend fun setBriefingShowWeather(value: Boolean) {
-        context.displayDataStore.editOrLog(TAG) { it[BRIEFING_SHOW_WEATHER_KEY] = value }
     }
 
     override suspend fun setUiScale(value: UiScale) {
@@ -410,12 +382,8 @@ internal class DisplayPreferences(
         val FULLSCREEN_KEY = stringPreferencesKey("fullscreen")
         val DOCK_POSITION_KEY = stringPreferencesKey("dock_position")
         val DRIVER_SIDE_KEY = stringPreferencesKey("driver_side")
-        val PRESET_MODE_KEY = stringPreferencesKey("preset_mode")
-        val DRIVING_THRESHOLD_KMH_KEY = intPreferencesKey("driving_threshold_kmh")
         val MOTION_TIER_KEY = stringPreferencesKey("motion_tier")
         val ORIENTATION_KEY = stringPreferencesKey("orientation")
-        val BRIEFING_SHOW_EVENT_KEY = booleanPreferencesKey("briefing_show_event")
-        val BRIEFING_SHOW_WEATHER_KEY = booleanPreferencesKey("briefing_show_weather")
         val KEEP_SCREEN_ON_KEY = booleanPreferencesKey("keep_screen_on")
         val ASSISTANT_LAUNCH_KEY = stringPreferencesKey("assistant_launch")
         val MAP_STYLE_KEY = stringPreferencesKey("map_style")
@@ -467,12 +435,8 @@ internal class DisplayPreferences(
                 FULLSCREEN_KEY,
                 DOCK_POSITION_KEY,
                 DRIVER_SIDE_KEY,
-                PRESET_MODE_KEY,
-                DRIVING_THRESHOLD_KMH_KEY,
                 MOTION_TIER_KEY,
                 ORIENTATION_KEY,
-                BRIEFING_SHOW_EVENT_KEY,
-                BRIEFING_SHOW_WEATHER_KEY,
                 KEEP_SCREEN_ON_KEY,
                 ASSISTANT_LAUNCH_KEY,
                 MAP_STYLE_KEY,

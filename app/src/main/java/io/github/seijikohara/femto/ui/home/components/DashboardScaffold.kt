@@ -1,7 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -43,8 +42,6 @@ import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
-import io.github.seijikohara.femto.ui.home.PresetId
-import io.github.seijikohara.femto.ui.home.components.driving.DrivingOverlays
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -65,16 +62,6 @@ internal data class PanelVisibility(
     // overlay is dropped entirely so the map shows uncovered.
     val anyInfoPanel: Boolean get() = calendar || weather || music
 }
-
-// How the driving face composes its one-line briefing: whether the event /
-// weather halves are shown. Only the driving face reads this. Sourced from
-// DisplaySettings and threaded down like PanelVisibility; the field defaults
-// mirror DisplaySettings.Default (both halves on) so a fresh install shows
-// the full briefing.
-internal data class BriefingConfig(
-    val showEvent: Boolean = true,
-    val showWeather: Boolean = true,
-)
 
 /**
  * Top-level dashboard layout: the map is the full-screen background and
@@ -128,10 +115,7 @@ internal fun DashboardScaffold(
     spectrum: StateFlow<FloatArray?>? = null,
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
-    activePreset: PresetId = PresetId.COCKPIT,
-    passengerUnlocked: Boolean = false,
     motionTier: MotionTier = MotionTier.STANDARD,
-    briefingConfig: BriefingConfig = BriefingConfig(),
 ) = DashboardContent(
     uiState = uiState,
     is24Hour = is24Hour,
@@ -152,10 +136,7 @@ internal fun DashboardScaffold(
     spectrum = spectrum,
     musicShowAlbum = musicShowAlbum,
     musicShowArt = musicShowArt,
-    activePreset = activePreset,
-    passengerUnlocked = passengerUnlocked,
     motionTier = motionTier,
-    briefingConfig = briefingConfig,
 )
 
 // The full-screen dashboard body: the map fills the viewport as the background
@@ -180,10 +161,7 @@ private fun DashboardContent(
     spectrum: StateFlow<FloatArray?>? = null,
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
-    activePreset: PresetId = PresetId.COCKPIT,
-    passengerUnlocked: Boolean = false,
     motionTier: MotionTier = MotionTier.STANDARD,
-    briefingConfig: BriefingConfig = BriefingConfig(),
 ) = BoxWithConstraints(modifier = modifier) {
     val compact = maxHeight < CompactHeightBreakpoint || maxWidth < CompactWidthBreakpoint
     val portrait = maxHeight > maxWidth
@@ -214,7 +192,6 @@ private fun DashboardContent(
     var bearingDeg by remember { mutableFloatStateOf(0f) }
     var recenterNonce by remember { mutableIntStateOf(0) }
     var overlayHeightPx by remember { mutableIntStateOf(0) }
-    var drivingBarHeightPx by remember { mutableIntStateOf(0) }
 
     val density = LocalDensity.current
     // The dock floats over the map as a rounded panel, inset from its edge by
@@ -271,52 +248,23 @@ private fun DashboardContent(
             }
         }
 
-    // The driving face reserves a measured bottom band: the driving bar's glass-card
-    // height (reported below via onBarHeightChange) plus the dock, the panel gap, and
-    // the marker clearance — mirroring the cockpit speed-overlay reservation above so
-    // the self-marker drops above the bar on any geometry / UI-scale instead of behind
-    // a hand-tuned constant.
-    val drivingBottomSafeFraction =
-        with(density) {
-            val heightPx = maxHeight.roundToPx()
-            if (heightPx > 0) {
-                val dockBottom = if (dockPosition == DockPosition.BOTTOM) dockExtent else 0.dp
-                val reserved = drivingBarHeightPx + (dockBottom + cardGap + MarkerOverlayClearance).toPx()
-                (reserved / heightPx).coerceIn(0f, 0.5f)
-            } else {
-                0f
-            }
-        }
-
-    // The map reads ONE safe-area triple, picked by the visible face, so its camera
-    // padding tracks whichever overlay tree is on screen. The cockpit reserves the
-    // card column on the driver's side (the right by default, the left when mirrored)
-    // plus the bottom band computed above; driving clears only a bottom band for its
-    // bar plus the dock. Only one horizontal reserve is ever non-zero. Changing these
-    // pushes camera padding through MapPanel's LaunchedEffect — it never recreates the
-    // WebView.
+    // The map's safe-area triple: the card column reserves the driver's side (the
+    // right by default, the left when mirrored) plus the bottom band computed above.
+    // Only one horizontal reserve is ever non-zero. Changing these pushes camera
+    // padding through MapPanel's LaunchedEffect — it never recreates the WebView.
     val mirror = driverSide == DriverSide.LEFT
-    val (activeRightSafe, activeLeftSafe) =
-        when (activePreset) {
-            PresetId.COCKPIT -> if (mirror) 0f to cardSafeFraction else cardSafeFraction to 0f
-            PresetId.DRIVING -> 0f to 0f
-        }
-    val activeBottomSafe =
-        when (activePreset) {
-            PresetId.COCKPIT -> bottomSafeFraction
-            PresetId.DRIVING -> drivingBottomSafeFraction
-        }
+    val (rightSafeFraction, leftSafeFraction) =
+        if (mirror) 0f to cardSafeFraction else cardSafeFraction to 0f
 
-    // The map fills the whole viewport, behind the dock and every overlay. It is a
-    // single instance OUTSIDE the crossfade below: the preset switch cross-fades
-    // only the overlays, so the WebView is never torn down and rebuilt.
+    // The map fills the whole viewport, behind the dock and every overlay; it stays
+    // composed as a single instance so the WebView is never torn down and rebuilt.
     MapPanel(
         location = uiState.location,
         mapConfig =
             mapConfig.copy(
-                bottomSafeFraction = activeBottomSafe,
-                rightSafeFraction = activeRightSafe,
-                leftSafeFraction = activeLeftSafe,
+                bottomSafeFraction = bottomSafeFraction,
+                rightSafeFraction = rightSafeFraction,
+                leftSafeFraction = leftSafeFraction,
             ),
         onTap = { onAction(HomeAction.OpenMaps) },
         modifier = Modifier.fillMaxSize().hazeSource(hazeState),
@@ -326,75 +274,36 @@ private fun DashboardContent(
         attributionBottomInset = attributionBottomInset,
     )
 
-    // Only the two overlay faces cross-fade; the map (blur source) and the dock
-    // stay composed once, outside this animated content, so switching preset never
-    // tears down the WebView. Both faces inset by the dock footprint so their glass
-    // never sits under the dock's nav buttons while the map shows through behind it.
-    Crossfade(
-        targetState = activePreset,
-        animationSpec = Motion.contentFadeSpec(motionTier),
-        label = "preset",
-        modifier = Modifier.fillMaxSize(),
-    ) { preset ->
-        when (preset) {
-            PresetId.COCKPIT -> {
-                CockpitOverlays(
-                    uiState = uiState,
-                    is24Hour = is24Hour,
-                    showClockSeconds = showClockSeconds,
-                    speedUnit = speedUnit,
-                    temperatureUnit = temperatureUnit,
-                    panels = panels,
-                    glassConfig = glassConfig,
-                    outerPad = outerPad,
-                    cardGap = cardGap,
-                    landscapeCards = landscapeCards,
-                    bottomCards = bottomCards,
-                    bottomCardBand = bottomCardBand,
-                    floatingCardWidth = floatingCardWidth,
-                    hasCards = hasCards,
-                    hazeState = hazeState,
-                    following = following,
-                    bearingDeg = bearingDeg,
-                    motionTier = motionTier,
-                    driverSide = driverSide,
-                    onRecenter = { recenterNonce++ },
-                    onOverlayHeightChange = { overlayHeightPx = it },
-                    onAction = onAction,
-                    modifier = Modifier.fillMaxSize().padding(dockEdgePadding(dockPosition, dockExtent)),
-                    spectrum = spectrum,
-                    musicShowAlbum = musicShowAlbum,
-                    musicShowArt = musicShowArt,
-                )
-            }
-
-            PresetId.DRIVING -> {
-                DrivingOverlays(
-                    uiState = uiState,
-                    speedUnit = speedUnit,
-                    temperatureUnit = temperatureUnit,
-                    glassConfig = glassConfig,
-                    hazeState = hazeState,
-                    outerPad = outerPad,
-                    briefingConfig = briefingConfig,
-                    following = following,
-                    bearingDeg = bearingDeg,
-                    driverSide = driverSide,
-                    motionTier = motionTier,
-                    onBarHeightChange = { drivingBarHeightPx = it },
-                    onRecenter = { recenterNonce++ },
-                    onAction = onAction,
-                    modifier = Modifier.fillMaxSize().padding(dockEdgePadding(dockPosition, dockExtent)),
-                )
-            }
-        }
-    }
-
-    // Passenger-unlock visibility: shown while the driving face is on screen or the
-    // user has already unlocked, so the resting cockpit (the default) shows no
-    // toggle. Threaded into the dock (below) rather than a separate floating pill —
-    // the pill used to anchor top-centre / top-end, overlapping the clock.
-    val showPassengerToggle = passengerUnlocked || activePreset == PresetId.DRIVING
+    // The overlay tree insets by the dock footprint so its glass never sits under
+    // the dock's nav buttons while the map shows through behind it.
+    DashboardOverlays(
+        uiState = uiState,
+        is24Hour = is24Hour,
+        showClockSeconds = showClockSeconds,
+        speedUnit = speedUnit,
+        temperatureUnit = temperatureUnit,
+        panels = panels,
+        glassConfig = glassConfig,
+        outerPad = outerPad,
+        cardGap = cardGap,
+        landscapeCards = landscapeCards,
+        bottomCards = bottomCards,
+        bottomCardBand = bottomCardBand,
+        floatingCardWidth = floatingCardWidth,
+        hasCards = hasCards,
+        hazeState = hazeState,
+        following = following,
+        bearingDeg = bearingDeg,
+        motionTier = motionTier,
+        driverSide = driverSide,
+        onRecenter = { recenterNonce++ },
+        onOverlayHeightChange = { overlayHeightPx = it },
+        onAction = onAction,
+        modifier = Modifier.fillMaxSize().padding(dockEdgePadding(dockPosition, dockExtent)),
+        spectrum = spectrum,
+        musicShowAlbum = musicShowAlbum,
+        musicShowArt = musicShowArt,
+    )
 
     // The dock as a glass bar / rail on its edge, drawn over the full-bleed map.
     DashboardDock(
@@ -404,8 +313,6 @@ private fun DashboardContent(
         hazeState = hazeState,
         glassConfig = glassConfig,
         dockConfig = dockConfig,
-        showPassengerToggle = showPassengerToggle,
-        passengerUnlocked = passengerUnlocked,
         modifier =
             when (dockPosition) {
                 DockPosition.BOTTOM, DockPosition.TOP -> {
@@ -425,15 +332,14 @@ private fun DashboardContent(
     )
 }
 
-// The cockpit face: the glass overlay tree that floats over the map — map controls,
-// the clock and speed overlays, the floating info cards, and the three maximize
-// panels. The caller keeps the map (the blur source) and the dock composed one level
-// up, outside this face, and supplies the dock-edge inset through [modifier] so the
-// overlays never sit under the dock's nav buttons while the map shows through behind
-// it. Extracting the face keeps that map/dock pair stable across a future preset
-// switch instead of tearing down the WebView.
+// The dashboard's glass overlay tree that floats over the map — map controls, the
+// clock and speed overlays, the floating info cards, and the three maximize
+// panels. The caller keeps the map (the blur source) and the dock composed one
+// level up, outside this tree, and supplies the dock-edge inset through [modifier]
+// so the overlays never sit under the dock's nav buttons while the map shows
+// through behind it.
 @Composable
-private fun CockpitOverlays(
+private fun DashboardOverlays(
     uiState: HomeUiState,
     is24Hour: Boolean,
     showClockSeconds: Boolean,
@@ -452,7 +358,7 @@ private fun CockpitOverlays(
     following: Boolean,
     bearingDeg: Float,
     motionTier: MotionTier,
-    // Which side the info-dense cockpit anchors to: RIGHT (default) keeps today's
+    // Which side the info-dense dashboard anchors to: RIGHT (default) keeps today's
     // layout; LEFT mirrors every alignment/padding site (start <-> end) so the cards,
     // clock, map controls, and speed reserve all flip to the driver's side.
     driverSide: DriverSide,
@@ -504,7 +410,7 @@ private fun CockpitOverlays(
         if (expandedWeather != null) panelWeather = expandedWeather
     }
 
-    // LEFT driver side mirrors the cockpit start <-> end: the cards, clock, and speed
+    // LEFT driver side mirrors the dashboard start <-> end: the cards, clock, and speed
     // reserve move to the left; the map controls (opposite the cards) move to the
     // right. Each site below reduces to its current RIGHT expression when !mirror.
     val mirror = driverSide == DriverSide.LEFT
@@ -720,9 +626,9 @@ private fun CockpitOverlays(
     }
 }
 
-// The horizontal inset for a cockpit overlay that sits on the card side of the
+// The horizontal inset for a dashboard overlay that sits on the card side of the
 // screen — [horizontal] rides the end edge for the default RIGHT driver and flips to
-// the start edge when [mirror] anchors the cockpit to a LEFT driver. [top] / [bottom]
+// the start edge when [mirror] anchors the dashboard to a LEFT driver. [top] / [bottom]
 // carry the unchanged vertical insets. Overlays opposite the cards (the map controls)
 // invert the alignment themselves; this helper only builds the card-side reserve.
 private fun cardSideInset(

@@ -34,7 +34,7 @@
 // chevron is hidden rather than swapped to a geo-anchored clone — see setFollowing
 // for why (no mapId-free, non-deprecated geo-marker).
 //
-// A second, related divergence: this page has no preset-switch reflow lockstep
+// A second, related divergence: this page has no layout-reflow lockstep
 // timing (contrast camera.ts isPaddingOnlyReflow + marker-motion.ts, used by the
 // OSM/Mapbox pages) because it needs none — see the moveCam doc below.
 import {
@@ -417,7 +417,7 @@ async function initMap(): Promise<void> {
 	// immediate (un-animated) camera move. Camera-change events fired by this
 	// call land inside the window and are ignored by the gesture detacher.
 	//
-	// This is also why this page needs no preset-reflow lockstep timing (the
+	// This is also why this page needs no layout-reflow lockstep timing (the
 	// mechanism the OSM/Mapbox pages add — see camera.ts isPaddingOnlyReflow
 	// and marker-motion.ts): moveCamera is documented as setting the camera
 	// "immediately... without animation" (there is no promise-based easeTo
@@ -425,7 +425,7 @@ async function initMap(): Promise<void> {
 	// jumps, not a single interpolated call — see the updateCamera doc below).
 	// So this call and the marker's left/top write in placeFollowCamera below
 	// already land in the same synchronous tick on EVERY push, a genuine fix
-	// or a preset-switch reflow alike: there is no separate "camera glide"
+	// or a layout reflow alike: there is no separate "camera glide"
 	// phase for the marker to fall behind, so both already move in lockstep
 	// (a synchronized snap) by construction.
 	function moveCam(opts: GMCameraOptions): void {

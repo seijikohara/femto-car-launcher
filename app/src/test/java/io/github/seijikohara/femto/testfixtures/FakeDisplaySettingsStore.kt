@@ -19,7 +19,6 @@ import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.display.OrientationSetting
-import io.github.seijikohara.femto.data.display.PresetMode
 import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
@@ -62,17 +61,9 @@ internal class FakeDisplaySettingsStore(
 
     override suspend fun setDriverSide(value: DriverSide) = state.update { it.copy(driverSide = value) }
 
-    override suspend fun setPresetMode(value: PresetMode) = state.update { it.copy(presetMode = value) }
-
-    override suspend fun setDrivingThresholdKmh(value: Int) = state.update { it.copy(drivingThresholdKmh = value) }
-
     override suspend fun setMotionTier(value: MotionTier) = state.update { it.copy(motionTier = value) }
 
     override suspend fun setOrientation(value: OrientationSetting) = state.update { it.copy(orientation = value) }
-
-    override suspend fun setBriefingShowEvent(value: Boolean) = state.update { it.copy(briefingShowEvent = value) }
-
-    override suspend fun setBriefingShowWeather(value: Boolean) = state.update { it.copy(briefingShowWeather = value) }
 
     override suspend fun setKeepScreenOn(value: Boolean) = state.update { it.copy(keepScreenOn = value) }
 
@@ -166,12 +157,8 @@ internal class FakeDisplaySettingsStore(
             DisplayPreferences.FULLSCREEN_KEY -> copy(fullscreen = default.fullscreen)
             DisplayPreferences.DOCK_POSITION_KEY -> copy(dockPosition = default.dockPosition)
             DisplayPreferences.DRIVER_SIDE_KEY -> copy(driverSide = default.driverSide)
-            DisplayPreferences.PRESET_MODE_KEY -> copy(presetMode = default.presetMode)
-            DisplayPreferences.DRIVING_THRESHOLD_KMH_KEY -> copy(drivingThresholdKmh = default.drivingThresholdKmh)
             DisplayPreferences.MOTION_TIER_KEY -> copy(motionTier = default.motionTier)
             DisplayPreferences.ORIENTATION_KEY -> copy(orientation = default.orientation)
-            DisplayPreferences.BRIEFING_SHOW_EVENT_KEY -> copy(briefingShowEvent = default.briefingShowEvent)
-            DisplayPreferences.BRIEFING_SHOW_WEATHER_KEY -> copy(briefingShowWeather = default.briefingShowWeather)
             DisplayPreferences.KEEP_SCREEN_ON_KEY -> copy(keepScreenOn = default.keepScreenOn)
             DisplayPreferences.ASSISTANT_LAUNCH_KEY -> copy(assistantLaunch = default.assistantLaunch)
             DisplayPreferences.MAP_STYLE_KEY -> copy(mapStyle = default.mapStyle)

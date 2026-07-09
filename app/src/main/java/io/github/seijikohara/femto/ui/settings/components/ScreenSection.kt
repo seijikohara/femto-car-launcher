@@ -7,7 +7,9 @@ import androidx.compose.ui.res.stringResource
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.FullscreenSetting
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.ui.settings.SettingsAction
@@ -38,6 +40,19 @@ internal fun ScreenSection(
             ),
         selected = uiState.orientation,
         onSelect = { onAction(SettingsAction.SetOrientation(it)) },
+    )
+    // The whole dashboard layout (floating cards, clock, speed reserve, map
+    // controls, self-marker) anchors to the driver's side, so the row sits with
+    // the other whole-screen layout choices.
+    ChoiceRow(
+        title = stringResource(R.string.settings_group_driver_side),
+        options =
+            listOf(
+                DriverSide.RIGHT to stringResource(R.string.settings_driver_side_right),
+                DriverSide.LEFT to stringResource(R.string.settings_driver_side_left),
+            ),
+        selected = uiState.driverSide,
+        onSelect = { onAction(SettingsAction.SetDriverSide(it)) },
     )
     SwitchRow(
         title = stringResource(R.string.settings_group_fullscreen),
@@ -80,6 +95,17 @@ internal fun ScreenSection(
             ),
         selected = uiState.assistantLaunch,
         onSelect = { onAction(SettingsAction.SetAssistantLaunch(it)) },
+    )
+    ChoiceRow(
+        title = stringResource(R.string.settings_group_motion),
+        options =
+            listOf(
+                MotionTier.STANDARD to stringResource(R.string.settings_motion_standard),
+                MotionTier.REDUCED to stringResource(R.string.settings_motion_reduced),
+                MotionTier.OFF to stringResource(R.string.settings_motion_off),
+            ),
+        selected = uiState.motionTier,
+        onSelect = { onAction(SettingsAction.SetMotionTier(it)) },
     )
 }
 

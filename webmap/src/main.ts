@@ -9,9 +9,9 @@ import {
 	appliedBearing,
 	easeDurationMs,
 	isPaddingOnlyReflow,
+	LAYOUT_REFLOW_MS,
 	LOCATION_STALE_THRESHOLD_MS,
 	linearEase,
-	PRESET_REFLOW_MS,
 	smoothedBearing,
 } from "./camera";
 import { createMarkerTransition } from "./marker-motion";
@@ -319,9 +319,9 @@ try {
 	// travel bearing; rotateX lays it onto the tilted ground plane.
 	const markerEl = document.getElementById("self-marker") as HTMLElement;
 	const markerPath = markerEl.querySelector("path");
-	// Lockstep control for a preset-switch reflow — see isPaddingOnlyReflow
+	// Lockstep control for a layout reflow — see isPaddingOnlyReflow
 	// and marker-motion.ts.
-	const markerTransition = createMarkerTransition(markerEl, PRESET_REFLOW_MS);
+	const markerTransition = createMarkerTransition(markerEl, LAYOUT_REFLOW_MS);
 
 	// Grey the chevron and stop its ripple once fixes stop arriving (signal lost
 	// in a tunnel): the host pushes a fix per update and goes quiet on loss, so
@@ -521,7 +521,7 @@ try {
 	) => {
 		// Captured before state.lastFix below is overwritten with this push:
 		// compared against it to tell a genuine GPS fix (the center moves) from
-		// a preset-switch reflow (the center holds, only the safe-area padding
+		// a layout reflow (the center holds, only the safe-area padding
 		// changes) — see isPaddingOnlyReflow.
 		const previousFix = state.lastFix;
 		// Measure the inter-fix interval BEFORE refreshing lastFixMs: the ease
@@ -568,9 +568,10 @@ try {
 			}
 			return;
 		}
-		// A preset switch re-pushes the SAME fix with only the padding changed;
-		// a signal gap always takes the jumpTo path below regardless, so it can
-		// never qualify as a reflow.
+		// A dashboard layout change (dock position, card visibility, driver
+		// side) re-pushes the SAME fix with only the padding changed; a signal
+		// gap always takes the jumpTo path below regardless, so it can never
+		// qualify as a reflow.
 		const isReflow =
 			!signalGap &&
 			isPaddingOnlyReflow(previousFix, {
@@ -617,7 +618,7 @@ try {
 			// camera lands exactly when the marker's CSS transition finishes.
 			liveMap.easeTo({
 				...opts,
-				duration: PRESET_REFLOW_MS,
+				duration: LAYOUT_REFLOW_MS,
 				easing: linearEase,
 				essential: true,
 			});

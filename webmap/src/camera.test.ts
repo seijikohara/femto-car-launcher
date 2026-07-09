@@ -107,7 +107,7 @@ describe("isPaddingOnlyReflow", () => {
 		expect(isPaddingOnlyReflow(fix, { ...fix })).toBe(false);
 	});
 
-	it("is true when the center holds but a safe fraction changed (a preset switch)", () => {
+	it("is true when the center holds but a safe fraction changed (a layout change)", () => {
 		expect(
 			isPaddingOnlyReflow(fix, { ...fix, rightSafe: 0, leftSafe: 0 }),
 		).toBe(true);

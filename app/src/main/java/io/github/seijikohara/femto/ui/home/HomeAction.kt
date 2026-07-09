@@ -58,11 +58,6 @@ internal sealed interface HomeAction {
 
     data object ResetTrip : HomeAction
 
-    /** Toggle the transient passenger unlock (keep the cockpit while moving). Not persisted. */
-    data class SetPassengerUnlock(
-        val unlocked: Boolean,
-    ) : HomeAction
-
     /** The dock's long-press menu: swap a nav button one step within the visible order. */
     data class MoveDockNav(
         val id: DockNavId,

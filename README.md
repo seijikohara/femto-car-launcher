@@ -76,11 +76,11 @@ The home screen is a fixed dashboard rather than a scrolling grid of apps.
   Korean — fallback face), downloaded on demand and cached on disk. No
   fonts are bundled in the APK and no Play Services are required.
 - **Settings** — in-app preferences grouped into seven sections:
-  **Appearance** (theme, accent colour, a curated theme preset with a
-  live "Custom" indicator, map colour matching, glass-effect blur and
-  opacity, and font pairing), **Screen** (UI scale, screen orientation,
-  fullscreen, keep-screen-on, dock edge, and voice-assistant launch
-  behaviour), **Units** (speed and temperature units, clock format and
+  **Appearance** (theme, accent colour, map colour matching,
+  glass-effect blur and opacity, and font pairing), **Screen** (UI
+  scale, screen orientation, fullscreen, keep-screen-on, dock edge,
+  driver-side card anchoring, motion reduction, and voice-assistant
+  launch behaviour), **Units** (speed and temperature units, clock format and
   seconds), **Map** (backend choice, an optional Mapbox access token or
   Google Maps Platform API key to enable the paid backends, 3D
   buildings, terrain, and camera behaviour), **Location**

@@ -13,7 +13,6 @@ import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.display.OrientationSetting
-import io.github.seijikohara.femto.data.display.PresetMode
 import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
@@ -316,6 +315,7 @@ class SettingsViewModelTest {
             val vm = viewModel()
             vm.onAction(SettingsAction.SetFullscreen(FullscreenSetting.OFF))
             vm.onAction(SettingsAction.SetDockPosition(DockPosition.LEFT))
+            vm.onAction(SettingsAction.SetMotionTier(MotionTier.OFF))
             vm.onAction(SettingsAction.SetShowMusic(false))
             advanceUntilIdle()
 
@@ -324,26 +324,9 @@ class SettingsViewModelTest {
 
             assertEquals(FullscreenSetting.ON, store.settings.first().fullscreen)
             assertEquals(DockPosition.BOTTOM, store.settings.first().dockPosition)
+            assertEquals(MotionTier.STANDARD, store.settings.first().motionTier)
             // Panels is a different section — untouched by a Screen reset.
             assertEquals(false, store.settings.first().showMusic)
-        }
-
-    @Test
-    fun `ResetSection(DRIVING) resets its fields, leaves other sections alone`() =
-        runTest(dispatcher) {
-            val vm = viewModel()
-            vm.onAction(SettingsAction.SetPresetMode(PresetMode.DRIVING))
-            vm.onAction(SettingsAction.SetMotionTier(MotionTier.OFF))
-            vm.onAction(SettingsAction.SetMapZoom(11))
-            advanceUntilIdle()
-
-            vm.onAction(SettingsAction.ResetSection(SettingsSectionId.DRIVING))
-            advanceUntilIdle()
-
-            assertEquals(PresetMode.AUTO, store.settings.first().presetMode)
-            assertEquals(MotionTier.STANDARD, store.settings.first().motionTier)
-            // Map is a different section — untouched by a Driving reset.
-            assertEquals(11, store.settings.first().mapZoom)
         }
 
     @Test
@@ -466,22 +449,6 @@ class SettingsViewModelTest {
         }
 
     @Test
-    fun `SetPresetMode writes the value to the store`() =
-        runTest(dispatcher) {
-            viewModel().onAction(SettingsAction.SetPresetMode(PresetMode.DRIVING))
-            advanceUntilIdle()
-            assertEquals(PresetMode.DRIVING, store.settings.first().presetMode)
-        }
-
-    @Test
-    fun `SetDrivingThresholdKmh writes the value to the store`() =
-        runTest(dispatcher) {
-            viewModel().onAction(SettingsAction.SetDrivingThresholdKmh(20))
-            advanceUntilIdle()
-            assertEquals(20, store.settings.first().drivingThresholdKmh)
-        }
-
-    @Test
     fun `SetMotionTier writes the value to the store`() =
         runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetMotionTier(MotionTier.OFF))
@@ -495,22 +462,6 @@ class SettingsViewModelTest {
             viewModel().onAction(SettingsAction.SetOrientation(OrientationSetting.LANDSCAPE))
             advanceUntilIdle()
             assertEquals(OrientationSetting.LANDSCAPE, store.settings.first().orientation)
-        }
-
-    @Test
-    fun `SetBriefingShowEvent writes the value to the store`() =
-        runTest(dispatcher) {
-            viewModel().onAction(SettingsAction.SetBriefingShowEvent(false))
-            advanceUntilIdle()
-            assertEquals(false, store.settings.first().briefingShowEvent)
-        }
-
-    @Test
-    fun `SetBriefingShowWeather writes the value to the store`() =
-        runTest(dispatcher) {
-            viewModel().onAction(SettingsAction.SetBriefingShowWeather(false))
-            advanceUntilIdle()
-            assertEquals(false, store.settings.first().briefingShowWeather)
         }
 
     @Test

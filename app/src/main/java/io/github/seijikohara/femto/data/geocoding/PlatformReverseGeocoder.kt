@@ -79,7 +79,6 @@ internal fun Address.toShortAddressOrNull(): ShortAddress? {
     return ShortAddress(
         locality = place,
         region = adminArea?.takeIf { it != place },
-        road = thoroughfare?.takeIf { it.isNotBlank() },
         line = getAddressLine(0).orEmpty(),
     )
 }

@@ -8,7 +8,7 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 
 // The System category's rows: action links plus the global reset. Unlike the
-// other 7 categories, System has no SettingsSectionId of its own (see
+// other categories, System has no SettingsSectionId of its own (see
 // SettingsCategoryId), so the shared master-detail wrapper never gives it a
 // per-category reset icon — ResetRow below is its only reset affordance.
 @Composable

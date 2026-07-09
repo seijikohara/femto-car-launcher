@@ -28,6 +28,7 @@ class SettingsScreenTest {
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val driverSideLabel = context.getString(R.string.settings_group_driver_side)
+    private val motionLabel = context.getString(R.string.settings_group_motion)
     private val dockPositionLabel = context.getString(R.string.settings_group_dock_position)
     private val fullscreenLabel = context.getString(R.string.settings_group_fullscreen)
     private val themeLabel = context.getString(R.string.settings_group_theme)
@@ -601,15 +602,17 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun driving_category_rows_are_absent_until_navigated_to() {
+    fun driver_side_and_motion_rows_are_absent_until_screen_is_selected() {
         // Only the SELECTED category's rows are ever composed — Appearance is the
-        // default, not Driving, so the driver-side row starts absent. Navigating to
-        // Driving (via the rail in the wide layout, or the list in the narrow
-        // layout — navigateToCategory works either way) then shows it.
+        // default, not Screen, so the driver-side row starts absent. Navigating to
+        // Screen (via the rail in the wide layout, or the list in the narrow
+        // layout — navigateToCategory works either way) then shows the driver-side
+        // and motion rows.
         setScreen()
         rule.onNodeWithText(driverSideLabel).assertDoesNotExist()
-        navigateToCategory(R.string.settings_section_driving)
+        navigateToCategory(R.string.settings_section_screen)
         rule.onNodeWithText(driverSideLabel).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText(motionLabel).performScrollTo().assertIsDisplayed()
     }
 
     private fun setScreen(

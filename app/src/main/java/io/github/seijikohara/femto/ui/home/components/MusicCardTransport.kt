@@ -103,8 +103,8 @@ internal fun TransportRow(
     // Overridable only for the Now Playing panel's portrait layout, which
     // widens it to tighten the centred row's flanking margins — see
     // [FemtoDimens.NowPlayingPanelTransportGap]. Every other call site (the
-    // small card, the driving bar, the panel's landscape row) relies on this
-    // default, so it must not change.
+    // small card, the panel's landscape row) relies on this default, so it
+    // must not change.
     gap: Dp = FemtoDimens.MusicTransportGap,
 ) = Row(
     modifier = modifier,

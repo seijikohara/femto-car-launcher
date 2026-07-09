@@ -133,7 +133,7 @@ class DashboardScreenshotTest {
     @Config(qualifiers = "w853dp-h512dp-mdpi")
     fun dashboard_head_unit_large_scale() = capture("head-unit-853x512-large", UiScale.LARGE)
 
-    // --- Driver-side opt-ins: LEFT mirrors the cockpit column to the driver's
+    // --- Driver-side opt-ins: LEFT mirrors the dashboard column to the driver's
     // left. Default RIGHT is the no-op baseline of every case above. ---
 
     @Test
