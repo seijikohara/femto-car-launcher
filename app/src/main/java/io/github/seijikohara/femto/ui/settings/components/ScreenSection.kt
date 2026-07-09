@@ -41,7 +41,7 @@ internal fun ScreenSection(
         selected = uiState.orientation,
         onSelect = { onAction(SettingsAction.SetOrientation(it)) },
     )
-    // The whole cockpit layout (floating cards, clock, speed reserve, map
+    // The whole dashboard layout (floating cards, clock, speed reserve, map
     // controls, self-marker) anchors to the driver's side, so the row sits with
     // the other whole-screen layout choices.
     ChoiceRow(

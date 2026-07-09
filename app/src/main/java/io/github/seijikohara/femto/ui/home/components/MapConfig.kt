@@ -45,7 +45,7 @@ internal data class MapConfig(
     // keeps the marker centred (portrait, or no cards).
     val rightSafeFraction: Float = 0f,
     // Fraction (0..0.45) of the map width the left-hand floating cards occupy —
-    // the horizontal mirror of [rightSafeFraction], set when the cockpit anchors
+    // the horizontal mirror of [rightSafeFraction], set when the dashboard anchors
     // to the driver's LEFT. The marker is shifted right of centre so it stays
     // clear of those cards. Only one of [rightSafeFraction] / [leftSafeFraction]
     // is ever non-zero; 0 keeps the marker centred.

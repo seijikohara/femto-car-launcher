@@ -276,7 +276,7 @@ private fun DashboardContent(
 
     // The overlay tree insets by the dock footprint so its glass never sits under
     // the dock's nav buttons while the map shows through behind it.
-    CockpitOverlays(
+    DashboardOverlays(
         uiState = uiState,
         is24Hour = is24Hour,
         showClockSeconds = showClockSeconds,
@@ -332,14 +332,14 @@ private fun DashboardContent(
     )
 }
 
-// The cockpit's glass overlay tree that floats over the map — map controls, the
+// The dashboard's glass overlay tree that floats over the map — map controls, the
 // clock and speed overlays, the floating info cards, and the three maximize
 // panels. The caller keeps the map (the blur source) and the dock composed one
 // level up, outside this tree, and supplies the dock-edge inset through [modifier]
 // so the overlays never sit under the dock's nav buttons while the map shows
 // through behind it.
 @Composable
-private fun CockpitOverlays(
+private fun DashboardOverlays(
     uiState: HomeUiState,
     is24Hour: Boolean,
     showClockSeconds: Boolean,
@@ -358,7 +358,7 @@ private fun CockpitOverlays(
     following: Boolean,
     bearingDeg: Float,
     motionTier: MotionTier,
-    // Which side the info-dense cockpit anchors to: RIGHT (default) keeps today's
+    // Which side the info-dense dashboard anchors to: RIGHT (default) keeps today's
     // layout; LEFT mirrors every alignment/padding site (start <-> end) so the cards,
     // clock, map controls, and speed reserve all flip to the driver's side.
     driverSide: DriverSide,
@@ -410,7 +410,7 @@ private fun CockpitOverlays(
         if (expandedWeather != null) panelWeather = expandedWeather
     }
 
-    // LEFT driver side mirrors the cockpit start <-> end: the cards, clock, and speed
+    // LEFT driver side mirrors the dashboard start <-> end: the cards, clock, and speed
     // reserve move to the left; the map controls (opposite the cards) move to the
     // right. Each site below reduces to its current RIGHT expression when !mirror.
     val mirror = driverSide == DriverSide.LEFT
@@ -626,9 +626,9 @@ private fun CockpitOverlays(
     }
 }
 
-// The horizontal inset for a cockpit overlay that sits on the card side of the
+// The horizontal inset for a dashboard overlay that sits on the card side of the
 // screen — [horizontal] rides the end edge for the default RIGHT driver and flips to
-// the start edge when [mirror] anchors the cockpit to a LEFT driver. [top] / [bottom]
+// the start edge when [mirror] anchors the dashboard to a LEFT driver. [top] / [bottom]
 // carry the unchanged vertical insets. Overlays opposite the cards (the map controls)
 // invert the alignment themselves; this helper only builds the card-side reserve.
 private fun cardSideInset(
