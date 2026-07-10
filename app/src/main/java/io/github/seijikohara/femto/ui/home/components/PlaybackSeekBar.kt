@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.progressSemantics
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -25,6 +26,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -37,7 +39,10 @@ import io.github.seijikohara.femto.ui.theme.progressCaption
  * no gestures — the capability gate hides affordances instead of disabling
  * them. While dragging, the local scrub position overrides the live
  * interpolation and the elapsed label previews the target; the seek command
- * dispatches once, on release (or on a plain tap).
+ * dispatches once, on release (or on a plain tap). The same gesture surface
+ * carries `progressSemantics` plus a `SetProgress` accessibility action, both
+ * mapped through the same [seekTargetMs] the gestures use, so an accessibility
+ * service can read the current position and drive a seek without a pointer.
  */
 @Composable
 internal fun PlaybackSeekBar(
@@ -71,8 +76,23 @@ internal fun PlaybackSeekBar(
     val gestureModifier =
         if (canSeek) {
             Modifier
-                .semantics { contentDescription = seekLabel }
-                .pointerInput(durationMs) {
+                .progressSemantics(fraction)
+                .semantics {
+                    contentDescription = seekLabel
+                    // Mirrors the tap/drag handlers below: seekTargetMs is the same
+                    // fraction-to-millis mapping, and durationMs > 0L is the same
+                    // "is there anything to seek within" guard the shown fraction
+                    // uses above, so an accessibility service gets the identical
+                    // seek behavior a touch gesture would produce.
+                    setProgress(label = seekLabel) { targetFraction ->
+                        if (durationMs > 0L) {
+                            onSeek(seekTargetMs(targetFraction, durationMs))
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                }.pointerInput(durationMs) {
                     detectTapGestures { offset ->
                         onSeek(seekTargetMs(offset.x / size.width, durationMs))
                     }

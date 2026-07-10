@@ -21,6 +21,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Battery
 import com.composables.icons.lucide.BatteryCharging
@@ -69,6 +71,7 @@ internal fun StatusCluster(
                 EditableStatusIndicator(
                     id = id,
                     status = status,
+                    vertical = vertical,
                     canMoveLeft = index > 0,
                     canMoveRight = index < order.lastIndex,
                     canHide = order.size > 1,
@@ -98,30 +101,43 @@ internal fun StatusCluster(
 
 /**
  * Wraps one status indicator's rendered content with the long-press dock-edit
- * menu ([DockEditMenu], shared with the dock's nav buttons — Move left / Move
- * right / Hide / Reset dock). Status icons are read-only at rest — a tap does
- * nothing — so the long press is wired via a raw [detectTapGestures] rather
- * than `combinedClickable`: the latter would add a "double-tap to activate"
- * semantics action for a control with no click behavior, a dead affordance for
- * a screen reader. CELLULAR renders nothing when hidden on a telephony-less
- * unit (see [StatusIndicator]), leaving a zero-size Box with nothing to
- * long-press — consistent with today's absence, not a new empty tap target.
+ * menu ([DockEditMenu], shared with the dock's nav buttons — Move left/right,
+ * or up/down when [vertical] / Hide / Reset dock). Status icons are read-only
+ * at rest — a tap does nothing — so the long press is wired via a raw
+ * [detectTapGestures] rather than `combinedClickable`: the latter would add a
+ * "double-tap to activate" semantics action for a control with no click
+ * behavior, a dead affordance for a screen reader. A `Modifier.semantics {
+ * onLongClick }` alongside that gesture detector bridges the same action to
+ * accessibility services, which drive the semantics tree rather than raw
+ * pointer input — without it, TalkBack had no way to reach this menu at all.
+ * CELLULAR renders nothing when hidden on a telephony-less unit (see
+ * [StatusIndicator]), leaving a zero-size Box with nothing to long-press —
+ * consistent with today's absence, not a new empty tap target.
  */
 @Composable
 private fun EditableStatusIndicator(
     id: DockStatusId,
     status: SystemStatus,
+    // True on the vertical rail (DockPosition.LEFT / RIGHT) — see DockEditMenu.
+    vertical: Boolean,
     canMoveLeft: Boolean,
     canMoveRight: Boolean,
     canHide: Boolean,
     onAction: (HomeAction) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    val openMenuLabel = stringResource(R.string.dock_hide)
     Box(
         modifier =
-            Modifier.pointerInput(id) {
-                detectTapGestures(onLongPress = { menuOpen = true })
-            },
+            Modifier
+                .semantics {
+                    onLongClick(label = openMenuLabel) {
+                        menuOpen = true
+                        true
+                    }
+                }.pointerInput(id) {
+                    detectTapGestures(onLongPress = { menuOpen = true })
+                },
     ) {
         StatusIndicator(id, status)
         DockEditMenu(
@@ -134,6 +150,7 @@ private fun EditableStatusIndicator(
             onMoveRight = { onAction(HomeAction.MoveDockStatus(id, 1)) },
             onHide = { onAction(HomeAction.HideDockStatus(id)) },
             onResetDock = { onAction(HomeAction.ResetDock) },
+            vertical = vertical,
         )
     }
 }

@@ -98,6 +98,11 @@
 
     <!-- Dashboard footer: long-press edit menu (nav buttons and status icons share it) -->
     <string name="dock_hide">Hide</string>
+    <!-- Move labels for a vertical rail dock (left/right edge), where a -1/+1 reorder
+         moves the item up/down rather than left/right; drawer_move_left / drawer_move_right
+         cover the horizontal case. -->
+    <string name="dock_move_up">Move up</string>
+    <string name="dock_move_down">Move down</string>
 
     <!-- Dashboard footer: status cluster -->
     <string name="status_cellular_connected">Mobile data connected</string>

@@ -329,6 +329,7 @@ private fun VerticalDock(
                                     canHide = visibleNav.size > 1,
                                     onAction = onAction,
                                     modifier = Modifier.weight(1f),
+                                    vertical = true,
                                 )
                             }
                         }
@@ -378,6 +379,10 @@ private fun NavButton(
     description: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    // Accessibility-service description of the long-click action (e.g. "double-tap
+    // and hold to Hide"); combinedClickable already exposes the action itself, this
+    // just names it instead of leaving TalkBack to announce a generic "long click".
+    onLongClickLabel: String? = null,
     onLongClick: (() -> Unit)? = null,
     // A long-press-triggered popup (the dock's edit menu) anchored to this same Box.
     menu: @Composable () -> Unit = {},
@@ -388,7 +393,7 @@ private fun NavButton(
         modifier
             .defaultMinSize(minWidth = FemtoDimens.MinTouchTarget, minHeight = FemtoDimens.MinTouchTarget)
             .clip(RoundedCornerShape(14.dp))
-            .combinedClickable(onLongClick = onLongClick, onClick = onClick)
+            .combinedClickable(onLongClick = onLongClick, onLongClickLabel = onLongClickLabel, onClick = onClick)
             .semantics { contentDescription = description },
     contentAlignment = Alignment.Center,
 ) {
@@ -404,12 +409,15 @@ private fun NavButton(
 /**
  * A dock nav button wired for in-place editing: a normal tap still dispatches
  * [id]'s launch action ([navSpecFor]); a long press opens [DockEditMenu] —
- * Move left / Move right (swap [id] one step within the visible nav order) and
- * Hide (drop it), governed by [canMoveLeft] / [canMoveRight] / [canHide] from
- * the caller's position in the visible list, plus the always-present Reset
- * dock. `combinedClickable` (not a second gesture detector layered over the
- * tap) is the reliable tap-vs-long-press split here — see [NavButton] — so the
- * gesture never leaks through to the map behind or fires a spurious launch.
+ * Move left/right (Move up/down when [vertical], swap [id] one step within
+ * the visible nav order) and Hide (drop it), governed by [canMoveLeft] /
+ * [canMoveRight] / [canHide] from the caller's position in the visible list,
+ * plus the always-present Reset dock. `combinedClickable` (not a second
+ * gesture detector layered over the tap) is the reliable tap-vs-long-press
+ * split here — see [NavButton] — so the gesture never leaks through to the
+ * map behind or fires a spurious launch; it also exposes the long click to
+ * accessibility services for free, which [NavButton]'s `onLongClickLabel`
+ * then names.
  */
 @Composable
 private fun EditableNavButton(
@@ -419,6 +427,9 @@ private fun EditableNavButton(
     canHide: Boolean,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
+    // True on the vertical rail (DockPosition.LEFT / RIGHT), where a -1/+1
+    // move is up/down rather than left/right — see DockEditMenu.
+    vertical: Boolean = false,
 ) {
     val spec = navSpecFor(id)
     var menuOpen by remember { mutableStateOf(false) }
@@ -427,6 +438,7 @@ private fun EditableNavButton(
         description = stringResource(spec.labelRes),
         onClick = { onAction(spec.action) },
         modifier = modifier,
+        onLongClickLabel = stringResource(R.string.dock_hide),
         onLongClick = { menuOpen = true },
         menu = {
             DockEditMenu(
@@ -439,6 +451,7 @@ private fun EditableNavButton(
                 onMoveRight = { onAction(HomeAction.MoveDockNav(id, 1)) },
                 onHide = { onAction(HomeAction.HideDockNav(id)) },
                 onResetDock = { onAction(HomeAction.ResetDock) },
+                vertical = vertical,
             )
         },
     )
