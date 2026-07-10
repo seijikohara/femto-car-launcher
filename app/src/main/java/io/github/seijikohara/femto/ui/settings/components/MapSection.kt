@@ -53,9 +53,11 @@ internal fun MapSection(
     var showGoogleKeyDialog by remember { mutableStateOf(false) }
     var showGoogleMapIdDialog by remember { mutableStateOf(false) }
     Column(modifier = modifier) {
-        // Selecting Mapbox without a token, or Google Maps without an API key, opens
-        // the respective entry dialog instead of persisting the backend switch —
-        // MapSection owns this interception because the dialogs live here.
+        // Selecting Mapbox or Google Maps persists the backend switch immediately
+        // (sticky selection; a missing credential does not revert to OSM). When the
+        // matching credential is still blank, selecting also opens its entry dialog
+        // so the user can supply one right away — MapSection owns this interception
+        // because the dialogs live here.
         ChoiceRow(
             title = stringResource(R.string.settings_map_backend),
             options =

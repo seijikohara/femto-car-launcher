@@ -18,9 +18,9 @@ internal data class MapConfig(
     // North-up pins the camera to north (the chevron rotates to the heading
     // instead); false is heading-up, the driving default.
     val northUp: Boolean = false,
-    // Which map page to load: OSM (MapLibre + OpenFreeMap, free) or MAPBOX
-    // (Mapbox GL JS, paid). Kept as a MapConfig field so the WebView host can
-    // branch page URL and bridge calls without reaching into DisplaySettings.
+    // Which map page to load — see MapBackend for what each value means. Kept as
+    // a MapConfig field so the WebView host can branch page URL and bridge calls
+    // without reaching into DisplaySettings.
     val backend: MapBackend = MapBackend.OSM,
     // Mapbox-specific fields; ignored when backend != MAPBOX.
     val mapboxStyle: MapboxStyle = MapboxStyle.STANDARD,

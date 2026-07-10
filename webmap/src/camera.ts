@@ -6,7 +6,7 @@
 // across the gap. The host pushes once per location or camera-config update and
 // goes quiet on signal loss, so the page ages the last push rather than waiting
 // for a null. Mirrors LOCATION_STALE_THRESHOLD_MS in the Kotlin data layer
-// (LocationFreshness.kt) and the SNAPSHOT chevron.
+// (LocationFreshness.kt).
 export const LOCATION_STALE_THRESHOLD_MS = 10_000;
 
 // Bounds for the cadence-matched ease duration. The floor keeps a burst of

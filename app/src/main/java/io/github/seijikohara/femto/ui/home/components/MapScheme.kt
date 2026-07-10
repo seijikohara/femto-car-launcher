@@ -19,9 +19,11 @@ internal const val DARK_STYLE_ASSET = "map/dark.json"
 
 /**
  * Where a [MapColorScheme] gets its style from, resolved for the active light/dark
- * context. Both backends share this so the scheme list stays a single source of
- * truth; each backend turns the ref into its own style reference (snapshot loads the
- * asset / URL directly, live serves the asset over appassets).
+ * context. Only the OSM backend consumes this — Mapbox and Google Maps pick their
+ * style through their own MapboxStyle / GoogleMapType settings instead. [WebMapView]
+ * turns the ref into a URL: [MapStyleRef.Hosted] loads its URL directly, while
+ * [MapStyleRef.Bundled] and [MapStyleRef.Accent] are served from the bundled style
+ * assets over appassets.
  */
 internal sealed interface MapStyleRef {
     data class Hosted(

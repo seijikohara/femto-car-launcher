@@ -122,7 +122,7 @@ export function vectorSourceId(style: StyleSpecification): string | undefined {
 // base its colour is identical to highway_minor, and as "major" it would render a
 // casing-less dark hairline on the dark background. Railways, piers, oneway
 // arrows, and aeroways fall outside the highway_/tunnel_ prefixes and keep their
-// base colours. Mirrors roadColorOrNull in MapStyleRecolor.kt — keep in sync.
+// base colours.
 export function roadClassOrNull(
 	layer: LayerSpecification,
 ): "casing" | "minor" | "major" | null {
@@ -172,8 +172,6 @@ export function injectFeatures(
 	// ACCENT scheme: recolour background / water / land / building fills, the
 	// transportation lines, and label text with the accent palette. Roads keep
 	// their base widths, so the motorway/major/minor hierarchy survives.
-	// Mirrors the Kotlin recolorAccent in MapStyleRecolor.kt — keep the layer
-	// groups and the road classification in sync.
 	const accent = features.accent;
 	if (accent) {
 		for (const l of nextStyle.layers) {
