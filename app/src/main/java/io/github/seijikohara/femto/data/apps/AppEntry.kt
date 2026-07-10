@@ -12,7 +12,7 @@ import androidx.compose.runtime.Immutable
  * mutate at runtime.
  */
 @Immutable
-data class AppEntry(
+internal data class AppEntry(
     val componentName: ComponentName,
     val label: String,
     val icon: Bitmap,

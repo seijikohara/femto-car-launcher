@@ -1,7 +1,5 @@
 package io.github.seijikohara.femto.data.system
 
-import androidx.compose.runtime.Immutable
-
 /**
  * Read-only system connectivity / power surface for the dock status cluster.
  *
@@ -9,8 +7,7 @@ import androidx.compose.runtime.Immutable
  * subscriber renders a neutral cluster while the repository's first emit
  * is in flight.
  */
-@Immutable
-data class SystemStatus(
+internal data class SystemStatus(
     // Null on a device with no telephony feature (e.g. a Wi-Fi-only AI box), so
     // the dock hides the cellular indicator entirely rather than showing a
     // permanently-disconnected one; true/false once telephony is present.

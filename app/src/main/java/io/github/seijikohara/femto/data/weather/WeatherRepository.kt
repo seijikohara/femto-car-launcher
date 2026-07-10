@@ -23,9 +23,12 @@ internal class WeatherRepository(
     private val locationFlow: Flow<Location?>,
     private val clockFlow: Flow<ClockTick>,
     private val clock: Clock = Clock.systemUTC(),
-    // Locationforecast times are UTC; the card shows local wall-clock times and
-    // groups days by the local calendar. Injectable so tests pin a fixed zone.
-    private val zone: ZoneId = ZoneId.systemDefault(),
+    // Read per refresh rather than captured at construction: Locationforecast
+    // times are UTC, but the card shows local wall-clock times and groups days by
+    // the local calendar, and the repository outlives timezone changes (a phone
+    // mounted as car nav crosses borders) — a captured ZoneId would keep grouping
+    // by the old zone until the process dies (mirrors ClockRepository).
+    private val zoneProvider: () -> ZoneId = ZoneId::systemDefault,
 ) {
     // Serialises refresh: merge() lets the location and clock upstreams reach
     // refresh concurrently on the IO pool, and an unguarded check-fetch-write
@@ -50,13 +53,14 @@ internal class WeatherRepository(
             // merge (not combine) keeps the location path working when clockFlow
             // is empty; combine would stall until the clock emitted at least once.
             clockFlow.map { latest.value },
-        ).map { location -> refresh(location) ?: cached }
+        ).map { location -> refresh(location) }
             .flowOn(Dispatchers.IO)
 
-    private suspend fun refresh(location: Location?): WeatherSnapshot? {
-        location ?: return null
-        return mutex.withLock { refreshLocked(location) }
-    }
+    // The cached fallback is read inside [mutex] alongside refreshLocked, so a
+    // concurrent writer can never race it — rather than reading cached unlocked
+    // at the call site.
+    private suspend fun refresh(location: Location?): WeatherSnapshot? =
+        mutex.withLock { location?.let { refreshLocked(it) } ?: cached }
 
     // Runs under [mutex]: the throttle read, network call, and cache write must
     // be one atomic step or two near-simultaneous ticks both pass shouldRefetch.
@@ -74,6 +78,9 @@ internal class WeatherRepository(
             ?.symbolCode ?: first.data.next6Hours
             ?.summary
             ?.symbolCode
+        // One read per refresh so the whole snapshot (sun times plus the hourly
+        // and daily grouping below) uses a single consistent zone.
+        val zone = zoneProvider()
         val now = clock.instant()
         val sun = SunCalculator.compute(location.latitude, location.longitude, now.atZone(zone).toLocalDate(), zone)
         cached =
@@ -90,8 +97,8 @@ internal class WeatherRepository(
                 isDay = symbol?.endsWith("_night") != true,
                 sunrise = sun.sunrise,
                 sunset = sun.sunset,
-                hourly = hourlySliceFrom(forecast.properties.timeseries),
-                daily = dailyForecastsFrom(forecast.properties.timeseries),
+                hourly = hourlySliceFrom(forecast.properties.timeseries, zone),
+                daily = dailyForecastsFrom(forecast.properties.timeseries, zone),
                 fetchedAt = now,
             )
         lastFetchLocation = location
@@ -118,7 +125,10 @@ internal class WeatherRepository(
     // The first HOURLY_SLICE_LENGTH hourly-resolution entries (those carrying a
     // next_1_hours block) starting at the current hour — Locationforecast emits
     // them oldest-first from "now".
-    private fun hourlySliceFrom(timeseries: List<MetForecast.Timeseries>): List<HourlyForecast> =
+    private fun hourlySliceFrom(
+        timeseries: List<MetForecast.Timeseries>,
+        zone: ZoneId,
+    ): List<HourlyForecast> =
         timeseries
             .asSequence()
             .filter { it.data.next1Hours != null }
@@ -140,7 +150,10 @@ internal class WeatherRepository(
     // Aggregate the timeseries into FORECAST_DAYS local days: max/min of the
     // instant air temperatures, and a representative symbol from the entry nearest
     // local noon. MET gives instant points, not pre-summarised days.
-    private fun dailyForecastsFrom(timeseries: List<MetForecast.Timeseries>): List<DailyForecast> =
+    private fun dailyForecastsFrom(
+        timeseries: List<MetForecast.Timeseries>,
+        zone: ZoneId,
+    ): List<DailyForecast> =
         timeseries
             .groupBy { parseInstant(it.time)?.atZone(zone)?.toLocalDate() }
             .entries
@@ -152,12 +165,15 @@ internal class WeatherRepository(
                     date = date,
                     tempMaxC = temps.max(),
                     tempMinC = temps.min(),
-                    code = WeatherCode.fromMetSymbol(representativeSymbol(entries)),
+                    code = WeatherCode.fromMetSymbol(representativeSymbol(entries, zone)),
                 )
             }.sortedBy { it.date }
             .take(FORECAST_DAYS)
 
-    private fun representativeSymbol(entries: List<MetForecast.Timeseries>): String? =
+    private fun representativeSymbol(
+        entries: List<MetForecast.Timeseries>,
+        zone: ZoneId,
+    ): String? =
         entries
             .minByOrNull { abs((parseInstant(it.time)?.atZone(zone)?.hour ?: 0) - NOON_HOUR) }
             ?.let {

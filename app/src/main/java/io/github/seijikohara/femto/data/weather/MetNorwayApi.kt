@@ -35,7 +35,7 @@ private const val FORECAST_PATH = "/weatherapi/locationforecast/2.0/complete"
  */
 internal class MetNorwayApi(
     private val client: OkHttpClient,
-    private val baseUrl: String = "https://api.met.no/",
+    private val baseUrl: String,
     private val userAgent: String,
 ) {
     private val json = Json { ignoreUnknownKeys = true }

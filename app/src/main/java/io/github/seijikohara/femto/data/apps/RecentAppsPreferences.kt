@@ -34,7 +34,7 @@ internal data class RecentLaunch(
 // A flattened ComponentName can never contain a newline or this field
 // separator, so both are safe delimiters (mirrors DrawerPreferences.PIN_SEPARATOR).
 private const val RECORD_SEPARATOR = "\n"
-private const val FIELD_SEPARATOR = ""
+private const val FIELD_SEPARATOR = "\u0001"
 
 /** Decode the persisted history string, dropping any record that fails to parse. */
 internal fun parseRecentLaunches(raw: String?): List<RecentLaunch> =

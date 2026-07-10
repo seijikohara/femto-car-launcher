@@ -5,7 +5,7 @@ package io.github.seijikohara.femto.data.music
 import android.content.Context
 import android.media.audiofx.Visualizer
 import android.util.Log
-import io.github.seijikohara.femto.data.location.hasRecordAudioPermission
+import io.github.seijikohara.femto.data.common.hasRecordAudioPermission
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose

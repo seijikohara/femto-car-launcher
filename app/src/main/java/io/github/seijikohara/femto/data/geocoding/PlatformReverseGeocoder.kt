@@ -21,15 +21,20 @@ private const val TAG = "PlatformReverseGeocoder"
  * degrades to no address where absent — non-GMS AI boxes commonly have no
  * backend, which [Geocoder.isPresent] reports up front.
  *
- * Follows the device [locale] so no single market is privileged
- * (CLAUDE.md, multi-region distribution).
+ * Follows the device locale (read per request via [localeProvider]) so no single
+ * market is privileged (CLAUDE.md, multi-region distribution).
  */
 internal class PlatformReverseGeocoder(
     context: Context,
-    locale: Locale = Locale.getDefault(),
+    // Read per request rather than captured at construction: the launcher is
+    // multi-region and outlives locale changes (a phone mounted as car nav
+    // crosses borders) — a captured locale would pin the geocoder's output
+    // language to the old locale until the process dies (mirrors ClockRepository's
+    // zoneProvider).
+    private val localeProvider: () -> Locale = Locale::getDefault,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ReverseGeocoder {
-    private val geocoder = Geocoder(context.applicationContext, locale)
+    private val appContext = context.applicationContext
 
     override suspend fun reverse(
         latitude: Double,
@@ -39,6 +44,9 @@ internal class PlatformReverseGeocoder(
         // row stays empty rather than blocking on a call that can never resolve.
         if (!Geocoder.isPresent()) return null
         return withContext(ioDispatcher) {
+            // Construct per request so the current locale (read now, not at
+            // construction) governs the returned address language.
+            val geocoder = Geocoder(appContext, localeProvider())
             runCatching {
                 suspendCancellableCoroutine<Address?> { continuation ->
                     // The minSdk-33 async listener variant; the legacy blocking

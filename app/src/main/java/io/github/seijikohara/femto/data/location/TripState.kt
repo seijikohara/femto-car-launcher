@@ -1,7 +1,5 @@
 package io.github.seijikohara.femto.data.location
 
-import androidx.compose.runtime.Immutable
-
 /**
  * Cumulative trip metrics for the dashboard's speed overlay.
  *
@@ -19,8 +17,7 @@ import androidx.compose.runtime.Immutable
  * subscriber sees the running total (or `Initial` before the first
  * non-trivial location pair has been observed).
  */
-@Immutable
-data class TripState(
+internal data class TripState(
     val distanceMeters: Double,
     val avgSpeedMs: Double,
     val currentSpeedMs: Double,

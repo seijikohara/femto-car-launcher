@@ -70,7 +70,7 @@ class NominatimApiTest {
                 client = client,
                 baseUrl = server.url("/").toString(),
                 userAgent = USER_AGENT,
-                language = "en",
+                languageProvider = { "en" },
             ).reverse(LAT, LON)
             val requestUrl = server.takeRequest().requestUrl
 
@@ -109,9 +109,9 @@ class NominatimApiTest {
             client = client,
             baseUrl = server.url("/").toString(),
             userAgent = USER_AGENT,
-            // Pinned explicitly: the production default follows the JVM locale,
-            // which would make the accept-language assertion machine-dependent.
-            language = "ja",
+            // Fixed provider: the production default follows the JVM locale, which
+            // would make the accept-language assertion machine-dependent.
+            languageProvider = { "ja" },
         )
 
     private companion object {
