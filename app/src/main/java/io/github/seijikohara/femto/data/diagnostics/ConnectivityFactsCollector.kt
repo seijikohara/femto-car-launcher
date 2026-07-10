@@ -10,7 +10,7 @@ import android.net.NetworkCapabilities
 import android.net.wifi.WifiInfo
 import android.provider.Settings
 import androidx.core.content.getSystemService
-import io.github.seijikohara.femto.data.location.hasBluetoothConnectPermission
+import io.github.seijikohara.femto.data.common.hasBluetoothConnectPermission
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 

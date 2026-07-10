@@ -47,7 +47,6 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import okhttp3.OkHttpClient
-import java.util.Locale
 
 private const val TAG = "HomeViewModel"
 
@@ -294,7 +293,7 @@ internal class HomeViewModelFactory(
                             client = httpClient,
                             baseUrl = baseUrl,
                             userAgent = userAgent,
-                            language = Locale.getDefault().language,
+                            // languageProvider defaults to the device locale, read per request.
                             apiKey = BuildConfig.GEOCODER_API_KEY.takeIf { it.isNotBlank() },
                         ),
                     )

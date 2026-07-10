@@ -25,11 +25,15 @@ private const val TAG = "NominatimApi"
  */
 internal class NominatimApi(
     private val client: OkHttpClient,
-    private val baseUrl: String = "https://nominatim.openstreetmap.org/",
+    private val baseUrl: String,
     private val userAgent: String,
-    // Follow the device locale by default: the launcher is multi-region and no
-    // single language may be privileged (CLAUDE.md, "multi-region distribution").
-    private val language: String = Locale.getDefault().language,
+    // Read per request rather than captured at construction: the launcher is
+    // multi-region and no single language may be privileged (CLAUDE.md,
+    // "multi-region distribution"), and it outlives locale changes (a phone
+    // mounted as car nav crosses borders) — a captured language would pin
+    // accept-language to the old locale until the process dies (mirrors
+    // ClockRepository's zoneProvider).
+    private val languageProvider: () -> String = { Locale.getDefault().language },
     // Token for a keyed Nominatim-compatible host (e.g. LocationIQ). Null for the
     // public keyless Nominatim service; when set it is appended as `key`.
     private val apiKey: String? = null,
@@ -50,7 +54,7 @@ internal class NominatimApi(
                         .addPathSegment("reverse")
                         .addQueryParameter("format", "jsonv2")
                         .addQueryParameter("addressdetails", "1")
-                        .addQueryParameter("accept-language", language)
+                        .addQueryParameter("accept-language", languageProvider())
                         .addQueryParameter("lat", lat.toString())
                         .addQueryParameter("lon", lon.toString())
                         .apply { apiKey?.let { addQueryParameter("key", it) } }

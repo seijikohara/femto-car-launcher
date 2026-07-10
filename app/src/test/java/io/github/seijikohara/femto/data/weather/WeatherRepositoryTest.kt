@@ -61,7 +61,7 @@ class WeatherRepositoryTest {
                     locationFlow = flowOf(fakeLocation()),
                     clockFlow = emptyFlow(),
                     clock = Clock.fixed(NOW, ZoneOffset.UTC),
-                    zone = ZoneOffset.UTC,
+                    zoneProvider = { ZoneOffset.UTC },
                 )
 
             repo.snapshotFlow().test {
@@ -93,7 +93,7 @@ class WeatherRepositoryTest {
                     locationFlow = flowOf(fakeLocation()),
                     clockFlow = emptyFlow(),
                     clock = Clock.fixed(NOW, ZoneOffset.UTC),
-                    zone = ZoneOffset.UTC,
+                    zoneProvider = { ZoneOffset.UTC },
                 )
 
             repo.snapshotFlow().test {
@@ -121,7 +121,7 @@ class WeatherRepositoryTest {
                     locationFlow = flowOf(fakeLocation()),
                     clockFlow = emptyFlow(),
                     clock = Clock.fixed(NOW, ZoneOffset.UTC),
-                    zone = ZoneOffset.UTC,
+                    zoneProvider = { ZoneOffset.UTC },
                 )
 
             repo.snapshotFlow().test {
@@ -147,7 +147,7 @@ class WeatherRepositoryTest {
                     locationFlow = flowOf(fakeLocation()),
                     clockFlow = emptyFlow(),
                     clock = Clock.systemUTC(),
-                    zone = ZoneOffset.UTC,
+                    zoneProvider = { ZoneOffset.UTC },
                 )
 
             repo.snapshotFlow().test {
@@ -165,7 +165,7 @@ class WeatherRepositoryTest {
                     locationFlow = flowOf(null),
                     clockFlow = emptyFlow(),
                     clock = Clock.systemUTC(),
-                    zone = ZoneOffset.UTC,
+                    zoneProvider = { ZoneOffset.UTC },
                 )
 
             repo.snapshotFlow().test {
@@ -201,7 +201,7 @@ class WeatherRepositoryTest {
                         },
                     clockFlow = emptyFlow(),
                     clock = clock,
-                    zone = ZoneOffset.UTC,
+                    zoneProvider = { ZoneOffset.UTC },
                 )
 
             repo.snapshotFlow().test {
@@ -240,7 +240,7 @@ class WeatherRepositoryTest {
                         },
                     clockFlow = emptyFlow(),
                     clock = clock,
-                    zone = ZoneOffset.UTC,
+                    zoneProvider = { ZoneOffset.UTC },
                 )
 
             repo.snapshotFlow().test {
@@ -283,7 +283,7 @@ class WeatherRepositoryTest {
                         },
                     clockFlow = emptyFlow(),
                     clock = clock,
-                    zone = ZoneOffset.UTC,
+                    zoneProvider = { ZoneOffset.UTC },
                 )
 
             repo.snapshotFlow().test {
@@ -324,7 +324,7 @@ class WeatherRepositoryTest {
                         },
                     clockFlow = emptyFlow(),
                     clock = clock,
-                    zone = ZoneOffset.UTC,
+                    zoneProvider = { ZoneOffset.UTC },
                 )
 
             repo.snapshotFlow().test {
@@ -350,7 +350,7 @@ class WeatherRepositoryTest {
                     locationFlow = flowOf(fakeLocation()),
                     clockFlow = emptyFlow(),
                     clock = Clock.fixed(NOW, ZoneOffset.UTC),
-                    zone = ZoneOffset.UTC,
+                    zoneProvider = { ZoneOffset.UTC },
                 )
 
             repo.snapshotFlow().test {

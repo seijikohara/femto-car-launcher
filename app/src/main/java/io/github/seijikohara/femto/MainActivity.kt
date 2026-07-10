@@ -36,6 +36,9 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.seijikohara.femto.data.apps.AppsRepository
 import io.github.seijikohara.femto.data.apps.RecentAppsPreferences
+import io.github.seijikohara.femto.data.common.hasBluetoothConnectPermission
+import io.github.seijikohara.femto.data.common.hasReadCalendarPermission
+import io.github.seijikohara.femto.data.common.hasReadPhoneStatePermission
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DisplayPreferences
@@ -47,11 +50,8 @@ import io.github.seijikohara.femto.data.dock.DockPreferences
 import io.github.seijikohara.femto.data.fonts.FontRepository
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.data.location.LocationGraph
-import io.github.seijikohara.femto.data.location.hasBluetoothConnectPermission
 import io.github.seijikohara.femto.data.location.hasCoarseLocationPermission
 import io.github.seijikohara.femto.data.location.hasFineLocationPermission
-import io.github.seijikohara.femto.data.location.hasReadCalendarPermission
-import io.github.seijikohara.femto.data.location.hasReadPhoneStatePermission
 import io.github.seijikohara.femto.data.system.SystemPermissionSignals
 import io.github.seijikohara.femto.ui.assistant.AssistantOption
 import io.github.seijikohara.femto.ui.assistant.AssistantSheet

@@ -31,7 +31,7 @@ internal class GoogleFontsApi(
     private val client: OkHttpClient,
     // `fonts.google.com` serves the catalog + per-family file manifest; the TTF
     // bytes live on `fonts.gstatic.com` (URLs come from the manifest itself).
-    private val metadataBaseUrl: String = "https://fonts.google.com/",
+    private val metadataBaseUrl: String,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 

@@ -17,7 +17,8 @@ class FontCacheTest {
     val tempFolder = TemporaryFolder()
 
     private val root: File get() = tempFolder.root
-    private val cache: FontCache get() = FontCache(root, GoogleFontsApi(OkHttpClient()))
+    private val cache: FontCache
+        get() = FontCache(root, GoogleFontsApi(OkHttpClient(), metadataBaseUrl = "https://fonts.invalid/"))
 
     @Test
     fun `cached returns null for an absent family`() {

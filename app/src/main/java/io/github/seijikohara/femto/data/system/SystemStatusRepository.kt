@@ -25,11 +25,11 @@ import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
+import io.github.seijikohara.femto.data.common.hasBluetoothConnectPermission
+import io.github.seijikohara.femto.data.common.hasReadPhoneStatePermission
 import io.github.seijikohara.femto.data.location.LocationRepository
 import io.github.seijikohara.femto.data.location.TripRepository
-import io.github.seijikohara.femto.data.location.hasBluetoothConnectPermission
 import io.github.seijikohara.femto.data.location.hasFineLocationPermission
-import io.github.seijikohara.femto.data.location.hasReadPhoneStatePermission
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi

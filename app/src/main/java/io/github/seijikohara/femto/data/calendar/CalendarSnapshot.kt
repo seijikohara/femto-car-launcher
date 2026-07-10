@@ -19,7 +19,7 @@ import java.time.LocalTime
  * query faulted — so an OEM provider error is never presented as a free week.
  */
 @Immutable
-data class CalendarSnapshot(
+internal data class CalendarSnapshot(
     val today: LocalDate,
     val weekday: String,
     val monthLabel: String,
@@ -42,7 +42,7 @@ data class CalendarSnapshot(
 }
 
 @Immutable
-data class DayCell(
+internal data class DayCell(
     val date: LocalDate,
     val weekdayLetter: String,
     // The day's events, ordered by start time (the full set — the card scrolls).
@@ -52,7 +52,7 @@ data class DayCell(
 }
 
 @Immutable
-data class EventItem(
+internal data class EventItem(
     // null marks an all-day event: it has no clock time, so the card renders
     // an "all day" label instead of a formatted time.
     val time: LocalTime?,
