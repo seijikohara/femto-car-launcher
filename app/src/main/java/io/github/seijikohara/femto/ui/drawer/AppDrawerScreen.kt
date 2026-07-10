@@ -73,6 +73,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.drawerBody
 import kotlinx.coroutines.launch
 
 // Per-preset drawer dimensions. MEDIUM matches the pre-preset values: a 120 dp
@@ -209,9 +210,8 @@ private fun CompactContent(
             ) {
                 Text(
                     text = stringResource(R.string.drawer_load_error),
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.drawerBody(),
                     color = MaterialTheme.colorScheme.onBackground,
-                    fontSize = FemtoDimens.MinBodyTextSize,
                 )
             }
         }
@@ -241,8 +241,7 @@ private fun AllAppsRow(
     )
     Text(
         text = stringResource(R.string.drawer_all_apps),
-        style = MaterialTheme.typography.bodyLarge,
-        fontSize = FemtoDimens.MinBodyTextSize,
+        style = MaterialTheme.typography.drawerBody(),
         color = MaterialTheme.colorScheme.onBackground,
     )
 }
@@ -416,9 +415,9 @@ private fun DrawerTopBar(
         value = query,
         onValueChange = onQueryChange,
         modifier = Modifier.weight(1f).testTag(APP_DRAWER_SEARCH_TEST_TAG),
-        textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = FemtoDimens.MinBodyTextSize),
+        textStyle = MaterialTheme.typography.drawerBody(),
         placeholder = {
-            Text(text = stringResource(R.string.drawer_search_hint), fontSize = FemtoDimens.MinBodyTextSize)
+            Text(text = stringResource(R.string.drawer_search_hint), style = MaterialTheme.typography.drawerBody())
         },
         leadingIcon = { FemtoIcon(imageVector = Lucide.Search, contentDescription = null) },
         trailingIcon = {
@@ -632,10 +631,9 @@ private fun ErrorState(
 ) {
     Text(
         text = stringResource(R.string.drawer_load_error),
-        style = MaterialTheme.typography.bodyLarge,
+        style = MaterialTheme.typography.drawerBody(),
         color = MaterialTheme.colorScheme.onBackground,
         textAlign = TextAlign.Center,
-        fontSize = FemtoDimens.MinBodyTextSize,
     )
     Button(
         onClick = onRetry,
@@ -647,7 +645,11 @@ private fun ErrorState(
                     minHeight = FemtoDimens.MinTouchTarget,
                 ),
     ) {
-        Text(text = stringResource(R.string.drawer_retry), fontSize = FemtoDimens.MinBodyTextSize)
+        // Button content defaults to labelLarge, not bodyLarge — already exactly
+        // at the 18sp floor in this type scale, so this is not a drawerBody()
+        // site despite the visual similarity to its siblings above (verified:
+        // the previous fontSize override here was a no-op against that default).
+        Text(text = stringResource(R.string.drawer_retry), style = MaterialTheme.typography.labelLarge)
     }
 }
 
@@ -661,10 +663,9 @@ private fun CenteredMessage(
 ) {
     Text(
         text = text,
-        style = MaterialTheme.typography.bodyLarge,
+        style = MaterialTheme.typography.drawerBody(),
         color = MaterialTheme.colorScheme.onBackground,
         textAlign = TextAlign.Center,
-        fontSize = FemtoDimens.MinBodyTextSize,
     )
 }
 

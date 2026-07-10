@@ -24,13 +24,13 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPinOff
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.location.isFresh
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
+import io.github.seijikohara.femto.ui.theme.attributionCredit
 import kotlinx.coroutines.delay
 
 /**
@@ -118,14 +118,10 @@ internal fun Attribution(
     val text = base + (if (showTerrainCredit) " · $terrain" else "")
     Text(
         text = text,
-        // Legal credit, not glance content — OSM ODbL / OpenMapTiles CC-BY require it
-        // and it is not read on the move, so it stays below the body-text floor. It was
-        // illegibly small at arm's length, so it is sized up to [ATTRIBUTION_FONT_SIZE]
-        // and carries full-strength onSurfaceVariant over a faint scrim for contrast.
-        style = MaterialTheme.typography.labelSmall.copy(
-            fontSize = ATTRIBUTION_FONT_SIZE,
-            lineHeight = ATTRIBUTION_FONT_SIZE,
-        ),
+        // See Typography.attributionCredit for the sub-floor rationale; this
+        // Text additionally carries full-strength onSurfaceVariant over a
+        // faint scrim below for contrast at that size.
+        style = MaterialTheme.typography.attributionCredit(),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier =
             modifier
@@ -179,7 +175,3 @@ internal fun Fallback(modifier: Modifier = Modifier) =
             modifier = Modifier.padding(top = 4.dp),
         )
     }
-
-// Attribution type: legal credit only, kept below the body-text floor but large
-// enough to read at arm's length on a head unit (raised from an illegible 6 sp).
-private val ATTRIBUTION_FONT_SIZE = 9.sp

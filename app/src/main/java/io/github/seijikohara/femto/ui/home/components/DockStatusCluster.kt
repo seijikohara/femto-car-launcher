@@ -21,7 +21,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Battery
 import com.composables.icons.lucide.BatteryCharging
@@ -45,9 +44,8 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.dock.DockStatusId
 import io.github.seijikohara.femto.data.system.SystemStatus
 import io.github.seijikohara.femto.ui.home.HomeAction
-import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
-import io.github.seijikohara.femto.ui.theme.TabularFigures
+import io.github.seijikohara.femto.ui.theme.glanceCaption
 
 @Composable
 internal fun StatusCluster(
@@ -285,17 +283,6 @@ private fun StatusIcon(
     )
 }
 
-// The 13sp metric readout under the GPS / battery icons. It sits below the
-// dashboard's 18sp body floor under the dock glance-metadata allowance
-// (CLAUDE.md#automotive-overrides); tabular figures keep the digits steady.
-@Composable
-private fun statusMetricStyle() =
-    MaterialTheme.typography.labelLarge.copy(
-        fontSize = FemtoDimens.GlanceTextSize,
-        fontWeight = FontWeight.SemiBold,
-        fontFeatureSettings = TabularFigures,
-    )
-
 // Satellite icon stacked over the count of satellites used in the current fix,
 // mirroring BatteryIndicator. The icon and count dim together while searching
 // (no fresh GPS fix) so a parked / tunnelled cold start reads as "0 locked".
@@ -321,7 +308,7 @@ private fun GpsIndicator(
     )
     Text(
         text = stringResource(R.string.status_gps_satellites, satelliteCount),
-        style = statusMetricStyle(),
+        style = MaterialTheme.typography.glanceCaption(),
         color = tint,
         maxLines = 1,
     )
@@ -349,7 +336,7 @@ private fun BatteryIndicator(
         // Render an em-dash while the percent is unknown (cold start / battery-less
         // unit) so the cluster never reads as a dead 0% battery.
         text = if (percent == null) "—" else stringResource(R.string.battery_percent, percent),
-        style = statusMetricStyle(),
+        style = MaterialTheme.typography.glanceCaption(),
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
     )

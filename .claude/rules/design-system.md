@@ -44,10 +44,11 @@ with automotive overrides on top.
   `MaterialTheme.typography.*` styles or the named `Typography`
   extensions in `Type.kt` (`bigNumber`, `heroNumeral`, `sectionLabel`,
   `eyebrow`, `calendarWeekday`, `glanceMetric`, `glanceBody`,
-  `progressCaption`, `monoReference`, `cardTitle`, `cardMeta`,
-  `cardCta`, `cardCtaHint`, `tileLabel`); never construct ad-hoc
-  `TextStyle` literals — a recurring `.copy(fontSize = ...)` becomes a
-  new named extension in `Type.kt`.
+  `glanceCaption`, `progressCaption`, `monoReference`, `cardTitle`,
+  `cardMeta`, `cardCta`, `cardCtaHint`, `tileLabel`, `drawerBody`,
+  `attributionCredit`); never construct ad-hoc `TextStyle` literals —
+  a recurring `.copy(fontSize = ...)` becomes a new named extension
+  in `Type.kt`.
 - Sizing: read from `FemtoDimens` (e.g. `FemtoDimens.MinTouchTarget`).
 - Previews use `@PreviewLightDark` from `ui/theme/PreviewLightDark.kt` — never
   hand-write the light/dark `@Preview` pair. Additional single-mode

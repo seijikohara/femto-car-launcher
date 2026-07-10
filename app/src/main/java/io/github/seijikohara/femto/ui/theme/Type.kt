@@ -129,6 +129,34 @@ internal fun Typography.glanceBody(): TextStyle =
     )
 
 /**
+ * Return the shared [FemtoDimens.GlanceTextSize] glance-caption style for the
+ * dashboard's dense numeric/metadata text: the dock status readouts, the
+ * calendar event time, the weather metric value and forecast temperature, and
+ * the speed overlay's address line (CLAUDE.md#automotive-overrides). These
+ * five sites split across two M3 lineages that differ in their letterSpacing
+ * token — the Medium-label lineage ([Typography.labelLarge], the default)
+ * and the Normal-body lineage ([Typography.bodyMedium] / [cardMeta]) — so
+ * [base] lets a caller keep the lineage its surrounding text already uses
+ * instead of silently overriding it. [lineHeight] defaults to [base]'s own
+ * (untouched) since most callers are happy with their base role's natural
+ * line box; a card with a tighter row passes its own. [fontFeatureSettings]
+ * defaults to [TabularFigures] for a value that ticks; pass null for prose
+ * (the address line has no digits to keep steady).
+ */
+internal fun Typography.glanceCaption(
+    base: TextStyle = labelLarge,
+    fontWeight: FontWeight = FontWeight.SemiBold,
+    lineHeight: TextUnit = base.lineHeight,
+    fontFeatureSettings: String? = TabularFigures,
+): TextStyle =
+    base.copy(
+        fontSize = FemtoDimens.GlanceTextSize,
+        fontWeight = fontWeight,
+        lineHeight = lineHeight,
+        fontFeatureSettings = fontFeatureSettings,
+    )
+
+/**
  * Return the music transport's position / duration caption style. Sized at
  * the [FemtoDimens.GlanceTextSize] glance floor — the progress-caption
  * relaxation CLAUDE.md#automotive-overrides routes through that token — with
@@ -280,6 +308,25 @@ internal fun Typography.tileLabel(): TextStyle =
         lineHeightStyle = FixedLineBox,
         platformStyle = NoFontPadding,
     )
+
+/**
+ * Return [Typography.bodyLarge] pinned to the [FemtoDimens.MinBodyTextSize]
+ * automotive floor. bodyLarge's own resting size (20sp) already clears the
+ * floor, but the app drawer's search field, row labels, and empty/error
+ * states pin it down to exactly the floor rather than inheriting the larger
+ * default.
+ */
+internal fun Typography.drawerBody(): TextStyle = bodyLarge.copy(fontSize = FemtoDimens.MinBodyTextSize)
+
+/**
+ * Return the map attribution credit's style. Legal copyright text, not
+ * glance content — OSM ODbL / OpenMapTiles CC-BY require it and it is not
+ * read on the move — so it is exempt from the 18sp body floor
+ * (CLAUDE.md#automotive-overrides) and sized on its own scale: 9sp is the
+ * smallest size still legible at arm's length on a head unit (raised from an
+ * illegible 6sp).
+ */
+internal fun Typography.attributionCredit(): TextStyle = labelSmall.copy(fontSize = 9.sp, lineHeight = 9.sp)
 
 /**
  * Constrain a single-line [androidx.compose.material3.Text] to exactly its

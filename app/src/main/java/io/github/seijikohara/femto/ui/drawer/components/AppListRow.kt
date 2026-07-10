@@ -24,6 +24,7 @@ import com.composables.icons.lucide.Pin
 import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
+import io.github.seijikohara.femto.ui.theme.drawerBody
 
 private val DefaultListIconSize = 40.dp
 private val PinIndicatorSize = 20.dp
@@ -59,9 +60,8 @@ internal fun AppListRow(
     )
     Text(
         text = entry.label,
-        style = MaterialTheme.typography.bodyLarge,
+        style = MaterialTheme.typography.drawerBody(),
         color = MaterialTheme.colorScheme.onBackground,
-        fontSize = FemtoDimens.MinBodyTextSize,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.weight(1f),
