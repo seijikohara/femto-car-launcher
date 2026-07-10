@@ -1,4 +1,4 @@
-@file:OptIn(kotlinx.coroutines.FlowPreview::class)
+@file:OptIn(kotlinx.coroutines.FlowPreview::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 
 package io.github.seijikohara.femto.data.calendar
 
@@ -11,10 +11,13 @@ import android.os.Looper
 import android.provider.CalendarContract
 import android.util.Log
 import androidx.core.content.ContextCompat
+import io.github.seijikohara.femto.data.system.SystemPermissionSignals
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.onStart
 
 private const val TAG = "CalendarChange"
 private const val CHANGE_DEBOUNCE_MS = 500L
@@ -29,6 +32,13 @@ private const val CHANGE_DEBOUNCE_MS = 500L
  * user grants the calendar, so a denied (or racing-revoked) grant skips
  * registration rather than throwing.
  *
+ * A `READ_CALENDAR` grant from the in-app dialog leaves the activity PAUSED
+ * (not STOPPED), so an observer skipped at first collection would stay
+ * unregistered until a full re-subscription. [SystemPermissionSignals.refreshes]
+ * fires when a runtime permission result lands, so each refresh re-runs
+ * [calendarObserverFlow] — mirroring the Bluetooth and cellular flows in
+ * `data/system/`. onStart(Unit) seeds the first registration attempt.
+ *
  * Note: this flow observes [CalendarContract.Events.CONTENT_URI] only, not the
  * Calendars table. CalendarCatalog liveness for calendar-list changes (e.g. a
  * new calendar account added) relies on the Settings re-subscription cycle:
@@ -36,6 +46,12 @@ private const val CHANGE_DEBOUNCE_MS = 500L
  * re-queries when the screen re-opens.
  */
 internal fun calendarChangeFlow(context: Context): Flow<Unit> =
+    SystemPermissionSignals.refreshes
+        .onStart { emit(Unit) }
+        .flatMapLatest { calendarObserverFlow(context) }
+        .debounce(CHANGE_DEBOUNCE_MS)
+
+private fun calendarObserverFlow(context: Context): Flow<Unit> =
     callbackFlow {
         val observer =
             object : ContentObserver(Handler(Looper.getMainLooper())) {
@@ -62,4 +78,4 @@ internal fun calendarChangeFlow(context: Context): Flow<Unit> =
         awaitClose {
             if (registered) context.contentResolver.unregisterContentObserver(observer)
         }
-    }.debounce(CHANGE_DEBOUNCE_MS)
+    }

@@ -290,10 +290,26 @@ internal class SystemStatusRepository(
      * to start and whenever GNSS reports none used (searching), so the dock's
      * satellite readout reflects the no-fix case. Needs ACCESS_FINE_LOCATION; the
      * map already gates on that grant, and without it this stays 0.
+     *
+     * Re-registers on a late permission grant, mirroring [cellularLevelFlow]'s use
+     * of [SystemPermissionSignals.refreshes]: that signal fires when a runtime
+     * permission result lands. A fine-location grant from the in-app dialog leaves
+     * the activity PAUSED (not STOPPED), so a callback skipped at first collection
+     * would otherwise stay unregistered — the count stuck at the one-shot 0 — until
+     * an app restart. Each refresh restarts [gnssSatelliteCallbackFlow], which
+     * re-checks the permission and registers when now granted. onStart(Unit) seeds
+     * the first registration attempt, so the leading 0 the [gpsFlow] combine needs
+     * is preserved on both the granted and denied paths.
      */
-    @SuppressLint("MissingPermission") // Gated on hasFineLocationPermission() below.
     private fun gnssSatelliteFlow(): Flow<Int> {
         val lm = locationManager ?: return flowOf(0)
+        return SystemPermissionSignals.refreshes
+            .onStart { emit(Unit) }
+            .flatMapLatest { gnssSatelliteCallbackFlow(lm) }
+    }
+
+    @SuppressLint("MissingPermission") // Gated on hasFineLocationPermission() below.
+    private fun gnssSatelliteCallbackFlow(lm: LocationManager): Flow<Int> {
         if (!context.hasFineLocationPermission()) return flowOf(0)
         return callbackFlow {
             trySend(0)

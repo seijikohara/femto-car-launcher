@@ -7,6 +7,7 @@ import android.location.LocationManager
 import androidx.core.content.getSystemService
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
+import io.github.seijikohara.femto.data.system.SystemPermissionSignals
 import io.github.seijikohara.femto.testfixtures.fakeLocation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,7 +16,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -142,6 +145,45 @@ class LocationRepositoryTest {
                 while (item.latitude != 20.0) item = awaitItem()
                 cancelAndIgnoreRemainingEvents()
             }
+        }
+
+    @Test
+    fun `re-registers the location listener when a permission-grant refresh lands`() =
+        runTest {
+            // A registration that fails while the grant is withheld leaves the shared
+            // flow with a dead listener; a grant landing while the launcher stays
+            // foreground must revive it. Seed the cached fix so every successful
+            // registration forwards it, making each (re-)registration observable.
+            val seedFix = fakeLocation()
+            seedLastKnown(LocationManager.GPS_PROVIDER, seedFix)
+
+            val repository =
+                LocationRepository(
+                    application,
+                    flowOf(LocationSettings.Default),
+                    CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+                )
+
+            val fixes = mutableListOf<android.location.Location>()
+            val collectJob =
+                launch(UnconfinedTestDispatcher(testScheduler)) {
+                    repository.locationFlow().filterNotNull().collect { fixes.add(it) }
+                }
+            advanceUntilIdle()
+
+            // The initial registration forwarded the cached fix once.
+            assertEquals(1, fixes.size)
+
+            // A runtime grant landing while foreground nudges refreshes; the raw flow
+            // must re-run its per-provider registration, re-seeding getLastKnownLocation.
+            SystemPermissionSignals.refreshes.emit(Unit)
+            advanceUntilIdle()
+
+            // The re-registration forwards the cached fix a second time. Without the
+            // refresh trigger the raw flow never re-runs, so the count stays at 1.
+            assertEquals(2, fixes.size)
+
+            collectJob.cancel()
         }
 
     // Dispatch a live fix to whatever listeners are currently registered for the
