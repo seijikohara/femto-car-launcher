@@ -43,9 +43,6 @@ object FemtoDimens {
     /** Inline icon size beside short labels (sunrise, wind, transport). */
     val InlineIconSize = 20.dp
 
-    /** Album art thumbnail size in the music panel's playing state. */
-    val AlbumArtSize = 72.dp
-
     /**
      * Dock thickness: its height as a horizontal bar, its width as a vertical
      * rail. Set to exactly [MinTouchTarget] (64.dp): the dock holds full-size
@@ -174,9 +171,6 @@ object FemtoDimens {
      */
     val CardPaddingCompact = 10.dp
     val CardSectionGapCompact = 6.dp
-
-    /** Corner radius for the calendar day-strip cells. Mockup `.day-cell`: 10 px. */
-    val DayCellCorner = 10.dp
 
     /**
      * Shared opacity for the dashboard's content dividers — the dock's nav /

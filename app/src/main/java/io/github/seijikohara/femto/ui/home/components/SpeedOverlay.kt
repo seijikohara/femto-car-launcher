@@ -50,6 +50,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
+import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.glanceMetric
 import io.github.seijikohara.femto.ui.theme.heroNumeral
 import io.github.seijikohara.femto.ui.theme.sectionLabel
@@ -293,10 +294,11 @@ private fun AddressRow(
     Text(
         text = text,
         style =
-            MaterialTheme.typography.bodyMedium.copy(
-                fontSize = FemtoDimens.GlanceTextSize,
+            MaterialTheme.typography.glanceCaption(
+                base = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
                 lineHeight = 16.sp,
+                fontFeatureSettings = null,
             ),
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.86f),
         maxLines = 1,

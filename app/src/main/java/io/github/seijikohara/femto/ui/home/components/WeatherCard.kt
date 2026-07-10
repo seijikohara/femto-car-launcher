@@ -50,9 +50,9 @@ import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
-import io.github.seijikohara.femto.ui.theme.TabularFigures
 import io.github.seijikohara.femto.ui.theme.bigNumber
 import io.github.seijikohara.femto.ui.theme.cardMeta
+import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import io.github.seijikohara.femto.ui.theme.singleLineBox
 import io.github.seijikohara.femto.ui.theme.weatherGlyphs
@@ -309,12 +309,7 @@ private fun Metric(
     )
     Text(
         text = value,
-        style =
-            MaterialTheme.typography.cardMeta().copy(
-                fontSize = FemtoDimens.GlanceTextSize,
-                fontWeight = FontWeight.SemiBold,
-                fontFeatureSettings = TabularFigures,
-            ),
+        style = MaterialTheme.typography.glanceCaption(base = MaterialTheme.typography.cardMeta()),
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
     )
@@ -393,11 +388,9 @@ private fun ForecastChip(
         Text(
             text = "${temperatureUnit.fromCelsius(forecast.tempC).roundToInt()}°",
             style =
-                MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = FemtoDimens.GlanceTextSize,
-                    fontWeight = FontWeight.SemiBold,
+                MaterialTheme.typography.glanceCaption(
+                    base = MaterialTheme.typography.bodyMedium,
                     lineHeight = 15.sp,
-                    fontFeatureSettings = TabularFigures,
                 ),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,

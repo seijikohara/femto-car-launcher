@@ -22,7 +22,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -41,11 +40,11 @@ import io.github.seijikohara.femto.ui.theme.FitText
 import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
-import io.github.seijikohara.femto.ui.theme.TabularFigures
 import io.github.seijikohara.femto.ui.theme.bigNumber
 import io.github.seijikohara.femto.ui.theme.calendarWeekday
 import io.github.seijikohara.femto.ui.theme.eyebrow
 import io.github.seijikohara.femto.ui.theme.glanceBody
+import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.glanceMetric
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import java.time.LocalDate
@@ -287,13 +286,7 @@ private fun EventRow(
 ) {
     Text(
         text = time,
-        style =
-            MaterialTheme.typography.labelLarge.copy(
-                fontSize = FemtoDimens.GlanceTextSize,
-                fontWeight = FontWeight.SemiBold,
-                lineHeight = 18.sp,
-                fontFeatureSettings = TabularFigures,
-            ),
+        style = MaterialTheme.typography.glanceCaption(lineHeight = 18.sp),
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
         softWrap = false,
