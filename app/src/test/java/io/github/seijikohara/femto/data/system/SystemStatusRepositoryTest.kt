@@ -2,10 +2,12 @@
 
 package io.github.seijikohara.femto.data.system
 
+import android.Manifest
 import android.app.Application
 import android.bluetooth.BluetoothManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.GnssStatus
 import android.location.Location
 import android.location.LocationManager
 import android.net.ConnectivityManager
@@ -25,6 +27,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import org.junit.Before
@@ -264,6 +267,63 @@ class SystemStatusRepositoryTest {
 
             assertEquals(0, status.gpsSatelliteCount)
         }
+
+    @Test
+    fun `gpsSatelliteCount recovers after a fine-location grant refresh`() =
+        runTest {
+            // Denied at start, so gnssSatelliteFlow registers no callback and the
+            // count stays 0. A fine-location grant landing while the launcher stays
+            // foreground nudges refreshes; the flow must re-run its permission gate,
+            // register the GnssStatus callback, and surface the satellite count.
+            val locations = MutableSharedFlow<Location?>(extraBufferCapacity = 1)
+            val locationManager = application.getSystemService<LocationManager>()!!
+
+            gpsRepository(locations).statusFlow().test {
+                assertEquals(0, awaitItem().gpsSatelliteCount)
+
+                shadowOf(application).grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+                SystemPermissionSignals.refreshes.emit(Unit)
+                advanceUntilIdle()
+
+                // simulateGnssStatus delivers to the now-registered callback via the
+                // main executor, so idle the main looper to run the delivery.
+                shadowOf(locationManager).simulateGnssStatus(gnssStatusWithUsedInFix(2))
+                shadowOf(Looper.getMainLooper()).idle()
+
+                assertEquals(2, awaitItem().gpsSatelliteCount)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    // Build a GnssStatus reporting [usedInFixCount] satellites used in the current
+    // fix — the value gnssSatelliteFlow counts. The platform GnssStatus.Builder is
+    // the supported construction path (GnssStatus has no public test constructor);
+    // Robolectric's own GnssStatusBuilder is deprecated in favour of it.
+    private fun gnssStatusWithUsedInFix(usedInFixCount: Int): GnssStatus =
+        GnssStatus
+            .Builder()
+            .apply {
+                repeat(usedInFixCount) { index ->
+                    // addSatellite(constellationType, svid, cn0DbHz, elevation, azimuth,
+                    // hasEphemeris, hasAlmanac, usedInFix, hasCarrierFrequency,
+                    // carrierFrequencyHz, hasBasebandCn0DbHz, basebandCn0DbHz). Java
+                    // method exposes no parameter names, so the arguments stay positional.
+                    addSatellite(
+                        GnssStatus.CONSTELLATION_GPS,
+                        index + 1,
+                        30f,
+                        45f,
+                        90f,
+                        true,
+                        true,
+                        true,
+                        false,
+                        0f,
+                        false,
+                        0f,
+                    )
+                }
+            }.build()
 
     // statusFlow runs its combine on the injected dispatcher; an UnconfinedTestDispatcher
     // backed by runTest's scheduler lets advanceTimeBy drive gpsFlow's freshness delay.

@@ -516,14 +516,23 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Request the runtime permissions the dashboard surfaces depend on.
-     * Each permission is requested only if not already granted; BLUETOOTH_CONNECT
-     * is requested only on Android 12+ where it became a runtime grant.
+     * Request the runtime permissions the dashboard surfaces depend on. This is
+     * the launcher's only location-request path; [permissionsLauncher]'s callback
+     * feeds [SystemPermissionSignals.refreshes] so permission-gated flows re-read
+     * once a grant lands.
+     *
+     * Each permission is requested only if not already granted. The minSdk-33 floor
+     * makes BLUETOOTH_CONNECT and READ_PHONE_STATE unconditional runtime grants.
      */
     private fun requestRuntimePermissions() {
         val needed =
             buildList {
-                if (!hasFineLocationPermission()) add(Manifest.permission.ACCESS_FINE_LOCATION)
+                // API 31+ ignores a request that contains FINE without COARSE, so the
+                // pair must always travel together for the dialog to appear.
+                if (!hasFineLocationPermission()) {
+                    add(Manifest.permission.ACCESS_FINE_LOCATION)
+                    add(Manifest.permission.ACCESS_COARSE_LOCATION)
+                }
                 if (!hasReadCalendarPermission()) add(Manifest.permission.READ_CALENDAR)
                 if (!hasReadPhoneStatePermission()) add(Manifest.permission.READ_PHONE_STATE)
                 if (!hasBluetoothConnectPermission()) add(Manifest.permission.BLUETOOTH_CONNECT)

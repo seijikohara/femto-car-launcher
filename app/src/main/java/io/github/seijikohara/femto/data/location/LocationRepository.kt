@@ -13,6 +13,7 @@ import androidx.core.location.LocationListenerCompat
 import androidx.core.location.LocationManagerCompat
 import androidx.core.location.LocationRequestCompat
 import io.github.seijikohara.femto.data.common.WhileUiSubscribed
+import io.github.seijikohara.femto.data.system.SystemPermissionSignals
 import io.github.seijikohara.femto.data.system.SystemStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,9 +23,11 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.shareIn
 
 private const val TAG = "LocationRepository"
@@ -95,9 +98,18 @@ internal class LocationRepository(
     // cancelled inner flow's awaitClose removes the old listener, the new one re-registers
     // with the new request and re-seeds getLastKnownLocation, and replay = 1 bridges
     // subscribers across the swap so nobody observes a gap.
+    //
+    // combine adds [SystemPermissionSignals.refreshes] as a second trigger: a location
+    // grant landing while the launcher stays foreground fires it (MainActivity's
+    // permission-launcher callback feeds it), re-running rawLocationFlow so the
+    // per-provider registration that a denied-at-start SecurityException killed is
+    // retried. onStart(Unit) seeds the first registration; the pair is deliberately
+    // not distinctUntilChanged'd so a same-settings refresh still re-registers.
     private val shared: SharedFlow<Location?> =
-        settings
-            .distinctUntilChanged()
+        combine(
+            settings.distinctUntilChanged(),
+            SystemPermissionSignals.refreshes.onStart { emit(Unit) },
+        ) { locationSettings, _ -> locationSettings }
             .flatMapLatest { rawLocationFlow(it) }
             .shareIn(scope, WhileUiSubscribed, replay = 1)
 
