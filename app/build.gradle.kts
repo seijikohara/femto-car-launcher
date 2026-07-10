@@ -39,6 +39,7 @@ val buildWebMap =
             "../webmap/biome.json",
             "../webmap/googlemaps.html",
             "../webmap/map.html",
+            "../webmap/mapbox.html",
             "../webmap/no-let.grit",
             "../webmap/package.json",
             "../webmap/pnpm-lock.yaml",

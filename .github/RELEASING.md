@@ -23,8 +23,8 @@ git push origin v1.0.0
 
 The workflow derives the version from the tag — `versionName` is the tag
 without the `v` (e.g. `1.0.0`), and `versionCode` is packed as
-`major*10000 + minor*100 + patch` (so `v1.0.0` → `10000`, monotonic with
-semver; minor and patch must each be `< 100`). It builds the **signed AAB
+`major*1000000 + minor*1000 + patch` (so `v1.0.0` → `1000000`, monotonic
+with semver; minor and patch must each be `< 1000`). It builds the **signed AAB
 and APK**, then attaches both to a GitHub release for that tag. Download
 the `.aab` and upload it under **Play Console → Testing/Production →
 Create release**. (`workflow_dispatch` with a `version` input is the
