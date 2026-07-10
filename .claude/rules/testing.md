@@ -2,6 +2,7 @@
 paths:
   - "app/src/test/**"
   - "app/src/androidTest/**"
+  - "app/src/sharedTest/**"
 ---
 
 # Testing
@@ -22,7 +23,9 @@ reference: <https://developer.android.com/training/testing>.
 - The SSOT for test fixtures and helpers is a single
   `testfixtures/` package per source set
   (`app/src/test/.../testfixtures/`,
-  `app/src/androidTest/.../testfixtures/`). Builders / factories
+  `app/src/androidTest/.../testfixtures/`, and
+  `app/src/sharedTest/.../testfixtures/` for builders both source
+  sets consume). Builders / factories
   are the SSOT for test data; the `data class FakeFoo(...)`
   literal in a single test file is a finding the second time it
   appears. Repeat-yourself in test setup is the same kind of debt
