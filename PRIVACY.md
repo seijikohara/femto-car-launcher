@@ -49,8 +49,10 @@ coordinates to the following services, governed by their own privacy policies:
   Android geocoder. On devices with Google services, that geocoder is provided by
   Google and may process the coordinates. If you configure a self-hosted geocoding
   server, coordinates are sent there instead.
-- **Fonts** — if you choose a custom font, it is downloaded from Google Fonts
-  (`fonts.gstatic.com`). No personal data is sent.
+- **Fonts** — if you choose a Google Fonts family, it is downloaded from
+  Google Fonts (`fonts.gstatic.com`). If you choose a font already installed
+  on the device, it is read locally and nothing is sent over the network. No
+  personal data is sent.
 
 Voice input uses the device's built-in speech recognizer. On devices with Google
 services this may transmit audio to Google for recognition, outside the app's

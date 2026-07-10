@@ -32,8 +32,8 @@ applicable rule wins when markets diverge.
 - `minSdk = 33`, `targetSdk = 36` with `compileSdk { release(37) }`
   (compile against API 37 as `androidx.core` 1.19+ requires; the
   supported-device floor stays Android 13 / API 33).
-- Web map page (`webmap/`): TypeScript + Vite + `maplibre-gl`,
-  managed with pnpm (pinned via `packageManager`). Vite's
+- Web map page (`webmap/`): TypeScript + Vite + `maplibre-gl` /
+  `mapbox-gl`, managed with pnpm (pinned via `packageManager`). Vite's
   `build.target` is `chrome109` — the Android 13 factory WebView;
   aftermarket AI boxes may never update it, so never raise it
   without revisiting that floor (phone WebViews stay current, but
@@ -46,7 +46,7 @@ app/src/
 ├── main/
 │   ├── java/io/github/seijikohara/femto/
 │   │   ├── MainActivity.kt           # ComponentActivity, single launcher entry
-│   │   ├── data/                     # One sub-package per domain (apps, calendar, clock, common, display, fonts, geocoding, location, music, system, voice, weather); data/ never imports ui/
+│   │   ├── data/                     # One sub-package per domain (apps, calendar, clock, common, diagnostics, display, dock, fonts, geocoding, location, music, system, voice, weather); data/ never imports ui/
 │   │   └── ui/
 │   │       ├── <area>/               # One area per top-level surface
 │   │       │   ├── <Area>Route.kt    # VM-binding entry point (when stateful)

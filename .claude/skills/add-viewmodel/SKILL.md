@@ -59,8 +59,8 @@ arguments, prompt the caller for both values.
      whole-state replacement of a sealed `UiState` (shipped
      reference: `ui/drawer/AppDrawerViewModel.kt`), and
      `_uiState.update { it.copy(...) }` for partial mutation of a
-     data-class `UiState` (atomic read-modify-write; no shipped
-     reference yet).
+     data-class `UiState` (atomic read-modify-write; shipped
+     reference: `ui/drawer/AppDrawerViewModel.kt`).
    - Either way: single entry point `fun onAction(action: <Area>Action)`
      with a `when` over the sealed type. Constructor takes only what
      is testable in plain unit tests (repositories or flows from

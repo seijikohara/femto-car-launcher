@@ -3,7 +3,7 @@
 This file records the Play Console declarations that cannot live in the repo.
 Code-side release wiring is in `app/build.gradle.kts` and `.github/RELEASING.md`.
 
-## Status (free-launch audit, 2026-06-17)
+## Status (free-launch audit, 2026-07-10)
 
 **No hard code/policy blocker remains.** Code-side is ready: `targetSdk 36`
 (clears the API-35 floor and the Aug-2026 API-36 deadline), signed **AAB**
@@ -26,7 +26,10 @@ personal developer account**, the closed-testing requirement below.
 ## Data safety form
 
 Declare the following in **Play Console → App content → Data safety**. The app
-has no analytics/ads/crash SDKs and collects no advertising or device IDs.
+has no analytics/ads/crash SDKs and collects no advertising or device IDs —
+except the optional BYO Mapbox and Google Maps map backends, whose usage
+telemetry the app cannot fully disable once the user enables them with their
+own token/key (see `PRIVACY.md`). The default OSM backend sends none.
 
 | Data type | Collected | Shared (3rd party) | Purpose | Notes |
 | --- | --- | --- | --- | --- |
@@ -38,8 +41,8 @@ has no analytics/ads/crash SDKs and collects no advertising or device IDs.
 | Phone/cellular state | Yes (read) | No | App functionality | Signal level only, no identifiers |
 | Music/media metadata | Yes (read) | No | App functionality | In-memory only |
 | App settings | Yes | Yes — Google (Auto Backup) | App functionality | Location settings excluded from backup |
-| Analytics / crash data | No | No | — | No SDK present |
-| Device / advertising IDs | No | No | — | None collected |
+| Analytics / crash data | Yes (opt-in) | Yes — Mapbox / Google Maps | App functionality | No SDK bundled; enabling the optional BYO Mapbox or Google Maps backend sends that provider's own usage telemetry (see `PRIVACY.md`) |
+| Device / advertising IDs | Yes (opt-in) | Yes — same recipients | App functionality | None by default; the optional Mapbox backend's usage telemetry cannot be fully disabled once enabled (see `PRIVACY.md`) |
 
 Location and microphone must be marked **shared with third parties** — they cannot
 be declared "not shared."
