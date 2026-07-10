@@ -1,7 +1,5 @@
 package io.github.seijikohara.femto.ui.drawer.components
 
-import android.content.ComponentName
-import android.graphics.Bitmap
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
@@ -10,8 +8,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
-import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
+import io.github.seijikohara.femto.testfixtures.fakeAppEntry
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
@@ -21,10 +19,9 @@ class PinnedDockTest {
     @get:Rule
     val rule = createComposeRule()
 
-    private val icon: Bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
-    private val maps = AppEntry(ComponentName("com.maps", ".Main"), "Maps", icon)
-    private val music = AppEntry(ComponentName("com.music", ".Main"), "Music", icon)
-    private val phone = AppEntry(ComponentName("com.phone", ".Main"), "Phone", icon)
+    private val maps = fakeAppEntry(packageName = "com.maps", className = ".Main", label = "Maps")
+    private val music = fakeAppEntry(packageName = "com.music", className = ".Main", label = "Music")
+    private val phone = fakeAppEntry(packageName = "com.phone", className = ".Main", label = "Phone")
 
     private fun setDock(onReorder: (List<String>) -> Unit) {
         rule.setContent {

@@ -37,6 +37,7 @@ class SettingsScreenTest {
     private val tealAccentLabel = context.getString(R.string.settings_accent_teal)
     private val resetLabel = context.getString(R.string.settings_reset_to_defaults)
     private val resetConfirmLabel = context.getString(R.string.settings_reset_confirm)
+    private val resetDockLabel = context.getString(R.string.settings_reset_dock)
     private val keepScreenOnLabel = context.getString(R.string.settings_keep_screen_on)
     private val lightSchemeLabel = context.getString(R.string.settings_group_map_scheme_light)
     private val darkSchemeLabel = context.getString(R.string.settings_group_map_scheme_dark)
@@ -138,6 +139,17 @@ class SettingsScreenTest {
         rule.onNodeWithText(resetLabel).performScrollTo().performClick()
         rule.onNodeWithText(resetConfirmLabel).performClick()
         assertEquals(listOf(SettingsAction.ResetToDefaults), actions)
+    }
+
+    @Test
+    fun confirming_reset_dock_dispatches_reset_dock() {
+        val actions = mutableListOf<SettingsAction>()
+        setScreen(onAction = { actions += it }, category = R.string.settings_section_screen)
+        // The Reset-dock row lives in the Screen category and opens the same confirm
+        // dialog (ResetRow) as Reset-to-defaults; confirming dispatches ResetDock.
+        rule.onNodeWithText(resetDockLabel).performScrollTo().performClick()
+        rule.onNodeWithText(resetConfirmLabel).performClick()
+        assertEquals(listOf(SettingsAction.ResetDock), actions)
     }
 
     @Test

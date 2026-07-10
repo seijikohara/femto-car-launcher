@@ -4,6 +4,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
@@ -81,5 +83,42 @@ class DashboardScaffoldTest {
         rule.onNodeWithText("Strobe").assertDoesNotExist()
         rule.onNodeWithText("Map unavailable").assertIsDisplayed()
         rule.onNodeWithContentDescription("Apps").assertIsDisplayed()
+    }
+
+    @Test
+    fun expanding_the_weather_card_opens_the_panel_and_collapsing_returns_to_the_card() {
+        // MotionTier.OFF makes maximize/minimize instant, so the panel's presence is
+        // deterministic without waiting on enter/exit animations.
+        val uiState =
+            HomeUiState.Initial.copy(
+                location = null,
+                weather = fakeWeatherSnapshot(),
+                musicState = MusicCardState.Playing(fakeNowPlaying()),
+            )
+        rule.setContent {
+            FemtoTheme {
+                DashboardScaffold(
+                    uiState = uiState,
+                    is24Hour = true,
+                    showClockSeconds = true,
+                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    temperatureUnit = TemperatureUnit.CELSIUS,
+                    mapConfig = MapConfig(),
+                    panels = PanelVisibility(),
+                    glassConfig = GlassConfig(),
+                    motionTier = MotionTier.OFF,
+                    onAction = {},
+                )
+            }
+        }
+        // No panel is open yet, so the shared Collapse affordance (panel_collapse) is absent.
+        rule.onNodeWithContentDescription("Collapse").assertDoesNotExist()
+        // The weather card's whole body is the maximize affordance (weather_expand);
+        // tapping it opens the full-screen weather panel, whose top bar shows Collapse.
+        rule.onNodeWithContentDescription("Open full-screen weather").performClick()
+        rule.onNodeWithContentDescription("Collapse").assertIsDisplayed()
+        // Collapsing returns to the card: the panel and its Collapse affordance are gone.
+        rule.onNodeWithContentDescription("Collapse").performClick()
+        rule.onNodeWithContentDescription("Collapse").assertDoesNotExist()
     }
 }

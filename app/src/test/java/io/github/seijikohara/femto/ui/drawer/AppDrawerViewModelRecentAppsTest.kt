@@ -1,9 +1,8 @@
 package io.github.seijikohara.femto.ui.drawer
 
-import android.content.ComponentName
-import androidx.core.graphics.createBitmap
 import app.cash.turbine.test
 import io.github.seijikohara.femto.data.apps.AppEntry
+import io.github.seijikohara.femto.testfixtures.fakeAppEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,9 +29,8 @@ import kotlin.test.assertIs
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class AppDrawerViewModelRecentAppsTest {
-    private val icon = createBitmap(1, 1)
-    private val maps = AppEntry(ComponentName("com.maps", ".Main"), "Maps", icon)
-    private val music = AppEntry(ComponentName("com.music", ".Main"), "Music", icon)
+    private val maps = fakeAppEntry(packageName = "com.maps", className = ".Main", label = "Maps")
+    private val music = fakeAppEntry(packageName = "com.music", className = ".Main", label = "Music")
 
     @Before
     fun setUp() {
