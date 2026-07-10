@@ -34,10 +34,10 @@ import io.github.seijikohara.femto.ui.theme.attributionCredit
 import kotlinx.coroutines.delay
 
 /**
- * Map tile surface + permission fallback. Renders via [WebMapView] (MapLibre GL JS
- * in a hardware-accelerated WebView for OSM, or Mapbox GL JS for the paid tier),
- * selected by [MapConfig.backend]. Clock and speed overlays are placed by the parent
- * on top of this surface.
+ * Map tile surface + permission fallback. Renders via [WebMapView], a
+ * hardware-accelerated WebView hosting whichever of the three backends
+ * [MapConfig.backend] selects (see `MapBackend` for what each one means).
+ * Clock and speed overlays are placed by the parent on top of this surface.
  */
 @Composable
 internal fun MapPanel(

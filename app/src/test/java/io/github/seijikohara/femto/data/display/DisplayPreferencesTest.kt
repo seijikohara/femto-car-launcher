@@ -18,10 +18,11 @@ import kotlin.test.assertTrue
 class DisplayPreferencesTest {
     // The displayDataStore delegate is a process-wide singleton bound to the
     // first Application's filesDir, while Robolectric hands each test method a
-    // fresh Application. All DataStore round-trip steps therefore live in one
-    // test method so the persisted file and the singleton never disagree across
-    // tests (mirrors DrawerPreferencesTest). The migration tests below touch no
-    // DataStore, so they stay separate.
+    // fresh Application. Every test below therefore resets the store itself
+    // (resetToDefaults(), directly or via mutateAllAwayFromDefault()) rather than
+    // relying on test order, so the persisted file and the singleton never
+    // disagree across tests. DrawerPreferencesTest hits the same constraint but
+    // copes differently, keeping every round-trip step in a single test method.
     @Test
     fun `an empty store reads the defaults and resetToDefaults restores them`() =
         runTest {
@@ -66,10 +67,6 @@ class DisplayPreferencesTest {
             assertEquals(DriverSide.RIGHT, store.settings.first().driverSide)
         }
 
-    // All three backend-settings cases share one test method because the
-    // displayDataStore singleton is bound to the process Application, not the test
-    // method — separate methods would see each other's writes (same singleton
-    // constraint as the round-trip test above).
     @Test
     fun mapboxAccessToken_roundTrips() =
         runTest {

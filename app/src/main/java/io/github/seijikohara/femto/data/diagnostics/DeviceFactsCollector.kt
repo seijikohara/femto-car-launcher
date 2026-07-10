@@ -95,7 +95,7 @@ internal class DeviceFactsCollector(
     }
 
     // Same ProcessBuilder + runCatching degrade idiom as the logcat tail in
-    // data/system/DiagnosticsRepository.kt: a getprop failure or a property
+    // data/diagnostics/LogTailCollector.kt: a getprop failure or a property
     // the ROM never set is a datum ("unavailable"), never a crash.
     private fun getprop(name: String): String =
         runCatching {
