@@ -49,7 +49,7 @@ class MapControlsTest {
     }
 
     @Test
-    fun the_snapshot_column_offers_no_locate_button() {
+    fun no_locate_button_without_a_fix() {
         rule.setContent { Controls(showLocate = false) }
         rule.onNodeWithContentDescription("Return to current position").assertDoesNotExist()
         rule.onNodeWithContentDescription("Zoom in").assertExists()

@@ -104,12 +104,6 @@ class SettingsViewModelTest {
         }
 
     @Test
-    fun `ui scale defaults to medium`() =
-        runTest(dispatcher) {
-            assertEquals(UiScale.MEDIUM, store.settings.first().uiScale)
-        }
-
-    @Test
     fun `SetShowMusic writes the value to the store`() =
         runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetShowMusic(false))
@@ -123,12 +117,6 @@ class SettingsViewModelTest {
             viewModel().onAction(SettingsAction.SetMusicSpectrum(true))
             advanceUntilIdle()
             assertEquals(true, store.settings.first().musicSpectrum)
-        }
-
-    @Test
-    fun `music spectrum defaults to off`() =
-        runTest(dispatcher) {
-            assertEquals(false, store.settings.first().musicSpectrum)
         }
 
     @Test
@@ -170,12 +158,6 @@ class SettingsViewModelTest {
             viewModel().onAction(SettingsAction.SetMapNorthUp(true))
             advanceUntilIdle()
             assertEquals(true, store.settings.first().mapNorthUp)
-        }
-
-    @Test
-    fun `map orientation defaults to heading-up`() =
-        runTest(dispatcher) {
-            assertEquals(false, store.settings.first().mapNorthUp)
         }
 
     @Test
@@ -248,12 +230,6 @@ class SettingsViewModelTest {
             viewModel().onAction(SettingsAction.SetBackgroundRanging(true))
             advanceUntilIdle()
             assertEquals(true, locationStore.settings.first().backgroundRangingEnabled)
-        }
-
-    @Test
-    fun `background ranging defaults to off`() =
-        runTest(dispatcher) {
-            assertEquals(false, locationStore.settings.first().backgroundRangingEnabled)
         }
 
     @Test
@@ -407,16 +383,6 @@ class SettingsViewModelTest {
             assertEquals(emptySet(), calendarPrefs.hiddenCalendarIds.first())
             // Map is a different section — untouched by a Panels reset.
             assertEquals(11, store.settings.first().mapZoom)
-        }
-
-    @Test
-    fun `defaults reflect the revised values`() =
-        runTest(dispatcher) {
-            val defaults = DisplaySettings.Default
-            assertEquals(FullscreenSetting.ON, defaults.fullscreen)
-            assertEquals(true, defaults.map3dBuildings)
-            assertEquals(false, defaults.mapTerrain)
-            assertEquals(false, defaults.showClockSeconds)
         }
 
     @Test

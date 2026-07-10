@@ -319,4 +319,94 @@ class AppDrawerScreenTest {
         rule.onNodeWithText("Large").assertIsDisplayed().performClick()
         assertEquals(DrawerIconSize.LARGE, selected)
     }
+
+    @Test
+    fun content_renders_the_recent_row_and_launches_a_recent_on_tap() {
+        var launched: ComponentName? = null
+        val maps = fakeAppEntry(packageName = "com.maps", className = ".Main", label = "Maps")
+        // The recent app is not in the grid, so its tile is the only "Music" node.
+        val music = fakeAppEntry(packageName = "com.music", className = ".Main", label = "Music")
+        rule.setContent {
+            FemtoTheme {
+                AppDrawerScreen(
+                    uiState = AppDrawerUiState.Content(apps = listOf(maps), recentApps = listOf(music)),
+                    layout = DrawerLayout.GRID,
+                    iconSize = DrawerIconSize.MEDIUM,
+                    pinned = emptyList(),
+                    onLaunch = { launched = it },
+                    onTogglePin = {},
+                    onToggleLayout = {},
+                    onSelectIconSize = {},
+                    onReorderPins = {},
+                    onRetry = {},
+                )
+            }
+        }
+        rule.onNodeWithText("Recent").assertIsDisplayed()
+        rule.onNodeWithText("Music").assertIsDisplayed().performClick()
+        assertEquals(music.componentName, launched)
+    }
+
+    @Test
+    fun the_recent_row_is_hidden_while_a_search_query_is_active() {
+        val maps = fakeAppEntry(packageName = "com.maps", className = ".Main", label = "Maps")
+        val music = fakeAppEntry(packageName = "com.music", className = ".Main", label = "Music")
+        rule.setContent {
+            FemtoTheme {
+                AppDrawerScreen(
+                    uiState = AppDrawerUiState.Content(apps = listOf(maps, music), recentApps = listOf(maps)),
+                    layout = DrawerLayout.GRID,
+                    iconSize = DrawerIconSize.MEDIUM,
+                    pinned = emptyList(),
+                    onLaunch = {},
+                    onTogglePin = {},
+                    onToggleLayout = {},
+                    onSelectIconSize = {},
+                    onReorderPins = {},
+                    onRetry = {},
+                )
+            }
+        }
+        // Recents show while browsing...
+        rule.onNodeWithText("Recent").assertIsDisplayed()
+        // ...and step aside once a query is active (the filtered list is the signal).
+        rule.onNodeWithTag(APP_DRAWER_SEARCH_TEST_TAG).performTextInput("ma")
+        rule.onNodeWithText("Recent").assertDoesNotExist()
+    }
+
+    @Test
+    fun tapping_the_alphabet_rail_jumps_to_that_section() {
+        // One app per letter A..Z: more than one bucket (so the rail shows) and a
+        // list tall enough that the Z section starts well below the fold.
+        val apps =
+            ('A'..'Z').map { letter ->
+                fakeAppEntry(packageName = "com.app$letter", className = ".Main", label = "$letter-app")
+            }
+        rule.setContent {
+            FemtoTheme {
+                AppDrawerScreen(
+                    uiState = AppDrawerUiState.Content(apps),
+                    layout = DrawerLayout.LIST,
+                    iconSize = DrawerIconSize.MEDIUM,
+                    pinned = emptyList(),
+                    onLaunch = {},
+                    onTogglePin = {},
+                    onToggleLayout = {},
+                    onSelectIconSize = {},
+                    onReorderPins = {},
+                    onRetry = {},
+                )
+            }
+        }
+        // The list starts at the top; the Z section is off-screen, so the only "Z" on
+        // screen is the rail's own letter (the Z inline marker is not composed yet).
+        rule.onNodeWithText("A-app").assertIsDisplayed()
+        // A touch at the rail's "Z" letter resolves to the Z bucket (the rail scrubs
+        // proportionally over its full height) and scrolls that section's app into view.
+        rule.onNodeWithText("Z").performTouchInput {
+            down(center)
+            up()
+        }
+        rule.onNodeWithText("Z-app").assertIsDisplayed()
+    }
 }

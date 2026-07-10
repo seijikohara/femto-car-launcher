@@ -7,6 +7,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -36,7 +37,11 @@ class DiagnosticsCollectorsTest {
                 delay(100)
                 assertFalse(logs.isCompleted) // parked on the spectrum gate
                 collectors.getValue(SectionId.MUSIC).collect() // releases it
-                logs.await()
+                // Bound well under production's 5s SPECTRUM_AWAIT_TIMEOUT_MS: once the
+                // gate is released, LOGS completes near-instantly, so 1s is ample. If
+                // the release above ever broke, only that 5s fallback would complete
+                // LOGS — this ceiling turns that silent pass into a loud timeout.
+                withTimeout(1_000) { logs.await() }
             }
         }
 
@@ -60,7 +65,10 @@ class DiagnosticsCollectorsTest {
                 delay(100)
                 assertFalse(logs.isCompleted) // parked on the SECOND registry's own gate
                 second.getValue(SectionId.MUSIC).collect() // releases it
-                logs.await()
+                // Bounded under the 5s gate-timeout fallback, as in the first test: a
+                // failed re-arm would complete LOGS only via that fallback, which this
+                // 1s ceiling surfaces as a failure instead of a slow pass.
+                withTimeout(1_000) { logs.await() }
             }
         }
 }

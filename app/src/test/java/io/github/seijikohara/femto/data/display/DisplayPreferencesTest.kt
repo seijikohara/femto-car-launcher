@@ -78,23 +78,21 @@ class DisplayPreferencesTest {
         }
 
     @Test
-    fun `mapBackend mapboxStyle mapboxTraffic defaults migration and round-trip`() =
+    fun `mapBackend mapboxStyle mapboxTraffic read their defaults and round-trip`() =
         runTest {
             val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
             // Clear any state left by a test that ran earlier in the same process.
             store.resetToDefaults()
 
-            // Defaults: absent map_backend key resolves to OSM (the migration
-            // semantic — any user whose store has only the legacy map_render_mode
-            // key gets OSM automatically because map_backend is simply absent).
+            // Defaults: with no backend keys written the read path falls back to
+            // OSM / STANDARD / traffic-off. There is no legacy-key migration to
+            // exercise here — the read path never reads the retired map_render_mode
+            // key, so a pre-rename store resolves to OSM purely because map_backend
+            // is absent (asserted once, above; a second identical assertion would
+            // prove nothing further).
             assertFalse(store.settings.first().mapboxTraffic)
             assertEquals(MapBackend.OSM, store.settings.first().mapBackend)
             assertEquals(MapboxStyle.STANDARD, store.settings.first().mapboxStyle)
-
-            // Legacy: a pre-migration store has map_render_mode but no map_backend.
-            // The map_backend key being absent is the migration semantic; OSM resolves
-            // from the read-path default regardless of any pre-existing render-mode key.
-            assertEquals(MapBackend.OSM, store.settings.first().mapBackend)
 
             // Round-trip: write MAPBOX / SATELLITE / traffic-on, then read back.
             store.setMapBackend(MapBackend.MAPBOX)
