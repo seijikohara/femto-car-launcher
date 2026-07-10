@@ -110,30 +110,17 @@ class MainActivity : ComponentActivity() {
                 .collect { fullscreenSetting = it }
         }
         setContent {
-            // User display settings override the locale/system defaults; the
-            // theme + font feed FemtoTheme, the units + clock feed the dashboard.
+            // User display settings override the locale/system defaults; the theme
+            // + font feed FemtoTheme, the units + clock feed the dashboard.
+            // Null-initial (like `orientation` below) so the dashboard gate can wait
+            // for the first persisted values instead of compositing a default tree.
             val display by displayPreferences.settings.collectAsStateWithLifecycle(
-                initialValue = DisplaySettings.Default,
+                initialValue = null,
             )
             // The resolved Google Fonts faces (or system default) drive the theme;
             // they swap in reactively when a freshly chosen family finishes downloading.
             val resolvedFonts by fontRepository.resolved.collectAsStateWithLifecycle()
             val fontFamily = remember(resolvedFonts) { buildFontFamily(resolvedFonts.latin, resolvedFonts.cjk) }
-            val darkTheme =
-                when (display.themeMode) {
-                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
-                    ThemeMode.LIGHT -> false
-                    ThemeMode.DARK -> true
-                }
-            // Drive the system bars from the persisted fullscreen choice. This
-            // fires only on a setting change; onWindowFocusChanged handles the
-            // focus-regain case.
-            LaunchedEffect(display.fullscreen) {
-                applyFullscreen(display.fullscreen)
-            }
-            LaunchedEffect(display.keepScreenOn) {
-                applyKeepScreenOn(display.keepScreenOn)
-            }
             // A forced-portrait choice rotates the (naturally landscape)
             // panel, which recreates the Activity; the first composition
             // after that recreation would briefly apply the AUTO default,
@@ -151,7 +138,8 @@ class MainActivity : ComponentActivity() {
             }
             // The dock's nav/status order + hidden sets, sourced from their own
             // DataStore (not DisplaySettings — mirrors DrawerPreferences' separate
-            // store) and threaded down like `display` above.
+            // store) and threaded down like `display` above. Null-initial and gated
+            // with `display` below.
             val dockConfig by remember {
                 combine(
                     dockPreferences.navOrder,
@@ -161,11 +149,36 @@ class MainActivity : ComponentActivity() {
                 ) { navOrder, navHidden, statusOrder, statusHidden ->
                     DockConfig(navOrder, navHidden, statusOrder, statusHidden)
                 }
-            }.collectAsStateWithLifecycle(initialValue = DockConfig())
+            }.collectAsStateWithLifecycle(initialValue = null)
+            // Gate the whole dashboard on the first persisted DisplaySettings and
+            // DockConfig. On recreation the retained HomeViewModel replays a location
+            // immediately, so compositing one frame with DisplaySettings.Default would
+            // build the map WebView on the OSM backend with a blank token, then re-key
+            // off it and rebuild once the real backend/credentials land — and
+            // DockConfig() would flash the factory dock order for that frame. Render
+            // nothing until both arrive (the splash screen still covers it); the
+            // orientation effect above already relies on the same null-initial guard.
+            val settings = display ?: return@setContent
+            val dock = dockConfig ?: return@setContent
+            val darkTheme =
+                when (settings.themeMode) {
+                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                    ThemeMode.LIGHT -> false
+                    ThemeMode.DARK -> true
+                }
+            // Drive the system bars from the persisted fullscreen choice. This
+            // fires only on a setting change; onWindowFocusChanged handles the
+            // focus-regain case.
+            LaunchedEffect(settings.fullscreen) {
+                applyFullscreen(settings.fullscreen)
+            }
+            LaunchedEffect(settings.keepScreenOn) {
+                applyKeepScreenOn(settings.keepScreenOn)
+            }
             FemtoTheme(
                 fontFamily = fontFamily,
-                accent = display.accentColor,
-                uiScale = display.uiScale,
+                accent = settings.accentColor,
+                uiScale = settings.uiScale,
                 darkTheme = darkTheme,
             ) {
                 // The dashboard stays composed; the app drawer, assistant, and
@@ -180,51 +193,51 @@ class MainActivity : ComponentActivity() {
                 // The open-source licenses sheet opens over settings, like diagnostics.
                 var showLicenses by rememberSaveable { mutableStateOf(false) }
                 HomeRoute(
-                    is24Hour = resolveIs24Hour(display.clock),
-                    showClockSeconds = display.showClockSeconds,
-                    dockPosition = display.dockPosition,
-                    dockConfig = dockConfig,
-                    driverSide = display.driverSide,
-                    speedUnit = display.speedUnit.resolved(),
-                    temperatureUnit = display.temperatureUnit.resolved(),
+                    is24Hour = resolveIs24Hour(settings.clock),
+                    showClockSeconds = settings.showClockSeconds,
+                    dockPosition = settings.dockPosition,
+                    dockConfig = dock,
+                    driverSide = settings.driverSide,
+                    speedUnit = settings.speedUnit.resolved(),
+                    temperatureUnit = settings.temperatureUnit.resolved(),
                     mapConfig =
                         MapConfig(
-                            style = display.mapStyle,
-                            schemeLight = display.mapSchemeLight,
-                            schemeDark = display.mapSchemeDark,
-                            tiltDeg = display.mapTiltDeg,
-                            zoom = display.mapZoom,
-                            northUp = display.mapNorthUp,
-                            markerPos = display.mapMarkerPos,
-                            buildings3d = display.map3dBuildings,
-                            terrain = display.mapTerrain,
-                            backend = display.mapBackend,
-                            mapboxToken = display.mapboxAccessToken,
-                            mapboxStyle = display.mapboxStyle,
-                            mapboxTraffic = display.mapboxTraffic,
-                            googleMapsApiKey = display.googleMapsApiKey,
-                            googleMapsMapId = display.googleMapsMapId,
-                            googleMapsMapType = display.googleMapsMapType,
-                            googleMapsTraffic = display.googleMapsTraffic,
+                            style = settings.mapStyle,
+                            schemeLight = settings.mapSchemeLight,
+                            schemeDark = settings.mapSchemeDark,
+                            tiltDeg = settings.mapTiltDeg,
+                            zoom = settings.mapZoom,
+                            northUp = settings.mapNorthUp,
+                            markerPos = settings.mapMarkerPos,
+                            buildings3d = settings.map3dBuildings,
+                            terrain = settings.mapTerrain,
+                            backend = settings.mapBackend,
+                            mapboxToken = settings.mapboxAccessToken,
+                            mapboxStyle = settings.mapboxStyle,
+                            mapboxTraffic = settings.mapboxTraffic,
+                            googleMapsApiKey = settings.googleMapsApiKey,
+                            googleMapsMapId = settings.googleMapsMapId,
+                            googleMapsMapType = settings.googleMapsMapType,
+                            googleMapsTraffic = settings.googleMapsTraffic,
                         ),
                     panels =
                         PanelVisibility(
-                            calendar = display.showCalendar,
-                            weather = display.showWeather,
-                            music = display.showMusic,
+                            calendar = settings.showCalendar,
+                            weather = settings.showWeather,
+                            music = settings.showMusic,
                         ),
-                    musicShowAlbum = display.musicShowAlbum,
-                    musicShowArt = display.musicShowArt,
-                    motionTier = display.motionTier,
+                    musicShowAlbum = settings.musicShowAlbum,
+                    musicShowArt = settings.musicShowArt,
+                    motionTier = settings.motionTier,
                     glassConfig =
                         GlassConfig(
-                            blurRadius = display.glassBlurRadius.dp,
-                            tintScale = display.glassTintScale,
+                            blurRadius = settings.glassBlurRadius.dp,
+                            tintScale = settings.glassTintScale,
                         ),
                     onEvent = { event ->
                         handleHomeEvent(
                             event = event,
-                            display = display,
+                            display = settings,
                             setShowDrawer = { showDrawer = it },
                             setShowAssistant = { showAssistant = it },
                             setShowSettings = { showSettings = it },
@@ -234,7 +247,7 @@ class MainActivity : ComponentActivity() {
                 // The modal sheets render in their own windows, which do not inherit
                 // the Activity's immersive flags; pass the fullscreen choice so each
                 // re-applies it to its window (see ImmersiveSheetEffect).
-                val fullscreen = display.fullscreen == FullscreenSetting.ON
+                val fullscreen = settings.fullscreen == FullscreenSetting.ON
                 if (showDrawer) {
                     AppDrawerSheet(
                         onLaunch = { component ->

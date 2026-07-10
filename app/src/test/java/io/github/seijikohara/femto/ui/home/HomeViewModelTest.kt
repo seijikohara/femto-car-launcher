@@ -3,7 +3,6 @@ package io.github.seijikohara.femto.ui.home
 import android.content.ComponentName
 import android.content.Intent
 import app.cash.turbine.test
-import io.github.seijikohara.femto.data.clock.ClockTick
 import io.github.seijikohara.femto.data.dock.DockNavId
 import io.github.seijikohara.femto.data.dock.DockStatusId
 import io.github.seijikohara.femto.data.music.MusicCardState
@@ -33,8 +32,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.time.LocalDate
-import java.time.LocalTime
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
@@ -60,7 +57,6 @@ class HomeViewModelTest {
             // assertions below pin every field to its own flow. A future reorder
             // of the two-stage combine (or its CoreSignals holder) that swaps two
             // same-typed slots is caught here rather than slipping through.
-            val clock = ClockTick(LocalTime.of(14, 32), LocalDate.of(2026, 5, 1))
             val location = fakeLocation()
             val address = fakeAddress()
             val weather = fakeWeatherSnapshot()
@@ -70,7 +66,6 @@ class HomeViewModelTest {
             val tripState = fakeTripState()
             val viewModel =
                 HomeViewModel(
-                    clockFlow = flowOf(clock),
                     locationFlow = flowOf(location),
                     addressFlow = flowOf(address),
                     weatherFlow = flowOf(weather),
@@ -81,7 +76,6 @@ class HomeViewModelTest {
                 )
             viewModel.uiState.test {
                 val state = awaitItem()
-                assertEquals(clock, state.clock)
                 assertEquals(location, state.location)
                 assertEquals(address, state.address)
                 assertEquals(weather, state.weather)
@@ -102,19 +96,18 @@ class HomeViewModelTest {
             val weather = fakeWeatherSnapshot()
             val viewModel =
                 HomeViewModel(
-                    clockFlow = flow { throw SecurityException("clock source broke") },
                     locationFlow = flowOf(fakeLocation()),
                     addressFlow = flowOf(fakeAddress()),
                     weatherFlow = flowOf(weather),
                     musicStateFlow = flowOf(MusicCardState.Playing(fakeNowPlaying())),
                     calendarFlow = flowOf(fakeCalendarSnapshot()),
-                    systemStatusFlow = flowOf(fakeSystemStatus()),
+                    systemStatusFlow = flow { throw SecurityException("system status source broke") },
                     tripStateFlow = flowOf(fakeTripState()),
                 )
             viewModel.uiState.test {
                 val state = awaitItem()
-                // The broken clock holds its neutral Initial value...
-                assertEquals(HomeUiState.Initial.clock, state.clock)
+                // The broken system-status source holds its neutral Initial value...
+                assertEquals(HomeUiState.Initial.systemStatus, state.systemStatus)
                 // ...while every other card still shows its real value.
                 assertEquals(weather, state.weather)
                 cancelAndIgnoreRemainingEvents()
@@ -128,26 +121,25 @@ class HomeViewModelTest {
             // had been working throws, its card resets to the neutral default and
             // stays there (until the process restarts), rather than freezing on the
             // last good value.
-            val clock = ClockTick(LocalTime.of(14, 32), LocalDate.of(2026, 5, 1))
+            val systemStatus = fakeSystemStatus()
             val viewModel =
                 HomeViewModel(
-                    clockFlow =
-                        flow {
-                            emit(clock)
-                            throw IllegalStateException("clock source broke after emitting")
-                        },
                     locationFlow = flowOf(fakeLocation()),
                     addressFlow = flowOf(fakeAddress()),
                     weatherFlow = flowOf(fakeWeatherSnapshot()),
                     musicStateFlow = flowOf(MusicCardState.Playing(fakeNowPlaying())),
                     calendarFlow = flowOf(fakeCalendarSnapshot()),
-                    systemStatusFlow = flowOf(fakeSystemStatus()),
+                    systemStatusFlow =
+                        flow {
+                            emit(systemStatus)
+                            throw IllegalStateException("system status source broke after emitting")
+                        },
                     tripStateFlow = flowOf(fakeTripState()),
                 )
             viewModel.uiState.test {
                 val state = awaitItem()
-                assertNotEquals(clock, state.clock)
-                assertEquals(HomeUiState.Initial.clock, state.clock)
+                assertNotEquals(systemStatus, state.systemStatus)
+                assertEquals(HomeUiState.Initial.systemStatus, state.systemStatus)
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -183,7 +175,6 @@ class HomeViewModelTest {
             val location = fakeLocation()
             val viewModel =
                 HomeViewModel(
-                    clockFlow = flowOf(ClockTick(LocalTime.of(14, 32), LocalDate.of(2026, 5, 1))),
                     locationFlow = flowOf(location),
                     addressFlow = flowOf(fakeAddress()),
                     weatherFlow = flowOf(fakeWeatherSnapshot()),
@@ -467,7 +458,6 @@ class HomeViewModelTest {
         // derives its music state from) holds Initial until all sources have a
         // first value, and an emptyFlow source would keep the gate shut.
         HomeViewModel(
-            clockFlow = flowOf(ClockTick(LocalTime.of(14, 32), LocalDate.of(2026, 5, 1))),
             locationFlow = flowOf(fakeLocation()),
             addressFlow = flowOf(fakeAddress()),
             weatherFlow = flowOf(fakeWeatherSnapshot()),
@@ -497,7 +487,6 @@ class HomeViewModelTest {
         resolveMusicSourceComponent: (String) -> ComponentName? = { null },
     ): HomeViewModel =
         HomeViewModel(
-            clockFlow = emptyFlow(),
             locationFlow = emptyFlow(),
             addressFlow = emptyFlow(),
             weatherFlow = emptyFlow(),

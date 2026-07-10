@@ -8,7 +8,6 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
-import io.github.seijikohara.femto.data.clock.ClockTick
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.testfixtures.fakeAddress
@@ -25,8 +24,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
-import java.time.LocalDate
-import java.time.LocalTime
 
 /**
  * Render the main dashboard at the head-unit geometries it must support and assert
@@ -58,7 +55,6 @@ internal class DashboardResponsiveTest(
     fun renders_without_breaking() {
         val uiState =
             HomeUiState.Initial.copy(
-                clock = ClockTick(LocalTime.of(14, 32), LocalDate.of(2026, 5, 1)),
                 location = null,
                 address = fakeAddress(),
                 weather = fakeWeatherSnapshot(),
