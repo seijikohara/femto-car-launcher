@@ -50,45 +50,49 @@ The home screen is a fixed dashboard rather than a scrolling grid of apps.
   reverse-geocoded address of the current position.
 - **Weather card** — current conditions, apparent ("feels-like")
   temperature, wind, humidity, and an hourly forecast from MET Norway
-  (`api.met.no`).
+  (`api.met.no`). Tap the header to open a full-screen forecast panel.
 - **Calendar card** — a six-day strip and the upcoming events read from the
   device calendar, with a Settings option to choose which of the
-  device's calendars are shown.
+  device's calendars are shown. Tap the header to open a full-screen panel.
 - **Now-playing card** — the active media session (title, artist, source
   app, and transport controls), read through a notification-listener
-  service.
+  service. Tap the cover art to open a full-screen player.
 - **Clock overlay** — a self-updating clock that honours the system
   12/24-hour setting, with an optional seconds display.
 - **Status cluster** — graduated Wi-Fi and cellular signal strength,
   Bluetooth connection state, GPS reception, and battery level and charging
   state.
 - **App dock and drawer** — an application dock that the user can attach
-  to any screen edge (bottom, top, left, or right), and a full app drawer
-  with search, a pinned-apps row, and small / medium / large icon-size
-  presets.
+  to any screen edge (bottom, top, left, or right). Long-press a dock
+  button or status icon to reorder or hide it. A full app drawer offers
+  search, a pinned-apps row, a recently-used-apps row, an A-Z fast-scroll
+  index, and small / medium / large icon-size presets.
 - **Voice assistant** — a microphone button opens a bottom sheet that
   captures speech in-launcher (`android.speech.SpeechRecognizer`) with a
   live transcript. When no on-device recognizer exists or the microphone
   permission is denied, the sheet degrades to launching the system voice
   assistant, voice command, or voice search.
-- **Fonts** — the head-unit system font by default, or any Google Fonts
+- **Fonts** — the head-unit system font by default, any Google Fonts
   family chosen per slot (a Latin face plus a CJK — Chinese, Japanese,
-  Korean — fallback face), downloaded on demand and cached on disk. No
-  fonts are bundled in the APK and no Play Services are required.
+  Korean — fallback face), downloaded on demand and cached on disk, or
+  any font already installed on the device, read directly with no
+  download. No fonts are bundled in the APK and no Play Services are
+  required.
 - **Settings** — in-app preferences grouped into seven sections:
   **Appearance** (theme, accent colour, map colour matching,
   glass-effect blur and opacity, and font pairing), **Screen** (UI
   scale, screen orientation, fullscreen, keep-screen-on, dock edge,
-  driver-side card anchoring, motion reduction, and voice-assistant
-  launch behaviour), **Units** (speed and temperature units, clock format and
-  seconds), **Map** (backend choice, an optional Mapbox access token or
-  Google Maps Platform API key to enable the paid backends, 3D
-  buildings, terrain, and camera behaviour), **Location**
-  (location-update tuning), **Panels** (show or hide the calendar,
-  weather, and music cards, and which device calendars the calendar
-  card shows), and **System** (shortcuts to the system
-  notification-access and Android settings screens, and a one-tap
-  reset to defaults).
+  a dock-layout reset, driver-side card anchoring, motion reduction, and
+  voice-assistant launch behaviour), **Units** (speed and temperature units,
+  clock format and seconds), **Map** (backend choice, an optional Mapbox
+  access token or Google Maps Platform API key to enable the paid backends,
+  3D buildings, terrain, and camera behaviour), **Location**
+  (location-update tuning), **Panels** (show or hide the calendar, weather,
+  and music cards; which device calendars the calendar card shows; and the
+  music card's spectrum, album-name, and cover-art visibility toggles), and
+  **System** (shortcuts to the system notification-access and Android
+  settings screens, in-app diagnostics, the open-source licenses list, and
+  the privacy policy, plus a one-tap reset to defaults).
 
 Each panel degrades gracefully. A panel whose runtime permission is denied,
 or whose data source is unavailable, renders an empty or reduced state

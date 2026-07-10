@@ -47,9 +47,8 @@ prompt the caller for both values.
    - `MaterialTheme.typography.*`
    - `FemtoDimens.*`
    - shapes from M3 default `Shapes`
-   - the named `Typography` extensions in `ui/theme/Type.kt`
-     (`bigNumber`, `sectionLabel`, `cardTitle`, `cardMeta`,
-     `cardCta`, `cardCtaHint`)
+   - the named `Typography` extensions in `ui/theme/Type.kt` — see
+     `.claude/rules/design-system.md` for the current list
    - `FemtoDimens.GlanceTextSize` where
      `CLAUDE.md#automotive-overrides` sanctions the glance relaxation
    See `.claude/rules/design-system.md` for the rationale.
