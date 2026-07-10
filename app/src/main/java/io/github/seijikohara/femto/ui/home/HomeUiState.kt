@@ -3,14 +3,11 @@ package io.github.seijikohara.femto.ui.home
 import android.location.Location
 import androidx.compose.runtime.Immutable
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
-import io.github.seijikohara.femto.data.clock.ClockTick
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.system.SystemStatus
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
-import java.time.LocalDate
-import java.time.LocalTime
 
 // @Immutable despite android.location.Location being a mutable Java type:
 // LocationRepository emits each Location instance once and never mutates it
@@ -18,7 +15,6 @@ import java.time.LocalTime
 // recomposition on reference equality.
 @Immutable
 internal data class HomeUiState(
-    val clock: ClockTick,
     val location: Location?,
     val address: ShortAddress?,
     val weather: WeatherSnapshot?,
@@ -30,7 +26,6 @@ internal data class HomeUiState(
     companion object {
         val Initial: HomeUiState =
             HomeUiState(
-                clock = ClockTick(LocalTime.of(0, 0), LocalDate.now()),
                 location = null,
                 address = null,
                 weather = null,

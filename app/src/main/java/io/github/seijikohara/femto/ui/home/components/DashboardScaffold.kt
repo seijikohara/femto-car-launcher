@@ -293,7 +293,12 @@ private fun DashboardContent(
         hasCards = hasCards,
         hazeState = hazeState,
         following = following,
-        bearingDeg = bearingDeg,
+        // Bearing flows down as a deferred read (a lambda), not a Float: it updates
+        // at up to ~6.7 Hz while turning in heading-up mode, and reading it here
+        // would recompose this whole overlay body and re-run the layout math on
+        // every event. MapCompass invokes it inside its graphicsLayer instead,
+        // confining the churn to the layer phase.
+        bearingDeg = { bearingDeg },
         motionTier = motionTier,
         driverSide = driverSide,
         onRecenter = { recenterNonce++ },
@@ -356,7 +361,9 @@ private fun DashboardOverlays(
     hasCards: Boolean,
     hazeState: HazeState,
     following: Boolean,
-    bearingDeg: Float,
+    // Deferred read forwarded straight to MapCompass (see the call site in the
+    // parent for why it is a lambda, not a Float).
+    bearingDeg: () -> Float,
     motionTier: MotionTier,
     // Which side the info-dense dashboard anchors to: RIGHT (default) keeps today's
     // layout; LEFT mirrors every alignment/padding site (start <-> end) so the cards,

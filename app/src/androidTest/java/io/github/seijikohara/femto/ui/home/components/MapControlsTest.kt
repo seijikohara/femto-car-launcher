@@ -61,7 +61,7 @@ class MapControlsTest {
         rule.setContent {
             FemtoTheme {
                 MapCompass(
-                    bearingDeg = 42f,
+                    bearingDeg = { 42f },
                     onTap = { toggled++ },
                     hazeState = rememberHazeState(),
                     glassConfig = GlassConfig(),

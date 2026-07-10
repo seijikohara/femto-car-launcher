@@ -45,7 +45,11 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
  */
 @Composable
 internal fun MapCompass(
-    bearingDeg: Float,
+    // Deferred read: the bearing updates at up to ~6.7 Hz while turning. Taking it
+    // as a lambda and reading it inside the graphicsLayer block below keeps those
+    // updates in the layer phase, so only the layer re-records — the compass never
+    // recomposes and the dashboard above it never re-lays-out per event.
+    bearingDeg: () -> Float,
     onTap: () -> Unit,
     hazeState: HazeState,
     glassConfig: GlassConfig,
@@ -67,7 +71,7 @@ internal fun MapCompass(
             modifier =
                 Modifier
                     .size(CONTROL_ICON_SIZE)
-                    .graphicsLayer { rotationZ = -bearingDeg },
+                    .graphicsLayer { rotationZ = -bearingDeg() },
         ) {
             // A two-tone diamond needle: the accent half points at geographic
             // north, the muted half at south — the universal compass glyph, no
@@ -226,7 +230,7 @@ private fun MapControlsPreview() {
     FemtoTheme {
         Column {
             MapCompass(
-                bearingDeg = 35f,
+                bearingDeg = { 35f },
                 onTap = {},
                 hazeState = rememberHazeState(),
                 glassConfig = GlassConfig(),

@@ -4,7 +4,6 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
-import io.github.seijikohara.femto.data.clock.ClockTick
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
@@ -15,8 +14,6 @@ import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
-import java.time.LocalDate
-import java.time.LocalTime
 
 class DashboardScaffoldTest {
     @get:Rule
@@ -31,7 +28,6 @@ class DashboardScaffoldTest {
         // music, and dock panels carry the stable assertions instead.
         val uiState =
             HomeUiState.Initial.copy(
-                clock = ClockTick(LocalTime.of(14, 32), LocalDate.of(2026, 5, 1)),
                 location = null,
                 address = fakeAddress(),
                 weather = fakeWeatherSnapshot(),

@@ -15,7 +15,6 @@ import io.github.seijikohara.femto.data.calendar.CalendarPreferences
 import io.github.seijikohara.femto.data.calendar.CalendarRepository
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.clock.ClockRepository
-import io.github.seijikohara.femto.data.clock.ClockTick
 import io.github.seijikohara.femto.data.common.WhileUiSubscribed
 import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.geocoding.NominatimApi
@@ -53,7 +52,6 @@ import java.util.Locale
 private const val TAG = "HomeViewModel"
 
 internal class HomeViewModel(
-    private val clockFlow: Flow<ClockTick>,
     private val locationFlow: Flow<Location?>,
     private val addressFlow: Flow<ShortAddress?>,
     private val weatherFlow: Flow<WeatherSnapshot?>,
@@ -68,7 +66,7 @@ internal class HomeViewModel(
     private val spectrumEnabledFlow: Flow<Boolean> = flowOf(false),
     private val spectrumBandsFor: (Flow<Boolean>) -> Flow<FloatArray?> = { flowOf(null) },
 ) : ViewModel() {
-    // Kotlin's typed combine overloads cover at most 5 flows. Stage the eight
+    // Kotlin's typed combine overloads cover at most 5 flows. Stage the seven
     // sources through a typed intermediate (CoreSignals) so the compiler enforces
     // arity and per-slot types end-to-end: a future reorder fails to compile
     // instead of silently mismapping a positional values[i] cast.
@@ -79,13 +77,12 @@ internal class HomeViewModel(
     // process. Catching per source degrades only that card to its initial value.
     private val coreSignals: Flow<CoreSignals> =
         combine(
-            clockFlow.catchAsDefault("clock", HomeUiState.Initial.clock),
             locationFlow.catchAsDefault("location", HomeUiState.Initial.location),
             addressFlow.catchAsDefault("address", HomeUiState.Initial.address),
             weatherFlow.catchAsDefault("weather", HomeUiState.Initial.weather),
             musicStateFlow.catchAsDefault("music", HomeUiState.Initial.musicState),
-        ) { clock, location, address, weather, music ->
-            CoreSignals(clock, location, address, weather, music)
+        ) { location, address, weather, music ->
+            CoreSignals(location, address, weather, music)
         }
 
     val uiState: StateFlow<HomeUiState> =
@@ -96,7 +93,6 @@ internal class HomeViewModel(
             tripStateFlow.catchAsDefault("trip state", HomeUiState.Initial.tripState),
         ) { core, calendar, systemStatus, tripState ->
             HomeUiState(
-                clock = core.clock,
                 location = core.location,
                 address = core.address,
                 weather = core.weather,
@@ -254,10 +250,9 @@ private fun <T> Flow<T>.catchAsDefault(
         emit(default)
     }
 
-// File-private holder that groups the first five sources so the two-stage
+// File-private holder that groups the first four sources so the two-stage
 // combine stays within Kotlin's typed (max-arity-5) combine overloads.
 private data class CoreSignals(
-    val clock: ClockTick,
     val location: Location?,
     val address: ShortAddress?,
     val weather: WeatherSnapshot?,
@@ -322,7 +317,6 @@ internal class HomeViewModelFactory(
 
         @Suppress("UNCHECKED_CAST")
         return HomeViewModel(
-            clockFlow = clockFlow,
             locationFlow = locationFlow,
             addressFlow = geocoder.addressFlow(),
             weatherFlow = weather.snapshotFlow(),

@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
-import io.github.seijikohara.femto.data.clock.ClockTick
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.data.music.MusicCardState
@@ -26,8 +25,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import java.time.LocalDate
-import java.time.LocalTime
 
 /**
  * JVM/Robolectric screenshot regression for the main dashboard across the display
@@ -180,7 +177,6 @@ class DashboardScreenshotTest {
 
         val STATE =
             HomeUiState.Initial.copy(
-                clock = ClockTick(LocalTime.of(14, 32), LocalDate.of(2026, 5, 1)),
                 location = null,
                 address = fakeAddress(),
                 weather = fakeWeatherSnapshot(),
