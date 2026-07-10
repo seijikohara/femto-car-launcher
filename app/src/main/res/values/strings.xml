@@ -98,6 +98,9 @@
 
     <!-- Dashboard footer: long-press edit menu (nav buttons and status icons share it) -->
     <string name="dock_hide">Hide</string>
+    <!-- Accessibility label for the long press that OPENS the edit menu (move/hide/reset);
+         a menu-item label like "Hide" would misdescribe the action itself. -->
+    <string name="dock_edit">Edit dock</string>
     <!-- Move labels for a vertical rail dock (left/right edge), where a -1/+1 reorder
          moves the item up/down rather than left/right; drawer_move_left / drawer_move_right
          cover the horizontal case. -->
