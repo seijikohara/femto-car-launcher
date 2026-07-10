@@ -266,13 +266,18 @@ window.addEventListener("unhandledrejection", (e) => {
 	reportErrorThrottled(reason);
 });
 
-// Google Maps requires WebGL; report fatal immediately if absent so the host
-// shows a clear notice rather than a silent blank page.
+// A vector map (Cloud Map ID present) hard-requires WebGL: with no context there
+// is nothing to render, so report fatal and let the host show a clear notice. A
+// raster map needs no WebGL, so a missing context there is logged only — the
+// raster tiles still render and a premature fatal would blank a working map.
 (() => {
 	const c = document.createElement("canvas");
-	if (!(c.getContext("webgl2") || c.getContext("webgl"))) {
+	if (c.getContext("webgl2") || c.getContext("webgl")) return;
+	if ((gmBridge()?.googleMapsMapId?.() ?? "") !== "") {
 		log("no-webgl-context");
 		report("fatal", "no-webgl-context");
+	} else {
+		log("no-webgl-context (raster map renders without WebGL)");
 	}
 })();
 
