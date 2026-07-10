@@ -42,15 +42,21 @@ jobs:
             exit 1
           fi
           IFS=. read -r major minor patch <<< "$name"
-          if [ "$minor" -ge 100 ] || [ "$patch" -ge 100 ]; then
-            echo "::error::minor and patch must each be < 100 for the versionCode packing"
+          if [ "$minor" -ge 1000 ] || [ "$patch" -ge 1000 ]; then
+            echo "::error::minor and patch must each be < 1000 for the versionCode packing"
             exit 1
           fi
-          # Pack semver into a monotonic versionCode: major*10000 + minor*100 + patch.
-          code=$(( major * 10000 + minor * 100 + patch ))
+          # Pack semver into a monotonic versionCode: major*1000000 + minor*1000 + patch.
+          # Wide enough that the nightly job's versionCode (github.run_number, see
+          # ci.yml) can never reach a release's, even after tens of thousands of runs.
+          code=$(( major * 1000000 + minor * 1000 + patch ))
+          # Normalize to the v-prefixed tag form so both a bare "1.0.0" and a
+          # "v1.0.0" workflow_dispatch input resolve to the same "v*"-convention tag.
+          tag="v$name"
           echo "name=$name" >> "$GITHUB_OUTPUT"
           echo "code=$code" >> "$GITHUB_OUTPUT"
-          echo "Resolved versionName=$name versionCode=$code"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Resolved versionName=$name versionCode=$code tag=$tag"
 
       - name: Set up JDK 21
         uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5
@@ -111,7 +117,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           V: ${{ steps.version.outputs.name }}
           CODE: ${{ steps.version.outputs.code }}
-          TAG: ${{ github.event.inputs.version || github.ref_name }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           # On a tag push the tag already exists; on workflow_dispatch this creates
           # it against the current commit. The .aab is the artifact to upload to

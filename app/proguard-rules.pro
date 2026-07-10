@@ -23,7 +23,7 @@
 # ---------------------------------------------------------------------------
 # Future-minify guard rules. These are inert while isMinifyEnabled = false in
 # build.gradle.kts, but stay in place so flipping minify on does not regress
-# kotlinx-serialization reflection or MapLibre's native/reflective surface.
+# kotlinx-serialization reflection.
 # ---------------------------------------------------------------------------
 
 # kotlinx-serialization: standard keep rules. R8 strips the synthetic
@@ -51,8 +51,3 @@
 -keepclasseswithmembers class **$$serializer {
     *** INSTANCE;
 }
-
-# MapLibre: relies on native (JNI) and reflective access; keep its classes and
-# silence warnings for missing optional references.
--keep class org.maplibre.** { *; }
--dontwarn org.maplibre.**

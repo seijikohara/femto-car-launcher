@@ -12,7 +12,9 @@ spotless {
         target("**/*.gradle.kts")
         // **/.gradle/** also covers app/.gradle, where the node-gradle plugin
         // unpacks pnpm (which ships its own Markdown and script files).
-        targetExclude("**/build/**", "**/.gradle/**")
+        // **/.claude/worktrees/** excludes other branches' checked-out trees:
+        // repo hygiene so spotlessApply never rewrites a foreign working copy.
+        targetExclude("**/build/**", "**/.gradle/**", "**/.claude/worktrees/**")
         ktlint(ktlintVersion)
     }
     format("markdown") {
@@ -23,6 +25,7 @@ spotless {
             ".idea/**",
             ".kotlin/**",
             "**/node_modules/**",
+            "**/.claude/worktrees/**",
         )
         endWithNewline()
     }

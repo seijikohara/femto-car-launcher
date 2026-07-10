@@ -82,7 +82,7 @@ jobs:
     name: Publish nightly
     runs-on: ubuntu-latest
     needs: validate
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     # Serialize publishes so two concurrent main pushes never race on the rolling
     # "nightly" tag (delete-then-create); queue them rather than cancel an
     # in-flight publish midway.
