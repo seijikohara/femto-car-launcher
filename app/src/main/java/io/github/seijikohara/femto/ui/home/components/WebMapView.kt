@@ -58,47 +58,47 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import kotlinx.coroutines.delay
 
 /**
- * Live map backend: MapLibre GL JS (WebGL) in a WebView — the only path that renders
- * a smooth, animated map *inside Compose*. The native live `MapView` is grey in a
- * Compose `AndroidView` on the head unit (its GL surface is not composited), and the
- * SNAPSHOT backend is a still bitmap; a WebView composites inline through HWUI and
- * MapLibre GL JS animates the camera. The page (TypeScript under `webmap/`, built by
- * Gradle into `assets/web/map.html` — see the node block in app/build.gradle.kts) is
- * served via [WebViewAssetLoader] from the real https origin
- * appassets.androidplatform.net so
- * MapLibre's tile-processing Web Worker can fetch tiles. GPS fixes drive
- * `map.easeTo()` for heading-up smooth follow — this is how #2 smooth movement is
- * delivered (the JS eases between sparse fixes). A `maplibregl.Marker` chevron rides
- * the same fixes as the self-location puck (filled with the Material primary), laid
- * on the tilted ground so it matches the SNAPSHOT backend's marker.
+ * Live map in a WebView — the only path that renders a smooth, animated map
+ * *inside Compose*. The backend chosen in the Settings Map section (OSM / MapLibre,
+ * or the BYO-credential Mapbox and Google Maps backends) selects the page loaded —
+ * `map.html`, `mapbox.html`, or `googlemaps.html` — and all three honour the same
+ * host-bridge contract, so this one composable drives any of them. A native live
+ * `MapView` is grey in a Compose `AndroidView` on the head unit (its GL surface is
+ * not composited); a WebView composites inline through HWUI and the GL JS library
+ * animates the camera. Each page (TypeScript under `webmap/`, built by Gradle into
+ * `assets/web/` — see the node block in app/build.gradle.kts) is served via
+ * [WebViewAssetLoader] from the real https origin appassets.androidplatform.net (not
+ * a file:// URL) so the map library's Web Worker and cross-origin tile fetches
+ * resolve against a real origin. GPS fixes drive a heading-up smooth follow (the JS
+ * eases or steps between sparse fixes); a chevron marks the self-location, filled
+ * with the Material primary and laid on the tilted ground.
  *
- * There is NO auto-fallback: the page relies on MapLibre's built-in WebGL
- * context-loss restore (`webglcontextlost`/`webglcontextrestored`) and the host
+ * There is NO auto-fallback: each page relies on the map library's built-in WebGL
+ * context-loss handling (`webglcontextlost`/`webglcontextrestored`) and the host
  * keeps the chosen backend regardless. The WebView renders WebGL on the GPU
- * (hardware-accelerated); a device that cannot keep a WebGL context uses the
- * SNAPSHOT backend instead.
+ * (hardware-accelerated); a device that cannot hold a WebGL context gets the static
+ * notice below rather than a silent blank map.
  *
  * The page reports into the host over a one-method [JavascriptInterface] bridge
  * (`window.femtoBridge.onMapEvent(kind, detail)`). Four kinds exist: `error`
  * for transient resource failures (tile / style / DEM fetch — logged, never UI,
  * because the removed auto-downgrade misfired on exactly such ambiguous signals),
- * `fatal` for definitive never-going-to-render facts (no WebGL context, map
- * construction threw), `follow` for camera-follow state flips, and `bearing`
- * (throttled) for the compass overlay. A `fatal` swaps the permanently-blank
- * WebView for a static notice pointing at the Settings render-mode switch — same
- * posture as renderer-death containment below: inform, never switch the
- * persisted backend.
+ * `fatal` for definitive never-going-to-render facts (no WebGL context, a missing
+ * BYO credential, map construction threw), `follow` for camera-follow state flips,
+ * and `bearing` (throttled) for the compass overlay. A `fatal` swaps the
+ * permanently-blank WebView for a static notice pointing back at the Settings Map
+ * section — same posture as renderer-death containment below: inform, never switch
+ * the persisted backend.
  *
  * Renderer-death containment is the one exception to "do nothing": without an
  * [android.webkit.WebViewClient.onRenderProcessGone] override the platform kills
  * the whole launcher process when the WebView renderer dies (WebGL is a classic
  * OOM victim on weak head-unit GPUs). Death is a fact reported by the system, not
  * a heuristic like the removed context-loss / readiness signals, so reacting to
- * it cannot misfire on a healthy map. The reaction stays inside the LIVE backend:
- * the first death rebuilds the WebView in place; repeated deaths within
+ * it cannot misfire on a healthy map. The reaction stays inside the WebView: the
+ * first death rebuilds it in place; repeated deaths within
  * [RENDERER_DEATH_WINDOW_MS] stop the rebuild loop and show a static notice that
- * points at the Settings render-mode switch. The persisted render mode is never
- * rewritten.
+ * points back at the Settings Map section. The persisted backend is never rewritten.
  *
  * [ON_START][androidx.lifecycle.Lifecycle.Event.ON_START] resumes the WebView and
  * nudges the map to re-measure/repaint; the WebView is paused only on ON_STOP (a
@@ -129,15 +129,12 @@ internal fun WebMapView(
             MapStyleSetting.DARK -> true
         }
 
-    // Flips true once the page's script has run (onPageFinished) so the JS bridge
-    // functions exist. The state-pushing effects below gate + key on it, so the
-    // current camera / style / feature state is (re)applied as soon as the page is
-    // ready — closing the race where an effect fires before the script registers
-    // window.updateCamera / setStyleUrl / setFeatures and is silently dropped.
-    // Keyed on backend so the flag resets to false when a new page is loaded for
-    // a different backend; without this key the old `true` value would cause effects
-    // to fire against the new WebView before its script has registered the bridge.
-    val pageReady = remember(mapConfig.backend) { mutableStateOf(false) }
+    // Only the active backend's credential can affect the loaded page, so an edit
+    // to the inactive backend's stored token/key must not rebuild the WebView — and
+    // editing a stored Mapbox token while OSM is active must not reload the OSM page.
+    val effectiveMapboxToken = if (mapConfig.backend == MapBackend.MAPBOX) mapConfig.mapboxToken else ""
+    val effectiveGoogleKey = if (mapConfig.backend == MapBackend.GOOGLEMAPS) mapConfig.googleMapsApiKey else ""
+    val effectiveGoogleMapId = if (mapConfig.backend == MapBackend.GOOGLEMAPS) mapConfig.googleMapsMapId else ""
 
     // Renderer-death containment state (see the KDoc): bumping the generation
     // rebuilds the WebView after the renderer process dies; once deaths repeat
@@ -150,18 +147,38 @@ internal fun WebMapView(
     val rendererDeathsMs = remember { mutableListOf<Long>() }
     val crashedViews = remember { mutableSetOf<WebView>() }
 
+    // Flips true once the page's script has run (onPageFinished) so the JS bridge
+    // functions exist. The state-pushing effects below gate + key on it, so the
+    // current camera / style / feature state is (re)applied as soon as the page is
+    // ready — closing the race where an effect fires before the script registers
+    // window.updateCamera / setStyleUrl / setFeatures and is silently dropped.
+    // Keyed on the SAME tuple as the WebView below so every rebuild — a backend
+    // switch, a corrected BYO credential, or a renderer-death generation bump —
+    // resets readiness to false; without that the stale `true` would let an effect
+    // fire against a fresh page before its script has registered the bridge.
+    val pageReady =
+        remember(
+            rendererGeneration,
+            mapConfig.backend,
+            effectiveMapboxToken,
+            effectiveGoogleKey,
+            effectiveGoogleMapId,
+        ) { mutableStateOf(false) }
+
     // Set by a `fatal` bridge event (see the KDoc): the page itself determined it
     // can never render, so a blank "working" map would be a lie. Like the
-    // renderer-death notice, this only informs — the persisted mode is untouched.
-    // Keyed on backend AND the Mapbox token so a fatal from one backend does not
-    // suppress the other backend's page, and re-entering a corrected token clears
-    // a prior token failure (the rebuilt WebView gets a fresh chance).
-    var liveInitFailed by remember(mapConfig.backend, mapConfig.mapboxToken, mapConfig.googleMapsApiKey) {
-        mutableStateOf(false)
-    }
-    var lastFatalDetail by remember(mapConfig.backend, mapConfig.mapboxToken, mapConfig.googleMapsApiKey) {
-        mutableStateOf<String?>(null)
-    }
+    // renderer-death notice, this only informs — the persisted backend is untouched.
+    // Keyed on backend AND the active backend's BYO credentials so a fatal from one
+    // backend does not suppress the other's page, and re-entering a corrected
+    // token / key / Map ID clears a prior failure (the rebuild gets a fresh chance).
+    var liveInitFailed by
+        remember(mapConfig.backend, effectiveMapboxToken, effectiveGoogleKey, effectiveGoogleMapId) {
+            mutableStateOf(false)
+        }
+    var lastFatalDetail by
+        remember(mapConfig.backend, effectiveMapboxToken, effectiveGoogleKey, effectiveGoogleMapId) {
+            mutableStateOf<String?>(null)
+        }
     // Bridge callbacks arrive on a WebView-managed background thread; Compose
     // state writes must land on the main thread.
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
@@ -212,16 +229,18 @@ internal fun WebMapView(
     }
 
     val webView =
-        // Keyed on backend so a live backend switch (Task 4) tears down the old
-        // WebView and loads the correct page — without this key the old page keeps
-        // running while the new backend's bridge effects fire against the wrong DOM.
+        // Keyed on the active backend and its BYO credentials so a backend switch or
+        // a corrected token / key / Map ID tears down the old WebView and loads a
+        // fresh page — without these keys the old page keeps running while the new
+        // bridge effects fire against the wrong DOM. The credentials are backend-
+        // scoped (see above) so editing the inactive backend's token does not rebuild.
         // rendererGeneration remains a key so renderer-death rebuilds still work.
         remember(
             rendererGeneration,
             mapConfig.backend,
-            mapConfig.mapboxToken,
-            mapConfig.googleMapsApiKey,
-            mapConfig.googleMapsMapId,
+            effectiveMapboxToken,
+            effectiveGoogleKey,
+            effectiveGoogleMapId,
         ) {
             val assetLoader =
                 WebViewAssetLoader
@@ -266,7 +285,6 @@ internal fun WebMapView(
                             crashedViews += view
                             (view.parent as? ViewGroup)?.removeView(view)
                             view.destroy()
-                            pageReady.value = false
                             lastRendererDeath = description
                             val now = SystemClock.elapsedRealtime()
                             rendererDeathsMs.removeAll { now - it > RENDERER_DEATH_WINDOW_MS }
@@ -354,8 +372,8 @@ internal fun WebMapView(
             }
         }
 
-    // Material primary as the self-location marker fill, so the WebGL puck matches
-    // the SNAPSHOT marker and the user's accent.
+    // Material primary as the self-location marker fill, so the WebGL puck tracks
+    // the user's accent.
     val markerColor = MaterialTheme.colorScheme.primary.toCssHex()
 
     // Resolve the colour scheme for the active light/dark context. ACCENT recolours
@@ -543,8 +561,8 @@ internal fun WebMapView(
 }
 
 // Terminal LIVE-map state (repeated renderer deaths, or a fatal bridge event):
-// a static notice pointing at the Settings render-mode switch. Deliberately NOT
-// an automatic fallback to SNAPSHOT — an earlier auto-downgrade misfired on
+// a static notice pointing back at the Settings Map section. Deliberately NOT an
+// automatic fallback to another backend — an earlier auto-downgrade misfired on
 // healthy devices and silently overrode the user's chosen backend, so the user
 // stays in control here.
 @Composable

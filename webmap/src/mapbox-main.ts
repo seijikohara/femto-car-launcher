@@ -29,6 +29,7 @@ import {
 } from "./camera";
 import {
 	mapboxStyleUrl,
+	styleApplyMode,
 	TRAFFIC_LAYER_ID,
 	TRAFFIC_SOURCE_ID,
 	TRAFFIC_SOURCE_SPEC,
@@ -170,6 +171,10 @@ const state = {
 	} | null,
 	lastPushedZoom: 0,
 	styleLoaded: false,
+	// Last style URL handed to the map (initial construction or a setStyle swap).
+	// setMapboxStyle compares against it to tell an unchanged-URL push (day/night
+	// flip, traffic toggle) from a genuine style swap — see styleApplyMode.
+	appliedStyleUrl: undefined as string | undefined,
 };
 
 // Throttle per-frame error reports so a flaky tile server does not spray
@@ -194,11 +199,12 @@ window.addEventListener("unhandledrejection", (e) => {
 	reportErrorThrottled(reason);
 });
 
-// Verify WebGL is available before spending any budget on map construction.
-// Mapbox requires WebGL 1 at minimum; report fatal immediately if absent.
+// Verify WebGL 2 is available before spending any budget on map construction.
+// mapbox-gl v3 has no WebGL 1 fallback — it only ever acquires a webgl2 context —
+// so a missing webgl2 context is a definitive never-going-to-render fact.
 (() => {
 	const c = document.createElement("canvas");
-	if (!(c.getContext("webgl2") || c.getContext("webgl"))) {
+	if (!c.getContext("webgl2")) {
 		log("no-webgl-context");
 		report("fatal", "no-webgl-context");
 	}
@@ -317,15 +323,19 @@ function initMap(): void {
 		// attributionControl is intentionally not suppressed: Mapbox ToS require
 		// the Mapbox logo and attribution text to remain visible at all times.
 		// A compact control keeps the overlay small on head-unit displays.
+		const initialStyleUrl = mapboxStyleUrl("standard");
 		const liveMap = new mapboxgl.Map({
 			container: "map",
-			style: mapboxStyleUrl("standard"),
+			style: initialStyleUrl,
 			center: [0, 0],
 			zoom: 1,
 			attributionControl: false,
 		});
 		liveMap.addControl(new mapboxgl.AttributionControl({ compact: true }));
 		state.map = liveMap;
+		// Record the constructor's style so the first setMapboxStyle push can tell
+		// an unchanged-URL fragment update from a real swap (see styleApplyMode).
+		state.appliedStyleUrl = initialStyleUrl;
 
 		// Log the first rendered frame once; detach immediately after to avoid
 		// flooding logcat at ~60 lines/sec during GPS camera easing. The first
@@ -599,12 +609,35 @@ function initMap(): void {
 			}
 		};
 
-		// Android -> JS: switch Mapbox base style, apply Standard lightPreset,
-		// and restore the traffic layer after the style reloads its sources.
+		// Android -> JS: switch Mapbox base style, apply the Standard lightPreset,
+		// and restore the traffic layer. mapbox-gl v3 fires `style.load` only on a
+		// full style load, so a lightPreset/traffic push on the SAME style URL (the
+		// day/night flip, the traffic toggle) takes setStyle's diff path, never
+		// re-fires `style.load`, and would be silently dropped while leaking a stale
+		// once-listener. So apply the fragment properties directly when the URL is
+		// unchanged on a loaded style, and force a full reload (diff:false) on a
+		// genuine swap so `style.load` fires exactly once for this push.
 		window.setMapboxStyle = (styleId, lightPreset, traffic) => {
-			liveMap.setStyle(mapboxStyleUrl(styleId));
-			liveMap.once("style.load", () => {
+			const url = mapboxStyleUrl(styleId);
+			if (
+				styleApplyMode(url, state.appliedStyleUrl, liveMap.isStyleLoaded()) ===
+				"apply-now"
+			) {
 				// Standard v3 fragment API; safe-no-op on non-Standard styles.
+				liveMap.setConfigProperty("basemap", "lightPreset", lightPreset);
+				applyTraffic(traffic);
+				return;
+			}
+			state.appliedStyleUrl = url;
+			// mapbox-gl 3.25.0 types mark localFontFamily / localIdeographFontFamily
+			// required though they are optional at runtime; pass undefined to keep the
+			// library defaults while forcing diff:false (a full, deterministic reload).
+			liveMap.setStyle(url, {
+				diff: false,
+				localFontFamily: undefined,
+				localIdeographFontFamily: undefined,
+			});
+			liveMap.once("style.load", () => {
 				liveMap.setConfigProperty("basemap", "lightPreset", lightPreset);
 				applyTraffic(traffic);
 			});

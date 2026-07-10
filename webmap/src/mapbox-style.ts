@@ -11,6 +11,20 @@ export function mapboxStyleUrl(styleId: string): string {
 	return STYLE_URLS[styleId] ?? STYLE_URLS.standard;
 }
 
+// Decide how setMapboxStyle should deliver a lightPreset/traffic push. mapbox-gl
+// v3 fires `style.load` only on a full style load; setStyle's default diff path
+// on an unchanged URL never re-fires it, so a day/night flip or traffic toggle on
+// the SAME style ("apply-now") must write its fragment properties directly. Any
+// genuine style swap — or a push that lands before the first style has loaded —
+// instead waits for a forced full reload's `style.load` ("await-load").
+export function styleApplyMode(
+	nextUrl: string,
+	currentUrl: string | undefined,
+	styleLoaded: boolean,
+): "apply-now" | "await-load" {
+	return nextUrl === currentUrl && styleLoaded ? "apply-now" : "await-load";
+}
+
 export const TRAFFIC_SOURCE_ID = "mapbox-traffic";
 export const TRAFFIC_LAYER_ID = "femto-traffic";
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	mapboxStyleUrl,
+	styleApplyMode,
 	TRAFFIC_LAYER_ID,
 	trafficLayerSpec,
 } from "./mapbox-style";
@@ -17,6 +18,24 @@ describe("mapboxStyleUrl", () => {
 	});
 	it("falls back to standard for an unknown id", () => {
 		expect(mapboxStyleUrl("nope")).toBe("mapbox://styles/mapbox/standard");
+	});
+});
+
+describe("styleApplyMode", () => {
+	const standard = mapboxStyleUrl("standard");
+	it("applies now when the URL is unchanged and the style is loaded", () => {
+		expect(styleApplyMode(standard, standard, true)).toBe("apply-now");
+	});
+	it("awaits load when the URL is unchanged but the style is not loaded", () => {
+		expect(styleApplyMode(standard, standard, false)).toBe("await-load");
+	});
+	it("awaits load on a changed URL regardless of loaded state", () => {
+		const streets = mapboxStyleUrl("streets-v12");
+		expect(styleApplyMode(streets, standard, true)).toBe("await-load");
+		expect(styleApplyMode(streets, standard, false)).toBe("await-load");
+	});
+	it("awaits load when no style URL has been applied yet", () => {
+		expect(styleApplyMode(standard, undefined, false)).toBe("await-load");
 	});
 });
 
