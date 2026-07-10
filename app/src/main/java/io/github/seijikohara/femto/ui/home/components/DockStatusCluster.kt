@@ -110,7 +110,11 @@ internal fun StatusCluster(
  * onLongClick }` alongside that gesture detector bridges the same action to
  * accessibility services, which drive the semantics tree rather than raw
  * pointer input — without it, TalkBack had no way to reach this menu at all.
- * CELLULAR renders nothing when hidden on a telephony-less unit (see
+ * `mergeDescendants = true` folds the indicator's contentDescription into the
+ * same node as the action; unmerged, TalkBack lands on an unlabeled actionable
+ * stop while the label sits on a separate child node (`combinedClickable`
+ * merges implicitly, so the nav buttons never had this split). CELLULAR
+ * renders nothing when hidden on a telephony-less unit (see
  * [StatusIndicator]), leaving a zero-size Box with nothing to long-press —
  * consistent with today's absence, not a new empty tap target.
  */
@@ -126,11 +130,11 @@ private fun EditableStatusIndicator(
     onAction: (HomeAction) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    val openMenuLabel = stringResource(R.string.dock_hide)
+    val openMenuLabel = stringResource(R.string.dock_edit)
     Box(
         modifier =
             Modifier
-                .semantics {
+                .semantics(mergeDescendants = true) {
                     onLongClick(label = openMenuLabel) {
                         menuOpen = true
                         true

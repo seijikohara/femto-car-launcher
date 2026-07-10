@@ -380,8 +380,8 @@ private fun NavButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     // Accessibility-service description of the long-click action (e.g. "double-tap
-    // and hold to Hide"); combinedClickable already exposes the action itself, this
-    // just names it instead of leaving TalkBack to announce a generic "long click".
+    // and hold to Edit dock"); combinedClickable already exposes the action itself,
+    // this just names it instead of leaving TalkBack to announce a generic "long click".
     onLongClickLabel: String? = null,
     onLongClick: (() -> Unit)? = null,
     // A long-press-triggered popup (the dock's edit menu) anchored to this same Box.
@@ -438,7 +438,7 @@ private fun EditableNavButton(
         description = stringResource(spec.labelRes),
         onClick = { onAction(spec.action) },
         modifier = modifier,
-        onLongClickLabel = stringResource(R.string.dock_hide),
+        onLongClickLabel = stringResource(R.string.dock_edit),
         onLongClick = { menuOpen = true },
         menu = {
             DockEditMenu(
