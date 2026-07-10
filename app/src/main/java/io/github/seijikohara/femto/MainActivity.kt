@@ -18,6 +18,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -87,6 +88,13 @@ class MainActivity : ComponentActivity() {
     // bars would otherwise stay visible after returning from an external app.
     private var fullscreenSetting = FullscreenSetting.OFF
 
+    // Backs the splash keep-on-screen condition: stays false while the settings
+    // gate in setContent renders nothing, so the splash covers those empty frames
+    // instead of lifting onto the bare window background. Main-thread only (a
+    // SideEffect writes it, the splash's pre-draw check reads it), so a plain
+    // field suffices.
+    private var settingsReady = false
+
     // Emit on the process-wide refresh signal so permission-gated flows (e.g.
     // the Bluetooth dock indicator) re-read after a late runtime grant.
     private val permissionsLauncher =
@@ -95,8 +103,12 @@ class MainActivity : ComponentActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+        val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
+        // Without this the splash dismisses on the first drawn frame — which the
+        // settings gate in setContent leaves intentionally empty — flashing the
+        // bare window background until the first DataStore emission lands.
+        splash.setKeepOnScreenCondition { !settingsReady }
         enableEmulatorMapRendering()
         enableEdgeToEdge()
         requestRuntimePermissions()
@@ -152,14 +164,20 @@ class MainActivity : ComponentActivity() {
             }.collectAsStateWithLifecycle(initialValue = null)
             // Gate the whole dashboard on the first persisted DisplaySettings and
             // DockConfig. On recreation the retained HomeViewModel replays a location
-            // immediately, so compositing one frame with DisplaySettings.Default would
+            // immediately, so composing one frame with DisplaySettings.Default would
             // build the map WebView on the OSM backend with a blank token, then re-key
             // off it and rebuild once the real backend/credentials land — and
             // DockConfig() would flash the factory dock order for that frame. Render
-            // nothing until both arrive (the splash screen still covers it); the
-            // orientation effect above already relies on the same null-initial guard.
+            // nothing until both arrive; the splash stays visible over these empty
+            // frames via the keep-on-screen condition in onCreate. `orientation`
+            // above shares only the null-initial collect — it skips its apply
+            // effect, whereas this gate skips composing the tree at all.
             val settings = display ?: return@setContent
             val dock = dockConfig ?: return@setContent
+            // Composition passed the gate, so real settings render this frame —
+            // let the splash lift. SideEffect so only an applied composition
+            // publishes readiness; one-way, never reset.
+            SideEffect { settingsReady = true }
             val darkTheme =
                 when (settings.themeMode) {
                     ThemeMode.SYSTEM -> isSystemInDarkTheme()
