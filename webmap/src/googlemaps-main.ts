@@ -397,6 +397,10 @@ async function initMap(): Promise<void> {
 	// disableDefaultUI suppresses the control buttons only; the Google logo and
 	// attribution text render regardless and must remain visible at all times
 	// (Google Maps ToS). Do not attempt to hide or reposition the attribution.
+	// This makes Google the one exception to the launcher's bottom-left credit
+	// convention (see .claude/rules/webmap.md): the Maps JS API fixes the logo
+	// bottom-left but the copyright / ToS text bottom-right and exposes no
+	// supported way to move it, so the split stays as Google places it.
 	//
 	// VECTOR (Map ID present): enable host-driven heading-up rotation + tilt/3D;
 	// headingInteractionEnabled is false because heading is driven solely by the
