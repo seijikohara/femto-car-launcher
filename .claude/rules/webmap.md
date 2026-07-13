@@ -19,6 +19,25 @@ user's own Mapbox account and token govern its use), so it has no
 bundled license file here; a CDN-loaded library (e.g. the Google
 Maps JavaScript API) likewise needs none.
 
+## Credit placement
+
+Every backend supplies its own authoritative credit (never overlay
+one backend's onto another), and it sits in the **bottom-left**
+corner wherever the backend's own ToS permits:
+
+- **OSM/MapLibre**: the page renders no library attribution/logo;
+  a native Compose `Attribution()` overlay draws the credit at
+  `Alignment.BottomStart` (gated to OSM only via
+  `showsNativeAttribution`).
+- **Mapbox**: the wordmark (`logoPosition`) and the
+  `AttributionControl` are both pinned `"bottom-left"` in
+  `mapbox-main.ts`; ToS forbid hiding either, only moving them.
+- **Google Maps**: the **one exception**. The Maps JS API fixes the
+  Google logo bottom-left but the copyright / ToS text bottom-right
+  and exposes no supported way to relocate either; the split stays
+  as Google places it (any CSS against `.gm-style-cc` would violate
+  the brand-feature terms).
+
 ## Toolchain split
 
 - `tsc` is type-check-only: `tsc --noEmit` runs inside

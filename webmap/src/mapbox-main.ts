@@ -320,9 +320,11 @@ function initMap(): void {
 	mapboxgl.accessToken = token;
 
 	try {
-		// attributionControl is intentionally not suppressed: Mapbox ToS require
-		// the Mapbox logo and attribution text to remain visible at all times.
-		// A compact control keeps the overlay small on head-unit displays.
+		// Mapbox ToS require the logo and attribution text to stay visible at all
+		// times; the launcher keeps every backend's credit in the bottom-left
+		// corner (see .claude/rules/webmap.md), so both are pinned there. The
+		// constructor's attribution control is disabled and re-added manually only
+		// to place it bottom-left; a compact control keeps it small on head units.
 		const initialStyleUrl = mapboxStyleUrl("standard");
 		const liveMap = new mapboxgl.Map({
 			container: "map",
@@ -330,8 +332,14 @@ function initMap(): void {
 			center: [0, 0],
 			zoom: 1,
 			attributionControl: false,
+			// Stated explicitly (this matches the library default) so a future
+			// default change cannot drift the wordmark out of the shared corner.
+			logoPosition: "bottom-left",
 		});
-		liveMap.addControl(new mapboxgl.AttributionControl({ compact: true }));
+		liveMap.addControl(
+			new mapboxgl.AttributionControl({ compact: true }),
+			"bottom-left",
+		);
 		state.map = liveMap;
 		// Record the constructor's style so the first setMapboxStyle push can tell
 		// an unchanged-URL fragment update from a real swap (see styleApplyMode).
