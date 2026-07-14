@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,7 +46,8 @@ import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.locale.fromCelsius
 import io.github.seijikohara.femto.ui.locale.label
-import io.github.seijikohara.femto.ui.locale.windLabel
+import io.github.seijikohara.femto.ui.locale.windUnitLabel
+import io.github.seijikohara.femto.ui.locale.windValue
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -65,20 +68,19 @@ import kotlin.math.roundToInt
 
 /**
  * Weather card. Three vertical sections stacked on the
- * [FemtoDimens.CardSectionGapCompact] rhythm, sized to fit the card's capped
- * height via [FitWholeRows]:
+ * [FemtoDimens.CardSectionGapCompact] rhythm:
  *
- *  1. Head — big temperature + a hero per-condition glyph. Always shown.
- *  2. Metrics — Feels / Wind / Humid row. Always shown.
- *  3. Forecast — hourly chips in a 3-column grid, one row per [FitWholeRows]
- *     child; only whole rows that fit the remaining height render; a row
- *     that would clip mid-glyph (a time label with no icon, or an icon with
- *     no temperature) is dropped instead, so a taller card simply shows more
- *     hours rather than capping the timeline at a fixed count.
+ *  1. Head — big temperature + a hero per-condition glyph. Fixed at the top.
+ *  2. Metrics — Feels / Wind / Humid row. Fixed below the head.
+ *  3. Forecast — hourly chips in a 3-column grid, one [ForecastRow] per grid
+ *     row, in a vertically scrollable region beneath the fixed head and metrics.
+ *     Every hour renders; overflow scrolls rather than being dropped, so a taller
+ *     card simply shows more hours before the region needs to scroll.
  *
  * Typography and spacing originated in the `.weather-card` rules of the
  * retired dashboard-v2 design mockup — the same intentional relaxation of
- * the dashboard's 18sp body-size floor as [CalendarCard] applies here.
+ * the dashboard's body-size floor ([FemtoDimens.MinBodyTextSize]) as
+ * [CalendarCard] applies here.
  */
 @Composable
 internal fun WeatherCard(
@@ -94,7 +96,7 @@ internal fun WeatherCard(
 ) = Surface(
     // glassChrome clips to the rounded shape (keeping the ripple inside) and
     // paints the frosted-glass backdrop over the map; the maximize tap lives on
-    // the whole populated card (see the FitWholeRows modifier below).
+    // the whole populated card (see the Column modifier below).
     modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
     shape = MaterialTheme.shapes.large,
     color = Color.Transparent,
@@ -115,16 +117,14 @@ internal fun WeatherCard(
         // MusicCardMeta): onClickLabel alone sets only the OnClick action label, not
         // the node's content description, so the maximize entry stays discoverable.
         // Hoisted out of the semantics lambda, which is not @Composable. Applied to
-        // the whole populated card (not just the head) so tapping anywhere opens the
-        // full-screen panel; the content below has no other clickable children, so
-        // there is no nested-click conflict.
+        // the whole card (not just the head) so tapping anywhere opens the full-screen
+        // panel; the forecast below has no other clickable children, so Compose routes
+        // a tap to this maximize click and a vertical drag to the forecast scroll.
         val weatherExpandLabel = stringResource(R.string.weather_expand)
-        // FitWholeRows (not a scrolling column): Head + Metrics always show, and
-        // only as many forecast rows as fully fit the remaining height render —
-        // a row that would clip mid-glyph is dropped instead, which is what used
-        // to leave a label-less trailing icon row (or, on the shortest card, a
-        // temperature row sliced off entirely).
-        FitWholeRows(
+        // Remembered at the card level (not keyed on the snapshot) so a data refresh
+        // keeps the user's forecast scroll position rather than resetting it.
+        val forecastScroll = rememberScrollState()
+        Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
@@ -132,24 +132,36 @@ internal fun WeatherCard(
                     .clickable { onExpand() }
                     .semantics { contentDescription = weatherExpandLabel }
                     // Compact padding/gap so head + metrics + forecast pack into the
-                    // short head-unit info-pane card without needing to clip.
+                    // short head-unit info-pane card.
                     .padding(FemtoDimens.CardPaddingCompact),
-            verticalGap = FemtoDimens.CardSectionGapCompact,
-            mandatoryCount = 2,
+            verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
         ) {
             // Head and Metrics each dissolve independently on a data refresh
             // (keyed on the whole snapshot, so a genuinely new fetch — not a
-            // per-frame value — drives the fade); kept as two separate
-            // Crossfade nodes rather than one wrapping both, so FitWholeRows
-            // still sees them as the same two mandatory children it did before.
+            // per-frame value — drives the fade); kept as two separate Crossfade
+            // nodes rather than one wrapping both. They are the fixed hero, so the
+            // refresh dissolve stays here while the forecast below scrolls instead.
             Motion.ContentCrossfade(targetState = snapshot, tier = motionTier, label = "weatherHead") { current ->
                 Head(current, temperatureUnit, asOf)
             }
             Motion.ContentCrossfade(targetState = snapshot, tier = motionTier, label = "weatherMetrics") { current ->
                 Metrics(current, temperatureUnit, speedUnit)
             }
-            snapshot.hourly.chunked(FORECAST_COLUMNS).forEach { rowHours ->
-                ForecastRow(rowHours, snapshot.sunrise, snapshot.sunset, temperatureUnit, is24Hour)
+            // The hourly forecast scrolls beneath the fixed hero: weight(1f) bounds
+            // this Column to the card's leftover height so verticalScroll has a real
+            // viewport, and every hour renders — overflow scrolls rather than being
+            // dropped whole (contrast FitWholeRows, still used by the maximize panels).
+            Column(
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(forecastScroll),
+                verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
+            ) {
+                snapshot.hourly.chunked(FORECAST_COLUMNS).forEach { rowHours ->
+                    ForecastRow(rowHours, snapshot.sunrise, snapshot.sunset, temperatureUnit, is24Hour)
+                }
             }
         }
     } else {
@@ -212,36 +224,32 @@ private fun Head(
             if (asOfLabel != null) {
                 Text(
                     text = asOfLabel,
-                    style = MaterialTheme.typography.sectionLabel(10, 0.08f),
+                    style = MaterialTheme.typography.sectionLabel(12, fontWeight = FontWeight.Normal),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                 )
             }
-            Row(verticalAlignment = Alignment.Top) {
+            // Temperature value + the dimmed scale (°C / °F) trailing it on the
+            // value's baseline — the shared dashboard value/unit treatment; the 4dp
+            // gap replaces the old top/start superscript padding.
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 // Clamped to its own lineHeight: without this, the platform's default
                 // font padding inflates the hero numeral's measured height well past
-                // its nominal line box (55px vs. 42px at this size), which is exactly
-                // the slack the forecast grid below needs to fit its first whole row
-                // inside the card's capped height.
-                val tempStyle = MaterialTheme.typography.bigNumber(size = 46.sp)
+                // its nominal line box (55px vs. 42px at this size). Keeping the head
+                // compact leaves the scrollable forecast below a taller viewport, so
+                // more hours show before it needs to scroll.
+                val tempStyle = MaterialTheme.typography.bigNumber(
+                    size = FemtoDimens.Text4Xl,
+                    weight = FontWeight.Normal,
+                )
                 Text(
                     text = tempLabel,
                     style = tempStyle,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
-                    modifier = Modifier.singleLineBox(tempStyle),
+                    modifier = Modifier.singleLineBox(tempStyle).alignByBaseline(),
                 )
-                Text(
-                    text = temperatureUnit.label(),
-                    style =
-                        MaterialTheme.typography.titleMedium.copy(
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            lineHeight = 20.sp,
-                        ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp, start = 2.dp),
-                )
+                UnitSuffix(temperatureUnit.label(), modifier = Modifier.alignByBaseline())
             }
         }
         FemtoIcon(
@@ -277,8 +285,9 @@ private fun Metrics(
         Metric(
             icon = Lucide.Wind,
             label = stringResource(R.string.weather_metric_wind),
-            value = windLabel(snapshot.windKmh, speedUnit),
+            value = "${windValue(snapshot.windKmh, speedUnit)}",
             modifier = Modifier.weight(1f),
+            unit = windUnitLabel(speedUnit),
         )
         Metric(
             icon = Lucide.Droplet,
@@ -289,13 +298,16 @@ private fun Metrics(
     }
 }
 
-// One metric as a centred icon-over-value column.
+// One metric as a centred icon-over-value column. A worded [unit] (wind) trails
+// the value as a dimmed baseline suffix; the bare "°" (feels-like) and "%"
+// (humidity) values pass no unit and stay tight to the number.
 @Composable
 private fun Metric(
     icon: ImageVector,
     label: String,
     value: String,
     modifier: Modifier = Modifier,
+    unit: String? = null,
 ) = Column(
     modifier = modifier,
     horizontalAlignment = Alignment.CenterHorizontally,
@@ -307,25 +319,42 @@ private fun Metric(
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.size(16.dp),
     )
-    Text(
-        text = value,
-        style = MaterialTheme.typography.glanceCaption(base = MaterialTheme.typography.cardMeta()),
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-    )
+    val valueStyle =
+        MaterialTheme.typography.glanceCaption(
+            base = MaterialTheme.typography.cardMeta(),
+            fontWeight = FontWeight.Normal,
+        )
+    if (unit == null) {
+        Text(
+            text = value,
+            style = valueStyle,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+        )
+    } else {
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = value,
+                style = valueStyle,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                modifier = Modifier.alignByBaseline(),
+            )
+            UnitSuffix(unit, modifier = Modifier.alignByBaseline())
+        }
+    }
 }
 
 // The forecast lays its hours out three to a row (left-to-right, then
 // top-to-bottom). Three keeps the chips legible even on the narrow head-unit
-// card; [FitWholeRows] (the WeatherCard body) decides how many of these rows
-// actually fit the card's remaining height, so the source hourly list is
-// never pre-truncated here — a taller card simply gets more rows.
+// card; the WeatherCard body's scrollable forecast region renders every row, so
+// the source hourly list is never pre-truncated here — a taller card simply
+// shows more rows before the region needs to scroll.
 private const val FORECAST_COLUMNS = 3
 
 // One forecast row: up to [FORECAST_COLUMNS] hour chips, padded with spacers on
-// a short final row so the columns stay aligned. One top-level child of the
-// WeatherCard body's [FitWholeRows] — accepted or dropped as a whole row, never
-// mid-glyph.
+// a short final row so the columns stay aligned. One child of the WeatherCard
+// body's scrollable forecast Column.
 @Composable
 private fun ForecastRow(
     rowHours: List<HourlyForecast>,
@@ -375,7 +404,7 @@ private fun ForecastChip(
     ) {
         Text(
             text = forecastHourLabel(forecast.time, is24Hour),
-            style = MaterialTheme.typography.sectionLabel(10, 0.08f),
+            style = MaterialTheme.typography.sectionLabel(12, fontWeight = FontWeight.Normal),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
         )
@@ -390,6 +419,7 @@ private fun ForecastChip(
             style =
                 MaterialTheme.typography.glanceCaption(
                     base = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Normal,
                     lineHeight = 15.sp,
                 ),
             color = MaterialTheme.colorScheme.onSurface,

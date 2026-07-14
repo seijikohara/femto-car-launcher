@@ -178,10 +178,11 @@ private val MetaLineGap: Dp = 2.dp
  *
  * The block always reports the *natural* height of whatever it kept — even
  * when the incoming constraints are bounded — rather than stretching to fill
- * a taller allocation: the caller ([PlayingState]) sizes the album art off the
- * same bound, and a block that filled its full allocation while the art (a
- * capped square) did not would leave the art's top centred below the title
- * instead of level with it.
+ * a taller allocation. The caller ([PlayingState]) sizes the album art off the
+ * available width and lays this block beside it in a top-aligned row while the
+ * card wraps its content, so a block that stretched to a taller bound would both
+ * reopen the dead band the content-wrapping card removes and drop the art's top
+ * below the title instead of level with it.
  */
 @Composable
 internal fun MusicMetaAndProgress(

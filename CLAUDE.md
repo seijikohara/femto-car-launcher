@@ -77,7 +77,7 @@ Trivial stateless screens need only `<Area>Screen.kt` — see
 | Concern | M3 default | Femto rule | Symbol |
 | --- | --- | --- | --- |
 | Tap target | 48 dp | **≥ 64 dp** | `FemtoDimens.MinTouchTarget` |
-| Body text on the head-unit dashboard | flexible | **≥ 18 sp**, never `bodySmall` / `labelSmall`. Cards may deliberately relax this for glance metadata, metrics, progress captions, and dense reference text (e.g. license/log listings) — never as a literal in component code: the size lives in `FemtoDimens.GlanceTextSize` (13 sp) or inside a named `Type.kt` extension (e.g. `cardMeta`, `monoReference`). `ui/home/components/`, `ui/licenses/`, and `ui/diagnostics/` are the reference for where the relaxation applies (inherited from the retired dashboard-v2 mockup, whose KDoc notes mark each spot) | `FemtoDimens.MinBodyTextSize` / `FemtoDimens.GlanceTextSize` |
+| Body text on the head-unit dashboard | flexible | **≥ 16 sp** — the body floor sits on the rem-style type scale rooted at `FemtoDimens.BaseTextSize` (16 sp), from which every size derives; never `bodySmall` / `labelSmall`. Cards may deliberately relax this for glance metadata, metrics, progress captions, and dense reference text (e.g. license/log listings) — never as a literal in component code: the size lives in `FemtoDimens.GlanceTextSize` (12 sp) or inside a named `Type.kt` extension (e.g. `cardMeta`, `monoReference`). `ui/home/components/`, `ui/licenses/`, and `ui/diagnostics/` are the reference for where the relaxation applies (inherited from the retired dashboard-v2 mockup, whose KDoc notes mark each spot) | `FemtoDimens.MinBodyTextSize` / `FemtoDimens.GlanceTextSize` |
 
 When the value lives in code, the symbol on the right is the SSOT —
 not a magic number in another file.

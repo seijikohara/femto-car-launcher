@@ -1,9 +1,8 @@
 package io.github.seijikohara.femto.ui.home.components
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -34,17 +33,20 @@ import io.github.seijikohara.femto.ui.theme.cardCtaHint
 internal fun MusicConnectState(onConnect: () -> Unit) =
     Surface(
         onClick = onConnect,
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxWidth(),
         // Transparent so the card's glass (the outer MusicCard's glassChrome) shows
         // through in every state — the same translucency the Playing state has. An
         // opaque colour here would paint over the blurred map behind the card.
         color = Color.Transparent,
     ) {
         Column(
-            // Compact padding matches the Playing state's inset (MusicCard.kt) so
-            // the card's edge does not visibly jump when playback starts / stops.
-            modifier = Modifier.fillMaxSize().padding(FemtoDimens.CardPaddingCompact),
-            verticalArrangement = Arrangement.Center,
+            // Fill the width but wrap the height so the card sizes to its content,
+            // matching the Playing state (MusicCard.kt): the card is a content-height
+            // child of the floating column, so filling the height would stretch this
+            // CTA over the whole column and starve the calendar / weather row. Compact
+            // padding matches the Playing state's inset so the card's edge does not
+            // visibly jump when playback starts / stops.
+            modifier = Modifier.fillMaxWidth().padding(FemtoDimens.CardPaddingCompact),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             FemtoIcon(
@@ -89,25 +91,24 @@ internal fun MusicConnectState(onConnect: () -> Unit) =
 internal fun MusicEmptyState(onPlay: () -> Unit) =
     Surface(
         onClick = onPlay,
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxWidth(),
         // Transparent so the card stays translucent glass when nothing is playing —
         // this state was a plain Column (no surface) before it became tappable, and
         // an opaque colour regressed it to a solid box over the map.
         color = Color.Transparent,
     ) {
         Column(
-            // Compact padding matches the Playing state's inset (MusicCard.kt) so
-            // the card's edge does not visibly jump when playback starts / stops.
-            modifier = Modifier.fillMaxSize().padding(FemtoDimens.CardPaddingCompact),
+            // Fill the width but wrap the height so the card sizes to its content,
+            // matching the Playing state (MusicCard.kt): the card is a content-height
+            // child of the floating column, so filling the height would stretch this
+            // affordance over the whole column and starve the calendar / weather row.
+            // Compact padding matches the Playing state's inset so the card's edge
+            // does not visibly jump when playback starts / stops. The icon / title /
+            // hint cluster stacks from the top — the mockup's space-between seating
+            // needed a filled height, which the content-wrapping card no longer has.
+            modifier = Modifier.fillMaxWidth().padding(FemtoDimens.CardPaddingCompact),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Mockup `.music-card.empty` = `grid-template-rows: 1fr auto auto 1fr`
-            // with `align-content: space-between` and `.empty-icon { align-self:
-            // end }`. The two flexible tracks seat the icon/title/description
-            // cluster at/slightly above the vertical centre, and the icon hugs the
-            // title (its row ends flush against the title row). The taller top
-            // weight nudges the cluster just above centre.
-            Box(modifier = Modifier.weight(1.1f))
             FemtoIcon(
                 imageVector = Lucide.Play,
                 contentDescription = null,
@@ -138,6 +139,5 @@ internal fun MusicEmptyState(onPlay: () -> Unit) =
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.widthIn(max = 280.dp),
             )
-            Box(modifier = Modifier.weight(0.9f))
         }
     }

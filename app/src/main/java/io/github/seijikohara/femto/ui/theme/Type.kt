@@ -13,18 +13,21 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
 /**
- * Bold Minimal typography on top of M3 roles, tuned one weight notch lighter
- * than the original scale after on-device review found the heavy display/headline
- * weights too dense on the head unit.
+ * Bold Minimal typography on top of M3 roles. Every role's size comes from the
+ * rem-style modular scale rooted at [FemtoDimens.BaseTextSize] (16sp), and every
+ * weight collapses to one of three tiers (400 ± 200): [FontWeight.Normal] for
+ * body / label / caption, [FontWeight.SemiBold] for title / headline / display,
+ * and [FontWeight.ExtraLight] — the airy tier used only by the large hero-numeral
+ * extensions ([bigNumber] and the clock [heroNumeral]), never by a role here.
  *
- * Display anchors stay confident (ExtraBold/Bold) for editorial impact but no
- * longer reach Black; headlines drop to SemiBold and titles to Medium. Body and
- * label roles are unchanged (already Normal/Medium) and body sizes still clear
- * the 18sp automotive minimum. See `.claude/rules/design-system.md`.
+ * The copies set fontFamily / fontWeight / fontSize and zero every role's
+ * letterSpacing (Bold Minimal runs untracked — the M3 role tracking is
+ * overridden); lineHeight stays at the M3 default each role inherits, so
+ * re-basing the scale never disturbs a role's vertical rhythm. See
+ * `.claude/rules/design-system.md`.
  *
  * [family] is the resolved font family — the system default, or the user's
  * downloaded Google Fonts pair (Latin + CJK fallback). See [buildFontFamily].
@@ -32,25 +35,96 @@ import androidx.compose.ui.unit.sp
 internal fun femtoTypography(family: FontFamily): Typography =
     Typography().run {
         copy(
-            displayLarge = displayLarge.copy(fontFamily = family, fontWeight = FontWeight.ExtraBold, fontSize = 96.sp),
-            displayMedium = displayMedium.copy(fontFamily = family, fontWeight = FontWeight.Bold, fontSize = 72.sp),
-            displaySmall = displaySmall.copy(fontFamily = family, fontWeight = FontWeight.Bold, fontSize = 56.sp),
-            headlineLarge = headlineLarge.copy(fontFamily = family, fontWeight = FontWeight.SemiBold, fontSize = 40.sp),
+            displayLarge = displayLarge.copy(
+                fontFamily = family,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = FemtoDimens.Text8Xl,
+                letterSpacing = 0.sp,
+            ),
+            displayMedium = displayMedium.copy(
+                fontFamily = family,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = FemtoDimens.Text7Xl,
+                letterSpacing = 0.sp,
+            ),
+            displaySmall = displaySmall.copy(
+                fontFamily = family,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = FemtoDimens.Text6Xl,
+                letterSpacing = 0.sp,
+            ),
+            headlineLarge = headlineLarge.copy(
+                fontFamily = family,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = FemtoDimens.Text4Xl,
+                letterSpacing = 0.sp,
+            ),
             headlineMedium = headlineMedium.copy(
                 fontFamily = family,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 32.sp,
+                fontSize = FemtoDimens.Text3Xl,
+                letterSpacing = 0.sp,
             ),
-            headlineSmall = headlineSmall.copy(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 26.sp),
-            titleLarge = titleLarge.copy(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 24.sp),
-            titleMedium = titleMedium.copy(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 20.sp),
-            titleSmall = titleSmall.copy(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 18.sp),
-            bodyLarge = bodyLarge.copy(fontFamily = family, fontWeight = FontWeight.Normal, fontSize = 20.sp),
-            bodyMedium = bodyMedium.copy(fontFamily = family, fontWeight = FontWeight.Normal, fontSize = 18.sp),
-            bodySmall = bodySmall.copy(fontFamily = family, fontWeight = FontWeight.Normal, fontSize = 16.sp),
-            labelLarge = labelLarge.copy(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 18.sp),
-            labelMedium = labelMedium.copy(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 16.sp),
-            labelSmall = labelSmall.copy(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 14.sp),
+            headlineSmall = headlineSmall.copy(
+                fontFamily = family,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = FemtoDimens.Text2Xl,
+                letterSpacing = 0.sp,
+            ),
+            titleLarge = titleLarge.copy(
+                fontFamily = family,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = FemtoDimens.TextXl,
+                letterSpacing = 0.sp,
+            ),
+            titleMedium = titleMedium.copy(
+                fontFamily = family,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = FemtoDimens.TextLg,
+                letterSpacing = 0.sp,
+            ),
+            titleSmall = titleSmall.copy(
+                fontFamily = family,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = FemtoDimens.TextMd,
+                letterSpacing = 0.sp,
+            ),
+            bodyLarge = bodyLarge.copy(
+                fontFamily = family,
+                fontWeight = FontWeight.Normal,
+                fontSize = FemtoDimens.TextLg,
+                letterSpacing = 0.sp,
+            ),
+            bodyMedium = bodyMedium.copy(
+                fontFamily = family,
+                fontWeight = FontWeight.Normal,
+                fontSize = FemtoDimens.TextMd,
+                letterSpacing = 0.sp,
+            ),
+            bodySmall = bodySmall.copy(
+                fontFamily = family,
+                fontWeight = FontWeight.Normal,
+                fontSize = FemtoDimens.TextSm,
+                letterSpacing = 0.sp,
+            ),
+            labelLarge = labelLarge.copy(
+                fontFamily = family,
+                fontWeight = FontWeight.Normal,
+                fontSize = FemtoDimens.TextMd,
+                letterSpacing = 0.sp,
+            ),
+            labelMedium = labelMedium.copy(
+                fontFamily = family,
+                fontWeight = FontWeight.Normal,
+                fontSize = FemtoDimens.TextSm,
+                letterSpacing = 0.sp,
+            ),
+            labelSmall = labelSmall.copy(
+                fontFamily = family,
+                fontWeight = FontWeight.Normal,
+                fontSize = FemtoDimens.TextSm,
+                letterSpacing = 0.sp,
+            ),
         )
     }
 
@@ -69,53 +143,72 @@ internal val TabularFigures = "tnum"
  * Return the shared big-number display style used for the calendar big-day and
  * the weather big-temperature anchors. Derived from [Typography.displayLarge]
  * plus tabular figures so the large numeral never reflows the row beside it.
- * SemiBold rather than Bold: premium automotive dashboards keep their hero
- * numerals airy (Rivian / Polestar / CarPlay), and AAOS guidance advises against
- * Bold; SemiBold at 46-56 sp still anchors the card without reading dense. [size]
- * defaults to the [FemtoDimens.BigNumberFontSize] anchor; a card with tighter
- * geometry (the weather hero temperature) passes its own size and inherits the
- * same 0.92 leading ratio.
+ * [weight] defaults to ExtraLight (200) — the airy hero tier premium automotive
+ * dashboards run their large numerals at (Rivian / Polestar / CarPlay), the
+ * lightest of the three weight tiers; AAOS guidance likewise advises against Bold
+ * at this size. The maximize panel keeps this default; the compact dashboard cards
+ * (calendar day, weather temperature) pass [FontWeight.Normal] at
+ * [FemtoDimens.Text4Xl] for a heavier, more legible glance. [size] defaults to the
+ * [FemtoDimens.BigNumberFontSize] anchor (the Text6Xl scale step, 56sp) and drives
+ * the same 0.92 leading ratio.
  */
-internal fun Typography.bigNumber(size: TextUnit = FemtoDimens.BigNumberFontSize): TextStyle =
+internal fun Typography.bigNumber(
+    size: TextUnit = FemtoDimens.BigNumberFontSize,
+    weight: FontWeight = FontWeight.ExtraLight,
+): TextStyle =
     displayLarge.copy(
         fontSize = size,
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = (-0.045f).em,
+        fontWeight = weight,
         lineHeight = (size.value * 0.92f).sp,
         fontFeatureSettings = TabularFigures,
     )
 
 /**
  * Return the glass-overlay hero numeral style (the clock readout, the speed
- * value). 40sp tabular digits on a fixed 40sp line; callers pass the tracking
- * their glyph run needs and the [weight] their role warrants — premium
- * dashboards run an airy Light clock against a more emphatic speed (the speed is
- * the safety-critical glance, so it stays heavier than the ambient clock).
+ * value). [FemtoDimens.Text4Xl] (40sp) tabular digits on a fixed 40sp line;
+ * callers pass the [weight] their role warrants — the ambient clock runs at
+ * Normal (sharing the dashboard's unified 40sp / Normal numerals) while the
+ * safety-critical speed value stays a more emphatic SemiBold.
  */
-internal fun Typography.heroNumeral(
-    trackingEm: Float,
-    weight: FontWeight = FontWeight.SemiBold,
-): TextStyle =
+internal fun Typography.heroNumeral(weight: FontWeight = FontWeight.SemiBold): TextStyle =
     displayMedium.copy(
-        fontSize = 40.sp,
+        fontSize = FemtoDimens.Text4Xl,
         fontWeight = weight,
-        letterSpacing = trackingEm.em,
-        lineHeight = 40.sp,
+        lineHeight = FemtoDimens.Text4Xl,
         fontFeatureSettings = TabularFigures,
     )
 
 /**
- * Return the 16sp glance metric-value style (speed-overlay trip metrics, the
- * calendar day-gutter numeral) — a sanctioned card relaxation of the 18sp
- * floor (CLAUDE.md#automotive-overrides), with tabular figures so ticking
- * values keep a fixed digit advance.
+ * Return the glance metric-value style (speed-overlay trip metrics, the calendar
+ * day-gutter numeral), sized at [FemtoDimens.GlanceMetricSize] (16sp — the TextMd
+ * scale step, which sits on the [FemtoDimens.MinBodyTextSize] body floor) with
+ * tabular figures so ticking values keep a fixed digit advance.
  */
 internal fun Typography.glanceMetric(): TextStyle =
     titleSmall.copy(
-        fontSize = 16.sp,
+        fontSize = FemtoDimens.GlanceMetricSize,
         fontWeight = FontWeight.SemiBold,
         fontFeatureSettings = TabularFigures,
     )
+
+/**
+ * Return the shared unit-glyph style for the dashboard's measured values — the
+ * worded units (km/h, mph, km, mi, m, m/s) and the hero temperature scale
+ * (°C / °F). [Typography.labelSmall] held at SemiBold: 12sp, untracked, no
+ * tabular figures. The caller dims it (the shared `UnitSuffix` composable) so
+ * the unit reads a step below the value it trails. Supersedes the speed
+ * overlay's old per-unit `sectionLabel` unit and the temperature's `unitAffix`.
+ */
+internal fun Typography.unitLabel(): TextStyle = labelSmall.copy(fontWeight = FontWeight.SemiBold)
+
+/**
+ * Return the maximize panel's hero metric-value style — the 24sp titleLarge tier
+ * held at SemiBold so a panel's headline figure reads heavier than the body
+ * around it (the explicit weight keeps it at the title tier regardless of
+ * titleLarge's own weight). Named here rather than copied inline at the call
+ * site (design rule: no ad-hoc TextStyle literals in components).
+ */
+internal fun Typography.panelMetric(): TextStyle = titleLarge.copy(fontWeight = FontWeight.SemiBold)
 
 /**
  * Return body text relaxed to the [FemtoDimens.GlanceTextSize] glance floor for
@@ -125,7 +218,9 @@ internal fun Typography.glanceMetric(): TextStyle =
 internal fun Typography.glanceBody(): TextStyle =
     bodyMedium.copy(
         fontSize = FemtoDimens.GlanceTextSize,
-        lineHeight = 18.sp,
+        // Caption leading for the 12sp GlanceTextSize (was 18sp, tied to the old
+        // 13sp glance size); a ~1.33 ratio keeps the dense metadata line readable.
+        lineHeight = 16.sp,
     )
 
 /**
@@ -133,11 +228,12 @@ internal fun Typography.glanceBody(): TextStyle =
  * dashboard's dense numeric/metadata text: the dock status readouts, the
  * calendar event time, the weather metric value and forecast temperature, and
  * the speed overlay's address line (CLAUDE.md#automotive-overrides). These
- * five sites split across two M3 lineages that differ in their letterSpacing
- * token — the Medium-label lineage ([Typography.labelLarge], the default)
- * and the Normal-body lineage ([Typography.bodyMedium] / [cardMeta]) — so
- * [base] lets a caller keep the lineage its surrounding text already uses
- * instead of silently overriding it. [lineHeight] defaults to [base]'s own
+ * sites split across two M3 lineages with different line-box metrics — the
+ * label lineage ([Typography.labelLarge], the default) and the body lineage
+ * ([Typography.bodyMedium] / [cardMeta], the latter carrying a fixed line box
+ * and zero font padding) — so [base] lets a caller keep the lineage its
+ * surrounding text already uses instead of silently overriding it. [lineHeight]
+ * defaults to [base]'s own
  * (untouched) since most callers are happy with their base role's natural
  * line box; a card with a tighter row passes its own. [fontFeatureSettings]
  * defaults to [TabularFigures] for a value that ticks; pass null for prose
@@ -165,7 +261,7 @@ internal fun Typography.glanceCaption(
 internal fun Typography.progressCaption(): TextStyle =
     labelMedium.copy(
         fontSize = FemtoDimens.GlanceTextSize,
-        fontWeight = FontWeight.Medium,
+        fontWeight = FontWeight.SemiBold,
         fontFeatureSettings = TabularFigures,
     )
 
@@ -183,37 +279,37 @@ internal fun Typography.monoReference(): TextStyle =
 
 /**
  * Return an uppercase eyebrow / section-label style derived from
- * [Typography.labelSmall]. Callers pass the explicit size and tracking the
- * design SSOT specifies for each strip, so the relaxed sub-18sp eyebrow sizes
- * stay parameterised rather than hardcoded per card. Carries tabular figures so
- * labels that embed a number (e.g. the "09h" forecast hour) keep a fixed digit
- * advance; the feature is a no-op on letter-only labels.
+ * [Typography.labelSmall]. Callers pass the explicit size the design SSOT
+ * specifies for each strip, so the small sub-floor label sizes stay
+ * parameterised rather than hardcoded per card; callers snap [sizeSp] to a scale
+ * step — 12 for [FemtoDimens.TextSm], or 8 for [FemtoDimens.TextXs] where a label
+ * must stay tiny. Carries tabular figures so labels that embed a number (e.g. the
+ * "09h" forecast hour) keep a fixed digit advance; the feature is a no-op on
+ * letter-only labels.
  */
 internal fun Typography.sectionLabel(
     sizeSp: Int,
-    trackingEm: Float,
+    fontWeight: FontWeight = FontWeight.SemiBold,
 ): TextStyle =
     labelSmall.copy(
         fontSize = sizeSp.sp,
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = trackingEm.em,
+        fontWeight = fontWeight,
         fontFeatureSettings = TabularFigures,
     )
 
 // Uppercase section eyebrow (e.g. the music source, the calendar month) at one
-// shared size + tracking, so every eyebrow reads identically. Built on
-// [sectionLabel] so it inherits the labelSmall + tabular base.
-internal fun Typography.eyebrow(): TextStyle = sectionLabel(10, 0.10f)
+// shared size, so every eyebrow reads identically. Built on [sectionLabel] so
+// it inherits the labelSmall + tabular base.
+internal fun Typography.eyebrow(): TextStyle = sectionLabel(12)
 
 // The calendar head's weekday name: titleLarge tightened a notch for the head
 // unit. Rendered through [FitText] so a long localized weekday ("Wednesday",
 // "Mittwoch") shrinks to fit the narrow head column instead of truncating.
 internal fun Typography.calendarWeekday(): TextStyle =
     titleLarge.copy(
-        fontSize = 20.sp,
+        fontSize = FemtoDimens.TextLg,
         fontWeight = FontWeight.SemiBold,
-        letterSpacing = (-0.01f).em,
-        lineHeight = 20.sp,
+        lineHeight = FemtoDimens.TextLg,
     )
 
 // Shared line-box policy for the styles whose rows aim at a stable height:
@@ -234,20 +330,19 @@ private val NoFontPadding = PlatformTextStyle(includeFontPadding = false)
 /**
  * Return the dashboard-card primary line style (e.g. the now-playing track
  * title). Derived from [Typography.titleLarge] with the tighter 20sp/23sp
- * metrics the cards inherit from the retired dashboard-v2 mockup. Medium, not
- * Bold: a Bold 20 sp title is the clearest "Android widget" tell — premium
- * dashboards (CarPlay, AAOS) keep titles Regular/Medium and let the size step
- * over the 14 sp metadata carry the hierarchy. The fixed line box
- * ([FixedLineBox]) keeps the primary-face metrics stable; it does NOT survive a
- * fallback face on its own (see the [FixedLineBox] note) — a single-line slot
- * that must hold its height across Latin↔CJK track switches additionally clamps
- * with [singleLineBox].
+ * metrics the cards inherit from the retired dashboard-v2 mockup — the
+ * [FemtoDimens.TextLg] scale step, one below titleLarge's own 24sp. SemiBold:
+ * the title weight tier of the three-weight system, sitting a clear step over
+ * the Normal 12sp [cardMeta] metadata through both weight and size. The fixed
+ * line box ([FixedLineBox]) keeps the primary-face metrics stable; it does NOT
+ * survive a fallback face on its own (see the [FixedLineBox] note) — a
+ * single-line slot that must hold its height across Latin↔CJK track switches
+ * additionally clamps with [singleLineBox].
  */
 internal fun Typography.cardTitle(): TextStyle =
     titleLarge.copy(
-        fontSize = 20.sp,
-        fontWeight = FontWeight.Medium,
-        letterSpacing = (-0.02f).em,
+        fontSize = FemtoDimens.TextLg,
+        fontWeight = FontWeight.SemiBold,
         lineHeight = 23.sp,
         lineHeightStyle = FixedLineBox,
         platformStyle = NoFontPadding,
@@ -255,9 +350,10 @@ internal fun Typography.cardTitle(): TextStyle =
 
 /**
  * Return the dashboard-card secondary metadata line style (artist / album
- * rows). 14sp glance metadata — one of the sanctioned card relaxations of the
- * 18sp floor (CLAUDE.md#automotive-overrides). Regular weight so it sits a clear
- * step below the Medium [cardTitle] above it (premium media cards subordinate the
+ * rows). 12sp glance metadata — the [FemtoDimens.TextSm] scale step, one of the
+ * sanctioned card relaxations of the [FemtoDimens.MinBodyTextSize] body floor
+ * (CLAUDE.md#automotive-overrides). Normal weight so it sits a clear step below
+ * the SemiBold [cardTitle] above it (premium media cards subordinate the
  * artist / album through weight + dimmer colour, not just size). Fixed line box
  * as in [cardTitle], with the same caveat: height stability across font
  * fallbacks comes from the caller's [singleLineBox] clamp, not from the style
@@ -265,7 +361,7 @@ internal fun Typography.cardTitle(): TextStyle =
  */
 internal fun Typography.cardMeta(): TextStyle =
     bodyMedium.copy(
-        fontSize = 14.sp,
+        fontSize = FemtoDimens.TextSm,
         fontWeight = FontWeight.Normal,
         lineHeight = 16.sp,
         lineHeightStyle = FixedLineBox,
@@ -274,8 +370,8 @@ internal fun Typography.cardMeta(): TextStyle =
 
 /**
  * Return the card call-to-action / empty-state headline style. Sized at the
- * 18sp automotive glance floor ([FemtoDimens.MinBodyTextSize]) because the
- * user must be able to read it at a glance to unlock or interpret the card.
+ * 16sp automotive body floor ([FemtoDimens.MinBodyTextSize]) because the user
+ * must be able to read it at a glance to unlock or interpret the card.
  */
 internal fun Typography.cardCta(): TextStyle =
     titleMedium.copy(
@@ -285,7 +381,9 @@ internal fun Typography.cardCta(): TextStyle =
 
 /**
  * Return the card call-to-action hint body style. The ~4/3 leading (1.33)
- * keeps the two-line hint readable at the 18sp glance floor.
+ * keeps the two-line hint readable at the 16sp body floor
+ * ([FemtoDimens.MinBodyTextSize]); the leading tracks the floor token so it
+ * re-derives if the scale is re-based.
  */
 internal fun Typography.cardCtaHint(): TextStyle =
     bodyMedium.copy(
@@ -304,6 +402,8 @@ internal fun Typography.cardCtaHint(): TextStyle =
  */
 internal fun Typography.tileLabel(): TextStyle =
     labelLarge.copy(
+        fontSize = FemtoDimens.MinBodyTextSize,
+        fontWeight = FontWeight.SemiBold,
         lineHeight = 26.sp,
         lineHeightStyle = FixedLineBox,
         platformStyle = NoFontPadding,
@@ -321,12 +421,12 @@ internal fun Typography.drawerBody(): TextStyle = bodyLarge.copy(fontSize = Femt
 /**
  * Return the map attribution credit's style. Legal copyright text, not
  * glance content — OSM ODbL / OpenMapTiles CC-BY require it and it is not
- * read on the move — so it is exempt from the 18sp body floor
- * (CLAUDE.md#automotive-overrides) and sized on its own scale: 9sp is the
- * smallest size still legible at arm's length on a head unit (raised from an
- * illegible 6sp).
+ * read on the move — so it is exempt from the 16sp body floor
+ * (CLAUDE.md#automotive-overrides) and sized at the smallest scale step,
+ * [FemtoDimens.TextXs] (8sp), for this static, arm's-length legal credit.
  */
-internal fun Typography.attributionCredit(): TextStyle = labelSmall.copy(fontSize = 9.sp, lineHeight = 9.sp)
+internal fun Typography.attributionCredit(): TextStyle =
+    labelSmall.copy(fontSize = FemtoDimens.TextXs, lineHeight = FemtoDimens.TextXs)
 
 /**
  * Constrain a single-line [androidx.compose.material3.Text] to exactly its

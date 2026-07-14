@@ -12,16 +12,55 @@ object FemtoDimens {
     /** Minimum tap target side length. M3 default is 48.dp. */
     val MinTouchTarget = 64.dp
 
-    /** Minimum body text size for any driver-visible screen. */
-    val MinBodyTextSize = 18.sp
+    /**
+     * Type-scale root — the rem-like base every text size derives from. Change
+     * this single value and the whole modular scale below (and every role and
+     * named style in `Type.kt` wired to it) moves together. 16sp is the M3 body
+     * baseline and the automotive body floor ([MinBodyTextSize]).
+     */
+    val BaseTextSize = 16.sp
+
+    // Modular type scale off [BaseTextSize] in 0.25x steps, widening to larger
+    // multipliers toward the display/hero end. Roles and named styles in
+    // `Type.kt` reference these tokens, never a raw sp literal, so the base stays
+    // the single source of truth for the whole scale.
+    val TextXs = BaseTextSize * 0.5f // 8
+    val TextSm = BaseTextSize * 0.75f // 12
+    val TextMd = BaseTextSize // 16 (alias of the base for readability)
+    val TextLg = BaseTextSize * 1.25f // 20
+    val TextXl = BaseTextSize * 1.5f // 24
+    val Text2Xl = BaseTextSize * 1.75f // 28
+    val Text3Xl = BaseTextSize * 2.0f // 32
+    val Text4Xl = BaseTextSize * 2.5f // 40
+    val Text5Xl = BaseTextSize * 3.0f // 48
+    val Text6Xl = BaseTextSize * 3.5f // 56
+    val Text7Xl = BaseTextSize * 4.5f // 72
+    val Text8Xl = BaseTextSize * 6.0f // 96
+
+    /**
+     * Minimum body text size for any driver-visible screen — the automotive body
+     * floor (CLAUDE.md#automotive-overrides). The [TextMd] scale step (16sp),
+     * lowered from 18sp by explicit design decision so the floor sits on the
+     * rem-scale base.
+     */
+    val MinBodyTextSize = TextMd
 
     /**
      * Glance-metadata text size for the sanctioned card relaxations of
      * [MinBodyTextSize] — secondary captions, metrics, and progress labels
-     * inside dashboard cards (CLAUDE.md#automotive-overrides). One token so
-     * every card relaxes to the same size.
+     * inside dashboard cards (CLAUDE.md#automotive-overrides). The [TextSm] scale
+     * step (12sp); one token so every card relaxes to the same size.
      */
-    val GlanceTextSize = 13.sp
+    val GlanceTextSize = TextSm
+
+    /**
+     * Glance metric-value size — one notch above [GlanceTextSize] for the numeric
+     * anchors inside glance surfaces (trip metrics, the calendar day-gutter
+     * numeral) that read heavier than their captions. The [TextMd] scale step
+     * (16sp), sitting on the [MinBodyTextSize] body floor. A named token so the
+     * size lives here rather than as a literal inside the `glanceMetric` extension.
+     */
+    val GlanceMetricSize = TextMd
 
     /** Outer padding for top-level screens. */
     val ScreenPadding = 24.dp
@@ -42,6 +81,18 @@ object FemtoDimens {
 
     /** Inline icon size beside short labels (sunrise, wind, transport). */
     val InlineIconSize = 20.dp
+
+    /**
+     * Diameter of the calendar event color dot — the small circular indicator that
+     * marks which calendar an event belongs to on the calendar card and panel,
+     * shown only when the visible events span more than one calendar color. A
+     * decorative indicator, not a tap target, so it is sized independently of
+     * [MinTouchTarget].
+     */
+    val CalendarDotSize = 8.dp
+
+    /** Gap between the calendar event color dot and the event's time / title text. */
+    val CalendarDotGap = 4.dp
 
     /**
      * Dock thickness: its height as a horizontal bar, its width as a vertical
@@ -131,17 +182,27 @@ object FemtoDimens {
     val SpeedOverlayMaxWidth = 440.dp
 
     /**
-     * Upper bound on the dashboard dock's nav-button cluster (the reference-binding
-     * rationale mirrors [SpeedOverlayMaxWidth]). The seven buttons share their
-     * slot's width equally via `Modifier.weight`, so on an ultrawide / premium
-     * head unit that slot grows far past the buttons' comfortable size and each
-     * one ends up centred inside a wide, sparse-looking gap. Capping the cluster
-     * (not the dock bar itself, which stays full-width) keeps the buttons a
-     * tight, tappable group and centres the leftover space around them, while
-     * the reference 853 dp-wide 5:3 head unit's narrower cluster stays under
-     * the cap and is unaffected.
+     * Upper bound on the dashboard dock's weight-shared nav-button cluster (the
+     * reference-binding rationale mirrors [SpeedOverlayMaxWidth]). Two dock layouts
+     * share the buttons across an axis via `Modifier.weight` and cap the shared run
+     * here so the buttons stay a tight, tappable group instead of spreading into a
+     * wide, sparse gap on an ultrawide / premium panel: the vertical rail's nav
+     * column (a height cap via `heightIn`) and the horizontal bar's weight-shared
+     * fallback — the layout the bar drops to when the fixed-margin pill would
+     * overflow the width (a width cap via `widthIn`). The fixed pill itself needs no
+     * cap because it wraps its content; either way the leftover space centres around
+     * the capped cluster.
      */
     val DockNavClusterMaxWidth = 760.dp
+
+    /**
+     * Fixed horizontal margin each horizontal-dock nav button reserves on both
+     * sides. Adjacent buttons' margins add up (gap = 2x this) and the first / last
+     * button keeps a single margin against the bar edge (edge = 1x), so the bar —
+     * which wraps its content and centres — reads with uniform, screen-width-
+     * independent spacing rather than dynamically distributed gaps.
+     */
+    val DockButtonMargin = 16.dp
 
     /** Weather glyph beside the city name in the weather card head row. */
     val WeatherGlyphLarge = 20.dp
@@ -155,8 +216,8 @@ object FemtoDimens {
     /** Gap between the weather card's forecast-grid chips, on both axes. */
     val ForecastChipGap = 4.dp
 
-    /** Large numeric anchor (big-day, big-temp) display size. */
-    val BigNumberFontSize = 56.sp
+    /** Large numeric anchor (big-day, big-temp) display size — the [Text6Xl] scale step (56sp). */
+    val BigNumberFontSize = Text6Xl
 
     /** Uniform inner padding for dashboard cards. Tightened from the mockup's 16 dp. */
     val CardPadding = 14.dp

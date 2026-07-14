@@ -121,12 +121,12 @@ internal fun NowPlayingPanel(
                 PanelTopBar(nowPlaying = nowPlaying, onLaunchSource = onLaunchSource, onClose = onClose)
                 if (portrait) {
                     if (showArt) {
-                        // Left-aligned, not centred: centring the art alone made
-                        // it the one element off the shared left gutter that the
-                        // metadata / seek / queue rows below it all sit on.
+                        // Centred: the art is the panel's focal element, so it sits
+                        // centred above the metadata / seek / queue rows rather than
+                        // hugging their shared left gutter.
                         AlbumArt(
                             nowPlaying = nowPlaying,
-                            modifier = Modifier.size(artSize),
+                            modifier = Modifier.size(artSize).align(Alignment.CenterHorizontally),
                             motionTier = motionTier,
                         )
                     }

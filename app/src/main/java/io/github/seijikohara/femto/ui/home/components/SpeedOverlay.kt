@@ -29,7 +29,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPin
@@ -195,13 +194,15 @@ private fun MetricRow(
     Separator()
     SecondaryMetric(
         key = stringResource(R.string.speed_metric_distance),
-        value = "%.1f %s".format(distance, distanceUnitLabel),
+        value = "%.1f".format(distance),
+        unit = distanceUnitLabel,
         modifier = Modifier.widthIn(min = FemtoDimens.SpeedMetricMinWidth),
     )
     Separator()
     SecondaryMetric(
         key = stringResource(R.string.speed_metric_avg),
-        value = "$avgSpeed $speedUnitLabel",
+        value = "$avgSpeed",
+        unit = speedUnitLabel,
         modifier = Modifier.widthIn(min = FemtoDimens.SpeedMetricMinWidth),
     )
     Separator()
@@ -213,32 +214,24 @@ private fun NowMetric(
     value: String,
     unit: String,
 ) = Row(
-    verticalAlignment = Alignment.Bottom,
     horizontalArrangement = Arrangement.spacedBy(4.dp),
 ) {
     Text(
         text = value,
-        // SemiBold (not Bold) + tighter tracking: lighter and more optical than
-        // the old bold readout, but heavier than the ambient clock since the speed
-        // is the safety-critical glance that must stay legible on a dim head unit.
-        style = MaterialTheme.typography.heroNumeral(trackingEm = -0.05f, weight = FontWeight.SemiBold),
+        // SemiBold hero numeral: heavier than the ambient clock since the speed is
+        // the safety-critical glance that must stay legible on a dim head unit.
+        style = MaterialTheme.typography.heroNumeral(weight = FontWeight.SemiBold),
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
         // Reserve a stable width sized for the clamped 3-digit range and
         // right-align within it, so the hero numeral does not reflow the
         // overlay as the speed's digit count changes.
         textAlign = TextAlign.End,
-        modifier = Modifier.widthIn(min = FemtoDimens.SpeedHeroValueMinWidth),
+        modifier = Modifier.widthIn(min = FemtoDimens.SpeedHeroValueMinWidth).alignByBaseline(),
     )
-    Text(
-        text = unit,
-        style = MaterialTheme.typography.sectionLabel(12, 0.12f),
-        // Mockup .speed-overlay .now .u { opacity: 0.7 } — the unit sits a step
-        // below the speed numeral it annotates.
-        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-        modifier = Modifier.padding(bottom = 4.dp),
-        maxLines = 1,
-    )
+    // Dimmed unit trailing the numeral on its baseline (the shared dashboard unit
+    // treatment) — a step below the value it annotates.
+    UnitSuffix(unit, modifier = Modifier.alignByBaseline())
 }
 
 @Composable
@@ -255,23 +248,31 @@ private fun Separator() =
 private fun SecondaryMetric(
     key: String,
     value: String,
+    unit: String,
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
     Text(
         text = key,
-        style = MaterialTheme.typography.sectionLabel(10, 0.14f),
+        style = MaterialTheme.typography.sectionLabel(12),
         // Mockup .speed-overlay .k { opacity: 0.62 } — the metric key is the
         // dimmest tier so the value beside it reads first.
         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
-    Text(
-        text = value,
-        style = MaterialTheme.typography.glanceMetric().copy(letterSpacing = (-0.01f).em),
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-    )
+    // Numeric value + dimmed trailing unit on the value's baseline, matching the
+    // hero speed's value/unit treatment; the caller's min-width cell keeps a
+    // digit change from reflowing the row.
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.glanceMetric(),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            modifier = Modifier.alignByBaseline(),
+        )
+        UnitSuffix(unit, modifier = Modifier.alignByBaseline())
+    }
 }
 
 @Composable
@@ -296,7 +297,7 @@ private fun AddressRow(
         style =
             MaterialTheme.typography.glanceCaption(
                 base = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.Normal,
                 lineHeight = 16.sp,
                 fontFeatureSettings = null,
             ),
@@ -308,12 +309,18 @@ private fun AddressRow(
     // Altitude readout, trailing the address (the address ellipsizes to make
     // room). Hidden when the fix carries no altitude.
     if (altitudeM != null) {
-        Text(
-            text = stringResource(R.string.speed_altitude, altitudeM),
-            style = MaterialTheme.typography.sectionLabel(11, 0.04f),
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.86f),
-            maxLines = 1,
-        )
+        // "ALT 42" + a dimmed trailing "m" on the label's baseline (altitude is
+        // always metres), matching the shared dashboard value/unit treatment.
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = stringResource(R.string.speed_altitude, altitudeM),
+                style = MaterialTheme.typography.sectionLabel(12),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.86f),
+                maxLines = 1,
+                modifier = Modifier.alignByBaseline(),
+            )
+            UnitSuffix("m", modifier = Modifier.alignByBaseline())
+        }
     }
 }
 
