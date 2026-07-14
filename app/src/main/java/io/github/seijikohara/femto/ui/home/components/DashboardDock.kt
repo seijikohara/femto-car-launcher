@@ -111,6 +111,22 @@ private fun compactDockExtent(visibleNavCount: Int): Dp =
 // never clips (see HorizontalDock).
 private val DockStatusSideReserve: Dp = 240.dp
 
+// Whether the fixed-margin (pill) horizontal dock fits [availableWidth]: each nav
+// button is MinTouchTarget + two DockButtonMargins wide, plus DockStatusSideReserve
+// when the status cluster shows. Shared by HorizontalDock (to pick the pill vs the
+// weight-shared fallback) and DashboardScaffold (to decide whether the freed
+// bottom-left corner lets the map attribution sit flush there instead of clearing
+// the dock).
+internal fun horizontalDockPillFits(
+    availableWidth: Dp,
+    navCount: Int,
+): Boolean {
+    val showStatusCluster = availableWidth >= compactDockExtent(navCount)
+    val pillButtonWidth = FemtoDimens.MinTouchTarget + FemtoDimens.DockButtonMargin * 2
+    val requiredPillWidth = pillButtonWidth * navCount + (if (showStatusCluster) DockStatusSideReserve else 0.dp)
+    return requiredPillWidth <= availableWidth
+}
+
 // One dock nav button's icon / label / action. Shared by the horizontal bar and
 // the vertical rail so the set and order stay identical; [navSpecFor] is the
 // exhaustive DockNavId -> NavSpec mapping (a `when` so the compiler catches a
@@ -213,13 +229,7 @@ private fun HorizontalDock(
         // Below the threshold the read-only status cluster yields so the actionable
         // nav keeps room — see compactDockExtent. Applied in both layouts.
         val showStatusCluster = maxWidth >= compactDockExtent(visibleNav.size)
-        // The pill's required width: each button is MinTouchTarget wide with a
-        // DockButtonMargin on both sides (edge = one margin, gap = two), plus the
-        // status side (divider + cluster) when it shows — see DockStatusSideReserve.
-        val pillButtonWidth = FemtoDimens.MinTouchTarget + FemtoDimens.DockButtonMargin * 2
-        val requiredPillWidth =
-            pillButtonWidth * visibleNav.size + (if (showStatusCluster) DockStatusSideReserve else 0.dp)
-        val pillFits = requiredPillWidth <= maxWidth
+        val pillFits = horizontalDockPillFits(maxWidth, visibleNav.size)
 
         Surface(
             // Floating rounded glass bar: transparent + glassChrome (rounded clip +

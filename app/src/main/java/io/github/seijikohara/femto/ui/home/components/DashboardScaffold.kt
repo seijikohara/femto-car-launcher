@@ -83,9 +83,10 @@ internal data class PanelVisibility(
  * ```
  *
  * Landscape floats the cards in a right-hand column — the calendar and weather
- * share the top row side by side, the music card takes the wider share below;
- * portrait lays the same arrangement along the bottom. The self-marker is offset
- * to stay in the exposed map region — left of the right cards
+ * share the top row side by side and grow to fill the column, the music card sits
+ * below at its content height; portrait lays the same arrangement along the
+ * bottom. The self-marker is offset to stay in the exposed map region — left of
+ * the right cards
  * ([MapConfig.rightSafeFraction]) and above the bottom cards / speed overlay /
  * dock ([MapConfig.bottomSafeFraction]) — rather than pinned to screen centre. A
  * [BoxWithConstraints] reads the viewport to pick the orientation and tighten the
@@ -199,11 +200,18 @@ private fun DashboardContent(
     // margin + the thickness) so none sit under it.
     val dockExtent = FemtoDimens.DockThickness + outerPad
 
-    // The map's bottom-start attribution credit sits at the very edge of the map
-    // surface, underneath the dock when the dock hosts the bottom edge — inset it by
-    // the dock's whole footprint so it clears the dock's nav buttons. Left/right/top
-    // dock positions never cover that corner, so they get no extra inset.
-    val attributionBottomInset = if (dockPosition == DockPosition.BOTTOM) dockExtent else 0.dp
+    // The map's bottom-start attribution credit sits in the bottom-left screen
+    // corner. When the horizontal dock is a centred pill it frees that corner, so
+    // the credit sits flush there (inset 0) as OSM/OpenFreeMap intend; when the pill
+    // would overflow and the dock falls back to a full-width bar (the 853 dp head
+    // unit, portrait phones) the credit is lifted by the dock's footprint so it
+    // clears the bar. Left/right/top docks never cover that corner.
+    val attributionBottomInset =
+        if (dockPosition == DockPosition.BOTTOM && !horizontalDockPillFits(maxWidth, dockConfig.visibleNav.size)) {
+            dockExtent
+        } else {
+            0.dp
+        }
 
     // The landscape card column reserves a horizontal band the marker must clear; the
     // bottom (portrait) cards and the bottom dock extend the bottom safe band so the
@@ -758,7 +766,8 @@ private fun FloatingCardColumn(
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(cardGap)) {
         // Calendar + weather pair in a row so each keeps its designed height instead
         // of stacking three full cards into a column too short for them; a single
-        // visible card takes the whole row.
+        // visible card takes the whole row. The row is the only weighted child, so it
+        // grows to fill whatever height the content-height music card below leaves.
         if (panels.calendar || panels.weather) {
             Row(
                 modifier = Modifier.fillMaxWidth().weight(1f),
@@ -768,7 +777,10 @@ private fun FloatingCardColumn(
                 if (panels.weather) weather(Modifier.weight(1f).fillMaxHeight())
             }
         }
-        if (panels.music) music(Modifier.weight(MUSIC_CARD_WEIGHT).fillMaxWidth())
+        // The music card sizes to its own content height (no weight): the row above
+        // takes all the remaining column height, so no space is left as an empty band
+        // and the card never stretches past its content on a tall display.
+        if (panels.music) music(Modifier.fillMaxWidth())
     }
 }
 
@@ -808,13 +820,6 @@ private val CardClusterMaxHeight: Dp = 680.dp
 // The share of the height the portrait bottom card band takes (capped by
 // CardClusterMaxHeight on tall panels).
 private const val PORTRAIT_CARD_HEIGHT_FRACTION = 0.52f
-
-// The music card's weight against the calendar + weather row in the floating column.
-// Its content is height-bounded (the album art caps at MusicArtSize, above a fixed
-// transport strip), so a larger share only opened empty top / bottom bands as the
-// centered content floated; a smaller weight fits the card to its content and hands
-// the freed height to the calendar / weather row, which grows to use it.
-private const val MUSIC_CARD_WEIGHT = 0.85f
 
 // Responsive previews. HomeUiState.Initial renders the empty/loading states (no
 // network/GL in a preview), which is enough to lock the responsive arrangement

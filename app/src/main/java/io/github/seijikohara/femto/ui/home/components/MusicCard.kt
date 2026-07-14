@@ -7,9 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -44,9 +42,9 @@ private val RowContentGap = 14.dp
  * Music card. Vertical layout inherited from the `.music-card` rules of the
  * retired dashboard-v2 design mockup:
  *
- *  1. Album art, up to 140 dp / 14 dp corner — narrower when the row is wide
- *     but short on height, so the meta column beside it keeps a fair share of
- *     the width ([FemtoDimens.MusicMetaMinWidth]).
+ *  1. Album art, up to 140 dp / 14 dp corner — narrower on a narrow card so the
+ *     meta column beside it keeps a fair share of the width
+ *     ([FemtoDimens.MusicMetaMinWidth]).
  *  2. Meta — uppercase source eyebrow (12sp), 20sp title, 12sp artist
  *     / album, plus the progress bar. Title and progress always show; the
  *     album drops first, then the eyebrow, then the artist when the row is too
@@ -125,44 +123,37 @@ private fun PlayingState(
     BoxWithConstraints(
         modifier =
             Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .clickable(onClickLabel = openLabel) { onLaunchSource(nowPlaying.packageName) }
-                // Compact padding so the row + transport strip pack into the
-                // card's capped cluster height without starving the meta block
-                // below — the same tightening CalendarCard / WeatherCard use.
+                // Compact padding so the row + transport strip pack tightly without
+                // starving the meta block — the same tightening CalendarCard /
+                // WeatherCard use.
                 .padding(FemtoDimens.CardPaddingCompact),
     ) {
-        // Height left for the art + meta row once the transport strip's own control
-        // height and the section gap are reserved. Capping the art (below) to this
-        // budget instead of the row's full available height is what keeps the art's
-        // top level with the meta block's top — the row no longer has leftover
-        // height for a shorter-than-the-row art to center within.
-        val artMetaMaxHeight =
-            (maxHeight - FemtoDimens.MusicTransportButton - FemtoDimens.CardSectionGapCompact)
-                .coerceAtLeast(0.dp)
-        // The art is a square sized off BOTH the row's available WIDTH (reserving
-        // FemtoDimens.MusicMetaMinWidth for the text column so a tall-but-narrow
-        // card can't starve it) and the HEIGHT budget above (so a tall card can't
-        // grow the art past what still leaves the transport strip its own row) —
-        // capped at FemtoDimens.MusicArtSize either way.
+        // The art is a square sized off the row's available WIDTH alone (reserving
+        // FemtoDimens.MusicMetaMinWidth for the text column so a narrow card can't
+        // starve it), capped at FemtoDimens.MusicArtSize. Deliberately independent of
+        // the card's height: with no height term the content height is well-defined,
+        // so the card wraps its content (below) rather than being stretched to an
+        // outer allocation and opening empty top / bottom bands on a tall display.
         val artSize =
             if (showArt) {
                 minOf(
                     maxWidth - FemtoDimens.MusicMetaMinWidth - RowContentGap,
-                    artMetaMaxHeight,
                     FemtoDimens.MusicArtSize,
                 ).coerceAtLeast(0.dp)
             } else {
                 0.dp
             }
         Column(
-            modifier = Modifier.fillMaxSize(),
-            // Neither child below is forced to fill: the art + meta row and the
-            // transport strip each size to their own content, so any leftover
-            // card height balances as outer whitespace around the pair instead of
-            // opening a dead band between the seek bar and the transport strip.
-            verticalArrangement =
-                Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact, Alignment.CenterVertically),
+            // Fill the width but wrap the height: the card is a content-height child
+            // of the floating column, so it reports its natural height and the
+            // calendar / weather row above it claims the freed space — the card no
+            // longer stretches to an outer allocation and centres the pair within a
+            // dead band. No vertical arrangement bias is needed once there is no
+            // leftover height to distribute.
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
         ) {
             // Album art + track info share the top region; the transport row spans the
             // full card width below. On a narrow info-pane card a square album beside the
@@ -197,7 +188,10 @@ private fun PlayingState(
                     showAlbum = showAlbum,
                     onExpand = onExpand,
                     motionTier = motionTier,
-                    modifier = Modifier.weight(1f).heightIn(max = artMetaMaxHeight),
+                    // No height cap: the card wraps its content, so the meta block
+                    // keeps every line (the album included) and reports its natural
+                    // height for the row to wrap to.
+                    modifier = Modifier.weight(1f),
                 )
             }
             // The spectrum paints behind the transport strip only: matchParentSize
