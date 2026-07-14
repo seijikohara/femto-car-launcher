@@ -19,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Lucide
@@ -45,6 +44,7 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.WeatherGlyphColors
 import io.github.seijikohara.femto.ui.theme.bigNumber
 import io.github.seijikohara.femto.ui.theme.cardMeta
+import io.github.seijikohara.femto.ui.theme.panelMetric
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import io.github.seijikohara.femto.ui.theme.weatherGlyphs
 import java.time.Instant
@@ -203,13 +203,13 @@ private fun HeroMetric(
 ) {
     Text(
         text = label,
-        style = MaterialTheme.typography.sectionLabel(10, 0.08f),
+        style = MaterialTheme.typography.sectionLabel(12),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
     )
     Text(
         text = value,
-        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+        style = MaterialTheme.typography.panelMetric(),
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
     )
@@ -280,7 +280,7 @@ private fun HourlyColumn(
     ) {
         Text(
             text = forecastHourLabel(hour.time, is24Hour),
-            style = MaterialTheme.typography.sectionLabel(10, 0.08f),
+            style = MaterialTheme.typography.sectionLabel(12),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
         )

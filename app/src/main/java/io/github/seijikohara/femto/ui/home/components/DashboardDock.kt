@@ -100,6 +100,17 @@ private const val TUNED_VISIBLE_NAV_COUNT = 7
 private fun compactDockExtent(visibleNavCount: Int): Dp =
     CompactDockExtentBase + FemtoDimens.MinTouchTarget * (visibleNavCount - TUNED_VISIBLE_NAV_COUNT)
 
+// Width the horizontal bar's fixed-margin (pill) fit test reserves for the status
+// side when the status cluster shows: the nav/status divider plus the read-only
+// [StatusCluster]. The cluster is five 20 dp indicator icons — two of them (GPS,
+// battery) captioned a touch wider than the icon — joined by 18 dp gaps (~180 dp),
+// plus the cluster's own DockButtonMargin padding and the divider (~40 dp). The
+// rendered cluster still measures itself; this figure only decides whether the
+// pill fits, and is rounded up so an underestimate can never let the pill overflow
+// — the bias is always toward the weight-shared fallback, which shrinks to fit and
+// never clips (see HorizontalDock).
+private val DockStatusSideReserve: Dp = 240.dp
+
 // One dock nav button's icon / label / action. Shared by the horizontal bar and
 // the vertical rail so the set and order stay identical; [navSpecFor] is the
 // exhaustive DockNavId -> NavSpec mapping (a `when` so the compiler catches a
@@ -186,80 +197,131 @@ private fun HorizontalDock(
     glassConfig: GlassConfig,
     modifier: Modifier = Modifier,
     dockConfig: DockConfig = DockConfig(),
-) = Surface(
-    // Floating rounded glass bar: transparent + glassChrome (rounded clip + the
-    // frosted backdrop) so it reads as a panel over the full-bleed map like the
-    // cards; the host insets the dashboard overlays + the dock's own margins to
-    // float it. On the Live backend the blur falls back to the tint.
-    modifier =
-        modifier
-            .height(FemtoDimens.DockThickness)
-            .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
-    color = Color.Transparent,
-    contentColor = MaterialTheme.colorScheme.onSurface,
 ) {
     val visibleNav = dockConfig.visibleNav
-    Column {
-        BoxWithConstraints(
+    // Read the available width before committing to a layout. The fixed-margin
+    // pill is a fixed footprint: on a wide dock it fits and reads as a compact,
+    // centred glass pill, but on the reference 853 dp head unit or a portrait
+    // phone the nav buttons + status cluster overflow it and the glass clips the
+    // leading / trailing items. When the pill would overflow, fall back to the
+    // weight-shared layout that shrinks the nav toward FemtoDimens.MinTouchTarget
+    // so every button stays reachable and nothing clips
+    // (CLAUDE.md#automotive-overrides, #launcher-behavior). The same choice sizes
+    // the glass: the pill wraps its content (DashboardScaffold centres it), the
+    // fallback fills the width so the weight distribution has room.
+    BoxWithConstraints(modifier = modifier) {
+        // Below the threshold the read-only status cluster yields so the actionable
+        // nav keeps room — see compactDockExtent. Applied in both layouts.
+        val showStatusCluster = maxWidth >= compactDockExtent(visibleNav.size)
+        // The pill's required width: each button is MinTouchTarget wide with a
+        // DockButtonMargin on both sides (edge = one margin, gap = two), plus the
+        // status side (divider + cluster) when it shows — see DockStatusSideReserve.
+        val pillButtonWidth = FemtoDimens.MinTouchTarget + FemtoDimens.DockButtonMargin * 2
+        val requiredPillWidth =
+            pillButtonWidth * visibleNav.size + (if (showStatusCluster) DockStatusSideReserve else 0.dp)
+        val pillFits = requiredPillWidth <= maxWidth
+
+        Surface(
+            // Floating rounded glass bar: transparent + glassChrome (rounded clip +
+            // the frosted backdrop) so it reads as a panel over the full-bleed map
+            // like the cards. The pill wraps its content; the fallback fills the
+            // width. On the Live backend the blur falls back to the tint.
             modifier =
                 Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
+                    .height(FemtoDimens.DockThickness)
+                    .then(if (pillFits) Modifier else Modifier.fillMaxWidth())
+                    .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
+            color = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ) {
-            // The nav row and the status cluster cannot both fit on a narrow
-            // portrait head unit; below the threshold the read-only status
-            // cluster yields so the actionable nav stays uncut — see compactDockExtent.
-            val showStatusCluster = maxWidth >= compactDockExtent(visibleNav.size)
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // The slot competing with the status cluster for width; centred so
-                // the capped cluster below sits in the middle of its share instead
-                // of hugging the leading edge on a wide dock.
-                Box(
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    contentAlignment = Alignment.Center,
+            if (pillFits) {
+                // Fixed-margin pill: each button reserves a DockButtonMargin on both
+                // sides, so adjacent buttons sit two margins apart and the first /
+                // last button sits one margin from the bar edge. The row wraps its
+                // content; DashboardScaffold centres the pill. fillMaxHeight centres
+                // the row vertically in the bar's fixed height.
+                Row(
+                    modifier = Modifier.fillMaxHeight(),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Row(
-                        // Fill the slot up to the cap: a normal / narrow dock's slot is
-                        // already under the cap (no-op, buttons still fill it via
-                        // weight); an ultrawide dock's slot is clamped so the buttons
-                        // stay a comfortable cluster instead of spreading edge to edge.
-                        modifier =
-                            Modifier
-                                .widthIn(max = FemtoDimens.DockNavClusterMaxWidth)
-                                .fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
+                    visibleNav.forEachIndexed { index, id ->
+                        key(id) {
+                            EditableNavButton(
+                                id = id,
+                                canMoveLeft = index > 0,
+                                canMoveRight = index < visibleNav.lastIndex,
+                                canHide = visibleNav.size > 1,
+                                onAction = onAction,
+                                modifier = Modifier.padding(horizontal = FemtoDimens.DockButtonMargin),
+                            )
+                        }
+                    }
+                    if (showStatusCluster) {
+                        HorizontalDockDivider()
+                        StatusCluster(
+                            status = systemStatus,
+                            vertical = false,
+                            order = dockConfig.visibleStatus,
+                            onAction = onAction,
+                            modifier = Modifier.padding(horizontal = FemtoDimens.DockButtonMargin),
+                        )
+                    }
+                }
+            } else {
+                // Weight-shared fallback: the bar fills the width and the nav buttons
+                // share it equally, shrinking toward MinTouchTarget rather than
+                // clipping. The inner 24 dp padding keeps the end buttons off the
+                // glass's rounded corners.
+                Row(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // The slot competing with the status cluster for width; centred so
+                    // the capped cluster below sits in the middle of its share instead
+                    // of hugging the leading edge on a wide dock.
+                    Box(
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        // Each button takes an equal weight so the nav row shares the
-                        // width and shrinks toward FemtoDimens.MinTouchTarget instead of
-                        // clipping when the row is narrow.
-                        visibleNav.forEachIndexed { index, id ->
-                            key(id) {
-                                EditableNavButton(
-                                    id = id,
-                                    canMoveLeft = index > 0,
-                                    canMoveRight = index < visibleNav.lastIndex,
-                                    canHide = visibleNav.size > 1,
-                                    onAction = onAction,
-                                    modifier = Modifier.weight(1f),
-                                )
+                        Row(
+                            // Fill the slot up to the cap: a normal / narrow dock's slot is
+                            // already under the cap (no-op, buttons still fill it via
+                            // weight); an ultrawide dock's slot is clamped so the buttons
+                            // stay a comfortable cluster instead of spreading edge to edge.
+                            modifier =
+                                Modifier
+                                    .widthIn(max = FemtoDimens.DockNavClusterMaxWidth)
+                                    .fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            // Each button takes an equal weight so the nav row shares the
+                            // width and shrinks toward FemtoDimens.MinTouchTarget instead of
+                            // clipping when the row is narrow.
+                            visibleNav.forEachIndexed { index, id ->
+                                key(id) {
+                                    EditableNavButton(
+                                        id = id,
+                                        canMoveLeft = index > 0,
+                                        canMoveRight = index < visibleNav.lastIndex,
+                                        canHide = visibleNav.size > 1,
+                                        onAction = onAction,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
                             }
                         }
                     }
-                }
-                if (showStatusCluster) {
-                    HorizontalDockDivider()
-                    StatusCluster(
-                        status = systemStatus,
-                        vertical = false,
-                        order = dockConfig.visibleStatus,
-                        onAction = onAction,
-                        modifier = Modifier.padding(start = 20.dp),
-                    )
+                    if (showStatusCluster) {
+                        HorizontalDockDivider()
+                        StatusCluster(
+                            status = systemStatus,
+                            vertical = false,
+                            order = dockConfig.visibleStatus,
+                            onAction = onAction,
+                            modifier = Modifier.padding(start = 20.dp),
+                        )
+                    }
                 }
             }
         }
@@ -303,7 +365,7 @@ private fun VerticalDock(
                 // The slot competing with the status cluster for height; centred so
                 // the capped cluster below sits in the middle of its share instead
                 // of hugging the leading edge on a tall rail — mirrors the
-                // horizontal bar's Box wrapper, turned 90 degrees.
+                // horizontal bar's weight-shared fallback, turned 90 degrees.
                 Box(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center,
@@ -318,8 +380,8 @@ private fun VerticalDock(
                         verticalArrangement = Arrangement.SpaceBetween,
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        // The same equal-weight sharing as the horizontal bar, on the
-                        // height instead of the width.
+                        // The same equal-weight sharing as the horizontal bar's fallback,
+                        // on the height instead of the width.
                         visibleNav.forEachIndexed { index, id ->
                             key(id) {
                                 EditableNavButton(
@@ -457,6 +519,8 @@ private fun EditableNavButton(
     )
 }
 
+// Wide dock: the fixed-margin pill fits, so the bar wraps its content to a compact
+// centred pill (the host centres it) with the full status cluster.
 @PreviewLightDark
 @Preview(name = "Dashboard dock", widthDp = 1280, heightDp = 64)
 @Composable
@@ -481,8 +545,38 @@ private fun DashboardDockPreview() {
     }
 }
 
-// Narrow portrait head unit: the status cluster drops and the nav buttons share
-// the width down toward FemtoDimens.MinTouchTarget rather than clipping.
+// The reference 853 dp 5:3 head unit: the fixed pill would overflow (the seven
+// buttons + status cluster exceed the width — the regression that clipped the
+// battery indicator), so the bar falls back to the weight-shared layout and keeps
+// every button and the whole status cluster visible.
+@PreviewLightDark
+@Preview(name = "Dashboard dock (head unit)", widthDp = 853, heightDp = 64)
+@Composable
+private fun DashboardDockHeadUnitPreview() {
+    FemtoTheme {
+        DashboardDock(
+            systemStatus =
+                SystemStatus(
+                    cellularConnected = true,
+                    cellularSignalLevel = 3,
+                    wifiConnected = true,
+                    wifiSignalLevel = 4,
+                    bluetoothEnabled = true,
+                    bluetoothConnected = true,
+                    batteryPercent = 78,
+                    charging = true,
+                    gpsFixed = true,
+                    gpsSatelliteCount = 9,
+                ),
+            onAction = {},
+        )
+    }
+}
+
+// Narrow portrait head unit: the fixed pill does not fit, so the bar falls back to
+// the weight-shared layout; the status cluster also drops (below compactDockExtent)
+// and the nav buttons share the width down toward FemtoDimens.MinTouchTarget rather
+// than clipping.
 @PreviewLightDark
 @Preview(name = "Dashboard dock (narrow)", widthDp = 520, heightDp = 64)
 @Composable
@@ -501,6 +595,34 @@ private fun DashboardDockNarrowPreview() {
                     charging = false,
                     gpsFixed = false,
                     gpsSatelliteCount = 0,
+                ),
+            onAction = {},
+        )
+    }
+}
+
+// Portrait phone mount (~400 dp): the tightest fallback — the status cluster drops
+// and the seven nav buttons share the width, shrinking to keep every button visible
+// (they cross below MinTouchTarget here, the sanctioned narrow-width trade-off over
+// clipping — CLAUDE.md#launcher-behavior).
+@PreviewLightDark
+@Preview(name = "Dashboard dock (portrait phone)", widthDp = 400, heightDp = 64)
+@Composable
+private fun DashboardDockCompactPreview() {
+    FemtoTheme {
+        DashboardDock(
+            systemStatus =
+                SystemStatus(
+                    cellularConnected = true,
+                    cellularSignalLevel = 2,
+                    wifiConnected = true,
+                    wifiSignalLevel = 3,
+                    bluetoothEnabled = true,
+                    bluetoothConnected = true,
+                    batteryPercent = 55,
+                    charging = false,
+                    gpsFixed = true,
+                    gpsSatelliteCount = 7,
                 ),
             onAction = {},
         )

@@ -80,6 +80,7 @@ internal fun CalendarPanel(
             days = panelDays,
             today = snapshot.today,
             is24Hour = is24Hour,
+            showColorDots = snapshot.multipleCalendarsVisible,
             modifier = Modifier.fillMaxSize(),
         )
     } else {
@@ -88,8 +89,20 @@ internal fun CalendarPanel(
             modifier = Modifier.fillMaxSize(),
             horizontalArrangement = Arrangement.spacedBy(FemtoDimens.ScreenPadding),
         ) {
-            AgendaColumn(left, snapshot.today, is24Hour, modifier = Modifier.weight(1f).fillMaxHeight())
-            AgendaColumn(right, snapshot.today, is24Hour, modifier = Modifier.weight(1f).fillMaxHeight())
+            AgendaColumn(
+                left,
+                snapshot.today,
+                is24Hour,
+                snapshot.multipleCalendarsVisible,
+                Modifier.weight(1f).fillMaxHeight(),
+            )
+            AgendaColumn(
+                right,
+                snapshot.today,
+                is24Hour,
+                snapshot.multipleCalendarsVisible,
+                Modifier.weight(1f).fillMaxHeight(),
+            )
         }
     }
 }
@@ -131,6 +144,7 @@ private fun AgendaColumn(
     days: List<DayCell>,
     today: LocalDate,
     is24Hour: Boolean,
+    showColorDots: Boolean,
     modifier: Modifier = Modifier,
 ) = FitWholeRows(
     modifier = modifier,
@@ -138,7 +152,13 @@ private fun AgendaColumn(
     mandatoryCount = 1,
 ) {
     days.forEachIndexed { index, day ->
-        AgendaDay(day = day, isToday = day.date == today, isFirst = index == 0, is24Hour = is24Hour)
+        AgendaDay(
+            day = day,
+            isToday = day.date == today,
+            isFirst = index == 0,
+            is24Hour = is24Hour,
+            showColorDots = showColorDots,
+        )
     }
 }
 
@@ -152,6 +172,7 @@ private fun AgendaDay(
     isToday: Boolean,
     isFirst: Boolean,
     is24Hour: Boolean,
+    showColorDots: Boolean,
     modifier: Modifier = Modifier,
 ) = Column(
     modifier = modifier.fillMaxWidth(),
@@ -172,7 +193,7 @@ private fun AgendaDay(
         ) {
             Text(
                 text = day.weekdayLetter.take(3).uppercase(),
-                style = MaterialTheme.typography.sectionLabel(11, 0.08f),
+                style = MaterialTheme.typography.sectionLabel(12),
                 color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 softWrap = false,
@@ -196,7 +217,9 @@ private fun AgendaDay(
                     maxLines = 1,
                 )
             } else {
-                day.events.forEach { event -> AgendaEvent(event = event, is24Hour = is24Hour) }
+                day.events.forEach { event ->
+                    AgendaEvent(event = event, is24Hour = is24Hour, showColorDots = showColorDots)
+                }
             }
         }
     }
@@ -206,32 +229,44 @@ private fun AgendaDay(
 private fun AgendaEvent(
     event: EventItem,
     is24Hour: Boolean,
+    showColorDots: Boolean,
     modifier: Modifier = Modifier,
-) = Column(
+) = Row(
     modifier = modifier.fillMaxWidth(),
-    verticalArrangement = Arrangement.spacedBy(2.dp),
+    horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarDotGap),
+    // Match the card: center the dot against the event's stacked lines so it
+    // reads as that event's calendar marker rather than pinning to the time line.
+    verticalAlignment = Alignment.CenterVertically,
 ) {
-    Text(
-        text = eventTimeRange(event, is24Hour),
-        style = MaterialTheme.typography.eyebrow(),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1,
-    )
-    Text(
-        text = event.title,
-        // titleLarge (24sp) is above the 18sp floor; the panel has room to wrap
-        // the whole title rather than ellipsize like the compact card.
-        style = MaterialTheme.typography.titleLarge,
-        color = MaterialTheme.colorScheme.onSurface,
-    )
-    event.location?.takeUnless { it.isBlank() }?.let { location ->
+    if (showColorDots) {
+        CalendarColorDot(color = event.color)
+    }
+    Column(
+        modifier = Modifier.weight(1f),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
         Text(
-            text = location,
-            style = MaterialTheme.typography.cardMeta(),
+            text = eventTimeRange(event, is24Hour),
+            style = MaterialTheme.typography.eyebrow(),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
         )
+        Text(
+            text = event.title,
+            // titleLarge (24sp) is above the body floor; the panel has room to wrap
+            // the whole title rather than ellipsize like the compact card.
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        event.location?.takeUnless { it.isBlank() }?.let { location ->
+            Text(
+                text = location,
+                style = MaterialTheme.typography.cardMeta(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 

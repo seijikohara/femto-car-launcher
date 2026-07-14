@@ -9,8 +9,11 @@ import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import io.github.seijikohara.femto.data.fonts.CachedFont
 
-// The weights the M3 type scale renders at, requested from every variable font
-// so the wght axis is exercised across the whole scale rather than synthesised.
+// The full wght axis (Thin..Black), requested from every variable font so any
+// weight a caller asks for resolves to a real axis instance rather than a
+// synthesised (faux-bold) approximation. The Femto type scale itself renders at
+// only three of these tiers (ExtraLight / Normal / SemiBold), but Material
+// components may request others, so the whole axis stays provisioned.
 private val WeightAxis =
     listOf(
         FontWeight.Thin,

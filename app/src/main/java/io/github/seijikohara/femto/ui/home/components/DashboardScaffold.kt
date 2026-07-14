@@ -321,9 +321,13 @@ private fun DashboardContent(
         modifier =
             when (dockPosition) {
                 DockPosition.BOTTOM, DockPosition.TOP -> {
+                    // The bar floats off its edges by the shared margin (dockFloatPadding).
+                    // HorizontalDock picks its own width from the available space: a
+                    // wrap-content centred pill when the fixed-margin layout fits, else a
+                    // width-filling weight-shared bar that shrinks the nav to fit. Centre
+                    // alignment centres the pill; the fallback fills the inset band.
                     Modifier
                         .align(dockAlignment(dockPosition))
-                        .fillMaxWidth()
                         .padding(dockFloatPadding(dockPosition, outerPad))
                 }
 
@@ -650,8 +654,11 @@ private fun cardSideInset(
         PaddingValues(end = horizontal, top = top, bottom = bottom)
     }
 
-// Margins that float the dock off its three free edges (the inner edge faces the
-// dashboard, where the overlay inset already opens the gap).
+// Margins that float the dock off its free edges by [margin] (a vertical rail's
+// inner edge faces the dashboard, where the overlay inset already opens the gap).
+// A horizontal bar floats off its start / end / hosting edges — the fixed pill
+// centres within that inset band and the weight-shared fallback fills it; a
+// vertical rail floats off its top / bottom / hosting edges.
 private fun dockFloatPadding(
     position: DockPosition,
     margin: Dp,
@@ -803,9 +810,11 @@ private val CardClusterMaxHeight: Dp = 680.dp
 private const val PORTRAIT_CARD_HEIGHT_FRACTION = 0.52f
 
 // The music card's weight against the calendar + weather row in the floating column.
-// It carries the most content (album art + title / artist / album + progress + the
-// >= 64 dp transport row), so it takes a larger share than the cal / weather cards.
-private const val MUSIC_CARD_WEIGHT = 1.2f
+// Its content is height-bounded (the album art caps at MusicArtSize, above a fixed
+// transport strip), so a larger share only opened empty top / bottom bands as the
+// centered content floated; a smaller weight fits the card to its content and hands
+// the freed height to the calendar / weather row, which grows to use it.
+private const val MUSIC_CARD_WEIGHT = 0.85f
 
 // Responsive previews. HomeUiState.Initial renders the empty/loading states (no
 // network/GL in a preview), which is enough to lock the responsive arrangement

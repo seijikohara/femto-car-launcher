@@ -124,20 +124,40 @@ internal fun SpeedUnit.label(): String =
     }
 
 /**
- * Format a wind speed (supplied in km/h by the weather provider) for the
- * dashboard, matching the speed unit the rest of the launcher shows. Imperial
- * locales read wind as mph (paired with the [SpeedOverlay] reading); metric
- * locales keep m/s — the conventional meteorological wind unit outside
- * imperial markets, a deliberate dashboard-v2 design decision.
+ * Convert a wind speed (supplied in km/h by the weather provider) to the value
+ * shown on the dashboard, in the unit paired with [speedUnit] (see
+ * [windUnitLabel]) and rounded to a whole number. Imperial locales read wind as
+ * mph (paired with the [SpeedOverlay] reading); metric locales keep m/s.
+ */
+internal fun windValue(
+    windKmh: Double,
+    speedUnit: SpeedUnit,
+): Int =
+    when (speedUnit) {
+        SpeedUnit.MILES_PER_HOUR -> speedUnit.fromKilometersPerHour(windKmh).roundToInt()
+        SpeedUnit.KILOMETERS_PER_HOUR -> (windKmh / SECONDS_PER_HOUR).roundToInt()
+    }
+
+/**
+ * Wind unit glyph paired with this speed unit: mph in imperial locales, m/s in
+ * metric locales — the conventional meteorological wind unit outside imperial
+ * markets, a deliberate dashboard-v2 design decision.
+ */
+internal fun windUnitLabel(speedUnit: SpeedUnit): String =
+    when (speedUnit) {
+        SpeedUnit.MILES_PER_HOUR -> "mph"
+        SpeedUnit.KILOMETERS_PER_HOUR -> "m/s"
+    }
+
+/**
+ * Format a wind speed as a combined "value unit" string. The dashboard weather
+ * card splits the two ([windValue] + [windUnitLabel]) to dim the unit; the
+ * maximize panels keep this combined form.
  */
 internal fun windLabel(
     windKmh: Double,
     speedUnit: SpeedUnit,
-): String =
-    when (speedUnit) {
-        SpeedUnit.MILES_PER_HOUR -> "${speedUnit.fromKilometersPerHour(windKmh).roundToInt()} mph"
-        SpeedUnit.KILOMETERS_PER_HOUR -> "${(windKmh / SECONDS_PER_HOUR).roundToInt()} m/s"
-    }
+): String = "${windValue(windKmh, speedUnit)} ${windUnitLabel(speedUnit)}"
 
 internal fun TemperatureUnit.fromCelsius(celsius: Double): Double =
     when (this) {

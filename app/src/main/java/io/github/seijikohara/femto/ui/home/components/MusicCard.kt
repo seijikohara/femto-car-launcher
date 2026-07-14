@@ -47,7 +47,7 @@ private val RowContentGap = 14.dp
  *  1. Album art, up to 140 dp / 14 dp corner — narrower when the row is wide
  *     but short on height, so the meta column beside it keeps a fair share of
  *     the width ([FemtoDimens.MusicMetaMinWidth]).
- *  2. Meta — uppercase source eyebrow (10sp / 0.16em), 20sp title, 14sp artist
+ *  2. Meta — uppercase source eyebrow (12sp), 20sp title, 12sp artist
  *     / album, plus the progress bar. Title and progress always show; the
  *     album drops first, then the eyebrow, then the artist when the row is too
  *     short for all of them ([MusicMetaAndProgress]).

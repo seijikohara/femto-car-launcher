@@ -95,6 +95,11 @@ internal class CalendarRepository(
                 events = eventsByDay?.get(date).orEmpty(),
             )
         }
+        // A per-event color dot only tells the calendars apart when the window's
+        // events actually span more than one color. The denied path is an empty
+        // map and the query-failed path is null, so both collapse to an empty set
+        // and leave the flag false.
+        val distinctColors = eventsByDay?.values?.flatten()?.mapTo(mutableSetOf()) { it.color } ?: emptySet()
         return CalendarSnapshot(
             today = today,
             weekday = today.dayOfWeek.getDisplayName(TextStyle.FULL, locale),
@@ -102,6 +107,7 @@ internal class CalendarRepository(
             days = days,
             hasCalendarAccess = granted,
             queryFailed = eventsByDay == null,
+            multipleCalendarsVisible = distinctColors.size > 1,
         )
     }
 
@@ -194,6 +200,10 @@ internal class CalendarRepository(
                         CalendarContract.Instances.ALL_DAY,
                         CalendarContract.Instances.END,
                         CalendarContract.Instances.EVENT_LOCATION,
+                        // DISPLAY_COLOR resolves to the per-event color if set, else
+                        // the owning calendar's color — the value that identifies the
+                        // calendar in the multi-calendar color dot.
+                        CalendarContract.Instances.DISPLAY_COLOR,
                     ),
                     selection,
                     null,
@@ -207,6 +217,9 @@ internal class CalendarRepository(
                         val allDay = cursor.getInt(2) != 0
                         val endMs = cursor.getLong(3)
                         val location = cursor.getString(4)?.takeUnless { it.isBlank() }
+                        // DISPLAY_COLOR may arrive with a zero alpha byte, which would
+                        // render the dot invisible; force it opaque before storing.
+                        val color = cursor.getInt(5) or 0xFF000000.toInt()
                         byDay.getOrPut(localDateOf(startMs, allDay, zone)) { mutableListOf() } +=
                             EventItem(
                                 // All-day rows carry no clock time; surface null
@@ -218,6 +231,7 @@ internal class CalendarRepository(
                                 // meaningful clock time, so drop it too.
                                 endTime = if (allDay) null else LocalTime.ofInstant(Instant.ofEpochMilli(endMs), zone),
                                 location = location,
+                                color = color,
                             )
                     }
                 }

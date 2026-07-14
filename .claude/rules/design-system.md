@@ -36,19 +36,27 @@ with automotive overrides on top.
   nested emphasis on `surfaceContainerHigh`); do not pass a non-zero
   `tonalElevation` / `shadowElevation` to a `Surface` / `Card`. No
   dedicated elevation token exists.
-- Typography: Bold Minimal on M3 roles, tuned **one weight notch
-  lighter** than the original scale after on-device review found the
-  heavy display/headline weights too dense on the head unit (display
-  ExtraBold/Bold, headline SemiBold, title Medium; body Normal, label
-  Medium — `ui/theme/Type.kt` is the SSOT). Use
+- Typography: Bold Minimal on M3 roles, built on a **rem-style
+  modular scale** rooted at `FemtoDimens.BaseTextSize` (16 sp) with
+  0.25× multiplier steps (`FemtoDimens.TextXs` … `Text8Xl`) — re-base
+  the root and the whole scale moves — and a **three-weight system**:
+  `ExtraLight` (200) for the large hero numerals only, `Normal` (400)
+  for body / label / caption, `SemiBold` (600) for title / headline /
+  display. This replaces the earlier "one weight notch lighter" tuning.
+  Every role zeroes its letter-spacing (Bold Minimal runs untracked,
+  overriding the M3 per-role tracking); the named extensions carry none
+  either. `ui/theme/Type.kt` is the SSOT. Use
   `MaterialTheme.typography.*` styles or the named `Typography`
   extensions in `Type.kt` (`bigNumber`, `heroNumeral`, `sectionLabel`,
   `eyebrow`, `calendarWeekday`, `glanceMetric`, `glanceBody`,
   `glanceCaption`, `progressCaption`, `monoReference`, `cardTitle`,
   `cardMeta`, `cardCta`, `cardCtaHint`, `tileLabel`, `drawerBody`,
-  `attributionCredit`); never construct ad-hoc `TextStyle` literals —
+  `attributionCredit`, `unitLabel`, `panelMetric`); never construct
+  ad-hoc `TextStyle` literals —
   a recurring `.copy(fontSize = ...)` becomes a new named extension
-  in `Type.kt`.
+  in `Type.kt`. The dashboard's measured value + unit pairs share the
+  `UnitSuffix` composable (`ui/home/components/`), which renders
+  `unitLabel` dimmed and baseline-trailing.
 - Sizing: read from `FemtoDimens` (e.g. `FemtoDimens.MinTouchTarget`).
 - Previews use `@PreviewLightDark` from `ui/theme/PreviewLightDark.kt` — never
   hand-write the light/dark `@Preview` pair. Additional single-mode

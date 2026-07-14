@@ -69,9 +69,11 @@ internal fun ClockOverlay(
         }
     Text(
         text = now.format(formatter),
-        // Light + tighter tracking: the clock is ambient, so it reads as an airy
-        // premium numeral rather than a bold readout (it is not the safety glance).
-        style = MaterialTheme.typography.heroNumeral(trackingEm = -0.05f, weight = FontWeight.Light),
+        // Normal weight: the clock is ambient (not the safety glance), so it shares
+        // the dashboard's unified 40sp / Normal hero-numeral look with the calendar
+        // day and weather temperature. The speed value, by contrast, stays SemiBold
+        // as the safety-critical readout.
+        style = MaterialTheme.typography.heroNumeral(weight = FontWeight.Normal),
         color = MaterialTheme.colorScheme.onSurface,
         modifier =
             modifier
