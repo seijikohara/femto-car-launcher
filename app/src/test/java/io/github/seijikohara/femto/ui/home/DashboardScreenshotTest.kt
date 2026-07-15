@@ -25,6 +25,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
 
 /**
  * JVM/Robolectric screenshot regression for the main dashboard across the display
@@ -161,12 +164,16 @@ class DashboardScreenshotTest {
                     onAction = {},
                     modifier = Modifier.fillMaxSize(),
                     driverSide = driverSide,
+                    clock = FIXED_CLOCK,
                 )
             }
         }
     }
 
     private companion object {
+        // Fixed so the dashboard clock is deterministic across CI record/verify runs.
+        val FIXED_CLOCK: Clock = Clock.fixed(Instant.parse("2026-05-01T10:08:00Z"), ZoneOffset.UTC)
+
         // A small tolerance absorbs sub-pixel antialiasing differences between the
         // golden-record host and the CI runner while still catching real layout
         // regressions.

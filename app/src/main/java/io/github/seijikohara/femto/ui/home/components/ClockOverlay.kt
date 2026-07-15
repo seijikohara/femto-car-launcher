@@ -16,6 +16,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.heroNumeral
 import kotlinx.coroutines.delay
+import java.time.Clock
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
@@ -49,11 +50,12 @@ internal fun ClockOverlay(
     showSeconds: Boolean = true,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
+    clock: Clock = Clock.systemDefaultZone(),
 ) {
-    val now by produceState(initialValue = LocalTime.now(), showSeconds) {
+    val now by produceState(initialValue = LocalTime.now(clock), showSeconds) {
         while (true) {
-            value = LocalTime.now()
-            val nowMs = System.currentTimeMillis()
+            value = LocalTime.now(clock)
+            val nowMs = clock.millis()
             // Align the next tick to the upcoming second boundary, or the upcoming
             // minute boundary when seconds are hidden (no needless 60x/min wake-ups).
             val delayMs = if (showSeconds) 1000L - nowMs % 1000 else 60_000L - nowMs % 60_000
