@@ -112,6 +112,10 @@ internal fun WebMapView(
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
     recenterNonce: Int = 0,
+    // Validated-internet connectivity. A false->true transition reloads the page (see
+    // reloadGeneration below); defaults true so previews / callers that never wire it
+    // never trigger a reload.
+    online: Boolean = true,
     onFollowChange: (Boolean) -> Unit = {},
     onBearingChange: (Float) -> Unit = {},
     attributionBottomInset: Dp = 0.dp,
@@ -147,18 +151,42 @@ internal fun WebMapView(
     val rendererDeathsMs = remember { mutableListOf<Long>() }
     val crashedViews = remember { mutableSetOf<WebView>() }
 
+    // Connectivity-recovery reload. The map's style, sprite, glyphs, and tiles are all
+    // fetched from the network with nothing bundled offline, so a page opened offline
+    // cannot render and cannot recover on its own: the OSM page stays blank-but-live
+    // (fetch failures are logged `error` events) while the credentialed backends
+    // (Mapbox / Google Maps) report a `fatal`. Bumping this generation on the
+    // offline->online edge tears down and reloads the WebView — a key of the WebView,
+    // pageReady, AND liveInitFailed remembers below, exactly like rendererGeneration —
+    // so the resources re-fetch against the now-live network and a fatal gets a fresh
+    // online init.
+    //
+    // The edge detector sits ABOVE the early-return notice branch on purpose: a `fatal`
+    // takes that branch, so an effect placed below it would never compose while the
+    // notice shows and the fatal could never clear. [wasOnline] carries the previous
+    // value in a plain holder (never read in composition, so it triggers no
+    // recomposition — like bearingHolder above); a normal online start, an
+    // online->offline drop, or the initial value never bumps.
+    var reloadGeneration by remember { mutableIntStateOf(0) }
+    val wasOnline = remember { booleanArrayOf(online) }
+    LaunchedEffect(online) {
+        if (online && !wasOnline[0]) reloadGeneration++
+        wasOnline[0] = online
+    }
+
     // Flips true once the page's script has run (onPageFinished) so the JS bridge
     // functions exist. The state-pushing effects below gate + key on it, so the
     // current camera / style / feature state is (re)applied as soon as the page is
     // ready — closing the race where an effect fires before the script registers
     // window.updateCamera / setStyleUrl / setFeatures and is silently dropped.
     // Keyed on the SAME tuple as the WebView below so every rebuild — a backend
-    // switch, a corrected BYO credential, or a renderer-death generation bump —
-    // resets readiness to false; without that the stale `true` would let an effect
-    // fire against a fresh page before its script has registered the bridge.
+    // switch, a corrected BYO credential, or a renderer-death / connectivity-recovery
+    // generation bump — resets readiness to false; without that the stale `true` would
+    // let an effect fire against a fresh page before its script has registered the bridge.
     val pageReady =
         remember(
             rendererGeneration,
+            reloadGeneration,
             mapConfig.backend,
             effectiveMapboxToken,
             effectiveGoogleKey,
@@ -170,13 +198,15 @@ internal fun WebMapView(
     // renderer-death notice, this only informs — the persisted backend is untouched.
     // Keyed on backend AND the active backend's BYO credentials so a fatal from one
     // backend does not suppress the other's page, and re-entering a corrected
-    // token / key / Map ID clears a prior failure (the rebuild gets a fresh chance).
+    // token / key / Map ID clears a prior failure. reloadGeneration is a key too, so a
+    // connectivity-recovery reload clears an offline-triggered fatal (Mapbox / Google
+    // Maps report one when opened offline) and the rebuilt page gets a fresh online init.
     var liveInitFailed by
-        remember(mapConfig.backend, effectiveMapboxToken, effectiveGoogleKey, effectiveGoogleMapId) {
+        remember(reloadGeneration, mapConfig.backend, effectiveMapboxToken, effectiveGoogleKey, effectiveGoogleMapId) {
             mutableStateOf(false)
         }
     var lastFatalDetail by
-        remember(mapConfig.backend, effectiveMapboxToken, effectiveGoogleKey, effectiveGoogleMapId) {
+        remember(reloadGeneration, mapConfig.backend, effectiveMapboxToken, effectiveGoogleKey, effectiveGoogleMapId) {
             mutableStateOf<String?>(null)
         }
     // Bridge callbacks arrive on a WebView-managed background thread; Compose
@@ -234,9 +264,11 @@ internal fun WebMapView(
         // fresh page — without these keys the old page keeps running while the new
         // bridge effects fire against the wrong DOM. The credentials are backend-
         // scoped (see above) so editing the inactive backend's token does not rebuild.
-        // rendererGeneration remains a key so renderer-death rebuilds still work.
+        // rendererGeneration remains a key so renderer-death rebuilds still work;
+        // reloadGeneration reloads the page when connectivity returns.
         remember(
             rendererGeneration,
+            reloadGeneration,
             mapConfig.backend,
             effectiveMapboxToken,
             effectiveGoogleKey,

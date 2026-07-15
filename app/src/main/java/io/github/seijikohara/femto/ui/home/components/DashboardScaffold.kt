@@ -281,6 +281,7 @@ private fun DashboardContent(
         onTap = { onAction(HomeAction.OpenMaps) },
         modifier = Modifier.fillMaxSize().hazeSource(hazeState),
         recenterNonce = recenterNonce,
+        online = uiState.online,
         onFollowChange = { following = it },
         onBearingChange = { bearingDeg = it },
         attributionBottomInset = attributionBottomInset,

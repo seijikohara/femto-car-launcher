@@ -107,6 +107,66 @@ internal class SystemStatusRepository(
             )
         }.distinctUntilChanged().flowOn(dispatcher)
 
+    /**
+     * Whether ANY network currently has validated internet access — `true` once at
+     * least one transport (Wi-Fi, cellular, Ethernet, …) reaches reachable internet
+     * ([NetworkCapabilities.NET_CAPABILITY_VALIDATED]), `false` in airplane mode,
+     * behind a captive portal, or on a router with no upstream. Transport-agnostic
+     * on purpose (no `addTransportType`), unlike [wifiFlow] / [cellularFlow] which
+     * report per-transport dock state.
+     *
+     * Exists for the live map: the map WebView fetches its style, sprite, glyphs, and
+     * tiles from the network with nothing bundled offline, so a page opened offline
+     * cannot render — it stays blank, or a credentialed backend reports a fatal init
+     * failure — and cannot recover on its own. The host reloads the page on the
+     * offline->online edge this flow reports.
+     *
+     * The request requires VALIDATED (real internet, not mere link-up), so
+     * `onAvailable` / `onLost` bracket exactly the validated lifetime and the tracked
+     * set mirrors it — a network dropping validation stops matching and fires
+     * `onLost`, needing no `onCapabilitiesChanged` re-check. Seeds the current state
+     * synchronously (mirroring [bluetoothBroadcastFlow]) so an online cold start
+     * emits `true` first, not a `false` the map would read as a spurious recovery
+     * edge; the seed also gives the outer combine an initial value in airplane mode,
+     * where no callback ever fires.
+     */
+    fun onlineFlow(): Flow<Boolean> {
+        val cm = connectivity ?: return flowOf(false)
+        return callbackFlow {
+            trySend(cm.isValidatedOnline())
+            val onlineNetworks = mutableSetOf<Network>()
+            val callback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    onlineNetworks += network
+                    trySend(true)
+                }
+
+                override fun onLost(network: Network) {
+                    onlineNetworks -= network
+                    trySend(onlineNetworks.isNotEmpty())
+                }
+            }
+            val request = NetworkRequest
+                .Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                .build()
+            cm.registerNetworkCallback(request, callback)
+            awaitClose { cm.unregisterNetworkCallback(callback) }
+        }.distinctUntilChanged().flowOn(dispatcher)
+    }
+
+    // Current validated-internet state, read synchronously for onlineFlow's seed. Checks
+    // the SAME capabilities the request requires (INTERNET + VALIDATED) so the seed and
+    // the callback agree on what "online" means.
+    private fun ConnectivityManager.isValidatedOnline(): Boolean =
+        activeNetwork
+            ?.let { getNetworkCapabilities(it) }
+            ?.let {
+                it.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                    it.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            } == true
+
     // Kotlin's typed combine overloads cover at most 5 flows; the cluster has
     // six sources once cellular signal strength joins. Stage the two reactive
     // ConnectivityManager-backed readings through a typed intermediate so the

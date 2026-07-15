@@ -22,6 +22,10 @@ internal data class HomeUiState(
     val calendar: CalendarSnapshot?,
     val systemStatus: SystemStatus,
     val tripState: TripState,
+    // Validated-internet connectivity. Drives the live map's offline->online reload
+    // (see WebMapView); starts true so the initial dashboard assumes connectivity
+    // until the connectivity flow reports otherwise.
+    val online: Boolean,
 ) {
     companion object {
         val Initial: HomeUiState =
@@ -33,6 +37,7 @@ internal data class HomeUiState(
                 calendar = null,
                 systemStatus = SystemStatus.Initial,
                 tripState = TripState.Initial,
+                online = true,
             )
     }
 }

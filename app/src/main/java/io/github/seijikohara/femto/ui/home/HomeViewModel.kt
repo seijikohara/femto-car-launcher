@@ -58,6 +58,10 @@ internal class HomeViewModel(
     private val calendarFlow: Flow<CalendarSnapshot?>,
     private val systemStatusFlow: Flow<SystemStatus>,
     private val tripStateFlow: Flow<TripState>,
+    // Whether the device currently has validated internet; drives the live map's
+    // offline->online reload (see WebMapView). Defaults to always-online so previews
+    // and tests that do not exercise recovery are unaffected.
+    private val onlineFlow: Flow<Boolean> = flowOf(true),
     private val sendMusicCommand: (MusicCommand) -> Unit = {},
     private val resumeLastMusicSession: () -> Unit = {},
     private val resetTrip: () -> Unit = {},
@@ -65,7 +69,7 @@ internal class HomeViewModel(
     private val spectrumEnabledFlow: Flow<Boolean> = flowOf(false),
     private val spectrumBandsFor: (Flow<Boolean>) -> Flow<FloatArray?> = { flowOf(null) },
 ) : ViewModel() {
-    // Kotlin's typed combine overloads cover at most 5 flows. Stage the seven
+    // Kotlin's typed combine overloads cover at most 5 flows. Stage the eight
     // sources through a typed intermediate (CoreSignals) so the compiler enforces
     // arity and per-slot types end-to-end: a future reorder fails to compile
     // instead of silently mismapping a positional values[i] cast.
@@ -90,7 +94,8 @@ internal class HomeViewModel(
             calendarFlow.catchAsDefault("calendar", HomeUiState.Initial.calendar),
             systemStatusFlow.catchAsDefault("system status", HomeUiState.Initial.systemStatus),
             tripStateFlow.catchAsDefault("trip state", HomeUiState.Initial.tripState),
-        ) { core, calendar, systemStatus, tripState ->
+            onlineFlow.catchAsDefault("connectivity", HomeUiState.Initial.online),
+        ) { core, calendar, systemStatus, tripState, online ->
             HomeUiState(
                 location = core.location,
                 address = core.address,
@@ -99,6 +104,7 @@ internal class HomeViewModel(
                 calendar = calendar,
                 systemStatus = systemStatus,
                 tripState = tripState,
+                online = online,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, HomeUiState.Initial)
 
@@ -323,6 +329,7 @@ internal class HomeViewModelFactory(
             calendarFlow = calendar.snapshotFlow(),
             systemStatusFlow = systemStatus.statusFlow(),
             tripStateFlow = locationGraph.tripState,
+            onlineFlow = systemStatus.onlineFlow(),
             sendMusicCommand = music::send,
             resumeLastMusicSession = music::dispatchPlayMediaKey,
             resetTrip = locationGraph::resetTrip,
