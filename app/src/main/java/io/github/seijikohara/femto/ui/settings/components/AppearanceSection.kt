@@ -44,6 +44,10 @@ private const val MIN_GLASS_BLUR = 0
 private const val MAX_GLASS_BLUR = 40
 private const val MIN_GLASS_OPACITY = 0
 private const val MAX_GLASS_OPACITY = 100
+private const val MIN_GLASS_SHADOW_INTENSITY = 0
+private const val MAX_GLASS_SHADOW_INTENSITY = 100
+private const val MIN_GLASS_SHADOW_SIZE = 0
+private const val MAX_GLASS_SHADOW_SIZE = 24
 
 // Font-adjustment slider bounds. Size in sp; weight as a tier step (each step
 // shifts the three Bold Minimal weight tiers by 100); letter spacing in
@@ -139,6 +143,36 @@ internal fun AppearanceSection(
         range = MIN_GLASS_OPACITY..MAX_GLASS_OPACITY,
         onValueChange = { onAction(SettingsAction.SetGlassTintScale(it)) },
     )
+    SwitchRow(
+        title = stringResource(R.string.settings_group_glass_border),
+        checked = uiState.glassShowBorder,
+        onCheckedChange = { onAction(SettingsAction.SetGlassShowBorder(it)) },
+    )
+    SwitchRow(
+        title = stringResource(R.string.settings_group_glass_shadow),
+        checked = uiState.glassShadowEnabled,
+        onCheckedChange = { onAction(SettingsAction.SetGlassShadowEnabled(it)) },
+    )
+    // The intensity / size sliders only apply while the shadow is on; gate them
+    // like the map-scheme rows above so inert controls do not clutter the sheet.
+    AnimatedVisibility(visible = uiState.glassShadowEnabled) {
+        SliderRow(
+            title = stringResource(R.string.settings_group_glass_shadow_intensity),
+            valueLabel = stringResource(R.string.settings_glass_shadow_intensity_value, uiState.glassShadowIntensity),
+            value = uiState.glassShadowIntensity,
+            range = MIN_GLASS_SHADOW_INTENSITY..MAX_GLASS_SHADOW_INTENSITY,
+            onValueChange = { onAction(SettingsAction.SetGlassShadowIntensity(it)) },
+        )
+    }
+    AnimatedVisibility(visible = uiState.glassShadowEnabled) {
+        SliderRow(
+            title = stringResource(R.string.settings_group_glass_shadow_size),
+            valueLabel = stringResource(R.string.settings_glass_shadow_size_value, uiState.glassShadowSizeDp),
+            value = uiState.glassShadowSizeDp,
+            range = MIN_GLASS_SHADOW_SIZE..MAX_GLASS_SHADOW_SIZE,
+            onValueChange = { onAction(SettingsAction.SetGlassShadowSizeDp(it)) },
+        )
+    }
     SettingsSubheader(stringResource(R.string.settings_subheader_fonts))
     FontRow(
         title = stringResource(R.string.settings_group_font_latin),

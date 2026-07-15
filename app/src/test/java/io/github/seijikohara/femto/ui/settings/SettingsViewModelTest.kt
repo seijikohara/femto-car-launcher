@@ -399,6 +399,38 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `SetGlassShowBorder writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetGlassShowBorder(true))
+            advanceUntilIdle()
+            assertEquals(true, store.settings.first().glassShowBorder)
+        }
+
+    @Test
+    fun `SetGlassShadowEnabled writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetGlassShadowEnabled(true))
+            advanceUntilIdle()
+            assertEquals(true, store.settings.first().glassShadowEnabled)
+        }
+
+    @Test
+    fun `SetGlassShadowIntensity writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetGlassShadowIntensity(70))
+            advanceUntilIdle()
+            assertEquals(70, store.settings.first().glassShadowIntensity)
+        }
+
+    @Test
+    fun `SetGlassShadowSizeDp writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetGlassShadowSizeDp(16))
+            advanceUntilIdle()
+            assertEquals(16, store.settings.first().glassShadowSizeDp)
+        }
+
+    @Test
     fun `SetFontBaseSizeSp writes the value to the store`() =
         runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetFontBaseSizeSp(18))

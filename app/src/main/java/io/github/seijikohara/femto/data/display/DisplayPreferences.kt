@@ -91,6 +91,14 @@ internal interface DisplaySettingsStore {
 
     suspend fun setGlassTintScale(value: Int)
 
+    suspend fun setGlassShowBorder(value: Boolean)
+
+    suspend fun setGlassShadowEnabled(value: Boolean)
+
+    suspend fun setGlassShadowIntensity(value: Int)
+
+    suspend fun setGlassShadowSizeDp(value: Int)
+
     suspend fun setFontBaseSizeSp(value: Int)
 
     suspend fun setFontWeightStep(value: Int)
@@ -177,6 +185,10 @@ internal class DisplayPreferences(
                     mapTerrain = prefs[MAP_TERRAIN_KEY] ?: false,
                     glassBlurRadius = prefs[GLASS_BLUR_KEY] ?: DEFAULT_GLASS_BLUR_DP,
                     glassTintScale = prefs[GLASS_TINT_KEY] ?: DEFAULT_GLASS_TINT_SCALE,
+                    glassShowBorder = prefs[GLASS_SHOW_BORDER_KEY] ?: false,
+                    glassShadowEnabled = prefs[GLASS_SHADOW_ENABLED_KEY] ?: false,
+                    glassShadowIntensity = prefs[GLASS_SHADOW_INTENSITY_KEY] ?: DEFAULT_GLASS_SHADOW_INTENSITY,
+                    glassShadowSizeDp = prefs[GLASS_SHADOW_SIZE_KEY] ?: DEFAULT_GLASS_SHADOW_SIZE_DP,
                     fontBaseSizeSp = prefs[FONT_BASE_SIZE_KEY] ?: DEFAULT_FONT_BASE_SIZE_SP,
                     fontWeightStep = prefs[FONT_WEIGHT_STEP_KEY] ?: DEFAULT_FONT_WEIGHT_STEP,
                     fontLetterSpacingCentiEm = prefs[FONT_LETTER_SPACING_KEY] ?: DEFAULT_FONT_LETTER_SPACING_CENTI_EM,
@@ -307,6 +319,22 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[GLASS_TINT_KEY] = value }
     }
 
+    override suspend fun setGlassShowBorder(value: Boolean) {
+        context.displayDataStore.editOrLog(TAG) { it[GLASS_SHOW_BORDER_KEY] = value }
+    }
+
+    override suspend fun setGlassShadowEnabled(value: Boolean) {
+        context.displayDataStore.editOrLog(TAG) { it[GLASS_SHADOW_ENABLED_KEY] = value }
+    }
+
+    override suspend fun setGlassShadowIntensity(value: Int) {
+        context.displayDataStore.editOrLog(TAG) { it[GLASS_SHADOW_INTENSITY_KEY] = value }
+    }
+
+    override suspend fun setGlassShadowSizeDp(value: Int) {
+        context.displayDataStore.editOrLog(TAG) { it[GLASS_SHADOW_SIZE_KEY] = value }
+    }
+
     override suspend fun setFontBaseSizeSp(value: Int) {
         context.displayDataStore.editOrLog(TAG) { it[FONT_BASE_SIZE_KEY] = value }
     }
@@ -418,6 +446,10 @@ internal class DisplayPreferences(
         val MAP_TERRAIN_KEY = booleanPreferencesKey("map_terrain")
         val GLASS_BLUR_KEY = intPreferencesKey("glass_blur_radius")
         val GLASS_TINT_KEY = intPreferencesKey("glass_tint_scale")
+        val GLASS_SHOW_BORDER_KEY = booleanPreferencesKey("glass_show_border")
+        val GLASS_SHADOW_ENABLED_KEY = booleanPreferencesKey("glass_shadow_enabled")
+        val GLASS_SHADOW_INTENSITY_KEY = intPreferencesKey("glass_shadow_intensity")
+        val GLASS_SHADOW_SIZE_KEY = intPreferencesKey("glass_shadow_size_dp")
         val FONT_BASE_SIZE_KEY = intPreferencesKey("font_base_size_sp")
         val FONT_WEIGHT_STEP_KEY = intPreferencesKey("font_weight_step")
         val FONT_LETTER_SPACING_KEY = intPreferencesKey("font_letter_spacing_centi_em")
@@ -474,6 +506,10 @@ internal class DisplayPreferences(
                 MAP_TERRAIN_KEY,
                 GLASS_BLUR_KEY,
                 GLASS_TINT_KEY,
+                GLASS_SHOW_BORDER_KEY,
+                GLASS_SHADOW_ENABLED_KEY,
+                GLASS_SHADOW_INTENSITY_KEY,
+                GLASS_SHADOW_SIZE_KEY,
                 FONT_BASE_SIZE_KEY,
                 FONT_WEIGHT_STEP_KEY,
                 FONT_LETTER_SPACING_KEY,

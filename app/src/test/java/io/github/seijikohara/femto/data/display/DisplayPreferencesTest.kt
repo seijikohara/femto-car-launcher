@@ -146,6 +146,34 @@ class DisplayPreferencesTest {
             }
         }
 
+    @Test
+    fun `glass chrome settings read their defaults and round-trip`() =
+        runTest {
+            val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
+            store.resetToDefaults()
+
+            // Defaults: with no glass-chrome keys written the read path falls back to
+            // border/shadow off at the shared intensity / size constants.
+            store.settings.first().let { s ->
+                assertFalse(s.glassShowBorder)
+                assertFalse(s.glassShadowEnabled)
+                assertEquals(DEFAULT_GLASS_SHADOW_INTENSITY, s.glassShadowIntensity)
+                assertEquals(DEFAULT_GLASS_SHADOW_SIZE_DP, s.glassShadowSizeDp)
+            }
+
+            // Round-trip: enable both and write non-default intensity / size.
+            store.setGlassShowBorder(true)
+            store.setGlassShadowEnabled(true)
+            store.setGlassShadowIntensity(70)
+            store.setGlassShadowSizeDp(16)
+            store.settings.first().let { s ->
+                assertTrue(s.glassShowBorder)
+                assertTrue(s.glassShadowEnabled)
+                assertEquals(70, s.glassShadowIntensity)
+                assertEquals(16, s.glassShadowSizeDp)
+            }
+        }
+
     // One test per section: mutate every field away from Default, resetKeys()
     // just that section, then assert the whole DisplaySettings equals `mutated`
     // with only that section's fields folded back to Default — a single
@@ -166,6 +194,10 @@ class DisplayPreferencesTest {
                     mapSchemeDark = DisplaySettings.Default.mapSchemeDark,
                     glassBlurRadius = DisplaySettings.Default.glassBlurRadius,
                     glassTintScale = DisplaySettings.Default.glassTintScale,
+                    glassShowBorder = DisplaySettings.Default.glassShowBorder,
+                    glassShadowEnabled = DisplaySettings.Default.glassShadowEnabled,
+                    glassShadowIntensity = DisplaySettings.Default.glassShadowIntensity,
+                    glassShadowSizeDp = DisplaySettings.Default.glassShadowSizeDp,
                     fontBaseSizeSp = DisplaySettings.Default.fontBaseSizeSp,
                     fontWeightStep = DisplaySettings.Default.fontWeightStep,
                     fontLetterSpacingCentiEm = DisplaySettings.Default.fontLetterSpacingCentiEm,
@@ -316,6 +348,10 @@ class DisplayPreferencesTest {
         setMapTerrain(true)
         setGlassBlurRadius(5)
         setGlassTintScale(90)
+        setGlassShowBorder(true)
+        setGlassShadowEnabled(true)
+        setGlassShadowIntensity(70)
+        setGlassShadowSizeDp(16)
         setFontBaseSizeSp(20)
         setFontWeightStep(2)
         setFontLetterSpacingCentiEm(8)

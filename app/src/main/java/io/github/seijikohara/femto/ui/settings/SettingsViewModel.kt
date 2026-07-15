@@ -68,6 +68,10 @@ internal class SettingsViewModel(
                 mapTerrain = display.mapTerrain,
                 glassBlurRadius = display.glassBlurRadius,
                 glassTintScale = display.glassTintScale,
+                glassShowBorder = display.glassShowBorder,
+                glassShadowEnabled = display.glassShadowEnabled,
+                glassShadowIntensity = display.glassShadowIntensity,
+                glassShadowSizeDp = display.glassShadowSizeDp,
                 fontBaseSizeSp = display.fontBaseSizeSp,
                 fontWeightStep = display.fontWeightStep,
                 fontLetterSpacingCentiEm = display.fontLetterSpacingCentiEm,
@@ -199,6 +203,22 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetGlassTintScale -> {
                     displayPreferences.setGlassTintScale(action.value)
+                }
+
+                is SettingsAction.SetGlassShowBorder -> {
+                    displayPreferences.setGlassShowBorder(action.value)
+                }
+
+                is SettingsAction.SetGlassShadowEnabled -> {
+                    displayPreferences.setGlassShadowEnabled(action.value)
+                }
+
+                is SettingsAction.SetGlassShadowIntensity -> {
+                    displayPreferences.setGlassShadowIntensity(action.value)
+                }
+
+                is SettingsAction.SetGlassShadowSizeDp -> {
+                    displayPreferences.setGlassShadowSizeDp(action.value)
                 }
 
                 is SettingsAction.SetFontBaseSizeSp -> {
