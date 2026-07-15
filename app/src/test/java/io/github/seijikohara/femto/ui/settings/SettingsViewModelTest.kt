@@ -409,9 +409,9 @@ class SettingsViewModelTest {
     @Test
     fun `SetGlassShadowEnabled writes the value to the store`() =
         runTest(dispatcher) {
-            viewModel().onAction(SettingsAction.SetGlassShadowEnabled(true))
+            viewModel().onAction(SettingsAction.SetGlassShadowEnabled(false))
             advanceUntilIdle()
-            assertEquals(true, store.settings.first().glassShadowEnabled)
+            assertEquals(false, store.settings.first().glassShadowEnabled)
         }
 
     @Test

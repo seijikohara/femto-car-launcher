@@ -186,7 +186,7 @@ internal class DisplayPreferences(
                     glassBlurRadius = prefs[GLASS_BLUR_KEY] ?: DEFAULT_GLASS_BLUR_DP,
                     glassTintScale = prefs[GLASS_TINT_KEY] ?: DEFAULT_GLASS_TINT_SCALE,
                     glassShowBorder = prefs[GLASS_SHOW_BORDER_KEY] ?: false,
-                    glassShadowEnabled = prefs[GLASS_SHADOW_ENABLED_KEY] ?: false,
+                    glassShadowEnabled = prefs[GLASS_SHADOW_ENABLED_KEY] ?: DEFAULT_GLASS_SHADOW_ENABLED,
                     glassShadowIntensity = prefs[GLASS_SHADOW_INTENSITY_KEY] ?: DEFAULT_GLASS_SHADOW_INTENSITY,
                     glassShadowSizeDp = prefs[GLASS_SHADOW_SIZE_KEY] ?: DEFAULT_GLASS_SHADOW_SIZE_DP,
                     fontBaseSizeSp = prefs[FONT_BASE_SIZE_KEY] ?: DEFAULT_FONT_BASE_SIZE_SP,
