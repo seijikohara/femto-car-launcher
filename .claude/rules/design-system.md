@@ -35,12 +35,13 @@ with automotive overrides on top.
   `surfaceContainer*` color roles (cards sit on `surfaceContainer`,
   nested emphasis on `surfaceContainerHigh`); do not pass a non-zero
   `tonalElevation` / `shadowElevation` to a `Surface` / `Card`. No
-  dedicated elevation token exists. **Exception:** the user-opt-in
-  glass drop shadow (`GlassConfig.shadowEnabled`, default off) is a
-  sanctioned drop shadow via `Modifier.shadow` on the glass chrome
-  (not `Surface` / `Card` elevation); it is theme-aware — a black
-  shadow on light, a faint white glow on dark — and pairs with the
-  opt-in glass border (`GlassConfig.showBorder`, `outlineVariant`).
+  dedicated elevation token exists. **Exception:** the glass drop
+  shadow (`GlassConfig.shadowEnabled`, default **on**) is a sanctioned
+  drop shadow via `Modifier.shadow` on the glass chrome (not `Surface`
+  / `Card` elevation); it is theme-aware — a black shadow on light, a
+  faint white glow on dark — and pairs with the opt-in glass border
+  (`GlassConfig.showBorder`, default off, drawn as the shared
+  `outlineVariant` / `DividerAlpha` divider hairline).
 - Typography: Bold Minimal on M3 roles, built on a **rem-style
   modular scale** rooted at `FemtoDimens.BaseTextSize` (16 sp) with
   0.25× multiplier steps (`FemtoDimens.TextXs` … `Text8Xl`) — re-base

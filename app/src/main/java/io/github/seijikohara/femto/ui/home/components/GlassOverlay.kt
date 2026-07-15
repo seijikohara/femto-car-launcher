@@ -14,9 +14,11 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 import io.github.seijikohara.femto.data.display.DEFAULT_GLASS_BLUR_DP
+import io.github.seijikohara.femto.data.display.DEFAULT_GLASS_SHADOW_ENABLED
 import io.github.seijikohara.femto.data.display.DEFAULT_GLASS_SHADOW_INTENSITY
 import io.github.seijikohara.femto.data.display.DEFAULT_GLASS_SHADOW_SIZE_DP
 import io.github.seijikohara.femto.data.display.DEFAULT_GLASS_TINT_SCALE
+import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.LocalFemtoDarkTheme
 
 /**
@@ -25,15 +27,15 @@ import io.github.seijikohara.femto.ui.theme.LocalFemtoDarkTheme
  * / speed overlays and the dock like [MapConfig]. The defaults mirror the
  * persisted defaults so a config-less preview matches a fresh install. [tintScale]
  * is the absolute tint opacity percent (0 = clear glass, 100 = fully opaque
- * surface). [showBorder] and [shadowEnabled] default off, preserving the
- * frameless frosted-glass look; [shadowIntensity] is a 0-100 percent and
- * [shadowSize] the shadow's blur/elevation.
+ * surface). [showBorder] defaults off (the frameless frosted-glass look);
+ * [shadowEnabled] defaults on — a subtle theme-aware drop shadow. [shadowIntensity]
+ * is a 0-100 percent and [shadowSize] the shadow's blur / elevation.
  */
 internal data class GlassConfig(
     val blurRadius: Dp = DEFAULT_GLASS_BLUR_DP.dp,
     val tintScale: Int = DEFAULT_GLASS_TINT_SCALE,
     val showBorder: Boolean = false,
-    val shadowEnabled: Boolean = false,
+    val shadowEnabled: Boolean = DEFAULT_GLASS_SHADOW_ENABLED,
     val shadowIntensity: Int = DEFAULT_GLASS_SHADOW_INTENSITY,
     val shadowSize: Dp = DEFAULT_GLASS_SHADOW_SIZE_DP.dp,
 )
@@ -68,13 +70,13 @@ private val GlassBorderWidth = 1.dp
  * The complete glass-chrome recipe shared by every map overlay (clock, speed, map
  * controls), the dashboard cards, and the dock: an optional drop shadow, clip to
  * [shape], frost the backdrop via [glassEffect], and an optional outline. The
- * shadow and border are user opt-ins ([GlassConfig]); with both off the surface
- * reads as the default frameless frosted glass.
+ * shadow is a default-on user setting; the border a default-off opt-in
+ * ([GlassConfig]).
  *
  * The shadow colour is theme-aware: light theme drops a black shadow, while dark
  * theme lifts the panel off the dark map with a faint white glow (a black shadow
- * would sink into the dark backdrop). The border tracks [MaterialTheme]'s
- * `outlineVariant`, so it adapts to the theme as well.
+ * would sink into the dark backdrop). The border is the same hairline as the dock
+ * / speed-panel dividers — `outlineVariant` at [FemtoDimens.DividerAlpha].
  */
 @Composable
 internal fun Modifier.glassChrome(
@@ -106,7 +108,13 @@ internal fun Modifier.glassChrome(
         .glassEffect(hazeState, glassConfig.blurRadius, glassConfig.tintScale)
         .then(
             if (glassConfig.showBorder) {
-                Modifier.border(GlassBorderWidth, MaterialTheme.colorScheme.outlineVariant, shape)
+                // Same hairline as the dock / speed-panel dividers: outlineVariant at the
+                // shared DividerAlpha, so the opt-in panel outline reads as one family.
+                Modifier.border(
+                    GlassBorderWidth,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha),
+                    shape,
+                )
             } else {
                 Modifier
             },
