@@ -28,6 +28,7 @@ import com.composables.icons.lucide.Sunset
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.weather.DailyForecast
 import io.github.seijikohara.femto.data.weather.HourlyForecast
 import io.github.seijikohara.femto.data.weather.WeatherCode
@@ -40,6 +41,7 @@ import io.github.seijikohara.femto.ui.locale.windLabel
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.WeatherGlyphColors
 import io.github.seijikohara.femto.ui.theme.bigNumber
@@ -73,6 +75,7 @@ internal fun WeatherPanel(
     onOpenExternal: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    motionTier: MotionTier = MotionTier.STANDARD,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
 ) = MaximizePanel(
@@ -92,20 +95,37 @@ internal fun WeatherPanel(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
     ) {
-        Hero(snapshot, temperatureUnit, speedUnit)
-        if (snapshot.hourly.isNotEmpty()) HourlyStrip(snapshot, temperatureUnit, is24Hour, portrait)
+        // Each region dissolves on a data refresh — keyed on the whole snapshot,
+        // so a genuinely new fetch (not a per-frame value) drives the fade,
+        // mirroring the compact WeatherCard. The regions fade individually rather
+        // than wrapping the scrolling Column, so a refresh keeps the user's scroll
+        // position instead of snapping back to the top.
+        Motion.ContentCrossfade(targetState = snapshot, tier = motionTier, label = "weatherPanelHero") {
+            Hero(it, temperatureUnit, speedUnit)
+        }
+        if (snapshot.hourly.isNotEmpty()) {
+            Motion.ContentCrossfade(targetState = snapshot, tier = motionTier, label = "weatherPanelHourly") {
+                HourlyStrip(it, temperatureUnit, is24Hour, portrait)
+            }
+        }
         if (portrait) {
-            if (snapshot.daily.isNotEmpty()) DailyList(snapshot.daily, temperatureUnit)
-            Details(snapshot, is24Hour)
-        } else {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(FemtoDimens.ScreenPadding),
-            ) {
-                if (snapshot.daily.isNotEmpty()) {
-                    DailyList(snapshot.daily, temperatureUnit, modifier = Modifier.weight(1f))
+            Motion.ContentCrossfade(targetState = snapshot, tier = motionTier, label = "weatherPanelDetails") {
+                Column(verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap)) {
+                    if (it.daily.isNotEmpty()) DailyList(it.daily, temperatureUnit)
+                    Details(it, is24Hour)
                 }
-                Details(snapshot, is24Hour, modifier = Modifier.weight(1f))
+            }
+        } else {
+            Motion.ContentCrossfade(targetState = snapshot, tier = motionTier, label = "weatherPanelDetails") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(FemtoDimens.ScreenPadding),
+                ) {
+                    if (it.daily.isNotEmpty()) {
+                        DailyList(it.daily, temperatureUnit, modifier = Modifier.weight(1f))
+                    }
+                    Details(it, is24Hour, modifier = Modifier.weight(1f))
+                }
             }
         }
     }

@@ -628,6 +628,7 @@ private fun DashboardOverlays(
                     onClose = { calendarExpanded = false },
                     hazeState = hazeState,
                     glassConfig = glassConfig,
+                    motionTier = motionTier,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -649,6 +650,7 @@ private fun DashboardOverlays(
                     onClose = { weatherExpanded = false },
                     hazeState = hazeState,
                     glassConfig = glassConfig,
+                    motionTier = motionTier,
                     modifier = Modifier.fillMaxSize(),
                 )
             }

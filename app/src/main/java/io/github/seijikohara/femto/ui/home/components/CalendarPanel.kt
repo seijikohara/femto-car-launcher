@@ -24,8 +24,10 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.calendar.DayCell
 import io.github.seijikohara.femto.data.calendar.EventItem
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import io.github.seijikohara.femto.ui.theme.calendarWeekday
@@ -61,6 +63,7 @@ internal fun CalendarPanel(
     onOpenExternal: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    motionTier: MotionTier = MotionTier.STANDARD,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
 ) = MaximizePanel(
@@ -82,6 +85,7 @@ internal fun CalendarPanel(
             today = snapshot.today,
             is24Hour = is24Hour,
             showColorDots = snapshot.multipleCalendarsVisible,
+            motionTier = motionTier,
             modifier = Modifier.fillMaxSize(),
         )
     } else {
@@ -95,6 +99,7 @@ internal fun CalendarPanel(
                 snapshot.today,
                 is24Hour,
                 snapshot.multipleCalendarsVisible,
+                motionTier,
                 Modifier.weight(1f).fillMaxHeight(),
             )
             AgendaColumn(
@@ -102,6 +107,7 @@ internal fun CalendarPanel(
                 snapshot.today,
                 is24Hour,
                 snapshot.multipleCalendarsVisible,
+                motionTier,
                 Modifier.weight(1f).fillMaxHeight(),
             )
         }
@@ -146,6 +152,7 @@ private fun AgendaColumn(
     today: LocalDate,
     is24Hour: Boolean,
     showColorDots: Boolean,
+    motionTier: MotionTier,
     modifier: Modifier = Modifier,
 ) = FitWholeRows(
     modifier = modifier,
@@ -155,10 +162,11 @@ private fun AgendaColumn(
     days.forEachIndexed { index, day ->
         AgendaDay(
             day = day,
-            isToday = day.date == today,
+            today = today,
             isFirst = index == 0,
             is24Hour = is24Hour,
             showColorDots = showColorDots,
+            motionTier = motionTier,
         )
     }
 }
@@ -170,56 +178,73 @@ private fun AgendaColumn(
 @Composable
 private fun AgendaDay(
     day: DayCell,
-    isToday: Boolean,
+    today: LocalDate,
     isFirst: Boolean,
     is24Hour: Boolean,
     showColorDots: Boolean,
+    motionTier: MotionTier,
     modifier: Modifier = Modifier,
-) = Column(
-    modifier = modifier.fillMaxWidth(),
-    verticalArrangement = Arrangement.spacedBy(10.dp),
-) {
-    if (!isFirst) {
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha))
-    }
-    Row(
+) = Motion.ContentCrossfade(
+    // A day's block dissolves when its events change on a refresh (DayCell
+    // equality is structural). isFirst is positional, so the leading divider
+    // stays consistent across the swap; isToday derives from the faded day so the
+    // outgoing frame stays internally consistent. FitWholeRows still measures one
+    // child per day (the Crossfade's single root), so its fit-to-height count is
+    // unaffected.
+    targetState = day,
+    tier = motionTier,
+    label = "agendaDay",
+    modifier = modifier,
+) { current ->
+    val isToday = current.date == today
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalAlignment = Alignment.Top,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        val accent = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-        Column(
-            modifier = Modifier.width(44.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = day.weekdayLetter.take(3).uppercase(),
-                style = MaterialTheme.typography.sectionLabel(12),
-                color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                softWrap = false,
-            )
-            Text(
-                text = "${day.date.dayOfMonth}",
-                style = MaterialTheme.typography.calendarWeekday(),
-                color = accent,
-                maxLines = 1,
-            )
+        if (!isFirst) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha))
         }
-        Column(
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.Top,
         ) {
-            if (day.events.isEmpty()) {
+            val accent = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+            val weekdayColor =
+                if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            Column(
+                modifier = Modifier.width(44.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Text(
-                    text = stringResource(R.string.calendar_no_events),
-                    style = MaterialTheme.typography.cardMeta(),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = current.weekdayLetter.take(3).uppercase(),
+                    style = MaterialTheme.typography.sectionLabel(12),
+                    color = weekdayColor,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+                Text(
+                    text = "${current.date.dayOfMonth}",
+                    style = MaterialTheme.typography.calendarWeekday(),
+                    color = accent,
                     maxLines = 1,
                 )
-            } else {
-                day.events.forEach { event ->
-                    AgendaEvent(event = event, is24Hour = is24Hour, showColorDots = showColorDots)
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (current.events.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.calendar_no_events),
+                        style = MaterialTheme.typography.cardMeta(),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                } else {
+                    current.events.forEach { event ->
+                        AgendaEvent(event = event, is24Hour = is24Hour, showColorDots = showColorDots)
+                    }
                 }
             }
         }
