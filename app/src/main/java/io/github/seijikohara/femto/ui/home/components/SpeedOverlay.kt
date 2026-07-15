@@ -36,6 +36,7 @@ import com.composables.icons.lucide.RotateCcw
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.MIN_MOVING_SPEED_MS
 import io.github.seijikohara.femto.data.location.TripState
@@ -47,6 +48,7 @@ import io.github.seijikohara.femto.ui.locale.tripDistanceFromMeters
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import io.github.seijikohara.femto.ui.theme.glanceCaption
@@ -97,6 +99,7 @@ internal fun SpeedOverlay(
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
+    motionTier: MotionTier = MotionTier.STANDARD,
 ) {
     // Source the hero numeral from the trip's effective speed, not
     // location.speed: cheap GPS chips leave Location.speed at 0.0
@@ -166,6 +169,7 @@ internal fun SpeedOverlay(
             distance = distance,
             distanceUnitLabel = speedUnit.distanceLabel(),
             avgSpeed = avgSpeed,
+            tier = motionTier,
             onReset = onReset,
         )
         // Always render the address row (even with no fix / unresolved address) so
@@ -186,17 +190,19 @@ private fun MetricRow(
     distance: Double,
     distanceUnitLabel: String,
     avgSpeed: Int,
+    tier: MotionTier,
     onReset: () -> Unit,
 ) = Row(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(12.dp),
 ) {
-    NowMetric(value = currentSpeed, unit = speedUnitLabel)
+    NowMetric(value = currentSpeed, unit = speedUnitLabel, tier = tier)
     Separator()
     SecondaryMetric(
         key = stringResource(R.string.speed_metric_distance),
         value = "%.1f".format(distance),
         unit = distanceUnitLabel,
+        tier = tier,
         modifier = Modifier.widthIn(min = FemtoDimens.SpeedMetricMinWidth),
     )
     Separator()
@@ -204,6 +210,7 @@ private fun MetricRow(
         key = stringResource(R.string.speed_metric_avg),
         value = "$avgSpeed",
         unit = speedUnitLabel,
+        tier = tier,
         modifier = Modifier.widthIn(min = FemtoDimens.SpeedMetricMinWidth),
     )
     Separator()
@@ -214,24 +221,36 @@ private fun MetricRow(
 private fun NowMetric(
     value: String,
     unit: String,
+    tier: MotionTier,
 ) = Row(
     horizontalArrangement = Arrangement.spacedBy(4.dp),
 ) {
-    Text(
-        text = value,
-        // Strong-tier hero numeral: heavier than the ambient clock's normal tier
-        // since the speed is the safety-critical glance that must stay legible on a
-        // dim head unit. Tracks the user's weight setting while keeping that
-        // relative emphasis across the range.
-        style = MaterialTheme.typography.heroNumeral(weight = MaterialTheme.typography.strongWeight),
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-        // Reserve a stable width sized for the clamped 3-digit range and
-        // right-align within it, so the hero numeral does not reflow the
-        // overlay as the speed's digit count changes.
-        textAlign = TextAlign.End,
-        modifier = Modifier.widthIn(min = FemtoDimens.SpeedHeroValueMinWidth).alignByBaseline(),
-    )
+    // The numeral dissolves on a change of the DISPLAYED, EMA-rounded string (not
+    // the raw smoothed float), so it fades once per real digit change. The reserved
+    // 3-digit width stays on the inner Text, so both the reserve and the baseline
+    // the crossfade box propagates keep the overlay from reflowing as the value ticks.
+    Motion.ContentCrossfade(
+        targetState = value,
+        tier = tier,
+        label = "speedHero",
+        modifier = Modifier.alignByBaseline(),
+    ) { numeral ->
+        Text(
+            text = numeral,
+            // Strong-tier hero numeral: heavier than the ambient clock's normal tier
+            // since the speed is the safety-critical glance that must stay legible on a
+            // dim head unit. Tracks the user's weight setting while keeping that
+            // relative emphasis across the range.
+            style = MaterialTheme.typography.heroNumeral(weight = MaterialTheme.typography.strongWeight),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            // Reserve a stable width sized for the clamped 3-digit range and
+            // right-align within it, so the hero numeral does not reflow the
+            // overlay as the speed's digit count changes.
+            textAlign = TextAlign.End,
+            modifier = Modifier.widthIn(min = FemtoDimens.SpeedHeroValueMinWidth),
+        )
+    }
     // Dimmed unit trailing the numeral on its baseline (the shared dashboard unit
     // treatment) — a step below the value it annotates.
     UnitSuffix(unit, modifier = Modifier.alignByBaseline())
@@ -252,6 +271,7 @@ private fun SecondaryMetric(
     key: String,
     value: String,
     unit: String,
+    tier: MotionTier,
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
     Text(
@@ -265,15 +285,22 @@ private fun SecondaryMetric(
     )
     // Numeric value + dimmed trailing unit on the value's baseline, matching the
     // hero speed's value/unit treatment; the caller's min-width cell keeps a
-    // digit change from reflowing the row.
+    // digit change from reflowing the row. The value dissolves on a change of its
+    // DISPLAYED string (keyed on the formatted value, not the raw trip total).
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.glanceMetric(),
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
+        Motion.ContentCrossfade(
+            targetState = value,
+            tier = tier,
+            label = "speedMetric",
             modifier = Modifier.alignByBaseline(),
-        )
+        ) { metric ->
+            Text(
+                text = metric,
+                style = MaterialTheme.typography.glanceMetric(),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+            )
+        }
         UnitSuffix(unit, modifier = Modifier.alignByBaseline())
     }
 }
