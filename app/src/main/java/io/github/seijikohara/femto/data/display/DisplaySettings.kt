@@ -121,6 +121,18 @@ internal const val DEFAULT_GLASS_BLUR_DP = 16
 internal const val DEFAULT_GLASS_TINT_SCALE = 50
 
 /**
+ * Default font-adjustment values, applied on top of the resolved font family by
+ * `FemtoTheme`. [DEFAULT_FONT_BASE_SIZE_SP] (16 sp) matches the theme's rem-scale
+ * root, so the default re-bases nothing; [DEFAULT_FONT_WEIGHT_STEP] and
+ * [DEFAULT_FONT_LETTER_SPACING_CENTI_EM] (both 0) leave the Bold Minimal weight
+ * tiers and tracking untouched. Held here in the data layer (which never imports
+ * `ui/`) so the read fallback and [DisplaySettings.Default] share one source.
+ */
+internal const val DEFAULT_FONT_BASE_SIZE_SP = 16
+internal const val DEFAULT_FONT_WEIGHT_STEP = 0
+internal const val DEFAULT_FONT_LETTER_SPACING_CENTI_EM = 0
+
+/**
  * User display settings that override the locale / system defaults. Every value
  * defaults to the auto / system choice so a fresh install behaves exactly as
  * before the settings screen existed.
@@ -179,6 +191,13 @@ internal data class DisplaySettings(
     // absolute percent (0 = clear glass, 100 = fully opaque surface).
     val glassBlurRadius: Int,
     val glassTintScale: Int,
+    // User font adjustments applied on top of the resolved font family through
+    // FemtoTheme: the rem-scale base size (sp), the weight-tier step (each step
+    // shifts the three Bold Minimal weight tiers by 100), and letter spacing in
+    // hundredths of an em. The defaults leave the Bold Minimal baseline unchanged.
+    val fontBaseSizeSp: Int,
+    val fontWeightStep: Int,
+    val fontLetterSpacingCentiEm: Int,
     // Info-pane card visibility. Each card defaults to shown so a fresh install
     // renders the full dashboard; hiding one lets the remaining cards (or the map)
     // reflow into the freed space.
@@ -242,6 +261,9 @@ internal data class DisplaySettings(
                 mapTerrain = false,
                 glassBlurRadius = DEFAULT_GLASS_BLUR_DP,
                 glassTintScale = DEFAULT_GLASS_TINT_SCALE,
+                fontBaseSizeSp = DEFAULT_FONT_BASE_SIZE_SP,
+                fontWeightStep = DEFAULT_FONT_WEIGHT_STEP,
+                fontLetterSpacingCentiEm = DEFAULT_FONT_LETTER_SPACING_CENTI_EM,
                 showCalendar = true,
                 showWeather = true,
                 showMusic = true,

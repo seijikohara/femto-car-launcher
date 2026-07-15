@@ -7,7 +7,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
@@ -15,6 +14,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.heroNumeral
+import io.github.seijikohara.femto.ui.theme.normalWeight
 import kotlinx.coroutines.delay
 import java.time.Clock
 import java.time.LocalTime
@@ -71,11 +71,12 @@ internal fun ClockOverlay(
         }
     Text(
         text = now.format(formatter),
-        // Normal weight: the clock is ambient (not the safety glance), so it shares
-        // the dashboard's unified 40sp / Normal hero-numeral look with the calendar
-        // day and weather temperature. The speed value, by contrast, stays SemiBold
-        // as the safety-critical readout.
-        style = MaterialTheme.typography.heroNumeral(weight = FontWeight.Normal),
+        // Normal tier: the clock is ambient (not the safety glance), so it shares
+        // the dashboard's unified 40sp normal-tier hero-numeral look with the
+        // calendar day and weather temperature, tracking the user's weight setting.
+        // The speed value, by contrast, uses the heavier strong tier as the
+        // safety-critical readout.
+        style = MaterialTheme.typography.heroNumeral(weight = MaterialTheme.typography.normalWeight),
         color = MaterialTheme.colorScheme.onSurface,
         modifier =
             modifier

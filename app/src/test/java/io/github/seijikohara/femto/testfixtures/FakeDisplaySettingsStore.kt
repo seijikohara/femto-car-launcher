@@ -101,6 +101,13 @@ internal class FakeDisplaySettingsStore(
 
     override suspend fun setGlassTintScale(value: Int) = state.update { it.copy(glassTintScale = value) }
 
+    override suspend fun setFontBaseSizeSp(value: Int) = state.update { it.copy(fontBaseSizeSp = value) }
+
+    override suspend fun setFontWeightStep(value: Int) = state.update { it.copy(fontWeightStep = value) }
+
+    override suspend fun setFontLetterSpacingCentiEm(value: Int) =
+        state.update { it.copy(fontLetterSpacingCentiEm = value) }
+
     override suspend fun setShowCalendar(value: Boolean) = state.update { it.copy(showCalendar = value) }
 
     override suspend fun setShowWeather(value: Boolean) = state.update { it.copy(showWeather = value) }
@@ -147,45 +154,176 @@ internal class FakeDisplaySettingsStore(
         default: DisplaySettings,
     ): DisplaySettings =
         when (key) {
-            DisplayPreferences.THEME_KEY -> copy(themeMode = default.themeMode)
-            DisplayPreferences.ACCENT_KEY -> copy(accentColor = default.accentColor)
-            DisplayPreferences.UI_SCALE_KEY -> copy(uiScale = default.uiScale)
-            DisplayPreferences.SPEED_KEY -> copy(speedUnit = default.speedUnit)
-            DisplayPreferences.TEMPERATURE_KEY -> copy(temperatureUnit = default.temperatureUnit)
-            DisplayPreferences.CLOCK_KEY -> copy(clock = default.clock)
-            DisplayPreferences.SHOW_CLOCK_SECONDS_KEY -> copy(showClockSeconds = default.showClockSeconds)
-            DisplayPreferences.FULLSCREEN_KEY -> copy(fullscreen = default.fullscreen)
-            DisplayPreferences.DOCK_POSITION_KEY -> copy(dockPosition = default.dockPosition)
-            DisplayPreferences.DRIVER_SIDE_KEY -> copy(driverSide = default.driverSide)
-            DisplayPreferences.MOTION_TIER_KEY -> copy(motionTier = default.motionTier)
-            DisplayPreferences.ORIENTATION_KEY -> copy(orientation = default.orientation)
-            DisplayPreferences.KEEP_SCREEN_ON_KEY -> copy(keepScreenOn = default.keepScreenOn)
-            DisplayPreferences.ASSISTANT_LAUNCH_KEY -> copy(assistantLaunch = default.assistantLaunch)
-            DisplayPreferences.MAP_STYLE_KEY -> copy(mapStyle = default.mapStyle)
-            DisplayPreferences.MAP_SCHEME_LIGHT_KEY -> copy(mapSchemeLight = default.mapSchemeLight)
-            DisplayPreferences.MAP_SCHEME_DARK_KEY -> copy(mapSchemeDark = default.mapSchemeDark)
-            DisplayPreferences.MAP_TILT_KEY -> copy(mapTiltDeg = default.mapTiltDeg)
-            DisplayPreferences.MAP_ZOOM_KEY -> copy(mapZoom = default.mapZoom)
-            DisplayPreferences.MAP_NORTH_UP_KEY -> copy(mapNorthUp = default.mapNorthUp)
-            DisplayPreferences.MAP_MARKER_POS_KEY -> copy(mapMarkerPos = default.mapMarkerPos)
-            DisplayPreferences.MAP_3D_BUILDINGS_KEY -> copy(map3dBuildings = default.map3dBuildings)
-            DisplayPreferences.MAP_TERRAIN_KEY -> copy(mapTerrain = default.mapTerrain)
-            DisplayPreferences.GLASS_BLUR_KEY -> copy(glassBlurRadius = default.glassBlurRadius)
-            DisplayPreferences.GLASS_TINT_KEY -> copy(glassTintScale = default.glassTintScale)
-            DisplayPreferences.SHOW_CALENDAR_KEY -> copy(showCalendar = default.showCalendar)
-            DisplayPreferences.SHOW_WEATHER_KEY -> copy(showWeather = default.showWeather)
-            DisplayPreferences.SHOW_MUSIC_KEY -> copy(showMusic = default.showMusic)
-            DisplayPreferences.MUSIC_SPECTRUM_KEY -> copy(musicSpectrum = default.musicSpectrum)
-            DisplayPreferences.MUSIC_SHOW_ALBUM_KEY -> copy(musicShowAlbum = default.musicShowAlbum)
-            DisplayPreferences.MUSIC_SHOW_ART_KEY -> copy(musicShowArt = default.musicShowArt)
-            DisplayPreferences.MAP_BACKEND_KEY -> copy(mapBackend = default.mapBackend)
-            DisplayPreferences.MAPBOX_STYLE_KEY -> copy(mapboxStyle = default.mapboxStyle)
-            DisplayPreferences.MAPBOX_TRAFFIC_KEY -> copy(mapboxTraffic = default.mapboxTraffic)
-            DisplayPreferences.MAPBOX_ACCESS_TOKEN_KEY -> copy(mapboxAccessToken = default.mapboxAccessToken)
-            DisplayPreferences.GOOGLE_MAPS_API_KEY_KEY -> copy(googleMapsApiKey = default.googleMapsApiKey)
-            DisplayPreferences.GOOGLE_MAPS_MAP_ID_KEY -> copy(googleMapsMapId = default.googleMapsMapId)
-            DisplayPreferences.GOOGLE_MAPS_MAP_TYPE_KEY -> copy(googleMapsMapType = default.googleMapsMapType)
-            DisplayPreferences.GOOGLE_MAPS_TRAFFIC_KEY -> copy(googleMapsTraffic = default.googleMapsTraffic)
-            else -> this
+            DisplayPreferences.THEME_KEY -> {
+                copy(themeMode = default.themeMode)
+            }
+
+            DisplayPreferences.ACCENT_KEY -> {
+                copy(accentColor = default.accentColor)
+            }
+
+            DisplayPreferences.UI_SCALE_KEY -> {
+                copy(uiScale = default.uiScale)
+            }
+
+            DisplayPreferences.SPEED_KEY -> {
+                copy(speedUnit = default.speedUnit)
+            }
+
+            DisplayPreferences.TEMPERATURE_KEY -> {
+                copy(temperatureUnit = default.temperatureUnit)
+            }
+
+            DisplayPreferences.CLOCK_KEY -> {
+                copy(clock = default.clock)
+            }
+
+            DisplayPreferences.SHOW_CLOCK_SECONDS_KEY -> {
+                copy(showClockSeconds = default.showClockSeconds)
+            }
+
+            DisplayPreferences.FULLSCREEN_KEY -> {
+                copy(fullscreen = default.fullscreen)
+            }
+
+            DisplayPreferences.DOCK_POSITION_KEY -> {
+                copy(dockPosition = default.dockPosition)
+            }
+
+            DisplayPreferences.DRIVER_SIDE_KEY -> {
+                copy(driverSide = default.driverSide)
+            }
+
+            DisplayPreferences.MOTION_TIER_KEY -> {
+                copy(motionTier = default.motionTier)
+            }
+
+            DisplayPreferences.ORIENTATION_KEY -> {
+                copy(orientation = default.orientation)
+            }
+
+            DisplayPreferences.KEEP_SCREEN_ON_KEY -> {
+                copy(keepScreenOn = default.keepScreenOn)
+            }
+
+            DisplayPreferences.ASSISTANT_LAUNCH_KEY -> {
+                copy(assistantLaunch = default.assistantLaunch)
+            }
+
+            DisplayPreferences.MAP_STYLE_KEY -> {
+                copy(mapStyle = default.mapStyle)
+            }
+
+            DisplayPreferences.MAP_SCHEME_LIGHT_KEY -> {
+                copy(mapSchemeLight = default.mapSchemeLight)
+            }
+
+            DisplayPreferences.MAP_SCHEME_DARK_KEY -> {
+                copy(mapSchemeDark = default.mapSchemeDark)
+            }
+
+            DisplayPreferences.MAP_TILT_KEY -> {
+                copy(mapTiltDeg = default.mapTiltDeg)
+            }
+
+            DisplayPreferences.MAP_ZOOM_KEY -> {
+                copy(mapZoom = default.mapZoom)
+            }
+
+            DisplayPreferences.MAP_NORTH_UP_KEY -> {
+                copy(mapNorthUp = default.mapNorthUp)
+            }
+
+            DisplayPreferences.MAP_MARKER_POS_KEY -> {
+                copy(mapMarkerPos = default.mapMarkerPos)
+            }
+
+            DisplayPreferences.MAP_3D_BUILDINGS_KEY -> {
+                copy(map3dBuildings = default.map3dBuildings)
+            }
+
+            DisplayPreferences.MAP_TERRAIN_KEY -> {
+                copy(mapTerrain = default.mapTerrain)
+            }
+
+            DisplayPreferences.GLASS_BLUR_KEY -> {
+                copy(glassBlurRadius = default.glassBlurRadius)
+            }
+
+            DisplayPreferences.GLASS_TINT_KEY -> {
+                copy(glassTintScale = default.glassTintScale)
+            }
+
+            DisplayPreferences.FONT_BASE_SIZE_KEY -> {
+                copy(fontBaseSizeSp = default.fontBaseSizeSp)
+            }
+
+            DisplayPreferences.FONT_WEIGHT_STEP_KEY -> {
+                copy(fontWeightStep = default.fontWeightStep)
+            }
+
+            DisplayPreferences.FONT_LETTER_SPACING_KEY -> {
+                copy(fontLetterSpacingCentiEm = default.fontLetterSpacingCentiEm)
+            }
+
+            DisplayPreferences.SHOW_CALENDAR_KEY -> {
+                copy(showCalendar = default.showCalendar)
+            }
+
+            DisplayPreferences.SHOW_WEATHER_KEY -> {
+                copy(showWeather = default.showWeather)
+            }
+
+            DisplayPreferences.SHOW_MUSIC_KEY -> {
+                copy(showMusic = default.showMusic)
+            }
+
+            DisplayPreferences.MUSIC_SPECTRUM_KEY -> {
+                copy(musicSpectrum = default.musicSpectrum)
+            }
+
+            DisplayPreferences.MUSIC_SHOW_ALBUM_KEY -> {
+                copy(musicShowAlbum = default.musicShowAlbum)
+            }
+
+            DisplayPreferences.MUSIC_SHOW_ART_KEY -> {
+                copy(musicShowArt = default.musicShowArt)
+            }
+
+            DisplayPreferences.MAP_BACKEND_KEY -> {
+                copy(mapBackend = default.mapBackend)
+            }
+
+            DisplayPreferences.MAPBOX_STYLE_KEY -> {
+                copy(mapboxStyle = default.mapboxStyle)
+            }
+
+            DisplayPreferences.MAPBOX_TRAFFIC_KEY -> {
+                copy(mapboxTraffic = default.mapboxTraffic)
+            }
+
+            DisplayPreferences.MAPBOX_ACCESS_TOKEN_KEY -> {
+                copy(mapboxAccessToken = default.mapboxAccessToken)
+            }
+
+            DisplayPreferences.GOOGLE_MAPS_API_KEY_KEY -> {
+                copy(googleMapsApiKey = default.googleMapsApiKey)
+            }
+
+            DisplayPreferences.GOOGLE_MAPS_MAP_ID_KEY -> {
+                copy(googleMapsMapId = default.googleMapsMapId)
+            }
+
+            DisplayPreferences.GOOGLE_MAPS_MAP_TYPE_KEY -> {
+                copy(googleMapsMapType = default.googleMapsMapType)
+            }
+
+            DisplayPreferences.GOOGLE_MAPS_TRAFFIC_KEY -> {
+                copy(googleMapsTraffic = default.googleMapsTraffic)
+            }
+
+            else -> {
+                this
+            }
         }
 }

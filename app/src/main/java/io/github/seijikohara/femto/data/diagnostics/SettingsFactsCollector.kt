@@ -51,6 +51,10 @@ internal fun displaySettingsFacts(display: DisplaySettings): List<DiagnosticFact
         entry("3D buildings / terrain", "${display.map3dBuildings} / ${display.mapTerrain}"),
         entry("Glass blur / tint", "${display.glassBlurRadius} dp / ${display.glassTintScale}%"),
         entry(
+            "Font size / weight / spacing",
+            "${display.fontBaseSizeSp} sp / ${display.fontWeightStep} / ${display.fontLetterSpacingCentiEm}",
+        ),
+        entry(
             "Panels (calendar / weather / music)",
             "${display.showCalendar} / ${display.showWeather} / ${display.showMusic}",
         ),

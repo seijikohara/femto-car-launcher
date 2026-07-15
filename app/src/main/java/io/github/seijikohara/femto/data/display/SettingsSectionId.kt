@@ -31,6 +31,9 @@ internal enum class SettingsSectionId(
             DisplayPreferences.MAP_SCHEME_DARK_KEY,
             DisplayPreferences.GLASS_BLUR_KEY,
             DisplayPreferences.GLASS_TINT_KEY,
+            DisplayPreferences.FONT_BASE_SIZE_KEY,
+            DisplayPreferences.FONT_WEIGHT_STEP_KEY,
+            DisplayPreferences.FONT_LETTER_SPACING_KEY,
         ),
     ),
     SCREEN(

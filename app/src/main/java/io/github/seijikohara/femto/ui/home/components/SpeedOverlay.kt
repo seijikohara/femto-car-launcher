@@ -53,6 +53,7 @@ import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.glanceMetric
 import io.github.seijikohara.femto.ui.theme.heroNumeral
 import io.github.seijikohara.femto.ui.theme.sectionLabel
+import io.github.seijikohara.femto.ui.theme.strongWeight
 import kotlin.math.exp
 import kotlin.math.roundToInt
 
@@ -218,9 +219,11 @@ private fun NowMetric(
 ) {
     Text(
         text = value,
-        // SemiBold hero numeral: heavier than the ambient clock since the speed is
-        // the safety-critical glance that must stay legible on a dim head unit.
-        style = MaterialTheme.typography.heroNumeral(weight = FontWeight.SemiBold),
+        // Strong-tier hero numeral: heavier than the ambient clock's normal tier
+        // since the speed is the safety-critical glance that must stay legible on a
+        // dim head unit. Tracks the user's weight setting while keeping that
+        // relative emphasis across the range.
+        style = MaterialTheme.typography.heroNumeral(weight = MaterialTheme.typography.strongWeight),
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
         // Reserve a stable width sized for the clamped 3-digit range and
