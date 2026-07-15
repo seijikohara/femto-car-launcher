@@ -49,6 +49,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import kotlinx.coroutines.flow.StateFlow
+import java.time.Clock
 
 // Which info cards the dashboard renders. Each defaults to visible; hiding one
 // lets the remaining cards reflow, and hiding all leaves the bare full-screen map.
@@ -117,6 +118,7 @@ internal fun DashboardScaffold(
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
     motionTier: MotionTier = MotionTier.STANDARD,
+    clock: Clock = Clock.systemDefaultZone(),
 ) = DashboardContent(
     uiState = uiState,
     is24Hour = is24Hour,
@@ -138,6 +140,7 @@ internal fun DashboardScaffold(
     musicShowAlbum = musicShowAlbum,
     musicShowArt = musicShowArt,
     motionTier = motionTier,
+    clock = clock,
 )
 
 // The full-screen dashboard body: the map fills the viewport as the background
@@ -163,6 +166,7 @@ private fun DashboardContent(
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
     motionTier: MotionTier = MotionTier.STANDARD,
+    clock: Clock = Clock.systemDefaultZone(),
 ) = BoxWithConstraints(modifier = modifier) {
     val compact = maxHeight < CompactHeightBreakpoint || maxWidth < CompactWidthBreakpoint
     val portrait = maxHeight > maxWidth
@@ -316,6 +320,7 @@ private fun DashboardContent(
         spectrum = spectrum,
         musicShowAlbum = musicShowAlbum,
         musicShowArt = musicShowArt,
+        clock = clock,
     )
 
     // The dock as a glass bar / rail on its edge, drawn over the full-bleed map.
@@ -388,6 +393,7 @@ private fun DashboardOverlays(
     spectrum: StateFlow<FloatArray?>? = null,
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
+    clock: Clock = Clock.systemDefaultZone(),
 ) {
     // Full-screen Now Playing panel (issue #231). Pure UI state — saveable so a
     // rotation keeps the panel open — auto-collapsed when the session leaves
@@ -471,6 +477,7 @@ private fun DashboardOverlays(
             showSeconds = showClockSeconds,
             hazeState = hazeState,
             glassConfig = glassConfig,
+            clock = clock,
             modifier =
                 Modifier
                     .align(if (mirror) Alignment.TopStart else Alignment.TopEnd)
