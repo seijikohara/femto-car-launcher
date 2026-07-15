@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -231,42 +232,52 @@ private fun AgendaEvent(
     is24Hour: Boolean,
     showColorDots: Boolean,
     modifier: Modifier = Modifier,
-) = Row(
+) = Column(
     modifier = modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarDotGap),
-    // Match the card: center the dot against the event's stacked lines so it
-    // reads as that event's calendar marker rather than pinning to the time line.
-    verticalAlignment = Alignment.CenterVertically,
+    verticalArrangement = Arrangement.spacedBy(2.dp),
 ) {
-    if (showColorDots) {
-        CalendarColorDot(color = event.color)
-    }
-    Column(
-        modifier = Modifier.weight(1f),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+    // Indent the non-title lines past the dot gutter so every line shares the
+    // title's left edge; the dot leads the title row, centered on the title line.
+    val gutterIndent =
+        if (showColorDots) {
+            Modifier.padding(start = FemtoDimens.CalendarDotGutter)
+        } else {
+            Modifier
+        }
+    Text(
+        text = eventTimeRange(event, is24Hour),
+        modifier = gutterIndent,
+        style = MaterialTheme.typography.eyebrow(),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+    )
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarDotGap),
+        // Match the card: center the dot on the title line rather than the whole
+        // stacked lines, so it marks the event at its title.
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = eventTimeRange(event, is24Hour),
-            style = MaterialTheme.typography.eyebrow(),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-        )
+        if (showColorDots) {
+            CalendarColorDot(color = event.color)
+        }
         Text(
             text = event.title,
+            modifier = Modifier.weight(1f),
             // titleLarge (24sp) is above the body floor; the panel has room to wrap
             // the whole title rather than ellipsize like the compact card.
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
         )
-        event.location?.takeUnless { it.isBlank() }?.let { location ->
-            Text(
-                text = location,
-                style = MaterialTheme.typography.cardMeta(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+    }
+    event.location?.takeUnless { it.isBlank() }?.let { location ->
+        Text(
+            text = location,
+            modifier = gutterIndent,
+            style = MaterialTheme.typography.cardMeta(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

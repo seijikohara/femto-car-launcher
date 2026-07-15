@@ -95,6 +95,14 @@ object FemtoDimens {
     val CalendarDotGap = 4.dp
 
     /**
+     * Start indent that clears the leading color-dot gutter: the dot's diameter
+     * plus its trailing gap. The dot leads the title row and centers on the title
+     * line, so an event's other lines (time, location) pad their start by this to
+     * share the title's left edge.
+     */
+    val CalendarDotGutter = CalendarDotSize + CalendarDotGap
+
+    /**
      * Dock thickness: its height as a horizontal bar, its width as a vertical
      * rail. Set to exactly [MinTouchTarget] (64.dp): the dock holds full-size
      * nav buttons, so it cannot go lower without breaching the tap-target floor
