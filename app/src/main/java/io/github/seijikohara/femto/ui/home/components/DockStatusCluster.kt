@@ -43,10 +43,12 @@ import com.composables.icons.lucide.WifiHigh
 import com.composables.icons.lucide.WifiLow
 import com.composables.icons.lucide.WifiZero
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.dock.DockStatusId
 import io.github.seijikohara.femto.data.system.SystemStatus
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
+import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.glanceCaption
 
 @Composable
@@ -58,6 +60,7 @@ internal fun StatusCluster(
     // its declared order (today's factory cluster) so an omitted argument
     // renders byte-identical to before this parameter existed.
     order: List<DockStatusId> = DockStatusId.entries,
+    motionTier: MotionTier = MotionTier.STANDARD,
     // Dispatches the long-press edit menu's Move/Hide/Reset actions; the
     // default no-op keeps every caller that has nothing to wire (there is
     // none left in production, but a stray preview or test) compiling.
@@ -75,6 +78,7 @@ internal fun StatusCluster(
                     canMoveLeft = index > 0,
                     canMoveRight = index < order.lastIndex,
                     canHide = order.size > 1,
+                    tier = motionTier,
                     onAction = onAction,
                 )
             }
@@ -127,6 +131,7 @@ private fun EditableStatusIndicator(
     canMoveLeft: Boolean,
     canMoveRight: Boolean,
     canHide: Boolean,
+    tier: MotionTier,
     onAction: (HomeAction) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -143,7 +148,7 @@ private fun EditableStatusIndicator(
                     detectTapGestures(onLongPress = { menuOpen = true })
                 },
     ) {
-        StatusIndicator(id, status)
+        StatusIndicator(id, status, tier)
         DockEditMenu(
             expanded = menuOpen,
             onDismiss = { menuOpen = false },
@@ -168,6 +173,7 @@ private fun EditableStatusIndicator(
 private fun StatusIndicator(
     id: DockStatusId,
     status: SystemStatus,
+    tier: MotionTier,
 ) {
     when (id) {
         DockStatusId.CELLULAR -> {
@@ -189,6 +195,7 @@ private fun StatusIndicator(
                         stringResource(
                             if (active) R.string.status_cellular_connected else R.string.status_cellular_disconnected,
                         ),
+                    tier = tier,
                 )
             }
         }
@@ -203,6 +210,7 @@ private fun StatusIndicator(
                     stringResource(
                         if (status.wifiConnected) R.string.status_wifi_connected else R.string.status_wifi_disconnected,
                     ),
+                tier = tier,
             )
         }
 
@@ -221,15 +229,16 @@ private fun StatusIndicator(
                             else -> R.string.status_bluetooth_off
                         },
                     ),
+                tier = tier,
             )
         }
 
         DockStatusId.GPS -> {
-            GpsIndicator(fixed = status.gpsFixed, satelliteCount = status.gpsSatelliteCount)
+            GpsIndicator(fixed = status.gpsFixed, satelliteCount = status.gpsSatelliteCount, tier = tier)
         }
 
         DockStatusId.BATTERY -> {
-            BatteryIndicator(percent = status.batteryPercent, charging = status.charging)
+            BatteryIndicator(percent = status.batteryPercent, charging = status.charging, tier = tier)
         }
     }
 }
@@ -292,15 +301,23 @@ private fun StatusIcon(
     icon: ImageVector,
     active: Boolean,
     description: String,
+    tier: MotionTier,
     modifier: Modifier = Modifier,
-) {
-    val tint =
-        if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
+) = Motion.ContentCrossfade(
+    // Key on the (glyph, lit-state) pair so a signal-ramp glyph swap or a
+    // connect/disconnect tint flip dissolves; the fixed 20 dp icon slot keeps the
+    // cluster from reflowing. Both values ride the target so the outgoing layer
+    // fades the old glyph out rather than snapping straight to the new one.
+    targetState = Pair(icon, active),
+    tier = tier,
+    label = "statusIcon",
+    modifier = modifier,
+) { (glyph, lit) ->
     FemtoIcon(
-        imageVector = icon,
+        imageVector = glyph,
         contentDescription = description,
-        tint = tint,
-        modifier = modifier.size(20.dp),
+        tint = if (lit) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+        modifier = Modifier.size(20.dp),
     )
 }
 
@@ -311,28 +328,37 @@ private fun StatusIcon(
 private fun GpsIndicator(
     fixed: Boolean,
     satelliteCount: Int,
+    tier: MotionTier,
     modifier: Modifier = Modifier,
-) = Column(
+) = Motion.ContentCrossfade(
+    // The whole indicator (satellite glyph + count) dissolves together on a
+    // fix/lost flip or a satellite-count change, keyed on that discrete pair.
+    targetState = Pair(fixed, satelliteCount),
+    tier = tier,
+    label = "gps",
     modifier = modifier,
-    horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.spacedBy(1.dp),
-) {
-    val tint = if (fixed) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
-    FemtoIcon(
-        imageVector = Lucide.Satellite,
-        contentDescription =
-            stringResource(
-                if (fixed) R.string.status_gps_fixed else R.string.status_gps_searching,
-            ),
-        tint = tint,
-        modifier = Modifier.size(20.dp),
-    )
-    Text(
-        text = stringResource(R.string.status_gps_satellites, satelliteCount),
-        style = MaterialTheme.typography.glanceCaption(),
-        color = tint,
-        maxLines = 1,
-    )
+) { (isFixed, count) ->
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(1.dp),
+    ) {
+        val tint = if (isFixed) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
+        FemtoIcon(
+            imageVector = Lucide.Satellite,
+            contentDescription =
+                stringResource(
+                    if (isFixed) R.string.status_gps_fixed else R.string.status_gps_searching,
+                ),
+            tint = tint,
+            modifier = Modifier.size(20.dp),
+        )
+        Text(
+            text = stringResource(R.string.status_gps_satellites, count),
+            style = MaterialTheme.typography.glanceCaption(),
+            color = tint,
+            maxLines = 1,
+        )
+    }
 }
 
 // Battery icon stacked over its percent. Charging is conveyed by the bolt glyph
@@ -341,24 +367,33 @@ private fun GpsIndicator(
 private fun BatteryIndicator(
     percent: Int?,
     charging: Boolean,
+    tier: MotionTier,
     modifier: Modifier = Modifier,
-) = Column(
+) = Motion.ContentCrossfade(
+    // The whole indicator (battery glyph + percent) dissolves together on a
+    // level-bucket, charging, or percent change, keyed on that discrete pair.
+    targetState = Pair(percent, charging),
+    tier = tier,
+    label = "battery",
     modifier = modifier,
-    horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.spacedBy(1.dp),
-) {
-    FemtoIcon(
-        imageVector = batteryIconForLevel(percent = percent, charging = charging),
-        contentDescription = stringResource(R.string.status_battery),
-        tint = if (charging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.size(20.dp),
-    )
-    Text(
-        // Render an em-dash while the percent is unknown (cold start / battery-less
-        // unit) so the cluster never reads as a dead 0% battery.
-        text = if (percent == null) "—" else stringResource(R.string.battery_percent, percent),
-        style = MaterialTheme.typography.glanceCaption(),
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-    )
+) { (pct, isCharging) ->
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(1.dp),
+    ) {
+        FemtoIcon(
+            imageVector = batteryIconForLevel(percent = pct, charging = isCharging),
+            contentDescription = stringResource(R.string.status_battery),
+            tint = if (isCharging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+        )
+        Text(
+            // Render an em-dash while the percent is unknown (cold start / battery-less
+            // unit) so the cluster never reads as a dead 0% battery.
+            text = if (pct == null) "—" else stringResource(R.string.battery_percent, pct),
+            style = MaterialTheme.typography.glanceCaption(),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+        )
+    }
 }

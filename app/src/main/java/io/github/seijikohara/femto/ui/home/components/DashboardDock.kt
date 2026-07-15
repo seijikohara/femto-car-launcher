@@ -49,6 +49,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.dock.DockNavId
 import io.github.seijikohara.femto.data.dock.DockStatusId
 import io.github.seijikohara.femto.data.system.SystemStatus
@@ -181,6 +182,7 @@ internal fun DashboardDock(
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
     dockConfig: DockConfig = DockConfig(),
+    motionTier: MotionTier = MotionTier.STANDARD,
 ) = when (position) {
     DockPosition.BOTTOM, DockPosition.TOP -> {
         HorizontalDock(
@@ -190,6 +192,7 @@ internal fun DashboardDock(
             glassConfig = glassConfig,
             modifier = modifier,
             dockConfig = dockConfig,
+            motionTier = motionTier,
         )
     }
 
@@ -201,6 +204,7 @@ internal fun DashboardDock(
             glassConfig = glassConfig,
             modifier = modifier,
             dockConfig = dockConfig,
+            motionTier = motionTier,
         )
     }
 }
@@ -213,6 +217,7 @@ private fun HorizontalDock(
     glassConfig: GlassConfig,
     modifier: Modifier = Modifier,
     dockConfig: DockConfig = DockConfig(),
+    motionTier: MotionTier = MotionTier.STANDARD,
 ) {
     val visibleNav = dockConfig.visibleNav
     // Read the available width before committing to a layout. The fixed-margin
@@ -273,6 +278,7 @@ private fun HorizontalDock(
                             vertical = false,
                             order = dockConfig.visibleStatus,
                             onAction = onAction,
+                            motionTier = motionTier,
                             modifier = Modifier.padding(horizontal = FemtoDimens.DockButtonMargin),
                         )
                     }
@@ -329,6 +335,7 @@ private fun HorizontalDock(
                             vertical = false,
                             order = dockConfig.visibleStatus,
                             onAction = onAction,
+                            motionTier = motionTier,
                             modifier = Modifier.padding(start = 20.dp),
                         )
                     }
@@ -348,6 +355,7 @@ private fun VerticalDock(
     glassConfig: GlassConfig,
     modifier: Modifier = Modifier,
     dockConfig: DockConfig = DockConfig(),
+    motionTier: MotionTier = MotionTier.STANDARD,
 ) = Surface(
     // Floating rounded glass rail, mirroring HorizontalDock on the width; on the
     // Live backend the blur falls back to the tint.
@@ -414,6 +422,7 @@ private fun VerticalDock(
                         vertical = true,
                         order = dockConfig.visibleStatus,
                         onAction = onAction,
+                        motionTier = motionTier,
                         modifier = Modifier.padding(top = 20.dp),
                     )
                 }

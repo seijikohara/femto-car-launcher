@@ -10,8 +10,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.heroNumeral
 import io.github.seijikohara.femto.ui.theme.normalWeight
@@ -50,6 +52,7 @@ internal fun ClockOverlay(
     showSeconds: Boolean = true,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
+    motionTier: MotionTier = MotionTier.STANDARD,
     clock: Clock = Clock.systemDefaultZone(),
 ) {
     val now by produceState(initialValue = LocalTime.now(clock), showSeconds) {
@@ -69,15 +72,16 @@ internal fun ClockOverlay(
             showSeconds -> ClockFormatter12
             else -> ClockFormatter12NoSeconds
         }
-    Text(
-        text = now.format(formatter),
-        // Normal tier: the clock is ambient (not the safety glance), so it shares
-        // the dashboard's unified 40sp normal-tier hero-numeral look with the
-        // calendar day and weather temperature, tracking the user's weight setting.
-        // The speed value, by contrast, uses the heavier strong tier as the
-        // safety-critical readout.
-        style = MaterialTheme.typography.heroNumeral(weight = MaterialTheme.typography.normalWeight),
-        color = MaterialTheme.colorScheme.onSurface,
+    // Key the fade on the DISPLAYED string, not the raw LocalTime: it changes once
+    // per second (or per minute when seconds are hidden), so the glass frame stays
+    // put while only the time text dissolves on each tick — never a per-frame thrash.
+    val timeText = now.format(formatter)
+    Motion.ContentCrossfade(
+        targetState = timeText,
+        tier = motionTier,
+        label = "clock",
+        // Glass chrome + padding stay on the stable outer frame so only the time
+        // text crossfades inside it, rather than dissolving the whole glass card.
         modifier =
             modifier
                 .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
@@ -85,7 +89,18 @@ internal fun ClockOverlay(
                     horizontal = FemtoDimens.OverlayPaddingHorizontal,
                     vertical = FemtoDimens.OverlayPaddingVertical,
                 ),
-    )
+    ) { text ->
+        Text(
+            text = text,
+            // Normal tier: the clock is ambient (not the safety glance), so it shares
+            // the dashboard's unified 40sp normal-tier hero-numeral look with the
+            // calendar day and weather temperature, tracking the user's weight setting.
+            // The speed value, by contrast, uses the heavier strong tier as the
+            // safety-critical readout.
+            style = MaterialTheme.typography.heroNumeral(weight = MaterialTheme.typography.normalWeight),
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
 }
 
 @PreviewLightDark

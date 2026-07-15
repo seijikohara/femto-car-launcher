@@ -38,6 +38,7 @@ import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.FitText
+import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import io.github.seijikohara.femto.ui.theme.bigNumber
@@ -75,10 +76,9 @@ internal fun CalendarCard(
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
-    // Retained for the uniform card-family signature (the dashboard passes the
-    // same motionTier to every card). The agenda now scrolls rather than
-    // crossfading on refresh, so the calendar card itself no longer tiers on it;
-    // the weather card still does for its fixed hero.
+    // Fades the head only (the big day number + weekday + month) on a date change.
+    // The agenda below scrolls rather than crossfading, so a data refresh keeps the
+    // user's scroll position instead of resetting it to today (see CalendarContent).
     motionTier: MotionTier = MotionTier.STANDARD,
 ) = Surface(
     modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
@@ -100,7 +100,7 @@ internal fun CalendarCard(
             // a read failure, not a free month, so say so rather than fake it.
             snapshot.queryFailed -> CenteredHint(stringResource(R.string.calendar_query_failed))
 
-            else -> CalendarContent(snapshot, is24Hour, onExpand)
+            else -> CalendarContent(snapshot, is24Hour, motionTier, onExpand)
         }
     }
 }
@@ -109,6 +109,7 @@ internal fun CalendarCard(
 private fun CalendarContent(
     snapshot: CalendarSnapshot,
     is24Hour: Boolean,
+    motionTier: MotionTier,
     onExpand: () -> Unit,
 ) {
     // clickable + an explicit contentDescription (the AlbumArt idiom in
@@ -135,7 +136,17 @@ private fun CalendarContent(
                 .padding(FemtoDimens.CardPaddingCompact),
         verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
     ) {
-        Head(snapshot)
+        // Fade only the head on a date change, keyed on its own displayed identity so
+        // an agenda-only refresh (same day number / weekday / month) never re-fires it.
+        // The scrollable agenda below is deliberately NOT wrapped — a Crossfade there
+        // would reset the user's scroll on every refresh.
+        Motion.ContentCrossfade(
+            targetState = CalendarHead(snapshot.today.dayOfMonth, snapshot.weekday, snapshot.monthLabel),
+            tier = motionTier,
+            label = "calendarHead",
+        ) { head ->
+            Head(head)
+        }
         // Free days are dropped rather than rendered as placeholder rows: the glance
         // question is "what is coming up". Today is the one exception — it stays
         // visible even when free.
@@ -166,15 +177,25 @@ private fun CalendarContent(
     }
 }
 
+// The head's displayed identity: the big day number, weekday, and month label —
+// the fields [Head] renders. Carries all three (rather than the bare date) so the
+// crossfade's outgoing frame renders a fully-consistent old head while the incoming
+// one renders the new; equality on this drives the head fade.
+private data class CalendarHead(
+    val day: Int,
+    val weekday: String,
+    val month: String,
+)
+
 @Composable
-private fun Head(snapshot: CalendarSnapshot) =
+private fun Head(head: CalendarHead) =
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
-            text = "${snapshot.today.dayOfMonth}",
+            text = "${head.day}",
             style = MaterialTheme.typography.bigNumber(
                 size = FemtoDimens.Text4Xl,
                 weight = MaterialTheme.typography.normalWeight,
@@ -184,7 +205,7 @@ private fun Head(snapshot: CalendarSnapshot) =
         )
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             FitText(
-                text = snapshot.weekday,
+                text = head.weekday,
                 style = MaterialTheme.typography.calendarWeekday(),
                 color = MaterialTheme.colorScheme.onSurface,
                 // The weekday is glance metadata beside the big day number, so it may
@@ -194,7 +215,7 @@ private fun Head(snapshot: CalendarSnapshot) =
                 minFontSize = FemtoDimens.GlanceTextSize,
             )
             Text(
-                text = snapshot.monthLabel.uppercase(),
+                text = head.month.uppercase(),
                 style = MaterialTheme.typography.eyebrow(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

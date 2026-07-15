@@ -332,6 +332,7 @@ private fun DashboardContent(
         hazeState = hazeState,
         glassConfig = glassConfig,
         dockConfig = dockConfig,
+        motionTier = motionTier,
         modifier =
             when (dockPosition) {
                 DockPosition.BOTTOM, DockPosition.TOP -> {
@@ -478,6 +479,7 @@ private fun DashboardOverlays(
             showSeconds = showClockSeconds,
             hazeState = hazeState,
             glassConfig = glassConfig,
+            motionTier = motionTier,
             clock = clock,
             modifier =
                 Modifier
@@ -531,6 +533,7 @@ private fun DashboardOverlays(
                 onReset = { onAction(HomeAction.ResetTrip) },
                 hazeState = hazeState,
                 glassConfig = glassConfig,
+                motionTier = motionTier,
                 modifier = Modifier.onSizeChanged { onOverlayHeightChange(it.height) },
             )
         }
