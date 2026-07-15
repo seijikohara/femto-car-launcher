@@ -119,6 +119,7 @@ internal const val DEFAULT_MAP_MARKER_POS = 70
 /** Default glass-overlay blur radius (dp) and tint opacity (absolute percent: 0 = clear, 100 = opaque). */
 internal const val DEFAULT_GLASS_BLUR_DP = 16
 internal const val DEFAULT_GLASS_TINT_SCALE = 50
+internal const val DEFAULT_GLASS_SHADOW_ENABLED = true
 internal const val DEFAULT_GLASS_SHADOW_INTENSITY = 40
 internal const val DEFAULT_GLASS_SHADOW_SIZE_DP = 8
 
@@ -193,9 +194,10 @@ internal data class DisplaySettings(
     // absolute percent (0 = clear glass, 100 = fully opaque surface).
     val glassBlurRadius: Int,
     val glassTintScale: Int,
-    // Optional glass chrome, both off by default to preserve the frameless
-    // frosted-glass look: an outline border and a drop shadow. glassShadowIntensity
-    // is a 0-100 percent; glassShadowSizeDp is the shadow's blur/elevation in dp.
+    // Optional glass chrome: an outline border (off by default, keeping the
+    // frameless frosted-glass look) and a drop shadow (on by default — a subtle
+    // theme-aware lift off the map). glassShadowIntensity is a 0-100 percent;
+    // glassShadowSizeDp is the shadow's blur/elevation in dp.
     val glassShowBorder: Boolean,
     val glassShadowEnabled: Boolean,
     val glassShadowIntensity: Int,
@@ -271,7 +273,7 @@ internal data class DisplaySettings(
                 glassBlurRadius = DEFAULT_GLASS_BLUR_DP,
                 glassTintScale = DEFAULT_GLASS_TINT_SCALE,
                 glassShowBorder = false,
-                glassShadowEnabled = false,
+                glassShadowEnabled = DEFAULT_GLASS_SHADOW_ENABLED,
                 glassShadowIntensity = DEFAULT_GLASS_SHADOW_INTENSITY,
                 glassShadowSizeDp = DEFAULT_GLASS_SHADOW_SIZE_DP,
                 fontBaseSizeSp = DEFAULT_FONT_BASE_SIZE_SP,

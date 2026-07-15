@@ -153,22 +153,23 @@ class DisplayPreferencesTest {
             store.resetToDefaults()
 
             // Defaults: with no glass-chrome keys written the read path falls back to
-            // border/shadow off at the shared intensity / size constants.
+            // border off / shadow on at the shared intensity / size constants.
             store.settings.first().let { s ->
                 assertFalse(s.glassShowBorder)
-                assertFalse(s.glassShadowEnabled)
+                assertTrue(s.glassShadowEnabled)
                 assertEquals(DEFAULT_GLASS_SHADOW_INTENSITY, s.glassShadowIntensity)
                 assertEquals(DEFAULT_GLASS_SHADOW_SIZE_DP, s.glassShadowSizeDp)
             }
 
-            // Round-trip: enable both and write non-default intensity / size.
+            // Round-trip: move each toggle off its default (border on, shadow off)
+            // and write non-default intensity / size.
             store.setGlassShowBorder(true)
-            store.setGlassShadowEnabled(true)
+            store.setGlassShadowEnabled(false)
             store.setGlassShadowIntensity(70)
             store.setGlassShadowSizeDp(16)
             store.settings.first().let { s ->
                 assertTrue(s.glassShowBorder)
-                assertTrue(s.glassShadowEnabled)
+                assertFalse(s.glassShadowEnabled)
                 assertEquals(70, s.glassShadowIntensity)
                 assertEquals(16, s.glassShadowSizeDp)
             }
@@ -349,7 +350,7 @@ class DisplayPreferencesTest {
         setGlassBlurRadius(5)
         setGlassTintScale(90)
         setGlassShowBorder(true)
-        setGlassShadowEnabled(true)
+        setGlassShadowEnabled(false)
         setGlassShadowIntensity(70)
         setGlassShadowSizeDp(16)
         setFontBaseSizeSp(20)
