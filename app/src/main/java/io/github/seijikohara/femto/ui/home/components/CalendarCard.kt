@@ -292,32 +292,40 @@ private fun EventRow(
     title: String,
     color: Int,
     showColorDot: Boolean,
-) = Row(
+) = Column(
+    // Time above, title below: the side-by-side row made a wrapping title
+    // hang after the time at an unnatural break, while the two-line stack
+    // wraps from the text column's left edge.
     modifier = Modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarDotGap),
-    // Center the dot against the event's two-line stack so it reads as that
-    // event's marker rather than pinning to the time line alone.
-    verticalAlignment = Alignment.CenterVertically,
+    verticalArrangement = Arrangement.spacedBy(1.dp),
 ) {
-    if (showColorDot) {
-        CalendarColorDot(color = color)
-    }
-    Column(
-        // Time above, title below: the side-by-side row made a wrapping title
-        // hang after the time at an unnatural break, while the two-line stack
-        // wraps from the text column's left edge.
-        modifier = Modifier.weight(1f),
-        verticalArrangement = Arrangement.spacedBy(1.dp),
+    Text(
+        text = time,
+        // Indent past the dot gutter so the time shares the title's left edge;
+        // the dot leads the title row below, centered on the title line.
+        modifier =
+            if (showColorDot) {
+                Modifier.padding(start = FemtoDimens.CalendarDotGutter)
+            } else {
+                Modifier
+            },
+        style = MaterialTheme.typography.glanceCaption(lineHeight = 18.sp),
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+        softWrap = false,
+    )
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarDotGap),
+        // Center the dot on the title line rather than the whole time+title
+        // stack, so it marks the event at its title.
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = time,
-            style = MaterialTheme.typography.glanceCaption(lineHeight = 18.sp),
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            softWrap = false,
-        )
+        if (showColorDot) {
+            CalendarColorDot(color = color)
+        }
         Text(
             text = title,
+            modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.glanceBody(),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 2,
