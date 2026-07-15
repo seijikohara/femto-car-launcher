@@ -36,6 +36,7 @@ import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
 import io.github.seijikohara.femto.ui.theme.DynamicAccentSweep
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoWeights
 import io.github.seijikohara.femto.ui.theme.LocalFemtoDarkTheme
 import io.github.seijikohara.femto.ui.theme.accentSeedColor
 
@@ -43,6 +44,20 @@ private const val MIN_GLASS_BLUR = 0
 private const val MAX_GLASS_BLUR = 40
 private const val MIN_GLASS_OPACITY = 0
 private const val MAX_GLASS_OPACITY = 100
+
+// Font-adjustment slider bounds. Size in sp; weight as a tier step (each step
+// shifts the three Bold Minimal weight tiers by 100); letter spacing in
+// hundredths of an em (-2 = -0.02em, 10 = 0.10em).
+private const val MIN_FONT_SIZE = 14
+private const val MAX_FONT_SIZE = 20
+private const val MIN_FONT_WEIGHT_STEP = -2
+private const val MAX_FONT_WEIGHT_STEP = 2
+private const val MIN_FONT_SPACING = -2
+private const val MAX_FONT_SPACING = 10
+
+// Denominator that converts the persisted centi-em letter-spacing step into the
+// em value shown on the row (e.g. 8 -> 0.08 em).
+private const val CENTI_EM_PER_EM = 100f
 
 // The Appearance category's rows: the detail-pane title and reset affordance
 // are owned by the shared master-detail wrapper (see SettingsCategoryId,
@@ -134,6 +149,37 @@ internal fun AppearanceSection(
         title = stringResource(R.string.settings_group_font_cjk),
         family = uiState.cjkFont,
         onClick = { onOpenFontPicker(FontSlot.CJK) },
+    )
+    SliderRow(
+        title = stringResource(R.string.settings_group_font_size),
+        valueLabel = stringResource(R.string.settings_font_size_value, uiState.fontBaseSizeSp),
+        value = uiState.fontBaseSizeSp,
+        range = MIN_FONT_SIZE..MAX_FONT_SIZE,
+        onValueChange = { onAction(SettingsAction.SetFontBaseSizeSp(it)) },
+    )
+    SliderRow(
+        title = stringResource(R.string.settings_group_font_weight),
+        // Show the resulting body (normal-tier) weight number, resolved through the
+        // same FemtoWeights.of ladder the theme applies, rather than re-deriving it.
+        valueLabel =
+            stringResource(
+                R.string.settings_font_weight_value,
+                FemtoWeights.of(uiState.fontWeightStep).normal.weight,
+            ),
+        value = uiState.fontWeightStep,
+        range = MIN_FONT_WEIGHT_STEP..MAX_FONT_WEIGHT_STEP,
+        onValueChange = { onAction(SettingsAction.SetFontWeightStep(it)) },
+    )
+    SliderRow(
+        title = stringResource(R.string.settings_group_font_spacing),
+        valueLabel =
+            stringResource(
+                R.string.settings_font_spacing_value,
+                uiState.fontLetterSpacingCentiEm / CENTI_EM_PER_EM,
+            ),
+        value = uiState.fontLetterSpacingCentiEm,
+        range = MIN_FONT_SPACING..MAX_FONT_SPACING,
+        onValueChange = { onAction(SettingsAction.SetFontLetterSpacingCentiEm(it)) },
     )
 }
 

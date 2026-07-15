@@ -399,6 +399,30 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `SetFontBaseSizeSp writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetFontBaseSizeSp(18))
+            advanceUntilIdle()
+            assertEquals(18, store.settings.first().fontBaseSizeSp)
+        }
+
+    @Test
+    fun `SetFontWeightStep writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetFontWeightStep(2))
+            advanceUntilIdle()
+            assertEquals(2, store.settings.first().fontWeightStep)
+        }
+
+    @Test
+    fun `SetFontLetterSpacingCentiEm writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetFontLetterSpacingCentiEm(6))
+            advanceUntilIdle()
+            assertEquals(6, store.settings.first().fontLetterSpacingCentiEm)
+        }
+
+    @Test
     fun `SetDockPosition writes the value to the store`() =
         runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetDockPosition(DockPosition.LEFT))

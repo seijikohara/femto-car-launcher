@@ -56,6 +56,7 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.bigNumber
 import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.glanceCaption
+import io.github.seijikohara.femto.ui.theme.normalWeight
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import io.github.seijikohara.femto.ui.theme.singleLineBox
 import io.github.seijikohara.femto.ui.theme.weatherGlyphs
@@ -240,7 +241,7 @@ private fun Head(
                 // more hours show before it needs to scroll.
                 val tempStyle = MaterialTheme.typography.bigNumber(
                     size = FemtoDimens.Text4Xl,
-                    weight = FontWeight.Normal,
+                    weight = MaterialTheme.typography.normalWeight,
                 )
                 Text(
                     text = tempLabel,

@@ -50,6 +50,9 @@ internal data class SettingsUiState(
     val mapTerrain: Boolean,
     val glassBlurRadius: Int,
     val glassTintScale: Int,
+    val fontBaseSizeSp: Int,
+    val fontWeightStep: Int,
+    val fontLetterSpacingCentiEm: Int,
     val showCalendar: Boolean,
     val showWeather: Boolean,
     val showMusic: Boolean,
@@ -108,6 +111,9 @@ internal data class SettingsUiState(
                 mapTerrain = DisplaySettings.Default.mapTerrain,
                 glassBlurRadius = DisplaySettings.Default.glassBlurRadius,
                 glassTintScale = DisplaySettings.Default.glassTintScale,
+                fontBaseSizeSp = DisplaySettings.Default.fontBaseSizeSp,
+                fontWeightStep = DisplaySettings.Default.fontWeightStep,
+                fontLetterSpacingCentiEm = DisplaySettings.Default.fontLetterSpacingCentiEm,
                 showCalendar = DisplaySettings.Default.showCalendar,
                 showWeather = DisplaySettings.Default.showWeather,
                 showMusic = DisplaySettings.Default.showMusic,
@@ -231,6 +237,18 @@ internal sealed interface SettingsAction {
     ) : SettingsAction
 
     data class SetGlassTintScale(
+        val value: Int,
+    ) : SettingsAction
+
+    data class SetFontBaseSizeSp(
+        val value: Int,
+    ) : SettingsAction
+
+    data class SetFontWeightStep(
+        val value: Int,
+    ) : SettingsAction
+
+    data class SetFontLetterSpacingCentiEm(
         val value: Int,
     ) : SettingsAction
 

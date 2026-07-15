@@ -68,6 +68,9 @@ internal class SettingsViewModel(
                 mapTerrain = display.mapTerrain,
                 glassBlurRadius = display.glassBlurRadius,
                 glassTintScale = display.glassTintScale,
+                fontBaseSizeSp = display.fontBaseSizeSp,
+                fontWeightStep = display.fontWeightStep,
+                fontLetterSpacingCentiEm = display.fontLetterSpacingCentiEm,
                 showCalendar = display.showCalendar,
                 showWeather = display.showWeather,
                 showMusic = display.showMusic,
@@ -196,6 +199,18 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetGlassTintScale -> {
                     displayPreferences.setGlassTintScale(action.value)
+                }
+
+                is SettingsAction.SetFontBaseSizeSp -> {
+                    displayPreferences.setFontBaseSizeSp(action.value)
+                }
+
+                is SettingsAction.SetFontWeightStep -> {
+                    displayPreferences.setFontWeightStep(action.value)
+                }
+
+                is SettingsAction.SetFontLetterSpacingCentiEm -> {
+                    displayPreferences.setFontLetterSpacingCentiEm(action.value)
                 }
 
                 is SettingsAction.SetShowCalendar -> {

@@ -91,6 +91,12 @@ internal interface DisplaySettingsStore {
 
     suspend fun setGlassTintScale(value: Int)
 
+    suspend fun setFontBaseSizeSp(value: Int)
+
+    suspend fun setFontWeightStep(value: Int)
+
+    suspend fun setFontLetterSpacingCentiEm(value: Int)
+
     suspend fun setShowCalendar(value: Boolean)
 
     suspend fun setShowWeather(value: Boolean)
@@ -171,6 +177,9 @@ internal class DisplayPreferences(
                     mapTerrain = prefs[MAP_TERRAIN_KEY] ?: false,
                     glassBlurRadius = prefs[GLASS_BLUR_KEY] ?: DEFAULT_GLASS_BLUR_DP,
                     glassTintScale = prefs[GLASS_TINT_KEY] ?: DEFAULT_GLASS_TINT_SCALE,
+                    fontBaseSizeSp = prefs[FONT_BASE_SIZE_KEY] ?: DEFAULT_FONT_BASE_SIZE_SP,
+                    fontWeightStep = prefs[FONT_WEIGHT_STEP_KEY] ?: DEFAULT_FONT_WEIGHT_STEP,
+                    fontLetterSpacingCentiEm = prefs[FONT_LETTER_SPACING_KEY] ?: DEFAULT_FONT_LETTER_SPACING_CENTI_EM,
                     showCalendar = prefs[SHOW_CALENDAR_KEY] ?: true,
                     showWeather = prefs[SHOW_WEATHER_KEY] ?: true,
                     showMusic = prefs[SHOW_MUSIC_KEY] ?: true,
@@ -298,6 +307,18 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[GLASS_TINT_KEY] = value }
     }
 
+    override suspend fun setFontBaseSizeSp(value: Int) {
+        context.displayDataStore.editOrLog(TAG) { it[FONT_BASE_SIZE_KEY] = value }
+    }
+
+    override suspend fun setFontWeightStep(value: Int) {
+        context.displayDataStore.editOrLog(TAG) { it[FONT_WEIGHT_STEP_KEY] = value }
+    }
+
+    override suspend fun setFontLetterSpacingCentiEm(value: Int) {
+        context.displayDataStore.editOrLog(TAG) { it[FONT_LETTER_SPACING_KEY] = value }
+    }
+
     override suspend fun setShowCalendar(value: Boolean) {
         context.displayDataStore.editOrLog(TAG) { it[SHOW_CALENDAR_KEY] = value }
     }
@@ -397,6 +418,9 @@ internal class DisplayPreferences(
         val MAP_TERRAIN_KEY = booleanPreferencesKey("map_terrain")
         val GLASS_BLUR_KEY = intPreferencesKey("glass_blur_radius")
         val GLASS_TINT_KEY = intPreferencesKey("glass_tint_scale")
+        val FONT_BASE_SIZE_KEY = intPreferencesKey("font_base_size_sp")
+        val FONT_WEIGHT_STEP_KEY = intPreferencesKey("font_weight_step")
+        val FONT_LETTER_SPACING_KEY = intPreferencesKey("font_letter_spacing_centi_em")
         val SHOW_CALENDAR_KEY = booleanPreferencesKey("show_calendar")
         val SHOW_WEATHER_KEY = booleanPreferencesKey("show_weather")
         val SHOW_MUSIC_KEY = booleanPreferencesKey("show_music")
@@ -450,6 +474,9 @@ internal class DisplayPreferences(
                 MAP_TERRAIN_KEY,
                 GLASS_BLUR_KEY,
                 GLASS_TINT_KEY,
+                FONT_BASE_SIZE_KEY,
+                FONT_WEIGHT_STEP_KEY,
+                FONT_LETTER_SPACING_KEY,
                 SHOW_CALENDAR_KEY,
                 SHOW_WEATHER_KEY,
                 SHOW_MUSIC_KEY,

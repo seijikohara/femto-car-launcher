@@ -24,7 +24,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -47,6 +46,7 @@ import io.github.seijikohara.femto.ui.theme.eyebrow
 import io.github.seijikohara.femto.ui.theme.glanceBody
 import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.glanceMetric
+import io.github.seijikohara.femto.ui.theme.normalWeight
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import java.time.LocalDate
 import java.time.LocalTime
@@ -175,7 +175,10 @@ private fun Head(snapshot: CalendarSnapshot) =
     ) {
         Text(
             text = "${snapshot.today.dayOfMonth}",
-            style = MaterialTheme.typography.bigNumber(size = FemtoDimens.Text4Xl, weight = FontWeight.Normal),
+            style = MaterialTheme.typography.bigNumber(
+                size = FemtoDimens.Text4Xl,
+                weight = MaterialTheme.typography.normalWeight,
+            ),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
         )

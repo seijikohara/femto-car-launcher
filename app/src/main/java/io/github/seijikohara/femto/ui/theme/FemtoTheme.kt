@@ -46,6 +46,9 @@ internal val LocalFemtoDarkTheme =
  * Typography: Bold Minimal weights and automotive sizing on top of M3 roles.
  * [fontFamily] is the resolved typeface — the system default, or the user's
  * downloaded Google Fonts pair (Latin + CJK fallback); see [buildFontFamily].
+ * The user also adjusts the type independently of the family: [fontBaseSizeSp]
+ * re-bases the rem scale via fontScale (text only), [fontWeightStep] shifts the
+ * three weight tiers, and [fontLetterSpacingCentiEm] tracks every role.
  *
  * Shape: M3 default squircle tokens (no override).
  *
@@ -58,6 +61,9 @@ fun FemtoTheme(
     accent: AccentColor = AccentColor.DYNAMIC,
     uiScale: UiScale = UiScale.MEDIUM,
     darkTheme: Boolean = isSystemInDarkTheme(),
+    fontBaseSizeSp: Int = FemtoDimens.BaseTextSize.value.toInt(),
+    fontWeightStep: Int = 0,
+    fontLetterSpacingCentiEm: Int = 0,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -79,12 +85,17 @@ fun FemtoTheme(
         }
     // Scale the whole UI (text, icons, layout) by the user's UI-scale choice through
     // the density: dp and sp both derive from it, so the responsive layout also sees
-    // the adjusted dp viewport. fontScale is left untouched so the system font-size
-    // setting still applies on top. MEDIUM (factor 1) is a no-op.
+    // the adjusted dp viewport. The user's font-size setting then re-bases the rem
+    // scale via fontScale (text only, not dp): multiplying the incoming fontScale by
+    // fontBaseSizeSp / BaseTextSize keeps the system font-size setting composing on
+    // top. MEDIUM UI scale at the 16sp default base is a no-op.
     val baseDensity = LocalDensity.current
     val scaledDensity =
-        remember(baseDensity, uiScale) {
-            Density(baseDensity.density * uiScale.factor, baseDensity.fontScale)
+        remember(baseDensity, uiScale, fontBaseSizeSp) {
+            Density(
+                baseDensity.density * uiScale.factor,
+                baseDensity.fontScale * (fontBaseSizeSp / FemtoDimens.BaseTextSize.value),
+            )
         }
     CompositionLocalProvider(
         LocalFemtoDarkTheme provides darkTheme,
@@ -92,11 +103,19 @@ fun FemtoTheme(
     ) {
         MaterialTheme(
             colorScheme = target.animated(),
-            typography = femtoTypography(fontFamily),
+            typography = femtoTypography(
+                fontFamily,
+                FemtoWeights.of(fontWeightStep),
+                fontLetterSpacingCentiEm / CENTI_EM_PER_EM,
+            ),
             content = content,
         )
     }
 }
+
+// fontLetterSpacingCentiEm arrives in centi-em (hundredths of an em); Compose's
+// letterSpacing wants a plain em fraction, so convert by dividing by this.
+private const val CENTI_EM_PER_EM = 100f
 
 // How long a theme change (Light <-> Dark, accent, wallpaper) takes to cross-fade.
 private const val THEME_FADE_MILLIS = 500

@@ -120,6 +120,32 @@ class DisplayPreferencesTest {
             assertTrue(settings.googleMapsTraffic)
         }
 
+    @Test
+    fun `font adjustment settings read their defaults and round-trip`() =
+        runTest {
+            val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
+            store.resetToDefaults()
+
+            // Defaults: with no font keys written the read path falls back to the
+            // theme baseline (16sp base, no weight shift, no tracking).
+            store.settings.first().let { s ->
+                assertEquals(DEFAULT_FONT_BASE_SIZE_SP, s.fontBaseSizeSp)
+                assertEquals(DEFAULT_FONT_WEIGHT_STEP, s.fontWeightStep)
+                assertEquals(DEFAULT_FONT_LETTER_SPACING_CENTI_EM, s.fontLetterSpacingCentiEm)
+            }
+
+            // Round-trip: write non-default values (including a negative weight step
+            // and centi-em spacing), then read them back.
+            store.setFontBaseSizeSp(18)
+            store.setFontWeightStep(-1)
+            store.setFontLetterSpacingCentiEm(6)
+            store.settings.first().let { s ->
+                assertEquals(18, s.fontBaseSizeSp)
+                assertEquals(-1, s.fontWeightStep)
+                assertEquals(6, s.fontLetterSpacingCentiEm)
+            }
+        }
+
     // One test per section: mutate every field away from Default, resetKeys()
     // just that section, then assert the whole DisplaySettings equals `mutated`
     // with only that section's fields folded back to Default — a single
@@ -140,6 +166,9 @@ class DisplayPreferencesTest {
                     mapSchemeDark = DisplaySettings.Default.mapSchemeDark,
                     glassBlurRadius = DisplaySettings.Default.glassBlurRadius,
                     glassTintScale = DisplaySettings.Default.glassTintScale,
+                    fontBaseSizeSp = DisplaySettings.Default.fontBaseSizeSp,
+                    fontWeightStep = DisplaySettings.Default.fontWeightStep,
+                    fontLetterSpacingCentiEm = DisplaySettings.Default.fontLetterSpacingCentiEm,
                 )
             assertEquals(expected, store.settings.first())
         }
@@ -287,6 +316,9 @@ class DisplayPreferencesTest {
         setMapTerrain(true)
         setGlassBlurRadius(5)
         setGlassTintScale(90)
+        setFontBaseSizeSp(20)
+        setFontWeightStep(2)
+        setFontLetterSpacingCentiEm(8)
         setShowCalendar(false)
         setShowWeather(false)
         setShowMusic(false)

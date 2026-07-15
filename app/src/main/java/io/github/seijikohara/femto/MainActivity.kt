@@ -198,6 +198,9 @@ class MainActivity : ComponentActivity() {
                 accent = settings.accentColor,
                 uiScale = settings.uiScale,
                 darkTheme = darkTheme,
+                fontBaseSizeSp = settings.fontBaseSizeSp,
+                fontWeightStep = settings.fontWeightStep,
+                fontLetterSpacingCentiEm = settings.fontLetterSpacingCentiEm,
             ) {
                 // The dashboard stays composed; the app drawer, assistant, and
                 // settings are all bottom-sheet overlays that slide up over it.
