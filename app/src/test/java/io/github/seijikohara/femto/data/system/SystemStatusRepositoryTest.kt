@@ -180,6 +180,66 @@ class SystemStatusRepositoryTest {
         }
 
     @Test
+    fun `onlineFlow reports online when a validated network becomes available`() =
+        runTest {
+            val connectivity = application.getSystemService<ConnectivityManager>()!!
+            val shadowConnectivity = shadowOf(connectivity)
+            // No validated network present, so the synchronous seed reads offline; the
+            // callback below drives the offline->online edge the map reloads on.
+            shadowConnectivity.clearAllNetworks()
+
+            SystemStatusRepository(application).onlineFlow().test {
+                assertFalse(awaitItem())
+
+                val callback = awaitRegisteredNetworkCallback(shadowConnectivity)
+                callback.onAvailable(WIFI_NETWORK)
+
+                assertTrue(awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `onlineFlow returns to offline when the last validated network is lost`() =
+        runTest {
+            val connectivity = application.getSystemService<ConnectivityManager>()!!
+            val shadowConnectivity = shadowOf(connectivity)
+            shadowConnectivity.clearAllNetworks()
+
+            SystemStatusRepository(application).onlineFlow().test {
+                assertFalse(awaitItem())
+
+                val callback = awaitRegisteredNetworkCallback(shadowConnectivity)
+                callback.onAvailable(WIFI_NETWORK)
+                assertTrue(awaitItem())
+
+                // Losing the only validated network empties the tracked set, so the
+                // flow returns offline and a later reconnect is a fresh recovery edge.
+                callback.onLost(WIFI_NETWORK)
+                assertFalse(awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `onlineFlow seeds true when a validated network is already active`() =
+        runTest {
+            val connectivity = application.getSystemService<ConnectivityManager>()!!
+            val shadowConnectivity = shadowOf(connectivity)
+            // Attach validated internet to the active network BEFORE subscribing, so the
+            // synchronous seed reads online. This is the spurious-edge-avoidance property:
+            // an online cold start must emit true first, not a false the map would treat
+            // as an offline->online recovery and needlessly reload on.
+            val activeNetwork = connectivity.activeNetwork!!
+            shadowConnectivity.setNetworkCapabilities(activeNetwork, validatedWifiCapabilities())
+
+            SystemStatusRepository(application).onlineFlow().test {
+                assertTrue(awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
     fun `cellularSignalLevel is null on a telephony-less unit`() =
         runTest {
             // setUp forces FEATURE_TELEPHONY off, so cellularLevelFlow never
@@ -430,6 +490,9 @@ class SystemStatusRepositoryTest {
     private fun validatedWifiCapabilities(rssiDbm: Int? = null): NetworkCapabilities =
         ShadowNetworkCapabilities.newInstance().apply {
             shadowOf(this).addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            // INTERNET + VALIDATED = real reachable internet: wifiFlow's VALIDATED check
+            // and onlineFlow's INTERNET+VALIDATED seed both read this as online.
+            shadowOf(this).addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             shadowOf(this).addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
             // NetworkCapabilities.setSignalStrength(int) is hidden in the public SDK
             // but present at runtime under Robolectric; reflection is the only way to

@@ -64,6 +64,9 @@ class HomeViewModelTest {
             val calendar = fakeCalendarSnapshot()
             val systemStatus = fakeSystemStatus()
             val tripState = fakeTripState()
+            // Distinct from HomeUiState.Initial.online (true) so the assertion pins
+            // this field to its own flow rather than the default.
+            val online = false
             val viewModel =
                 HomeViewModel(
                     locationFlow = flowOf(location),
@@ -73,6 +76,7 @@ class HomeViewModelTest {
                     calendarFlow = flowOf(calendar),
                     systemStatusFlow = flowOf(systemStatus),
                     tripStateFlow = flowOf(tripState),
+                    onlineFlow = flowOf(online),
                 )
             viewModel.uiState.test {
                 val state = awaitItem()
@@ -83,6 +87,7 @@ class HomeViewModelTest {
                 assertEquals(calendar, state.calendar)
                 assertEquals(systemStatus, state.systemStatus)
                 assertEquals(tripState, state.tripState)
+                assertEquals(online, state.online)
                 cancelAndIgnoreRemainingEvents()
             }
         }

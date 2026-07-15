@@ -46,6 +46,9 @@ internal fun MapPanel(
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
     recenterNonce: Int = 0,
+    // Validated-internet connectivity, forwarded to WebMapView so it can reload the
+    // otherwise-blank offline map when connectivity returns.
+    online: Boolean = true,
     onFollowChange: (Boolean) -> Unit = {},
     onBearingChange: (Float) -> Unit = {},
     // Extra bottom padding for the bottom-start attribution credit, so it clears a
@@ -69,6 +72,7 @@ internal fun MapPanel(
                 onTap = onTap,
                 modifier = Modifier.fillMaxSize(),
                 recenterNonce = recenterNonce,
+                online = online,
                 onFollowChange = onFollowChange,
                 onBearingChange = onBearingChange,
                 attributionBottomInset = attributionBottomInset,
