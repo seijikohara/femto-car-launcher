@@ -119,6 +119,8 @@ internal const val DEFAULT_MAP_MARKER_POS = 70
 /** Default glass-overlay blur radius (dp) and tint opacity (absolute percent: 0 = clear, 100 = opaque). */
 internal const val DEFAULT_GLASS_BLUR_DP = 16
 internal const val DEFAULT_GLASS_TINT_SCALE = 50
+internal const val DEFAULT_GLASS_SHADOW_INTENSITY = 40
+internal const val DEFAULT_GLASS_SHADOW_SIZE_DP = 8
 
 /**
  * Default font-adjustment values, applied on top of the resolved font family by
@@ -191,6 +193,13 @@ internal data class DisplaySettings(
     // absolute percent (0 = clear glass, 100 = fully opaque surface).
     val glassBlurRadius: Int,
     val glassTintScale: Int,
+    // Optional glass chrome, both off by default to preserve the frameless
+    // frosted-glass look: an outline border and a drop shadow. glassShadowIntensity
+    // is a 0-100 percent; glassShadowSizeDp is the shadow's blur/elevation in dp.
+    val glassShowBorder: Boolean,
+    val glassShadowEnabled: Boolean,
+    val glassShadowIntensity: Int,
+    val glassShadowSizeDp: Int,
     // User font adjustments applied on top of the resolved font family through
     // FemtoTheme: the rem-scale base size (sp), the weight-tier step (each step
     // shifts the three Bold Minimal weight tiers by 100), and letter spacing in
@@ -261,6 +270,10 @@ internal data class DisplaySettings(
                 mapTerrain = false,
                 glassBlurRadius = DEFAULT_GLASS_BLUR_DP,
                 glassTintScale = DEFAULT_GLASS_TINT_SCALE,
+                glassShowBorder = false,
+                glassShadowEnabled = false,
+                glassShadowIntensity = DEFAULT_GLASS_SHADOW_INTENSITY,
+                glassShadowSizeDp = DEFAULT_GLASS_SHADOW_SIZE_DP,
                 fontBaseSizeSp = DEFAULT_FONT_BASE_SIZE_SP,
                 fontWeightStep = DEFAULT_FONT_WEIGHT_STEP,
                 fontLetterSpacingCentiEm = DEFAULT_FONT_LETTER_SPACING_CENTI_EM,

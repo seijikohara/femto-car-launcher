@@ -101,6 +101,14 @@ internal class FakeDisplaySettingsStore(
 
     override suspend fun setGlassTintScale(value: Int) = state.update { it.copy(glassTintScale = value) }
 
+    override suspend fun setGlassShowBorder(value: Boolean) = state.update { it.copy(glassShowBorder = value) }
+
+    override suspend fun setGlassShadowEnabled(value: Boolean) = state.update { it.copy(glassShadowEnabled = value) }
+
+    override suspend fun setGlassShadowIntensity(value: Int) = state.update { it.copy(glassShadowIntensity = value) }
+
+    override suspend fun setGlassShadowSizeDp(value: Int) = state.update { it.copy(glassShadowSizeDp = value) }
+
     override suspend fun setFontBaseSizeSp(value: Int) = state.update { it.copy(fontBaseSizeSp = value) }
 
     override suspend fun setFontWeightStep(value: Int) = state.update { it.copy(fontWeightStep = value) }
@@ -252,6 +260,22 @@ internal class FakeDisplaySettingsStore(
 
             DisplayPreferences.GLASS_TINT_KEY -> {
                 copy(glassTintScale = default.glassTintScale)
+            }
+
+            DisplayPreferences.GLASS_SHOW_BORDER_KEY -> {
+                copy(glassShowBorder = default.glassShowBorder)
+            }
+
+            DisplayPreferences.GLASS_SHADOW_ENABLED_KEY -> {
+                copy(glassShadowEnabled = default.glassShadowEnabled)
+            }
+
+            DisplayPreferences.GLASS_SHADOW_INTENSITY_KEY -> {
+                copy(glassShadowIntensity = default.glassShadowIntensity)
+            }
+
+            DisplayPreferences.GLASS_SHADOW_SIZE_KEY -> {
+                copy(glassShadowSizeDp = default.glassShadowSizeDp)
             }
 
             DisplayPreferences.FONT_BASE_SIZE_KEY -> {

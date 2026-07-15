@@ -50,6 +50,10 @@ internal data class SettingsUiState(
     val mapTerrain: Boolean,
     val glassBlurRadius: Int,
     val glassTintScale: Int,
+    val glassShowBorder: Boolean,
+    val glassShadowEnabled: Boolean,
+    val glassShadowIntensity: Int,
+    val glassShadowSizeDp: Int,
     val fontBaseSizeSp: Int,
     val fontWeightStep: Int,
     val fontLetterSpacingCentiEm: Int,
@@ -111,6 +115,10 @@ internal data class SettingsUiState(
                 mapTerrain = DisplaySettings.Default.mapTerrain,
                 glassBlurRadius = DisplaySettings.Default.glassBlurRadius,
                 glassTintScale = DisplaySettings.Default.glassTintScale,
+                glassShowBorder = DisplaySettings.Default.glassShowBorder,
+                glassShadowEnabled = DisplaySettings.Default.glassShadowEnabled,
+                glassShadowIntensity = DisplaySettings.Default.glassShadowIntensity,
+                glassShadowSizeDp = DisplaySettings.Default.glassShadowSizeDp,
                 fontBaseSizeSp = DisplaySettings.Default.fontBaseSizeSp,
                 fontWeightStep = DisplaySettings.Default.fontWeightStep,
                 fontLetterSpacingCentiEm = DisplaySettings.Default.fontLetterSpacingCentiEm,
@@ -237,6 +245,22 @@ internal sealed interface SettingsAction {
     ) : SettingsAction
 
     data class SetGlassTintScale(
+        val value: Int,
+    ) : SettingsAction
+
+    data class SetGlassShowBorder(
+        val value: Boolean,
+    ) : SettingsAction
+
+    data class SetGlassShadowEnabled(
+        val value: Boolean,
+    ) : SettingsAction
+
+    data class SetGlassShadowIntensity(
+        val value: Int,
+    ) : SettingsAction
+
+    data class SetGlassShadowSizeDp(
         val value: Int,
     ) : SettingsAction
 

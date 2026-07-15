@@ -51,6 +51,11 @@ internal fun displaySettingsFacts(display: DisplaySettings): List<DiagnosticFact
         entry("3D buildings / terrain", "${display.map3dBuildings} / ${display.mapTerrain}"),
         entry("Glass blur / tint", "${display.glassBlurRadius} dp / ${display.glassTintScale}%"),
         entry(
+            "Glass border / shadow",
+            "border ${display.glassShowBorder} / shadow ${display.glassShadowEnabled} " +
+                "(${display.glassShadowIntensity}% / ${display.glassShadowSizeDp} dp)",
+        ),
+        entry(
             "Font size / weight / spacing",
             "${display.fontBaseSizeSp} sp / ${display.fontWeightStep} / ${display.fontLetterSpacingCentiEm}",
         ),

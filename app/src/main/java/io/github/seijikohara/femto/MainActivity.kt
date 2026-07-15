@@ -254,6 +254,10 @@ class MainActivity : ComponentActivity() {
                         GlassConfig(
                             blurRadius = settings.glassBlurRadius.dp,
                             tintScale = settings.glassTintScale,
+                            showBorder = settings.glassShowBorder,
+                            shadowEnabled = settings.glassShadowEnabled,
+                            shadowIntensity = settings.glassShadowIntensity,
+                            shadowSize = settings.glassShadowSizeDp.dp,
                         ),
                     onEvent = { event ->
                         handleHomeEvent(

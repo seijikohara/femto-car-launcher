@@ -179,6 +179,12 @@
     <string name="settings_group_glass_opacity">Glass opacity</string>
     <string name="settings_glass_blur_value">%1$d dp</string>
     <string name="settings_glass_opacity_value">%1$d%%</string>
+    <string name="settings_group_glass_border">Panel border</string>
+    <string name="settings_group_glass_shadow">Panel shadow</string>
+    <string name="settings_group_glass_shadow_intensity">Shadow intensity</string>
+    <string name="settings_glass_shadow_intensity_value">%1$d%%</string>
+    <string name="settings_group_glass_shadow_size">Shadow size</string>
+    <string name="settings_glass_shadow_size_value">%1$d dp</string>
     <string name="settings_group_orientation">Orientation</string>
     <string name="settings_orientation_landscape">Landscape</string>
     <string name="settings_orientation_portrait">Portrait</string>
