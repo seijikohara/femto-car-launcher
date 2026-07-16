@@ -23,6 +23,12 @@ import kotlin.test.assertTrue
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class AppsRepositoryTest {
+    // Temporary CI benchmark: an extra @Test changes the compiled test bytecode so
+    // testDebugUnitTest cannot be restored from the build cache, forcing it to run
+    // (to measure the parallel forks). Reverted before merge.
+    @Test
+    fun `ci benchmark no-op`() = Unit
+
     private val application: Application = ApplicationProvider.getApplicationContext()
 
     /**
