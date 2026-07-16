@@ -1,6 +1,5 @@
 package io.github.seijikohara.femto.ui.theme
 
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FiniteAnimationSpec
@@ -48,7 +47,7 @@ internal object Motion {
 
     /**
      * Tier-aware fade spec for a discrete content swap — every card-level
-     * `Crossfade` (album art, track metadata, a weather/calendar refresh).
+     * dissolve (album art, track metadata, a weather/calendar refresh).
      * STANDARD/REDUCED fade over their duration; OFF snaps instantly, so a
      * MotionTier.OFF user never sees any of these dissolve. [targetState] at
      * the call site must be a discrete identity
@@ -64,9 +63,13 @@ internal object Motion {
         }
 
     /**
-     * Thin [Crossfade] wrapper that always routes through [contentFadeSpec], so
-     * every content-swap fade in the dashboard honors [tier] the same way
-     * instead of each call site re-deriving (or forgetting) the tier-aware spec.
+     * Thin [CrossDissolve] wrapper that always routes through
+     * [contentFadeSpec], so every content-swap fade in the dashboard honors
+     * [tier] the same way instead of each call site re-deriving (or
+     * forgetting) the tier-aware spec. It dissolves through [CrossDissolve]
+     * rather than the stock `Crossfade`, whose two-layer alpha dips combined
+     * coverage mid-transition and let the live map bleed through the glass as
+     * a visible flick.
      */
     @Composable
     fun <T> ContentCrossfade(
@@ -75,11 +78,11 @@ internal object Motion {
         label: String,
         modifier: Modifier = Modifier,
         content: @Composable (T) -> Unit,
-    ) = Crossfade(
+    ) = CrossDissolve(
         targetState = targetState,
-        modifier = modifier,
         animationSpec = contentFadeSpec(tier),
         label = label,
+        modifier = modifier,
         content = content,
     )
 }

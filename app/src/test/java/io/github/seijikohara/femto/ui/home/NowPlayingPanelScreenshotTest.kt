@@ -2,12 +2,12 @@ package io.github.seijikohara.femto.ui.home
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
-import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.seijikohara.femto.data.music.NowPlaying
 import io.github.seijikohara.femto.data.music.QueueEntry
 import io.github.seijikohara.femto.data.music.RepeatMode
 import io.github.seijikohara.femto.data.music.SPECTRUM_BAND_COUNT
+import io.github.seijikohara.femto.testfixtures.ScreenshotCompareOptions
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.ui.home.components.NowPlayingPanel
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -74,7 +74,10 @@ class NowPlayingPanelScreenshotTest {
         showAlbum: Boolean = true,
         showArt: Boolean = true,
     ) {
-        captureRoboImage(filePath = "src/test/screenshots/nowplaying-$name.png", roborazziOptions = OPTIONS) {
+        captureRoboImage(
+            filePath = "src/test/screenshots/nowplaying-$name.png",
+            roborazziOptions = ScreenshotCompareOptions,
+        ) {
             FemtoTheme {
                 NowPlayingPanel(
                     nowPlaying = state,
@@ -91,14 +94,6 @@ class NowPlayingPanelScreenshotTest {
     }
 
     private companion object {
-        // A small tolerance absorbs sub-pixel antialiasing differences between the
-        // golden-record host and the CI runner while still catching real layout
-        // regressions (mirrors DashboardScreenshotTest).
-        val OPTIONS =
-            RoborazziOptions(
-                compareOptions = RoborazziOptions.CompareOptions(changeThreshold = 0.01f),
-            )
-
         val FULL =
             fakeNowPlaying(
                 title = "An Extraordinarily Long Track Title That The Small Card Truncates",
