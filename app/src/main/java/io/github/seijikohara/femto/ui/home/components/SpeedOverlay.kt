@@ -419,10 +419,15 @@ private fun WidthReserve(
  * and the next, shorter one shrink it back. Reporting zero intrinsic width
  * takes the row out of that vote; at measure time it simply fills whatever
  * width the metric row set.
+ *
+ * [modifier] must never carry a width-affecting modifier — sizing this node
+ * would re-enter it into the very intrinsic vote it exists to sit out.
  */
 @Composable
-private fun ZeroIntrinsicWidth(content: @Composable () -> Unit) =
-    Layout(content = content, measurePolicy = ZeroIntrinsicWidthPolicy)
+private fun ZeroIntrinsicWidth(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) = Layout(content = content, modifier = modifier, measurePolicy = ZeroIntrinsicWidthPolicy)
 
 private object ZeroIntrinsicWidthPolicy : MeasurePolicy {
     override fun MeasureScope.measure(

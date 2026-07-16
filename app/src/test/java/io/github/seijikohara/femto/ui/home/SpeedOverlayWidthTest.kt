@@ -15,10 +15,11 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.width
-import io.github.seijikohara.femto.data.geocoding.ShortAddress
-import io.github.seijikohara.femto.data.location.TripState
+import io.github.seijikohara.femto.testfixtures.fakeAddress
+import io.github.seijikohara.femto.testfixtures.fakeTripState
 import io.github.seijikohara.femto.ui.home.components.SpeedOverlay
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
+import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
@@ -27,6 +28,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Pins the speed overlay's width against its two historical reflow sources:
@@ -70,7 +72,7 @@ class SpeedOverlayWidthTest {
                         location = location,
                         address = address,
                         tripState =
-                            TripState(
+                            fakeTripState(
                                 distanceMeters = 6_400.0,
                                 avgSpeedMs = 11.0,
                                 currentSpeedMs = speedMps.toDouble(),
@@ -83,7 +85,16 @@ class SpeedOverlayWidthTest {
         }
     }
 
-    private fun overlayWidth(): Dp = composeTestRule.onNodeWithTag(OVERLAY_TAG).getUnclippedBoundsInRoot().width
+    // Falsifiability guard: at the overlay's max-width cap every variant clamps
+    // to the same value and both tests would pass vacuously even with the fix
+    // reverted, so a measurement AT the cap means the stress no longer
+    // discriminates and must fail loudly instead.
+    private fun overlayWidth(): Dp =
+        composeTestRule
+            .onNodeWithTag(OVERLAY_TAG)
+            .getUnclippedBoundsInRoot()
+            .width
+            .also { assertTrue(it < FemtoDimens.SpeedOverlayMaxWidth, "overlay clamped at its max-width cap ($it)") }
 
     @Test
     fun `hero digit count does not change the overlay width`() {
@@ -135,11 +146,10 @@ class SpeedOverlayWidthTest {
         // whole glyph advances (an order of magnitude more).
         const val WIDTH_TOLERANCE_DP = 0.5f
 
-        val SHORT_ADDRESS = ShortAddress(locality = "Minato-ku", region = "Tokyo")
+        val SHORT_ADDRESS = fakeAddress(locality = "Minato-ku")
         val LONG_ADDRESS =
-            ShortAddress(
+            fakeAddress(
                 locality = "Minato-ku",
-                region = "Tokyo",
                 line = "1-2-3 Some Extraordinarily Long Avenue Name, A Very Long District Name, Prefecture Name",
             )
     }
