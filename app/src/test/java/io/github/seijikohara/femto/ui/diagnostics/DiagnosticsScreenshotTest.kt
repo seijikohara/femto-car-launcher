@@ -3,8 +3,8 @@ package io.github.seijikohara.femto.ui.diagnostics
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
+import io.github.seijikohara.femto.testfixtures.ScreenshotCompareOptions
 import io.github.seijikohara.femto.testfixtures.fakeDiagnosticSections
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Test
@@ -52,17 +52,8 @@ class DiagnosticsScreenshotTest {
         name: String,
         content: @Composable () -> Unit,
     ) {
-        captureRoboImage(filePath = "src/test/screenshots/$name.png", roborazziOptions = OPTIONS) {
+        captureRoboImage(filePath = "src/test/screenshots/$name.png", roborazziOptions = ScreenshotCompareOptions) {
             FemtoTheme { content() }
         }
-    }
-
-    private companion object {
-        // Same tolerance as the dashboard / music-panel goldens: absorbs sub-pixel
-        // antialiasing differences between the record host and the CI runner.
-        val OPTIONS =
-            RoborazziOptions(
-                compareOptions = RoborazziOptions.CompareOptions(changeThreshold = 0.01f),
-            )
     }
 }

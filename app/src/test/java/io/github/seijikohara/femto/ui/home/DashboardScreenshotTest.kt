@@ -2,11 +2,11 @@ package io.github.seijikohara.femto.ui.home
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
-import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.data.music.MusicCardState
+import io.github.seijikohara.femto.testfixtures.ScreenshotCompareOptions
 import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
@@ -150,7 +150,10 @@ class DashboardScreenshotTest {
         uiScale: UiScale = UiScale.MEDIUM,
         driverSide: DriverSide = DriverSide.RIGHT,
     ) {
-        captureRoboImage(filePath = "src/test/screenshots/dashboard-$name.png", roborazziOptions = OPTIONS) {
+        captureRoboImage(
+            filePath = "src/test/screenshots/dashboard-$name.png",
+            roborazziOptions = ScreenshotCompareOptions,
+        ) {
             FemtoTheme(uiScale = uiScale) {
                 DashboardScaffold(
                     uiState = STATE,
@@ -173,14 +176,6 @@ class DashboardScreenshotTest {
     private companion object {
         // Fixed so the dashboard clock is deterministic across CI record/verify runs.
         val FIXED_CLOCK: Clock = Clock.fixed(Instant.parse("2026-05-01T10:08:00Z"), ZoneOffset.UTC)
-
-        // A small tolerance absorbs sub-pixel antialiasing differences between the
-        // golden-record host and the CI runner while still catching real layout
-        // regressions.
-        val OPTIONS =
-            RoborazziOptions(
-                compareOptions = RoborazziOptions.CompareOptions(changeThreshold = 0.01f),
-            )
 
         val STATE =
             HomeUiState.Initial.copy(
