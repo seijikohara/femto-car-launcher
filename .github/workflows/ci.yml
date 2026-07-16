@@ -160,8 +160,24 @@ jobs:
         run: |
           # `gh release edit --target` cannot move an existing tag (cli/cli#8669),
           # so delete the old rolling release and tag, then recreate against the
-          # exact built commit. `|| true` keeps the first-ever run idempotent.
-          gh release delete nightly --yes --cleanup-tag || true
+          # exact built commit.
+          #
+          # Delete by RELEASE ID from the list, never by tag lookup: a release
+          # whose server-side tag association is corrupted (seen 2026-07-16
+          # after a GitHub incident) is invisible to `gh release delete <tag>`
+          # ("release not found") yet still blocks the tag_name on create —
+          # a deadlock no rerun can clear. Listing sees every release, so this
+          # shape cannot wedge; an empty list (first-ever run) simply skips.
+          gh api "repos/$GITHUB_REPOSITORY/releases" \
+            --jq '.[] | select(.tag_name == "nightly") | .id' |
+            while read -r release_id; do
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$release_id"
+            done
+          # Delete the tag ref explicitly (delete-by-id has no --cleanup-tag):
+          # `gh release create --target` is ignored when the tag already
+          # exists, so a stale ref would silently pin the new release to the
+          # OLD commit. A 404 here just means no tag yet.
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/nightly" || true
           gh release create nightly \
             "$RUNNER_TEMP/femto-car-launcher-nightly.apk" \
             "$RUNNER_TEMP/femto-car-launcher-nightly.aab" \
