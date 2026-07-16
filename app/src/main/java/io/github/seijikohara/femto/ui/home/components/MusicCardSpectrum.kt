@@ -28,6 +28,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.sin
 
@@ -40,9 +41,11 @@ private const val TAU_DECAY_MS = 350f
 // dt for the first frame after (re)start, before a frame delta exists.
 private const val FALLBACK_FRAME_MS = 16L
 
-// Below this level a bar is invisible; once every band is under it (and the
-// spectrum is inactive) the frame loop parks instead of burning frames.
-private const val PARK_LEVEL = 0.005f
+// Convergence tolerance: once every band is within this of its target the
+// smoothing has visually settled (sub-pixel on the strip), so the loop snaps to
+// the target and parks instead of burning frames. It doubles as the decay-to-flat
+// floor when the spectrum is inactive (a null target has an all-zero goal).
+private const val CONVERGE_LEVEL = 0.005f
 
 // Bar gradient alphas. The cap keeps the strip a background: at 0.22 peak the
 // accent reads as texture behind the transport buttons, never as a competitor.
@@ -67,9 +70,11 @@ private const val MAX_BAR_HEIGHT_FRACTION = 0.9f
  *    [withFrameNanos] loop with asymmetric exponential smoothing, then are
  *    read ONLY inside the [Canvas] draw lambda — each frame invalidates the
  *    draw phase alone, never recomposing the card or its buttons.
- *  - When the spectrum goes null (visualization off, playback stopped,
- *    capture unavailable) the bars decay to flat and the loop parks until
- *    data returns, so an idle card costs zero frames.
+ *  - The loop parks whenever the bars have caught up to the target — a null
+ *    target (visualization off, playback stopped, capture unavailable) decays
+ *    to flat, a static one settles in place — and resumes on the next distinct
+ *    capture, so an idle or unchanging card costs zero frames and the
+ *    composition can reach idle.
  */
 @Composable
 internal fun SpectrumBackground(
@@ -99,9 +104,19 @@ internal fun SpectrumBackground(
                     previousFrameNanos = frameNanos
                     displayed = smoothedLevels(displayed, target, dtMillis)
                 }
-                if (target == null && displayed.all { it < PARK_LEVEL }) {
+                // Once the bars have caught up to the target there is nothing left
+                // to advance, so snap to the exact goal and park until the next
+                // distinct capture. A static signal — paused visualization, or a
+                // fixed test fixture — then costs zero frames and lets the
+                // composition reach idle; a live-but-unchanging FloatArray would
+                // otherwise re-invalidate the draw every frame forever, as arrays
+                // compare by reference.
+                val goal = target ?: FloatArray(displayed.size)
+                if (displayed.hasConverged(goal)) {
+                    displayed = goal
                     previousFrameNanos = 0L
-                    snapshotFlow { target }.first { it != null }
+                    val settled = target
+                    snapshotFlow { target }.first { it !== settled }
                 }
             }
         }
@@ -132,6 +147,11 @@ internal fun smoothedLevels(
         displayed[band] + (goal[band] - displayed[band]) * alpha
     }
 }
+
+// True once every band sits within the convergence tolerance of its goal, so
+// further smoothing frames would not change what is drawn and the loop can park.
+private fun FloatArray.hasConverged(goal: FloatArray): Boolean =
+    size == goal.size && indices.all { abs(this[it] - goal[it]) < CONVERGE_LEVEL }
 
 // One gradient shared by every bar (it spans the strip's draw bounds), in the
 // active scheme's accent so the strip tracks dynamic color and preset seeds.
