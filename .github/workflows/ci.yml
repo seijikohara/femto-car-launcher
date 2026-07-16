@@ -53,6 +53,22 @@ jobs:
           # read-only fallback explicit so feature branches never pollute it.
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
+      - name: Cache webmap toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          # node-gradle provisions Node + pnpm under app/.gradle (NOT the ~/.gradle
+          # home setup-gradle caches) and installs webmap/node_modules, all
+          # re-fetched every run otherwise. buildWebMap is in all three legs'
+          # graphs via preBuild, so cache it once, keyed on the lockfile and the
+          # Node/pnpm versions pinned in app/build.gradle.kts.
+          path: |
+            app/.gradle/nodejs
+            app/.gradle/pnpm
+            webmap/node_modules
+          key: webmap-${{ runner.os }}-${{ hashFiles('webmap/pnpm-lock.yaml', 'app/build.gradle.kts') }}
+          restore-keys: |
+            webmap-${{ runner.os }}-
+
       # The three groups together mirror the local verify-android-build skill
       # (spotlessCheck + test + lint + assembleDebug); change both together.
       - name: Run ${{ matrix.name }}
