@@ -197,15 +197,6 @@ android {
     }
 }
 
-// Unit tests (Robolectric + the Roborazzi screenshot suite) run one Android
-// sandbox per test class and are the CI wall-clock bottleneck. Fork them across
-// the runner's processors (capped so the parallel Robolectric JVMs fit its
-// memory) instead of the default single serial fork. Roborazzi verification is
-// fork-safe: each test reads and writes its own uniquely named golden and diff.
-tasks.withType<Test>().configureEach {
-    maxParallelForks = Runtime.getRuntime().availableProcessors().coerceAtMost(4)
-}
-
 // AboutLibraries collects each Gradle dependency's license at build time into
 // res/raw/aboutlibraries.json (bundled, so the licenses screen works offline on
 // the head unit). Non-Gradle components shipped in the app (the webmap
