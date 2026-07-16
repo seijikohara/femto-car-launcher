@@ -33,10 +33,10 @@ import kotlin.test.assertTrue
 /**
  * Pins the speed overlay's width against its two historical reflow sources:
  * the hero numeral's digit count (8 -> 100 km/h) and the geocoded address
- * length. The digit test runs under stressed user font settings (larger base
- * size, heavier weight, wide letter spacing) deliberately — those settings
- * scale text but not dp, which is exactly how the old dp-based reserves came
- * to breathe with the digit count while looking fine at the defaults. The
+ * length. The digit test runs under a stressed user font setting (the heavier
+ * weight step) deliberately — font settings scale text but not dp, which is
+ * exactly how the old dp-based reserves came to breathe with the digit count
+ * while looking fine at the defaults. The
  * window is head-unit sized so the overlay floats below its max-width cap;
  * on the default 320 dp test window every variant clamps to the window and
  * the assertions would be vacuous.
@@ -131,12 +131,18 @@ class SpeedOverlayWidthTest {
     private companion object {
         const val OVERLAY_TAG = "speedOverlay"
 
-        // The user font settings' stress corner (Settings ranges: size 14-20 sp,
-        // weight step +-2, letter spacing 0-0.10 em): text grows, dp does not.
+        // A user font setting that grows text without moving dp — the exact
+        // de-calibration class that broke the old dp reserves. Bounded to the
+        // weight step alone: on the 853 dp reference fixture the overlay sits
+        // ~14 dp under its max-width cap at defaults, so the full stress corner
+        // (20 sp base + 0.10 em spacing) saturates the cap and trips the
+        // falsifiability guard in overlayWidth(). The reserve MECHANISM's
+        // falsification does not depend on the stress level (neutering the
+        // sample fails this test at any setting).
         const val DEFAULT_BASE_SIZE_SP = 16
-        const val STRESS_BASE_SIZE_SP = 20
+        const val STRESS_BASE_SIZE_SP = 16
         const val STRESS_WEIGHT_STEP = 2
-        const val STRESS_LETTER_SPACING_CENTI_EM = 10
+        const val STRESS_LETTER_SPACING_CENTI_EM = 0
 
         // 8 km/h and 100 km/h — a 1-digit vs 3-digit hero under KILOMETERS_PER_HOUR.
         const val SINGLE_DIGIT_SPEED_MPS = 2.2222f
