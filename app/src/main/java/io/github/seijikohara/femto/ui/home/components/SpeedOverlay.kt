@@ -22,12 +22,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.IntrinsicMeasurable
+import androidx.compose.ui.layout.IntrinsicMeasureScope
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasurePolicy
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Lucide
@@ -71,10 +81,13 @@ import kotlin.math.roundToInt
  *    tight with a consistent 16 dp gap and the overlay never stretches to
  *    fill the map pane. The call site centres it via
  *    `Alignment.BottomCenter`, so a content-width Column stays compact and
- *    centred. Tabular figures plus reserved per-cell widths
- *    ([FemtoDimens.SpeedHeroValueMinWidth] / [FemtoDimens.SpeedMetricMinWidth])
- *    keep the overlay's width stable as the values tick, so it no longer grows
- *    and shrinks with the digit count.
+ *    centred. Each numeric cell reserves its width from a widest-realistic
+ *    sample rendered invisibly in the value's own style ([WidthReserve]) —
+ *    a dp reserve cannot follow the user's font size / weight / spacing /
+ *    family settings, which scale text but not dp — and the address row is
+ *    kept out of the intrinsic width vote ([ZeroIntrinsicWidth]), so the
+ *    overlay's width follows typography settings but never the ticking
+ *    values or the passing geocodes.
  *
  * The 40 sp speed numeral is the only saturated value here; the
  * supporting metrics use `onSurface` / `onSurfaceVariant` so the hero
@@ -155,7 +168,8 @@ internal fun SpeedOverlay(
                 // Cap the width so a wide map pane (e.g. an 853 dp 5:3 head unit)
                 // keeps the overlay a centred glass card, not a full-width bar.
                 // IntrinsicSize.Max still hugs short content; this only bounds the
-                // maximum, and the address row ellipsizes within it.
+                // maximum. The address row never joins the intrinsic vote (see
+                // [ZeroIntrinsicWidth]) and ellipsizes within the result.
                 .widthIn(max = FemtoDimens.SpeedOverlayMaxWidth)
                 .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
                 .padding(
@@ -179,7 +193,9 @@ internal fun SpeedOverlay(
         Box(modifier = Modifier.height(5.dp))
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha))
         Box(modifier = Modifier.height(5.dp))
-        AddressRow(text = shortAddress.ifBlank { NO_ADDRESS_PLACEHOLDER }, altitudeM = altitudeM)
+        ZeroIntrinsicWidth {
+            AddressRow(text = shortAddress.ifBlank { NO_ADDRESS_PLACEHOLDER }, altitudeM = altitudeM)
+        }
     }
 }
 
@@ -202,16 +218,18 @@ private fun MetricRow(
         key = stringResource(R.string.speed_metric_distance),
         value = "%.1f".format(distance),
         unit = distanceUnitLabel,
+        // Formatted through the same "%.1f" as the live value so the locale's
+        // decimal separator is measured, not assumed.
+        widthSample = "%.1f".format(DISTANCE_WIDTH_SAMPLE),
         tier = tier,
-        modifier = Modifier.widthIn(min = FemtoDimens.SpeedMetricMinWidth),
     )
     Separator()
     SecondaryMetric(
         key = stringResource(R.string.speed_metric_avg),
         value = "$avgSpeed",
         unit = speedUnitLabel,
+        widthSample = THREE_DIGIT_WIDTH_SAMPLE,
         tier = tier,
-        modifier = Modifier.widthIn(min = FemtoDimens.SpeedMetricMinWidth),
     )
     Separator()
     ResetButton(onReset = onReset)
@@ -225,31 +243,34 @@ private fun NowMetric(
 ) = Row(
     horizontalArrangement = Arrangement.spacedBy(4.dp),
 ) {
+    // Strong-tier hero numeral: heavier than the ambient clock's normal tier
+    // since the speed is the safety-critical glance that must stay legible on a
+    // dim head unit. Tracks the user's weight setting while keeping that
+    // relative emphasis across the range.
+    val heroStyle = MaterialTheme.typography.heroNumeral(weight = MaterialTheme.typography.strongWeight)
     // The numeral dissolves on a change of the DISPLAYED, EMA-rounded string (not
-    // the raw smoothed float), so it fades once per real digit change. The reserved
-    // 3-digit width stays on the inner Text, so both the reserve and the baseline
-    // the crossfade box propagates keep the overlay from reflowing as the value ticks.
+    // the raw smoothed float), so it fades once per real digit change. The width
+    // reserve travels INSIDE each dissolve layer, so the outgoing and incoming
+    // numerals right-align within the same reserve and the cell cannot reflow the
+    // overlay even mid-swap; the boxes keep propagating the numeral's baseline.
     Motion.ContentCrossfade(
         targetState = value,
         tier = tier,
         label = "speedHero",
         modifier = Modifier.alignByBaseline(),
     ) { numeral ->
-        Text(
-            text = numeral,
-            // Strong-tier hero numeral: heavier than the ambient clock's normal tier
-            // since the speed is the safety-critical glance that must stay legible on a
-            // dim head unit. Tracks the user's weight setting while keeping that
-            // relative emphasis across the range.
-            style = MaterialTheme.typography.heroNumeral(weight = MaterialTheme.typography.strongWeight),
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            // Reserve a stable width sized for the clamped 3-digit range and
-            // right-align within it, so the hero numeral does not reflow the
-            // overlay as the speed's digit count changes.
-            textAlign = TextAlign.End,
-            modifier = Modifier.widthIn(min = FemtoDimens.SpeedHeroValueMinWidth),
-        )
+        WidthReserve(
+            sample = THREE_DIGIT_WIDTH_SAMPLE,
+            style = heroStyle,
+            contentAlignment = Alignment.CenterEnd,
+        ) {
+            Text(
+                text = numeral,
+                style = heroStyle,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+            )
+        }
     }
     // Dimmed unit trailing the numeral on its baseline (the shared dashboard unit
     // treatment) — a step below the value it annotates.
@@ -271,6 +292,7 @@ private fun SecondaryMetric(
     key: String,
     value: String,
     unit: String,
+    widthSample: String,
     tier: MotionTier,
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -284,9 +306,11 @@ private fun SecondaryMetric(
         overflow = TextOverflow.Ellipsis,
     )
     // Numeric value + dimmed trailing unit on the value's baseline, matching the
-    // hero speed's value/unit treatment; the caller's min-width cell keeps a
-    // digit change from reflowing the row. The value dissolves on a change of its
-    // DISPLAYED string (keyed on the formatted value, not the raw trip total).
+    // hero speed's value/unit treatment; the [widthSample] reserve inside each
+    // dissolve layer keeps a digit change from reflowing the row (the key and
+    // unit are fixed strings). The value dissolves on a change of its DISPLAYED
+    // string (keyed on the formatted value, not the raw trip total).
+    val metricStyle = MaterialTheme.typography.glanceMetric()
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Motion.ContentCrossfade(
             targetState = value,
@@ -294,12 +318,14 @@ private fun SecondaryMetric(
             label = "speedMetric",
             modifier = Modifier.alignByBaseline(),
         ) { metric ->
-            Text(
-                text = metric,
-                style = MaterialTheme.typography.glanceMetric(),
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-            )
+            WidthReserve(sample = widthSample, style = metricStyle) {
+                Text(
+                    text = metric,
+                    style = metricStyle,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                )
+            }
         }
         UnitSuffix(unit, modifier = Modifier.alignByBaseline())
     }
@@ -310,8 +336,9 @@ private fun AddressRow(
     text: String,
     altitudeM: Int?,
 ) = Row(
-    // Fill the overlay's (metric-row-defined) width so a long address
-    // ellipsizes within it instead of stretching the card wider.
+    // Fill the width the metric row won (the [ZeroIntrinsicWidth] wrapper keeps
+    // this row's long strings out of the overlay's intrinsic vote), so a long
+    // address ellipsizes within it instead of stretching the card wider.
     modifier = Modifier.fillMaxWidth(),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -352,6 +379,74 @@ private fun AddressRow(
             UnitSuffix("m", modifier = Modifier.alignByBaseline())
         }
     }
+}
+
+/**
+ * Reserve a value cell's width from [sample], rendered invisibly in [style] —
+ * the exact style of the value drawn on top. A dp reserve cannot follow the
+ * user's font size / weight / letter-spacing / family settings (they scale
+ * text, not dp), which is how the overlay's width came to breathe with the
+ * digit count; a same-style sample re-measures with every one of them, and
+ * '8' stays the safest widest digit on proportional faces (tabular faces
+ * render all digits equal). The sample is cleared from semantics so screen
+ * readers and tests see only the real value.
+ */
+@Composable
+private fun WidthReserve(
+    sample: String,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    contentAlignment: Alignment = Alignment.CenterStart,
+    content: @Composable () -> Unit,
+) = Box(modifier = modifier, contentAlignment = contentAlignment) {
+    Text(
+        text = sample,
+        style = style,
+        maxLines = 1,
+        modifier =
+            Modifier
+                .alpha(0f)
+                .clearAndSetSemantics {},
+    )
+    content()
+}
+
+/**
+ * Exclude [content] from the parent's intrinsic-width measurement. Under
+ * `width(IntrinsicSize.Max)` a `fillMaxWidth`/`weight` Text still contributes
+ * its full un-ellipsized string to the max-intrinsic pass (ellipsis never
+ * affects intrinsics), so a long geocoded address would stretch the overlay
+ * and the next, shorter one shrink it back. Reporting zero intrinsic width
+ * takes the row out of that vote; at measure time it simply fills whatever
+ * width the metric row set.
+ *
+ * [modifier] must never carry a width-affecting modifier — sizing this node
+ * would re-enter it into the very intrinsic vote it exists to sit out.
+ */
+@Composable
+private fun ZeroIntrinsicWidth(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) = Layout(content = content, modifier = modifier, measurePolicy = ZeroIntrinsicWidthPolicy)
+
+private object ZeroIntrinsicWidthPolicy : MeasurePolicy {
+    override fun MeasureScope.measure(
+        measurables: List<Measurable>,
+        constraints: Constraints,
+    ): MeasureResult {
+        val placeable = measurables.single().measure(constraints)
+        return layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
+    }
+
+    override fun IntrinsicMeasureScope.minIntrinsicWidth(
+        measurables: List<IntrinsicMeasurable>,
+        height: Int,
+    ): Int = 0
+
+    override fun IntrinsicMeasureScope.maxIntrinsicWidth(
+        measurables: List<IntrinsicMeasurable>,
+        height: Int,
+    ): Int = 0
 }
 
 // Trailing reset control for the trip metrics, anchored to the overlay's
@@ -420,6 +515,14 @@ private class SpeedSmoothState {
     var basisElapsedNanos: Long = 0L
 }
 
+// Width samples for the value cells (see [WidthReserve]). Three integer
+// digits cover the hero and average speeds in either unit after
+// TripRepository's plausibility clamp; the distance sample covers the
+// common sub-1000 trip range (a longer trip still widens the cell — the
+// reserve is a floor, not a cap).
+private const val THREE_DIGIT_WIDTH_SAMPLE = "888"
+private const val DISTANCE_WIDTH_SAMPLE = 888.8
+
 // Em-dash stands in for the live speed when there is no fix, mirroring
 // the WeatherCard convention and the permissions contract (location
 // panels read empty until granted). It avoids the ambiguous "0".
@@ -452,6 +555,7 @@ private fun SpeedOverlayPreview() {
 }
 
 @PreviewLightDark
+@PreviewTextStress
 @Preview(name = "Speed overlay (wide values)", widthDp = 560, heightDp = 160)
 @Composable
 private fun SpeedOverlayWideValuesPreview() {
