@@ -64,6 +64,8 @@
     <string name="weather_cond_snow_showers">Snow showers</string>
     <string name="weather_cond_thunderstorm">Thunderstorm</string>
     <string name="weather_cond_unknown"></string>
+    <!-- CC BY 4.0 attribution required by the MET Norway terms of service. -->
+    <string name="weather_attribution">Weather data from MET Norway (CC BY 4.0)</string>
 
     <!-- Maximize panels (calendar / weather) -->
     <string name="panel_collapse">Collapse</string>
