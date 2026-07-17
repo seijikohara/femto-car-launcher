@@ -214,11 +214,14 @@ private fun Head(
     val tempLabel = "${temperatureUnit.fromCelsius(snapshot.tempC).roundToInt()}"
     val glyphs = weatherGlyphs()
     // Big temperature on the left, the hero condition glyph beside it on the right;
-    // SpaceBetween balances the two across the card width.
+    // SpaceBetween balances the two across the card width. Top-aligned (not
+    // centered) so the temperature's clamped slot starts exactly at the card
+    // padding — the shared hero-row contract with the calendar day and the clock
+    // (see CalendarCard.Head / ClockOverlay); the hero glyph hangs from that line.
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
         Column {
             // Stale-data eyebrow: only present once the snapshot ages past the

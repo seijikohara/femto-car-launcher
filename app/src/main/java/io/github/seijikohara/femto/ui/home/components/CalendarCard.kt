@@ -49,6 +49,7 @@ import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.glanceMetric
 import io.github.seijikohara.femto.ui.theme.normalWeight
 import io.github.seijikohara.femto.ui.theme.sectionLabel
+import io.github.seijikohara.femto.ui.theme.singleLineBox
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -191,17 +192,26 @@ private data class CalendarHead(
 private fun Head(head: CalendarHead) =
     Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
+        // Top-aligned (not centered): the day numeral's clamped slot then starts
+        // exactly at the card padding, keeping its ink on the same line as the
+        // weather temperature and the clock — the shared hero-row contract
+        // (see WeatherCard.Head / ClockOverlay).
+        verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        // Clamped like the weather temperature: platform font padding otherwise
+        // inflates the measured box well past the nominal line box and drops the
+        // ink below the shared hero line.
+        val dayStyle = MaterialTheme.typography.bigNumber(
+            size = FemtoDimens.Text4Xl,
+            weight = MaterialTheme.typography.normalWeight,
+        )
         Text(
             text = "${head.day}",
-            style = MaterialTheme.typography.bigNumber(
-                size = FemtoDimens.Text4Xl,
-                weight = MaterialTheme.typography.normalWeight,
-            ),
+            style = dayStyle,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
+            modifier = Modifier.singleLineBox(dayStyle),
         )
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             FitText(
