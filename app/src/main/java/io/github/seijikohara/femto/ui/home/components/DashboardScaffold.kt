@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -28,6 +29,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
@@ -592,6 +594,32 @@ private fun DashboardOverlays(
                                 ),
                             )
                     },
+            )
+        }
+
+        // A tap on the margin ring around an open maximize panel dismisses it,
+        // matching the modal sheets' scrim-tap behavior. The catcher is drawn
+        // under the panels (they are later siblings), and the panel's Surface
+        // blocks touch propagation, so panel-body taps never reach it; the dock
+        // is outside this Box and stays operable. pointerInput only — no visual
+        // scrim (the glass design keeps the map visible) and no semantics node
+        // (the back gesture and the collapse button remain the accessible
+        // dismiss paths).
+        val dismissOpenPanel: (() -> Unit)? =
+            when {
+                nowPlayingExpanded -> ({ nowPlayingExpanded = false })
+                calendarExpanded -> ({ calendarExpanded = false })
+                weatherExpanded -> ({ weatherExpanded = false })
+                else -> null
+            }
+        if (dismissOpenPanel != null) {
+            Box(
+                modifier =
+                    Modifier
+                        .matchParentSize()
+                        .pointerInput(dismissOpenPanel) {
+                            detectTapGestures { dismissOpenPanel() }
+                        },
             )
         }
 
