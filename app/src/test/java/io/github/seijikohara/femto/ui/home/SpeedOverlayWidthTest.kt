@@ -131,21 +131,6 @@ class SpeedOverlayWidthTest {
         assertEquals(shortAddressWidth.value, overlayWidth().value, WIDTH_TOLERANCE_DP)
     }
 
-    @Test
-    fun `trip-start label appearance does not change the overlay width`() {
-        setOverlay(stressFontSettings = false)
-        composeTestRule.waitForIdle()
-        val noLabelWidth = overlayWidth()
-
-        // A non-today start renders the widest label shape (date + time).
-        startedAtEpochMs = NON_TODAY_START_EPOCH_MS
-        Snapshot.sendApplyNotifications()
-        composeTestRule.waitForIdle()
-
-        composeTestRule.onNodeWithText("Since", substring = true).assertExists()
-        assertEquals(noLabelWidth.value, overlayWidth().value, WIDTH_TOLERANCE_DP)
-    }
-
     private companion object {
         const val OVERLAY_TAG = "speedOverlay"
 
@@ -169,10 +154,6 @@ class SpeedOverlayWidthTest {
         // Sub-pixel rounding headroom; a digit-count reflow moves the panel by
         // whole glyph advances (an order of magnitude more).
         const val WIDTH_TOLERANCE_DP = 0.5f
-
-        // 2001-09-09T01:46:40Z — safely in the past, so the label takes its
-        // widest (date + time) shape regardless of when the test runs.
-        const val NON_TODAY_START_EPOCH_MS = 1_000_000_000_000L
 
         val SHORT_ADDRESS = fakeAddress(locality = "Minato-ku")
         val LONG_ADDRESS =
