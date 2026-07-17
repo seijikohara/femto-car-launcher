@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,6 +36,7 @@ import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.Sparkles
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.voice.VoiceState
+import io.github.seijikohara.femto.ui.home.components.FemtoHorizontalDivider
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -90,7 +90,7 @@ internal fun AssistantScreen(
                 onReset = onReset,
                 onSubmitQuery = onSubmitQuery,
             )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            FemtoHorizontalDivider()
             Text(
                 text = stringResource(R.string.assistant_delegate_label),
                 style = MaterialTheme.typography.labelLarge,
