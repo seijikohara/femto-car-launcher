@@ -1,7 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import android.location.Location
-import android.text.format.DateUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,8 +19,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,7 +31,6 @@ import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasurePolicy
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -73,12 +69,8 @@ import io.github.seijikohara.femto.ui.theme.glanceMetric
 import io.github.seijikohara.femto.ui.theme.heroNumeral
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import io.github.seijikohara.femto.ui.theme.strongWeight
-import kotlinx.coroutines.delay
-import java.time.Duration
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
-import java.time.ZonedDateTime
 import kotlin.math.exp
 import kotlin.math.roundToInt
 
@@ -214,12 +206,12 @@ internal fun SpeedOverlay(
             distance = distance,
             distanceUnitLabel = speedUnit.distanceLabel(),
             avgSpeed = avgSpeed,
+            // The trip-start time rides in the metric row (a compact cell before
+            // the reset button) so it sits at the speed/distance height instead of
+            // adding a row below. Null (no trip yet) hides the cell.
+            sinceTimestamp = tripState.startedAtEpochMs?.let { tripStartTimestamp(it, is24Hour) },
             tier = motionTier,
             onReset = onReset,
-        )
-        TripSinceRow(
-            label = tripState.startedAtEpochMs?.let { tripStartLabel(it, is24Hour) },
-            tier = motionTier,
         )
         // Always render the address row (even with no fix / unresolved address) so
         // the overlay keeps a stable height instead of collapsing then growing when
@@ -241,6 +233,7 @@ private fun MetricRow(
     distance: Double,
     distanceUnitLabel: String,
     avgSpeed: Int,
+    sinceTimestamp: String?,
     tier: MotionTier,
     onReset: () -> Unit,
 ) = Row(
@@ -267,6 +260,9 @@ private fun MetricRow(
         tier = tier,
     )
     Separator()
+    if (sinceTimestamp != null) {
+        SinceCell(timestamp = sinceTimestamp)
+    }
     ResetButton(onReset = onReset)
 }
 
@@ -373,93 +369,52 @@ private fun SecondaryMetric(
     }
 }
 
-// Locale-aware "since" timestamp for the trip-start row: time only while the
-// trip started today, day + time once it crosses midnight (the parked-overnight
-// case, where a bare clock time would read as this morning). DateUtils follows
-// the system locale; the 12/24-hour choice comes from the app's clock setting
-// ([is24Hour]) via FORMAT_12HOUR/FORMAT_24HOUR — the same setting the calendar
-// and weather panels honour — rather than the device default. The "today"
-// reference advances on its own midnight ticker rather than relying on a
-// location fix to recompose (with a non-zero min-distance a parked car delivers
-// none), so the label gains the date at midnight even while stationary.
+// The trip-start clock time (time only — a bare "Since 8:04", no date). Uses the
+// shared [clockTimeFormatter], so the 12/24-hour choice follows the app's clock
+// setting ([is24Hour]) — the same formatter the calendar and weather panels use —
+// and the result never carries a date (DateUtils.FORMAT_SHOW_TIME appends one for
+// a non-today instant, which is what we are avoiding here).
 @Composable
-private fun tripStartLabel(
+private fun tripStartTimestamp(
     startedAtEpochMs: Long,
     is24Hour: Boolean,
-): String {
-    val context = LocalContext.current
-    val zone = ZoneId.systemDefault()
-    val today = rememberToday(zone)
-    val startedToday = Instant.ofEpochMilli(startedAtEpochMs).atZone(zone).toLocalDate() == today
-    val clockFlag = if (is24Hour) DateUtils.FORMAT_24HOUR else DateUtils.FORMAT_12HOUR
-    val timestamp =
-        remember(startedAtEpochMs, startedToday, is24Hour) {
-            DateUtils.formatDateTime(
-                context,
-                startedAtEpochMs,
-                clockFlag or
-                    if (startedToday) {
-                        DateUtils.FORMAT_SHOW_TIME
-                    } else {
-                        DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH
-                    },
-            )
-        }
-    return stringResource(R.string.speed_trip_since, timestamp)
-}
-
-// Today's date, refreshed exactly at each local midnight so a date-dependent
-// label updates without any other trigger. Sleeps until the next midnight
-// rather than polling.
-@Composable
-private fun rememberToday(zone: ZoneId): LocalDate {
-    val today = remember { mutableStateOf(LocalDate.now(zone)) }
-    LaunchedEffect(zone) {
-        while (true) {
-            val now = ZonedDateTime.now(zone)
-            val nextMidnight = now.toLocalDate().plusDays(1).atStartOfDay(zone)
-            delay(Duration.between(now, nextMidnight).toMillis().coerceAtLeast(1L))
-            today.value = LocalDate.now(zone)
-        }
+): String =
+    remember(startedAtEpochMs, is24Hour) {
+        Instant
+            .ofEpochMilli(startedAtEpochMs)
+            .atZone(ZoneId.systemDefault())
+            .format(clockTimeFormatter(is24Hour))
     }
-    return today.value
-}
 
-// "Since\n8:04" under the reset button (the metric row's trailing cell): when
-// the current reset-to-reset trip began — the wall-clock time of its first GPS
-// fix, which is also the track log's first point for the trip. Rendered as a
-// two-line right-aligned caption ("Since" over the timestamp, see the newline in
-// R.string.speed_trip_since) so it stays tucked under the reset button instead of
-// spreading a wide localized timestamp across the whole metric row. The row is
-// blank (one reserved line) until the first fix, then grows to the two-line
-// caption; [ZeroIntrinsicWidth] keeps the varying label text out of the overlay's
-// intrinsic width vote — the same stability contract as the address row.
+// "Since / 8:04" — when the current reset-to-reset trip began (the wall-clock
+// time of its first GPS fix, also the track log's first point for the trip). A
+// compact two-line cell (the "Since" key over the timestamp, the same key-over-
+// value shape as the distance / average cells) placed just before the reset
+// button, so the trip-start time sits at the speed/distance height rather than
+// spreading across a row below. Only shown once the trip has a start time; it is
+// static per trip (no ticking), so it needs no width reserve.
 @Composable
-private fun TripSinceRow(
-    label: String?,
-    tier: MotionTier,
-) = ZeroIntrinsicWidth {
-    Motion.ContentCrossfade(
-        targetState = label.orEmpty(),
-        tier = tier,
-        label = "tripSince",
-        modifier = Modifier.fillMaxWidth(),
-    ) { text ->
+private fun SinceCell(timestamp: String) =
+    Column(
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        val dim = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f)
         Text(
-            text = text,
+            text = stringResource(R.string.speed_trip_since_label),
             style = MaterialTheme.typography.sectionLabel(12),
-            // The dimmest tier (matches the metric keys): pure glance metadata,
-            // never competing with the hero numeral.
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
-            // Two lines for the "Since\n<time>" caption; blank stays one line.
-            maxLines = 2,
-            minLines = 1,
+            color = dim,
+            maxLines = 1,
+        )
+        Text(
+            text = timestamp,
+            style = MaterialTheme.typography.sectionLabel(12),
+            color = dim,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.End,
-            modifier = Modifier.fillMaxWidth(),
         )
     }
-}
 
 @Composable
 private fun AddressRow(
