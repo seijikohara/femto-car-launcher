@@ -115,8 +115,9 @@ automotive floors above apply regardless of motion.
 
 ### Permissions
 
-Every `<uses-permission>` goes through the `add-launcher-permission`
-skill; the audit log lives in `.claude/rules/permissions.md`.
+Every `<uses-permission>` follows the procedure in
+`.claude/rules/permissions.md`, which is also the audit-log SSOT
+(the rule auto-loads whenever `AndroidManifest.xml` is touched).
 
 ### Code style <a id="code-style"></a>
 
@@ -146,8 +147,9 @@ not restate it.
 - **Project rules**: this file plus `.claude/rules/*.md`.
 - **Code values**: the symbol (`FemtoDimens.X`,
   `MaterialTheme.colorScheme.X`) — never duplicate the literal.
-- **Code shape** (screen / ViewModel scaffolds): the template under
-  `.claude/skills/<name>/references/`; generated code copies it.
+- **Code shape** (screen / ViewModel scaffolds):
+  `.claude/rules/compose.md` plus the living screens under `ui/` —
+  model new code on an existing neighbour, never a canned template.
 - **Procedures**: the skill under `.claude/skills/` — cite it,
   never inline its steps.
 - **Decision history**: the project memory (see Memory below).
@@ -193,18 +195,14 @@ committed in the skill directory; `create-avd.sh` recreates it).
 
 | Agent (`.claude/agents/`) | When to use |
 | --- | --- |
-| `compose-launcher-reviewer` | After touching `ui/theme`, `ui/home`, `MainActivity`, manifest, build files, fonts, or `webmap/`; before opening a PR. Give it a diff, file list, or git scope (ref range / `--staged` / `--working`) — it resolves git scopes itself; an empty `/review` defaults to `git diff HEAD`, and a dispatch with no scope at all makes it ask. |
+| `compose-launcher-reviewer` | After touching `ui/theme`, `ui/home`, `MainActivity`, manifest, build files, fonts, or `webmap/`; before opening a PR. Give it a diff, file list, or git scope (ref range / `--staged` / `--working`) — it resolves git scopes itself; an empty scope defaults to `git diff HEAD`, and a dispatch with no scope at all makes it ask. |
 | `similar-app-researcher` | Before scoping any feature, to study how comparable car launchers and prior-art projects solve the same problem. |
 
 Skill (`.claude/skills/`) frontmatter descriptions are the per-skill
-SSOT. Manual-only entry points (`disable-model-invocation: true`):
-
-| Skill | Purpose |
-| --- | --- |
-| `build` | `/build [task]` — runs `./gradlew <task>`. |
-| `lint` | `/lint [task]` — Android Lint with parsed summary; the lint-report-interpretation SSOT. |
-| `format` | `/format` — runs `./gradlew spotlessApply` and reports the diff. |
-| `review` | `/review [git-range]` — forks the `compose-launcher-reviewer` agent on the resolved diff. |
+SSOT. The skill surface is deliberately small — four load-bearing
+procedure SSOTs (`verify-android-build`, `verify-on-emulator`,
+`update-gradle-dependency`, `update-launcher-icon`); everything else
+lives in the rules files and the living code (2026-07 consolidation).
 
 The [`update-launcher-icon`](.claude/skills/update-launcher-icon/SKILL.md)
 skill regenerates the adaptive launcher icon (background / foreground /

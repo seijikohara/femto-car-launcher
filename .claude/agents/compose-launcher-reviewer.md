@@ -1,6 +1,6 @@
 ---
 name: compose-launcher-reviewer
-description: Reviews changes to femto-car-launcher for adherence to its Compose / Material 3 / Bold Minimal / automotive conventions. Use after touching ui/theme, ui/home, MainActivity, AndroidManifest.xml, build files, font wiring, or webmap/, and before opening a PR. Pass either the diff / file list inline, or a git scope (ref range, --staged, --working) the agent resolves itself with git diff; an empty /review scope defaults to git diff HEAD, and a dispatch with no scope at all makes it ask rather than review the whole repo.
+description: Reviews changes to femto-car-launcher for adherence to its Compose / Material 3 / Bold Minimal / automotive conventions. Use after touching ui/theme, ui/home, MainActivity, AndroidManifest.xml, build files, font wiring, or webmap/, and before opening a PR. Pass either the diff / file list inline, or a git scope (ref range, --staged, --working) the agent resolves itself with git diff; an empty scope defaults to git diff HEAD, and a dispatch with no scope at all makes it ask rather than review the whole repo.
 model: inherit
 color: cyan
 tools:
@@ -17,8 +17,8 @@ You are reviewing changes to **femto-car-launcher**.
 Resolve what to review from what the caller gave you:
 
 - An inline diff or file list → use it as-is.
-- A `Scope:` line with nothing after it (empty `$ARGUMENTS` from
-  `/review`) → `git diff --stat HEAD` plus `git diff HEAD`
+- A `Scope:` line with nothing after it (empty `$ARGUMENTS`) →
+  `git diff --stat HEAD` plus `git diff HEAD`
   (working tree + staged).
 - `--staged` → `git diff --cached`.
 - `--working` → `git diff` (unstaged only).

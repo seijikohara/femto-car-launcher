@@ -23,10 +23,7 @@ A change that compiles only in the editor still requires a real
 build before it ships. Use this skill before declaring a change
 "done", "ready", or "looks good" after any edit to the paths
 above. This skill is the verification-procedure SSOT; other skills
-cite it rather than describing the verification themselves. The
-manual entry points `/build`, `/lint`, and `/format` are thin
-wrappers over individual steps of this procedure; this skill is the
-composite SSOT, they are conveniences.
+cite it rather than describing the verification themselves.
 
 When invoked manually, `$ARGUMENTS` overrides the default Gradle
 task. Default is `assembleDebug`.
@@ -39,8 +36,8 @@ task. Default is `assembleDebug`.
    ./gradlew spotlessCheck
    ```
 
-   On failure, run `./gradlew spotlessApply` (or invoke `/format`)
-   to auto-fix. ktlint findings that Spotless cannot auto-fix
+   On failure, run `./gradlew spotlessApply` to auto-fix. ktlint
+   findings that Spotless cannot auto-fix
    (e.g. `compose:modifier-missing-check`) need a manual edit; do
    not bypass with `suppressLintsFor`.
 
@@ -62,9 +59,11 @@ task. Default is `assembleDebug`.
    ./gradlew lint
    ```
 
-   Interpret the report per the `/lint` skill (its report-parsing
-   section is the SSOT for lint-report interpretation); new errors
-   are blocking.
+   Read the report (`app/build/reports/lint-results-*.{xml,html}`)
+   and summarise: new errors (blocking), new warnings grouped by
+   category, and any baseline regressions. Never suppress — fix at
+   source (CLAUDE.md#no-suppress) or surface the finding to the user
+   for a decision.
 
 4. **Run unit tests** if you touched code that has corresponding
    tests:
