@@ -36,7 +36,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ChevronDown
-import com.composables.icons.lucide.Disc
 import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.ListMusic
 import com.composables.icons.lucide.Lucide
@@ -44,7 +43,6 @@ import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Repeat
 import com.composables.icons.lucide.Repeat1
 import com.composables.icons.lucide.Shuffle
-import com.composables.icons.lucide.User
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
@@ -510,12 +508,12 @@ private fun ExpandedMeta(
     label = "expandedMeta",
     modifier = modifier,
 ) { (title, artist, album) ->
-    // A leading glyph per line (track / person / disc) mirrors the small card's
-    // Meta so the two read the same; unlike the card, the artist / album text
-    // marquees instead of ellipsizing so a long value is shown in full.
+    // Flush-left metadata lines, mirroring the small card's iconless Meta (the
+    // per-line track / person / disc glyphs were dropped by design); unlike the
+    // card, the artist / album text marquees instead of ellipsizing so a long
+    // value is shown in full.
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         TitleLine(
-            icon = Lucide.Music,
             text = title,
             // Portrait's headline column is narrow, so a long title needs the
             // second line before ellipsizing; landscape has width to spare
@@ -523,19 +521,15 @@ private fun ExpandedMeta(
             maxLines = if (portrait) 2 else 1,
         )
         MarqueeMetaLine(
-            icon = Lucide.User,
             text = artist?.takeUnless { it.isBlank() } ?: "—",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
-            iconSize = FemtoDimens.InlineIconSize,
         )
         if (showAlbum) {
             MarqueeMetaLine(
-                icon = Lucide.Disc,
                 text = album?.takeUnless { it.isBlank() } ?: "—",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                iconSize = FemtoDimens.InlineIconSize,
             )
         }
     }
@@ -549,59 +543,33 @@ private fun ExpandedMeta(
 // the content column regardless of width.
 @Composable
 private fun TitleLine(
-    icon: ImageVector,
     text: String,
     maxLines: Int,
     modifier: Modifier = Modifier,
-) = Row(
+) = Text(
+    text = text,
+    style = MaterialTheme.typography.headlineLarge,
+    color = MaterialTheme.colorScheme.onSurface,
+    maxLines = maxLines,
+    overflow = TextOverflow.Ellipsis,
     modifier = modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.spacedBy(10.dp),
-) {
-    FemtoIcon(
-        imageVector = icon,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.padding(top = 6.dp).size(28.dp),
-    )
-    Text(
-        text = text,
-        style = MaterialTheme.typography.headlineLarge,
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = maxLines,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.weight(1f),
-    )
-}
+)
 
-// One panel metadata line: a leading glyph sized to the line + the marquee text
-// filling the rest, so the icon stays put while a long value scrolls beside it.
+// One panel metadata line: single-line marquee text, so a long value scrolls
+// into view instead of ellipsizing.
 @Composable
 private fun MarqueeMetaLine(
-    icon: ImageVector,
     text: String,
     style: TextStyle,
     color: Color,
-    iconSize: Dp,
     modifier: Modifier = Modifier,
-) = Row(
-    modifier = modifier.fillMaxWidth(),
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(10.dp),
-) {
-    FemtoIcon(
-        imageVector = icon,
-        contentDescription = null,
-        tint = color,
-        modifier = Modifier.size(iconSize),
-    )
-    Text(
-        text = text,
-        style = style,
-        color = color,
-        maxLines = 1,
-        modifier = Modifier.weight(1f).basicMarquee(),
-    )
-}
+) = Text(
+    text = text,
+    style = style,
+    color = color,
+    maxLines = 1,
+    modifier = modifier.fillMaxWidth().basicMarquee(),
+)
 
 private fun previewNowPlaying(): NowPlaying =
     NowPlaying(
