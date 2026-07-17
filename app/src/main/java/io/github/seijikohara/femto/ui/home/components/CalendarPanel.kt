@@ -2,10 +2,12 @@ package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.HorizontalDivider
@@ -264,7 +266,7 @@ private fun AgendaEvent(
     verticalArrangement = Arrangement.spacedBy(2.dp),
 ) {
     // Indent the non-title lines past the bar gutter so every line shares the
-    // title's left edge; the bar leads the title row, centered on the title line.
+    // title's left edge; the bar leads the title row, spanning its rendered lines.
     val gutterIndent =
         if (showColorBars) {
             Modifier.padding(start = FemtoDimens.CalendarBarGutter)
@@ -279,13 +281,14 @@ private fun AgendaEvent(
         maxLines = 1,
     )
     Row(
+        // Match the card: IntrinsicSize.Min sizes this row to the title text,
+        // so the bar's fillMaxHeight spans exactly the rendered line(s) rather
+        // than floating as a fixed-height stub beside a wrapped title.
+        modifier = Modifier.height(IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarBarGap),
-        // Match the card: center the bar on the title line rather than the whole
-        // stacked lines, so it marks the event at its title.
-        verticalAlignment = Alignment.CenterVertically,
     ) {
         if (showColorBars) {
-            CalendarColorBar(color = event.color)
+            CalendarColorBar(color = event.color, modifier = Modifier.fillMaxHeight())
         }
         Text(
             text = event.title,
