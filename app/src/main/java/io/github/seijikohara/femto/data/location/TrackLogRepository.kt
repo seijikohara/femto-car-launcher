@@ -117,6 +117,33 @@ internal class TrackLogRepository(
         queue.trySend(location.toTrackPoint(tripId))
     }
 
+    /**
+     * Trip summaries (start time, point count, bounds), newest first, for the
+     * visualization's trip selector. Degrades to an empty list on a read failure
+     * — the launcher is the HOME app and a corrupt DB must never crash it.
+     */
+    suspend fun tripSummaries(): List<TripSummaryRow> =
+        withContext(ioDispatcher) {
+            runCatching { dao.tripSummaries() }
+                .onFailure { e ->
+                    if (e is CancellationException) throw e
+                    Log.e(TAG, "trip summaries read failed", e)
+                }.getOrDefault(emptyList())
+        }
+
+    /**
+     * Every recorded point of one trip in chronological order, for rendering.
+     * Degrades to an empty list on a read failure.
+     */
+    suspend fun pointsForTrip(tripId: Long): List<TrackPointEntity> =
+        withContext(ioDispatcher) {
+            runCatching { dao.pointsForTrip(tripId) }
+                .onFailure { e ->
+                    if (e is CancellationException) throw e
+                    Log.e(TAG, "trip points read failed", e)
+                }.getOrDefault(emptyList())
+        }
+
     /** Delete every recorded point. Returns whether the delete succeeded. */
     suspend fun clearHistory(): Boolean =
         withContext(ioDispatcher) {

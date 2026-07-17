@@ -4,11 +4,18 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
+// Bold Minimal fallback palettes used when Dynamic Color is unavailable
+// (e.g. Compose previews running outside an Activity context). Production
+// runtime always pulls from androidx.compose.material3.dynamicLightColorScheme.
+
 /**
- * Bold Minimal fallback palettes used when Dynamic Color is unavailable
- * (e.g. Compose previews running outside an Activity context). Production
- * runtime always pulls from [androidx.compose.material3.dynamicLightColorScheme].
+ * The trip flyover's scene backdrop — a fixed near-black the neon wireframe
+ * glows on, independent of the light/dark theme (the render is always dark).
+ * Kept here, the sanctioned home for hardcoded hex, and matched to the native
+ * renderer's clear colour (`flyover_renderer.cpp`, `{0.02, 0.03, 0.06}`); the
+ * two must move together.
  */
+internal val TripSceneBackground = Color(0xFF050810)
 
 private val Ink = Color(0xFF111111)
 private val Paper = Color(0xFFFAFAFA)

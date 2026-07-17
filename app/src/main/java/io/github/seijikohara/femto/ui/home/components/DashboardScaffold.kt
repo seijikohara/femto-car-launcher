@@ -438,6 +438,11 @@ private fun DashboardOverlays(
     LaunchedEffect(expandedWeather) {
         if (expandedWeather != null) panelWeather = expandedWeather
     }
+    // Full-screen trip flyover, opened by a tap on the speed overlay. Unlike the
+    // data-backed panels above it needs no auto-collapse gate: its ViewModel
+    // always has state (an empty-history message when there are no trips), so an
+    // open panel is never stranded.
+    var tripExpanded by rememberSaveable { mutableStateOf(false) }
 
     // LEFT driver side mirrors the dashboard start <-> end: the cards, clock, and speed
     // reserve move to the left; the map controls (opposite the cards) move to the
@@ -543,6 +548,7 @@ private fun DashboardOverlays(
                 hazeState = hazeState,
                 glassConfig = glassConfig,
                 motionTier = motionTier,
+                onExpand = { tripExpanded = true },
                 modifier = Modifier.onSizeChanged { onOverlayHeightChange(it.height) },
             )
         }
@@ -610,6 +616,7 @@ private fun DashboardOverlays(
                 nowPlayingExpanded -> ({ nowPlayingExpanded = false })
                 calendarExpanded -> ({ calendarExpanded = false })
                 weatherExpanded -> ({ weatherExpanded = false })
+                tripExpanded -> ({ tripExpanded = false })
                 else -> null
             }
         if (dismissOpenPanel != null) {
@@ -692,6 +699,19 @@ private fun DashboardOverlays(
                     modifier = Modifier.fillMaxSize(),
                 )
             }
+        }
+
+        AnimatedVisibility(
+            visible = tripExpanded,
+            enter = Motion.panelEnter(motionTier),
+            exit = Motion.panelExit(motionTier),
+            modifier = Modifier.fillMaxSize().padding(outerPad),
+        ) {
+            TripPanel(
+                onClose = { tripExpanded = false },
+                speedUnit = speedUnit,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
     }
 }
