@@ -487,7 +487,12 @@ private fun DashboardOverlays(
                     .padding(
                         cardSideInset(
                             mirror = mirror,
-                            horizontal = if (landscapeCards) floatingCardWidth + outerPad + cardGap else outerPad,
+                            // The card column's outer margin lives inside floatingCardWidth
+                            // (its width is fixed before the padding applies), so the
+                            // column's on-screen footprint is floatingCardWidth alone —
+                            // adding outerPad on top double-counted the margin and doubled
+                            // the clock <-> cards gap relative to every other panel gap.
+                            horizontal = if (landscapeCards) floatingCardWidth + cardGap else outerPad,
                             top = outerPad,
                         ),
                     ),
@@ -516,7 +521,9 @@ private fun DashboardOverlays(
                         } else {
                             cardSideInset(
                                 mirror = mirror,
-                                horizontal = if (landscapeCards) floatingCardWidth + outerPad + cardGap else 0.dp,
+                                // floatingCardWidth alone is the column's footprint — see
+                                // the clock inset above for the double-count rationale.
+                                horizontal = if (landscapeCards) floatingCardWidth + cardGap else 0.dp,
                                 bottom = cardGap,
                             )
                         },
