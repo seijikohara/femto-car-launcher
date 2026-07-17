@@ -72,8 +72,10 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.buildFontFamily
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 class MainActivity : ComponentActivity() {
     private val appsRepository by lazy { AppsRepository(this) }
@@ -95,6 +97,13 @@ class MainActivity : ComponentActivity() {
     // field suffices.
     private var settingsReady = false
 
+    // Second leg of the splash gate: the chosen font face swaps in when its
+    // disk resolve (or download) lands, and a swap after the first frame
+    // remeasures text and visibly reflows every panel. Set once the first
+    // FontRepository resolution pass settles, or FONT_SPLASH_TIMEOUT_MS
+    // passes — whichever comes first. Main-thread only, like settingsReady.
+    private var fontsReady = false
+
     // Emit on the process-wide refresh signal so permission-gated flows (e.g.
     // the Bluetooth dock indicator) re-read after a late runtime grant.
     private val permissionsLauncher =
@@ -107,8 +116,17 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Without this the splash dismisses on the first drawn frame — which the
         // settings gate in setContent leaves intentionally empty — flashing the
-        // bare window background until the first DataStore emission lands.
-        splash.setKeepOnScreenCondition { !settingsReady }
+        // bare window background until the first DataStore emission lands. The
+        // fonts leg holds it until the theme's typeface is the real one, so the
+        // dashboard lays out once instead of visibly reflowing on the font swap.
+        splash.setKeepOnScreenCondition { !(settingsReady && fontsReady) }
+        lifecycleScope.launch {
+            // A cached or system face settles in tens of milliseconds; the
+            // timeout only bites on a cold cache over a slow network, where the
+            // late swap is the lesser evil against holding the cold start.
+            withTimeoutOrNull(FONT_SPLASH_TIMEOUT_MS) { fontRepository.resolvedOnce.first { it } }
+            fontsReady = true
+        }
         enableEmulatorMapRendering()
         enableEdgeToEdge()
         requestRuntimePermissions()
@@ -677,6 +695,11 @@ private fun isProbablyEmulator(): Boolean =
         Build.BRAND.startsWith("generic")
 
 private const val TAG = "MainActivity"
+
+// Upper bound on how long the splash may wait for the first font resolution
+// (see the fontsReady field). Far above a disk resolve, far below a painful
+// cold start.
+private const val FONT_SPLASH_TIMEOUT_MS = 1_500L
 
 private const val QEMU_PROPERTY = "ro.kernel.qemu"
 

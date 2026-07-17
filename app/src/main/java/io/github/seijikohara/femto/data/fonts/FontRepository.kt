@@ -141,8 +141,28 @@ internal class FontRepository internal constructor(
     /** Installed font families available to the picker, filtered per slot there. */
     val systemFonts: StateFlow<List<SystemFontFamily>> = _systemFonts.asStateFlow()
 
+    // Flips exactly once when enumeration returns — even when it returns an
+    // empty list, which the initial [_systemFonts] value cannot be told apart
+    // from. Private with no public counterpart, hence no backing-underscore.
+    private val systemFontsLoaded = MutableStateFlow(false)
+
+    private val _resolvedOnce = MutableStateFlow(false)
+
+    /**
+     * True once a resolution pass has produced a trustworthy first value —
+     * success, fallback, and failure alike. [resolved] starts on
+     * [ResolvedFonts.System] and a legitimate SystemDefault selection resolves
+     * to that same value, so a collector cannot tell "still resolving" apart
+     * from "resolved to the system font" by watching [resolved]; the splash
+     * keep-on-screen gate needs this explicit signal (see MainActivity).
+     */
+    val resolvedOnce: StateFlow<Boolean> = _resolvedOnce.asStateFlow()
+
     init {
-        scope.launch { _systemFonts.value = systemFontSource.families() }
+        scope.launch {
+            _systemFonts.value = systemFontSource.families()
+            systemFontsLoaded.value = true
+        }
     }
 
     /**
@@ -156,9 +176,14 @@ internal class FontRepository internal constructor(
      * never enter the Google Fonts cache directory, so eviction never touches them.
      */
     val resolved: StateFlow<ResolvedFonts> =
-        combine(preferences.selection, retryTrigger.onStart { emit(Unit) }, _systemFonts) { selection, _, systemFonts ->
-            selection to systemFonts
-        }.mapLatest { (selection, systemFonts) ->
+        combine(
+            preferences.selection,
+            retryTrigger.onStart { emit(Unit) },
+            _systemFonts,
+            systemFontsLoaded,
+        ) { selection, _, systemFonts, fontsLoaded ->
+            Triple(selection, systemFonts, fontsLoaded)
+        }.mapLatest { (selection, systemFonts, fontsLoaded) ->
             // A failed family that is no longer selected has no retry surface;
             // drop it so the picker does not flag a stale row.
             _downloadFailed.update { failed -> failed intersect selection.googleFamilies }
@@ -166,7 +191,16 @@ internal class FontRepository internal constructor(
             ResolvedFonts(
                 latin = resolveSlot(selection.latin, systemFonts),
                 cjk = resolveSlot(selection.cjk, systemFonts),
-            )
+            ).also {
+                // Settle only when this pass could resolve every selected slot
+                // for real: a SystemFont slot matched before enumeration lands
+                // falls back now and swaps a moment later — exactly the
+                // post-splash reflow the signal exists to prevent.
+                val systemFontPending =
+                    !fontsLoaded &&
+                        (selection.latin is FontSource.SystemFont || selection.cjk is FontSource.SystemFont)
+                if (!systemFontPending) _resolvedOnce.value = true
+            }
         }.stateIn(scope, SharingStarted.Eagerly, ResolvedFonts.System)
 
     private val _catalog = MutableStateFlow<CatalogState>(CatalogState.Idle)
