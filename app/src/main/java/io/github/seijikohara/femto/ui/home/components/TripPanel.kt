@@ -109,8 +109,11 @@ internal fun TripPanel(
         playing = false
     }
 
-    Box(modifier = modifier.fillMaxSize().clip(RoundedCornerShape(24.dp)).background(RenderBackground)) {
-        // Background render fills the panel; the HUD composes on top.
+    // No opaque background on the panel itself: the native path is a media-overlay
+    // SurfaceView composited *behind* the window, so the render only shows where
+    // the Compose surface is transparent. Each state paints its own dark backdrop
+    // (the SurfaceView clears itself; the fallback and messages fill it).
+    Box(modifier = modifier.fillMaxSize().clip(RoundedCornerShape(24.dp))) {
         when {
             selection != null -> {
                 TripFlyoverHost(selection.wireframe, progress, Modifier.fillMaxSize())
@@ -182,6 +185,8 @@ private fun TripFlyoverHost(
     val controller = remember { TripFlyoverController() }
     var useVulkan by remember { mutableStateOf(controller.ensureCreated()) }
     if (useVulkan) {
+        // Transparent: the native SurfaceView (media overlay) shows through and
+        // clears itself to the render backdrop.
         TripFlyoverSurface(
             controller = controller,
             wireframe = wireframe,
@@ -190,7 +195,13 @@ private fun TripFlyoverHost(
             modifier = modifier,
         )
     } else {
-        TripFlyoverFallback(wireframe = wireframe, progress = progress, modifier = modifier)
+        // The Compose fallback draws in the window, so it paints its own dark
+        // backdrop (its additive lines must blend over black, not the dashboard).
+        TripFlyoverFallback(
+            wireframe = wireframe,
+            progress = progress,
+            modifier = modifier.background(RenderBackground),
+        )
     }
 }
 
@@ -377,7 +388,7 @@ private fun GlassCircleButton(
 private fun CenteredMessage(
     text: String,
     modifier: Modifier = Modifier,
-) = Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+) = Box(modifier = modifier.fillMaxSize().background(RenderBackground), contentAlignment = Alignment.Center) {
     Text(
         text = text,
         style = MaterialTheme.typography.eyebrow(),

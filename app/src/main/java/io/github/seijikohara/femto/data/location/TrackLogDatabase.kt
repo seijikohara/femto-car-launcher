@@ -126,10 +126,17 @@ internal abstract class TrackLogDatabase : RoomDatabase() {
         // databaseBuilder().build() is lazy — the file opens on first use, on the
         // recorder's IO dispatcher, so calling get() during LocationGraph
         // construction never touches disk on the cold-start path.
+        //
+        // Track points are inherently regenerable (they only ever accrue from live
+        // driving and are retention-pruned), and the app is the HOME launcher that
+        // must never crash on a corrupt or schema-drifted database. So a schema
+        // mismatch recreates the table rather than throwing — losing the
+        // recreatable history is always better than an unreadable log or a crash.
         fun get(context: Context): TrackLogDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room
                     .databaseBuilder(context.applicationContext, TrackLogDatabase::class.java, "track_log.db")
+                    .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                     .also { instance = it }
             }
