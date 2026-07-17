@@ -545,6 +545,7 @@ private fun DashboardOverlays(
                 address = uiState.address,
                 tripState = uiState.tripState,
                 speedUnit = speedUnit,
+                is24Hour = is24Hour,
                 onReset = { onAction(HomeAction.ResetTrip) },
                 hazeState = hazeState,
                 glassConfig = glassConfig,

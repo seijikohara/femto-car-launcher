@@ -80,6 +80,7 @@ class SpeedOverlayWidthTest {
                                 startedAtEpochMs = startedAtEpochMs,
                             ),
                         speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                        is24Hour = true,
                         onReset = {},
                     )
                 }

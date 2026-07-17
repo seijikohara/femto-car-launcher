@@ -29,6 +29,7 @@ class SpeedOverlayTest {
                     address = fakeAddress(),
                     tripState = fakeTripState(currentSpeedMs = 18.0),
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    is24Hour = true,
                     onReset = {},
                 )
             }
@@ -47,6 +48,7 @@ class SpeedOverlayTest {
                     address = fakeAddress(),
                     tripState = fakeTripState(currentSpeedMs = 18.0),
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    is24Hour = true,
                     onReset = {},
                 )
             }
@@ -69,6 +71,7 @@ class SpeedOverlayTest {
                     address = fakeAddress(),
                     tripState = fakeTripState(currentSpeedMs = 18.0),
                     speedUnit = SpeedUnit.MILES_PER_HOUR,
+                    is24Hour = true,
                     onReset = {},
                 )
             }
@@ -91,6 +94,7 @@ class SpeedOverlayTest {
                     address = fakeAddress(),
                     tripState = fakeTripState(currentSpeedMs = 18.0),
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    is24Hour = true,
                     onReset = { resetCount++ },
                 )
             }

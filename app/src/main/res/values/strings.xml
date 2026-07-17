@@ -28,7 +28,9 @@
 
     <!-- Speed overlay -->
     <string name="speed_reset_trip">Reset trip</string>
-    <string name="speed_trip_since">Since %1$s</string>
+    <!-- Two lines: "Since" over the trip-start timestamp, so a wide localized
+         time stays tucked under the reset button (see TripSinceRow). -->
+    <string name="speed_trip_since">Since\n%1$s</string>
     <string name="speed_expand_trip">Open trip flyover</string>
     <string name="trip_viz_empty">No trips recorded yet</string>
     <string name="trip_viz_preparing">Preparing flyover…</string>
