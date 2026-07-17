@@ -7,9 +7,9 @@ paths:
 
 Permission discipline for femto-car-launcher's `AndroidManifest.xml`.
 
-- Every `<uses-permission>` is added through the
-  [`add-launcher-permission`](../skills/add-launcher-permission/SKILL.md)
-  skill.
+- Every `<uses-permission>` follows the procedure at the end of this
+  file (this rule is both the procedure and the audit-log SSOT, and
+  auto-loads whenever the manifest is touched).
 - Adding any permission requires a one-line justification in the
   commit message body.
 - The audit log below lists every declared permission with its
@@ -30,3 +30,56 @@ Permission discipline for femto-car-launcher's `AndroidManifest.xml`.
 | `READ_CALENDAR` | Query `CalendarContract.Instances` for the dashboard's Calendar card — the 6-day strip dots and the upcoming-event list. Dangerous; runtime grant. The card falls back to "today's date only" when denied. |
 | `READ_PHONE_STATE` | Read the cellular `SignalStrength.level` via `TelephonyCallback` so the dock status cluster shows graduated cellular signal bars. Dangerous; runtime grant. The cellular indicator degrades to the binary connected/disconnected icon when denied. |
 | `RECORD_AUDIO` | Capture speech for the in-launcher voice assistant (`android.speech.SpeechRecognizer`) so the user talks to the assistant without leaving the launcher, and attach the music card's spectrum `Visualizer` to the audio output mix (session 0 capture requires this permission by platform contract; the mic hardware is never read). Dangerous; requested at runtime only on user action — tapping the mic or enabling the spectrum setting — never at startup. When denied, the assistant sheet degrades to the system-intent delegation rows and the spectrum renders flat. |
+
+## Adding a new permission (procedure)
+
+1. **State the use case** — the one-line "why" that goes into the
+   commit body and the audit log above:
+   `<PERMISSION>: needed to <verb> for <feature>.`
+2. **Pick the protection level**:
+   - **Normal** (`INTERNET`, `WAKE_LOCK`) — declare in the manifest;
+     auto-granted at install.
+   - **Dangerous** (`ACCESS_FINE_LOCATION`, `READ_CONTACTS`) —
+     declare **and** request at runtime via
+     `ActivityResultContracts.RequestPermission()`. Never assume the
+     grant.
+   - **Special** (`SYSTEM_ALERT_WINDOW`, `MANAGE_EXTERNAL_STORAGE`) —
+     declare **and** route the user through the matching
+     `Settings.ACTION_*` Intent.
+   - **Signature / system** — off-limits without system signing; stop
+     and discuss before adding.
+3. **Edit `app/src/main/AndroidManifest.xml`** — add the tag to the
+   alphabetised block before `<application>`. No per-permission
+   comment: the block header already points here, and this audit log
+   is the justification SSOT.
+4. **Wire runtime requests** for dangerous / special permissions.
+   Never call a dangerous API without
+   `ContextCompat.checkSelfPermission(...)`. Request at the
+   interaction point, not startup — the one sanctioned startup
+   request is the dashboard's core location set
+   (`MainActivity.requestRuntimePermissions()`); design the
+   denied-state degradation first either way.
+5. **Update the audit log above** (alphabetised).
+6. **Verify** with the
+   [`verify-android-build`](../skills/verify-android-build/SKILL.md)
+   skill.
+
+## Common not-yet-declared cases
+
+Already-declared permissions are NOT listed here — their use case and
+degradation behaviour live in the audit log above.
+
+| Permission | Use case | Caveats |
+| --- | --- | --- |
+| `QUERY_ALL_PACKAGES` | Show installed apps in the launcher's app list | Play Store policy: requires justification at submission. Prefer `<queries>` with specific intents when feasible. |
+| `SYSTEM_ALERT_WINDOW` | Map / music PiP overlays | User-grantable but visually scary; explain in onboarding. |
+
+## Anti-patterns
+
+- Declaring `QUERY_ALL_PACKAGES` when a `<queries>` element with
+  specific intents would satisfy the use case.
+- Calling a dangerous API directly without `checkSelfPermission`.
+- Adding a permission to "future-proof" a feature that does not yet
+  exist.
+- Requesting a permission in `MainActivity#onCreate` without context
+  (no rationale UI) — explain why before asking.

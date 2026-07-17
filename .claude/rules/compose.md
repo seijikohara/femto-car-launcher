@@ -43,9 +43,9 @@ convention wins.
 - `stateIn` / `shareIn` use the shared `WhileUiSubscribed` policy
   from `data/common/FlowSharing.kt` — never an inline
   `WhileSubscribed(...)` literal.
-- Use the `add-compose-screen` skill to scaffold a new screen from
-  the canonical template, and the `add-viewmodel` skill to scaffold
-  the VM + UiState.
+- New screens copy the shape of an existing area under `ui/` — the
+  living code is the template (pick a stateless screen or a full
+  Route/Screen/UiState/ViewModel quartet to match what you need).
 
 ## Performance
 
