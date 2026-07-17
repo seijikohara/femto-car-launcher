@@ -31,9 +31,10 @@ internal data class CalendarSnapshot(
     // so the empty list is a fault, not "nothing scheduled"; the card shows the
     // failure message instead of a hollow agenda.
     val queryFailed: Boolean = false,
-    // true when the window's events span more than one distinct calendar color,
-    // so a per-event color dot adds information (with zero or one color the dot
-    // is redundant). The card and panel gate the dot on this. Set by the
+    // true when the window's events span more than one distinct calendar, so a
+    // per-event color bar adds information (with zero or one calendar the bar
+    // is redundant — even when a single calendar's events carry per-event color
+    // overrides). The card and panel gate the bar on this. Set by the
     // repository; the denied and query-failed paths carry no events, so it
     // stays false.
     val multipleCalendarsVisible: Boolean = false,
@@ -70,8 +71,8 @@ internal data class EventItem(
     val location: String? = null,
     // The event's effective display color: CalendarContract Instances.DISPLAY_COLOR
     // (the per-event color if set, else the calendar color), forced opaque by the
-    // repository and held as an ARGB int. Drives the multi-calendar color dot; the
+    // repository and held as an ARGB int. Paints the multi-calendar color bar; the
     // 0 default is a placeholder for non-provider constructions (previews, tests),
-    // which never show the dot (multipleCalendarsVisible stays false without it).
+    // which never show the bar (multipleCalendarsVisible stays false without it).
     val color: Int = 0,
 )

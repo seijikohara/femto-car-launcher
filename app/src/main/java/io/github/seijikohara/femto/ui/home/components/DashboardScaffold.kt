@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -28,6 +29,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
@@ -487,7 +489,12 @@ private fun DashboardOverlays(
                     .padding(
                         cardSideInset(
                             mirror = mirror,
-                            horizontal = if (landscapeCards) floatingCardWidth + outerPad + cardGap else outerPad,
+                            // The card column's outer margin lives inside floatingCardWidth
+                            // (its width is fixed before the padding applies), so the
+                            // column's on-screen footprint is floatingCardWidth alone —
+                            // adding outerPad on top double-counted the margin and doubled
+                            // the clock <-> cards gap relative to every other panel gap.
+                            horizontal = if (landscapeCards) floatingCardWidth + cardGap else outerPad,
                             top = outerPad,
                         ),
                     ),
@@ -516,7 +523,9 @@ private fun DashboardOverlays(
                         } else {
                             cardSideInset(
                                 mirror = mirror,
-                                horizontal = if (landscapeCards) floatingCardWidth + outerPad + cardGap else 0.dp,
+                                // floatingCardWidth alone is the column's footprint — see
+                                // the clock inset above for the double-count rationale.
+                                horizontal = if (landscapeCards) floatingCardWidth + cardGap else 0.dp,
                                 bottom = cardGap,
                             )
                         },
@@ -545,6 +554,9 @@ private fun DashboardOverlays(
                 speedUnit = speedUnit,
                 panels = panels,
                 cardGap = cardGap,
+                // Landscape only: portrait's bottom band has no clock adjacency
+                // to preserve, so it keeps the calendar-first reading order.
+                calendarTrailing = mirror && landscapeCards,
                 is24Hour = is24Hour,
                 hazeState = hazeState,
                 glassConfig = glassConfig,
@@ -582,6 +594,32 @@ private fun DashboardOverlays(
                                 ),
                             )
                     },
+            )
+        }
+
+        // A tap on the margin ring around an open maximize panel dismisses it,
+        // matching the modal sheets' scrim-tap behavior. The catcher is drawn
+        // under the panels (they are later siblings), and the panel's Surface
+        // blocks touch propagation, so panel-body taps never reach it; the dock
+        // is outside this Box and stays operable. pointerInput only — no visual
+        // scrim (the glass design keeps the map visible) and no semantics node
+        // (the back gesture and the collapse button remain the accessible
+        // dismiss paths).
+        val dismissOpenPanel: (() -> Unit)? =
+            when {
+                nowPlayingExpanded -> ({ nowPlayingExpanded = false })
+                calendarExpanded -> ({ calendarExpanded = false })
+                weatherExpanded -> ({ weatherExpanded = false })
+                else -> null
+            }
+        if (dismissOpenPanel != null) {
+            Box(
+                modifier =
+                    Modifier
+                        .matchParentSize()
+                        .pointerInput(dismissOpenPanel) {
+                            detectTapGestures { dismissOpenPanel() }
+                        },
             )
         }
 
@@ -722,6 +760,7 @@ private fun FloatingCardColumn(
     speedUnit: SpeedUnit,
     panels: PanelVisibility,
     cardGap: Dp,
+    calendarTrailing: Boolean,
     is24Hour: Boolean,
     hazeState: HazeState,
     glassConfig: GlassConfig,
@@ -786,8 +825,15 @@ private fun FloatingCardColumn(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 horizontalArrangement = Arrangement.spacedBy(cardGap),
             ) {
-                if (panels.calendar) calendar(Modifier.weight(1f).fillMaxHeight())
-                if (panels.weather) weather(Modifier.weight(1f).fillMaxHeight())
+                // The pair reads calendar-first, but a mirrored (LEFT-driver)
+                // landscape cluster trails the calendar instead so it rides the
+                // clock-facing inner edge — the clock pairs with the calendar
+                // on both driver sides.
+                listOfNotNull(
+                    calendar.takeIf { panels.calendar },
+                    weather.takeIf { panels.weather },
+                ).let { pair -> if (calendarTrailing) pair.reversed() else pair }
+                    .forEach { card -> card(Modifier.weight(1f).fillMaxHeight()) }
             }
         }
         // The music card sizes to its own content height (no weight): the row above

@@ -41,9 +41,11 @@ import io.github.seijikohara.femto.ui.locale.windLabel
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.FitText
 import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.WeatherGlyphColors
+import io.github.seijikohara.femto.ui.theme.attributionCredit
 import io.github.seijikohara.femto.ui.theme.bigNumber
 import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.panelMetric
@@ -128,6 +130,15 @@ internal fun WeatherPanel(
                 }
             }
         }
+        // CC BY 4.0 credit for the forecast data — MET's terms require visible
+        // attribution wherever the data is presented; the licenses screen
+        // carries the full license entry. Static legal text, not glance
+        // content, so attributionCredit's sub-floor size applies (see Type.kt).
+        Text(
+            text = stringResource(R.string.weather_attribution),
+            style = MaterialTheme.typography.attributionCredit(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -298,11 +309,15 @@ private fun HourlyColumn(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(
+        FitText(
+            // The landscape strip divides one row across every forecast hour, so
+            // a narrow projection, the wider 12-hour "12 PM" form, or a raised
+            // font scale can starve the column; shrink the label to fit instead
+            // of letting the centered text clip at both edges.
             text = forecastHourLabel(hour.time, is24Hour),
             style = MaterialTheme.typography.sectionLabel(12),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
+            minFontSize = FemtoDimens.TextXs,
         )
         FemtoIcon(
             imageVector = glyphIconFor(hour.code, isDay),
