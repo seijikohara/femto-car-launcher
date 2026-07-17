@@ -552,6 +552,9 @@ private fun DashboardOverlays(
                 speedUnit = speedUnit,
                 panels = panels,
                 cardGap = cardGap,
+                // Landscape only: portrait's bottom band has no clock adjacency
+                // to preserve, so it keeps the calendar-first reading order.
+                calendarTrailing = mirror && landscapeCards,
                 is24Hour = is24Hour,
                 hazeState = hazeState,
                 glassConfig = glassConfig,
@@ -729,6 +732,7 @@ private fun FloatingCardColumn(
     speedUnit: SpeedUnit,
     panels: PanelVisibility,
     cardGap: Dp,
+    calendarTrailing: Boolean,
     is24Hour: Boolean,
     hazeState: HazeState,
     glassConfig: GlassConfig,
@@ -793,8 +797,15 @@ private fun FloatingCardColumn(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 horizontalArrangement = Arrangement.spacedBy(cardGap),
             ) {
-                if (panels.calendar) calendar(Modifier.weight(1f).fillMaxHeight())
-                if (panels.weather) weather(Modifier.weight(1f).fillMaxHeight())
+                // The pair reads calendar-first, but a mirrored (LEFT-driver)
+                // landscape cluster trails the calendar instead so it rides the
+                // clock-facing inner edge — the clock pairs with the calendar
+                // on both driver sides.
+                listOfNotNull(
+                    calendar.takeIf { panels.calendar },
+                    weather.takeIf { panels.weather },
+                ).let { pair -> if (calendarTrailing) pair.reversed() else pair }
+                    .forEach { card -> card(Modifier.weight(1f).fillMaxHeight()) }
             }
         }
         // The music card sizes to its own content height (no weight): the row above
