@@ -41,6 +41,7 @@ import io.github.seijikohara.femto.ui.locale.windLabel
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.FitText
 import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.WeatherGlyphColors
@@ -298,11 +299,15 @@ private fun HourlyColumn(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(
+        FitText(
+            // The landscape strip divides one row across every forecast hour, so
+            // a narrow projection, the wider 12-hour "12 PM" form, or a raised
+            // font scale can starve the column; shrink the label to fit instead
+            // of letting the centered text clip at both edges.
             text = forecastHourLabel(hour.time, is24Hour),
             style = MaterialTheme.typography.sectionLabel(12),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
+            minFontSize = FemtoDimens.TextXs,
         )
         FemtoIcon(
             imageVector = glyphIconFor(hour.code, isDay),

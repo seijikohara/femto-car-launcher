@@ -27,6 +27,7 @@ import io.github.seijikohara.femto.data.calendar.EventItem
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.FitText
 import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
@@ -84,7 +85,7 @@ internal fun CalendarPanel(
             days = panelDays,
             today = snapshot.today,
             is24Hour = is24Hour,
-            showColorDots = snapshot.multipleCalendarsVisible,
+            showColorBars = snapshot.multipleCalendarsVisible,
             motionTier = motionTier,
             modifier = Modifier.fillMaxSize(),
         )
@@ -151,7 +152,7 @@ private fun AgendaColumn(
     days: List<DayCell>,
     today: LocalDate,
     is24Hour: Boolean,
-    showColorDots: Boolean,
+    showColorBars: Boolean,
     motionTier: MotionTier,
     modifier: Modifier = Modifier,
 ) = FitWholeRows(
@@ -165,7 +166,7 @@ private fun AgendaColumn(
             today = today,
             isFirst = index == 0,
             is24Hour = is24Hour,
-            showColorDots = showColorDots,
+            showColorBars = showColorBars,
             motionTier = motionTier,
         )
     }
@@ -181,7 +182,7 @@ private fun AgendaDay(
     today: LocalDate,
     isFirst: Boolean,
     is24Hour: Boolean,
-    showColorDots: Boolean,
+    showColorBars: Boolean,
     motionTier: MotionTier,
     modifier: Modifier = Modifier,
 ) = Motion.ContentCrossfade(
@@ -216,12 +217,13 @@ private fun AgendaDay(
                 modifier = Modifier.width(44.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(
-                    text = current.weekdayLetter.take(3).uppercase(),
+                FitText(
+                    // The full locale short form; FitText shrinks the rare longer
+                    // form instead of truncating it to three letters.
+                    text = current.weekdayLetter.uppercase(),
                     style = MaterialTheme.typography.sectionLabel(12),
                     color = weekdayColor,
-                    maxLines = 1,
-                    softWrap = false,
+                    minFontSize = FemtoDimens.TextXs,
                 )
                 Text(
                     text = "${current.date.dayOfMonth}",
@@ -243,7 +245,7 @@ private fun AgendaDay(
                     )
                 } else {
                     current.events.forEach { event ->
-                        AgendaEvent(event = event, is24Hour = is24Hour, showColorDots = showColorDots)
+                        AgendaEvent(event = event, is24Hour = is24Hour, showColorBars = showColorBars)
                     }
                 }
             }
@@ -255,17 +257,17 @@ private fun AgendaDay(
 private fun AgendaEvent(
     event: EventItem,
     is24Hour: Boolean,
-    showColorDots: Boolean,
+    showColorBars: Boolean,
     modifier: Modifier = Modifier,
 ) = Column(
     modifier = modifier.fillMaxWidth(),
     verticalArrangement = Arrangement.spacedBy(2.dp),
 ) {
-    // Indent the non-title lines past the dot gutter so every line shares the
-    // title's left edge; the dot leads the title row, centered on the title line.
+    // Indent the non-title lines past the bar gutter so every line shares the
+    // title's left edge; the bar leads the title row, centered on the title line.
     val gutterIndent =
-        if (showColorDots) {
-            Modifier.padding(start = FemtoDimens.CalendarDotGutter)
+        if (showColorBars) {
+            Modifier.padding(start = FemtoDimens.CalendarBarGutter)
         } else {
             Modifier
         }
@@ -277,13 +279,13 @@ private fun AgendaEvent(
         maxLines = 1,
     )
     Row(
-        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarDotGap),
-        // Match the card: center the dot on the title line rather than the whole
+        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarBarGap),
+        // Match the card: center the bar on the title line rather than the whole
         // stacked lines, so it marks the event at its title.
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (showColorDots) {
-            CalendarColorDot(color = event.color)
+        if (showColorBars) {
+            CalendarColorBar(color = event.color)
         }
         Text(
             text = event.title,

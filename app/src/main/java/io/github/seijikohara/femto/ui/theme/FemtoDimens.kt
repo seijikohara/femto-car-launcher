@@ -83,24 +83,26 @@ object FemtoDimens {
     val InlineIconSize = 20.dp
 
     /**
-     * Diameter of the calendar event color dot — the small circular indicator that
-     * marks which calendar an event belongs to on the calendar card and panel,
-     * shown only when the visible events span more than one calendar color. A
-     * decorative indicator, not a tap target, so it is sized independently of
-     * [MinTouchTarget].
+     * Width and height of the calendar event color bar — the thin rounded
+     * vertical line that marks which calendar an event belongs to on the
+     * calendar card and panel, shown only when the visible events span more
+     * than one calendar. A decorative indicator, not a tap target, so it is
+     * sized independently of [MinTouchTarget]; the height sits on the title
+     * line the bar centers on.
      */
-    val CalendarDotSize = 8.dp
+    val CalendarBarWidth = 3.dp
+    val CalendarBarHeight = 14.dp
 
-    /** Gap between the calendar event color dot and the event's time / title text. */
-    val CalendarDotGap = 4.dp
+    /** Gap between the calendar event color bar and the event's time / title text. */
+    val CalendarBarGap = 4.dp
 
     /**
-     * Start indent that clears the leading color-dot gutter: the dot's diameter
-     * plus its trailing gap. The dot leads the title row and centers on the title
+     * Start indent that clears the leading color-bar gutter: the bar's width
+     * plus its trailing gap. The bar leads the title row and centers on the title
      * line, so an event's other lines (time, location) pad their start by this to
      * share the title's left edge.
      */
-    val CalendarDotGutter = CalendarDotSize + CalendarDotGap
+    val CalendarBarGutter = CalendarBarWidth + CalendarBarGap
 
     /**
      * Dock thickness: its height as a horizontal bar, its width as a vertical

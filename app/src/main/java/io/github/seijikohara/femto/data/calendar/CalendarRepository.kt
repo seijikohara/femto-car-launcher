@@ -86,28 +86,28 @@ internal class CalendarRepository(
         val locale = localeProvider()
         // null marks a provider fault (see readWindow); the days still build
         // from the clock alone so the strip never disappears.
-        val eventsByDay = if (granted) readWindow(today, zone, hidden) else emptyMap()
+        val scan = if (granted) readWindow(today, zone, hidden) else WindowScan.Empty
         val days = (0 until WINDOW_DAYS).map { offset ->
             val date = today.plusDays(offset.toLong())
             DayCell(
                 date = date,
                 weekdayLetter = date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale),
-                events = eventsByDay?.get(date).orEmpty(),
+                events = scan?.eventsByDay?.get(date).orEmpty(),
             )
         }
-        // A per-event color dot only tells the calendars apart when the window's
-        // events actually span more than one color. The denied path is an empty
-        // map and the query-failed path is null, so both collapse to an empty set
-        // and leave the flag false.
-        val distinctColors = eventsByDay?.values?.flatten()?.mapTo(mutableSetOf()) { it.color } ?: emptySet()
         return CalendarSnapshot(
             today = today,
             weekday = today.dayOfWeek.getDisplayName(TextStyle.FULL, locale),
             monthLabel = monthLabelOf(today, locale),
             days = days,
             hasCalendarAccess = granted,
-            queryFailed = eventsByDay == null,
-            multipleCalendarsVisible = distinctColors.size > 1,
+            queryFailed = scan == null,
+            // A per-event color bar only tells calendars apart when the window's
+            // events actually span more than one calendar — distinct CALENDAR_IDs,
+            // not distinct colors, so a single calendar whose events carry
+            // per-event color overrides sprouts no indicators. The denied path is
+            // an empty scan and the query-failed path is null; both leave it false.
+            multipleCalendarsVisible = (scan?.calendarIds?.size ?: 0) > 1,
         )
     }
 
@@ -157,7 +157,22 @@ internal class CalendarRepository(
         }.build()
 
     /**
-     * Scan the window once and group every event by its local day. The card lists
+     * One window scan: the day-grouped events plus the distinct calendars they
+     * came from. [calendarIds] feeds `multipleCalendarsVisible`.
+     */
+    private data class WindowScan(
+        val eventsByDay: Map<LocalDate, List<EventItem>>,
+        val calendarIds: Set<Long>,
+    ) {
+        companion object {
+            /** The permission-denied scan: no events, no calendars. */
+            val Empty = WindowScan(emptyMap(), emptySet())
+        }
+    }
+
+    /**
+     * Scan the window once, group every event by its local day, and collect the
+     * distinct calendars those events belong to. The card lists
      * each day's full set of events (no per-day cap — the card scrolls), so the
      * whole day is held with no `BEGIN >= now` future-only filter. Rows arrive
      * `BEGIN ASC`, so each day's list stays time-ordered.
@@ -165,7 +180,7 @@ internal class CalendarRepository(
      * A mid-stream permission revoke (SecurityException) or an OEM provider
      * fault (SQLiteException) must not tear down the dashboard StateFlow, so the
      * whole scan is guarded. The two faults degrade differently: a revoke is the
-     * documented permission path and yields an empty map, while any other fault
+     * documented permission path and yields an empty scan, while any other fault
      * returns null so [buildSnapshot] can flag `queryFailed` instead of faking
      * "granted but nothing scheduled".
      */
@@ -174,9 +189,10 @@ internal class CalendarRepository(
         today: LocalDate,
         zone: ZoneId,
         hidden: Set<Long>,
-    ): Map<LocalDate, List<EventItem>>? =
+    ): WindowScan? =
         runCatching {
             val byDay = linkedMapOf<LocalDate, MutableList<EventItem>>()
+            val calendarIds = mutableSetOf<Long>()
             // Respect the user's per-calendar visibility: events from a calendar
             // hidden in the calendar app must not surface on the dashboard.
             // Instances joins Calendars, so VISIBLE filters here. Additionally
@@ -201,9 +217,12 @@ internal class CalendarRepository(
                         CalendarContract.Instances.END,
                         CalendarContract.Instances.EVENT_LOCATION,
                         // DISPLAY_COLOR resolves to the per-event color if set, else
-                        // the owning calendar's color — the value that identifies the
-                        // calendar in the multi-calendar color dot.
+                        // the owning calendar's color — the value the multi-calendar
+                        // color bar paints.
                         CalendarContract.Instances.DISPLAY_COLOR,
+                        // Drives the multipleCalendarsVisible gate: the bar shows
+                        // only when the window spans more than one distinct calendar.
+                        CalendarContract.Instances.CALENDAR_ID,
                     ),
                     selection,
                     null,
@@ -218,8 +237,11 @@ internal class CalendarRepository(
                         val endMs = cursor.getLong(3)
                         val location = cursor.getString(4)?.takeUnless { it.isBlank() }
                         // DISPLAY_COLOR may arrive with a zero alpha byte, which would
-                        // render the dot invisible; force it opaque before storing.
+                        // render the bar invisible; force it opaque before storing.
                         val color = cursor.getInt(5) or 0xFF000000.toInt()
+                        // An OEM provider may answer the projection with a null id;
+                        // treat that as "unknown" rather than crash the scan.
+                        if (!cursor.isNull(6)) calendarIds += cursor.getLong(6)
                         byDay.getOrPut(localDateOf(startMs, allDay, zone)) { mutableListOf() } +=
                             EventItem(
                                 // All-day rows carry no clock time; surface null
@@ -235,7 +257,7 @@ internal class CalendarRepository(
                             )
                     }
                 }
-            byDay.mapValues { (_, events) -> events.toList() }
+            WindowScan(byDay.mapValues { (_, events) -> events.toList() }, calendarIds)
         }.onFailure {
             when (it) {
                 // Mid-stream revoke is the expected degradation path (see KDoc);
@@ -244,7 +266,7 @@ internal class CalendarRepository(
 
                 else -> Log.e(TAG, "calendar window query failed", it)
             }
-        }.getOrElse { if (it is SecurityException) emptyMap() else null }
+        }.getOrElse { if (it is SecurityException) WindowScan.Empty else null }
 
     /**
      * Resolve an Instances.BEGIN epoch-millis to the local calendar day.

@@ -25,7 +25,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
@@ -37,10 +36,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.Disc
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
-import com.composables.icons.lucide.User
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.NowPlaying
@@ -218,9 +215,6 @@ internal fun MusicMetaAndProgress(
         modifier = modifier.fillMaxWidth(),
         content = {
             EyebrowLine(source = source, sourceIcon = sourceIcon, onExpand = onExpand)
-            // No leading glyph: the eyebrow above already carries the note/source
-            // icon, and a second one on the title read as a redundant repeat of the
-            // same affordance rather than a new piece of information.
             MetaLine(
                 text = title,
                 style = titleStyle,
@@ -228,7 +222,6 @@ internal fun MusicMetaAndProgress(
                 tier = motionTier,
             )
             MetaLine(
-                icon = Lucide.User,
                 // Radio / stream tracks often carry no artist; show an em dash so the
                 // line height stays stable rather than the title jumping down.
                 text = artist?.takeUnless { it.isBlank() } ?: "—",
@@ -242,7 +235,6 @@ internal fun MusicMetaAndProgress(
             // the measurables below either way.
             if (showAlbum) {
                 MetaLine(
-                    icon = Lucide.Disc,
                     // Album is absent for many radio / stream sessions; show an em
                     // dash rather than substituting another field, matching artist.
                     text = album?.takeUnless { it.isBlank() } ?: "—",
@@ -353,18 +345,18 @@ private fun EyebrowLine(
     }
 }
 
-// One metadata line: an optional leading glyph + the text. The text is clamped to
-// its style's lineHeight so a CJK line and a Latin line measure identically —
+// One metadata line, flush-left with no leading glyph: the eyebrow above the
+// block already carries the source icon, and per-line kind glyphs beside it
+// read as decoration rather than information. The text is clamped to its
+// style's lineHeight so a CJK line and a Latin line measure identically —
 // without this a line's row height shifts a few px on script changes between
-// tracks (fallback line spacing; see singleLineBox). MusicMetaAndProgress always
-// measures this against an unbounded height, so the clamp never gets squeezed
-// smaller than its nominal size the way it could inside the old fixed-height
-// meta column. The text itself dissolves on a track change (Motion.ContentCrossfade
-// keyed on its own value, which only changes on a real track switch) rather than
-// popping, matching the album art beside it and the full-screen panel's metadata;
-// the leading glyph stays static since it never changes within a MetaLine. [icon]
-// is absent for the title line — see its call site — so it reads flush-left as
-// the block's headline rather than indented level with the icon-led lines below it.
+// tracks (fallback line spacing; see singleLineBox). MusicMetaAndProgress
+// always measures this against an unbounded height, so the clamp never gets
+// squeezed smaller than its nominal size the way it could inside the old
+// fixed-height meta column. The text dissolves on a track change
+// (Motion.ContentCrossfade keyed on its own value, which only changes on a
+// real track switch) rather than popping, matching the album art beside it
+// and the full-screen panel's metadata.
 @Composable
 private fun MetaLine(
     text: String,
@@ -372,28 +364,18 @@ private fun MetaLine(
     color: Color,
     tier: MotionTier,
     modifier: Modifier = Modifier,
-    icon: ImageVector? = null,
-) = Row(
+) = Motion.ContentCrossfade(
+    targetState = text,
+    tier = tier,
+    label = "musicMetaLine",
     modifier = modifier,
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(6.dp),
-) {
-    if (icon != null) {
-        FemtoIcon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = color,
-            modifier = Modifier.size(14.dp),
-        )
-    }
-    Motion.ContentCrossfade(targetState = text, tier = tier, label = "musicMetaLine") { lineText ->
-        Text(
-            text = lineText,
-            style = style,
-            color = color,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.singleLineBox(style),
-        )
-    }
+) { lineText ->
+    Text(
+        text = lineText,
+        style = style,
+        color = color,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.singleLineBox(style),
+    )
 }

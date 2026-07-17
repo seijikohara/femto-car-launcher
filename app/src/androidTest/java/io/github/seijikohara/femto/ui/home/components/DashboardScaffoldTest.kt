@@ -1,10 +1,14 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.testfixtures.fakeAddress
@@ -119,6 +123,39 @@ class DashboardScaffoldTest {
         rule.onNodeWithContentDescription("Collapse").assertIsDisplayed()
         // Collapsing returns to the card: the panel and its Collapse affordance are gone.
         rule.onNodeWithContentDescription("Collapse").performClick()
+        rule.onNodeWithContentDescription("Collapse").assertDoesNotExist()
+    }
+
+    @Test
+    fun tapping_outside_an_open_panel_dismisses_it() {
+        val uiState =
+            HomeUiState.Initial.copy(
+                location = null,
+                weather = fakeWeatherSnapshot(),
+                musicState = MusicCardState.Playing(fakeNowPlaying()),
+            )
+        rule.setContent {
+            FemtoTheme {
+                DashboardScaffold(
+                    uiState = uiState,
+                    is24Hour = true,
+                    showClockSeconds = true,
+                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    temperatureUnit = TemperatureUnit.CELSIUS,
+                    mapConfig = MapConfig(),
+                    panels = PanelVisibility(),
+                    glassConfig = GlassConfig(),
+                    motionTier = MotionTier.OFF,
+                    onAction = {},
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("Open full-screen weather").performClick()
+        rule.onNodeWithContentDescription("Collapse").assertIsDisplayed()
+        // A tap on the margin ring outside the panel dismisses it. The mid-left
+        // screen edge sits inside the ring on every orientation: the panel is
+        // inset by the outer padding, and the cards/dock live on other edges.
+        rule.onRoot().performTouchInput { click(Offset(5f, height / 2f)) }
         rule.onNodeWithContentDescription("Collapse").assertDoesNotExist()
     }
 }
