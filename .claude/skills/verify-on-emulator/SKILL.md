@@ -1,6 +1,6 @@
 ---
 name: verify-on-emulator
-description: "Boot the TBox-Mock AVD, install the debug APK, drive the launcher, and capture screenshots to verify UI changes on the head-unit geometry."
+description: "Boot (or reuse) the TBox-Mock-Play AVD, install the debug APK, drive the launcher, and capture screenshots to verify UI changes on the head-unit geometry."
 when_to_use: "Verifying a UI change visually; \"check it on the emulator\", \"screenshot the dashboard\", \"does it look right on the head unit\"."
 argument-hint: "[screen-or-area]"
 allowed-tools:
@@ -8,7 +8,7 @@ allowed-tools:
   - Read
 ---
 
-# Verifying on the TBox-Mock emulator
+# Verifying on the TBox-Mock-Play emulator
 
 Visual verification on the head-unit geometry. `$ARGUMENTS` names the
 screen or area to drive to and screenshot; with no argument, verify
@@ -25,8 +25,15 @@ the home dashboard.
   mirrored in `.claude/settings.local.json`. `local.properties` and
   `~/Library` may be Read-denied — use `ls`/adb, not `cat`. Gradle
   finds the SDK via `local.properties` regardless.
-- **AVD**: `TBox-Mock` — head-unit profile, **800x480 / 150 dpi**
-  (matches the real target).
+- **AVD**: `TBox-Mock-Play` — 1280x720 @ 160 dpi (the 800x480 dp
+  head-unit geometry) with Google Play, so a signed-in account
+  provides real calendar events and media sessions. The definition
+  is **committed in this skill directory**: `create-avd.sh` writes
+  the AVD registry files directly from `tbox-mock-play.config.ini`
+  (no avdmanager / cmdline-tools needed; only the
+  `android-33 google_apis_playstore` system image for the host arch
+  must be installed). Google sign-in inside the AVD stays a one-time
+  manual step per machine — account state is not portable.
 - **App id**: `io.github.seijikohara.femto` (no debug suffix).
 
 ## Procedure
@@ -36,25 +43,40 @@ the home dashboard.
    (the verification-procedure SSOT). The APK lands at
    `app/build/outputs/apk/debug/app-debug.apk`.
 
-2. **Boot the emulator** headless:
+2. **Reuse or boot the emulator.** More than one emulator may be
+   running, so resolve serials first: `adb devices`, then
+   `adb -s <serial> emu avd name` to identify each instance. If a
+   `TBox-Mock-Play` is already up, **reuse it** — installing onto the
+   instance the user is watching is the point; never touch an
+   unrelated instance. If none is running:
 
    ```bash
-   emulator -avd TBox-Mock -no-window -no-audio -gpu swiftshader_indirect
+   emulator -avd TBox-Mock-Play -no-audio -gpu host
    ```
 
-   If one is already running, a second launch exits 1 harmlessly
-   (`adb devices` still shows `emulator-5556`). Wait for
-   `adb devices` to report the device before installing.
+   Windowed on purpose — the user watches the verification live. In
+   a headless context (no display available) add
+   `-no-window -gpu swiftshader_indirect` instead of `-gpu host`. If
+   the AVD does not exist (`emulator -list-avds`), create it first:
+
+   ```bash
+   .claude/skills/verify-on-emulator/create-avd.sh
+   ```
+
+   Wait until `adb -s <serial> shell getprop sys.boot_completed`
+   reports `1` before installing. With multiple devices attached,
+   pass `-s <serial>` to **every** adb call below.
 
 3. **Install the APK**:
 
    ```bash
-   adb install -r app/build/outputs/apk/debug/app-debug.apk
+   adb -s <serial> install -r app/build/outputs/apk/debug/app-debug.apk
    ```
 
    Note: `connectedAndroidTest` **uninstalls the app afterward** —
    run `:app:installDebug` (or `adb install -r`) again before manual
-   screenshots.
+   screenshots. After a reinstall, `am force-stop` + restart the app
+   so the running process is the new code.
 
 4. **Pre-grant runtime permissions** — the startup permission dialog
    blocks the dashboard (`MainActivity.requestRuntimePermissions()`
@@ -82,13 +104,15 @@ the home dashboard.
    adb shell screencap -p /sdcard/shot.png && adb pull /sdcard/shot.png
    ```
 
-## Known limitation
+## Notes and former limitations
 
-The emulator cannot present the map WebView's GL surface for any
-backend (OSM/MapLibre, Mapbox, or Google Maps) — this is a known
-GLES-translator limitation, not a regression; do not treat a blank
-map on the emulator as one. See the project's Claude Code memory
-(CLAUDE.md's Memory section) for the detailed history if needed.
+- The LIVE map WebView **renders on the emulator** (verified 2026-07
+  under both `-gpu host` and `swiftshader_indirect`); the old "GL
+  surface cannot present" limitation no longer reproduces. A blank
+  map is NOT expected — check the `-gpu` mode and logcat before
+  suspecting a regression.
+- The Play system image has no `adb root`; runtime grants via
+  `pm grant` still work.
 
 ## Report
 
