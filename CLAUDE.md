@@ -186,7 +186,8 @@ The [`verify-android-build`](.claude/skills/verify-android-build/SKILL.md)
 skill is the canonical verification procedure for non-trivial changes.
 For UI changes, follow it with the
 [`verify-on-emulator`](.claude/skills/verify-on-emulator/SKILL.md)
-skill to check the result on the TBox-Mock AVD.
+skill to check the result on the TBox-Mock-Play AVD (definition
+committed in the skill directory; `create-avd.sh` recreates it).
 
 ## Claude Code surface
 
