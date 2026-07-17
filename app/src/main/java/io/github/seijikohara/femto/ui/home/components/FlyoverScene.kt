@@ -24,15 +24,21 @@ private const val LIGHT_LINE_SCALE = 0.55f
 /**
  * Build the flyover's [TripScenePalette] from the *rendered* theme — the
  * sanctioned [LocalFemtoDarkTheme] flag (which follows a forced ThemeMode, not
- * just the system) plus the Material scheme accent. Remembered on those inputs
- * so the same instance is handed down until the theme actually changes, which is
- * what gates the wireframe rebuild and the native theme push.
+ * just the system) plus the Material scheme accent.
+ *
+ * Keyed on the dark flag ALONE, snapshotting the accent at each flip. The scheme
+ * accent cross-fades over ~500ms on a theme/accent switch; keying on it would
+ * rebuild the whole wireframe (and re-upload the native vertex buffer) every
+ * frame of that fade. The grid tint therefore snaps to the accent at the light/
+ * dark flip rather than cross-fading with it — an imperceptible trade for not
+ * churning the renderer. Accent-only changes are made in Settings with the
+ * flyover closed, so a stale grid there cannot be seen.
  */
 @Composable
 internal fun rememberTripScenePalette(): TripScenePalette {
     val dark = LocalFemtoDarkTheme.current
     val primary = MaterialTheme.colorScheme.primary
-    return remember(dark, primary) {
+    return remember(dark) {
         if (dark) {
             TripScenePalette(
                 isDark = true,

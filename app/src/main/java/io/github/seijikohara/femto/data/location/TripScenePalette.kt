@@ -49,17 +49,19 @@ internal class TripScenePalette(
 
     companion object {
         /**
-         * Dark-scene default used where no Material scheme is in scope (the native
-         * renderer's pre-[isDark] clear colour, unit tests, previews). The UI
-         * builder replaces [grid] with an accent-derived tint; this keeps the
-         * legacy teal floor as a neutral stand-in. [background] mirrors the Kotlin
-         * `TripSceneBackground` (0xFF050810), the single backdrop SSOT the native
-         * clear colour now follows.
+         * Dark-scene default used where no Material scheme is in scope (unit
+         * tests, previews). The UI builder replaces [grid] with an accent-derived
+         * tint; this keeps the legacy teal floor as a neutral stand-in.
+         * [background] mirrors the Kotlin `TripSceneBackground` (0xFF050810), the
+         * single backdrop SSOT — as the exact 8-bit fractions, not rounded, and
+         * pinned to it by `FlyoverSceneTest`. Note [background] is unused at
+         * runtime (the wireframe build reads only [grid] and [lineScale]); the
+         * live scene clear comes from the UI palette via `nativeSetTheme`.
          */
         val Dark =
             TripScenePalette(
                 isDark = true,
-                background = floatArrayOf(0.0196f, 0.0314f, 0.0627f),
+                background = floatArrayOf(0x05 / 255f, 0x08 / 255f, 0x10 / 255f),
                 grid = floatArrayOf(0.10f, 0.36f, 0.46f),
                 head = floatArrayOf(1f, 1f, 1f),
                 lineScale = 1f,

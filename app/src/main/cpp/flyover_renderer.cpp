@@ -117,6 +117,15 @@ struct PushConstants {
     float head[4];  // rgb = comet-head mix target (theme-dependent); [3] unused
 };
 
+// One frame's theme, snapshotted from the atomics in a tight burst at the top of
+// the frame so the clear colour, comet head, and blend pipeline are all drawn
+// from the same instant — a theme push mid-frame can't tear one into another.
+struct ThemeSnapshot {
+    float clear[3];
+    float head[3];
+    bool dark;
+};
+
 }  // namespace
 
 struct FlyoverRenderer {
@@ -168,12 +177,14 @@ struct FlyoverRenderer {
     std::atomic<int> pendingHeight{0};
 
     // Theme, pushed from Kotlin (flyover_set_theme) and read on the render thread.
-    // Defaults mirror the dark palette (TripSceneBackground 0xFF050810, white
-    // comet head) so the frames before the first push already look right.
+    // Kotlin applies the theme before the render thread starts (setTheme runs once
+    // the instance exists), so these dark defaults are a never-rendered safety
+    // fallback. They mirror the dark palette (TripSceneBackground 0xFF050810 =
+    // 5/8/16 over 255, white comet head) so any stray pre-push frame still reads.
     std::atomic<bool> themeDark{true};
-    std::atomic<float> clearR{0.0196f};
-    std::atomic<float> clearG{0.0314f};
-    std::atomic<float> clearB{0.0627f};
+    std::atomic<float> clearR{0x05 / 255.0f};
+    std::atomic<float> clearG{0x08 / 255.0f};
+    std::atomic<float> clearB{0x10 / 255.0f};
     std::atomic<float> headR{1.0f};
     std::atomic<float> headG{1.0f};
     std::atomic<float> headB{1.0f};
@@ -509,6 +520,12 @@ struct FlyoverRenderer {
         vkDestroyShaderModule(device, vert, nullptr);
         vkDestroyShaderModule(device, frag, nullptr);
         if (res != VK_SUCCESS) {
+            // A multi-pipeline call may leave some entries non-null on failure;
+            // destroy any that succeeded so flyover_stop (which only sees the
+            // unset members) can't leak them and vkDestroyDevice runs clean.
+            for (VkPipeline p : pipelines) {
+                if (p != VK_NULL_HANDLE) vkDestroyPipeline(device, p, nullptr);
+            }
             LOGE("pipeline create failed: %d", res);
             return false;
         }
@@ -645,7 +662,7 @@ struct FlyoverRenderer {
         }
     }
 
-    void computePush(PushConstants *pc, float elapsed, float prog) {
+    void computePush(PushConstants *pc, float elapsed, float prog, const ThemeSnapshot &theme) {
         // Gentle intro dolly then a steady slow orbit; a pure wireframe reads
         // best when the camera keeps moving so parallax reveals the 3D shape.
         float intro = std::min(1.0f, elapsed / 3.0f);
@@ -665,13 +682,13 @@ struct FlyoverRenderer {
         pc->time = elapsed;
         pc->aspect = aspect;
         pc->pad = 0.0f;
-        pc->head[0] = headR.load();
-        pc->head[1] = headG.load();
-        pc->head[2] = headB.load();
+        pc->head[0] = theme.head[0];
+        pc->head[1] = theme.head[1];
+        pc->head[2] = theme.head[2];
         pc->head[3] = 0.0f;
     }
 
-    bool recordAndSubmit(uint32_t imageIndex, const PushConstants &pc) {
+    bool recordAndSubmit(uint32_t imageIndex, const PushConstants &pc, const ThemeSnapshot &theme) {
         VkCommandBuffer cmd = commandBuffers[currentFrame];
         vkResetCommandBuffer(cmd, 0);
         VkCommandBufferBeginInfo bi{};
@@ -682,7 +699,7 @@ struct FlyoverRenderer {
         // The scene backdrop, pushed from Kotlin via flyover_set_theme so the
         // clear colour follows the light/dark palette (TripScenePalette). The
         // Kotlin TripScenePalette is the single backdrop SSOT.
-        clear.color = {{clearR.load(), clearG.load(), clearB.load(), 1.0f}};
+        clear.color = {{theme.clear[0], theme.clear[1], theme.clear[2], 1.0f}};
         VkRenderPassBeginInfo rp{};
         rp.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         rp.renderPass = renderPass;
@@ -700,7 +717,7 @@ struct FlyoverRenderer {
         if (vertexCount > 0 && vertexBuffer != VK_NULL_HANDLE) {
             // Pick the blend model for the current scene: additive on dark, over
             // on light. Both share the layout, so only the bound pipeline differs.
-            VkPipeline activePipeline = themeDark.load() ? pipeline : pipelineOver;
+            VkPipeline activePipeline = theme.dark ? pipeline : pipelineOver;
             vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, activePipeline);
             vkCmdPushConstants(cmd, pipelineLayout,
                                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
@@ -780,11 +797,20 @@ struct FlyoverRenderer {
         }
         imagesInFlight[imageIndex] = inFlight[currentFrame];
 
+        // Snapshot the theme once (7 back-to-back atomic loads) so the whole
+        // frame — clear colour, comet head, blend pipeline — is internally
+        // consistent even if a theme push lands mid-frame.
+        ThemeSnapshot theme{
+            {clearR.load(), clearG.load(), clearB.load()},
+            {headR.load(), headG.load(), headB.load()},
+            themeDark.load(),
+        };
+
         PushConstants pc{};
-        computePush(&pc, elapsed, progress.load());
+        computePush(&pc, elapsed, progress.load(), theme);
 
         vkResetFences(device, 1, &inFlight[currentFrame]);
-        if (!recordAndSubmit(imageIndex, pc)) return false;
+        if (!recordAndSubmit(imageIndex, pc, theme)) return false;
 
         VkPresentInfoKHR present{};
         present.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;

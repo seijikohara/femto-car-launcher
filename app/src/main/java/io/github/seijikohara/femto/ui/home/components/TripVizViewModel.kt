@@ -33,12 +33,15 @@ internal data class TripListItem(
 /**
  * The selected trip's render-ready wireframe plus its headline stats. Not a data
  * class — the [FloatArray] has identity equality, which is what recomposition
- * wants here (a new selection is a new array).
+ * wants here (a new selection is a new array). Carries its [geometry] so a
+ * palette change recolours the *displayed* trip off its own geometry, never a
+ * separately-cached one that an out-of-order load could have clobbered.
  */
 internal class TripSelection(
     val tripId: Long,
     val wireframe: FloatArray,
     val stats: TripStats,
+    val geometry: TripGeometry,
 )
 
 internal data class TripVizUiState(
@@ -79,12 +82,10 @@ internal class TripVizViewModel(
     private val _uiState = MutableStateFlow(TripVizUiState())
     val uiState: StateFlow<TripVizUiState> = _uiState.asStateFlow()
 
-    // The active scene palette and the selected trip's geometry are cached so a
-    // palette change recolours the wireframe off the cached geometry — no DB
-    // re-query, no re-projection. Touched only from viewModelScope (main).
+    // The active scene palette. A palette change recolours off the displayed
+    // selection's own geometry (TripSelection.geometry), so there is no separate
+    // geometry cache to fall out of sync. Touched only from viewModelScope (main).
     private var palette: TripScenePalette = TripScenePalette.Dark
-    private var currentGeometry: TripGeometry? = null
-    private var currentGeometryTripId: Long? = null
 
     init {
         refresh()
@@ -125,11 +126,10 @@ internal class TripVizViewModel(
     private fun select(tripId: Long) =
         viewModelScope.launch {
             _uiState.update { it.copy(selectedTripId = tripId) }
-            val activePalette = palette
             val geometry = withContext(Dispatchers.Default) { TripGeometry.from(pointsForTrip(tripId)) }
-            currentGeometry = geometry
-            currentGeometryTripId = tripId
-            val selection = geometry?.let { buildSelection(tripId, it, activePalette) }
+            // Read the palette AFTER the load (back on main), so a palette change
+            // during the load is honoured rather than a launch-time snapshot.
+            val selection = geometry?.let { buildSelection(tripId, it, palette) }
             // Ignore a stale load if the user moved on to another trip meanwhile.
             _uiState.update { state ->
                 if (state.selectedTripId == tripId) state.copy(selection = selection) else state
@@ -139,14 +139,14 @@ internal class TripVizViewModel(
     private fun setPalette(next: TripScenePalette) {
         if (next == palette) return
         palette = next
-        val geometry = currentGeometry ?: return
-        val tripId = currentGeometryTripId ?: return
-        // Rebuild the wireframe with the new scene colours from the cached
-        // geometry; keep the current frame until the recolour lands.
+        // Recolour the *displayed* trip off its own geometry; keep the current
+        // frame until the recolour lands. Reading the emitted selection (not a
+        // separate cache) guarantees the geometry matches what is on screen.
+        val current = _uiState.value.selection ?: return
         viewModelScope.launch {
-            val selection = buildSelection(tripId, geometry, next)
+            val selection = buildSelection(current.tripId, current.geometry, next)
             _uiState.update { state ->
-                if (state.selectedTripId == tripId) state.copy(selection = selection) else state
+                if (state.selectedTripId == current.tripId) state.copy(selection = selection) else state
             }
         }
     }
@@ -160,7 +160,7 @@ internal class TripVizViewModel(
         withPalette: TripScenePalette,
     ): TripSelection =
         withContext(Dispatchers.Default) {
-            TripSelection(tripId, TripWireframe.build(geometry, withPalette), geometry.stats)
+            TripSelection(tripId, TripWireframe.build(geometry, withPalette), geometry.stats, geometry)
         }
 }
 

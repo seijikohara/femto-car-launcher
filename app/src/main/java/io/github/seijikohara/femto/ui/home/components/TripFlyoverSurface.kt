@@ -92,7 +92,12 @@ internal class TripFlyoverController {
 
     fun setTheme(palette: TripScenePalette) {
         theme = palette
-        if (handle != 0L && started) applyTheme(palette)
+        // Apply as soon as the instance exists — flyover_set_theme only writes the
+        // shared theme atomics (no Vulkan objects), so it is safe before the render
+        // thread starts, and the first frame then clears/blends with the right
+        // palette instead of the dark default. If the handle is not ready yet, the
+        // surface-start path re-applies the stored theme.
+        if (handle != 0L) applyTheme(palette)
     }
 
     private fun applyTheme(palette: TripScenePalette) {
