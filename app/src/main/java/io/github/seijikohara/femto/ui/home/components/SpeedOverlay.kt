@@ -309,7 +309,10 @@ private fun SecondaryMetric(
     // hero speed's value/unit treatment; the [widthSample] reserve inside each
     // dissolve layer keeps a digit change from reflowing the row (the key and
     // unit are fixed strings). The value dissolves on a change of its DISPLAYED
-    // string (keyed on the formatted value, not the raw trip total).
+    // string (keyed on the formatted value, not the raw trip total). CenterEnd
+    // mirrors NowMetric: the value right-aligns against the trailing unit, so
+    // the reserve's slack falls invisibly at the cell start instead of opening
+    // a gap between the value and its unit.
     val metricStyle = MaterialTheme.typography.glanceMetric()
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Motion.ContentCrossfade(
@@ -318,7 +321,11 @@ private fun SecondaryMetric(
             label = "speedMetric",
             modifier = Modifier.alignByBaseline(),
         ) { metric ->
-            WidthReserve(sample = widthSample, style = metricStyle) {
+            WidthReserve(
+                sample = widthSample,
+                style = metricStyle,
+                contentAlignment = Alignment.CenterEnd,
+            ) {
                 Text(
                     text = metric,
                     style = metricStyle,
