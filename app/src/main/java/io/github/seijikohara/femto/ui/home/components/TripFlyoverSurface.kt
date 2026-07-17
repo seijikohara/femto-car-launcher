@@ -5,9 +5,9 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.FloatState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 
@@ -103,10 +103,11 @@ internal class TripFlyoverController {
 internal fun TripFlyoverSurface(
     controller: TripFlyoverController,
     wireframe: FloatArray,
-    progress: FloatState,
+    progress: Float,
     onUnavailable: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val onUnavailableState = rememberUpdatedState(onUnavailable)
     DisposableEffect(controller) { onDispose { controller.release() } }
     AndroidView(
         modifier = modifier,
@@ -115,18 +116,18 @@ internal fun TripFlyoverSurface(
                 // Above the app window's own surface so the Compose HUD drawn
                 // after this view still composites on top of the render.
                 setZOrderMediaOverlay(true)
-                holder.addCallback(controller.holderCallback(onUnavailable))
+                holder.addCallback(controller.holderCallback { onUnavailableState.value() })
             }
         },
     )
     LaunchedEffect(wireframe) { controller.setTrack(wireframe) }
-    // Reading progress.floatValue here recomposes only this leaf (not the panel);
-    // it re-runs the effect each frame to push the playhead natively.
-    LaunchedEffect(progress.floatValue) {
-        controller.setProgress(progress.floatValue)
+    // Reading progress here recomposes only this leaf (not the panel); it re-runs
+    // the effect each frame to push the playhead natively.
+    LaunchedEffect(progress) {
+        controller.setProgress(progress)
         // Cheap per-frame liveness check: if the render thread died at runtime
         // (a Vulkan error after a successful start), fall back to 2D so the panel
         // never freezes on a dead surface.
-        if (controller.renderThreadDied()) onUnavailable()
+        if (controller.renderThreadDied()) onUnavailableState.value()
     }
 }

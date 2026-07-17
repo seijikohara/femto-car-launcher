@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.FloatState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -50,7 +49,7 @@ private const val FLOATS = TripWireframe.FLOATS_PER_VERTEX
 @Composable
 internal fun TripFlyoverFallback(
     wireframe: FloatArray,
-    progress: FloatState,
+    progress: Float,
     modifier: Modifier = Modifier,
 ) {
     var elapsed by remember { mutableFloatStateOf(0f) }
@@ -70,7 +69,7 @@ internal fun TripFlyoverFallback(
 private fun WireframeCanvas(
     segments: FloatArray,
     elapsed: Float,
-    progress: FloatState,
+    progress: Float,
     modifier: Modifier = Modifier,
 ) {
     // Reused across the whole draw so the per-frame line loop allocates nothing.
@@ -80,7 +79,7 @@ private fun WireframeCanvas(
         val w = size.width
         val h = size.height
         if (w <= 0f || h <= 0f || segments.isEmpty()) return@Canvas
-        val phase = progress.floatValue
+        val phase = progress
 
         // Intro dolly then a steady orbit — the same easing the native path uses.
         val intro = (elapsed / 3f).coerceAtMost(1f)
@@ -192,9 +191,15 @@ private class Camera(
         val uz = sx * fy - sy * fx
         view =
             floatArrayOf(
-                sx, ux, -fx,
-                sy, uy, -fy,
-                sz, uz, -fz,
+                sx,
+                ux,
+                -fx,
+                sy,
+                uy,
+                -fy,
+                sz,
+                uz,
+                -fz,
                 -(sx * eyeX + sy * eyeY + sz * eyeZ),
                 -(ux * eyeX + uy * eyeY + uz * eyeZ),
                 (fx * eyeX + fy * eyeY + fz * eyeZ),
@@ -264,7 +269,7 @@ private fun TripFlyoverFallbackPreview() {
             geometry?.let {
                 TripFlyoverFallback(
                     wireframe = TripWireframe.build(it),
-                    progress = remember { mutableFloatStateOf(0.7f) },
+                    progress = 0.7f,
                     modifier = Modifier.fillMaxSize(),
                 )
             }

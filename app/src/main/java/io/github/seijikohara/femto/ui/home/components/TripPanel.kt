@@ -24,7 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.FloatState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -102,25 +101,22 @@ internal fun TripPanel(
 
     val selection = uiState.selection
     var playing by remember { mutableStateOf(true) }
-    // A FloatState (not a delegated read): the playhead ticks at 60 Hz, so only
-    // the leaves that consume it (the renderer + scrubber) read `.floatValue` and
-    // recompose — TripPanel's body never reads it, so the panel/selector/stats
-    // stay off the per-frame path.
-    val progress = remember { mutableFloatStateOf(0f) }
+    var progress by remember { mutableFloatStateOf(0f) }
 
     // Reset and auto-play whenever a new trip's geometry loads.
     LaunchedEffect(selection?.tripId) {
-        progress.floatValue = 0f
+        progress = 0f
         playing = selection != null
     }
-    // Frame-clock playhead; the renderers are a pure function of it.
+    // Frame-clock playhead; the renderers are a pure function of it. (The panel
+    // recomposing each frame is a non-issue — strong skipping keeps the selector
+    // and stats, whose inputs don't change, off the recomposition.)
     LaunchedEffect(playing, selection?.tripId) {
         if (!playing || selection == null) return@LaunchedEffect
         var last = withFrameNanos { it }
-        while (progress.floatValue < 1f) {
+        while (progress < 1f) {
             val now = withFrameNanos { it }
-            progress.floatValue =
-                (progress.floatValue + (now - last).coerceAtLeast(0L) / 1_000_000_000f / PLAY_SECONDS).coerceAtMost(1f)
+            progress = (progress + (now - last).coerceAtLeast(0L) / 1_000_000_000f / PLAY_SECONDS).coerceAtMost(1f)
             last = now
         }
         playing = false
@@ -176,16 +172,16 @@ internal fun TripPanel(
                     progress = progress,
                     onTogglePlay = {
                         // Replay from the start when toggling play after it finished.
-                        if (!playing && progress.floatValue >= 1f) progress.floatValue = 0f
+                        if (!playing && progress >= 1f) progress = 0f
                         playing = !playing
                     },
                     onReplay = {
-                        progress.floatValue = 0f
+                        progress = 0f
                         playing = true
                     },
                     onScrub = {
                         playing = false
-                        progress.floatValue = it.coerceIn(0f, 1f)
+                        progress = it.coerceIn(0f, 1f)
                     },
                 )
             }
@@ -196,7 +192,7 @@ internal fun TripPanel(
 @Composable
 private fun TripFlyoverHost(
     wireframe: FloatArray,
-    progress: FloatState,
+    progress: Float,
     modifier: Modifier = Modifier,
 ) {
     val controller = remember { TripFlyoverController() }
@@ -380,7 +376,7 @@ private fun StatCell(
 @Composable
 private fun PlaybackControls(
     playing: Boolean,
-    progress: FloatState,
+    progress: Float,
     onTogglePlay: () -> Unit,
     onReplay: () -> Unit,
     onScrub: (Float) -> Unit,
@@ -416,12 +412,12 @@ private fun PlaybackControls(
  */
 @Composable
 private fun FlyoverScrubBar(
-    progress: FloatState,
+    progress: Float,
     onScrub: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var drag by remember { mutableStateOf<Float?>(null) }
-    val shown = (drag ?: progress.floatValue).coerceIn(0f, 1f)
+    val shown = (drag ?: progress).coerceIn(0f, 1f)
     val scrubLabel = stringResource(R.string.trip_viz_scrub)
     Box(
         modifier =
