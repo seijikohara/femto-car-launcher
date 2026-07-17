@@ -12,6 +12,9 @@ internal fun fakeLocation(
     // When false, the fix carries no speed (Location.hasSpeed() == false),
     // mirroring cheap GPS chips and raw GPS_PROVIDER HALs.
     hasSpeed: Boolean = true,
+    // Null leaves hasBearing()/hasAccuracy() false — the chip-didn't-say path.
+    bearingDeg: Float? = null,
+    accuracyM: Float? = null,
     // Defaults to a neutral test provider; pass LocationManager.NETWORK_PROVIDER
     // to exercise the GPS-only trip-accrual path.
     provider: String = "test",
@@ -26,4 +29,6 @@ internal fun fakeLocation(
         // set a speed when the caller asks for one so the speed-less path
         // stays exercisable.
         if (hasSpeed) this.speed = speedMps else removeSpeed()
+        bearingDeg?.let { this.bearing = it }
+        accuracyM?.let { this.accuracy = it }
     }

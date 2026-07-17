@@ -27,6 +27,7 @@ import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeDockSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeFontSelectionStore
 import io.github.seijikohara.femto.testfixtures.FakeLocationSettingsStore
+import io.github.seijikohara.femto.testfixtures.FakeTrackLogPort
 import io.github.seijikohara.femto.testfixtures.fakeCalendarInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -260,6 +261,7 @@ class SettingsViewModelTest {
                     locationStore,
                     calendarPrefs,
                     dockStore,
+                    trackLog = FakeTrackLogPort(),
                     availableCalendars = flowOf(CalendarCatalogState(hasAccess = true, calendars = emptyList())),
                 )
             vm.onAction(SettingsAction.ResetToDefaults)
@@ -368,6 +370,7 @@ class SettingsViewModelTest {
                     locationStore,
                     calendarPrefs,
                     dockStore,
+                    trackLog = FakeTrackLogPort(),
                     availableCalendars = flowOf(CalendarCatalogState(hasAccess = true, calendars = emptyList())),
                 )
             vm.onAction(SettingsAction.SetShowMusic(false))
@@ -542,6 +545,7 @@ class SettingsViewModelTest {
                     locationStore,
                     calendarPrefs,
                     dockStore,
+                    trackLog = FakeTrackLogPort(),
                     availableCalendars =
                         flowOf(
                             CalendarCatalogState(
@@ -622,6 +626,7 @@ class SettingsViewModelTest {
             locationStore,
             FakeCalendarPreferencesStore(),
             dockStore,
+            trackLog = FakeTrackLogPort(),
             availableCalendars = flowOf(CalendarCatalogState(hasAccess = true, calendars = emptyList())),
         )
 }

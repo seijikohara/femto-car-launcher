@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import android.location.Location
+import android.text.format.DateUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,10 +32,12 @@ import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasurePolicy
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
@@ -66,6 +69,9 @@ import io.github.seijikohara.femto.ui.theme.glanceMetric
 import io.github.seijikohara.femto.ui.theme.heroNumeral
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import io.github.seijikohara.femto.ui.theme.strongWeight
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import kotlin.math.exp
 import kotlin.math.roundToInt
 
@@ -185,6 +191,10 @@ internal fun SpeedOverlay(
             avgSpeed = avgSpeed,
             tier = motionTier,
             onReset = onReset,
+        )
+        TripSinceRow(
+            label = tripState.startedAtEpochMs?.let { tripStartLabel(it) },
+            tier = motionTier,
         )
         // Always render the address row (even with no fix / unresolved address) so
         // the overlay keeps a stable height instead of collapsing then growing when
@@ -335,6 +345,66 @@ private fun SecondaryMetric(
             }
         }
         UnitSuffix(unit, modifier = Modifier.alignByBaseline())
+    }
+}
+
+// Locale-aware "since" timestamp for the trip-start row: time only while the
+// trip started today, day + time once it crosses midnight (the parked-overnight
+// case, where a bare clock time would read as this morning). DateUtils follows
+// the system locale and the 12/24-hour setting. The today check re-evaluates on
+// recomposition — the overlay recomposes with every fix, so the label gains the
+// date within moments of midnight without its own clock.
+@Composable
+private fun tripStartLabel(startedAtEpochMs: Long): String {
+    val context = LocalContext.current
+    val zone = ZoneId.systemDefault()
+    val startedToday =
+        Instant.ofEpochMilli(startedAtEpochMs).atZone(zone).toLocalDate() == LocalDate.now(zone)
+    val timestamp =
+        remember(startedAtEpochMs, startedToday) {
+            DateUtils.formatDateTime(
+                context,
+                startedAtEpochMs,
+                if (startedToday) {
+                    DateUtils.FORMAT_SHOW_TIME
+                } else {
+                    DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH
+                },
+            )
+        }
+    return stringResource(R.string.speed_trip_since, timestamp)
+}
+
+// "Since 8:04" under the reset button (the metric row's trailing cell): when
+// the current reset-to-reset trip began — the wall-clock time of its first GPS
+// fix, which is also the track log's first point for the trip. The row always
+// occupies its line (blank until the first fix) so the overlay's height never
+// jumps when the label appears, and [ZeroIntrinsicWidth] keeps the varying
+// label text out of the overlay's intrinsic width vote — the same stability
+// contract as the address row.
+@Composable
+private fun TripSinceRow(
+    label: String?,
+    tier: MotionTier,
+) = ZeroIntrinsicWidth {
+    Motion.ContentCrossfade(
+        targetState = label.orEmpty(),
+        tier = tier,
+        label = "tripSince",
+        modifier = Modifier.fillMaxWidth(),
+    ) { text ->
+        Text(
+            text = text,
+            style = MaterialTheme.typography.sectionLabel(12),
+            // The dimmest tier (matches the metric keys): pure glance metadata,
+            // never competing with the hero numeral.
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+            maxLines = 1,
+            minLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.End,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -554,7 +624,14 @@ private fun SpeedOverlayPreview() {
                     altitude = 42.0
                 },
             address = ShortAddress(locality = "Minato-ku", region = "Tokyo"),
-            tripState = TripState(distanceMeters = 24_400.0, avgSpeedMs = 11.7, currentSpeedMs = 13.2),
+            tripState =
+                TripState(
+                    distanceMeters = 24_400.0,
+                    avgSpeedMs = 11.7,
+                    currentSpeedMs = 13.2,
+                    // A same-day start renders the "Since <time>" row's live shape.
+                    startedAtEpochMs = System.currentTimeMillis(),
+                ),
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             onReset = {},
         )

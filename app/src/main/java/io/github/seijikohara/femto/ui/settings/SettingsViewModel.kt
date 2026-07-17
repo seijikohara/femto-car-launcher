@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.settings
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -18,13 +19,28 @@ import io.github.seijikohara.femto.data.dock.DockPreferences
 import io.github.seijikohara.femto.data.dock.DockSettingsStore
 import io.github.seijikohara.femto.data.fonts.FontPreferences
 import io.github.seijikohara.femto.data.fonts.FontSelectionStore
+import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.LocationPreferences
 import io.github.seijikohara.femto.data.location.LocationSettingsStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+/**
+ * Narrow port for the track-log actions Settings drives. The factory binds it
+ * to [io.github.seijikohara.femto.data.location.LocationGraph]'s recorder plus
+ * the ContentResolver (opening the SAF document is a UI-side concern the data
+ * layer must not know about); tests substitute an in-memory fake.
+ */
+internal interface TrackLogPort {
+    /** Stream the track log as GPX into [uri]; null means the export failed. */
+    suspend fun exportTo(uri: Uri): Long?
+
+    suspend fun clearHistory(): Boolean
+}
 
 internal class SettingsViewModel(
     private val displayPreferences: DisplaySettingsStore,
@@ -32,9 +48,14 @@ internal class SettingsViewModel(
     private val locationPreferences: LocationSettingsStore,
     private val calendarPreferences: CalendarPreferencesStore,
     private val dockPreferences: DockSettingsStore,
+    private val trackLog: TrackLogPort,
     availableCalendars: Flow<CalendarCatalogState>,
 ) : ViewModel() {
-    val uiState: StateFlow<SettingsUiState> =
+    // VM-local export progress folded into the derived UiState below; every
+    // other UiState field mirrors a persisted store.
+    private val trackExportState = MutableStateFlow<TrackExportState>(TrackExportState.Idle)
+
+    private val storeState: Flow<SettingsUiState> =
         combine(
             displayPreferences.settings,
             fontPreferences.selection,
@@ -95,11 +116,17 @@ internal class SettingsViewModel(
                 locationIntervalMillis = location.intervalMillis,
                 locationMinDistanceMeters = location.minUpdateDistanceMeters,
                 backgroundRangingEnabled = location.backgroundRangingEnabled,
+                trackRecordingEnabled = location.trackRecordingEnabled,
+                trackRetention = location.trackRetention,
                 availableCalendars = catalog.calendars,
                 hiddenCalendarIds = hiddenCalendars,
                 hasCalendarAccess = catalog.hasAccess,
             )
-        }.stateIn(viewModelScope, WhileUiSubscribed, SettingsUiState.Initial)
+        }
+
+    val uiState: StateFlow<SettingsUiState> =
+        combine(storeState, trackExportState) { state, export -> state.copy(trackExport = export) }
+            .stateIn(viewModelScope, WhileUiSubscribed, SettingsUiState.Initial)
 
     fun onAction(action: SettingsAction) {
         // Each branch is a single suspending write; launch once and dispatch.
@@ -273,6 +300,27 @@ internal class SettingsViewModel(
                     locationPreferences.setBackgroundRangingEnabled(action.value)
                 }
 
+                is SettingsAction.SetTrackRecording -> {
+                    locationPreferences.setTrackRecordingEnabled(action.value)
+                }
+
+                is SettingsAction.SetTrackRetention -> {
+                    locationPreferences.setTrackRetention(action.value)
+                }
+
+                is SettingsAction.ExportTrackLog -> {
+                    trackExportState.value = TrackExportState.Running
+                    trackExportState.value =
+                        trackLog.exportTo(action.uri)?.let { TrackExportState.Done(it) }
+                            ?: TrackExportState.Failed
+                }
+
+                SettingsAction.ClearTrackHistory -> {
+                    // Failure is already logged at the repository; settings writes
+                    // degrade silently by the same editOrLog discipline.
+                    trackLog.clearHistory()
+                }
+
                 is SettingsAction.SetMapBackend -> {
                     displayPreferences.setMapBackend(action.value)
                 }
@@ -372,7 +420,22 @@ internal class SettingsViewModelFactory(
             locationPreferences = LocationPreferences(application),
             calendarPreferences = CalendarPreferences(application),
             dockPreferences = DockPreferences(application),
+            trackLog = trackLogPort(application),
             availableCalendars = CalendarCatalog(application).availableCalendarsFlow(),
         ) as T
     }
+
+    // The one place UI meets the recorder: SAF document opening stays here so
+    // the data layer never sees a Uri or ContentResolver.
+    private fun trackLogPort(application: Application): TrackLogPort =
+        object : TrackLogPort {
+            private val trackLog get() = LocationGraph.get(application).trackLog
+
+            override suspend fun exportTo(uri: Uri): Long? =
+                runCatching { application.contentResolver.openOutputStream(uri) }
+                    .getOrNull()
+                    ?.use { output -> trackLog.exportGpx(output) }
+
+            override suspend fun clearHistory(): Boolean = trackLog.clearHistory()
+        }
 }

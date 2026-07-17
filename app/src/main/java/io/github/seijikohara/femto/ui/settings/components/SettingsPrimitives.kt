@@ -354,8 +354,10 @@ internal fun ActionRow(
     title: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    summary: String? = null,
 ) = SettingRow(
     title = title,
+    summary = summary,
     modifier = modifier.clickable(onClick = onClick),
 ) {
     TrailingIcon(Lucide.ExternalLink)
@@ -374,13 +376,16 @@ internal fun ResetRow(
     title: String = stringResource(R.string.settings_reset_to_defaults),
     confirmTitle: String = stringResource(R.string.settings_reset_confirm_title),
     confirmMessage: String = stringResource(R.string.settings_reset_confirm_message),
+    // Reset-shaped by default; a delete-shaped caller (track history) passes
+    // the trash glyph so the row reads as removal, not restoration.
+    icon: ImageVector = Lucide.RotateCcw,
 ) {
     var dialogOpen by remember { mutableStateOf(false) }
     SettingRow(
         title = title,
         modifier = modifier.clickable { dialogOpen = true },
     ) {
-        TrailingIcon(Lucide.RotateCcw)
+        TrailingIcon(icon)
     }
     if (dialogOpen) {
         ResetConfirmDialog(
