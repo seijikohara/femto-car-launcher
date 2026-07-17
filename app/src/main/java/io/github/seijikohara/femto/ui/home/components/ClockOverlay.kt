@@ -15,8 +15,9 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
-import io.github.seijikohara.femto.ui.theme.heroNumeral
+import io.github.seijikohara.femto.ui.theme.bigNumber
 import io.github.seijikohara.femto.ui.theme.normalWeight
+import io.github.seijikohara.femto.ui.theme.singleLineBox
 import kotlinx.coroutines.delay
 import java.time.Clock
 import java.time.LocalTime
@@ -87,18 +88,27 @@ internal fun ClockOverlay(
                 .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
                 .padding(
                     horizontal = FemtoDimens.OverlayPaddingHorizontal,
-                    vertical = FemtoDimens.OverlayPaddingVertical,
+                    // The info cards' inner padding, not OverlayPaddingVertical:
+                    // the clock tops the hero row beside the calendar / weather
+                    // cards, and an equal inset keeps its numeral on their line.
+                    vertical = FemtoDimens.CardPaddingCompact,
                 ),
     ) { text ->
+        // The clock is ambient (not the safety glance), so it shares the info
+        // cards' exact hero treatment — bigNumber at Text4Xl, Normal weight —
+        // rather than the speed value's heavier strong-tier heroNumeral. The
+        // singleLineBox clamp plus the CardPaddingCompact inset above keep its
+        // ink on the same line as the calendar day and weather temperature
+        // (the shared hero-row contract; see CalendarCard.Head / WeatherCard.Head).
+        val style = MaterialTheme.typography.bigNumber(
+            size = FemtoDimens.Text4Xl,
+            weight = MaterialTheme.typography.normalWeight,
+        )
         Text(
             text = text,
-            // Normal tier: the clock is ambient (not the safety glance), so it shares
-            // the dashboard's unified 40sp normal-tier hero-numeral look with the
-            // calendar day and weather temperature, tracking the user's weight setting.
-            // The speed value, by contrast, uses the heavier strong tier as the
-            // safety-critical readout.
-            style = MaterialTheme.typography.heroNumeral(weight = MaterialTheme.typography.normalWeight),
+            style = style,
             color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.singleLineBox(style),
         )
     }
 }

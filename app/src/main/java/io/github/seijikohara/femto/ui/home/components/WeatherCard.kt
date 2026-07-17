@@ -51,6 +51,7 @@ import io.github.seijikohara.femto.ui.locale.windValue
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.FitText
 import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.bigNumber
@@ -213,11 +214,14 @@ private fun Head(
     val tempLabel = "${temperatureUnit.fromCelsius(snapshot.tempC).roundToInt()}"
     val glyphs = weatherGlyphs()
     // Big temperature on the left, the hero condition glyph beside it on the right;
-    // SpaceBetween balances the two across the card width.
+    // SpaceBetween balances the two across the card width. Top-aligned (not
+    // centered) so the temperature's clamped slot starts exactly at the card
+    // padding — the shared hero-row contract with the calendar day and the clock
+    // (see CalendarCard.Head / ClockOverlay); the hero glyph hangs from that line.
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
         Column {
             // Stale-data eyebrow: only present once the snapshot ages past the
@@ -403,11 +407,14 @@ private fun ForecastChip(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text(
+        FitText(
+            // A chip gets a third of the narrow card; shrink the hour label
+            // (widest as the 12-hour "12 PM" form, or under a raised font
+            // scale) instead of letting the centered text clip at both edges.
             text = forecastHourLabel(forecast.time, is24Hour),
             style = MaterialTheme.typography.sectionLabel(12, fontWeight = FontWeight.Normal),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
+            minFontSize = FemtoDimens.TextXs,
         )
         FemtoIcon(
             imageVector = glyphIconFor(forecast.code, isDay),

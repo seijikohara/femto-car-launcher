@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -52,6 +51,7 @@ import com.composables.icons.lucide.PinOff
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
+import io.github.seijikohara.femto.ui.home.components.FemtoHorizontalDivider
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -104,7 +104,10 @@ internal fun PinnedDock(
     onReorder: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier.fillMaxWidth()) {
-    HorizontalDivider()
+    // The shared hairline recipe, not a bare M3 divider: this seam is the only
+    // thing separating the dock from the app grid, and a full-alpha divider
+    // reads twice as heavy as every other hairline on the dashboard chrome.
+    FemtoHorizontalDivider()
     val dimensions = iconSize.dockDimensions()
     // Local working order: drag swaps mutate this list optimistically per
     // frame; the persisted order arrives back through [apps] and re-seeds it.
