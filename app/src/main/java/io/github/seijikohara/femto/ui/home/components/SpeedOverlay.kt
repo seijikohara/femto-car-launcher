@@ -37,6 +37,8 @@ import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -124,7 +126,12 @@ internal fun SpeedOverlay(
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
     motionTier: MotionTier = MotionTier.STANDARD,
+    // When set, a tap anywhere on the overlay (except the reset button, which
+    // consumes its own taps) maximizes into the trip flyover — the same
+    // whole-card idiom the calendar and weather cards use to expand.
+    onExpand: (() -> Unit)? = null,
 ) {
+    val expandLabel = stringResource(R.string.speed_expand_trip)
     // Source the hero numeral from the trip's effective speed, not
     // location.speed: cheap GPS chips leave Location.speed at 0.0
     // (hasSpeed() == false) while moving, which would pin the numeral to
@@ -182,7 +189,19 @@ internal fun SpeedOverlay(
                 // maximum. The address row never joins the intrinsic vote (see
                 // [ZeroIntrinsicWidth]) and ellipsizes within the result.
                 .widthIn(max = FemtoDimens.SpeedOverlayMaxWidth)
-                .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
+                // Whole-overlay tap to maximize (the reset button consumes its own
+                // taps). Applied before the glass chrome so the ripple stays within
+                // the card shape; the explicit contentDescription is hoisted because
+                // the semantics lambda is not @Composable.
+                .then(
+                    if (onExpand != null) {
+                        Modifier
+                            .clickable(onClick = onExpand)
+                            .semantics { contentDescription = expandLabel }
+                    } else {
+                        Modifier
+                    },
+                ).glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
                 .padding(
                     horizontal = FemtoDimens.OverlayPaddingHorizontal,
                     vertical = FemtoDimens.OverlayPaddingVertical,

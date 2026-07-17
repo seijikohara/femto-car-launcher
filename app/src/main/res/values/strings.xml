@@ -29,6 +29,20 @@
     <!-- Speed overlay -->
     <string name="speed_reset_trip">Reset trip</string>
     <string name="speed_trip_since">Since %1$s</string>
+    <string name="speed_expand_trip">Open trip flyover</string>
+    <string name="trip_viz_empty">No trips recorded yet</string>
+    <string name="trip_viz_preparing">Preparing flyover…</string>
+    <string name="trip_viz_current">Current trip</string>
+    <plurals name="trip_viz_point_count">
+        <item quantity="one">%1$d point</item>
+        <item quantity="other">%1$d points</item>
+    </plurals>
+    <string name="trip_viz_duration">DURATION</string>
+    <string name="trip_viz_max_speed">MAX</string>
+    <string name="trip_viz_climb">CLIMB</string>
+    <string name="trip_viz_play">Play flyover</string>
+    <string name="trip_viz_pause">Pause flyover</string>
+    <string name="trip_viz_replay">Replay from start</string>
     <string name="speed_altitude">ALT %1$d</string>
     <string name="speed_metric_distance">DISTANCE</string>
     <string name="speed_metric_avg">AVG.</string>

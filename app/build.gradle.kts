@@ -105,6 +105,10 @@ android {
         version = release(37)
     }
 
+    // Pinned NDK for the native Vulkan trip-flyover renderer (app/src/main/cpp).
+    // The version lives in the catalog (SSOT); CI provisions the same NDK.
+    ndkVersion = libs.versions.ndk.get()
+
     defaultConfig {
         applicationId = "io.github.seijikohara.femto"
         minSdk = 33
@@ -122,6 +126,29 @@ android {
         buildConfigField("String", "GEOCODER_API_KEY", "\"${geocoderApiKey}\"")
         buildConfigField("String", "WEATHER_BASE_URL", "\"${weatherBaseUrl}\"")
         buildConfigField("String", "FONTS_METADATA_BASE_URL", "\"${fontsMetadataBaseUrl}\"")
+
+        // The native renderer ships only where a Vulkan driver realistically
+        // exists: 64-bit ARM devices and the x86_64 emulator. Any other ABI
+        // (old 32-bit AI boxes) simply has no libtripflyover.so, and the app
+        // falls back to the 2D Compose renderer — never a crash.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
+
+        externalNativeBuild {
+            cmake {
+                // Vulkan 1.1 baseline (guaranteed on every API 33 device that has
+                // a Vulkan driver); the loader lives in the platform.
+                arguments += "-DANDROID_STL=c++_static"
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = libs.versions.cmake.get()
+        }
     }
 
     signingConfigs {

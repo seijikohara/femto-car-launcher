@@ -79,7 +79,41 @@ internal interface TrackPointDao {
         afterId: Long,
         limit: Int,
     ): List<TrackPointEntity>
+
+    // One indexed GROUP BY pass yields each trip's start time, point count, and
+    // lat/lon bounds for the trip-selector list. Distance is NOT derivable in SQL
+    // (haversine over consecutive points); the visualization computes it in Kotlin
+    // while loading the trip's points.
+    @Query(
+        "SELECT trip_id AS tripId, MIN(time_ms) AS startMs, MAX(time_ms) AS endMs, " +
+            "COUNT(*) AS pointCount, MIN(latitude) AS minLat, MAX(latitude) AS maxLat, " +
+            "MIN(longitude) AS minLon, MAX(longitude) AS maxLon, " +
+            "MIN(altitude_m) AS minAltitude, MAX(altitude_m) AS maxAltitude " +
+            "FROM track_points GROUP BY trip_id ORDER BY startMs DESC",
+    )
+    suspend fun tripSummaries(): List<TripSummaryRow>
+
+    // A whole trip's points in chronological order, served by the unique
+    // (trip_id, time_ms) index. Bounded per-trip (~3600 rows/driving-hour at 1 Hz);
+    // the visualization downsamples pathological trips before rendering.
+    @Query("SELECT * FROM track_points WHERE trip_id = :tripId ORDER BY time_ms")
+    suspend fun pointsForTrip(tripId: Long): List<TrackPointEntity>
 }
+
+/** Aggregate row for one trip in the visualization's trip selector. */
+internal data class TripSummaryRow(
+    val tripId: Long,
+    val startMs: Long,
+    val endMs: Long,
+    val pointCount: Int,
+    val minLat: Double,
+    val maxLat: Double,
+    val minLon: Double,
+    val maxLon: Double,
+    // Null when no point in the trip carried an altitude reading.
+    val minAltitude: Double?,
+    val maxAltitude: Double?,
+)
 
 @Database(entities = [TrackPointEntity::class], version = 1)
 internal abstract class TrackLogDatabase : RoomDatabase() {
