@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.ui.settings
 
 import android.app.Application
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -22,12 +23,15 @@ import io.github.seijikohara.femto.data.fonts.FontSelectionStore
 import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.LocationPreferences
 import io.github.seijikohara.femto.data.location.LocationSettingsStore
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Narrow port for the track-log actions Settings drives. The factory binds it
@@ -317,8 +321,11 @@ internal class SettingsViewModel(
 
                 SettingsAction.ClearTrackHistory -> {
                     // Failure is already logged at the repository; settings writes
-                    // degrade silently by the same editOrLog discipline.
+                    // degrade silently by the same editOrLog discipline. Clear a
+                    // stale "Exported N points." so it can't misdescribe the now-
+                    // empty history.
                     trackLog.clearHistory()
+                    trackExportState.value = TrackExportState.Idle
                 }
 
                 is SettingsAction.SetMapBackend -> {
@@ -431,11 +438,30 @@ internal class SettingsViewModelFactory(
         object : TrackLogPort {
             private val trackLog get() = LocationGraph.get(application).trackLog
 
+            // The whole pipeline runs off the main thread and under one
+            // runCatching: openOutputStream is a Binder call into an arbitrary
+            // DocumentsProvider (a cloud target can block), and use{}'s close()
+            // can throw on a full/ejected disk — an escape from here would crash
+            // the HOME app. "wt" truncates, so overwriting a longer previous
+            // export can't leave stale bytes after </gpx>. CancellationException
+            // is rethrown to keep structured concurrency intact.
             override suspend fun exportTo(uri: Uri): Long? =
-                runCatching { application.contentResolver.openOutputStream(uri) }
-                    .getOrNull()
-                    ?.use { output -> trackLog.exportGpx(output) }
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        application.contentResolver
+                            .openOutputStream(uri, "wt")
+                            ?.use { output -> trackLog.exportGpx(output) }
+                    }.getOrElse { e ->
+                        if (e is CancellationException) throw e
+                        Log.e(TAG, "track-log export failed", e)
+                        null
+                    }
+                }
 
             override suspend fun clearHistory(): Boolean = trackLog.clearHistory()
         }
+
+    private companion object {
+        const val TAG = "SettingsViewModel"
+    }
 }

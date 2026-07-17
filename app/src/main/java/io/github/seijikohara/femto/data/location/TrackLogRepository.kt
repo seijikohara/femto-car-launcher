@@ -14,8 +14,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.onTimeout
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import java.io.BufferedWriter
 import java.io.OutputStream
 import java.io.OutputStreamWriter
@@ -162,9 +163,15 @@ internal class TrackLogRepository(
             batch += queue.receive()
             // Fill the batch from points already queued (or arriving within the
             // flush window) so steady 1 Hz driving inserts every ~5 s, while the
-            // last points before a stop still land within one window.
+            // last points before a stop still land within one window. select's
+            // onReceive/onTimeout is atomic — unlike withTimeoutOrNull(receive()),
+            // it cannot dequeue a point and then discard it on the timeout race.
             while (batch.size < batchMaxPoints) {
-                val next = withTimeoutOrNull(batchFlushWindowMs) { queue.receive() } ?: break
+                val next =
+                    select<TrackPointEntity?> {
+                        queue.onReceive { it }
+                        onTimeout(batchFlushWindowMs) { null }
+                    } ?: break
                 batch += next
             }
             runCatching { dao.insertAll(batch.toList()) }
@@ -178,11 +185,24 @@ internal class TrackLogRepository(
 
     private suspend fun prune(retention: TrackRetentionSetting) {
         val maxAgeMs = retention.maxAgeMs ?: return
-        runCatching { dao.deleteOlderThan(nowEpochMs() - maxAgeMs) }
-            .onFailure { e ->
-                if (e is CancellationException) throw e
-                Log.e(TAG, "track prune failed", e)
+        runCatching {
+            val now = nowEpochMs()
+            // Row timestamps are Location.time (GNSS-derived, correct even when
+            // the system clock is wrong). A dead-RTC head unit that boots to a
+            // far-future clock before NTP corrects it would otherwise delete every
+            // correctly-timestamped point on the first prune. Skip while the clock
+            // reads implausibly far ahead of the newest recorded fix; normal
+            // pruning resumes once the clock is sane.
+            val newest = dao.newestTimeMs()
+            if (newest != null && now - newest > CLOCK_IMPLAUSIBLY_AHEAD_MS) {
+                Log.w(TAG, "skipping prune: clock reads far ahead of the newest track point")
+                return@runCatching
             }
+            dao.deleteOlderThan(now - maxAgeMs)
+        }.onFailure { e ->
+            if (e is CancellationException) throw e
+            Log.e(TAG, "track prune failed", e)
+        }
     }
 
     private companion object {
@@ -198,6 +218,11 @@ internal class TrackLogRepository(
         const val BATCH_FLUSH_WINDOW_MS = 2_000L
         const val QUEUE_CAPACITY = 64
         const val PRUNE_INTERVAL_MS = 24L * 60 * 60 * 1_000
+
+        // A real retention window is at most a year; a clock this far ahead of the
+        // newest recorded fix is a mis-set RTC, not elapsed time.
+        const val CLOCK_IMPLAUSIBLY_AHEAD_MS = 400L * 24 * 60 * 60 * 1_000
+
         const val EXPORT_PAGE_SIZE = 500
     }
 }

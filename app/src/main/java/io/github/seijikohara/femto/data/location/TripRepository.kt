@@ -4,10 +4,8 @@ import android.location.Location
 import android.location.LocationManager
 import android.os.SystemClock
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.filterNot
@@ -16,8 +14,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Trip aggregator with restart-surviving totals.
@@ -87,27 +84,33 @@ import kotlinx.coroutines.launch
  *
  * The totals also survive process death: they are seeded once per
  * process from [TripStateStore] before the first emission, and written
- * back through a conflated single-writer queue — throttled to one write
- * per `PERSIST_MIN_INTERVAL_NANOS` while fixes flow, immediately on a
- * reset (so a crash right after the tap can never resurrect the old
- * totals), and once more when the subscription window closes. The
- * queue keeps writes ordered — a periodic snapshot enqueued just before
- * a reset is conflated away by the reset's zeros, never written after
- * them — and a disk stall can only ever delay the writer coroutine,
- * never the accrual sequence. The GPS anchor is deliberately NOT
- * restored: `elapsedRealtimeNanos` is boot-relative, so the first fix
- * of the new process re-anchors and the dead period contributes
- * neither time nor distance (the same semantics as an unknown-onset
- * gap). The user's reset tap is therefore the only deliberate way a
- * trip ends; a restart merely pauses it.
+ * back synchronously from inside the single accrual sequence — throttled
+ * to one write per `PERSIST_MIN_INTERVAL_NANOS` while fixes flow,
+ * write-through on a reset (so the zeros are durable before the next
+ * signal, and a crash after that write can never resurrect the old
+ * totals or regress the trip id behind already-committed track points),
+ * and once more when the subscription window closes. Writing on the
+ * accrual sequence keeps every write totally ordered with the mutations
+ * it snapshots — the reset's zeros can never be overtaken by an earlier
+ * periodic snapshot — and DataStore does its own IO off this dispatcher,
+ * so a write suspends the sequence only briefly (at most once per 5 s).
+ * The GPS anchor is deliberately NOT restored: `elapsedRealtimeNanos` is
+ * boot-relative, so the first fix of the new process re-anchors and the
+ * dead period contributes neither time nor distance (the same semantics
+ * as an unknown-onset gap). The user's reset tap is therefore the only
+ * deliberate way a trip ends; a restart merely pauses it.
  *
  * A trip spans reset to reset. [TripState.startedAtEpochMs] marks the
  * wall-clock time of the first GPS fix accepted after a reset (not the
  * tap itself — the car may sit parked long after it), which is also the
  * first point the track logger sees for the trip: [trackTap] is invoked
- * for every accepted fix inside the same single sequence, tagged with
- * the current trip id, a monotonic counter that increments on each
- * reset and delimits reset-to-reset trips in the track log.
+ * for every RECORDABLE fix from inside the merged collect (never the
+ * upstream producer — that would read the trip id on a different
+ * coroutine and race a concurrent reset), tagged with the current trip
+ * id, a monotonic counter that increments on each reset and delimits
+ * reset-to-reset trips in the track log. A fix whose effective speed is
+ * an implausible teleport is not recordable: it is excluded from the
+ * track log for the same reason the trip math refuses it.
  *
  * Location fixes and explicit [reset] requests are merged into a single
  * stream consumed by one sequential `collect`, so the plain (non-atomic)
@@ -121,9 +124,9 @@ import kotlinx.coroutines.launch
 internal class TripRepository(
     private val locationFlow: Flow<Location?>,
     private val store: TripStateStore,
-    // Invoked for every GPS fix accepted into the trip chain (post filters),
-    // on the same single accrual sequence. Production wires the track logger;
-    // the default keeps tests that only exercise trip math quiet.
+    // Invoked for every recordable GPS fix from inside the single accrual
+    // sequence (see class KDoc). Production wires the track logger; the default
+    // keeps tests that only exercise trip math quiet.
     private val trackTap: TripFixTap = TripFixTap { _, _ -> },
     // The accrual sequence runs here. Production uses the default compute pool;
     // tests inject a TestDispatcher so an explicit [reset] (a non-suspending
@@ -133,7 +136,6 @@ internal class TripRepository(
     // Boot-clock source for the arrival-staleness filter; tests inject a fixed
     // value so fixture nanos stay deterministic.
     private val nowElapsedRealtimeNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
-    persistScope: CoroutineScope? = null,
 ) {
     // Hoisted out of the cold flow {} so the running total survives a
     // WhileSubscribed stop/restart; see the class KDoc.
@@ -155,8 +157,8 @@ internal class TripRepository(
     // WhileSubscribed restart can never re-apply them.
     private var restored = false
 
-    // Boot-clock time of the last enqueued periodic write; null forces a write
-    // on the first accepted fix (capturing the freshly set trip start).
+    // Boot-clock time of the last periodic write; null forces a write on the
+    // first accepted fix (capturing the freshly set trip start).
     private var lastPersistElapsedNanos: Long? = null
 
     // Push channel for an explicit trip reset. extraBufferCapacity = 1 lets a
@@ -164,20 +166,6 @@ internal class TripRepository(
     // reset is applied inside the merged collect (below), on the same single
     // sequence as accrual, so the accumulators are never mutated concurrently.
     private val resetSignals = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-
-    // Conflated hand-off to the single writer coroutine: only the newest
-    // snapshot matters, and enqueueing never suspends the accrual sequence.
-    private val persistQueue = Channel<PersistedTrip>(Channel.CONFLATED)
-
-    // Own scope by default (process-lifetime, mirroring FontRepository); tests
-    // inject runTest's backgroundScope so writes run on the virtual clock.
-    private val writerScope = persistScope ?: CoroutineScope(SupervisorJob() + Dispatchers.Default)
-
-    init {
-        writerScope.launch {
-            for (value in persistQueue) store.write(value)
-        }
-    }
 
     fun stateFlow(): Flow<TripState> =
         flow {
@@ -195,14 +183,19 @@ internal class TripRepository(
                     .filterNotNull()
                     .filterNot { it.provider == LocationManager.NETWORK_PROVIDER }
                     .filterNot { arrivedStale(it) }
-                    .onEach { trackTap.onFix(it, tripId) }
                     .map { TripSignal.Fix(it) }
             val resets: Flow<TripSignal> = resetSignals.map { TripSignal.Reset }
             try {
                 merge(fixes, resets).collect { signal ->
                     when (signal) {
                         is TripSignal.Fix -> {
-                            accrue(signal.location)
+                            // Tap here, on the single sequence, so the trip id the
+                            // track logger reads is the one this fix accrues into,
+                            // totally ordered with resets (see class KDoc). Skip
+                            // implausible teleports the trip math rejects.
+                            if (accrue(signal.location)) {
+                                trackTap.onFix(signal.location, tripId)
+                            }
                             emit(snapshot())
                             maybePersist(signal.location.elapsedRealtimeNanos)
                         }
@@ -210,17 +203,20 @@ internal class TripRepository(
                         TripSignal.Reset -> {
                             resetAccumulators()
                             emit(snapshot())
-                            // Immediate write so a crash right after the tap can
-                            // never resurrect the old totals on the next launch.
-                            persistQueue.trySend(persisted())
+                            // Write-through (not a fire-and-forget enqueue) so the
+                            // zeros and the bumped trip id are durable before the
+                            // next signal: a crash after this can never resurrect
+                            // the old totals or reuse the previous trip's id.
+                            store.write(persisted())
                         }
                     }
                 }
             } finally {
-                // Flush the last accrued state when the subscription window
-                // closes (UI gone / service stopped) — the periodic throttle
-                // alone could leave up to PERSIST_MIN_INTERVAL_NANOS unwritten.
-                persistQueue.trySend(persisted())
+                // Flush the last accrued state when the subscription window closes
+                // (UI gone / service stopped) — the periodic throttle alone could
+                // leave up to PERSIST_MIN_INTERVAL_NANOS unwritten. NonCancellable
+                // because the close path is a cancellation.
+                withContext(NonCancellable) { store.write(persisted()) }
             }
         }.flowOn(dispatcher)
 
@@ -252,8 +248,10 @@ internal class TripRepository(
         (nowElapsedRealtimeNanos() - fix.elapsedRealtimeNanos) > MAX_GAP_SECONDS * NANOS_PER_SECOND
 
     // Receives only GPS (non-network, non-null, non-stale) fixes; the rest are
-    // filtered upstream in stateFlow so they never advance the anchor.
-    private fun accrue(current: Location) {
+    // filtered upstream in stateFlow so they never advance the anchor. Returns
+    // whether the fix is recordable — true for any trustworthy position, false
+    // only for an implausible teleport (which neither accrues nor is logged).
+    private fun accrue(current: Location): Boolean {
         if (startedAtEpochMs == null) {
             // The trip starts at its first accepted fix — the same fix the
             // track logger records first — not at the reset tap; see class KDoc.
@@ -262,7 +260,7 @@ internal class TripRepository(
         val previous = lastLocation
         if (previous == null) {
             lastLocation = current
-            return
+            return true
         }
         val deltaSeconds =
             (current.elapsedRealtimeNanos - previous.elapsedRealtimeNanos) / NANOS_PER_SECOND
@@ -290,29 +288,29 @@ internal class TripRepository(
                 totalSeconds += deltaSeconds
             }
             lastLocation = current
-            return
+            return true
         }
         // A speed-less fix below the trust floor keeps the anchor: the delta then
         // keeps growing toward MIN_TRUSTWORTHY_DELTA_SECONDS instead of resetting
         // on every fix. Without this, a sub-second fix cadence (interval < 500 ms
-        // on a chip that never reports speed) would freeze distance forever.
-        val speed = effectiveSpeed(previous, current, deltaSeconds) ?: return
+        // on a chip that never reports speed) would freeze distance forever. The
+        // position is still a real fix, so it stays recordable.
+        val speed = effectiveSpeed(previous, current, deltaSeconds) ?: return true
         lastLocation = current
         // Drop implausible speeds (teleport jumps, bad chip reports): re-anchor
-        // but do not publish or accrue them.
-        if (speed <= MAX_PLAUSIBLE_SPEED_MS) {
-            currentSpeedMs = speed
-            speedEstablished = true
-            // Count every tracked interval toward the average's time base,
-            // including time spent stopped, so AVG is the overall trip
-            // average (distance / elapsed incl. stops) rather than a
-            // moving-only average. Long gaps are already excluded by the
-            // deltaSeconds window above.
-            totalSeconds += deltaSeconds
-            if (speed >= MIN_MOVING_SPEED_MS) {
-                totalMeters += previous.distanceTo(current).toDouble()
-            }
+        // but do not publish, accrue, or record them.
+        if (speed > MAX_PLAUSIBLE_SPEED_MS) return false
+        currentSpeedMs = speed
+        speedEstablished = true
+        // Count every tracked interval toward the average's time base,
+        // including time spent stopped, so AVG is the overall trip average
+        // (distance / elapsed incl. stops) rather than a moving-only average.
+        // Long gaps are already excluded by the deltaSeconds window above.
+        totalSeconds += deltaSeconds
+        if (speed >= MIN_MOVING_SPEED_MS) {
+            totalMeters += previous.distanceTo(current).toDouble()
         }
+        return true
     }
 
     // The chip's reported speed when it has one; otherwise the position-derived
@@ -338,11 +336,14 @@ internal class TripRepository(
             }
         }
 
-    private fun maybePersist(fixElapsedRealtimeNanos: Long) {
+    // Write-through on the accrual sequence, throttled so DataStore is rewritten
+    // at most once per PERSIST_MIN_INTERVAL_NANOS. DataStore runs its own IO off
+    // this dispatcher, so the suspension here is brief.
+    private suspend fun maybePersist(fixElapsedRealtimeNanos: Long) {
         val last = lastPersistElapsedNanos
         if (last != null && fixElapsedRealtimeNanos - last < PERSIST_MIN_INTERVAL_NANOS) return
         lastPersistElapsedNanos = fixElapsedRealtimeNanos
-        persistQueue.trySend(persisted())
+        store.write(persisted())
     }
 
     private fun resetAccumulators() {

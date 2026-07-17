@@ -5,11 +5,11 @@ import android.location.LocationManager
 import app.cash.turbine.test
 import io.github.seijikohara.femto.testfixtures.FakeTripStateStore
 import io.github.seijikohara.femto.testfixtures.fakeLocation
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -599,11 +599,6 @@ class TripRepositoryTest {
                     source,
                     store,
                     dispatcher = UnconfinedTestDispatcher(testScheduler),
-                    // Unconfined writer: each enqueued snapshot is written synchronously
-                    // inside trySend. runTest's backgroundScope is unusable here — the
-                    // scheduler only runs background tasks interleaved with foreground
-                    // work, and this test's foreground work is all unconfined.
-                    persistScope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
                 )
 
             repository.stateFlow().test {
@@ -618,6 +613,7 @@ class TripRepositoryTest {
                 repository.reset()
                 awaitItem()
 
+                // The reset writes through synchronously on the accrual sequence.
                 assertEquals(
                     PersistedTrip(totalMeters = 0.0, totalSeconds = 0.0, startedAtEpochMs = null, tripId = 1L),
                     store.stored,
@@ -636,11 +632,6 @@ class TripRepositoryTest {
                     source,
                     store,
                     dispatcher = UnconfinedTestDispatcher(testScheduler),
-                    // Unconfined writer: each enqueued snapshot is written synchronously
-                    // inside trySend. runTest's backgroundScope is unusable here — the
-                    // scheduler only runs background tasks interleaved with foreground
-                    // work, and this test's foreground work is all unconfined.
-                    persistScope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
                 )
 
             // Fixes 1 s apart stay inside the persist throttle, so only the
@@ -656,6 +647,8 @@ class TripRepositoryTest {
                 accumulated = awaitItem().distanceMeters
                 cancelAndIgnoreRemainingEvents()
             }
+            // Let the NonCancellable finally flush complete on the test scheduler.
+            advanceUntilIdle()
 
             assertTrue(accumulated > 0.0)
             assertEquals(accumulated, store.stored.totalMeters, 0.0)
@@ -671,11 +664,6 @@ class TripRepositoryTest {
                     source,
                     store,
                     dispatcher = UnconfinedTestDispatcher(testScheduler),
-                    // Unconfined writer: each enqueued snapshot is written synchronously
-                    // inside trySend. runTest's backgroundScope is unusable here — the
-                    // scheduler only runs background tasks interleaved with foreground
-                    // work, and this test's foreground work is all unconfined.
-                    persistScope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
                 )
 
             repository.stateFlow().test {
@@ -734,6 +722,39 @@ class TripRepositoryTest {
                 )
                 awaitItem()
                 assertEquals(listOf(0L, 1L), tapped)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `does not tap fixes the trip math rejects as implausible teleports`() =
+        runTest {
+            val source = MutableSharedFlow<Location?>(replay = 0)
+            val tappedPositions = mutableListOf<Double>()
+            val repository =
+                TripRepository(
+                    source,
+                    FakeTripStateStore(),
+                    trackTap = TripFixTap { location, _ -> tappedPositions += location.latitude },
+                    dispatcher = UnconfinedTestDispatcher(testScheduler),
+                )
+
+            repository.stateFlow().test {
+                awaitItem() // initial snapshot
+                source.emit(fakeLocation(latitude = ORIGIN_LAT, speedMps = 11f, elapsedRealtimeNanos = 0L))
+                awaitItem()
+                // A ~5 km jump over 10 s ≈ 500 m/s — above MAX_PLAUSIBLE_SPEED_MS.
+                // Trip math re-anchors without accruing; the recorder must skip it too.
+                source.emit(
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + 45 * STEP,
+                        speedMps = 5_000f,
+                        elapsedRealtimeNanos = tenSeconds(1),
+                    ),
+                )
+                awaitItem()
+                // The origin was tapped; the teleport was not.
+                assertEquals(listOf(ORIGIN_LAT), tappedPositions)
                 cancelAndIgnoreRemainingEvents()
             }
         }

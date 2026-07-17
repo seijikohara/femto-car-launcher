@@ -7,6 +7,7 @@ import androidx.room.Database
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
@@ -21,9 +22,11 @@ import androidx.room.RoomDatabase
 @Entity(
     tableName = "track_points",
     indices = [
-        // (trip_id, time_ms) serves per-trip reads for the future visualization;
-        // the bare time_ms index serves the retention prune's range delete.
-        Index("trip_id", "time_ms"),
+        // (trip_id, time_ms) serves per-trip reads for the future visualization
+        // AND is unique so a crash-restart that replays the same getLastKnownLocation
+        // seed (identical trip/time) is ignored on insert rather than duplicated.
+        Index(value = ["trip_id", "time_ms"], unique = true),
+        // The bare time_ms index serves the retention prune's range delete.
         Index("time_ms"),
     ],
 )
@@ -51,7 +54,9 @@ internal data class TrackPointEntity(
 
 @Dao
 internal interface TrackPointDao {
-    @Insert
+    // IGNORE, paired with the unique (trip_id, time_ms) index, drops a replayed
+    // seed without aborting the rest of the batch.
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(points: List<TrackPointEntity>)
 
     @Query("DELETE FROM track_points WHERE time_ms < :cutoffEpochMs")
@@ -62,6 +67,9 @@ internal interface TrackPointDao {
 
     @Query("SELECT COUNT(*) FROM track_points")
     suspend fun count(): Long
+
+    @Query("SELECT MAX(time_ms) FROM track_points")
+    suspend fun newestTimeMs(): Long?
 
     // Keyset page in insert order (the single-writer recorder inserts
     // chronologically, so id order is trip/time order); the export streams

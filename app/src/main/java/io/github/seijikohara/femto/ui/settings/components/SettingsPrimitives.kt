@@ -33,8 +33,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -355,9 +357,11 @@ internal fun ActionRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     summary: String? = null,
+    summaryLiveRegion: Boolean = false,
 ) = SettingRow(
     title = title,
     summary = summary,
+    summaryLiveRegion = summaryLiveRegion,
     modifier = modifier.clickable(onClick = onClick),
 ) {
     TrailingIcon(Lucide.ExternalLink)
@@ -433,6 +437,9 @@ internal fun SettingRow(
     title: String,
     modifier: Modifier = Modifier,
     summary: String? = null,
+    // Announce summary changes to accessibility services (for a status line that
+    // updates in place, e.g. the export progress/outcome).
+    summaryLiveRegion: Boolean = false,
     trailing: @Composable () -> Unit = {},
 ) = Row(
     modifier =
@@ -457,6 +464,12 @@ internal fun SettingRow(
                 text = summary,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier =
+                    if (summaryLiveRegion) {
+                        Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                    } else {
+                        Modifier
+                    },
             )
         }
     }

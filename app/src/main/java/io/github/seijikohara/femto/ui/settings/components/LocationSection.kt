@@ -103,6 +103,9 @@ internal fun LocationSection(
     ActionRow(
         title = stringResource(R.string.settings_track_export),
         summary = trackExportSummary(uiState.trackExport),
+        // The summary doubles as a status line (Exporting… / Exported N / failed);
+        // announce its changes so TalkBack users learn the export's outcome.
+        summaryLiveRegion = uiState.trackExport != TrackExportState.Idle,
         onClick = { exportLauncher.launch(GPX_EXPORT_SUGGESTED_NAME) },
     )
     ResetRow(

@@ -20,6 +20,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,9 +71,12 @@ import io.github.seijikohara.femto.ui.theme.glanceMetric
 import io.github.seijikohara.femto.ui.theme.heroNumeral
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import io.github.seijikohara.femto.ui.theme.strongWeight
+import kotlinx.coroutines.delay
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import kotlin.math.exp
 import kotlin.math.roundToInt
 
@@ -351,15 +356,16 @@ private fun SecondaryMetric(
 // Locale-aware "since" timestamp for the trip-start row: time only while the
 // trip started today, day + time once it crosses midnight (the parked-overnight
 // case, where a bare clock time would read as this morning). DateUtils follows
-// the system locale and the 12/24-hour setting. The today check re-evaluates on
-// recomposition — the overlay recomposes with every fix, so the label gains the
-// date within moments of midnight without its own clock.
+// the system locale and the 12/24-hour setting. The "today" reference advances
+// on its own midnight ticker rather than relying on a location fix to recompose
+// (with a non-zero min-distance a parked car delivers none), so the label gains
+// the date at midnight even while stationary.
 @Composable
 private fun tripStartLabel(startedAtEpochMs: Long): String {
     val context = LocalContext.current
     val zone = ZoneId.systemDefault()
-    val startedToday =
-        Instant.ofEpochMilli(startedAtEpochMs).atZone(zone).toLocalDate() == LocalDate.now(zone)
+    val today = rememberToday(zone)
+    val startedToday = Instant.ofEpochMilli(startedAtEpochMs).atZone(zone).toLocalDate() == today
     val timestamp =
         remember(startedAtEpochMs, startedToday) {
             DateUtils.formatDateTime(
@@ -373,6 +379,23 @@ private fun tripStartLabel(startedAtEpochMs: Long): String {
             )
         }
     return stringResource(R.string.speed_trip_since, timestamp)
+}
+
+// Today's date, refreshed exactly at each local midnight so a date-dependent
+// label updates without any other trigger. Sleeps until the next midnight
+// rather than polling.
+@Composable
+private fun rememberToday(zone: ZoneId): LocalDate {
+    val today = remember { mutableStateOf(LocalDate.now(zone)) }
+    LaunchedEffect(zone) {
+        while (true) {
+            val now = ZonedDateTime.now(zone)
+            val nextMidnight = now.toLocalDate().plusDays(1).atStartOfDay(zone)
+            delay(Duration.between(now, nextMidnight).toMillis().coerceAtLeast(1L))
+            today.value = LocalDate.now(zone)
+        }
+    }
+    return today.value
 }
 
 // "Since 8:04" under the reset button (the metric row's trailing cell): when

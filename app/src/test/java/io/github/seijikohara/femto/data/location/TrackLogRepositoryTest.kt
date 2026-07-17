@@ -228,6 +228,39 @@ class TrackLogRepositoryTest {
         }
 
     @Test
+    fun `skips pruning while the clock reads implausibly far ahead of the newest point`() =
+        recorderTest {
+            // A real point at "now", then the process restarts with the clock set
+            // ~2 years ahead (dead RTC before NTP). A naive prune would compute a
+            // cutoff far past every row and wipe the history; the guard skips it.
+            dao.insertAll(listOf(fakeTrackPoint(timeMs = NOW_EPOCH_MS)))
+            val futureNow = NOW_EPOCH_MS + 730L * 24 * 60 * 60 * 1_000
+            TrackLogRepository(
+                dao = dao,
+                settings = settings,
+                scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)).also { repositoryScope = it },
+                ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+                batchMaxPoints = 1,
+                nowEpochMs = { futureNow },
+            )
+            runCurrent()
+
+            assertEquals(1L, dao.count())
+        }
+
+    @Test
+    fun `ignores a duplicate point with the same trip and time`() =
+        recorderTest {
+            // The crash-restart path: a fresh process re-seeds the same
+            // getLastKnownLocation and records it under the same trip id / time_ms
+            // as the pre-crash flush. The unique index + IGNORE keeps one row.
+            dao.insertAll(listOf(fakeTrackPoint(tripId = 3L, timeMs = NOW_EPOCH_MS)))
+            dao.insertAll(listOf(fakeTrackPoint(tripId = 3L, timeMs = NOW_EPOCH_MS, latitude = 1.0, longitude = 2.0)))
+
+            assertEquals(1L, dao.count())
+        }
+
+    @Test
     fun `unlimited retention never prunes`() =
         recorderTest {
             dao.insertAll(listOf(fakeTrackPoint(timeMs = daysAgo(1_000))))
