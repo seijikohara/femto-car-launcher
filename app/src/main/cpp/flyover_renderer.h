@@ -25,11 +25,16 @@ void flyover_set_track(FlyoverRenderer *r, const float *data, int floatCount);
 // Draw-on playhead in [0, 1] (used while the user scrubs / when paused).
 void flyover_set_progress(FlyoverRenderer *r, float progress);
 
+// Whether the render thread is still alive. Turns false if a runtime Vulkan
+// error stops it, so the Kotlin side can fall back to 2D mid-flight.
+bool flyover_is_running(FlyoverRenderer *r);
+
 // Surface resized (rotation / layout). The render thread recreates the swapchain.
 void flyover_resize(FlyoverRenderer *r, int width, int height);
 
-// Stop the render thread and tear down the swapchain, keeping the device so a
-// later flyover_start is cheap. Safe to call repeatedly.
+// Stop the render thread and tear down everything below the VkInstance (the
+// instance survives so a later flyover_start re-probes cheaply). Safe to call
+// repeatedly.
 void flyover_stop(FlyoverRenderer *r);
 
 // Destroy everything and free the handle.

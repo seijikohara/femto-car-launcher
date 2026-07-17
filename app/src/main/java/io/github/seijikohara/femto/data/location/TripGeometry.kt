@@ -56,19 +56,19 @@ internal class TripGeometry private constructor(
             val sampled = downsample(points)
             if (sampled.size < 2) return null
 
+            // Unwrap longitude so a trip straddling the antimeridian (+/-180) is
+            // continuous instead of leaping ~360 deg between adjacent points.
+            val lon = unwrapLongitudes(sampled)
             val lat0 = sampled.sumOf { it.latitude } / sampled.size
-            val lon0 = sampled.sumOf { it.longitude } / sampled.size
+            val lon0 = lon.average()
             val cosLat = cos(Math.toRadians(lat0))
 
-            // East/north metres from the centroid, and the raw altitude (or 0).
-            val east = DoubleArray(sampled.size)
-            val north = DoubleArray(sampled.size)
-            val up = DoubleArray(sampled.size)
-            sampled.forEachIndexed { i, p ->
-                east[i] = (p.longitude - lon0) * cosLat * METERS_PER_DEG_LAT
-                north[i] = (p.latitude - lat0) * METERS_PER_DEG_LAT
-                up[i] = p.altitudeM ?: 0.0
-            }
+            val east = DoubleArray(sampled.size) { (lon[it] - lon0) * cosLat * METERS_PER_DEG_LAT }
+            val north = DoubleArray(sampled.size) { (sampled[it].latitude - lat0) * METERS_PER_DEG_LAT }
+            // Altitude with nulls filled from the nearest known neighbour, so a
+            // trip mixing real and missing altitudes has no false drops to 0 m.
+            val up = filledAltitudes(sampled)
+            val hasAltitude = up != null
 
             val halfExtent =
                 max(
@@ -77,11 +77,10 @@ internal class TripGeometry private constructor(
                 ).takeIf { it > 0.0 } ?: 1.0
             val horizontalScale = 1.0 / halfExtent
 
-            val altMin = up.min()
-            val altSpan = up.max() - altMin
-            val hasAltitude = sampled.any { it.altitudeM != null } && altSpan > 0.0
+            val altMin = up?.min() ?: 0.0
+            val altSpan = up?.let { it.max() - altMin }?.takeIf { it > 0.0 }
 
-            val speeds = effectiveSpeeds(sampled)
+            val speeds = effectiveSpeeds(sampled, east, north)
             val (speedLow, speedHigh) = speedRange(speeds)
             val speedDenom = (speedHigh - speedLow).takeIf { it > 1e-3f } ?: 1f
 
@@ -99,7 +98,11 @@ internal class TripGeometry private constructor(
                 val base = i * FLOATS_PER_VERTEX
                 vertices[base] = (east[i] * horizontalScale).toFloat()
                 vertices[base + 1] =
-                    if (hasAltitude) (((up[i] - altMin) / altSpan).toFloat() * ALT_TARGET_VFRAC) else 0f
+                    if (up != null && altSpan != null) {
+                        (((up[i] - altMin) / altSpan).toFloat() * ALT_TARGET_VFRAC)
+                    } else {
+                        0f
+                    }
                 vertices[base + 2] = (north[i] * horizontalScale).toFloat()
                 val t = ((speeds[i] - speedLow) / speedDenom).coerceIn(0f, 1f)
                 val color = turbo(t)
@@ -116,10 +119,55 @@ internal class TripGeometry private constructor(
                     distanceMeters = totalMeters,
                     maxSpeedMps = speeds.maxOrNull() ?: 0f,
                     avgSpeedMps = if (speeds.isNotEmpty()) speeds.average().toFloat() else 0f,
-                    hasAltitude = hasAltitude,
-                    altitudeGainMeters = if (hasAltitude) altSpan else 0.0,
+                    hasAltitude = altSpan != null,
+                    // True cumulative climb (sum of positive steps), not the span.
+                    altitudeGainMeters = if (up != null) cumulativeClimb(up) else 0.0,
                 )
             return TripGeometry(vertices, sampled.size, segmentsOf(sampled), stats)
+        }
+
+        // Add/subtract 360 across each >180 deg jump so the sequence is continuous.
+        private fun unwrapLongitudes(points: List<TrackPointEntity>): DoubleArray {
+            val out = DoubleArray(points.size)
+            out[0] = points[0].longitude
+            var offset = 0.0
+            for (i in 1 until points.size) {
+                val delta = points[i].longitude - points[i - 1].longitude
+                if (delta > 180.0) {
+                    offset -= 360.0
+                } else if (delta < -180.0) {
+                    offset += 360.0
+                }
+                out[i] = points[i].longitude + offset
+            }
+            return out
+        }
+
+        // Null altitudes filled forward then backward from known neighbours;
+        // null when no point carried an altitude (a flat trip).
+        private fun filledAltitudes(points: List<TrackPointEntity>): DoubleArray? {
+            if (points.none { it.altitudeM != null }) return null
+            val up = DoubleArray(points.size)
+            var last = Double.NaN
+            for (i in points.indices) {
+                val a = points[i].altitudeM
+                if (a != null) last = a
+                up[i] = last
+            }
+            var next = Double.NaN
+            for (i in points.indices.reversed()) {
+                if (up[i].isNaN()) up[i] = next else next = up[i]
+            }
+            return up
+        }
+
+        private fun cumulativeClimb(up: DoubleArray): Double {
+            var climb = 0.0
+            for (i in 1 until up.size) {
+                val d = up[i] - up[i - 1]
+                if (d > 0.0) climb += d
+            }
+            return climb
         }
 
         // Even-stride downsample to MAX_RENDER_POINTS, always keeping the last
@@ -146,23 +194,22 @@ internal class TripGeometry private constructor(
             return ranges
         }
 
-        // Reported speed where present, else derived from the position/time delta,
-        // so a speed-less chip still gets a plausible gradient.
-        private fun effectiveSpeeds(points: List<TrackPointEntity>): FloatArray {
-            val cosLat = cos(Math.toRadians(points.first().latitude))
-            return FloatArray(points.size) { i ->
+        // Reported speed where present, else derived from the local-metric
+        // position/time delta (the same unwrapped east/north the projection uses,
+        // so it is antimeridian-safe), so a speed-less chip still gets a gradient.
+        private fun effectiveSpeeds(
+            points: List<TrackPointEntity>,
+            east: DoubleArray,
+            north: DoubleArray,
+        ): FloatArray =
+            FloatArray(points.size) { i ->
                 points[i].speedMps ?: run {
                     if (i == 0) return@run 0f
-                    val prev = points[i - 1]
-                    val cur = points[i]
-                    val dtSec = (cur.timeMs - prev.timeMs) / 1000.0
+                    val dtSec = (points[i].timeMs - points[i - 1].timeMs) / 1000.0
                     if (dtSec <= 0.0) return@run 0f
-                    val dEast = (cur.longitude - prev.longitude) * cosLat * METERS_PER_DEG_LAT
-                    val dNorth = (cur.latitude - prev.latitude) * METERS_PER_DEG_LAT
-                    (hypot(dEast, dNorth) / dtSec).toFloat()
+                    (hypot(east[i] - east[i - 1], north[i] - north[i - 1]) / dtSec).toFloat()
                 }
             }
-        }
 
         // Robust colour range: clip to the 5th/95th percentiles so one GPS speed
         // spike can't wash the whole gradient toward the low end.

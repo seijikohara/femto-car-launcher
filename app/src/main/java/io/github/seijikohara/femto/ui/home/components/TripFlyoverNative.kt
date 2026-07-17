@@ -41,6 +41,8 @@ internal object TripFlyoverNative {
         progress: Float,
     )
 
+    external fun nativeIsRunning(handle: Long): Boolean
+
     external fun nativeResize(
         handle: Long,
         width: Int,

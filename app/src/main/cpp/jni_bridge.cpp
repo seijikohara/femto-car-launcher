@@ -55,6 +55,12 @@ Java_io_github_seijikohara_femto_ui_home_components_TripFlyoverNative_nativeSetP
     if (handle != 0) flyover_set_progress(asRenderer(handle), progress);
 }
 
+JNIEXPORT jboolean JNICALL
+Java_io_github_seijikohara_femto_ui_home_components_TripFlyoverNative_nativeIsRunning(
+    JNIEnv *, jobject, jlong handle) {
+    return (handle != 0 && flyover_is_running(asRenderer(handle))) ? JNI_TRUE : JNI_FALSE;
+}
+
 JNIEXPORT void JNICALL
 Java_io_github_seijikohara_femto_ui_home_components_TripFlyoverNative_nativeResize(
     JNIEnv *, jobject, jlong handle, jint width, jint height) {

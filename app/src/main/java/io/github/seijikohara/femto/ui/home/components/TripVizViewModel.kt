@@ -15,6 +15,7 @@ import io.github.seijikohara.femto.data.location.TripWireframe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -66,7 +67,7 @@ internal class TripVizViewModel(
     private val currentTripId: suspend () -> Long,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(TripVizUiState())
-    val uiState: StateFlow<TripVizUiState> = _uiState
+    val uiState: StateFlow<TripVizUiState> = _uiState.asStateFlow()
 
     init {
         refresh()
@@ -83,15 +84,19 @@ internal class TripVizViewModel(
         viewModelScope.launch {
             val current = currentTripId()
             val trips =
-                tripSummaries().map {
-                    TripListItem(
-                        tripId = it.tripId,
-                        startMs = it.startMs,
-                        endMs = it.endMs,
-                        pointCount = it.pointCount,
-                        isCurrent = it.tripId == current,
-                    )
-                }
+                tripSummaries()
+                    // A trip needs at least two points to render; drop the rest so
+                    // selecting one can never strand the panel with a null geometry.
+                    .filter { it.pointCount >= 2 }
+                    .map {
+                        TripListItem(
+                            tripId = it.tripId,
+                            startMs = it.startMs,
+                            endMs = it.endMs,
+                            pointCount = it.pointCount,
+                            isCurrent = it.tripId == current,
+                        )
+                    }
             _uiState.update { it.copy(loading = false, trips = trips) }
             // Open on the most recent trip so the panel is never empty when data exists.
             if (trips.isNotEmpty() && _uiState.value.selection == null) {

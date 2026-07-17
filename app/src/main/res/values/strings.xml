@@ -43,6 +43,10 @@
     <string name="trip_viz_play">Play flyover</string>
     <string name="trip_viz_pause">Pause flyover</string>
     <string name="trip_viz_replay">Replay from start</string>
+    <string name="trip_viz_scrub">Scrub flyover</string>
+    <string name="trip_viz_duration_hm">%1$dh %2$dm</string>
+    <string name="trip_viz_duration_ms">%1$dm %2$ds</string>
+    <string name="trip_viz_duration_s">%1$ds</string>
     <string name="speed_altitude">ALT %1$d</string>
     <string name="speed_metric_distance">DISTANCE</string>
     <string name="speed_metric_avg">AVG.</string>

@@ -3,12 +3,13 @@ cmake_minimum_required(VERSION 3.22.1)
 project(tripflyover LANGUAGES CXX)
 
 # Native Vulkan renderer for the trip flyover. libtripflyover.so is loaded
-# opportunistically by the Kotlin side (TripFlyoverRenderer); when it is absent
-# for an ABI, or Vulkan init fails at runtime, the app falls back to the 2D
-# Compose renderer — the native layer never crashes the HOME launcher.
+# opportunistically by the Kotlin side (TripFlyoverNative / TripFlyoverController);
+# when it is absent for an ABI, or Vulkan init fails at runtime, the app falls
+# back to the 2D Compose renderer — the native layer never crashes the HOME
+# launcher.
 #
 # SPIR-V shaders are precompiled and committed as C headers under generated/
-# (regenerate with the NDK's glslc; see shaders/README). The build therefore
+# (regenerate with the NDK's glslc — see shaders/README.md). The build therefore
 # has no glslc dependency, so CI needs only the pinned NDK + CMake.
 
 add_library(tripflyover SHARED

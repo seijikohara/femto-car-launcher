@@ -4,6 +4,8 @@ import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,16 +13,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.progressSemantics
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.FloatState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -34,11 +38,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -57,6 +63,7 @@ import io.github.seijikohara.femto.ui.locale.label
 import io.github.seijikohara.femto.ui.locale.tripDistanceFromMeters
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
+import io.github.seijikohara.femto.ui.theme.TripSceneBackground
 import io.github.seijikohara.femto.ui.theme.eyebrow
 import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.panelMetric
@@ -88,22 +95,32 @@ internal fun TripPanel(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     BackHandler(onBack = onClose)
 
+    // The VM is activity-scoped (obtained without a key), so refresh the trip
+    // list every time the panel re-enters composition — otherwise reopening the
+    // flyover after more driving would show the list from the first open.
+    LaunchedEffect(Unit) { viewModel.onAction(TripVizAction.Refresh) }
+
     val selection = uiState.selection
     var playing by remember { mutableStateOf(true) }
-    var progress by remember { mutableFloatStateOf(0f) }
+    // A FloatState (not a delegated read): the playhead ticks at 60 Hz, so only
+    // the leaves that consume it (the renderer + scrubber) read `.floatValue` and
+    // recompose — TripPanel's body never reads it, so the panel/selector/stats
+    // stay off the per-frame path.
+    val progress = remember { mutableFloatStateOf(0f) }
 
     // Reset and auto-play whenever a new trip's geometry loads.
     LaunchedEffect(selection?.tripId) {
-        progress = 0f
+        progress.floatValue = 0f
         playing = selection != null
     }
     // Frame-clock playhead; the renderers are a pure function of it.
     LaunchedEffect(playing, selection?.tripId) {
         if (!playing || selection == null) return@LaunchedEffect
         var last = withFrameNanos { it }
-        while (progress < 1f) {
+        while (progress.floatValue < 1f) {
             val now = withFrameNanos { it }
-            progress = (progress + (now - last).coerceAtLeast(0L) / 1_000_000_000f / PLAY_SECONDS).coerceAtMost(1f)
+            progress.floatValue =
+                (progress.floatValue + (now - last).coerceAtLeast(0L) / 1_000_000_000f / PLAY_SECONDS).coerceAtMost(1f)
             last = now
         }
         playing = false
@@ -159,16 +176,16 @@ internal fun TripPanel(
                     progress = progress,
                     onTogglePlay = {
                         // Replay from the start when toggling play after it finished.
-                        if (!playing && progress >= 1f) progress = 0f
+                        if (!playing && progress.floatValue >= 1f) progress.floatValue = 0f
                         playing = !playing
                     },
                     onReplay = {
-                        progress = 0f
+                        progress.floatValue = 0f
                         playing = true
                     },
                     onScrub = {
                         playing = false
-                        progress = it
+                        progress.floatValue = it.coerceIn(0f, 1f)
                     },
                 )
             }
@@ -179,29 +196,42 @@ internal fun TripPanel(
 @Composable
 private fun TripFlyoverHost(
     wireframe: FloatArray,
-    progress: Float,
+    progress: FloatState,
     modifier: Modifier = Modifier,
 ) {
     val controller = remember { TripFlyoverController() }
-    var useVulkan by remember { mutableStateOf(controller.ensureCreated()) }
-    if (useVulkan) {
-        // Transparent: the native SurfaceView (media overlay) shows through and
-        // clears itself to the render backdrop.
-        TripFlyoverSurface(
-            controller = controller,
-            wireframe = wireframe,
-            progress = progress,
-            onUnavailable = { useVulkan = false },
-            modifier = modifier,
-        )
-    } else {
-        // The Compose fallback draws in the window, so it paints its own dark
-        // backdrop (its additive lines must blend over black, not the dashboard).
-        TripFlyoverFallback(
-            wireframe = wireframe,
-            progress = progress,
-            modifier = modifier.background(RenderBackground),
-        )
+    // Probe Vulkan off the composition path (VkInstance + device creation is heavy
+    // work): null = still probing, true = native, false = 2D fallback. The probe
+    // resolves within the same window the trip geometry is loading in, so the dark
+    // scene shows first either way.
+    var useVulkan by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(controller) { useVulkan = controller.ensureCreated() }
+    when (useVulkan) {
+        true -> {
+            // Transparent: the native SurfaceView (media overlay) shows through
+            // and clears itself to the render backdrop.
+            TripFlyoverSurface(
+                controller = controller,
+                wireframe = wireframe,
+                progress = progress,
+                onUnavailable = { useVulkan = false },
+                modifier = modifier,
+            )
+        }
+
+        false -> {
+            // The Compose fallback draws in the window, so it paints its own dark
+            // backdrop (its additive lines must blend over black, not the dashboard).
+            TripFlyoverFallback(
+                wireframe = wireframe,
+                progress = progress,
+                modifier = modifier.background(TripSceneBackground),
+            )
+        }
+
+        null -> {
+            Box(modifier.fillMaxSize().background(TripSceneBackground))
+        }
     }
 }
 
@@ -248,6 +278,9 @@ private fun TripChip(
                 .clip(RoundedCornerShape(12.dp))
                 .background(fill)
                 .clickable(onClick = onClick)
+                // Hold the automotive tap floor even though the chip's content is
+                // shorter (CLAUDE.md#automotive-overrides).
+                .heightIn(min = FemtoDimens.MinTouchTarget)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -304,6 +337,20 @@ private fun TripStatsRow(
     }
 }
 
+// Locale-aware duration through string resources rather than baked-in "h/m/s".
+@Composable
+private fun formatDuration(millis: Long): String {
+    val totalSeconds = (millis / 1000).coerceAtLeast(0)
+    val hours = (totalSeconds / 3600).toInt()
+    val minutes = ((totalSeconds % 3600) / 60).toInt()
+    val seconds = (totalSeconds % 60).toInt()
+    return when {
+        hours > 0 -> stringResource(R.string.trip_viz_duration_hm, hours, minutes)
+        minutes > 0 -> stringResource(R.string.trip_viz_duration_ms, minutes, seconds)
+        else -> stringResource(R.string.trip_viz_duration_s, seconds)
+    }
+}
+
 @Composable
 private fun StatCell(
     label: String,
@@ -333,7 +380,7 @@ private fun StatCell(
 @Composable
 private fun PlaybackControls(
     playing: Boolean,
-    progress: Float,
+    progress: FloatState,
     onTogglePlay: () -> Unit,
     onReplay: () -> Unit,
     onScrub: (Float) -> Unit,
@@ -353,11 +400,74 @@ private fun PlaybackControls(
         description = stringResource(R.string.trip_viz_replay),
         onClick = onReplay,
     )
-    Slider(
-        value = progress,
-        onValueChange = onScrub,
+    FlyoverScrubBar(
+        progress = progress,
+        onScrub = onScrub,
         modifier = Modifier.weight(1f),
     )
+}
+
+/**
+ * Draw-on scrubber: a thin track centred in a full [FemtoDimens.MinTouchTarget]
+ * gesture surface so the automotive tap floor holds — the project's deliberate
+ * choice over the shorter M3 Slider (see PlaybackSeekBar). A tap or drag reports
+ * the fraction; while dragging, the local value leads so the bar tracks the
+ * finger even though the panel's frame clock keeps advancing.
+ */
+@Composable
+private fun FlyoverScrubBar(
+    progress: FloatState,
+    onScrub: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var drag by remember { mutableStateOf<Float?>(null) }
+    val shown = (drag ?: progress.floatValue).coerceIn(0f, 1f)
+    val scrubLabel = stringResource(R.string.trip_viz_scrub)
+    Box(
+        modifier =
+            modifier
+                .height(FemtoDimens.MinTouchTarget)
+                .progressSemantics(shown)
+                .semantics {
+                    contentDescription = scrubLabel
+                    setProgress(label = scrubLabel) { target ->
+                        onScrub(target.coerceIn(0f, 1f))
+                        true
+                    }
+                }.pointerInput(Unit) {
+                    detectTapGestures { offset -> onScrub((offset.x / size.width).coerceIn(0f, 1f)) }
+                }.pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { offset -> drag = (offset.x / size.width).coerceIn(0f, 1f) },
+                        onHorizontalDrag = { change, _ ->
+                            val f = (change.position.x / size.width).coerceIn(0f, 1f)
+                            drag = f
+                            onScrub(f)
+                            change.consume()
+                        },
+                        onDragEnd = { drag = null },
+                        onDragCancel = { drag = null },
+                    )
+                },
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)),
+        )
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth(shown)
+                    .height(4.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+        )
+    }
 }
 
 @Composable
@@ -388,7 +498,7 @@ private fun GlassCircleButton(
 private fun CenteredMessage(
     text: String,
     modifier: Modifier = Modifier,
-) = Box(modifier = modifier.fillMaxSize().background(RenderBackground), contentAlignment = Alignment.Center) {
+) = Box(modifier = modifier.fillMaxSize().background(TripSceneBackground), contentAlignment = Alignment.Center) {
     Text(
         text = text,
         style = MaterialTheme.typography.eyebrow(),
@@ -408,25 +518,7 @@ private fun HudScrim(modifier: Modifier = Modifier) =
                 .background(
                     Brush.verticalGradient(
                         0f to Color.Transparent,
-                        1f to RenderBackground.copy(alpha = 0.85f),
+                        1f to TripSceneBackground.copy(alpha = 0.85f),
                     ),
                 ),
     )
-
-private fun formatDuration(millis: Long): String {
-    val totalSeconds = (millis / 1000).coerceAtLeast(0)
-    val hours = totalSeconds / 3600
-    val minutes = (totalSeconds % 3600) / 60
-    val seconds = totalSeconds % 60
-    return when {
-        hours > 0 -> "${hours}h ${minutes}m"
-        minutes > 0 -> "${minutes}m ${seconds}s"
-        else -> "${seconds}s"
-    }
-}
-
-// The dark render backdrop matches the native renderer's clear colour so the
-// panel frame, empty states, and HUD scrim sit on the same near-black the
-// wireframe glows on. A single scene-defining constant, like the mockup-derived
-// alpha tuning already sanctioned in this package's overlays.
-private val RenderBackground = Color(0xFF050810)

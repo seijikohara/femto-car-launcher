@@ -44,6 +44,8 @@ namespace {
 
 constexpr int kFloatsPerVertex = 7;
 constexpr int kMaxFramesInFlight = 2;
+// Camera constants are mirrored by the 2D fallback (TripFlyoverFallback.kt:
+// ORBIT_RATE / ELEVATION_RAD) so the two renderers read the same; edit both.
 constexpr float kOrbitRate = 0.16f;          // rad/s
 constexpr float kElevationRad = 0.58f;       // ~33 deg look-down
 constexpr float kPi = 3.14159265358979323846f;
@@ -255,9 +257,13 @@ struct FlyoverRenderer {
         VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical, surface, &caps));
 
         uint32_t formatCount = 0;
-        vkGetPhysicalDeviceSurfaceFormatsKHR(physical, surface, &formatCount, nullptr);
+        VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(physical, surface, &formatCount, nullptr));
+        if (formatCount == 0) {
+            LOGE("no surface formats");
+            return false;
+        }
         std::vector<VkSurfaceFormatKHR> formats(formatCount);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(physical, surface, &formatCount, formats.data());
+        VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(physical, surface, &formatCount, formats.data()));
         VkSurfaceFormatKHR chosen = formats[0];
         for (const auto &f : formats) {
             if (f.format == VK_FORMAT_B8G8R8A8_UNORM &&
@@ -513,7 +519,6 @@ struct FlyoverRenderer {
 
     bool createSyncObjects() {
         imageAvailable.resize(kMaxFramesInFlight);
-        renderFinished.resize(kMaxFramesInFlight);
         inFlight.resize(kMaxFramesInFlight);
         imagesInFlight.assign(images.size(), VK_NULL_HANDLE);
 
@@ -524,8 +529,22 @@ struct FlyoverRenderer {
         fi.flags = VK_FENCE_CREATE_SIGNALED_BIT;
         for (int i = 0; i < kMaxFramesInFlight; ++i) {
             VK_CHECK(vkCreateSemaphore(device, &si, nullptr, &imageAvailable[i]));
-            VK_CHECK(vkCreateSemaphore(device, &si, nullptr, &renderFinished[i]));
             VK_CHECK(vkCreateFence(device, &fi, nullptr, &inFlight[i]));
+        }
+        return createRenderFinished();
+    }
+
+    // renderFinished is per swapchain IMAGE (signaled by submit, waited by
+    // present): a per-frame semaphore could still be pending in a present when
+    // the frame index wraps, a WSI reuse hazard. Recreated with the swapchain
+    // because the image count can change.
+    bool createRenderFinished() {
+        for (auto s : renderFinished) vkDestroySemaphore(device, s, nullptr);
+        renderFinished.assign(images.size(), VK_NULL_HANDLE);
+        VkSemaphoreCreateInfo si{};
+        si.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        for (size_t i = 0; i < images.size(); ++i) {
+            VK_CHECK(vkCreateSemaphore(device, &si, nullptr, &renderFinished[i]));
         }
         return true;
     }
@@ -578,7 +597,13 @@ struct FlyoverRenderer {
             vertexBuffer = VK_NULL_HANDLE;
             return;
         }
-        vkBindBufferMemory(device, vertexBuffer, vertexMemory, 0);
+        if (vkBindBufferMemory(device, vertexBuffer, vertexMemory, 0) != VK_SUCCESS) {
+            vkDestroyBuffer(device, vertexBuffer, nullptr);
+            vkFreeMemory(device, vertexMemory, nullptr);
+            vertexBuffer = VK_NULL_HANDLE;
+            vertexMemory = VK_NULL_HANDLE;
+            return;
+        }
         void *mapped = nullptr;
         if (vkMapMemory(device, vertexMemory, 0, size, 0, &mapped) == VK_SUCCESS) {
             std::memcpy(mapped, local.data(), (size_t) size);
@@ -617,6 +642,8 @@ struct FlyoverRenderer {
         VK_CHECK(vkBeginCommandBuffer(cmd, &bi));
 
         VkClearValue clear{};
+        // The scene backdrop; mirrored by TripSceneBackground (Color.kt, 0xFF050810)
+        // which the fallback and panel chrome paint — keep the two in step.
         clear.color = {{0.02f, 0.03f, 0.06f, 1.0f}};
         VkRenderPassBeginInfo rp{};
         rp.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -654,7 +681,7 @@ struct FlyoverRenderer {
         submit.commandBufferCount = 1;
         submit.pCommandBuffers = &cmd;
         submit.signalSemaphoreCount = 1;
-        submit.pSignalSemaphores = &renderFinished[currentFrame];
+        submit.pSignalSemaphores = &renderFinished[imageIndex];
         VK_CHECK(vkQueueSubmit(queue, 1, &submit, inFlight[currentFrame]));
         return true;
     }
@@ -678,6 +705,7 @@ struct FlyoverRenderer {
         cleanupSwapchain();
         if (!createSwapchain(w, h)) return false;
         if (!createFramebuffers()) return false;
+        if (!createRenderFinished()) return false;
         imagesInFlight.assign(images.size(), VK_NULL_HANDLE);
         return true;
     }
@@ -685,6 +713,12 @@ struct FlyoverRenderer {
     // One acquire/record/submit/present cycle. Returns false only on a fatal
     // error (the loop then stops); a stale swapchain triggers a recreate.
     bool drawFrame(float elapsed) {
+        // A prior recreate that failed left the swapchain destroyed; never acquire
+        // on VK_NULL_HANDLE — ask for another recreate instead.
+        if (swapchain == VK_NULL_HANDLE) {
+            needsRecreate.store(true);
+            return true;
+        }
         vkWaitForFences(device, 1, &inFlight[currentFrame], VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex = 0;
@@ -714,7 +748,7 @@ struct FlyoverRenderer {
         VkPresentInfoKHR present{};
         present.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         present.waitSemaphoreCount = 1;
-        present.pWaitSemaphores = &renderFinished[currentFrame];
+        present.pWaitSemaphores = &renderFinished[imageIndex];
         present.swapchainCount = 1;
         present.pSwapchains = &swapchain;
         present.pImageIndices = &imageIndex;
@@ -734,6 +768,9 @@ struct FlyoverRenderer {
         while (running.load()) {
             if (needsRecreate.exchange(false)) {
                 if (!recreateSwapchain()) {
+                    // Re-arm so the next iteration retries instead of drawing on
+                    // the swapchain cleanupSwapchain() already destroyed.
+                    needsRecreate.store(true);
                     std::this_thread::sleep_for(std::chrono::milliseconds(16));
                     continue;
                 }
@@ -767,18 +804,20 @@ FlyoverRenderer *flyover_create() {
 
 bool flyover_start(FlyoverRenderer *r, ANativeWindow *window, int width, int height) {
     if (!r || !window) return false;
-    r->window = window;
     r->pendingWidth.store(width);
     r->pendingHeight.store(height);
-    if (!r->createSurface()) return false;
-    if (!r->pickDevice()) return false;
-    if (!r->createDevice()) return false;
-    if (!r->createSwapchain(width, height)) return false;
-    if (!r->createRenderPass()) return false;
-    if (!r->createPipeline()) return false;
-    if (!r->createFramebuffers()) return false;
-    if (!r->createCommandBuffers()) return false;
-    if (!r->createSyncObjects()) return false;
+    r->window = window;  // createSurface reads r->window
+    bool ok = r->createSurface() && r->pickDevice() && r->createDevice() &&
+              r->createSwapchain(width, height) && r->createRenderPass() &&
+              r->createPipeline() && r->createFramebuffers() &&
+              r->createCommandBuffers() && r->createSyncObjects();
+    if (!ok) {
+        // The JNI bridge releases the window ref it acquired when start fails, so
+        // clear it here to keep flyover_stop from releasing the same ref again.
+        // The partially-built Vk objects are cleaned up by the later flyover_stop.
+        r->window = nullptr;
+        return false;
+    }
     r->running.store(true);
     r->renderThread = std::thread([r]() { r->renderLoop(); });
     LOGI("flyover started %dx%d", width, height);
@@ -793,8 +832,13 @@ void flyover_set_track(FlyoverRenderer *r, const float *data, int floatCount) {
 }
 
 void flyover_set_progress(FlyoverRenderer *r, float progress) {
-    if (r) r->progress.store(progress < 0 ? 0 : (progress > 1 ? 1 : progress));
+    if (!r) return;
+    // Negated comparisons so NaN clamps to 0 (a raw NaN would blank the reveal).
+    float clamped = !(progress >= 0.0f) ? 0.0f : (progress > 1.0f ? 1.0f : progress);
+    r->progress.store(clamped);
 }
+
+bool flyover_is_running(FlyoverRenderer *r) { return r && r->running.load(); }
 
 void flyover_resize(FlyoverRenderer *r, int width, int height) {
     if (!r) return;
@@ -805,9 +849,11 @@ void flyover_resize(FlyoverRenderer *r, int width, int height) {
 
 void flyover_stop(FlyoverRenderer *r) {
     if (!r) return;
-    if (r->running.exchange(false)) {
-        if (r->renderThread.joinable()) r->renderThread.join();
-    }
+    // Join unconditionally: the render thread also clears `running` itself on a
+    // fatal drawFrame error, so an exchange-guarded join would skip a still-
+    // joinable thread and the later thread destructor would std::terminate.
+    r->running.store(false);
+    if (r->renderThread.joinable()) r->renderThread.join();
     if (r->device != VK_NULL_HANDLE) {
         vkDeviceWaitIdle(r->device);
         if (r->vertexBuffer != VK_NULL_HANDLE) {

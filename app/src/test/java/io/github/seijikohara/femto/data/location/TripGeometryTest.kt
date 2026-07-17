@@ -95,6 +95,51 @@ class TripGeometryTest {
     }
 
     @Test
+    fun `null altitudes are filled from neighbours instead of dropping to zero`() {
+        // Real altitudes at the ends, null in the middle: the filled profile must
+        // never dip to 0 m (which would spike the wireframe to the ground plane).
+        val geometry =
+            assertNotNull(
+                TripGeometry.from(
+                    straightTrip(5, altitudeM = { i -> if (i == 0 || i == 4) 100.0 + i * 10.0 else null }),
+                ),
+            )
+        // y is normalized within the trip's own altitude span; every vertex must
+        // stay strictly above the ground plane (no false 0 spike from the nulls).
+        (0 until geometry.vertexCount).forEach { i ->
+            assertTrue(geometry.vertex(i, 1) >= 0f, "y went below the ground at $i")
+        }
+        assertTrue(geometry.stats.hasAltitude)
+    }
+
+    @Test
+    fun `climb sums positive steps rather than the altitude span`() {
+        // Up 20, down 20, up 20: span is 20 m but the cumulative climb is 40 m.
+        val profile = listOf(0.0, 20.0, 0.0, 20.0)
+        val geometry = assertNotNull(TripGeometry.from(straightTrip(4, altitudeM = { profile[it] })))
+        assertEquals(40.0, geometry.stats.altitudeGainMeters, 1e-6)
+    }
+
+    @Test
+    fun `an antimeridian-crossing trip stays continuous`() {
+        // Four close points straddling +/-180 deg. Without longitude unwrap the
+        // projection would explode the extent and the distance stat; with it the
+        // trip is a short continuous line.
+        val lons = listOf(179.9, 179.95, -179.95, -179.9)
+        val trip =
+            List(4) { i ->
+                fakeTrackPoint(timeMs = BASE_MS + i * 1_000L, latitude = 66.0, longitude = lons[i], speedMps = 10f)
+            }
+        val geometry = assertNotNull(TripGeometry.from(trip))
+        (0 until geometry.vertexCount).forEach { i ->
+            assertTrue(abs(geometry.vertex(i, 0)) <= 1f + EPSILON, "x escaped at $i")
+        }
+        // ~0.2 deg of longitude at 66 N is only a few km, not the ~40000 km a
+        // wrapped delta would fabricate.
+        assertTrue(geometry.stats.distanceMeters < 20_000.0, "distance was ${geometry.stats.distanceMeters}")
+    }
+
+    @Test
     fun `horizontal coordinates stay inside the unit box`() {
         val geometry = assertNotNull(TripGeometry.from(straightTrip(50)))
 

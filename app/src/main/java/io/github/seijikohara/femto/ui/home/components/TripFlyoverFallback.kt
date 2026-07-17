@@ -1,9 +1,11 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.FloatState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -12,63 +14,53 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.unit.dp
+import io.github.seijikohara.femto.data.location.TrackPointEntity
+import io.github.seijikohara.femto.data.location.TripGeometry
 import io.github.seijikohara.femto.data.location.TripWireframe
+import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.TripSceneBackground
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.math.tan
 
-// Camera + pacing constants kept in step with the native renderer so the two
-// paths read the same. See flyover_renderer.cpp.
+// Camera constants kept in step with the native renderer so the two paths read
+// the same. See flyover_renderer.cpp (kOrbitRate / kElevationRad).
 private const val ORBIT_RATE = 0.16f
 private const val ELEVATION_RAD = 0.58f
 private const val FOV_RAD = 0.785f // 45 deg
 private const val FLOATS = TripWireframe.FLOATS_PER_VERTEX
 
-// Bound the fallback's per-frame line count for weak (Vulkan-less) devices by
-// striding the track segments; the grid and curtain are already sparse.
-private const val MAX_FALLBACK_SEGMENTS = 1_400
-
 /**
  * Software wireframe flyover for devices where the native Vulkan renderer is
  * unavailable. It projects the same [TripWireframe] line list through the same
- * orbiting camera and strokes each segment with additive blend plus a blurred
- * backing copy for the neon glow, so the fallback still reads as the same
- * mesmerizing object — just lighter. The camera orbit is self-driven; the
- * draw-on [progress] is supplied by the panel's frame clock (as with the native
- * path).
+ * orbiting camera and strokes each segment twice — a wide dim pass plus a thin
+ * bright core, both additive — for the neon glow, so the fallback still reads as
+ * the same mesmerizing object, just lighter. The camera orbit is self-driven;
+ * the draw-on [progress] is supplied by the panel's frame clock (as with the
+ * native path). The vertex count is already bounded by TripGeometry's
+ * downsample, so the whole line list is drawn without decimation (decimating the
+ * flat GL_LINES list would sever the polyline into dashes).
  */
 @Composable
 internal fun TripFlyoverFallback(
     wireframe: FloatArray,
-    progress: Float,
+    progress: FloatState,
     modifier: Modifier = Modifier,
 ) {
     var elapsed by remember { mutableFloatStateOf(0f) }
-    LaunchedFrameClock(Unit) { dtSeconds -> elapsed += dtSeconds }
-
-    val segments = remember(wireframe) { strideSegments(wireframe) }
+    LaunchedFrameClock { dtSeconds -> elapsed += dtSeconds }
 
     Box(modifier = modifier) {
-        // Blurred backing copy → cheap bloom for the neon look.
         WireframeCanvas(
-            segments = segments,
+            segments = wireframe,
             elapsed = elapsed,
             progress = progress,
-            glow = true,
-            modifier = Modifier.fillMaxSize().blur(7.dp),
-        )
-        WireframeCanvas(
-            segments = segments,
-            elapsed = elapsed,
-            progress = progress,
-            glow = false,
             modifier = Modifier.fillMaxSize(),
         )
     }
@@ -78,74 +70,79 @@ internal fun TripFlyoverFallback(
 private fun WireframeCanvas(
     segments: FloatArray,
     elapsed: Float,
-    progress: Float,
-    glow: Boolean,
+    progress: FloatState,
     modifier: Modifier = Modifier,
-) = Canvas(modifier = modifier) {
-    val w = size.width
-    val h = size.height
-    if (w <= 0f || h <= 0f || segments.isEmpty()) return@Canvas
+) {
+    // Reused across the whole draw so the per-frame line loop allocates nothing.
+    val a = remember { Projected() }
+    val b = remember { Projected() }
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        if (w <= 0f || h <= 0f || segments.isEmpty()) return@Canvas
+        val phase = progress.floatValue
 
-    // Intro dolly then a steady orbit — the same easing the native path uses.
-    val intro = (elapsed / 3f).coerceAtMost(1f)
-    val ease = intro * intro * (3f - 2f * intro)
-    val radius = 3.5f - 0.9f * ease
-    val az = elapsed * ORBIT_RATE
-    val cx = radius * cos(ELEVATION_RAD) * sin(az)
-    val cy = 0.12f + radius * sin(ELEVATION_RAD)
-    val cz = radius * cos(ELEVATION_RAD) * cos(az)
-    val camera = Camera(eyeX = cx, eyeY = cy, eyeZ = cz, aspect = w / h)
-    val strokePx = if (glow) 4.5f else 1.6f
-    val alpha = if (glow) 0.5f else 1f
-
-    // Each stride entry is two vertices (14 floats): x,y,z,r,g,b,dist per end.
-    var i = 0
-    while (i + 2 * FLOATS <= segments.size) {
-        val da = segments[i + 6]
-        val db = segments[i + FLOATS + 6]
-        val isChrome = da < 0f && db < 0f
-        // Draw-on: hide a segment fully ahead of the playhead (chrome is always on).
-        if (!isChrome && minOf(da, db) > progress) {
-            i += 2 * FLOATS
-            continue
-        }
-        val a = camera.project(segments[i], segments[i + 1], segments[i + 2], w, h)
-        val b = camera.project(segments[i + FLOATS], segments[i + FLOATS + 1], segments[i + FLOATS + 2], w, h)
-        if (a != null && b != null) {
-            // Comet-head brighten just behind the playhead.
-            val head = if (isChrome) 0f else smoothstep(progress - 0.05f, progress, maxOf(da, db))
-            val fog = ((a.depth + b.depth) * 0.5f).let { d -> (1f - (d - 2f) / 5f).coerceIn(0.12f, 1f) }
-            val r = lerp(segments[i + 3], segments[i + FLOATS + 3], 0.5f)
-            val g = lerp(segments[i + 4], segments[i + FLOATS + 4], 0.5f)
-            val bl = lerp(segments[i + 5], segments[i + FLOATS + 5], 0.5f)
-            val hb = head * 0.9f
-            drawLine(
-                color =
-                    Color(
-                        red = ((r + (1f - r) * hb) * fog).coerceIn(0f, 1f),
-                        green = ((g + (1f - g) * hb) * fog).coerceIn(0f, 1f),
-                        blue = ((bl + (1f - bl) * hb) * fog).coerceIn(0f, 1f),
-                        alpha = alpha,
-                    ),
-                start = Offset(a.x, a.y),
-                end = Offset(b.x, b.y),
-                strokeWidth = strokePx,
-                cap = StrokeCap.Round,
-                blendMode = BlendMode.Plus,
+        // Intro dolly then a steady orbit — the same easing the native path uses.
+        val intro = (elapsed / 3f).coerceAtMost(1f)
+        val ease = intro * intro * (3f - 2f * intro)
+        val radius = 3.5f - 0.9f * ease
+        val az = elapsed * ORBIT_RATE
+        val camera =
+            Camera(
+                eyeX = radius * cos(ELEVATION_RAD) * sin(az),
+                eyeY = 0.12f + radius * sin(ELEVATION_RAD),
+                eyeZ = radius * cos(ELEVATION_RAD) * cos(az),
+                aspect = w / h,
             )
+
+        var i = 0
+        while (i + 2 * FLOATS <= segments.size) {
+            val da = segments[i + 6]
+            val db = segments[i + FLOATS + 6]
+            val isChrome = da < 0f && db < 0f
+            // Draw-on: hide a segment fully ahead of the playhead (chrome is always on).
+            if ((isChrome || minOf(da, db) <= phase) &&
+                camera.project(segments[i], segments[i + 1], segments[i + 2], w, h, a) &&
+                camera.project(segments[i + FLOATS], segments[i + FLOATS + 1], segments[i + FLOATS + 2], w, h, b)
+            ) {
+                val head = if (isChrome) 0f else smoothstep(phase - 0.05f, phase, maxOf(da, db))
+                val fog = ((a.depth + b.depth) * 0.5f).let { d -> (1f - (d - 2f) / 5f).coerceIn(0.12f, 1f) }
+                val hb = head * 0.9f
+                val r = lerp(segments[i + 3], segments[i + FLOATS + 3], 0.5f)
+                val g = lerp(segments[i + 4], segments[i + FLOATS + 4], 0.5f)
+                val bl = lerp(segments[i + 5], segments[i + FLOATS + 5], 0.5f)
+                val start = Offset(a.x, a.y)
+                val end = Offset(b.x, b.y)
+                // Wide dim glow pass, then the thin bright core; both additive so
+                // overlaps bloom. Butt cap on the core so shared joints don't
+                // double-brighten into hot dots.
+                val glow =
+                    Color(
+                        (r * fog).coerceIn(0f, 1f),
+                        (g * fog).coerceIn(0f, 1f),
+                        (bl * fog).coerceIn(0f, 1f),
+                        alpha = 0.28f,
+                    )
+                drawLine(glow, start, end, strokeWidth = 6f, cap = StrokeCap.Round, blendMode = BlendMode.Plus)
+                val core =
+                    Color(
+                        ((r + (1f - r) * hb) * fog).coerceIn(0f, 1f),
+                        ((g + (1f - g) * hb) * fog).coerceIn(0f, 1f),
+                        ((bl + (1f - bl) * hb) * fog).coerceIn(0f, 1f),
+                        alpha = 1f,
+                    )
+                drawLine(core, start, end, strokeWidth = 1.6f, cap = StrokeCap.Butt, blendMode = BlendMode.Plus)
+            }
+            i += 2 * FLOATS
         }
-        i += 2 * FLOATS
     }
 }
 
 /** Runs [onFrame] with per-frame delta seconds while composed. */
 @Composable
-private fun LaunchedFrameClock(
-    key: Any,
-    onFrame: (Float) -> Unit,
-) {
+private fun LaunchedFrameClock(onFrame: (Float) -> Unit) {
     val current = rememberUpdatedState(onFrame)
-    LaunchedEffect(key) {
+    LaunchedEffect(Unit) {
         var last = withFrameNanos { it }
         while (true) {
             val now = withFrameNanos { it }
@@ -153,6 +150,13 @@ private fun LaunchedFrameClock(
             last = now
         }
     }
+}
+
+// Mutable projection result, reused to keep the draw loop allocation-free.
+private class Projected {
+    var x = 0f
+    var y = 0f
+    var depth = 0f
 }
 
 private class Camera(
@@ -166,20 +170,18 @@ private class Camera(
     private val view: FloatArray
 
     init {
-        val cX = 0f
         val cY = 0.12f
-        val cZ = 0f
-        var fx = cX - eyeX
+        var fx = -eyeX
         var fy = cY - eyeY
-        var fz = cZ - eyeZ
+        var fz = -eyeZ
         val fl = sqrt(fx * fx + fy * fy + fz * fz).coerceAtLeast(1e-6f)
         fx /= fl
         fy /= fl
         fz /= fl
-        // side = normalize(cross(f, up))
-        var sx = fy * 0f - fz * 1f
-        var sy = fz * 0f - fx * 0f
-        var sz = fx * 1f - fy * 0f
+        // side = normalize(cross(f, up)) with up = (0,1,0)
+        var sx = -fz
+        var sy = 0f
+        var sz = fx
         val sl = sqrt(sx * sx + sy * sy + sz * sz).coerceAtLeast(1e-6f)
         sx /= sl
         sy /= sl
@@ -190,63 +192,35 @@ private class Camera(
         val uz = sx * fy - sy * fx
         view =
             floatArrayOf(
-                sx,
-                ux,
-                -fx,
-                sy,
-                uy,
-                -fy,
-                sz,
-                uz,
-                -fz,
+                sx, ux, -fx,
+                sy, uy, -fy,
+                sz, uz, -fz,
                 -(sx * eyeX + sy * eyeY + sz * eyeZ),
                 -(ux * eyeX + uy * eyeY + uz * eyeZ),
                 (fx * eyeX + fy * eyeY + fz * eyeZ),
             )
     }
 
+    /** Project into [out]; returns false when behind the camera. */
     fun project(
         x: Float,
         y: Float,
         z: Float,
         width: Float,
         height: Float,
-    ): Projected? {
-        // View-space coords.
+        out: Projected,
+    ): Boolean {
         val vx = view[0] * x + view[3] * y + view[6] * z + view[9]
         val vy = view[1] * x + view[4] * y + view[7] * z + view[10]
         val vz = view[2] * x + view[5] * y + view[8] * z + view[11]
-        val w = -vz // perspective w
-        if (w <= 0.02f) return null
-        // Perspective (Vulkan-style -f handles Y; Compose Y is also down).
-        val ndcX = (f / aspect) * vx / w
-        val ndcY = (-f) * vy / w
-        return Projected(
-            x = (ndcX * 0.5f + 0.5f) * width,
-            y = (ndcY * 0.5f + 0.5f) * height,
-            depth = w,
-        )
+        val depth = -vz // perspective forward distance
+        if (depth <= 0.02f) return false
+        // Vulkan-style -f on Y matches Compose's Y-down screen space.
+        out.x = ((f / aspect) * vx / depth * 0.5f + 0.5f) * width
+        out.y = ((-f) * vy / depth * 0.5f + 0.5f) * height
+        out.depth = depth
+        return true
     }
-}
-
-private class Projected(
-    val x: Float,
-    val y: Float,
-    val depth: Float,
-)
-
-private fun strideSegments(wireframe: FloatArray): FloatArray {
-    val segCount = wireframe.size / (2 * FLOATS)
-    if (segCount <= MAX_FALLBACK_SEGMENTS) return wireframe
-    val stride = (segCount + MAX_FALLBACK_SEGMENTS - 1) / MAX_FALLBACK_SEGMENTS
-    val out = ArrayList<Float>(MAX_FALLBACK_SEGMENTS * 2 * FLOATS)
-    var s = 0
-    while (s < segCount) {
-        val base = s * 2 * FLOATS
-        for (k in 0 until 2 * FLOATS) out.add(wireframe[base + k])
-        s += stride
-    }
-    return out.toFloatArray()
 }
 
 private fun smoothstep(
@@ -264,3 +238,36 @@ private fun lerp(
     b: Float,
     t: Float,
 ): Float = a + (b - a) * t
+
+@PreviewLightDark
+@Composable
+private fun TripFlyoverFallbackPreview() {
+    // A synthetic climbing S-curve so the preview shows the wireframe, curtain,
+    // grid, and speed gradient statically (the orbit/draw-on animate at runtime).
+    val geometry =
+        TripGeometry.from(
+            (0 until 60).map { i ->
+                TrackPointEntity(
+                    tripId = 0L,
+                    timeMs = i * 1_000L,
+                    latitude = 35.6580 + i * 0.0004,
+                    longitude = 139.7016 + 0.0008 * sin(i * 0.25f),
+                    speedMps = 6f + 10f * (0.5f + 0.5f * sin(i * 0.4f)),
+                    bearingDeg = null,
+                    altitudeM = 20.0 + i * 2.5,
+                    accuracyM = 5f,
+                )
+            },
+        )
+    FemtoTheme {
+        Box(Modifier.fillMaxSize().background(TripSceneBackground)) {
+            geometry?.let {
+                TripFlyoverFallback(
+                    wireframe = TripWireframe.build(it),
+                    progress = remember { mutableFloatStateOf(0.7f) },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+    }
+}

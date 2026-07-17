@@ -5,6 +5,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.FloatState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -77,6 +78,10 @@ internal class TripFlyoverController {
         if (handle != 0L) runCatching { TripFlyoverNative.nativeSetProgress(handle, progress) }
     }
 
+    /** False once the render thread has started and then died (a runtime Vulkan error). */
+    fun renderThreadDied(): Boolean =
+        handle != 0L && started && !runCatching { TripFlyoverNative.nativeIsRunning(handle) }.getOrDefault(false)
+
     fun release() {
         if (handle != 0L) {
             runCatching { TripFlyoverNative.nativeDestroy(handle) }
@@ -98,7 +103,7 @@ internal class TripFlyoverController {
 internal fun TripFlyoverSurface(
     controller: TripFlyoverController,
     wireframe: FloatArray,
-    progress: Float,
+    progress: FloatState,
     onUnavailable: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -115,5 +120,13 @@ internal fun TripFlyoverSurface(
         },
     )
     LaunchedEffect(wireframe) { controller.setTrack(wireframe) }
-    LaunchedEffect(progress) { controller.setProgress(progress) }
+    // Reading progress.floatValue here recomposes only this leaf (not the panel);
+    // it re-runs the effect each frame to push the playhead natively.
+    LaunchedEffect(progress.floatValue) {
+        controller.setProgress(progress.floatValue)
+        // Cheap per-frame liveness check: if the render thread died at runtime
+        // (a Vulkan error after a successful start), fall back to 2D so the panel
+        // never freezes on a dead surface.
+        if (controller.renderThreadDied()) onUnavailable()
+    }
 }
