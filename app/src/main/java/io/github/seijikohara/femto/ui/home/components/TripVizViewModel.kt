@@ -13,6 +13,7 @@ import io.github.seijikohara.femto.data.location.TripStatePreferences
 import io.github.seijikohara.femto.data.location.TripStats
 import io.github.seijikohara.femto.data.location.TripSummaryRow
 import io.github.seijikohara.femto.data.location.TripWireframe
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -78,6 +79,9 @@ internal class TripVizViewModel(
     private val tripSummaries: suspend () -> List<TripSummaryRow>,
     private val pointsForTrip: suspend (Long) -> List<TrackPointEntity>,
     private val currentTripId: suspend () -> Long,
+    // The projection + wireframe build run here (off the main thread in
+    // production); injected so tests can drive them on the test scheduler.
+    private val computeDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(TripVizUiState())
     val uiState: StateFlow<TripVizUiState> = _uiState.asStateFlow()
@@ -117,16 +121,21 @@ internal class TripVizViewModel(
                         )
                     }
             _uiState.update { it.copy(loading = false, trips = trips) }
-            // Open on the most recent trip so the panel is never empty when data exists.
-            if (trips.isNotEmpty() && _uiState.value.selection == null) {
-                select(trips.first().tripId)
-            }
+            // Reload the trip's geometry on every refresh (the panel refreshes on
+            // each open), so reopening after more driving picks up the current
+            // trip's new points instead of showing the first-open snapshot. Keep
+            // the user's selection when it still exists; otherwise open on the most
+            // recent trip.
+            val target =
+                _uiState.value.selectedTripId?.takeIf { id -> trips.any { it.tripId == id } }
+                    ?: trips.firstOrNull()?.tripId
+            if (target != null) select(target)
         }
 
     private fun select(tripId: Long) =
         viewModelScope.launch {
             _uiState.update { it.copy(selectedTripId = tripId) }
-            val geometry = withContext(Dispatchers.Default) { TripGeometry.from(pointsForTrip(tripId)) }
+            val geometry = withContext(computeDispatcher) { TripGeometry.from(pointsForTrip(tripId)) }
             // Read the palette AFTER the load (back on main), so a palette change
             // during the load is honoured rather than a launch-time snapshot.
             val selection = geometry?.let { buildSelection(tripId, it, palette) }
@@ -159,7 +168,7 @@ internal class TripVizViewModel(
         geometry: TripGeometry,
         withPalette: TripScenePalette,
     ): TripSelection =
-        withContext(Dispatchers.Default) {
+        withContext(computeDispatcher) {
             TripSelection(tripId, TripWireframe.build(geometry, withPalette), geometry.stats, geometry)
         }
 }

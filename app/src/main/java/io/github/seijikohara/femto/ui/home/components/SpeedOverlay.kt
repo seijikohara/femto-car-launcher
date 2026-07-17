@@ -121,6 +121,7 @@ internal fun SpeedOverlay(
     address: ShortAddress?,
     tripState: TripState,
     speedUnit: SpeedUnit,
+    is24Hour: Boolean,
     onReset: () -> Unit,
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
@@ -217,7 +218,7 @@ internal fun SpeedOverlay(
             onReset = onReset,
         )
         TripSinceRow(
-            label = tripState.startedAtEpochMs?.let { tripStartLabel(it) },
+            label = tripState.startedAtEpochMs?.let { tripStartLabel(it, is24Hour) },
             tier = motionTier,
         )
         // Always render the address row (even with no fix / unresolved address) so
@@ -375,26 +376,33 @@ private fun SecondaryMetric(
 // Locale-aware "since" timestamp for the trip-start row: time only while the
 // trip started today, day + time once it crosses midnight (the parked-overnight
 // case, where a bare clock time would read as this morning). DateUtils follows
-// the system locale and the 12/24-hour setting. The "today" reference advances
-// on its own midnight ticker rather than relying on a location fix to recompose
-// (with a non-zero min-distance a parked car delivers none), so the label gains
-// the date at midnight even while stationary.
+// the system locale; the 12/24-hour choice comes from the app's clock setting
+// ([is24Hour]) via FORMAT_12HOUR/FORMAT_24HOUR — the same setting the calendar
+// and weather panels honour — rather than the device default. The "today"
+// reference advances on its own midnight ticker rather than relying on a
+// location fix to recompose (with a non-zero min-distance a parked car delivers
+// none), so the label gains the date at midnight even while stationary.
 @Composable
-private fun tripStartLabel(startedAtEpochMs: Long): String {
+private fun tripStartLabel(
+    startedAtEpochMs: Long,
+    is24Hour: Boolean,
+): String {
     val context = LocalContext.current
     val zone = ZoneId.systemDefault()
     val today = rememberToday(zone)
     val startedToday = Instant.ofEpochMilli(startedAtEpochMs).atZone(zone).toLocalDate() == today
+    val clockFlag = if (is24Hour) DateUtils.FORMAT_24HOUR else DateUtils.FORMAT_12HOUR
     val timestamp =
-        remember(startedAtEpochMs, startedToday) {
+        remember(startedAtEpochMs, startedToday, is24Hour) {
             DateUtils.formatDateTime(
                 context,
                 startedAtEpochMs,
-                if (startedToday) {
-                    DateUtils.FORMAT_SHOW_TIME
-                } else {
-                    DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH
-                },
+                clockFlag or
+                    if (startedToday) {
+                        DateUtils.FORMAT_SHOW_TIME
+                    } else {
+                        DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH
+                    },
             )
         }
     return stringResource(R.string.speed_trip_since, timestamp)
@@ -417,13 +425,15 @@ private fun rememberToday(zone: ZoneId): LocalDate {
     return today.value
 }
 
-// "Since 8:04" under the reset button (the metric row's trailing cell): when
+// "Since\n8:04" under the reset button (the metric row's trailing cell): when
 // the current reset-to-reset trip began — the wall-clock time of its first GPS
-// fix, which is also the track log's first point for the trip. The row always
-// occupies its line (blank until the first fix) so the overlay's height never
-// jumps when the label appears, and [ZeroIntrinsicWidth] keeps the varying
-// label text out of the overlay's intrinsic width vote — the same stability
-// contract as the address row.
+// fix, which is also the track log's first point for the trip. Rendered as a
+// two-line right-aligned caption ("Since" over the timestamp, see the newline in
+// R.string.speed_trip_since) so it stays tucked under the reset button instead of
+// spreading a wide localized timestamp across the whole metric row. The row is
+// blank (one reserved line) until the first fix, then grows to the two-line
+// caption; [ZeroIntrinsicWidth] keeps the varying label text out of the overlay's
+// intrinsic width vote — the same stability contract as the address row.
 @Composable
 private fun TripSinceRow(
     label: String?,
@@ -441,7 +451,8 @@ private fun TripSinceRow(
             // The dimmest tier (matches the metric keys): pure glance metadata,
             // never competing with the hero numeral.
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
-            maxLines = 1,
+            // Two lines for the "Since\n<time>" caption; blank stays one line.
+            maxLines = 2,
             minLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.End,
@@ -675,6 +686,7 @@ private fun SpeedOverlayPreview() {
                     startedAtEpochMs = System.currentTimeMillis(),
                 ),
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+            is24Hour = true,
             onReset = {},
         )
     }
@@ -693,6 +705,7 @@ private fun SpeedOverlayWideValuesPreview() {
             address = ShortAddress(locality = "Minato-ku", region = "Tokyo"),
             tripState = TripState(distanceMeters = 188_400.0, avgSpeedMs = 30.5, currentSpeedMs = 30.5),
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+            is24Hour = true,
             onReset = {},
         )
     }
@@ -710,6 +723,7 @@ private fun SpeedOverlayNoFixPreview() {
             address = ShortAddress(locality = "Minato-ku", region = "Tokyo"),
             tripState = TripState.Initial,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+            is24Hour = true,
             onReset = {},
         )
     }
