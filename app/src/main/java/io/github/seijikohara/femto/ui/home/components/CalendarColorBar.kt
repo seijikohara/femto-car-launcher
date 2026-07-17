@@ -2,7 +2,7 @@ package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -13,9 +13,14 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 /**
  * Thin rounded vertical bar painted in a calendar's own color, used on the
  * calendar card and panel to mark which calendar an event belongs to.
- * `CircleShape` over the narrow box renders as a capsule, so the bar keeps
- * fully round caps at any [FemtoDimens.CalendarBarWidth] /
- * [FemtoDimens.CalendarBarHeight].
+ * `CircleShape` over the narrow box renders as a capsule with fully round
+ * caps at any height.
+ *
+ * The bar owns only its [FemtoDimens.CalendarBarWidth]; the height comes from
+ * the call site — the event rows size themselves with
+ * `Modifier.height(IntrinsicSize.Min)` and pass `fillMaxHeight()`, so the
+ * capsule spans exactly the title's rendered lines (both lines when a long
+ * title wraps) instead of floating as a fixed-height stub beside them.
  *
  * The bar deliberately uses the raw provider color rather than a
  * `MaterialTheme` role: the whole point is to match the exact colors the user
@@ -30,7 +35,7 @@ internal fun CalendarColorBar(
     modifier: Modifier = Modifier,
 ) = Box(
     modifier
-        .size(width = FemtoDimens.CalendarBarWidth, height = FemtoDimens.CalendarBarHeight)
+        .width(FemtoDimens.CalendarBarWidth)
         .clip(CircleShape)
         .background(Color(color)),
 )

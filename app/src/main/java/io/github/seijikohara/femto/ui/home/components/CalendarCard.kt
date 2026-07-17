@@ -5,9 +5,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -336,7 +339,7 @@ private fun EventRow(
     Text(
         text = time,
         // Indent past the bar gutter so the time shares the title's left edge;
-        // the bar leads the title row below, centered on the title line.
+        // the bar leads the title row below, spanning its rendered lines.
         modifier =
             if (showColorBar) {
                 Modifier.padding(start = FemtoDimens.CalendarBarGutter)
@@ -349,13 +352,15 @@ private fun EventRow(
         softWrap = false,
     )
     Row(
+        // IntrinsicSize.Min sizes this row to the title text, so the bar's
+        // fillMaxHeight spans exactly the rendered line(s) — one line for a
+        // short title, both when it wraps — instead of floating as a
+        // fixed-height stub beside wrapped text.
+        modifier = Modifier.height(IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarBarGap),
-        // Center the bar on the title line rather than the whole time+title
-        // stack, so it marks the event at its title.
-        verticalAlignment = Alignment.CenterVertically,
     ) {
         if (showColorBar) {
-            CalendarColorBar(color = color)
+            CalendarColorBar(color = color, modifier = Modifier.fillMaxHeight())
         }
         Text(
             text = title,
