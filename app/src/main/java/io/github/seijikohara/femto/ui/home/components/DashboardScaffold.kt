@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterExitState
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -707,9 +708,18 @@ private fun DashboardOverlays(
             exit = Motion.panelExit(motionTier),
             modifier = Modifier.fillMaxSize().padding(outerPad),
         ) {
+            // The trip flyover's native path is a media-overlay SurfaceView that
+            // the window fade/scale can't touch, so it would pop out at the end of
+            // the collapse. Gate the Vulkan surface on the transition being fully
+            // settled; while entering/exiting, TripPanel shows the in-window 2D
+            // fallback, which fades and scales like the other panels.
+            val settled =
+                transition.currentState == EnterExitState.Visible &&
+                    transition.targetState == EnterExitState.Visible
             TripPanel(
                 onClose = { tripExpanded = false },
                 speedUnit = speedUnit,
+                settled = settled,
                 modifier = Modifier.fillMaxSize(),
             )
         }

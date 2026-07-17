@@ -9,13 +9,28 @@ import androidx.compose.ui.graphics.Color
 // runtime always pulls from androidx.compose.material3.dynamicLightColorScheme.
 
 /**
- * The trip flyover's scene backdrop — a fixed near-black the neon wireframe
- * glows on, independent of the light/dark theme (the render is always dark).
- * Kept here, the sanctioned home for hardcoded hex, and matched to the native
- * renderer's clear colour (`flyover_renderer.cpp`, `{0.02, 0.03, 0.06}`); the
- * two must move together.
+ * The trip flyover's **dark**-scene backdrop — the near-black the additive neon
+ * wireframe glows on. It is the single backdrop SSOT: the native renderer's
+ * clear colour and the 2D fallback both take it via [TripScenePalette]
+ * [io.github.seijikohara.femto.data.location.TripScenePalette], so this hex and
+ * the native clear no longer drift. Light scenes use [TripSceneBackgroundLight].
  */
 internal val TripSceneBackground = Color(0xFF050810)
+
+/**
+ * The trip flyover's **light**-scene backdrop — a cool near-white the darkened
+ * wireframe reads against under alpha-over blending (additive glow only works on
+ * a dark scene, so the light render is a true light drawing, not a tinted dark
+ * one). Paired with [TripSceneHeadLight] for the comet head.
+ */
+internal val TripSceneBackgroundLight = Color(0xFFEEF1F6)
+
+/**
+ * The comet-head mix target on the **light** scene — a near-black ink so the
+ * leading "now" point stays the most emphatic mark against the light backdrop
+ * (the dark scene mixes toward white instead).
+ */
+internal val TripSceneHeadLight = Color(0xFF0A0E16)
 
 private val Ink = Color(0xFF111111)
 private val Paper = Color(0xFFFAFAFA)
