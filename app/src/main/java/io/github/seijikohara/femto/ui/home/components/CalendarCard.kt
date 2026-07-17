@@ -257,14 +257,14 @@ private fun DayRow(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(1.dp),
     ) {
-        Text(
-            // Two letters keep a Latin abbreviation inside the narrow gutter; a CJK
-            // weekday label is a single glyph regardless.
-            text = day.weekdayLetter.take(2).uppercase(),
+        FitText(
+            // The full locale short form ("MON", "月") — never a hand-truncated
+            // two letters; FitText shrinks the rare longer form (e.g. "LUN.")
+            // into the narrow gutter instead.
+            text = day.weekdayLetter.uppercase(),
             style = MaterialTheme.typography.sectionLabel(12),
             color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            softWrap = false,
+            minFontSize = FemtoDimens.TextXs,
         )
         Text(
             text = "${day.date.dayOfMonth}",

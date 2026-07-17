@@ -27,6 +27,7 @@ import io.github.seijikohara.femto.data.calendar.EventItem
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.FitText
 import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
@@ -216,12 +217,13 @@ private fun AgendaDay(
                 modifier = Modifier.width(44.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(
-                    text = current.weekdayLetter.take(3).uppercase(),
+                FitText(
+                    // The full locale short form; FitText shrinks the rare longer
+                    // form instead of truncating it to three letters.
+                    text = current.weekdayLetter.uppercase(),
                     style = MaterialTheme.typography.sectionLabel(12),
                     color = weekdayColor,
-                    maxLines = 1,
-                    softWrap = false,
+                    minFontSize = FemtoDimens.TextXs,
                 )
                 Text(
                     text = "${current.date.dayOfMonth}",
