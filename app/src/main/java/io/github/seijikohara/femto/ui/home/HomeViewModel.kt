@@ -46,7 +46,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import okhttp3.Cache
 import okhttp3.OkHttpClient
+import java.io.File
 
 private const val TAG = "HomeViewModel"
 
@@ -264,6 +266,10 @@ private data class CoreSignals(
     val music: MusicCardState,
 )
 
+// Shared HTTP disk cache size. A forecast response is ~50 KB and Nominatim
+// answers are tiny, so 5 MiB holds days of both with headroom.
+private const val HTTP_CACHE_BYTES = 5L * 1024 * 1024
+
 internal class HomeViewModelFactory(
     private val application: Application,
 ) : ViewModelProvider.Factory {
@@ -279,8 +285,17 @@ internal class HomeViewModelFactory(
         val clock = ClockRepository(application)
         val clockFlow = clock.tickFlow()
         // Share one OkHttpClient across the weather and geocoding APIs so the
-        // connection pool and dispatcher are reused instead of duplicated.
-        val httpClient = OkHttpClient()
+        // connection pool and dispatcher are reused instead of duplicated. The
+        // disk cache turns on standard HTTP caching for both: api.met.no's terms
+        // require honouring Expires and revalidating with If-Modified-Since, and
+        // OkHttp enforces exactly that against the cache — including across
+        // process restarts, so a boot-time relaunch reuses a still-fresh entry
+        // instead of re-fetching.
+        val httpClient =
+            OkHttpClient
+                .Builder()
+                .cache(Cache(File(application.cacheDir, "http_cache"), HTTP_CACHE_BYTES))
+                .build()
         // Both api.met.no and Nominatim reject stock/generic User-Agents and
         // require an identifying app name plus a contact URL in the header.
         val userAgent =
