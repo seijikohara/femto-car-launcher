@@ -13,6 +13,7 @@ layout(push_constant) uniform Push {
     float time;       // seconds, for the head shimmer
     float aspect;
     float pad;
+    vec4 head;        // rgb = comet-head mix target (theme-dependent); a unused
 } pc;
 
 layout(location = 0) out vec3 vColor;

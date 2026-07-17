@@ -55,6 +55,16 @@ Java_io_github_seijikohara_femto_ui_home_components_TripFlyoverNative_nativeSetP
     if (handle != 0) flyover_set_progress(asRenderer(handle), progress);
 }
 
+JNIEXPORT void JNICALL
+Java_io_github_seijikohara_femto_ui_home_components_TripFlyoverNative_nativeSetTheme(
+    JNIEnv *, jobject, jlong handle, jfloat bgR, jfloat bgG, jfloat bgB, jfloat headR,
+    jfloat headG, jfloat headB, jboolean isDark) {
+    if (handle != 0) {
+        flyover_set_theme(asRenderer(handle), bgR, bgG, bgB, headR, headG, headB,
+                          isDark == JNI_TRUE);
+    }
+}
+
 JNIEXPORT jboolean JNICALL
 Java_io_github_seijikohara_femto_ui_home_components_TripFlyoverNative_nativeIsRunning(
     JNIEnv *, jobject, jlong handle) {

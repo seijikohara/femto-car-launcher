@@ -114,6 +114,7 @@ struct PushConstants {
     float time;
     float aspect;
     float pad;
+    float head[4];  // rgb = comet-head mix target (theme-dependent); [3] unused
 };
 
 }  // namespace
@@ -138,7 +139,11 @@ struct FlyoverRenderer {
 
     VkRenderPass renderPass = VK_NULL_HANDLE;
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
-    VkPipeline pipeline = VK_NULL_HANDLE;
+    // Two pipelines sharing one layout + shaders, differing only in the blend
+    // dst factor: additive glow for the dark scene, alpha-over for the light one.
+    // The render thread binds one per frame from the current theme (themeDark).
+    VkPipeline pipeline = VK_NULL_HANDLE;      // additive (dark scene)
+    VkPipeline pipelineOver = VK_NULL_HANDLE;  // alpha-over (light scene)
     VkCommandPool commandPool = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> commandBuffers;
 
@@ -161,6 +166,17 @@ struct FlyoverRenderer {
     std::atomic<float> progress{0.0f};
     std::atomic<int> pendingWidth{0};
     std::atomic<int> pendingHeight{0};
+
+    // Theme, pushed from Kotlin (flyover_set_theme) and read on the render thread.
+    // Defaults mirror the dark palette (TripSceneBackground 0xFF050810, white
+    // comet head) so the frames before the first push already look right.
+    std::atomic<bool> themeDark{true};
+    std::atomic<float> clearR{0.0196f};
+    std::atomic<float> clearG{0.0314f};
+    std::atomic<float> clearB{0.0627f};
+    std::atomic<float> headR{1.0f};
+    std::atomic<float> headG{1.0f};
+    std::atomic<float> headB{1.0f};
 
     std::mutex trackMutex;
     std::vector<float> pendingTrack;
@@ -421,22 +437,33 @@ struct FlyoverRenderer {
         ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
         ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-        // Additive blend so overlapping lines accumulate into glow.
-        VkPipelineColorBlendAttachmentState blend{};
-        blend.blendEnable = VK_TRUE;
-        blend.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-        blend.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-        blend.colorBlendOp = VK_BLEND_OP_ADD;
-        blend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        blend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        blend.alphaBlendOp = VK_BLEND_OP_ADD;
-        blend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                               VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        // The fragment shader outputs premultiplied-alpha colour (rgb = col*cov,
+        // a = cov). Both pipelines take src=ONE; they differ only in the dst
+        // factor: dark = ONE (additive glow, lines accumulate onto the black
+        // scene), light = ONE_MINUS_SRC_ALPHA (over, lines composite onto the
+        // light scene). One scene drawn, two blend models.
+        VkColorComponentFlags writeMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        VkPipelineColorBlendAttachmentState additive{};
+        additive.blendEnable = VK_TRUE;
+        additive.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        additive.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        additive.colorBlendOp = VK_BLEND_OP_ADD;
+        additive.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        additive.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        additive.alphaBlendOp = VK_BLEND_OP_ADD;
+        additive.colorWriteMask = writeMask;
 
-        VkPipelineColorBlendStateCreateInfo cb{};
-        cb.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        cb.attachmentCount = 1;
-        cb.pAttachments = &blend;
+        VkPipelineColorBlendAttachmentState over = additive;
+        over.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        over.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+
+        VkPipelineColorBlendStateCreateInfo cbAdditive{};
+        cbAdditive.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        cbAdditive.attachmentCount = 1;
+        cbAdditive.pAttachments = &additive;
+        VkPipelineColorBlendStateCreateInfo cbOver = cbAdditive;
+        cbOver.pAttachments = &over;
 
         VkDynamicState dyn[2] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
         VkPipelineDynamicStateCreateInfo ds{};
@@ -459,6 +486,7 @@ struct FlyoverRenderer {
             return false;
         }
 
+        // Two create infos identical but for the blend state; built in one call.
         VkGraphicsPipelineCreateInfo gp{};
         gp.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
         gp.stageCount = 2;
@@ -468,19 +496,24 @@ struct FlyoverRenderer {
         gp.pViewportState = &vp;
         gp.pRasterizationState = &rs;
         gp.pMultisampleState = &ms;
-        gp.pColorBlendState = &cb;
+        gp.pColorBlendState = &cbAdditive;
         gp.pDynamicState = &ds;
         gp.layout = pipelineLayout;
         gp.renderPass = renderPass;
         gp.subpass = 0;
+        VkGraphicsPipelineCreateInfo gps[2] = {gp, gp};
+        gps[1].pColorBlendState = &cbOver;
+        VkPipeline pipelines[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE};
         VkResult res =
-            vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &gp, nullptr, &pipeline);
+            vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 2, gps, nullptr, pipelines);
         vkDestroyShaderModule(device, vert, nullptr);
         vkDestroyShaderModule(device, frag, nullptr);
         if (res != VK_SUCCESS) {
             LOGE("pipeline create failed: %d", res);
             return false;
         }
+        pipeline = pipelines[0];
+        pipelineOver = pipelines[1];
         return true;
     }
 
@@ -632,6 +665,10 @@ struct FlyoverRenderer {
         pc->time = elapsed;
         pc->aspect = aspect;
         pc->pad = 0.0f;
+        pc->head[0] = headR.load();
+        pc->head[1] = headG.load();
+        pc->head[2] = headB.load();
+        pc->head[3] = 0.0f;
     }
 
     bool recordAndSubmit(uint32_t imageIndex, const PushConstants &pc) {
@@ -642,9 +679,10 @@ struct FlyoverRenderer {
         VK_CHECK(vkBeginCommandBuffer(cmd, &bi));
 
         VkClearValue clear{};
-        // The scene backdrop; mirrored by TripSceneBackground (Color.kt, 0xFF050810)
-        // which the fallback and panel chrome paint — keep the two in step.
-        clear.color = {{0.02f, 0.03f, 0.06f, 1.0f}};
+        // The scene backdrop, pushed from Kotlin via flyover_set_theme so the
+        // clear colour follows the light/dark palette (TripScenePalette). The
+        // Kotlin TripScenePalette is the single backdrop SSOT.
+        clear.color = {{clearR.load(), clearG.load(), clearB.load(), 1.0f}};
         VkRenderPassBeginInfo rp{};
         rp.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         rp.renderPass = renderPass;
@@ -660,7 +698,10 @@ struct FlyoverRenderer {
         vkCmdSetScissor(cmd, 0, 1, &scissor);
 
         if (vertexCount > 0 && vertexBuffer != VK_NULL_HANDLE) {
-            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+            // Pick the blend model for the current scene: additive on dark, over
+            // on light. Both share the layout, so only the bound pipeline differs.
+            VkPipeline activePipeline = themeDark.load() ? pipeline : pipelineOver;
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, activePipeline);
             vkCmdPushConstants(cmd, pipelineLayout,
                                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                                sizeof(PushConstants), &pc);
@@ -838,6 +879,18 @@ void flyover_set_progress(FlyoverRenderer *r, float progress) {
     r->progress.store(clamped);
 }
 
+void flyover_set_theme(FlyoverRenderer *r, float bgR, float bgG, float bgB, float headR,
+                       float headG, float headB, bool isDark) {
+    if (!r) return;
+    r->clearR.store(bgR);
+    r->clearG.store(bgG);
+    r->clearB.store(bgB);
+    r->headR.store(headR);
+    r->headG.store(headG);
+    r->headB.store(headB);
+    r->themeDark.store(isDark);
+}
+
 bool flyover_is_running(FlyoverRenderer *r) { return r && r->running.load(); }
 
 void flyover_resize(FlyoverRenderer *r, int width, int height) {
@@ -877,6 +930,10 @@ void flyover_stop(FlyoverRenderer *r) {
         if (r->pipeline != VK_NULL_HANDLE) {
             vkDestroyPipeline(r->device, r->pipeline, nullptr);
             r->pipeline = VK_NULL_HANDLE;
+        }
+        if (r->pipelineOver != VK_NULL_HANDLE) {
+            vkDestroyPipeline(r->device, r->pipelineOver, nullptr);
+            r->pipelineOver = VK_NULL_HANDLE;
         }
         if (r->pipelineLayout != VK_NULL_HANDLE) {
             vkDestroyPipelineLayout(r->device, r->pipelineLayout, nullptr);

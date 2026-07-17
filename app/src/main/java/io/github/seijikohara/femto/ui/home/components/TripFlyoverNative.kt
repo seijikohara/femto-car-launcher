@@ -41,6 +41,17 @@ internal object TripFlyoverNative {
         progress: Float,
     )
 
+    external fun nativeSetTheme(
+        handle: Long,
+        backgroundR: Float,
+        backgroundG: Float,
+        backgroundB: Float,
+        headR: Float,
+        headG: Float,
+        headB: Float,
+        isDark: Boolean,
+    )
+
     external fun nativeIsRunning(handle: Long): Boolean
 
     external fun nativeResize(

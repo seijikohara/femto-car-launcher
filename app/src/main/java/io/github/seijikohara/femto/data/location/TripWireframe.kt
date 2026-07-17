@@ -12,6 +12,12 @@ package io.github.seijikohara.femto.data.location
  * distanceFraction gates the draw-on reveal per vertex; chrome that should
  * always be visible (the ground grid) carries [ALWAYS_ON] (-1), which is below
  * any real fraction so the shader never hides it.
+ *
+ * Colours are baked here from the active [TripScenePalette] so the native and
+ * fallback paths upload the identical buffer: the speed line scales by
+ * [TripScenePalette.lineScale] (darkened for the light scene) and the ground
+ * grid takes [TripScenePalette.grid] (accent-tinted). The list is theme-derived,
+ * so it is rebuilt when the palette changes.
  */
 internal object TripWireframe {
     const val FLOATS_PER_VERTEX = TripGeometry.FLOATS_PER_VERTEX
@@ -21,7 +27,6 @@ internal object TripWireframe {
     // division count — a receding sci-fi floor the track flies over.
     private const val GRID_HALF = 1.15f
     private const val GRID_DIVISIONS = 16
-    private val GRID_COLOR = floatArrayOf(0.10f, 0.36f, 0.46f)
 
     // The curtain is sampled (not every point) so it reads as ribs, not a solid
     // wall, and dimmed so the bright track line stays the hero.
@@ -29,34 +34,40 @@ internal object TripWireframe {
     private const val CURTAIN_DIM = 0.32f
 
     /** Build the full line list. Returns an empty array for an empty geometry. */
-    fun build(geometry: TripGeometry): FloatArray {
+    fun build(
+        geometry: TripGeometry,
+        palette: TripScenePalette = TripScenePalette.Dark,
+    ): FloatArray {
         val out = ArrayList<Float>(geometry.vertexCount * FLOATS_PER_VERTEX * 3)
-        appendTrack(geometry, out)
-        appendCurtain(geometry, out)
-        appendGrid(out)
+        appendTrack(geometry, palette, out)
+        appendCurtain(geometry, palette, out)
+        appendGrid(palette, out)
         return out.toFloatArray()
     }
 
     private fun appendTrack(
         geometry: TripGeometry,
+        palette: TripScenePalette,
         out: ArrayList<Float>,
     ) {
         val v = geometry.vertices
         // Each continuous segment becomes consecutive line-list pairs.
         geometry.segments.forEach { range ->
             for (i in range.first until range.last) {
-                appendVertex(out, v, i)
-                appendVertex(out, v, i + 1)
+                appendTrackVertex(out, v, i, palette.lineScale)
+                appendTrackVertex(out, v, i + 1, palette.lineScale)
             }
         }
     }
 
     private fun appendCurtain(
         geometry: TripGeometry,
+        palette: TripScenePalette,
         out: ArrayList<Float>,
     ) {
         if (!geometry.stats.hasAltitude) return
         val v = geometry.vertices
+        val scale = palette.lineScale
         geometry.segments.forEach { range ->
             var i = range.first
             while (i <= range.last) {
@@ -65,59 +76,71 @@ internal object TripWireframe {
                 val y = v[base + 1]
                 val z = v[base + 2]
                 val dist = v[base + 6]
-                // Top: the track point in its dimmed colour.
+                // Top: the track point in its dimmed (and scene-scaled) colour.
                 out.add(x)
                 out.add(y)
                 out.add(z)
-                out.add(v[base + 3] * CURTAIN_DIM)
-                out.add(v[base + 4] * CURTAIN_DIM)
-                out.add(v[base + 5] * CURTAIN_DIM)
+                out.add(v[base + 3] * scale * CURTAIN_DIM)
+                out.add(v[base + 4] * scale * CURTAIN_DIM)
+                out.add(v[base + 5] * scale * CURTAIN_DIM)
                 out.add(dist)
                 // Bottom: straight down to the ground plane, same reveal fraction.
                 out.add(x)
                 out.add(0f)
                 out.add(z)
-                out.add(v[base + 3] * CURTAIN_DIM * 0.4f)
-                out.add(v[base + 4] * CURTAIN_DIM * 0.4f)
-                out.add(v[base + 5] * CURTAIN_DIM * 0.4f)
+                out.add(v[base + 3] * scale * CURTAIN_DIM * 0.4f)
+                out.add(v[base + 4] * scale * CURTAIN_DIM * 0.4f)
+                out.add(v[base + 5] * scale * CURTAIN_DIM * 0.4f)
                 out.add(dist)
                 i += CURTAIN_STRIDE
             }
         }
     }
 
-    private fun appendGrid(out: ArrayList<Float>) {
+    private fun appendGrid(
+        palette: TripScenePalette,
+        out: ArrayList<Float>,
+    ) {
         val step = (GRID_HALF * 2f) / GRID_DIVISIONS
         for (i in 0..GRID_DIVISIONS) {
             val p = -GRID_HALF + i * step
             // Line parallel to X (varying Z held at p), then parallel to Z.
-            gridVertex(out, -GRID_HALF, p)
-            gridVertex(out, GRID_HALF, p)
-            gridVertex(out, p, -GRID_HALF)
-            gridVertex(out, p, GRID_HALF)
+            gridVertex(out, palette.grid, -GRID_HALF, p)
+            gridVertex(out, palette.grid, GRID_HALF, p)
+            gridVertex(out, palette.grid, p, -GRID_HALF)
+            gridVertex(out, palette.grid, p, GRID_HALF)
         }
     }
 
     private fun gridVertex(
         out: ArrayList<Float>,
+        color: FloatArray,
         x: Float,
         z: Float,
     ) {
         out.add(x)
         out.add(0f)
         out.add(z)
-        out.add(GRID_COLOR[0])
-        out.add(GRID_COLOR[1])
-        out.add(GRID_COLOR[2])
+        out.add(color[0])
+        out.add(color[1])
+        out.add(color[2])
         out.add(ALWAYS_ON)
     }
 
-    private fun appendVertex(
+    // Position + distanceFraction verbatim, speed colour scaled for the scene.
+    private fun appendTrackVertex(
         out: ArrayList<Float>,
         v: FloatArray,
         index: Int,
+        scale: Float,
     ) {
         val base = index * FLOATS_PER_VERTEX
-        for (k in 0 until FLOATS_PER_VERTEX) out.add(v[base + k])
+        out.add(v[base])
+        out.add(v[base + 1])
+        out.add(v[base + 2])
+        out.add(v[base + 3] * scale)
+        out.add(v[base + 4] * scale)
+        out.add(v[base + 5] * scale)
+        out.add(v[base + 6])
     }
 }

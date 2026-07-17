@@ -5,24 +5,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import io.github.seijikohara.femto.data.location.TrackPointEntity
 import io.github.seijikohara.femto.data.location.TripGeometry
+import io.github.seijikohara.femto.data.location.TripScenePalette
 import io.github.seijikohara.femto.data.location.TripWireframe
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
-import io.github.seijikohara.femto.ui.theme.TripSceneBackground
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -37,12 +32,18 @@ private const val FLOATS = TripWireframe.FLOATS_PER_VERTEX
 
 /**
  * Software wireframe flyover for devices where the native Vulkan renderer is
- * unavailable. It projects the same [TripWireframe] line list through the same
- * orbiting camera and strokes each segment twice — a wide dim pass plus a thin
- * bright core, both additive — for the neon glow, so the fallback still reads as
- * the same mesmerizing object, just lighter. The camera orbit is self-driven;
- * the draw-on [progress] is supplied by the panel's frame clock (as with the
- * native path). The vertex count is already bounded by TripGeometry's
+ * unavailable — and, briefly, for the panel's enter/exit transitions, where the
+ * in-window fallback fades/scales as Compose content while the media-overlay
+ * surface cannot.
+ *
+ * It projects the same [TripWireframe] line list through the same orbiting
+ * camera as the native path and adapts to the scene: on the dark scene it
+ * strokes each segment twice — a wide dim pass plus a thin bright core, both
+ * additive — for the neon glow; on the light scene it strokes darkened lines
+ * with alpha-over so they read against the light backdrop (additive glow only
+ * works on a dark scene). [elapsed] (the orbit clock) and [progress] (the
+ * draw-on playhead) are supplied by the host so the fallback stays in step
+ * across a surface swap. The vertex count is already bounded by TripGeometry's
  * downsample, so the whole line list is drawn without decimation (decimating the
  * flat GL_LINES list would sever the polyline into dashes).
  */
@@ -50,16 +51,16 @@ private const val FLOATS = TripWireframe.FLOATS_PER_VERTEX
 internal fun TripFlyoverFallback(
     wireframe: FloatArray,
     progress: Float,
+    elapsed: Float,
+    palette: TripScenePalette,
     modifier: Modifier = Modifier,
 ) {
-    var elapsed by remember { mutableFloatStateOf(0f) }
-    LaunchedFrameClock { dtSeconds -> elapsed += dtSeconds }
-
     Box(modifier = modifier) {
         WireframeCanvas(
             segments = wireframe,
             elapsed = elapsed,
             progress = progress,
+            palette = palette,
             modifier = Modifier.fillMaxSize(),
         )
     }
@@ -70,6 +71,7 @@ private fun WireframeCanvas(
     segments: FloatArray,
     elapsed: Float,
     progress: Float,
+    palette: TripScenePalette,
     modifier: Modifier = Modifier,
 ) {
     // Reused across the whole draw so the per-frame line loop allocates nothing.
@@ -112,43 +114,70 @@ private fun WireframeCanvas(
                 val bl = lerp(segments[i + 5], segments[i + FLOATS + 5], 0.5f)
                 val start = Offset(a.x, a.y)
                 val end = Offset(b.x, b.y)
-                // Wide dim glow pass, then the thin bright core; both additive so
-                // overlaps bloom. Butt cap on the core so shared joints don't
-                // double-brighten into hot dots.
-                val glow =
-                    Color(
-                        (r * fog).coerceIn(0f, 1f),
-                        (g * fog).coerceIn(0f, 1f),
-                        (bl * fog).coerceIn(0f, 1f),
-                        alpha = 0.28f,
-                    )
-                drawLine(glow, start, end, strokeWidth = 6f, cap = StrokeCap.Round, blendMode = BlendMode.Plus)
-                val core =
-                    Color(
-                        ((r + (1f - r) * hb) * fog).coerceIn(0f, 1f),
-                        ((g + (1f - g) * hb) * fog).coerceIn(0f, 1f),
-                        ((bl + (1f - bl) * hb) * fog).coerceIn(0f, 1f),
-                        alpha = 1f,
-                    )
-                drawLine(core, start, end, strokeWidth = 1.6f, cap = StrokeCap.Butt, blendMode = BlendMode.Plus)
+                if (palette.isDark) {
+                    drawDarkSegment(start, end, r, g, bl, fog, hb)
+                } else {
+                    drawLightSegment(start, end, r, g, bl, fog, hb, palette.head)
+                }
             }
             i += 2 * FLOATS
         }
     }
 }
 
-/** Runs [onFrame] with per-frame delta seconds while composed. */
-@Composable
-private fun LaunchedFrameClock(onFrame: (Float) -> Unit) {
-    val current = rememberUpdatedState(onFrame)
-    LaunchedEffect(Unit) {
-        var last = withFrameNanos { it }
-        while (true) {
-            val now = withFrameNanos { it }
-            current.value((now - last).coerceAtLeast(0L) / 1_000_000_000f)
-            last = now
-        }
-    }
+// Dark scene: a wide dim glow pass, then the thin bright core; both additive so
+// overlaps bloom. Butt cap on the core so shared joints don't double-brighten
+// into hot dots. Head mixes toward white; fog multiplies the colour down toward
+// the black backdrop (additive makes "toward black" a fade).
+private fun DrawScope.drawDarkSegment(
+    start: Offset,
+    end: Offset,
+    r: Float,
+    g: Float,
+    bl: Float,
+    fog: Float,
+    hb: Float,
+) {
+    val glow =
+        Color(
+            (r * fog).coerceIn(0f, 1f),
+            (g * fog).coerceIn(0f, 1f),
+            (bl * fog).coerceIn(0f, 1f),
+            alpha = 0.28f,
+        )
+    drawLine(glow, start, end, strokeWidth = 6f, cap = StrokeCap.Round, blendMode = BlendMode.Plus)
+    val core =
+        Color(
+            ((r + (1f - r) * hb) * fog).coerceIn(0f, 1f),
+            ((g + (1f - g) * hb) * fog).coerceIn(0f, 1f),
+            ((bl + (1f - bl) * hb) * fog).coerceIn(0f, 1f),
+            alpha = 1f,
+        )
+    drawLine(core, start, end, strokeWidth = 1.6f, cap = StrokeCap.Butt, blendMode = BlendMode.Plus)
+}
+
+// Light scene: darkened lines composited over the light backdrop (alpha-over),
+// so fog becomes the alpha (distant lines fade into the backdrop) and the head
+// mixes toward the ink target instead of white. A wide low-alpha pass softens
+// the edge without the additive bloom that would wash out on light.
+private fun DrawScope.drawLightSegment(
+    start: Offset,
+    end: Offset,
+    r: Float,
+    g: Float,
+    bl: Float,
+    fog: Float,
+    hb: Float,
+    head: FloatArray,
+) {
+    val cr = lerp(r, head[0], hb)
+    val cg = lerp(g, head[1], hb)
+    val cb = lerp(bl, head[2], hb)
+    val alpha = fog.coerceIn(0f, 1f)
+    val soft = Color(cr, cg, cb, alpha = alpha * 0.22f)
+    drawLine(soft, start, end, strokeWidth = 6f, cap = StrokeCap.Round, blendMode = BlendMode.SrcOver)
+    val core = Color(cr, cg, cb, alpha = alpha)
+    drawLine(core, start, end, strokeWidth = 1.6f, cap = StrokeCap.Butt, blendMode = BlendMode.SrcOver)
 }
 
 // Mutable projection result, reused to keep the draw loop allocation-free.
@@ -265,11 +294,14 @@ private fun TripFlyoverFallbackPreview() {
             },
         )
     FemtoTheme {
-        Box(Modifier.fillMaxSize().background(TripSceneBackground)) {
+        val palette = rememberTripScenePalette()
+        Box(Modifier.fillMaxSize().background(palette.backgroundColor())) {
             geometry?.let {
                 TripFlyoverFallback(
-                    wireframe = TripWireframe.build(it),
+                    wireframe = TripWireframe.build(it, palette),
                     progress = 0.7f,
+                    elapsed = 0f,
+                    palette = palette,
                     modifier = Modifier.fillMaxSize(),
                 )
             }

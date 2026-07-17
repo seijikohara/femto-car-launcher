@@ -25,6 +25,12 @@ void flyover_set_track(FlyoverRenderer *r, const float *data, int floatCount);
 // Draw-on playhead in [0, 1] (used while the user scrubs / when paused).
 void flyover_set_progress(FlyoverRenderer *r, float progress);
 
+// Light/dark scene theme: the clear/backdrop colour, the comet-head mix target,
+// and whether the scene is dark (additive glow) or light (alpha-over). Pushed
+// from Kotlin; read on the render thread. Thread-safe and idempotent.
+void flyover_set_theme(FlyoverRenderer *r, float bgR, float bgG, float bgB, float headR,
+                       float headG, float headB, bool isDark);
+
 // Whether the render thread is still alive. Turns false if a runtime Vulkan
 // error stops it, so the Kotlin side can fall back to 2D mid-flight.
 bool flyover_is_running(FlyoverRenderer *r);

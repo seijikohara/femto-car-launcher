@@ -24,11 +24,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -54,6 +56,7 @@ import com.composables.icons.lucide.Pause
 import com.composables.icons.lucide.Play
 import com.composables.icons.lucide.RotateCcw
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.location.TripScenePalette
 import io.github.seijikohara.femto.data.location.TripStats
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.distanceLabel
@@ -62,7 +65,6 @@ import io.github.seijikohara.femto.ui.locale.label
 import io.github.seijikohara.femto.ui.locale.tripDistanceFromMeters
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
-import io.github.seijikohara.femto.ui.theme.TripSceneBackground
 import io.github.seijikohara.femto.ui.theme.eyebrow
 import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.panelMetric
@@ -88,6 +90,7 @@ private const val PLAY_SECONDS = 22f
 internal fun TripPanel(
     onClose: () -> Unit,
     speedUnit: SpeedUnit,
+    settled: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: TripVizViewModel = viewModel(factory = TripVizViewModelFactory)
@@ -98,6 +101,12 @@ internal fun TripPanel(
     // list every time the panel re-enters composition — otherwise reopening the
     // flyover after more driving would show the list from the first open.
     LaunchedEffect(Unit) { viewModel.onAction(TripVizAction.Refresh) }
+
+    // The scene adapts to the rendered light/dark theme + accent; feed the
+    // palette to the VM so the wireframe colours are rebuilt when it changes.
+    val palette = rememberTripScenePalette()
+    LaunchedEffect(palette) { viewModel.onAction(TripVizAction.SetPalette(palette)) }
+    val backdrop = palette.backgroundColor()
 
     val selection = uiState.selection
     var playing by remember { mutableStateOf(true) }
@@ -129,19 +138,19 @@ internal fun TripPanel(
     Box(modifier = modifier.fillMaxSize().clip(RoundedCornerShape(24.dp))) {
         when {
             selection != null -> {
-                TripFlyoverHost(selection.wireframe, progress, Modifier.fillMaxSize())
+                TripFlyoverHost(selection.wireframe, progress, palette, settled, Modifier.fillMaxSize())
             }
 
             !uiState.loading && uiState.trips.isEmpty() -> {
-                CenteredMessage(stringResource(R.string.trip_viz_empty))
+                CenteredMessage(stringResource(R.string.trip_viz_empty), backdrop)
             }
 
             else -> {
-                CenteredMessage(stringResource(R.string.trip_viz_preparing))
+                CenteredMessage(stringResource(R.string.trip_viz_preparing), backdrop)
             }
         }
 
-        HudScrim(Modifier.align(Alignment.BottomCenter).fillMaxWidth())
+        HudScrim(backdrop, Modifier.align(Alignment.BottomCenter).fillMaxWidth())
 
         GlassCircleButton(
             icon = Lucide.ChevronDown,
@@ -189,21 +198,46 @@ internal fun TripPanel(
     }
 }
 
+/**
+ * Chooses the active renderer and keeps its lifecycle. The native Vulkan surface
+ * runs only when Vulkan is usable AND the panel is fully [settled]: during the
+ * panel's enter/exit the in-window 2D fallback is shown instead, so the whole
+ * panel fades and scales as Compose content rather than the media-overlay surface
+ * popping out at the end of the collapse. The two paths share the [palette],
+ * [progress] playhead, and a continuous [elapsed] camera clock, so the swap at
+ * transition edges is masked by a near-identical scene.
+ */
 @Composable
 private fun TripFlyoverHost(
     wireframe: FloatArray,
     progress: Float,
+    palette: TripScenePalette,
+    settled: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val controller = remember { TripFlyoverController() }
+    // The controller outlives a transient surface swap; release it only when the
+    // host leaves composition (the panel fully closed).
+    DisposableEffect(controller) { onDispose { controller.release() } }
     // Probe Vulkan off the composition path (VkInstance + device creation is heavy
     // work): null = still probing, true = native, false = 2D fallback. The probe
-    // resolves within the same window the trip geometry is loading in, so the dark
+    // resolves within the same window the trip geometry is loading in, so the
     // scene shows first either way.
     var useVulkan by remember { mutableStateOf<Boolean?>(null) }
     LaunchedEffect(controller) { useVulkan = controller.ensureCreated() }
-    when (useVulkan) {
-        true -> {
+
+    // Continuous orbit clock at the host so the fallback's camera stays in step
+    // across every surface<->fallback swap (it reads a continuous elapsed instead
+    // of restarting from zero on each mount).
+    var elapsed by remember { mutableFloatStateOf(0f) }
+    LaunchedFrameClock { dt -> elapsed += dt }
+
+    // Push the active theme (clear colour + blend + head) to the native renderer.
+    LaunchedEffect(palette) { controller.setTheme(palette) }
+
+    val backdrop = palette.backgroundColor()
+    when {
+        useVulkan == true && settled -> {
             // Transparent: the native SurfaceView (media overlay) shows through
             // and clears itself to the render backdrop.
             TripFlyoverSurface(
@@ -215,18 +249,20 @@ private fun TripFlyoverHost(
             )
         }
 
-        false -> {
-            // The Compose fallback draws in the window, so it paints its own dark
-            // backdrop (its additive lines must blend over black, not the dashboard).
+        useVulkan == null -> {
+            Box(modifier.fillMaxSize().background(backdrop))
+        }
+
+        else -> {
+            // Vulkan-less, or native-but-mid-transition: the in-window fallback
+            // paints its own backdrop and fades/scales with the panel.
             TripFlyoverFallback(
                 wireframe = wireframe,
                 progress = progress,
-                modifier = modifier.background(TripSceneBackground),
+                elapsed = elapsed,
+                palette = palette,
+                modifier = modifier.background(backdrop),
             )
-        }
-
-        null -> {
-            Box(modifier.fillMaxSize().background(TripSceneBackground))
         }
     }
 }
@@ -493,8 +529,9 @@ private fun GlassCircleButton(
 @Composable
 private fun CenteredMessage(
     text: String,
+    background: Color,
     modifier: Modifier = Modifier,
-) = Box(modifier = modifier.fillMaxSize().background(TripSceneBackground), contentAlignment = Alignment.Center) {
+) = Box(modifier = modifier.fillMaxSize().background(background), contentAlignment = Alignment.Center) {
     Text(
         text = text,
         style = MaterialTheme.typography.eyebrow(),
@@ -503,18 +540,35 @@ private fun CenteredMessage(
 }
 
 // A bottom-anchored gradient scrim so the HUD text stays legible over the bright
-// wireframe without hiding the render.
+// wireframe without hiding the render. It fades toward the scene backdrop so it
+// reads correctly on both the dark and light scenes.
 @Composable
-private fun HudScrim(modifier: Modifier = Modifier) =
-    Box(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .height(220.dp)
-                .background(
-                    Brush.verticalGradient(
-                        0f to Color.Transparent,
-                        1f to TripSceneBackground.copy(alpha = 0.85f),
-                    ),
+private fun HudScrim(
+    background: Color,
+    modifier: Modifier = Modifier,
+) = Box(
+    modifier =
+        modifier
+            .fillMaxWidth()
+            .height(220.dp)
+            .background(
+                Brush.verticalGradient(
+                    0f to Color.Transparent,
+                    1f to background.copy(alpha = 0.85f),
                 ),
-    )
+            ),
+)
+
+/** Runs [onFrame] with per-frame delta seconds while composed. */
+@Composable
+private fun LaunchedFrameClock(onFrame: (Float) -> Unit) {
+    val current = rememberUpdatedState(onFrame)
+    LaunchedEffect(Unit) {
+        var last = withFrameNanos { it }
+        while (true) {
+            val now = withFrameNanos { it }
+            current.value((now - last).coerceAtLeast(0L) / 1_000_000_000f)
+            last = now
+        }
+    }
+}

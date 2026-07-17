@@ -4,12 +4,11 @@ import android.content.Context
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import io.github.seijikohara.femto.data.location.TripScenePalette
 
 /**
  * Owns one native Vulkan renderer handle across a [SurfaceView]'s lifecycle. The
@@ -18,10 +17,19 @@ import androidx.compose.ui.viewinterop.AndroidView
  * when the surface appears. A start failure flips [vulkanUsable] false so the
  * caller can fall back mid-flight. Never throws — a Vulkan-less device just
  * reports unusable.
+ *
+ * The controller outlives an individual surface: [release] is called when the
+ * host leaves composition, while the surface's own callbacks start/stop the
+ * swapchain, so the instance survives a transient surface swap (the panel's
+ * enter/exit gates the surface, see [TripFlyoverSurface]'s caller).
  */
 internal class TripFlyoverController {
     private var handle: Long = 0L
     private var started = false
+
+    // Latest scene theme, applied on every (re)start so a surface that mounts
+    // after the theme was pushed still clears/blends with the right palette.
+    private var theme: TripScenePalette? = null
 
     var vulkanUsable: Boolean = false
         private set
@@ -54,6 +62,10 @@ internal class TripFlyoverController {
                     if (!started) {
                         vulkanUsable = false
                         onUnavailable()
+                    } else {
+                        // Re-apply the theme the host already pushed before the
+                        // surface existed (the render thread starts on defaults).
+                        theme?.let { applyTheme(it) }
                     }
                 } else {
                     runCatching { TripFlyoverNative.nativeResize(handle, width, height) }
@@ -76,6 +88,26 @@ internal class TripFlyoverController {
 
     fun setProgress(progress: Float) {
         if (handle != 0L) runCatching { TripFlyoverNative.nativeSetProgress(handle, progress) }
+    }
+
+    fun setTheme(palette: TripScenePalette) {
+        theme = palette
+        if (handle != 0L && started) applyTheme(palette)
+    }
+
+    private fun applyTheme(palette: TripScenePalette) {
+        runCatching {
+            TripFlyoverNative.nativeSetTheme(
+                handle,
+                palette.background[0],
+                palette.background[1],
+                palette.background[2],
+                palette.head[0],
+                palette.head[1],
+                palette.head[2],
+                palette.isDark,
+            )
+        }
     }
 
     /** False once the render thread has started and then died (a runtime Vulkan error). */
@@ -108,7 +140,6 @@ internal fun TripFlyoverSurface(
     modifier: Modifier = Modifier,
 ) {
     val onUnavailableState = rememberUpdatedState(onUnavailable)
-    DisposableEffect(controller) { onDispose { controller.release() } }
     AndroidView(
         modifier = modifier,
         factory = { context: Context ->
