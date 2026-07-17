@@ -3,17 +3,20 @@ package io.github.seijikohara.femto.data.location
 import android.location.Location
 import android.location.LocationManager
 import app.cash.turbine.test
+import io.github.seijikohara.femto.testfixtures.FakeTripStateStore
 import io.github.seijikohara.femto.testfixtures.fakeLocation
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 // Location is an Android type that Robolectric supplies; distanceTo() uses
@@ -37,7 +40,7 @@ class TripRepositoryTest {
                     ),
                 )
 
-            TripRepository(flow).stateFlow().test {
+            TripRepository(flow, FakeTripStateStore()).stateFlow().test {
                 skipItems(2) // initial snapshot + first fix (no previous yet)
                 val afterTwoSteps = awaitItem()
                 assertTrue(afterTwoSteps.distanceMeters > 0.0)
@@ -57,7 +60,7 @@ class TripRepositoryTest {
                     fakeLocation(speedMps = 0.1f, elapsedRealtimeNanos = tenSeconds(1)),
                 )
 
-            TripRepository(flow).stateFlow().test {
+            TripRepository(flow, FakeTripStateStore()).stateFlow().test {
                 skipItems(2) // initial snapshot + first fix
                 assertEquals(0.0, awaitItem().distanceMeters, 0.0)
                 cancelAndIgnoreRemainingEvents()
@@ -77,7 +80,7 @@ class TripRepositoryTest {
                     fakeLocation(latitude = ORIGIN_LAT + STEP, speedMps = 0.1f, elapsedRealtimeNanos = tenSeconds(2)),
                 )
 
-            TripRepository(flow).stateFlow().test {
+            TripRepository(flow, FakeTripStateStore()).stateFlow().test {
                 skipItems(2) // initial snapshot + first fix (no previous yet)
                 val moving = awaitItem() // after the second (moving) fix
                 val afterStop = awaitItem() // after the stopped fix
@@ -105,7 +108,7 @@ class TripRepositoryTest {
                     ),
                 )
 
-            TripRepository(flow).stateFlow().test {
+            TripRepository(flow, FakeTripStateStore()).stateFlow().test {
                 skipItems(3) // initial snapshot + first fix + second (moving) fix
                 val afterStop = awaitItem() // stopped fix: 20 s time base
                 val afterGap = awaitItem() // parked drought: 140 s time base
@@ -133,7 +136,7 @@ class TripRepositoryTest {
                     ),
                 )
 
-            TripRepository(flow).stateFlow().test {
+            TripRepository(flow, FakeTripStateStore()).stateFlow().test {
                 skipItems(2) // initial snapshot + first fix
                 val beforeGap = awaitItem()
                 val afterGap = awaitItem()
@@ -153,7 +156,7 @@ class TripRepositoryTest {
                     fakeLocation(latitude = ORIGIN_LAT + STEP, speedMps = 11f, elapsedRealtimeNanos = 61_000_000_000L),
                 )
 
-            TripRepository(flow).stateFlow().test {
+            TripRepository(flow, FakeTripStateStore()).stateFlow().test {
                 skipItems(2) // initial snapshot + first fix
                 assertEquals(0.0, awaitItem().distanceMeters, 0.0)
                 cancelAndIgnoreRemainingEvents()
@@ -170,7 +173,7 @@ class TripRepositoryTest {
                     fakeLocation(latitude = ORIGIN_LAT + STEP, speedMps = 11f, elapsedRealtimeNanos = 0L),
                 )
 
-            TripRepository(flow).stateFlow().test {
+            TripRepository(flow, FakeTripStateStore()).stateFlow().test {
                 skipItems(2) // initial snapshot + first fix
                 assertEquals(0.0, awaitItem().distanceMeters, 0.0)
                 cancelAndIgnoreRemainingEvents()
@@ -189,7 +192,7 @@ class TripRepositoryTest {
                     fakeLocation(latitude = ORIGIN_LAT + STEP, hasSpeed = false, elapsedRealtimeNanos = tenSeconds(1)),
                 )
 
-            TripRepository(flow).stateFlow().test {
+            TripRepository(flow, FakeTripStateStore()).stateFlow().test {
                 skipItems(2) // initial snapshot + first fix
                 assertTrue(awaitItem().distanceMeters > 0.0)
                 cancelAndIgnoreRemainingEvents()
@@ -219,7 +222,7 @@ class TripRepositoryTest {
                     ),
                 )
 
-            TripRepository(flow).stateFlow().test {
+            TripRepository(flow, FakeTripStateStore()).stateFlow().test {
                 skipItems(2) // initial snapshot + first fix
                 assertTrue(awaitItem().distanceMeters > 0.0)
                 cancelAndIgnoreRemainingEvents()
@@ -233,7 +236,8 @@ class TripRepositoryTest {
             // Test dispatcher so the MutableSharedFlow emit/awaitItem handshake runs
             // on the virtual clock instead of racing Dispatchers.Default under load
             // (the source of an intermittent Turbine timeout).
-            val repository = TripRepository(source, UnconfinedTestDispatcher(testScheduler))
+            val repository =
+                TripRepository(source, FakeTripStateStore(), dispatcher = UnconfinedTestDispatcher(testScheduler))
 
             // First subscription: feed two moving fixes, capture the running total,
             // then cancel the collection (simulating a WhileSubscribed stop).
@@ -276,7 +280,7 @@ class TripRepositoryTest {
                     fakeLocation(latitude = ORIGIN_LAT + STEP, speedMps = 9.5f, elapsedRealtimeNanos = tenSeconds(1)),
                 )
 
-            TripRepository(flow).stateFlow().test {
+            TripRepository(flow, FakeTripStateStore()).stateFlow().test {
                 skipItems(2) // initial snapshot + first fix
                 // Reported speed wins when the fix has one (hasSpeed default true).
                 assertEquals(9.5, awaitItem().currentSpeedMs, 0.0001)
@@ -295,7 +299,7 @@ class TripRepositoryTest {
                     fakeLocation(latitude = ORIGIN_LAT + STEP, speedMps = 5_000f, elapsedRealtimeNanos = tenSeconds(1)),
                 )
 
-            TripRepository(flow).stateFlow().test {
+            TripRepository(flow, FakeTripStateStore()).stateFlow().test {
                 skipItems(2) // initial snapshot + first fix
                 // The first fix has no previous, so currentSpeedMs is never set
                 // (stays 0.0); the second fix is over the ceiling and is dropped,
@@ -319,7 +323,7 @@ class TripRepositoryTest {
                     fakeLocation(latitude = ORIGIN_LAT + STEP, hasSpeed = false, elapsedRealtimeNanos = 20_000_000L),
                 )
 
-            TripRepository(flow).stateFlow().test {
+            TripRepository(flow, FakeTripStateStore()).stateFlow().test {
                 skipItems(2) // initial snapshot + first fix
                 val afterGlitch = awaitItem()
                 assertEquals(0.0, afterGlitch.distanceMeters, 0.0)
@@ -335,7 +339,8 @@ class TripRepositoryTest {
             // be ignored — it must emit nothing and must not advance the GPS
             // anchor (network fixes are tower / Wi-Fi, not for trip math).
             val source = MutableSharedFlow<Location?>(replay = 0)
-            val repository = TripRepository(source, UnconfinedTestDispatcher(testScheduler))
+            val repository =
+                TripRepository(source, FakeTripStateStore(), dispatcher = UnconfinedTestDispatcher(testScheduler))
 
             repository.stateFlow().test {
                 awaitItem() // initial snapshot
@@ -378,7 +383,8 @@ class TripRepositoryTest {
             val source = MutableSharedFlow<Location?>(replay = 0)
             // Test dispatcher so the non-suspending reset() and its emission are
             // observed deterministically under the virtual clock.
-            val repository = TripRepository(source, UnconfinedTestDispatcher(testScheduler))
+            val repository =
+                TripRepository(source, FakeTripStateStore(), dispatcher = UnconfinedTestDispatcher(testScheduler))
 
             repository.stateFlow().test {
                 assertEquals(0.0, awaitItem().distanceMeters, 0.0) // initial snapshot
@@ -403,7 +409,8 @@ class TripRepositoryTest {
     fun `accrual resumes after a reset`() =
         runTest {
             val source = MutableSharedFlow<Location?>(replay = 0)
-            val repository = TripRepository(source, UnconfinedTestDispatcher(testScheduler))
+            val repository =
+                TripRepository(source, FakeTripStateStore(), dispatcher = UnconfinedTestDispatcher(testScheduler))
 
             repository.stateFlow().test {
                 awaitItem() // initial snapshot
@@ -463,7 +470,7 @@ class TripRepositoryTest {
                     ),
                 )
 
-            TripRepository(flow).stateFlow().test {
+            TripRepository(flow, FakeTripStateStore()).stateFlow().test {
                 skipItems(2) // initial snapshot + first fix (anchor only)
                 assertEquals(0.0, awaitItem().distanceMeters, 0.0) // deferred sub-floor fix
                 assertTrue(awaitItem().distanceMeters > 0.0) // accumulated delta clears the floor
@@ -492,7 +499,7 @@ class TripRepositoryTest {
                     ),
                 )
 
-            TripRepository(flow).stateFlow().test {
+            TripRepository(flow, FakeTripStateStore()).stateFlow().test {
                 skipItems(2) // initial snapshot + first fix
                 assertEquals(0.0, awaitItem().distanceMeters, 0.0) // implausible fix dropped
                 val final = awaitItem()
@@ -500,6 +507,254 @@ class TripRepositoryTest {
                 // from the origin would mean the glitch fix failed to re-anchor.
                 assertTrue(final.distanceMeters > 0.0)
                 assertTrue(final.distanceMeters < 300.0)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `restores persisted totals and trip start before the first emission`() =
+        runTest {
+            val store =
+                FakeTripStateStore(
+                    PersistedTrip(totalMeters = 1_000.0, totalSeconds = 100.0, startedAtEpochMs = 42L, tripId = 3L),
+                )
+
+            TripRepository(flowOf(), store).stateFlow().test {
+                val restored = awaitItem()
+                assertEquals(1_000.0, restored.distanceMeters, 0.0)
+                assertEquals(10.0, restored.avgSpeedMs, 1e-9)
+                assertEquals(42L, restored.startedAtEpochMs)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `applies the persisted restore only once across re-subscription`() =
+        runTest {
+            val store =
+                FakeTripStateStore(
+                    PersistedTrip(totalMeters = 500.0, totalSeconds = 50.0, startedAtEpochMs = 42L, tripId = 0L),
+                )
+            val repository = TripRepository(flowOf(), store)
+
+            repository.stateFlow().test {
+                assertEquals(500.0, awaitItem().distanceMeters, 0.0)
+                cancelAndIgnoreRemainingEvents()
+            }
+            // A WhileSubscribed restart replays the running total; re-applying the
+            // restore would double it.
+            repository.stateFlow().test {
+                assertEquals(500.0, awaitItem().distanceMeters, 0.0)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `sets the trip start at the first accepted fix`() =
+        runTest {
+            val flow = flowOf(fakeLocation(timeMs = 123_456_789L, speedMps = 11f, elapsedRealtimeNanos = 0L))
+
+            TripRepository(flow, FakeTripStateStore()).stateFlow().test {
+                assertNull(awaitItem().startedAtEpochMs) // initial snapshot, nothing accepted yet
+                assertEquals(123_456_789L, awaitItem().startedAtEpochMs)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `drops fixes that are already stale on arrival`() =
+        runTest {
+            // The boot clock sits at 200 s: a cached getLastKnownLocation seed
+            // stamped at 0 s (hours old in production) must never enter the
+            // chain, so the trip start comes from the first FRESH fix.
+            val flow =
+                flowOf(
+                    fakeLocation(latitude = ORIGIN_LAT, timeMs = 1_000L, speedMps = 11f, elapsedRealtimeNanos = 0L),
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + STEP,
+                        timeMs = 2_000L,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = 199_500_000_000L,
+                    ),
+                )
+
+            TripRepository(
+                flow,
+                FakeTripStateStore(),
+                nowElapsedRealtimeNanos = { 200_000_000_000L },
+            ).stateFlow().test {
+                awaitItem() // initial snapshot
+                assertEquals(2_000L, awaitItem().startedAtEpochMs)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `reset immediately persists zeroed totals and the next trip id`() =
+        runTest {
+            val source = MutableSharedFlow<Location?>(replay = 0)
+            val store = FakeTripStateStore()
+            val repository =
+                TripRepository(
+                    source,
+                    store,
+                    dispatcher = UnconfinedTestDispatcher(testScheduler),
+                )
+
+            repository.stateFlow().test {
+                awaitItem() // initial snapshot
+                source.emit(fakeLocation(latitude = ORIGIN_LAT, speedMps = 11f, elapsedRealtimeNanos = 0L))
+                awaitItem()
+                source.emit(
+                    fakeLocation(latitude = ORIGIN_LAT + STEP, speedMps = 11f, elapsedRealtimeNanos = tenSeconds(1)),
+                )
+                awaitItem()
+
+                repository.reset()
+                awaitItem()
+
+                // The reset writes through synchronously on the accrual sequence.
+                assertEquals(
+                    PersistedTrip(totalMeters = 0.0, totalSeconds = 0.0, startedAtEpochMs = null, tripId = 1L),
+                    store.stored,
+                )
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `flushes the running totals when the subscription window closes`() =
+        runTest {
+            val source = MutableSharedFlow<Location?>(replay = 0)
+            val store = FakeTripStateStore()
+            val repository =
+                TripRepository(
+                    source,
+                    store,
+                    dispatcher = UnconfinedTestDispatcher(testScheduler),
+                )
+
+            // Fixes 1 s apart stay inside the persist throttle, so only the
+            // unsubscribe flush can write the accrued distance.
+            var accumulated = 0.0
+            repository.stateFlow().test {
+                awaitItem()
+                source.emit(fakeLocation(latitude = ORIGIN_LAT, speedMps = 11f, elapsedRealtimeNanos = 0L))
+                awaitItem()
+                source.emit(
+                    fakeLocation(latitude = ORIGIN_LAT + STEP, speedMps = 11f, elapsedRealtimeNanos = 1_000_000_000L),
+                )
+                accumulated = awaitItem().distanceMeters
+                cancelAndIgnoreRemainingEvents()
+            }
+            // Let the NonCancellable finally flush complete on the test scheduler.
+            advanceUntilIdle()
+
+            assertTrue(accumulated > 0.0)
+            assertEquals(accumulated, store.stored.totalMeters, 0.0)
+        }
+
+    @Test
+    fun `throttles periodic persistence to the minimum interval`() =
+        runTest {
+            val source = MutableSharedFlow<Location?>(replay = 0)
+            val store = FakeTripStateStore()
+            val repository =
+                TripRepository(
+                    source,
+                    store,
+                    dispatcher = UnconfinedTestDispatcher(testScheduler),
+                )
+
+            repository.stateFlow().test {
+                awaitItem() // initial snapshot
+                source.emit(fakeLocation(latitude = ORIGIN_LAT, speedMps = 11f, elapsedRealtimeNanos = 0L))
+                awaitItem()
+                source.emit(
+                    fakeLocation(latitude = ORIGIN_LAT + STEP, speedMps = 11f, elapsedRealtimeNanos = 1_000_000_000L),
+                )
+                awaitItem()
+                source.emit(
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + 2 * STEP,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = 2_000_000_000L,
+                    ),
+                )
+                awaitItem()
+                // Only the first fix writes; the 1 s / 2 s follow-ups are throttled.
+                assertEquals(1, store.writes.size)
+
+                source.emit(
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + 3 * STEP,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = 7_000_000_000L,
+                    ),
+                )
+                awaitItem()
+                assertEquals(2, store.writes.size)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `tags tapped fixes with the reset-to-reset trip id`() =
+        runTest {
+            val source = MutableSharedFlow<Location?>(replay = 0)
+            val tapped = mutableListOf<Long>()
+            val repository =
+                TripRepository(
+                    source,
+                    FakeTripStateStore(),
+                    trackTap = TripFixTap { _, tripId -> tapped += tripId },
+                    dispatcher = UnconfinedTestDispatcher(testScheduler),
+                )
+
+            repository.stateFlow().test {
+                awaitItem() // initial snapshot
+                source.emit(fakeLocation(latitude = ORIGIN_LAT, speedMps = 11f, elapsedRealtimeNanos = 0L))
+                awaitItem()
+                repository.reset()
+                awaitItem()
+                source.emit(
+                    fakeLocation(latitude = ORIGIN_LAT + STEP, speedMps = 11f, elapsedRealtimeNanos = tenSeconds(1)),
+                )
+                awaitItem()
+                assertEquals(listOf(0L, 1L), tapped)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `does not tap fixes the trip math rejects as implausible teleports`() =
+        runTest {
+            val source = MutableSharedFlow<Location?>(replay = 0)
+            val tappedPositions = mutableListOf<Double>()
+            val repository =
+                TripRepository(
+                    source,
+                    FakeTripStateStore(),
+                    trackTap = TripFixTap { location, _ -> tappedPositions += location.latitude },
+                    dispatcher = UnconfinedTestDispatcher(testScheduler),
+                )
+
+            repository.stateFlow().test {
+                awaitItem() // initial snapshot
+                source.emit(fakeLocation(latitude = ORIGIN_LAT, speedMps = 11f, elapsedRealtimeNanos = 0L))
+                awaitItem()
+                // A ~5 km jump over 10 s ≈ 500 m/s — above MAX_PLAUSIBLE_SPEED_MS.
+                // Trip math re-anchors without accruing; the recorder must skip it too.
+                source.emit(
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + 45 * STEP,
+                        speedMps = 5_000f,
+                        elapsedRealtimeNanos = tenSeconds(1),
+                    ),
+                )
+                awaitItem()
+                // The origin was tapped; the teleport was not.
+                assertEquals(listOf(ORIGIN_LAT), tappedPositions)
                 cancelAndIgnoreRemainingEvents()
             }
         }

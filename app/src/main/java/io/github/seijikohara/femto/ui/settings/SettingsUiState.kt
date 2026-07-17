@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.settings
 
+import android.net.Uri
 import io.github.seijikohara.femto.data.calendar.CalendarInfo
 import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
@@ -22,6 +23,7 @@ import io.github.seijikohara.femto.data.display.ThemeMode
 import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
+import io.github.seijikohara.femto.data.location.TrackRetentionSetting
 
 /** State for the in-app settings screen: the persisted display + font choices. */
 internal data class SettingsUiState(
@@ -70,6 +72,9 @@ internal data class SettingsUiState(
     val locationIntervalMillis: Long,
     val locationMinDistanceMeters: Int,
     val backgroundRangingEnabled: Boolean,
+    val trackRecordingEnabled: Boolean,
+    val trackRetention: TrackRetentionSetting,
+    val trackExport: TrackExportState = TrackExportState.Idle,
     val mapBackend: MapBackend = DisplaySettings.Default.mapBackend,
     val mapboxStyle: MapboxStyle = DisplaySettings.Default.mapboxStyle,
     val mapboxTraffic: Boolean = DisplaySettings.Default.mapboxTraffic,
@@ -134,6 +139,8 @@ internal data class SettingsUiState(
                 locationIntervalMillis = LocationSettings.Default.intervalMillis,
                 locationMinDistanceMeters = LocationSettings.Default.minUpdateDistanceMeters,
                 backgroundRangingEnabled = LocationSettings.Default.backgroundRangingEnabled,
+                trackRecordingEnabled = LocationSettings.Default.trackRecordingEnabled,
+                trackRetention = LocationSettings.Default.trackRetention,
                 mapBackend = DisplaySettings.Default.mapBackend,
                 mapboxStyle = DisplaySettings.Default.mapboxStyle,
                 mapboxTraffic = DisplaySettings.Default.mapboxTraffic,
@@ -316,6 +323,21 @@ internal sealed interface SettingsAction {
         val value: Boolean,
     ) : SettingsAction
 
+    data class SetTrackRecording(
+        val value: Boolean,
+    ) : SettingsAction
+
+    data class SetTrackRetention(
+        val value: TrackRetentionSetting,
+    ) : SettingsAction
+
+    /** Stream the recorded track log as GPX into the SAF document [uri]. */
+    data class ExportTrackLog(
+        val uri: Uri,
+    ) : SettingsAction
+
+    data object ClearTrackHistory : SettingsAction
+
     data class SetMapBackend(
         val value: MapBackend,
     ) : SettingsAction
@@ -384,4 +406,21 @@ internal sealed interface SettingsAction {
      * settings row, not a whole-category reset).
      */
     data object ResetDock : SettingsAction
+}
+
+/**
+ * Transient progress of the track-log GPX export. VM-local state (not
+ * persisted): it feeds the export row's summary so the user sees that the
+ * chosen file was actually written — or that it wasn't.
+ */
+internal sealed interface TrackExportState {
+    data object Idle : TrackExportState
+
+    data object Running : TrackExportState
+
+    data class Done(
+        val points: Long,
+    ) : TrackExportState
+
+    data object Failed : TrackExportState
 }

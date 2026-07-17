@@ -4,8 +4,10 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.aboutlibraries)
+    alias(libs.plugins.androidx.room)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
     alias(libs.plugins.node.gradle)
     alias(libs.plugins.roborazzi)
     alias(libs.plugins.spotless)
@@ -197,6 +199,12 @@ android {
     }
 }
 
+// Room schema JSON is exported per version so future migrations diff against a
+// committed baseline instead of a developer's memory.
+room {
+    schemaDirectory("$projectDir/schemas")
+}
+
 // AboutLibraries collects each Gradle dependency's license at build time into
 // res/raw/aboutlibraries.json (bundled, so the licenses screen works offline on
 // the head unit). Non-Gradle components shipped in the app (the webmap
@@ -215,6 +223,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.room.runtime)
+    ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.webkit)
     implementation(libs.androidx.media3.session)
     implementation(libs.kotlinx.serialization.json)

@@ -42,7 +42,23 @@ internal class LocationGraph private constructor(
 
     private val locationRepository = LocationRepository(context, preferences.settings)
 
-    private val tripRepository = TripRepository(locationRepository.locationFlow())
+    /** Track recorder; Settings reaches it for delete / GPX export. */
+    val trackLog: TrackLogRepository =
+        TrackLogRepository(
+            dao = TrackLogDatabase.get(context).trackPointDao(),
+            settings = preferences.settings,
+            scope = scope,
+        )
+
+    private val tripRepository =
+        TripRepository(
+            locationFlow = locationRepository.locationFlow(),
+            store = TripStatePreferences(context),
+            // The tap runs on the trip chain's single sequence, so the recorder
+            // sees exactly the fixes trip math accepts — same lifecycle, no
+            // second collector on the shared location flow.
+            trackTap = TripFixTap { location, tripId -> trackLog.offer(location, tripId) },
+        )
 
     fun locationFlow(): Flow<Location?> = locationRepository.locationFlow()
 

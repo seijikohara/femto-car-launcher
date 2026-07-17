@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.testfixtures
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
 import io.github.seijikohara.femto.data.location.LocationSettingsStore
+import io.github.seijikohara.femto.data.location.TrackRetentionSetting
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -30,6 +31,16 @@ internal class FakeLocationSettingsStore(
     override suspend fun setBackgroundRangingEnabled(value: Boolean) =
         state.update {
             it.copy(backgroundRangingEnabled = value)
+        }
+
+    override suspend fun setTrackRecordingEnabled(value: Boolean) =
+        state.update {
+            it.copy(trackRecordingEnabled = value)
+        }
+
+    override suspend fun setTrackRetention(value: TrackRetentionSetting) =
+        state.update {
+            it.copy(trackRetention = value)
         }
 
     override suspend fun resetToDefaults() = state.update { LocationSettings.Default }

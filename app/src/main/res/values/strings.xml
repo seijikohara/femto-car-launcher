@@ -28,6 +28,7 @@
 
     <!-- Speed overlay -->
     <string name="speed_reset_trip">Reset trip</string>
+    <string name="speed_trip_since">Since %1$s</string>
     <string name="speed_altitude">ALT %1$d</string>
     <string name="speed_metric_distance">DISTANCE</string>
     <string name="speed_metric_avg">AVG.</string>
@@ -326,6 +327,24 @@
     <string name="settings_location_min_distance_desc">Skip updates closer than this to the last position; 0 delivers every fix.</string>
     <string name="settings_group_background_ranging">Background ranging</string>
     <string name="settings_background_ranging_desc">Keep measuring distance and average speed while you use another app, such as navigation. Runs continuous GPS with an ongoing notification, so it uses more power.</string>
+    <string name="settings_group_track_recording">Track recording</string>
+    <string name="settings_track_recording_desc">Record position, speed, bearing, and altitude while driving, for later visualization. The history stays on this device.</string>
+    <string name="settings_group_track_retention">Keep track history</string>
+    <string name="settings_track_retention_30">30 days</string>
+    <string name="settings_track_retention_90">90 days</string>
+    <string name="settings_track_retention_365">1 year</string>
+    <string name="settings_track_retention_unlimited">Until I delete it</string>
+    <string name="settings_track_export">Export track history</string>
+    <string name="settings_track_export_desc">Save the recorded history as a GPX file.</string>
+    <string name="settings_track_export_running">Exporting…</string>
+    <plurals name="settings_track_export_done">
+        <item quantity="one">Exported %1$d point.</item>
+        <item quantity="other">Exported %1$d points.</item>
+    </plurals>
+    <string name="settings_track_export_failed">Export failed. Nothing was written.</string>
+    <string name="settings_track_delete">Delete track history</string>
+    <string name="settings_track_delete_confirm_title">Delete track history?</string>
+    <string name="settings_track_delete_confirm_message">All recorded track points are removed from this device. This cannot be undone.</string>
     <string name="settings_group_panel_calendar">Calendar panel</string>
     <string name="settings_group_panel_weather">Weather panel</string>
     <string name="settings_group_panel_music">Music panel</string>

@@ -44,6 +44,37 @@ internal const val DEFAULT_LOCATION_MIN_DISTANCE_M = 0
 internal const val DEFAULT_BACKGROUND_RANGING_ENABLED = false
 
 /**
+ * Track recording is on by default: the history never leaves the device (which
+ * also keeps it outside Play's Data-safety "collected" definition), the point
+ * of recording is that data exists before the user thinks to ask for it, and a
+ * Settings toggle plus a delete-history action keep the choice reversible.
+ */
+internal const val DEFAULT_TRACK_RECORDING_ENABLED = true
+
+private const val MILLIS_PER_DAY = 24L * 60 * 60 * 1_000
+
+/**
+ * How long recorded track points are kept before pruning. A privacy knob, not
+ * a storage one — even unlimited 1 Hz logging grows only ~0.3 MB per driving
+ * hour. The 90-day default mirrors the most conservative comparable product
+ * (Google Maps Timeline's on-device rolling window); UNLIMITED matches the
+ * GPX-recorder genre where the user deletes manually.
+ */
+internal enum class TrackRetentionSetting(
+    val maxAgeMs: Long?,
+) {
+    DAYS_30(30 * MILLIS_PER_DAY),
+    DAYS_90(90 * MILLIS_PER_DAY),
+    DAYS_365(365 * MILLIS_PER_DAY),
+    UNLIMITED(null),
+    ;
+
+    companion object {
+        val Default = DAYS_90
+    }
+}
+
+/**
  * User-tunable location request parameters. The defaults ask for maximum
  * precision; Settings exposes each knob so the user can dial the request back
  * when the head-unit hardware struggles at chip-native rates.
@@ -53,6 +84,8 @@ internal data class LocationSettings(
     val intervalMillis: Long,
     val minUpdateDistanceMeters: Int,
     val backgroundRangingEnabled: Boolean,
+    val trackRecordingEnabled: Boolean,
+    val trackRetention: TrackRetentionSetting,
 ) {
     companion object {
         val Default =
@@ -61,6 +94,8 @@ internal data class LocationSettings(
                 intervalMillis = DEFAULT_LOCATION_INTERVAL_MS,
                 minUpdateDistanceMeters = DEFAULT_LOCATION_MIN_DISTANCE_M,
                 backgroundRangingEnabled = DEFAULT_BACKGROUND_RANGING_ENABLED,
+                trackRecordingEnabled = DEFAULT_TRACK_RECORDING_ENABLED,
+                trackRetention = TrackRetentionSetting.Default,
             )
     }
 }
@@ -80,6 +115,10 @@ internal interface LocationSettingsStore {
     suspend fun setMinUpdateDistanceMeters(value: Int)
 
     suspend fun setBackgroundRangingEnabled(value: Boolean)
+
+    suspend fun setTrackRecordingEnabled(value: Boolean)
+
+    suspend fun setTrackRetention(value: TrackRetentionSetting)
 
     /** Restore every location setting to [LocationSettings.Default]. */
     suspend fun resetToDefaults()
@@ -101,6 +140,9 @@ internal class LocationPreferences(
                     minUpdateDistanceMeters = prefs[MIN_DISTANCE_KEY] ?: DEFAULT_LOCATION_MIN_DISTANCE_M,
                     backgroundRangingEnabled =
                         prefs[BACKGROUND_RANGING_KEY] ?: DEFAULT_BACKGROUND_RANGING_ENABLED,
+                    trackRecordingEnabled =
+                        prefs[TRACK_RECORDING_KEY] ?: DEFAULT_TRACK_RECORDING_ENABLED,
+                    trackRetention = prefs[TRACK_RETENTION_KEY].toEnumOr(TrackRetentionSetting.Default),
                 )
             }
 
@@ -120,6 +162,14 @@ internal class LocationPreferences(
         context.locationDataStore.editOrLog(TAG) { it[BACKGROUND_RANGING_KEY] = value }
     }
 
+    override suspend fun setTrackRecordingEnabled(value: Boolean) {
+        context.locationDataStore.editOrLog(TAG) { it[TRACK_RECORDING_KEY] = value }
+    }
+
+    override suspend fun setTrackRetention(value: TrackRetentionSetting) {
+        context.locationDataStore.editOrLog(TAG) { it[TRACK_RETENTION_KEY] = value.name }
+    }
+
     // Clearing every key makes the read path fall back to its per-field defaults,
     // which are kept identical to LocationSettings.Default — so a reset restores
     // the defaults without duplicating the default literals here.
@@ -132,5 +182,7 @@ internal class LocationPreferences(
         val INTERVAL_KEY = longPreferencesKey("location_interval_ms")
         val MIN_DISTANCE_KEY = intPreferencesKey("location_min_distance_m")
         val BACKGROUND_RANGING_KEY = booleanPreferencesKey("background_ranging_enabled")
+        val TRACK_RECORDING_KEY = booleanPreferencesKey("track_recording_enabled")
+        val TRACK_RETENTION_KEY = stringPreferencesKey("track_retention")
     }
 }

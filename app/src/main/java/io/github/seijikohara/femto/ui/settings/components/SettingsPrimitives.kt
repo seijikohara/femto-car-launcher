@@ -33,8 +33,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -354,8 +356,12 @@ internal fun ActionRow(
     title: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    summary: String? = null,
+    summaryLiveRegion: Boolean = false,
 ) = SettingRow(
     title = title,
+    summary = summary,
+    summaryLiveRegion = summaryLiveRegion,
     modifier = modifier.clickable(onClick = onClick),
 ) {
     TrailingIcon(Lucide.ExternalLink)
@@ -374,13 +380,16 @@ internal fun ResetRow(
     title: String = stringResource(R.string.settings_reset_to_defaults),
     confirmTitle: String = stringResource(R.string.settings_reset_confirm_title),
     confirmMessage: String = stringResource(R.string.settings_reset_confirm_message),
+    // Reset-shaped by default; a delete-shaped caller (track history) passes
+    // the trash glyph so the row reads as removal, not restoration.
+    icon: ImageVector = Lucide.RotateCcw,
 ) {
     var dialogOpen by remember { mutableStateOf(false) }
     SettingRow(
         title = title,
         modifier = modifier.clickable { dialogOpen = true },
     ) {
-        TrailingIcon(Lucide.RotateCcw)
+        TrailingIcon(icon)
     }
     if (dialogOpen) {
         ResetConfirmDialog(
@@ -428,6 +437,9 @@ internal fun SettingRow(
     title: String,
     modifier: Modifier = Modifier,
     summary: String? = null,
+    // Announce summary changes to accessibility services (for a status line that
+    // updates in place, e.g. the export progress/outcome).
+    summaryLiveRegion: Boolean = false,
     trailing: @Composable () -> Unit = {},
 ) = Row(
     modifier =
@@ -452,6 +464,12 @@ internal fun SettingRow(
                 text = summary,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier =
+                    if (summaryLiveRegion) {
+                        Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                    } else {
+                        Modifier
+                    },
             )
         }
     }
