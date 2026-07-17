@@ -51,6 +51,7 @@ import io.github.seijikohara.femto.ui.locale.windValue
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.theme.FitText
 import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.bigNumber
@@ -403,11 +404,14 @@ private fun ForecastChip(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text(
+        FitText(
+            // A chip gets a third of the narrow card; shrink the hour label
+            // (widest as the 12-hour "12 PM" form, or under a raised font
+            // scale) instead of letting the centered text clip at both edges.
             text = forecastHourLabel(forecast.time, is24Hour),
             style = MaterialTheme.typography.sectionLabel(12, fontWeight = FontWeight.Normal),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
+            minFontSize = FemtoDimens.TextXs,
         )
         FemtoIcon(
             imageVector = glyphIconFor(forecast.code, isDay),
