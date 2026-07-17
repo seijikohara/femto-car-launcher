@@ -85,6 +85,13 @@ runtime from whatever the head unit or phone already has.
 - `FemtoTheme(fontFamily = ...)` takes the resolved family;
   `MainActivity` collects `FontRepository.resolved` so a freshly
   chosen face swaps in once its download (or disk resolve) lands.
+- `FontRepository.resolvedOnce` marks the first trustworthy
+  resolution pass (success, fallback, or failure alike; a
+  `SystemFont` selection additionally waits for the installed-font
+  enumeration). `MainActivity` gates the splash screen on it — with
+  a hard timeout so a cold-cache download can never hold the
+  launch — so the typeface swap lands before the first visible
+  frame instead of reflowing the dashboard after it.
 - Picker UI lives under `ui/fontpicker/` (searchable full-catalog
   list, per-slot, with download progress) with a second "installed
   fonts" section/tab for the device's own fonts (no download

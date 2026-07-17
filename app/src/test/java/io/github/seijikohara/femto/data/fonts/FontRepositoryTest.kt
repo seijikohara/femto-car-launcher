@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.data.fonts
 
 import io.github.seijikohara.femto.testfixtures.FakeFontFaceStore
 import io.github.seijikohara.femto.testfixtures.FakeFontSelectionStore
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -256,6 +257,52 @@ class FontRepositoryTest {
             // inside filesDir/google_fonts/ and has no directory for it anyway.
             assertTrue(cache.evictions.all { (keep, _) -> "Roboto Condensed" !in keep })
             assertTrue(cache.evictions.any { (keep, _) -> keep == setOf("Inter") })
+        }
+
+    @Test
+    fun `resolvedOnce settles for the default system selection`() =
+        runTest {
+            val repository = repository(FakeFontFaceStore())
+
+            runCurrent()
+
+            assertTrue(repository.resolvedOnce.value)
+        }
+
+    @Test
+    fun `resolvedOnce settles even when the download fails`() =
+        runTest {
+            val cache = FakeFontFaceStore().apply { failing += "Inter" }
+            val repository =
+                repository(cache, FakeFontSelectionStore(FontSelection(latin = FontSource.GoogleFonts("Inter"))))
+
+            runCurrent()
+
+            // A failed resolve still settles: the fallback IS the first frame's
+            // real typeface, and the splash must not wait for a retry.
+            assertTrue(repository.resolvedOnce.value)
+        }
+
+    @Test
+    fun `resolvedOnce waits for enumeration when a system font is selected`() =
+        runTest {
+            val enumerated = CompletableDeferred<List<SystemFontFamily>>()
+            val repository =
+                repository(
+                    FakeFontFaceStore(),
+                    FakeFontSelectionStore(FontSelection(latin = FontSource.SystemFont("Roboto"))),
+                    systemFontSource = SystemFontSource { enumerated.await() },
+                )
+
+            runCurrent()
+            // Resolved against a not-yet-enumerated catalog the slot would fall
+            // back now and swap a moment later; the signal must hold for that.
+            assertFalse(repository.resolvedOnce.value)
+
+            enumerated.complete(emptyList())
+            runCurrent()
+            // Enumeration landing (even empty) makes the fallback final.
+            assertTrue(repository.resolvedOnce.value)
         }
 
     private fun TestScope.repository(
