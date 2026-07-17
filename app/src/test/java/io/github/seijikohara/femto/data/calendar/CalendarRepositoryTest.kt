@@ -306,6 +306,60 @@ class CalendarRepositoryTest {
         }
 
     @Test
+    fun `keeps the color-bar gate off when one calendar carries two event colors`() =
+        runTest {
+            shadowOf(application).grantPermissions(Manifest.permission.READ_CALENDAR)
+            GateCalendarProvider.rows =
+                listOf(
+                    GateCalendarProvider.Row(calId = 1L, color = 0xFF0000),
+                    GateCalendarProvider.Row(calId = 1L, color = 0x00FF00),
+                )
+            Robolectric
+                .buildContentProvider(GateCalendarProvider::class.java)
+                .create(CalendarContract.AUTHORITY)
+
+            val snapshot =
+                CalendarRepository(
+                    application,
+                    clockFlow = flowOf(ClockTick(LocalTime.NOON, GateCalendarProvider.TODAY)),
+                    hiddenCalendarIds = flowOf(emptySet()),
+                    zoneProvider = { ZoneOffset.UTC },
+                ).snapshotFlow().first()
+
+            assertNotNull(snapshot)
+            // Two display colors from ONE calendar must not sprout indicators:
+            // the gate counts calendars, not colors.
+            assertFalse(snapshot.multipleCalendarsVisible)
+        }
+
+    @Test
+    fun `raises the color-bar gate when the window spans two calendars`() =
+        runTest {
+            shadowOf(application).grantPermissions(Manifest.permission.READ_CALENDAR)
+            GateCalendarProvider.rows =
+                listOf(
+                    GateCalendarProvider.Row(calId = 1L, color = 0xFF0000),
+                    GateCalendarProvider.Row(calId = 2L, color = 0xFF0000),
+                )
+            Robolectric
+                .buildContentProvider(GateCalendarProvider::class.java)
+                .create(CalendarContract.AUTHORITY)
+
+            val snapshot =
+                CalendarRepository(
+                    application,
+                    clockFlow = flowOf(ClockTick(LocalTime.NOON, GateCalendarProvider.TODAY)),
+                    hiddenCalendarIds = flowOf(emptySet()),
+                    zoneProvider = { ZoneOffset.UTC },
+                ).snapshotFlow().first()
+
+            assertNotNull(snapshot)
+            // Both rows share one display color: only the distinct CALENDAR_IDs
+            // may raise the gate.
+            assertTrue(snapshot.multipleCalendarsVisible)
+        }
+
+    @Test
     fun `month label follows the locale field order`() =
         runTest {
             // The label is produced from getBestDateTimePattern(locale, "yMMMM").
@@ -656,6 +710,81 @@ class CalendarRepositoryTest {
                     ?.mapNotNull { it.toLongOrNull() }
                     ?.toSet()
                     .orEmpty()
+        }
+    }
+
+    /**
+     * Stand-in calendar provider for the multipleCalendarsVisible gate: serves
+     * whatever [rows] the test stages, answering the DISPLAY_COLOR and
+     * CALENDAR_ID columns the gate reads. [rows] is set by each test before
+     * registering the provider because Robolectric can share the companion
+     * across test methods.
+     */
+    class GateCalendarProvider : ContentProvider() {
+        override fun onCreate(): Boolean = true
+
+        override fun query(
+            uri: Uri,
+            projection: Array<out String>?,
+            selection: String?,
+            selectionArgs: Array<out String>?,
+            sortOrder: String?,
+        ): Cursor {
+            val columns: Array<out String> =
+                projection ?: arrayOf(CalendarContract.Instances.BEGIN)
+            val cursor = MatrixCursor(columns)
+            rows.forEachIndexed { index, row ->
+                cursor.addRow(
+                    columns.map { column ->
+                        when (column) {
+                            CalendarContract.Instances.BEGIN -> at(9 + index)
+                            CalendarContract.Instances.ALL_DAY -> 0
+                            CalendarContract.Instances.TITLE -> "Event $index"
+                            CalendarContract.Instances.DISPLAY_COLOR -> row.color
+                            CalendarContract.Instances.CALENDAR_ID -> row.calId
+                            else -> null
+                        }
+                    },
+                )
+            }
+            return cursor
+        }
+
+        override fun getType(uri: Uri): String? = null
+
+        override fun insert(
+            uri: Uri,
+            values: ContentValues?,
+        ): Uri? = null
+
+        override fun delete(
+            uri: Uri,
+            selection: String?,
+            selectionArgs: Array<out String>?,
+        ): Int = 0
+
+        override fun update(
+            uri: Uri,
+            values: ContentValues?,
+            selection: String?,
+            selectionArgs: Array<out String>?,
+        ): Int = 0
+
+        data class Row(
+            val calId: Long,
+            val color: Int,
+        )
+
+        companion object {
+            var rows: List<Row> = emptyList()
+            val TODAY: LocalDate = LocalDate.of(2099, 9, 1)
+
+            private fun at(hour: Int): Long =
+                TODAY
+                    .atTime(hour, 0)
+                    .atZone(ZoneOffset.UTC)
+                    .toInstant()
+                    .toEpochMilli()
         }
     }
 

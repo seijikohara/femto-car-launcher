@@ -170,7 +170,7 @@ private fun CalendarContent(
                     day = day,
                     isToday = day.date == snapshot.today,
                     is24Hour = is24Hour,
-                    showColorDots = snapshot.multipleCalendarsVisible,
+                    showColorBars = snapshot.multipleCalendarsVisible,
                 )
             }
         }
@@ -232,7 +232,7 @@ private fun DayRow(
     day: DayCell,
     isToday: Boolean,
     is24Hour: Boolean,
-    showColorDots: Boolean,
+    showColorBars: Boolean,
 ) = Row(
     modifier = Modifier.fillMaxWidth(),
     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -298,7 +298,7 @@ private fun DayRow(
                             ?: stringResource(R.string.calendar_all_day),
                     title = event.title,
                     color = event.color,
-                    showColorDot = showColorDots,
+                    showColorBar = showColorBars,
                 )
             }
         }
@@ -306,8 +306,8 @@ private fun DayRow(
 }
 
 // The time slot ("14:00" / "All day") states the event kind, so no kind glyph
-// leads the row. A calendar color dot may still lead it, but only when the
-// window spans more than one calendar color (showColorDot) — there it tells the
+// leads the row. A calendar color bar may still lead it, but only when the
+// window spans more than one calendar (showColorBar) — there it tells the
 // calendars apart; otherwise every glyph-width goes to the title on the ~165 dp
 // head-unit card.
 @Composable
@@ -315,7 +315,7 @@ private fun EventRow(
     time: String,
     title: String,
     color: Int,
-    showColorDot: Boolean,
+    showColorBar: Boolean,
 ) = Column(
     // Time above, title below: the side-by-side row made a wrapping title
     // hang after the time at an unnatural break, while the two-line stack
@@ -325,11 +325,11 @@ private fun EventRow(
 ) {
     Text(
         text = time,
-        // Indent past the dot gutter so the time shares the title's left edge;
-        // the dot leads the title row below, centered on the title line.
+        // Indent past the bar gutter so the time shares the title's left edge;
+        // the bar leads the title row below, centered on the title line.
         modifier =
-            if (showColorDot) {
-                Modifier.padding(start = FemtoDimens.CalendarDotGutter)
+            if (showColorBar) {
+                Modifier.padding(start = FemtoDimens.CalendarBarGutter)
             } else {
                 Modifier
             },
@@ -339,13 +339,13 @@ private fun EventRow(
         softWrap = false,
     )
     Row(
-        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarDotGap),
-        // Center the dot on the title line rather than the whole time+title
+        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarBarGap),
+        // Center the bar on the title line rather than the whole time+title
         // stack, so it marks the event at its title.
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (showColorDot) {
-            CalendarColorDot(color = color)
+        if (showColorBar) {
+            CalendarColorBar(color = color)
         }
         Text(
             text = title,
