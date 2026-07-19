@@ -14,10 +14,15 @@ package io.github.seijikohara.femto.data.location
  * any real fraction so the shader never hides it.
  *
  * Colours are baked here from the active [TripScenePalette] so the native and
- * fallback paths upload the identical buffer: the speed line scales by
- * [TripScenePalette.lineScale] (darkened for the light scene) and the ground
- * grid takes [TripScenePalette.grid] (accent-tinted). The list is theme-derived,
- * so it is rebuilt when the palette changes.
+ * fallback paths upload the identical buffer: on the dark scene the turbo speed
+ * colours pass through verbatim (they are tuned bright-on-dark); on the light
+ * scene they go through [lightSceneLineTone] so the gradient reads as saturated
+ * jewel tones on the near-white backdrop instead of near-black line work. The
+ * curtain recedes toward [TripScenePalette.background] (on dark that backdrop is
+ * near-black, so receding is the same dimming as before; on light it fades the
+ * ribs into the light scene). The ground grid takes [TripScenePalette.grid]
+ * (accent-tinted). The list is theme-derived, so it is rebuilt when the palette
+ * changes.
  */
 internal object TripWireframe {
     const val FLOATS_PER_VERTEX = TripGeometry.FLOATS_PER_VERTEX
@@ -29,9 +34,13 @@ internal object TripWireframe {
     private const val GRID_DIVISIONS = 16
 
     // The curtain is sampled (not every point) so it reads as ribs, not a solid
-    // wall, and dimmed so the bright track line stays the hero.
+    // wall, and receded toward the backdrop so the bright track line stays the
+    // hero. The top keeps ~a third of the line colour (the historical 0.32 dim
+    // against the near-black scene); the bottom fades almost fully into the
+    // ground plane.
     private const val CURTAIN_STRIDE = 3
-    private const val CURTAIN_DIM = 0.32f
+    private const val CURTAIN_TOP_RECEDE = 0.68f
+    private const val CURTAIN_BOTTOM_RECEDE = 0.872f
 
     /** Build the full line list. Returns an empty array for an empty geometry. */
     fun build(
@@ -54,8 +63,8 @@ internal object TripWireframe {
         // Each continuous segment becomes consecutive line-list pairs.
         geometry.segments.forEach { range ->
             for (i in range.first until range.last) {
-                appendTrackVertex(out, v, i, palette.lineScale)
-                appendTrackVertex(out, v, i + 1, palette.lineScale)
+                appendTrackVertex(out, v, i, palette)
+                appendTrackVertex(out, v, i + 1, palette)
             }
         }
     }
@@ -67,7 +76,7 @@ internal object TripWireframe {
     ) {
         if (!geometry.stats.hasAltitude) return
         val v = geometry.vertices
-        val scale = palette.lineScale
+        val bg = palette.background
         geometry.segments.forEach { range ->
             var i = range.first
             while (i <= range.last) {
@@ -76,21 +85,22 @@ internal object TripWireframe {
                 val y = v[base + 1]
                 val z = v[base + 2]
                 val dist = v[base + 6]
-                // Top: the track point in its dimmed (and scene-scaled) colour.
+                val color = sceneLineColor(v, base, palette)
+                // Top: the track point's colour receded toward the backdrop.
                 out.add(x)
                 out.add(y)
                 out.add(z)
-                out.add(v[base + 3] * scale * CURTAIN_DIM)
-                out.add(v[base + 4] * scale * CURTAIN_DIM)
-                out.add(v[base + 5] * scale * CURTAIN_DIM)
+                out.add(recede(color[0], bg[0], CURTAIN_TOP_RECEDE))
+                out.add(recede(color[1], bg[1], CURTAIN_TOP_RECEDE))
+                out.add(recede(color[2], bg[2], CURTAIN_TOP_RECEDE))
                 out.add(dist)
                 // Bottom: straight down to the ground plane, same reveal fraction.
                 out.add(x)
                 out.add(0f)
                 out.add(z)
-                out.add(v[base + 3] * scale * CURTAIN_DIM * 0.4f)
-                out.add(v[base + 4] * scale * CURTAIN_DIM * 0.4f)
-                out.add(v[base + 5] * scale * CURTAIN_DIM * 0.4f)
+                out.add(recede(color[0], bg[0], CURTAIN_BOTTOM_RECEDE))
+                out.add(recede(color[1], bg[1], CURTAIN_BOTTOM_RECEDE))
+                out.add(recede(color[2], bg[2], CURTAIN_BOTTOM_RECEDE))
                 out.add(dist)
                 i += CURTAIN_STRIDE
             }
@@ -127,20 +137,38 @@ internal object TripWireframe {
         out.add(ALWAYS_ON)
     }
 
-    // Position + distanceFraction verbatim, speed colour scaled for the scene.
+    // Position + distanceFraction verbatim, speed colour toned for the scene.
     private fun appendTrackVertex(
         out: ArrayList<Float>,
         v: FloatArray,
         index: Int,
-        scale: Float,
+        palette: TripScenePalette,
     ) {
         val base = index * FLOATS_PER_VERTEX
+        val color = sceneLineColor(v, base, palette)
         out.add(v[base])
         out.add(v[base + 1])
         out.add(v[base + 2])
-        out.add(v[base + 3] * scale)
-        out.add(v[base + 4] * scale)
-        out.add(v[base + 5] * scale)
+        out.add(color[0])
+        out.add(color[1])
+        out.add(color[2])
         out.add(v[base + 6])
     }
+
+    private fun sceneLineColor(
+        v: FloatArray,
+        base: Int,
+        palette: TripScenePalette,
+    ): FloatArray =
+        if (palette.isDark) {
+            floatArrayOf(v[base + 3], v[base + 4], v[base + 5])
+        } else {
+            lightSceneLineTone(v[base + 3], v[base + 4], v[base + 5])
+        }
+
+    private fun recede(
+        channel: Float,
+        background: Float,
+        amount: Float,
+    ): Float = channel + (background - channel) * amount
 }

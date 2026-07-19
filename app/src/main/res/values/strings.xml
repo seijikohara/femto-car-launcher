@@ -41,7 +41,9 @@
     </plurals>
     <string name="trip_viz_duration">DURATION</string>
     <string name="trip_viz_max_speed">MAX</string>
-    <string name="trip_viz_climb">CLIMB</string>
+    <string name="trip_viz_altitude">ALT</string>
+    <!-- Altitude envelope, lowest to highest (en dash), e.g. "12–348". -->
+    <string name="trip_viz_altitude_range">%1$d–%2$d</string>
     <string name="trip_viz_play">Play flyover</string>
     <string name="trip_viz_pause">Pause flyover</string>
     <string name="trip_viz_replay">Replay from start</string>

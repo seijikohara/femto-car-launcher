@@ -120,8 +120,10 @@ internal class TripGeometry private constructor(
                     maxSpeedMps = speeds.maxOrNull() ?: 0f,
                     avgSpeedMps = if (speeds.isNotEmpty()) speeds.average().toFloat() else 0f,
                     hasAltitude = altSpan != null,
-                    // True cumulative climb (sum of positive steps), not the span.
-                    altitudeGainMeters = if (up != null) cumulativeClimb(up) else 0.0,
+                    // The trip's altitude envelope (lowest / highest point), for
+                    // the HUD's "min–max m" readout.
+                    minAltitudeM = up?.min() ?: 0.0,
+                    maxAltitudeM = up?.max() ?: 0.0,
                 )
             return TripGeometry(vertices, sampled.size, segmentsOf(sampled), stats)
         }
@@ -159,15 +161,6 @@ internal class TripGeometry private constructor(
                 if (up[i].isNaN()) up[i] = next else next = up[i]
             }
             return up
-        }
-
-        private fun cumulativeClimb(up: DoubleArray): Double {
-            var climb = 0.0
-            for (i in 1 until up.size) {
-                val d = up[i] - up[i - 1]
-                if (d > 0.0) climb += d
-            }
-            return climb
         }
 
         // Even-stride downsample to MAX_RENDER_POINTS, always keeping the last
@@ -231,7 +224,10 @@ internal data class TripStats(
     val maxSpeedMps: Float,
     val avgSpeedMps: Float,
     val hasAltitude: Boolean,
-    val altitudeGainMeters: Double,
+    // The altitude envelope (lowest / highest point of the filled profile);
+    // both 0.0 when the trip carried no altitude ([hasAltitude] gates display).
+    val minAltitudeM: Double,
+    val maxAltitudeM: Double,
 )
 
 // Google "Turbo" colormap (Mikhailov, 2019) as a 17-stop LUT with linear
