@@ -31,6 +31,7 @@ import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasurePolicy
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -534,10 +535,18 @@ private object ZeroIntrinsicWidthPolicy : MeasurePolicy {
     ): Int = 0
 }
 
+// The reset control's reported layout width: the full MinTouchTarget circle
+// claimed a metric cell's worth of mostly-empty width at the row's end. The
+// tap target itself must not shrink (CLAUDE.md#automotive-overrides — no
+// persisted exception here, and a mis-tap while driving resets the trip), so
+// the 64 dp circle is kept and only its REPORTED width narrows; the overhang
+// lands symmetrically in the row gap and the card's end padding, both dead
+// space where a stray tap already sat next to the button.
+private val ResetReportedWidth = 40.dp
+
 // Trailing reset control for the trip metrics, anchored to the overlay's
-// top-right (the end of the metric row). Full MinTouchTarget size: the
-// tap-target floor (CLAUDE.md#automotive-overrides) has no persisted exception
-// for this control, and a mis-tap while driving resets the trip.
+// top-right (the end of the metric row). Full MinTouchTarget tap size (see
+// [ResetReportedWidth] for why the layout width is narrower).
 @Composable
 private fun ResetButton(
     onReset: () -> Unit,
@@ -545,7 +554,13 @@ private fun ResetButton(
 ) = Box(
     modifier =
         modifier
-            .size(FemtoDimens.MinTouchTarget)
+            .layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints)
+                val reported = ResetReportedWidth.roundToPx().coerceAtMost(placeable.width)
+                layout(reported, placeable.height) {
+                    placeable.placeRelative((reported - placeable.width) / 2, 0)
+                }
+            }.size(FemtoDimens.MinTouchTarget)
             .clip(CircleShape)
             .clickable(onClick = onReset),
     contentAlignment = Alignment.Center,
