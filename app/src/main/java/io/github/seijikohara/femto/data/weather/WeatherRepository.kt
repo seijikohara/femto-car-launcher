@@ -90,6 +90,7 @@ internal class WeatherRepository(
                 apparentTempC = temp,
                 code = WeatherCode.fromMetSymbol(symbol),
                 windKmh = (instant.windSpeed ?: 0.0) * MS_TO_KMH,
+                windDirectionDeg = instant.windFromDirection,
                 humidityPercent = instant.relativeHumidity?.roundToInt(),
                 uvIndex = instant.ultravioletIndexClearSky,
                 // Day unless the symbol explicitly carries the _night suffix
@@ -136,14 +137,17 @@ internal class WeatherRepository(
             .mapNotNull { entry ->
                 val time = parseInstant(entry.time)?.atZone(zone)?.toLocalTime() ?: return@mapNotNull null
                 val temp = entry.data.instant.details.airTemperature ?: return@mapNotNull null
+                val hour = entry.data.next1Hours
                 HourlyForecast(
                     time = time,
                     tempC = temp,
-                    code = WeatherCode.fromMetSymbol(
-                        entry.data.next1Hours
-                            ?.summary
-                            ?.symbolCode,
-                    ),
+                    code = WeatherCode.fromMetSymbol(hour?.summary?.symbolCode),
+                    precipitationMm = hour?.details?.precipitationAmount,
+                    precipitationProbabilityPercent =
+                        hour
+                            ?.details
+                            ?.probabilityOfPrecipitation
+                            ?.roundToInt(),
                 )
             }.toList()
 
@@ -166,9 +170,27 @@ internal class WeatherRepository(
                     tempMaxC = temps.max(),
                     tempMinC = temps.min(),
                     code = WeatherCode.fromMetSymbol(representativeSymbol(entries, zone)),
+                    precipitationProbabilityPercent = peakPrecipProbability(entries),
                 )
             }.sortedBy { it.date }
             .take(FORECAST_DAYS)
+
+    // The day's peak probability across whichever period blocks carry one (the
+    // near days have 1-hour blocks, the far tail 6-hour blocks); null when the
+    // region gets no probability at all.
+    private fun peakPrecipProbability(entries: List<MetForecast.Timeseries>): Int? =
+        entries
+            .flatMap {
+                listOfNotNull(
+                    it.data.next1Hours
+                        ?.details
+                        ?.probabilityOfPrecipitation,
+                    it.data.next6Hours
+                        ?.details
+                        ?.probabilityOfPrecipitation,
+                )
+            }.maxOrNull()
+            ?.roundToInt()
 
     private fun representativeSymbol(
         entries: List<MetForecast.Timeseries>,
@@ -199,11 +221,10 @@ internal class WeatherRepository(
         val MIN_RETRY_INTERVAL: Duration = Duration.ofMinutes(1)
         const val REFRESH_DISTANCE_M = 5_000f
 
-        // Card layout: a fixed 5-day strip. The maximize panel shows a longer
-        // hourly timeline, so the slice carries up to 12; the compact card caps
-        // its own display at 5 (see WeatherCard.Forecast).
-        const val FORECAST_DAYS = 5
-        const val HOURLY_SLICE_LENGTH = 12
+        // The maximize panel draws a 24 h temperature curve and a 7-day outlook;
+        // the compact card caps its own display shorter (see WeatherCard).
+        const val FORECAST_DAYS = 7
+        const val HOURLY_SLICE_LENGTH = 24
         const val NOON_HOUR = 12
 
         const val MS_TO_KMH = 3.6

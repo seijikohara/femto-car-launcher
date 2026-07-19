@@ -10,6 +10,9 @@ internal data class WeatherSnapshot(
     val apparentTempC: Double,
     val code: WeatherCode,
     val windKmh: Double,
+    // Meteorological "from" direction in degrees (0 = from north, clockwise);
+    // null when MET omits it.
+    val windDirectionDeg: Double? = null,
     val humidityPercent: Int?,
     val uvIndex: Double?,
     val isDay: Boolean,
@@ -40,6 +43,11 @@ internal data class HourlyForecast(
     val time: LocalTime,
     val tempC: Double,
     val code: WeatherCode,
+    // Expected precipitation over the following hour (mm) and its probability
+    // (percent). Both null when MET omits the block (probability coverage is
+    // regional) — consumers degrade quietly rather than showing zeros.
+    val precipitationMm: Double? = null,
+    val precipitationProbabilityPercent: Int? = null,
 )
 
 internal data class DailyForecast(
@@ -47,6 +55,9 @@ internal data class DailyForecast(
     val tempMaxC: Double,
     val tempMinC: Double,
     val code: WeatherCode,
+    // The day's peak precipitation probability (percent); null when MET carries
+    // no probability for any of the day's periods.
+    val precipitationProbabilityPercent: Int? = null,
 )
 
 internal enum class WeatherCode {

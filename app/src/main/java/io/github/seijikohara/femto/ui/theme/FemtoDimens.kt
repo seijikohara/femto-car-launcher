@@ -207,6 +207,12 @@ object FemtoDimens {
     /** Weather glyph inside the forecast chips. */
     val WeatherGlyphSmall = 18.dp
 
+    /**
+     * Canvas height of the weather panel's 24 h temperature curve (curve area +
+     * precipitation band + hour-label strip; the glyph row sits below it).
+     */
+    val WeatherCurveHeight = 140.dp
+
     /** Gap between the weather card's forecast-grid chips, on both axes. */
     val ForecastChipGap = 4.dp
 

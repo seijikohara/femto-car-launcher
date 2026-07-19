@@ -55,6 +55,19 @@
     <string name="speed_metric_distance">DISTANCE</string>
     <string name="speed_metric_avg">AVG.</string>
 
+    <!-- Weather curve axis label for the first (current) hour. -->
+    <string name="weather_curve_now">Now</string>
+    <!-- Today's high/low beside the hero temperature. -->
+    <string name="weather_high_low">H %1$d° · L %2$d°</string>
+    <!-- Precipitation nowcast, derived from the hourly forecast. -->
+    <string name="weather_nowcast_rain_now">Raining now</string>
+    <string name="weather_nowcast_rain_at">Rain around %1$s</string>
+    <string name="weather_nowcast_snow_now">Snowing now</string>
+    <string name="weather_nowcast_snow_at">Snow around %1$s</string>
+    <!-- Metric tile headers. -->
+    <string name="weather_metric_uv">UV</string>
+    <string name="weather_tile_sun">SUN</string>
+
     <!-- Calendar card -->
     <string name="calendar_title">Calendar</string>
     <string name="calendar_permission_denied">Calendar access not granted</string>

@@ -137,6 +137,39 @@ class WeatherRepositoryTest {
         }
 
     @Test
+    fun `maps precipitation and wind direction through to the snapshot`() =
+        runTest {
+            server.enqueue(MockResponse().setBody(FORECAST_BODY))
+
+            val repo =
+                WeatherRepository(
+                    api = newApi(),
+                    locationFlow = flowOf(fakeLocation()),
+                    clockFlow = emptyFlow(),
+                    clock = Clock.fixed(NOW, ZoneOffset.UTC),
+                    zoneProvider = { ZoneOffset.UTC },
+                )
+
+            repo.snapshotFlow().test {
+                val snapshot = assertNotNull(awaitItem())
+                assertEquals(225.0, assertNotNull(snapshot.windDirectionDeg), 0.0)
+                // 10:00 carries a next_1_hours details block; probability rounds.
+                val rainyHour = snapshot.hourly[5]
+                assertEquals(0.8, assertNotNull(rainyHour.precipitationMm), 0.0)
+                assertEquals(64, rainyHour.precipitationProbabilityPercent)
+                // An hour without the block stays null, not zero.
+                assertEquals(null, snapshot.hourly[1].precipitationMm)
+                assertEquals(null, snapshot.hourly[1].precipitationProbabilityPercent)
+                // Daily peak probability: day 1 takes the max across its 1 h and
+                // 6 h blocks (64.4 vs 71.0 -> 71); day 2 has none -> null.
+                assertEquals(71, snapshot.daily[0].precipitationProbabilityPercent)
+                assertEquals(null, snapshot.daily[1].precipitationProbabilityPercent)
+                assertEquals(55, snapshot.daily[2].precipitationProbabilityPercent)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
     fun `returns null when http call fails`() =
         runTest {
             server.enqueue(MockResponse().setResponseCode(500))
@@ -397,18 +430,18 @@ class WeatherRepositoryTest {
             {
               "properties": {
                 "timeseries": [
-                  { "time": "2026-05-01T05:00:00Z", "data": { "instant": { "details": { "air_temperature": 16.0, "wind_speed": 3.5, "relative_humidity": 60.0, "ultraviolet_index_clear_sky": 4.5 } }, "next_1_hours": { "summary": { "symbol_code": "clearsky_day" } } } },
+                  { "time": "2026-05-01T05:00:00Z", "data": { "instant": { "details": { "air_temperature": 16.0, "wind_speed": 3.5, "wind_from_direction": 225.0, "relative_humidity": 60.0, "ultraviolet_index_clear_sky": 4.5 } }, "next_1_hours": { "summary": { "symbol_code": "clearsky_day" }, "details": { "precipitation_amount": 0.0 } } } },
                   { "time": "2026-05-01T06:00:00Z", "data": { "instant": { "details": { "air_temperature": 17.5 } }, "next_1_hours": { "summary": { "symbol_code": "clearsky_day" } } } },
                   { "time": "2026-05-01T07:00:00Z", "data": { "instant": { "details": { "air_temperature": 19.0 } }, "next_1_hours": { "summary": { "symbol_code": "partlycloudy_day" } } } },
                   { "time": "2026-05-01T08:00:00Z", "data": { "instant": { "details": { "air_temperature": 20.0 } }, "next_1_hours": { "summary": { "symbol_code": "partlycloudy_day" } } } },
                   { "time": "2026-05-01T09:00:00Z", "data": { "instant": { "details": { "air_temperature": 21.0 } }, "next_1_hours": { "summary": { "symbol_code": "cloudy" } } } },
-                  { "time": "2026-05-01T10:00:00Z", "data": { "instant": { "details": { "air_temperature": 21.5 } }, "next_1_hours": { "summary": { "symbol_code": "lightrain" } } } },
-                  { "time": "2026-05-01T12:00:00Z", "data": { "instant": { "details": { "air_temperature": 22.0 } }, "next_6_hours": { "summary": { "symbol_code": "rain" } } } },
+                  { "time": "2026-05-01T10:00:00Z", "data": { "instant": { "details": { "air_temperature": 21.5 } }, "next_1_hours": { "summary": { "symbol_code": "lightrain" }, "details": { "precipitation_amount": 0.8, "probability_of_precipitation": 64.4 } } } },
+                  { "time": "2026-05-01T12:00:00Z", "data": { "instant": { "details": { "air_temperature": 22.0 } }, "next_6_hours": { "summary": { "symbol_code": "rain" }, "details": { "precipitation_amount": 3.0, "probability_of_precipitation": 71.0 } } } },
                   { "time": "2026-05-02T06:00:00Z", "data": { "instant": { "details": { "air_temperature": 14.0 } }, "next_1_hours": { "summary": { "symbol_code": "partlycloudy_day" } } } },
                   { "time": "2026-05-02T12:00:00Z", "data": { "instant": { "details": { "air_temperature": 23.0 } }, "next_6_hours": { "summary": { "symbol_code": "partlycloudy_day" } } } },
                   { "time": "2026-05-02T18:00:00Z", "data": { "instant": { "details": { "air_temperature": 15.0 } }, "next_1_hours": { "summary": { "symbol_code": "cloudy" } } } },
                   { "time": "2026-05-03T06:00:00Z", "data": { "instant": { "details": { "air_temperature": 13.0 } }, "next_1_hours": { "summary": { "symbol_code": "cloudy" } } } },
-                  { "time": "2026-05-03T12:00:00Z", "data": { "instant": { "details": { "air_temperature": 21.0 } }, "next_6_hours": { "summary": { "symbol_code": "lightrainshowers_day" } } } }
+                  { "time": "2026-05-03T12:00:00Z", "data": { "instant": { "details": { "air_temperature": 21.0 } }, "next_6_hours": { "summary": { "symbol_code": "lightrainshowers_day" }, "details": { "probability_of_precipitation": 55.0 } } } }
                 ]
               }
             }
