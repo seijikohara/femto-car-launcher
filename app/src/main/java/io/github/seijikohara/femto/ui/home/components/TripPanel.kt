@@ -361,9 +361,17 @@ private fun TripStatsRow(
         unit = speedUnit.label(),
     )
     if (stats.hasAltitude) {
+        // The altitude envelope ("12–348 m"): the trip's lowest and highest
+        // points, which read directly off the rendered elevation curtain —
+        // unlike the previous cumulative-climb sum, which had no visual anchor.
         StatCell(
-            label = stringResource(R.string.trip_viz_climb),
-            value = "${stats.altitudeGainMeters.roundToInt()}",
+            label = stringResource(R.string.trip_viz_altitude),
+            value =
+                stringResource(
+                    R.string.trip_viz_altitude_range,
+                    stats.minAltitudeM.roundToInt(),
+                    stats.maxAltitudeM.roundToInt(),
+                ),
             unit = "m",
         )
     }

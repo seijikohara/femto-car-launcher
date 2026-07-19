@@ -156,10 +156,12 @@ private fun DrawScope.drawDarkSegment(
     drawLine(core, start, end, strokeWidth = 1.6f, cap = StrokeCap.Butt, blendMode = BlendMode.Plus)
 }
 
-// Light scene: darkened lines composited over the light backdrop (alpha-over),
-// so fog becomes the alpha (distant lines fade into the backdrop) and the head
-// mixes toward the ink target instead of white. A wide low-alpha pass softens
-// the edge without the additive bloom that would wash out on light.
+// Light scene: jewel-toned lines composited over the light backdrop
+// (alpha-over), so fog becomes the alpha (distant lines fade into the backdrop)
+// and the head mixes toward the ink target instead of white. A wide low-alpha
+// pass softens the edge without the additive bloom that would wash out on
+// light; the core is a touch wider than the dark scene's because a thin line
+// on white has no glow lending it presence.
 private fun DrawScope.drawLightSegment(
     start: Offset,
     end: Offset,
@@ -174,10 +176,10 @@ private fun DrawScope.drawLightSegment(
     val cg = lerp(g, head[1], hb)
     val cb = lerp(bl, head[2], hb)
     val alpha = fog.coerceIn(0f, 1f)
-    val soft = Color(cr, cg, cb, alpha = alpha * 0.22f)
+    val soft = Color(cr, cg, cb, alpha = alpha * 0.30f)
     drawLine(soft, start, end, strokeWidth = 6f, cap = StrokeCap.Round, blendMode = BlendMode.SrcOver)
     val core = Color(cr, cg, cb, alpha = alpha)
-    drawLine(core, start, end, strokeWidth = 1.6f, cap = StrokeCap.Butt, blendMode = BlendMode.SrcOver)
+    drawLine(core, start, end, strokeWidth = 2.2f, cap = StrokeCap.Butt, blendMode = BlendMode.SrcOver)
 }
 
 // Mutable projection result, reused to keep the draw loop allocation-free.

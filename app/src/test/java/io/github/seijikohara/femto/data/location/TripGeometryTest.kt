@@ -113,11 +113,11 @@ class TripGeometryTest {
     }
 
     @Test
-    fun `climb sums positive steps rather than the altitude span`() {
-        // Up 20, down 20, up 20: span is 20 m but the cumulative climb is 40 m.
-        val profile = listOf(0.0, 20.0, 0.0, 20.0)
+    fun `altitude stats carry the trip's lowest and highest points`() {
+        val profile = listOf(120.0, 140.0, 95.0, 180.0)
         val geometry = assertNotNull(TripGeometry.from(straightTrip(4, altitudeM = { profile[it] })))
-        assertEquals(40.0, geometry.stats.altitudeGainMeters, 1e-6)
+        assertEquals(95.0, geometry.stats.minAltitudeM, 1e-6)
+        assertEquals(180.0, geometry.stats.maxAltitudeM, 1e-6)
     }
 
     @Test

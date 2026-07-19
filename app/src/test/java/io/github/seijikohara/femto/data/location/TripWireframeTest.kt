@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.data.location
 
 import io.github.seijikohara.femto.testfixtures.fakeTrackPoint
 import org.junit.Test
+import kotlin.math.abs
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -42,32 +43,77 @@ class TripWireframeTest {
     }
 
     @Test
-    fun `light palette scales the track speed colour and recolours the grid`() {
+    fun `dark palette passes the track speed colours through verbatim`() {
+        val geometry = geometryOf(altitude = false, points = 6)!!
+        val wire = TripWireframe.build(geometry, TripScenePalette.Dark)
+        // The dark scene is the tuned-for reference: the first track vertex's
+        // colour must be the geometry's turbo colour untouched.
+        assertEquals(geometry.vertices[3], wire[3], 1e-6f)
+        assertEquals(geometry.vertices[4], wire[4], 1e-6f)
+        assertEquals(geometry.vertices[5], wire[5], 1e-6f)
+    }
+
+    @Test
+    fun `light palette tones every track colour into the jewel band`() {
         val geometry = geometryOf(altitude = false, points = 6)!!
         val dark = TripWireframe.build(geometry, TripScenePalette.Dark)
-        val lightPalette =
-            TripScenePalette(
-                isDark = false,
-                background = floatArrayOf(0.9f, 0.9f, 0.9f),
-                grid = floatArrayOf(0.2f, 0.1f, 0.05f),
-                head = floatArrayOf(0f, 0f, 0f),
-                lineScale = 0.5f,
-            )
-        val light = TripWireframe.build(geometry, lightPalette)
+        val light = TripWireframe.build(geometry, lightPalette())
 
         // Same geometry, so the buffers are the same length; only colours differ.
         assertEquals(dark.size, light.size)
-        // Track vertex 0 speed colour is scaled by lineScale (0.5) on the light scene.
-        assertEquals(dark[3] * 0.5f, light[3], 1e-6f)
-        assertEquals(dark[4] * 0.5f, light[4], 1e-6f)
-        assertEquals(dark[5] * 0.5f, light[5], 1e-6f)
+        // Every track vertex's HSV value (max channel) sits inside the light
+        // band — never near-black on the light backdrop, never blown out. The
+        // flat trip has no curtain, so everything before the grid is track.
+        val f = TripWireframe.FLOATS_PER_VERTEX
+        val trackVertices = (0 until light.size / f).takeWhile { light[it * f + 6] != TripWireframe.ALWAYS_ON }
+        assertTrue(trackVertices.isNotEmpty())
+        trackVertices.forEach { i ->
+            val base = i * f
+            val value = maxOf(light[base + 3], light[base + 4], light[base + 5])
+            assertTrue(value in 0.49f..0.83f, "track vertex $i value $value outside the light band")
+        }
         // The always-on grid tail carries the palette grid colour verbatim.
-        val gridBase = light.size - TripWireframe.FLOATS_PER_VERTEX
+        val gridBase = light.size - f
         assertEquals(TripWireframe.ALWAYS_ON, light[gridBase + 6])
         assertEquals(0.2f, light[gridBase + 3], 1e-6f)
         assertEquals(0.1f, light[gridBase + 4], 1e-6f)
         assertEquals(0.05f, light[gridBase + 5], 1e-6f)
     }
+
+    @Test
+    fun `light curtain recedes toward the light backdrop`() {
+        val geometry = geometryOf(altitude = true, points = 8)!!
+        val light = TripWireframe.build(geometry, lightPalette())
+        val f = TripWireframe.FLOATS_PER_VERTEX
+        // The curtain sits between the track pairs and the grid tail as
+        // (top, bottom) vertex pairs — a top can also sit at y == 0 at the
+        // trip's lowest point, so bottoms are identified by pair parity, not by
+        // y. Bottoms must be near the light backdrop — the ribs fade into the
+        // scene instead of hanging as dark bars.
+        val trackVertexCount = geometry.segments.sumOf { (it.last - it.first) * 2 }
+        val bottomBases =
+            (trackVertexCount until light.size / f)
+                .filter { light[it * f + 6] != TripWireframe.ALWAYS_ON && (it - trackVertexCount) % 2 == 1 }
+                .map { it * f }
+        assertTrue(bottomBases.isNotEmpty())
+        bottomBases.forEach { base ->
+            val distanceToBackground =
+                maxOf(
+                    abs(light[base + 3] - 0.9f),
+                    abs(light[base + 4] - 0.9f),
+                    abs(light[base + 5] - 0.9f),
+                )
+            assertTrue(distanceToBackground < 0.15f, "curtain bottom not receded (delta $distanceToBackground)")
+        }
+    }
+
+    private fun lightPalette() =
+        TripScenePalette(
+            isDark = false,
+            background = floatArrayOf(0.9f, 0.9f, 0.9f),
+            grid = floatArrayOf(0.2f, 0.1f, 0.05f),
+            head = floatArrayOf(0f, 0f, 0f),
+        )
 
     private fun geometryOf(
         altitude: Boolean,

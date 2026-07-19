@@ -5,21 +5,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import io.github.seijikohara.femto.data.location.TripScenePalette
+import io.github.seijikohara.femto.data.location.lightSceneLineTone
 import io.github.seijikohara.femto.ui.theme.LocalFemtoDarkTheme
 import io.github.seijikohara.femto.ui.theme.TripSceneBackground
 import io.github.seijikohara.femto.ui.theme.TripSceneBackgroundLight
 import io.github.seijikohara.femto.ui.theme.TripSceneHeadLight
 
-// Accent dimming for the ground grid + chrome: keep the sci-fi floor subtle so
-// it never competes with the hero speed line. Scales the scheme primary down
-// toward the scene — a touch dimmer on the dark scene, a touch darker on light
-// so it stays legible against the near-white backdrop.
+// Accent dimming for the dark scene's ground grid + chrome: keep the sci-fi
+// floor subtle so it never competes with the hero speed line.
 private const val DARK_GRID_SCALE = 0.42f
-private const val LIGHT_GRID_SCALE = 0.5f
 
-// Darken the turbo speed line for the light scene so it reads against the light
-// backdrop under alpha-over blending (the stops are tuned bright-on-dark).
-private const val LIGHT_LINE_SCALE = 0.55f
+// The light grid takes the accent through the same jewel-tone transform as the
+// speed line, then recedes toward the light backdrop — a soft coloured floor
+// rather than a dark lattice over the near-white scene.
+private const val LIGHT_GRID_RECEDE = 0.45f
 
 /**
  * Build the flyover's [TripScenePalette] from the *rendered* theme — the
@@ -45,15 +44,18 @@ internal fun rememberTripScenePalette(): TripScenePalette {
                 background = TripSceneBackground.rgb(),
                 grid = primary.scaledRgb(DARK_GRID_SCALE),
                 head = floatArrayOf(1f, 1f, 1f),
-                lineScale = 1f,
             )
         } else {
+            val background = TripSceneBackgroundLight.rgb()
+            val toned = lightSceneLineTone(primary.red, primary.green, primary.blue)
             TripScenePalette(
                 isDark = false,
-                background = TripSceneBackgroundLight.rgb(),
-                grid = primary.scaledRgb(LIGHT_GRID_SCALE),
+                background = background,
+                grid =
+                    FloatArray(3) { i ->
+                        toned[i] + (background[i] - toned[i]) * LIGHT_GRID_RECEDE
+                    },
                 head = TripSceneHeadLight.rgb(),
-                lineScale = LIGHT_LINE_SCALE,
             )
         }
     }
