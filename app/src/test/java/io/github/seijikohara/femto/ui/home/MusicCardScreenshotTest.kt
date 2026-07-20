@@ -1,7 +1,10 @@
 package io.github.seijikohara.femto.ui.home
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -67,13 +70,22 @@ class MusicCardScreenshotTest {
             )
         }
 
+    // The card is a translucent glass sheet with a drop shadow; in the real
+    // dashboard it floats over the map. Render it over a theme backdrop with an
+    // outer margin so the shadow reads as a soft float (not a hard band clipped
+    // at the image edge) and the card's own padding is visible against the
+    // frosted fill — otherwise the isolated card on white looks paddingless.
     private fun capture(
         name: String,
         content: @Composable () -> Unit,
     ) {
         captureRoboImage(filePath = "src/test/screenshots/$name.png", roborazziOptions = ScreenshotCompareOptions) {
             FemtoTheme {
-                Box(Modifier.width(320.dp)) { content() }
+                Box(
+                    Modifier
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                        .padding(24.dp),
+                ) { content() }
             }
         }
     }
