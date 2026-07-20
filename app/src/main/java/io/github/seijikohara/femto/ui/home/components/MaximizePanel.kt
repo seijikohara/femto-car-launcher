@@ -94,28 +94,3 @@ internal fun MaximizePanel(
         }
     }
 }
-
-// 64 dp glass-panel icon button (collapse / open-external), matching the music
-// panel's top-bar buttons.
-@Composable
-private fun PanelIconButton(
-    icon: ImageVector,
-    description: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) = Box(
-    modifier =
-        modifier
-            .size(FemtoDimens.MinTouchTarget)
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .semantics { contentDescription = description },
-    contentAlignment = Alignment.Center,
-) {
-    FemtoIcon(
-        imageVector = icon,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.size(28.dp),
-    )
-}

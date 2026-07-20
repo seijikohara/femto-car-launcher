@@ -35,7 +35,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.seijikohara.femto.data.apps.AppsRepository
-import io.github.seijikohara.femto.data.apps.RecentAppsPreferences
 import io.github.seijikohara.femto.data.common.hasBluetoothConnectPermission
 import io.github.seijikohara.femto.data.common.hasReadCalendarPermission
 import io.github.seijikohara.femto.data.common.hasReadPhoneStatePermission
@@ -57,7 +56,6 @@ import io.github.seijikohara.femto.ui.assistant.AssistantOption
 import io.github.seijikohara.femto.ui.assistant.AssistantSheet
 import io.github.seijikohara.femto.ui.common.hideSystemBarsTransiently
 import io.github.seijikohara.femto.ui.diagnostics.DiagnosticsSheet
-import io.github.seijikohara.femto.ui.drawer.AppDrawerSheet
 import io.github.seijikohara.femto.ui.fontpicker.FontPickerSheet
 import io.github.seijikohara.femto.ui.home.HomeEvent
 import io.github.seijikohara.femto.ui.home.HomeRoute
@@ -79,7 +77,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 class MainActivity : ComponentActivity() {
     private val appsRepository by lazy { AppsRepository(this) }
-    private val recentAppsPreferences by lazy { RecentAppsPreferences(this) }
     private val displayPreferences by lazy { DisplayPreferences(this) }
     private val dockPreferences by lazy { DockPreferences(this) }
     private val fontRepository by lazy { FontRepository.get(this) }
@@ -220,9 +217,9 @@ class MainActivity : ComponentActivity() {
                 fontWeightStep = settings.fontWeightStep,
                 fontLetterSpacingCentiEm = settings.fontLetterSpacingCentiEm,
             ) {
-                // The dashboard stays composed; the app drawer, assistant, and
-                // settings are all bottom-sheet overlays that slide up over it.
-                var showDrawer by rememberSaveable { mutableStateOf(false) }
+                // The dashboard stays composed; the assistant and settings are
+                // bottom-sheet overlays that slide up over it. The app launcher is a
+                // maximize panel inside the dashboard, not a sheet.
                 var showAssistant by rememberSaveable { mutableStateOf(false) }
                 var showSettings by rememberSaveable { mutableStateOf(false) }
                 // The font picker opens over settings for one slot at a time; null = closed.
@@ -281,7 +278,6 @@ class MainActivity : ComponentActivity() {
                         handleHomeEvent(
                             event = event,
                             display = settings,
-                            setShowDrawer = { showDrawer = it },
                             setShowAssistant = { showAssistant = it },
                             setShowSettings = { showSettings = it },
                         )
@@ -289,27 +285,10 @@ class MainActivity : ComponentActivity() {
                 )
                 // The modal sheets render in their own windows, which do not inherit
                 // the Activity's immersive flags; pass the fullscreen choice so each
-                // re-applies it to its window (see ImmersiveSheetEffect).
+                // re-applies it to its window (see ImmersiveSheetEffect). The app
+                // launcher is no longer a sheet — it is a maximize panel inside the
+                // dashboard (see DashboardOverlays / AppDrawerPanelHost).
                 val fullscreen = settings.fullscreen == FullscreenSetting.ON
-                if (showDrawer) {
-                    AppDrawerSheet(
-                        onLaunch = { component ->
-                            // Only a resolved launch feeds the Recent row — a stale
-                            // tile (ActivityNotFoundException / SecurityException)
-                            // never actually opened anything worth surfacing again.
-                            if (appsRepository.launch(component)) {
-                                lifecycleScope.launch {
-                                    recentAppsPreferences.recordLaunch(
-                                        component.flattenToString(),
-                                    )
-                                }
-                            }
-                            showDrawer = false
-                        },
-                        onDismiss = { showDrawer = false },
-                        fullscreen = fullscreen,
-                    )
-                }
                 if (showAssistant) {
                     AssistantSheet(
                         onLaunchOption = { option ->
@@ -403,15 +382,10 @@ class MainActivity : ComponentActivity() {
     private fun handleHomeEvent(
         event: HomeEvent,
         display: DisplaySettings,
-        setShowDrawer: (Boolean) -> Unit,
         setShowAssistant: (Boolean) -> Unit,
         setShowSettings: (Boolean) -> Unit,
     ) {
         when (event) {
-            HomeEvent.OpenDrawer -> {
-                setShowDrawer(true)
-            }
-
             is HomeEvent.LaunchComponent -> {
                 appsRepository.launch(event.component)
             }
@@ -439,15 +413,10 @@ class MainActivity : ComponentActivity() {
             }
 
             HomeEvent.OpenInAppSettings -> {
-                // Close the drawer overlay so it does not re-appear behind settings
-                // when the user navigates back.
-                setShowDrawer(false)
                 setShowSettings(true)
             }
 
             HomeEvent.OpenAssistant -> {
-                // Close the drawer overlay so the two bottom sheets never stack.
-                setShowDrawer(false)
                 // SYSTEM hands off to the default assistant's overlay; the sheet
                 // is the fallback when none resolves (e.g. no assistant installed).
                 if (display.assistantLaunch != AssistantLaunchSetting.SYSTEM || !launchSystemAssistant()) {

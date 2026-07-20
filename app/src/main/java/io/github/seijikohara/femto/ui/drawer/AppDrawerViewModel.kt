@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.drawer
 
+import android.content.ComponentName
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -29,13 +30,20 @@ private const val TAG = "AppDrawerViewModel"
  *
  * [recentComponents] is the launch-history store's ordered component list
  * (most-recent-first). Unlike [queryApps] it is collected continuously, not
- * just on [AppDrawerAction.Refresh]: a launch from the very sheet currently
+ * just on [AppDrawerAction.Refresh]: a launch from the very panel currently
  * open should bump the Recent row immediately, without waiting for the next
  * full app re-query.
+ *
+ * [launchApp] and [recordLaunch] are the launch side effect: injected as plain
+ * seams (production wires [AppsRepository.launch] and
+ * [RecentAppsPreferences.recordLaunch]) so the panel is self-contained and JVM
+ * tests can assert the resolved-launch-only recents rule without Android types.
  */
 internal class AppDrawerViewModel(
     private val queryApps: suspend () -> List<AppEntry>,
     recentComponents: Flow<List<String>> = emptyFlow(),
+    private val launchApp: (ComponentName) -> Boolean = { false },
+    private val recordLaunch: suspend (String) -> Unit = {},
 ) : ViewModel() {
     private val _uiState = MutableStateFlow<AppDrawerUiState>(AppDrawerUiState.Loading)
     val uiState: StateFlow<AppDrawerUiState> = _uiState.asStateFlow()
@@ -69,7 +77,18 @@ internal class AppDrawerViewModel(
     fun onAction(action: AppDrawerAction) =
         when (action) {
             AppDrawerAction.Refresh -> refresh()
+            is AppDrawerAction.Launch -> launchAndRecord(action.componentName)
         }
+
+    // Only a resolved launch feeds the Recent row — a stale tile (its app
+    // uninstalled since it was listed) never opened anything worth surfacing
+    // again. viewModelScope outlives the panel's collapse-on-launch, so the
+    // DataStore write always completes even as the launched app foregrounds.
+    private fun launchAndRecord(componentName: ComponentName) {
+        if (launchApp(componentName)) {
+            viewModelScope.launch { recordLaunch(componentName.flattenToString()) }
+        }
+    }
 
     // Flip back to Loading first so a retry shows progress rather than a stale
     // error, mirroring the pre-ViewModel sheet behavior.
@@ -100,9 +119,16 @@ internal val AppDrawerViewModelFactory: ViewModelProvider.Factory =
     viewModelFactory {
         initializer {
             val application = checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
+            // One repository / store instance backs both the query and the launch
+            // side effect so a launch records against the same recents store the
+            // Recent row reads.
+            val appsRepository = AppsRepository(application)
+            val recentApps = RecentAppsPreferences(application)
             AppDrawerViewModel(
-                queryApps = AppsRepository(application)::queryApps,
-                recentComponents = RecentAppsPreferences(application).recentComponents,
+                queryApps = appsRepository::queryApps,
+                recentComponents = recentApps.recentComponents,
+                launchApp = appsRepository::launch,
+                recordLaunch = recentApps::recordLaunch,
             )
         }
     }

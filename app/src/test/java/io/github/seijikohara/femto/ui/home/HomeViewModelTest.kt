@@ -150,9 +150,14 @@ class HomeViewModelTest {
         }
 
     @Test
-    fun `onAction OpenAppDrawer emits OpenDrawer event`() =
+    fun `onAction OpenAppDrawer emits no event (handled at the dashboard overlay layer)`() =
         runTest {
-            stubViewModel().assertEvent(HomeAction.OpenAppDrawer, HomeEvent.OpenDrawer)
+            val viewModel = stubViewModel()
+            viewModel.events.test {
+                viewModel.onAction(HomeAction.OpenAppDrawer)
+                expectNoEvents()
+                cancelAndIgnoreRemainingEvents()
+            }
         }
 
     @Test

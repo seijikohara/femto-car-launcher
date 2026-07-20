@@ -15,12 +15,11 @@ import io.github.seijikohara.femto.ui.common.rememberSheetHeight
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 
 /**
- * Settings presented as a Material 3 [ModalBottomSheet] over the dashboard,
- * mirroring [io.github.seijikohara.femto.ui.drawer.AppDrawerSheet]: the dashboard
- * stays composed underneath, so settings read as an overlay the user dismisses by
- * swiping down, tapping the scrim, or the header back button — rather than a
- * full-screen swap. The sheet is taller than the drawer's — see
- * [FemtoDimens.SettingsSheetHeightFraction] — so the master-detail rail / list
+ * Settings presented as a Material 3 [ModalBottomSheet] over the dashboard: the
+ * dashboard stays composed underneath, so settings read as an overlay the user
+ * dismisses by swiping down, tapping the scrim, or the header back button —
+ * rather than a full-screen swap. The sheet keys its height off the viewport via
+ * [FemtoDimens.SettingsSheetHeightFraction] so the master-detail rail / list
  * and detail pane both have room to breathe. [SettingsRoute] supplies the
  * content inside the height-bounded [Box] so its category rail / list and
  * detail pane scroll independently within the sheet.
