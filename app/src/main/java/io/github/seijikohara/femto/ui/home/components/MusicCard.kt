@@ -36,7 +36,7 @@ import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import kotlinx.coroutines.flow.StateFlow
 
 // Gap between the album art and the meta column in the playing-state row.
-private val RowContentGap = 14.dp
+private val RowContentGap = 16.dp
 
 /**
  * Music card. Vertical layout inherited from the `.music-card` rules of the
@@ -130,9 +130,8 @@ private fun PlayingState(
             Modifier
                 .fillMaxWidth()
                 .clickable(onClickLabel = openLabel) { onLaunchSource(nowPlaying.packageName) }
-                // Compact padding so the row + transport strip pack tightly without
-                // starving the meta block — the same tightening CalendarCard /
-                // WeatherCard use.
+                // The shared card inset, so the album art and metadata breathe from
+                // the card edge and match the calendar / weather cards beside it.
                 .padding(FemtoDimens.CardPaddingCompact),
     ) {
         // The art is a square sized off the row's available WIDTH alone (reserving

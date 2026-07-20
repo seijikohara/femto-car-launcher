@@ -151,9 +151,9 @@ private const val ARTIST_SLOT = 2
 private const val ALBUM_SLOT = 3
 private const val PROGRESS_SLOT = 4
 
-// Gap between the source eyebrow / title / artist / album lines — the tight
-// rhythm the mockup used for this block.
-private val MetaLineGap: Dp = 2.dp
+// Gap between the source eyebrow / title / artist / album lines — a little air
+// between the lines so the metadata block reads cleanly rather than cramped.
+private val MetaLineGap: Dp = 4.dp
 
 /**
  * Title, artist, album, source eyebrow, and the playback progress row, laid
