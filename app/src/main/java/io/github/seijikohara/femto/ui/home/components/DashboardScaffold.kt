@@ -466,6 +466,19 @@ private fun DashboardOverlays(
     // open panel is never stranded.
     var tripExpanded by rememberSaveable { mutableStateOf(false) }
 
+    // The apps panel is the only one reachable while another panel is open — the
+    // card / speed triggers sit behind the panels, but the dock (which opens apps)
+    // stays operable. So make apps mutually exclusive: opening it collapses any
+    // panel underneath, mirroring how the old drawer sheet covered everything.
+    LaunchedEffect(appsExpanded) {
+        if (appsExpanded) {
+            nowPlayingExpanded = false
+            calendarExpanded = false
+            weatherExpanded = false
+            tripExpanded = false
+        }
+    }
+
     // LEFT driver side mirrors the dashboard start <-> end: the cards, clock, and speed
     // reserve move to the left; the map controls (opposite the cards) move to the
     // right. Each site below reduces to its current RIGHT expression when !mirror.

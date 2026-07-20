@@ -14,7 +14,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 
 /**
  * Assistant presented as a Material 3 [ModalBottomSheet] over the dashboard,
- * mirroring [io.github.seijikohara.femto.ui.drawer.AppDrawerSheet].
+ * one of the launcher's bottom-sheet overlays (alongside settings).
  *
  * The launcher keeps the dashboard composed underneath, so the sheet reads as an
  * overlay (slide-up + scrim) the user dismisses by swiping down or tapping the

@@ -225,30 +225,6 @@ private fun PanelTopBar(
     }
 }
 
-@Composable
-private fun PanelIconButton(
-    icon: ImageVector,
-    description: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    tint: Color = Color.Unspecified,
-) = Box(
-    modifier =
-        modifier
-            .size(FemtoDimens.MinTouchTarget)
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .semantics { contentDescription = description },
-    contentAlignment = Alignment.Center,
-) {
-    FemtoIcon(
-        imageVector = icon,
-        contentDescription = null,
-        tint = if (tint == Color.Unspecified) MaterialTheme.colorScheme.onSurface else tint,
-        modifier = Modifier.size(28.dp),
-    )
-}
-
 // Everything below the art: metadata, progress, transport, queue.
 //
 // Portrait stacks this column directly under the art and does NOT scroll: the

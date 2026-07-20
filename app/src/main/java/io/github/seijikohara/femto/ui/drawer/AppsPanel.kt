@@ -57,6 +57,7 @@ import io.github.seijikohara.femto.data.apps.DrawerLayout
 import io.github.seijikohara.femto.data.apps.DrawerPreferences
 import io.github.seijikohara.femto.ui.home.components.FemtoHorizontalDivider
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
+import io.github.seijikohara.femto.ui.home.components.PanelIconButton
 import io.github.seijikohara.femto.ui.home.components.glassChrome
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
@@ -277,31 +278,6 @@ private val IconSizeOptions =
         DrawerIconSize.MEDIUM to R.string.drawer_icon_size_medium,
         DrawerIconSize.LARGE to R.string.drawer_icon_size_large,
     )
-
-// 64 dp glass-panel icon button, matching the other maximize panels' top-bar
-// buttons (the shared one in MaximizePanel is private to that file).
-@Composable
-private fun PanelIconButton(
-    icon: ImageVector,
-    description: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) = Box(
-    modifier =
-        modifier
-            .size(FemtoDimens.MinTouchTarget)
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .semantics { contentDescription = description },
-    contentAlignment = Alignment.Center,
-) {
-    FemtoIcon(
-        imageVector = icon,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.size(28.dp),
-    )
-}
 
 /**
  * Route wrapper for [AppsPanel]: obtains the activity-scoped [AppDrawerViewModel]
