@@ -103,4 +103,42 @@ class AppDrawerViewModelRecentAppsTest {
                 assertEquals(emptyList(), content.recentApps)
             }
         }
+
+    @Test
+    fun `Launch records the launch in recent history when launchApp resolves`() =
+        runTest {
+            val recorded = mutableListOf<String>()
+            val viewModel =
+                AppDrawerViewModel(
+                    queryApps = { listOf(maps) },
+                    launchApp = { true },
+                    recordLaunch = { recorded += it },
+                )
+
+            viewModel.onAction(AppDrawerAction.Launch(maps.componentName))
+
+            assertEquals(listOf(maps.componentName.flattenToString()), recorded)
+        }
+
+    @Test
+    fun `Launch does not record when launchApp fails to resolve`() =
+        runTest {
+            val recorded = mutableListOf<String>()
+            var attempted: android.content.ComponentName? = null
+            val viewModel =
+                AppDrawerViewModel(
+                    queryApps = { listOf(maps) },
+                    launchApp = { component ->
+                        attempted = component
+                        false
+                    },
+                    recordLaunch = { recorded += it },
+                )
+
+            viewModel.onAction(AppDrawerAction.Launch(maps.componentName))
+
+            // A stale tile never opened anything worth surfacing again.
+            assertEquals(maps.componentName, attempted)
+            assertEquals(emptyList(), recorded)
+        }
 }

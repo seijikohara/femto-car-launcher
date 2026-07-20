@@ -172,13 +172,13 @@
     <string name="drawer_move_left">Move left</string>
     <string name="drawer_move_right">Move right</string>
     <string name="drawer_search_hint">Search apps</string>
-    <string name="drawer_search_clear">Clear search</string>
+    <string name="drawer_search">Search</string>
+    <string name="drawer_search_close">Close search</string>
     <string name="drawer_no_matches">No apps match your search</string>
-    <string name="drawer_icon_size">Icon size</string>
+    <string name="drawer_display_options">Display options</string>
     <string name="drawer_icon_size_small">Small</string>
     <string name="drawer_icon_size_medium">Medium</string>
     <string name="drawer_icon_size_large">Large</string>
-    <string name="drawer_all_apps">All apps</string>
     <string name="drawer_recent_apps">Recent</string>
 
     <!-- Assistant sheet -->

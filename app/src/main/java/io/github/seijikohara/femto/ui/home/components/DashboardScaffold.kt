@@ -43,6 +43,7 @@ import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.MusicCardState
+import io.github.seijikohara.femto.ui.drawer.AppDrawerPanelHost
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
@@ -201,6 +202,19 @@ private fun DashboardContent(
     var recenterNonce by remember { mutableIntStateOf(0) }
     var overlayHeightPx by remember { mutableIntStateOf(0) }
 
+    // The apps launcher is a maximize panel like calendar/weather, but its trigger
+    // is the dock's APPS button — a sibling of the overlays — so its expanded state
+    // lives here and the dock's OpenAppDrawer action is intercepted rather than
+    // routed to the ViewModel (the data-backed panels flip their own booleans from
+    // inside the overlays). rememberSaveable keeps it open across rotation.
+    var appsExpanded by rememberSaveable { mutableStateOf(false) }
+    val overlayAction =
+        remember(onAction) {
+            { action: HomeAction ->
+                if (action is HomeAction.OpenAppDrawer) appsExpanded = true else onAction(action)
+            }
+        }
+
     val density = LocalDensity.current
     // The dock floats over the map as a rounded panel, inset from its edge by
     // outerPad like the cards; the overlays inset by that whole footprint (the
@@ -319,7 +333,9 @@ private fun DashboardContent(
         driverSide = driverSide,
         onRecenter = { recenterNonce++ },
         onOverlayHeightChange = { overlayHeightPx = it },
-        onAction = onAction,
+        onAction = overlayAction,
+        appsExpanded = appsExpanded,
+        onCloseApps = { appsExpanded = false },
         modifier = Modifier.fillMaxSize().padding(dockEdgePadding(dockPosition, dockExtent)),
         spectrum = spectrum,
         musicShowAlbum = musicShowAlbum,
@@ -330,7 +346,7 @@ private fun DashboardContent(
     // The dock as a glass bar / rail on its edge, drawn over the full-bleed map.
     DashboardDock(
         systemStatus = uiState.systemStatus,
-        onAction = onAction,
+        onAction = overlayAction,
         position = dockPosition,
         hazeState = hazeState,
         glassConfig = glassConfig,
@@ -394,6 +410,11 @@ private fun DashboardOverlays(
     onRecenter: () -> Unit,
     onOverlayHeightChange: (Int) -> Unit,
     onAction: (HomeAction) -> Unit,
+    // The apps maximize panel: its expanded state is owned by the parent (the dock
+    // that opens it is a sibling of this overlay tree), unlike the data-backed
+    // panels whose booleans live below.
+    appsExpanded: Boolean,
+    onCloseApps: () -> Unit,
     modifier: Modifier = Modifier,
     spectrum: StateFlow<FloatArray?>? = null,
     musicShowAlbum: Boolean = true,
@@ -619,6 +640,7 @@ private fun DashboardOverlays(
                 calendarExpanded -> ({ calendarExpanded = false })
                 weatherExpanded -> ({ weatherExpanded = false })
                 tripExpanded -> ({ tripExpanded = false })
+                appsExpanded -> onCloseApps
                 else -> null
             }
         if (dismissOpenPanel != null) {
@@ -721,6 +743,23 @@ private fun DashboardOverlays(
                 onClose = { tripExpanded = false },
                 speedUnit = speedUnit,
                 settled = settled,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
+        // The app launcher, opened by the dock's APPS button (see the parent's
+        // OpenAppDrawer interception). Unlike the data-backed panels it needs no
+        // "has data" gate: an empty app list renders its own "No apps" state.
+        AnimatedVisibility(
+            visible = appsExpanded,
+            enter = Motion.panelEnter(motionTier),
+            exit = Motion.panelExit(motionTier),
+            modifier = Modifier.fillMaxSize().padding(outerPad),
+        ) {
+            AppDrawerPanelHost(
+                onClose = onCloseApps,
+                hazeState = hazeState,
+                glassConfig = glassConfig,
                 modifier = Modifier.fillMaxSize(),
             )
         }

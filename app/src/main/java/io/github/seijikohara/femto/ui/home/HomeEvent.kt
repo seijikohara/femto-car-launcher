@@ -13,8 +13,6 @@ import io.github.seijikohara.femto.data.dock.DockStatusId
  * latest value is not retained.
  */
 internal sealed interface HomeEvent {
-    data object OpenDrawer : HomeEvent
-
     /** Launch a known launcher activity (typically picked from the app drawer or a home shortcut). */
     data class LaunchComponent(
         val component: ComponentName,
