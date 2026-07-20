@@ -75,6 +75,9 @@ internal fun MusicCard(
     showAlbum: Boolean = true,
     showArt: Boolean = true,
     motionTier: MotionTier = MotionTier.STANDARD,
+    // Scroll long title / artist / album to full length while the vehicle is
+    // stationary; static ellipsis while moving (see MusicCardMeta.MetaLine).
+    stationary: Boolean = false,
 ) = Surface(
     modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
     shape = MaterialTheme.shapes.large,
@@ -100,6 +103,7 @@ internal fun MusicCard(
                 showAlbum,
                 showArt,
                 motionTier,
+                stationary,
             )
         }
     }
@@ -115,6 +119,7 @@ private fun PlayingState(
     showAlbum: Boolean,
     showArt: Boolean,
     motionTier: MotionTier,
+    stationary: Boolean,
 ) {
     // The whole card (except the transport controls, which consume their own taps)
     // opens the source app. The transport buttons are clickable children, so they
@@ -188,6 +193,7 @@ private fun PlayingState(
                     showAlbum = showAlbum,
                     onExpand = onExpand,
                     motionTier = motionTier,
+                    stationary = stationary,
                     // No height cap: the card wraps its content, so the meta block
                     // keeps every line (the album included) and reports its natural
                     // height for the row to wrap to.

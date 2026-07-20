@@ -42,6 +42,7 @@ import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
+import io.github.seijikohara.femto.data.location.MIN_MOVING_SPEED_MS
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.ui.drawer.AppDrawerPanelHost
 import io.github.seijikohara.femto.ui.home.HomeAction
@@ -896,6 +897,11 @@ private fun FloatingCardColumn(
             showAlbum = musicShowAlbum,
             showArt = musicShowArt,
             motionTier = motionTier,
+            // Below the trip's moving-speed floor the vehicle is parked, so long
+            // title / artist / album lines may scroll to full length; above it
+            // they stay a static ellipsis to keep the ambient card glanceable
+            // while driving.
+            stationary = uiState.tripState.currentSpeedMs < MIN_MOVING_SPEED_MS,
         )
     }
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(cardGap)) {
