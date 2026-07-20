@@ -226,19 +226,21 @@ object FemtoDimens {
     val CardSectionGap = 10.dp
 
     /**
-     * Tighter padding / section rhythm for the short top-row info cards
-     * (calendar, weather) on the head-unit info pane, so the head + strip +
-     * events (or head + metrics + forecast) pack in without clipping.
+     * Padding / section rhythm shared by the dashboard info cards (calendar,
+     * weather, music) and the clock overlay's vertical inset. Kept a touch tighter
+     * than the full [CardPadding] for the head-unit info pane, but roomy enough
+     * that the content breathes from the card edge rather than crowding it — one
+     * value so every card reads as a consistent set.
      */
-    val CardPaddingCompact = 10.dp
-    val CardSectionGapCompact = 6.dp
+    val CardPaddingCompact = 14.dp
+    val CardSectionGapCompact = 8.dp
 
     /**
      * Reserved height for the music card's idle states (nothing playing / connect),
      * so the card keeps the size it has while playing instead of shrinking to its
      * sparse content and letting the calendar / weather row jump taller. Matches the
      * Playing card's content height — album art ([MusicArtSize]) over the transport
-     * row ([MusicPlayButton]), with the section gap and both compact paddings.
+     * row ([MusicPlayButton]), with the section gap and both paddings.
      */
     val MusicCardMinHeight = CardPaddingCompact * 2 + MusicArtSize + CardSectionGapCompact + MusicPlayButton
 

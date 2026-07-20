@@ -36,7 +36,7 @@ import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import kotlinx.coroutines.flow.StateFlow
 
 // Gap between the album art and the meta column in the playing-state row.
-private val RowContentGap = 14.dp
+private val RowContentGap = 16.dp
 
 /**
  * Music card. Vertical layout inherited from the `.music-card` rules of the
@@ -75,6 +75,9 @@ internal fun MusicCard(
     showAlbum: Boolean = true,
     showArt: Boolean = true,
     motionTier: MotionTier = MotionTier.STANDARD,
+    // Scroll long title / artist / album to full length while the vehicle is
+    // stationary; static ellipsis while moving (see MusicCardMeta.MetaLine).
+    stationary: Boolean = false,
 ) = Surface(
     modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
     shape = MaterialTheme.shapes.large,
@@ -100,6 +103,7 @@ internal fun MusicCard(
                 showAlbum,
                 showArt,
                 motionTier,
+                stationary,
             )
         }
     }
@@ -115,6 +119,7 @@ private fun PlayingState(
     showAlbum: Boolean,
     showArt: Boolean,
     motionTier: MotionTier,
+    stationary: Boolean,
 ) {
     // The whole card (except the transport controls, which consume their own taps)
     // opens the source app. The transport buttons are clickable children, so they
@@ -125,9 +130,8 @@ private fun PlayingState(
             Modifier
                 .fillMaxWidth()
                 .clickable(onClickLabel = openLabel) { onLaunchSource(nowPlaying.packageName) }
-                // Compact padding so the row + transport strip pack tightly without
-                // starving the meta block — the same tightening CalendarCard /
-                // WeatherCard use.
+                // The shared card inset, so the album art and metadata breathe from
+                // the card edge and match the calendar / weather cards beside it.
                 .padding(FemtoDimens.CardPaddingCompact),
     ) {
         // The art is a square sized off the row's available WIDTH alone (reserving
@@ -188,6 +192,7 @@ private fun PlayingState(
                     showAlbum = showAlbum,
                     onExpand = onExpand,
                     motionTier = motionTier,
+                    stationary = stationary,
                     // No height cap: the card wraps its content, so the meta block
                     // keeps every line (the album included) and reports its natural
                     // height for the row to wrap to.

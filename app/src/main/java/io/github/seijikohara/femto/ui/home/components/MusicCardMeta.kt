@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -150,9 +151,9 @@ private const val ARTIST_SLOT = 2
 private const val ALBUM_SLOT = 3
 private const val PROGRESS_SLOT = 4
 
-// Gap between the source eyebrow / title / artist / album lines — the tight
-// rhythm the mockup used for this block.
-private val MetaLineGap: Dp = 2.dp
+// Gap between the source eyebrow / title / artist / album lines — a little air
+// between the lines so the metadata block reads cleanly rather than cramped.
+private val MetaLineGap: Dp = 4.dp
 
 /**
  * Title, artist, album, source eyebrow, and the playback progress row, laid
@@ -202,6 +203,9 @@ internal fun MusicMetaAndProgress(
     // single row, since (unlike this one) they have no other clickable children.
     onExpand: (() -> Unit)? = null,
     motionTier: MotionTier = MotionTier.STANDARD,
+    // Scroll long title / artist / album lines to their full length while the
+    // vehicle is stationary; static ellipsis while moving. See [MetaLine].
+    stationary: Boolean = false,
 ) {
     // Title, artist and album styles derive from the M3 type roles once and are
     // remembered so a track-change recomposition doesn't reallocate them.
@@ -220,6 +224,7 @@ internal fun MusicMetaAndProgress(
                 style = titleStyle,
                 color = MaterialTheme.colorScheme.onSurface,
                 tier = motionTier,
+                marquee = stationary,
             )
             MetaLine(
                 // Radio / stream tracks often carry no artist; show an em dash so the
@@ -228,6 +233,7 @@ internal fun MusicMetaAndProgress(
                 style = secondaryStyle,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 tier = motionTier,
+                marquee = stationary,
             )
             // Composed only when showAlbum is on: the setting hides the album line
             // unconditionally, so its text must never exist in the tree (not merely
@@ -241,6 +247,7 @@ internal fun MusicMetaAndProgress(
                     style = secondaryStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     tier = motionTier,
+                    marquee = stationary,
                 )
             } else {
                 Spacer(modifier = Modifier.size(0.dp))
@@ -364,6 +371,12 @@ private fun MetaLine(
     color: Color,
     tier: MotionTier,
     modifier: Modifier = Modifier,
+    // When set, an overflowing line scrolls end-to-end (basicMarquee) instead of
+    // ellipsizing, so the full text is legible. Gated by the caller on the
+    // vehicle being stationary — a perpetual scroll on the always-visible card
+    // is a driving-distraction profile (CLAUDE.md#driving-lockout), so it only
+    // runs when parked and stays a static ellipsis while moving.
+    marquee: Boolean = false,
 ) = Motion.ContentCrossfade(
     targetState = text,
     tier = tier,
@@ -375,7 +388,9 @@ private fun MetaLine(
         style = style,
         color = color,
         maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.singleLineBox(style),
+        // Clip (not Ellipsis) under marquee: the scroll shows the whole string,
+        // so a trailing "…" would be wrong.
+        overflow = if (marquee) TextOverflow.Clip else TextOverflow.Ellipsis,
+        modifier = Modifier.singleLineBox(style).then(if (marquee) Modifier.basicMarquee() else Modifier),
     )
 }
