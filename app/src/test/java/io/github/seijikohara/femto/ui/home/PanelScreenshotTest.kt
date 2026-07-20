@@ -1,6 +1,9 @@
 package io.github.seijikohara.femto.ui.home
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -84,12 +87,40 @@ class PanelScreenshotTest {
             )
         }
 
+    // Dark variant: the weather charts draw from a curated dark palette
+    // (temperature ramp, precipitation blue, UV scale) that the light-theme
+    // goldens above never exercise.
+    @Test
+    @Config(qualifiers = "w853dp-h512dp-mdpi")
+    fun weather_panel_head_unit_dark() =
+        capture("weather-panel-head-unit-853x512-dark", darkTheme = true) {
+            WeatherPanel(
+                snapshot = fakeWeatherSnapshot(),
+                temperatureUnit = TemperatureUnit.CELSIUS,
+                speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                is24Hour = true,
+                onOpenExternal = {},
+                onClose = {},
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
     private fun capture(
         name: String,
+        darkTheme: Boolean = false,
         content: @Composable () -> Unit,
     ) {
         captureRoboImage(filePath = "src/test/screenshots/$name.png", roborazziOptions = ScreenshotCompareOptions) {
-            FemtoTheme { content() }
+            FemtoTheme(darkTheme = darkTheme) {
+                if (darkTheme) {
+                    // The glass panel is translucent; the light captures read fine
+                    // over Robolectric's white window, but a dark capture needs a
+                    // theme backdrop behind the glass or it renders milky.
+                    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { content() }
+                } else {
+                    content()
+                }
+            }
         }
     }
 }

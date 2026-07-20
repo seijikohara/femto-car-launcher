@@ -159,6 +159,8 @@ internal data class MetForecast(
         @SerialName("air_temperature") val airTemperature: Double? = null,
         // metres per second; the domain model carries km/h.
         @SerialName("wind_speed") val windSpeed: Double? = null,
+        // Meteorological "from" direction, degrees clockwise from north.
+        @SerialName("wind_from_direction") val windFromDirection: Double? = null,
         @SerialName("relative_humidity") val relativeHumidity: Double? = null,
         @SerialName("ultraviolet_index_clear_sky") val ultravioletIndexClearSky: Double? = null,
     )
@@ -166,11 +168,24 @@ internal data class MetForecast(
     @Serializable
     data class Period(
         val summary: Summary = Summary(),
+        val details: PeriodDetails? = null,
     )
 
     @Serializable
     data class Summary(
         // e.g. "clearsky_day", "lightrain", "partlycloudy_night".
         @SerialName("symbol_code") val symbolCode: String? = null,
+    )
+
+    @Serializable
+    data class PeriodDetails(
+        // Expected precipitation over the period, millimetres.
+        @SerialName("precipitation_amount") val precipitationAmount: Double? = null,
+        // Percent; regional coverage — often absent outside the Nordics.
+        @SerialName("probability_of_precipitation") val probabilityOfPrecipitation: Double? = null,
+        // Period temperature envelope; carried by the 6-hour blocks and used for
+        // the far-tail days where instant samples are 6 h apart.
+        @SerialName("air_temperature_max") val airTemperatureMax: Double? = null,
+        @SerialName("air_temperature_min") val airTemperatureMin: Double? = null,
     )
 }

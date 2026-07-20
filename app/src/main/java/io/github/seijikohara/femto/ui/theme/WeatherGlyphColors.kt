@@ -46,3 +46,70 @@ internal val LightWeatherGlyphs =
 @ReadOnlyComposable
 internal fun weatherGlyphs(): WeatherGlyphColors =
     if (LocalFemtoDarkTheme.current) DarkWeatherGlyphs else LightWeatherGlyphs
+
+/**
+ * Data-graphics colours for the weather panel's charts: the temperature ramp
+ * behind the 24 h curve and the daily range bars, the precipitation blue, and
+ * the standard five-step UV scale. Curated for the same reason as the glyphs —
+ * dynamic colour cannot express a cold→hot ramp or the UV convention — with a
+ * luminous set for the dark glass and a deeper jewel set for light.
+ */
+data class WeatherDataColors(
+    /** Temperature stops (°C → colour), sorted ascending; lerped between. */
+    val tempStops: List<Pair<Float, Color>>,
+    val precipitation: Color,
+    /** WHO UV bands: low / moderate / high / very high / extreme. */
+    val uvScale: List<Color>,
+)
+
+internal val DarkWeatherData =
+    WeatherDataColors(
+        tempStops =
+            listOf(
+                -10f to Color(0xFF8A7BFF),
+                0f to Color(0xFF5BA8FF),
+                10f to Color(0xFF4DD0C4),
+                16f to Color(0xFF8BD47E),
+                22f to Color(0xFFFFC94D),
+                28f to Color(0xFFFF9A4D),
+                36f to Color(0xFFFF5D5D),
+            ),
+        precipitation = Color(0xFF6EC1FF),
+        uvScale =
+            listOf(
+                Color(0xFF8BD47E),
+                Color(0xFFFFD166),
+                Color(0xFFFF9A4D),
+                Color(0xFFFF5D5D),
+                Color(0xFFB08CFF),
+            ),
+    )
+
+internal val LightWeatherData =
+    WeatherDataColors(
+        tempStops =
+            listOf(
+                -10f to Color(0xFF5B4FD1),
+                0f to Color(0xFF2F6FD0),
+                10f to Color(0xFF14907F),
+                16f to Color(0xFF3F9A3F),
+                22f to Color(0xFFC98A00),
+                28f to Color(0xFFC96A1E),
+                36f to Color(0xFFC94040),
+            ),
+        precipitation = Color(0xFF1E6FBF),
+        uvScale =
+            listOf(
+                Color(0xFF3F9A3F),
+                Color(0xFFC98A00),
+                Color(0xFFC96A1E),
+                Color(0xFFC94040),
+                Color(0xFF7E57C2),
+            ),
+    )
+
+/** Resolve the weather data-graphics palette for the rendered theme. */
+@Composable
+@ReadOnlyComposable
+internal fun weatherDataColors(): WeatherDataColors =
+    if (LocalFemtoDarkTheme.current) DarkWeatherData else LightWeatherData
