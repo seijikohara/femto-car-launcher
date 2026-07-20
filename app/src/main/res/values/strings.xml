@@ -64,6 +64,10 @@
     <string name="weather_nowcast_rain_at">Rain around %1$s</string>
     <string name="weather_nowcast_snow_now">Snowing now</string>
     <string name="weather_nowcast_snow_at">Snow around %1$s</string>
+    <!-- Nowcast + probability, joined as one localizable line. -->
+    <string name="weather_nowcast_probability">%1$s · %2$d%%</string>
+    <!-- Accessibility summary of the 24 h temperature curve. -->
+    <string name="weather_curve_summary">24-hour temperature between %1$d° and %2$d°</string>
     <!-- Metric tile headers. -->
     <string name="weather_metric_uv">UV</string>
     <string name="weather_tile_sun">SUN</string>
@@ -79,9 +83,6 @@
     <string name="weather_title">Weather</string>
     <string name="weather_unavailable">Weather unavailable</string>
     <string name="weather_open_app">Open weather</string>
-    <string name="weather_uv">UV %1$s</string>
-    <string name="weather_sunrise">Sunrise %1$s</string>
-    <string name="weather_sunset">Sunset %1$s</string>
     <!-- Shown on the weather card when the data is stale (a refresh outage); %1$s is the local fetch time. -->
     <string name="weather_as_of">as of %1$s</string>
     <string name="weather_metric_feels">FEELS</string>

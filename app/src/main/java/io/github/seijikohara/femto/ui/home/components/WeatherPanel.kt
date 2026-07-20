@@ -100,14 +100,18 @@ internal fun WeatherPanel(
         // regions fade individually rather than wrapping the scrolling Column,
         // so a refresh keeps the user's scroll position.
         Motion.ContentCrossfade(targetState = snapshot, tier = motionTier, label = "weatherPanelHero") {
-            Hero(it, temperatureUnit, is24Hour)
+            Hero(snapshot = it, temperatureUnit = temperatureUnit, is24Hour = is24Hour)
         }
         if (snapshot.hourly.size >= 2) {
-            Motion.ContentCrossfade(targetState = snapshot, tier = motionTier, label = "weatherPanelCurve") {
+            // Keyed on the hourly DATA (not the snapshot, whose fetchedAt changes
+            // every refresh): a periodic refetch with identical hours must not
+            // dissolve the settled curve and replay its draw-on.
+            Motion.ContentCrossfade(targetState = snapshot.hourly, tier = motionTier, label = "weatherPanelCurve") {
                 WeatherTempCurve(
-                    hourly = it.hourly,
-                    sunrise = it.sunrise,
-                    sunset = it.sunset,
+                    hourly = it,
+                    sunrise = snapshot.sunrise,
+                    sunset = snapshot.sunset,
+                    temperatureUnit = temperatureUnit,
                     is24Hour = is24Hour,
                     motionTier = motionTier,
                     modifier = Modifier.fillMaxWidth(),
@@ -149,10 +153,11 @@ private fun Hero(
     snapshot: WeatherSnapshot,
     temperatureUnit: TemperatureUnit,
     is24Hour: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     val glyphs = weatherGlyphs()
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(20.dp),
     ) {
@@ -203,7 +208,7 @@ private fun Hero(
                             temperatureUnit.fromCelsius(today.tempMaxC).roundToInt(),
                             temperatureUnit.fromCelsius(today.tempMinC).roundToInt(),
                         ),
-                    style = MaterialTheme.typography.sectionLabel(14),
+                    style = MaterialTheme.typography.sectionLabel(12),
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                 )
@@ -239,7 +244,7 @@ private fun NowcastLine(
         }
     val text =
         outlook.probabilityPercent
-            ?.let { "$base · $it%" }
+            ?.let { stringResource(R.string.weather_nowcast_probability, base, it) }
             ?: base
     Text(
         text = text,
@@ -358,8 +363,12 @@ private fun DailyRangeBar(
         drawRoundRect(trackColor, cornerRadius = radius)
         val startFraction = ((day.tempMinC - weekMin) / span).toFloat().coerceIn(0f, 1f)
         val endFraction = ((day.tempMaxC - weekMin) / span).toFloat().coerceIn(0f, 1f)
-        val startX = startFraction * size.width
-        val endX = (endFraction * size.width).coerceAtLeast(startX + size.height)
+        // Keep at least a pill's length visible, shifting it back inside the
+        // track when the day sits at the week's hot edge (Canvas does not clip,
+        // so an overshoot would paint into the neighbouring label).
+        val minLength = size.height
+        val endX = (endFraction * size.width).coerceAtLeast(minLength)
+        val startX = (startFraction * size.width).coerceAtMost(endX - minLength)
         drawRoundRect(
             brush =
                 Brush.horizontalGradient(

@@ -133,7 +133,6 @@ internal class WeatherRepository(
         timeseries
             .asSequence()
             .filter { it.data.next1Hours != null }
-            .take(HOURLY_SLICE_LENGTH)
             .mapNotNull { entry ->
                 val time = parseInstant(entry.time)?.atZone(zone)?.toLocalTime() ?: return@mapNotNull null
                 val temp = entry.data.instant.details.airTemperature ?: return@mapNotNull null
@@ -149,7 +148,11 @@ internal class WeatherRepository(
                             ?.probabilityOfPrecipitation
                             ?.roundToInt(),
                 )
-            }.toList()
+                // take AFTER the mapping, so an entry dropped for a missing
+                // temperature or unparseable time doesn't silently shorten the
+                // 24 h window it was counted against.
+            }.take(HOURLY_SLICE_LENGTH)
+            .toList()
 
     // Aggregate the timeseries into FORECAST_DAYS local days: max/min of the
     // instant air temperatures, and a representative symbol from the entry nearest
@@ -165,32 +168,52 @@ internal class WeatherRepository(
                 date ?: return@mapNotNull null
                 val temps = entries.mapNotNull { it.data.instant.details.airTemperature }
                 if (temps.isEmpty()) return@mapNotNull null
+                // Far-tail entries (6 h apart) can miss the day's real extremes
+                // between samples; their 6-hour envelope carries the truth. Only
+                // tail entries contribute it — see [tailSixHourDetails].
+                val envelopeMax = tailSixHourDetails(entries).mapNotNull { it.airTemperatureMax }
+                val envelopeMin = tailSixHourDetails(entries).mapNotNull { it.airTemperatureMin }
                 DailyForecast(
                     date = date,
-                    tempMaxC = temps.max(),
-                    tempMinC = temps.min(),
+                    tempMaxC = (temps + envelopeMax).max(),
+                    tempMinC = (temps + envelopeMin).min(),
                     code = WeatherCode.fromMetSymbol(representativeSymbol(entries, zone)),
                     precipitationProbabilityPercent = peakPrecipProbability(entries),
                 )
             }.sortedBy { it.date }
             .take(FORECAST_DAYS)
 
-    // The day's peak probability across whichever period blocks carry one (the
-    // near days have 1-hour blocks, the far tail 6-hour blocks); null when the
-    // region gets no probability at all.
+    // The day's peak probability. Near-term hourly entries carry BOTH a 1-hour
+    // and a 6-hour block; a 6-hour block starting at 19:00-23:00 reaches into
+    // the next morning, so counting it would pin tomorrow's overnight rain on
+    // today (a wrong-day badge on the 7-day list). Rule: an entry's 6-hour
+    // block counts only when the entry has no 1-hour block — i.e. only on the
+    // far-tail days, whose entries are themselves 6 h apart.
     private fun peakPrecipProbability(entries: List<MetForecast.Timeseries>): Int? =
         entries
-            .flatMap {
-                listOfNotNull(
-                    it.data.next1Hours
-                        ?.details
-                        ?.probabilityOfPrecipitation,
-                    it.data.next6Hours
-                        ?.details
-                        ?.probabilityOfPrecipitation,
-                )
+            .mapNotNull { entry ->
+                val hour = entry.data.next1Hours
+                when {
+                    hour != null -> {
+                        hour.details?.probabilityOfPrecipitation
+                    }
+
+                    else -> {
+                        entry.data.next6Hours
+                            ?.details
+                            ?.probabilityOfPrecipitation
+                    }
+                }
             }.maxOrNull()
             ?.roundToInt()
+
+    // 6-hour details from entries WITHOUT a 1-hour block (the far tail). Near
+    // entries' 6-hour blocks overlap the next local day and would leak its
+    // weather backwards — the same wrong-day hazard as the probability rule.
+    private fun tailSixHourDetails(entries: List<MetForecast.Timeseries>): List<MetForecast.PeriodDetails> =
+        entries
+            .filter { it.data.next1Hours == null }
+            .mapNotNull { it.data.next6Hours?.details }
 
     private fun representativeSymbol(
         entries: List<MetForecast.Timeseries>,

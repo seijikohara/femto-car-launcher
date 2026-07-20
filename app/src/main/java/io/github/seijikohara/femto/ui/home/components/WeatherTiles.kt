@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.ui.home.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,8 +44,8 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-// Tile chrome: the quiet fill the trip chips use, so the grid reads as cells
-// on the glass rather than nested cards.
+// Tile chrome: a quiet onSurface fill a step below the trip chips' 0.10f, so a
+// 2x2 block reads as one grid on the glass rather than four nested cards.
 private const val TILE_FILL_ALPHA = 0.06f
 private val TileCorner = 12.dp
 private val TileMinHeight = 92.dp
@@ -154,19 +156,24 @@ private fun SunTile(
             drawCircle(glyphs.sun, radius = 3.5f.dp.toPx(), center = sunCenter)
         }
     }
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    // AbsoluteAlignment: the arc above is drawn left-to-right (sunrise rises on
+    // the left) regardless of layout direction, so the time labels pin to the
+    // arc's physical feet instead of RTL-swapping against it.
+    Box(modifier = Modifier.fillMaxWidth()) {
         val formatter = clockTimeFormatter(is24Hour)
         Text(
             text = sunrise.format(formatter),
             style = MaterialTheme.typography.cardMeta(),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
+            modifier = Modifier.align(AbsoluteAlignment.CenterLeft),
         )
         Text(
             text = sunset.format(formatter),
             style = MaterialTheme.typography.cardMeta(),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
+            modifier = Modifier.align(AbsoluteAlignment.CenterRight),
         )
     }
 }
@@ -236,7 +243,9 @@ private fun UvTile(
         EmDashBody()
     } else {
         val dataColors = weatherDataColors()
-        val band = uvBandIndex(uv)
+        // Band from the ROUNDED value the tile displays, so a 2.6 that shows as
+        // "3" carries the moderate colour, not a low-band dot beside a 3.
+        val band = uvBandIndex(uv.roundToInt().toDouble())
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Canvas(modifier = Modifier.size(10.dp)) {
                 drawCircle(dataColors.uvScale[band])

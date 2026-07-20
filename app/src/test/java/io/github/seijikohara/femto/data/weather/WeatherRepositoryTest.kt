@@ -83,7 +83,7 @@ class WeatherRepositoryTest {
         }
 
     @Test
-    fun `slices up to twelve hourly entries starting at the current hour`() =
+    fun `slices up to twenty-four hourly entries starting at the current hour`() =
         runTest {
             server.enqueue(MockResponse().setBody(FORECAST_BODY))
 
@@ -98,12 +98,12 @@ class WeatherRepositoryTest {
 
             repo.snapshotFlow().test {
                 val snapshot = assertNotNull(awaitItem())
-                // The fake API carries 9 hourly-resolution entries (a next_1_hours
-                // block) spread across all three fixture days, not just day 1; the
-                // 12-cap returns them all (was capped at 5, day-1 only, before).
-                assertEquals(9, snapshot.hourly.size)
+                // The fake API carries 10 hourly-resolution entries (a
+                // next_1_hours block) spread across all three fixture days; the
+                // 24-cap returns them all.
+                assertEquals(10, snapshot.hourly.size)
                 assertEquals(LocalTime.of(5, 0), snapshot.hourly[0].time)
-                assertEquals(LocalTime.of(6, 0), snapshot.hourly[8].time)
+                assertEquals(LocalTime.of(6, 0), snapshot.hourly[9].time)
                 assertEquals(17.5, snapshot.hourly[1].tempC, 0.0)
                 assertEquals(WeatherCode.PARTLY_CLOUDY, snapshot.hourly[2].code)
                 cancelAndIgnoreRemainingEvents()
@@ -132,6 +132,11 @@ class WeatherRepositoryTest {
                 assertEquals(WeatherCode.RAIN, snapshot.daily[0].code)
                 assertEquals(WeatherCode.PARTLY_CLOUDY, snapshot.daily[1].code)
                 assertEquals(WeatherCode.RAIN_SHOWERS, snapshot.daily[2].code)
+                // Day 3's only tail entry (6 h block, no 1 h block) widens the
+                // envelope beyond its two instant samples (13 / 21) via the
+                // block's air_temperature_max/min.
+                assertEquals(25.0, snapshot.daily[2].tempMaxC, 0.0)
+                assertEquals(10.0, snapshot.daily[2].tempMinC, 0.0)
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -160,8 +165,11 @@ class WeatherRepositoryTest {
                 // An hour without the block stays null, not zero.
                 assertEquals(null, snapshot.hourly[1].precipitationMm)
                 assertEquals(null, snapshot.hourly[1].precipitationProbabilityPercent)
-                // Daily peak probability: day 1 takes the max across its 1 h and
-                // 6 h blocks (64.4 vs 71.0 -> 71); day 2 has none -> null.
+                // Daily peak probability. Day 1: the 12:00 entry has no 1 h block
+                // so its 6 h probability (71) counts; the 22:00 entry has BOTH —
+                // its overnight-reaching 6 h block (90) must NOT leak into day 1,
+                // only its 1 h probability (5) counts -> peak 71, not 90. Day 2
+                // has none -> null. Day 3's tail entry contributes 55.
                 assertEquals(71, snapshot.daily[0].precipitationProbabilityPercent)
                 assertEquals(null, snapshot.daily[1].precipitationProbabilityPercent)
                 assertEquals(55, snapshot.daily[2].precipitationProbabilityPercent)
@@ -437,11 +445,12 @@ class WeatherRepositoryTest {
                   { "time": "2026-05-01T09:00:00Z", "data": { "instant": { "details": { "air_temperature": 21.0 } }, "next_1_hours": { "summary": { "symbol_code": "cloudy" } } } },
                   { "time": "2026-05-01T10:00:00Z", "data": { "instant": { "details": { "air_temperature": 21.5 } }, "next_1_hours": { "summary": { "symbol_code": "lightrain" }, "details": { "precipitation_amount": 0.8, "probability_of_precipitation": 64.4 } } } },
                   { "time": "2026-05-01T12:00:00Z", "data": { "instant": { "details": { "air_temperature": 22.0 } }, "next_6_hours": { "summary": { "symbol_code": "rain" }, "details": { "precipitation_amount": 3.0, "probability_of_precipitation": 71.0 } } } },
+                  { "time": "2026-05-01T22:00:00Z", "data": { "instant": { "details": { "air_temperature": 18.0 } }, "next_1_hours": { "summary": { "symbol_code": "cloudy" }, "details": { "probability_of_precipitation": 5.0 } }, "next_6_hours": { "summary": { "symbol_code": "heavyrain" }, "details": { "probability_of_precipitation": 90.0 } } } },
                   { "time": "2026-05-02T06:00:00Z", "data": { "instant": { "details": { "air_temperature": 14.0 } }, "next_1_hours": { "summary": { "symbol_code": "partlycloudy_day" } } } },
                   { "time": "2026-05-02T12:00:00Z", "data": { "instant": { "details": { "air_temperature": 23.0 } }, "next_6_hours": { "summary": { "symbol_code": "partlycloudy_day" } } } },
                   { "time": "2026-05-02T18:00:00Z", "data": { "instant": { "details": { "air_temperature": 15.0 } }, "next_1_hours": { "summary": { "symbol_code": "cloudy" } } } },
                   { "time": "2026-05-03T06:00:00Z", "data": { "instant": { "details": { "air_temperature": 13.0 } }, "next_1_hours": { "summary": { "symbol_code": "cloudy" } } } },
-                  { "time": "2026-05-03T12:00:00Z", "data": { "instant": { "details": { "air_temperature": 21.0 } }, "next_6_hours": { "summary": { "symbol_code": "lightrainshowers_day" }, "details": { "probability_of_precipitation": 55.0 } } } }
+                  { "time": "2026-05-03T12:00:00Z", "data": { "instant": { "details": { "air_temperature": 21.0 } }, "next_6_hours": { "summary": { "symbol_code": "lightrainshowers_day" }, "details": { "probability_of_precipitation": 55.0, "air_temperature_max": 25.0, "air_temperature_min": 10.0 } } } }
                 ]
               }
             }

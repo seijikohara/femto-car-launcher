@@ -27,6 +27,8 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -34,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.weather.HourlyForecast
+import io.github.seijikohara.femto.ui.locale.TemperatureUnit
+import io.github.seijikohara.femto.ui.locale.fromCelsius
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.WeatherDataColors
@@ -78,14 +82,15 @@ private const val REVEAL_MILLIS = 700
  * idiom, over a bottom band of precipitation bars (height = amount, opacity =
  * probability). The time axis carries hour labels, a glowing "now" dot on the
  * first point, and sunrise/sunset ticks; a sibling row places condition glyphs
- * on the same x mapping. One finite draw-on reveal runs per snapshot
- * ([MotionTier.OFF] snaps), so the chart costs zero frames once settled.
+ * on the same x mapping. One finite draw-on reveal runs per snapshot (any tier
+ * below STANDARD snaps), so the chart costs zero frames once settled.
  */
 @Composable
 internal fun WeatherTempCurve(
     hourly: List<HourlyForecast>,
     sunrise: LocalTime?,
     sunset: LocalTime?,
+    temperatureUnit: TemperatureUnit,
     is24Hour: Boolean,
     motionTier: MotionTier,
     modifier: Modifier = Modifier,
@@ -97,10 +102,21 @@ internal fun WeatherTempCurve(
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f)
     val textMeasurer = rememberTextMeasurer()
     val nowLabel = stringResource(R.string.weather_curve_now)
+    // The chart is pure Canvas — invisible to TalkBack — so a summary carries
+    // its gist (the per-hour detail has no accessible equivalent by design; the
+    // hero nowcast and the daily list cover the actionable facts).
+    val curveSummary =
+        stringResource(
+            R.string.weather_curve_summary,
+            temperatureUnit.fromCelsius(geometry.tempsC.min().toDouble()).roundToInt(),
+            temperatureUnit.fromCelsius(geometry.tempsC.max().toDouble()).roundToInt(),
+        )
 
-    // One finite reveal per snapshot; OFF snaps so composition settles in one
-    // frame (golden-safe, and no work at 30 Hz once drawn).
-    val reveal = remember(hourly) { Animatable(if (motionTier == MotionTier.OFF) 1f else 0f) }
+    // One finite reveal per snapshot; anything below the STANDARD tier snaps —
+    // REDUCED means no flourishes (Motion.kt), and OFF means no motion at all —
+    // so composition settles in one frame (golden-safe, no work at 30 Hz once
+    // drawn).
+    val reveal = remember(hourly) { Animatable(if (motionTier == MotionTier.STANDARD) 0f else 1f) }
     LaunchedEffect(reveal) {
         if (reveal.value < 1f) {
             reveal.animateTo(1f, tween(REVEAL_MILLIS, easing = FastOutSlowInEasing))
@@ -116,12 +132,18 @@ internal fun WeatherTempCurve(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .height(FemtoDimens.WeatherCurveHeight),
+                    .height(FemtoDimens.WeatherCurveHeight)
+                    .semantics { contentDescription = curveSummary },
         ) {
             val w = size.width
             val inset = ChartInsetH.toPx()
             val chartWidth = w - 2f * inset
-            val axisBand = AxisLabelBand.toPx()
+            // The label strip grows with the user's font settings; the dp value
+            // is only a floor so scaled-up labels don't collide with the bars.
+            val axisBand = maxOf(
+                AxisLabelBand.toPx(),
+                textMeasurer.measure(nowLabel, labelStyle).size.height + 2.dp.toPx(),
+            )
             val chartBottom = size.height - axisBand
             val barsBand = (chartBottom * PRECIP_BAND_FRACTION)
             val curveTop = CurveGlowPad.toPx()
@@ -165,7 +187,10 @@ internal fun WeatherTempCurve(
             }
 
             // Draw-on: stroke only the revealed arc length; clip the fill and
-            // gate the bars to the same front.
+            // gate the bars to the same front. The stroke front is arc-length-
+            // parametrized while the fill/bars use the x fraction — they drift
+            // slightly apart on steep sections mid-animation, a deliberate
+            // approximation invisible at the 700 ms reveal.
             val revealed = Path()
             val measure = PathMeasure()
             measure.setPath(path, forceClosed = false)
@@ -223,7 +248,9 @@ internal fun WeatherTempCurve(
                 if (i != 0 && i % LABEL_EVERY_HOURS != 0) return@forEachIndexed
                 val text = if (i == 0) nowLabel else forecastHourLabel(hour.time, is24Hour)
                 val measured = textMeasurer.measure(text, labelStyle)
-                val x = (xAt(i) - measured.size.width / 2f).coerceIn(0f, w - measured.size.width)
+                // The upper clamp bound can go negative on a degenerately narrow
+                // canvas; floor it so coerceIn never sees an empty range.
+                val x = (xAt(i) - measured.size.width / 2f).coerceIn(0f, maxOf(0f, w - measured.size.width))
                 drawText(
                     measured,
                     color = labelColor,
@@ -285,7 +312,11 @@ private fun GlyphAxisRow(
             placeables.forEachIndexed { slot, placeable ->
                 val fraction = indices[slot] / span
                 val x = (inset + fraction * chartWidth - placeable.width / 2f).roundToInt()
-                placeable.placeRelative(
+                // place (not placeRelative): the canvas time axis above draws
+                // left-to-right regardless of layout direction, and the glyphs
+                // must stay under their hours — RTL mirroring here would desync
+                // the two rows.
+                placeable.place(
                     x.coerceIn(0, constraints.maxWidth - placeable.width),
                     (constraints.maxHeight - placeable.height) / 2,
                 )

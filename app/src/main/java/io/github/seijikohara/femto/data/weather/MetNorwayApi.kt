@@ -183,5 +183,9 @@ internal data class MetForecast(
         @SerialName("precipitation_amount") val precipitationAmount: Double? = null,
         // Percent; regional coverage — often absent outside the Nordics.
         @SerialName("probability_of_precipitation") val probabilityOfPrecipitation: Double? = null,
+        // Period temperature envelope; carried by the 6-hour blocks and used for
+        // the far-tail days where instant samples are 6 h apart.
+        @SerialName("air_temperature_max") val airTemperatureMax: Double? = null,
+        @SerialName("air_temperature_min") val airTemperatureMin: Double? = null,
     )
 }
