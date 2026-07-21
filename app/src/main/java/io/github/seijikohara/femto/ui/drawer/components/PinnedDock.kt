@@ -16,11 +16,8 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,17 +37,17 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.core.graphics.createBitmap
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ArrowRight
 import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.PinOff
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
+import io.github.seijikohara.femto.ui.drawer.DrawerDimensions
+import io.github.seijikohara.femto.ui.drawer.dimensions
 import io.github.seijikohara.femto.ui.home.components.FemtoHorizontalDivider
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
@@ -62,36 +59,20 @@ import kotlin.math.abs
 private val DockIconLabelGap = 4.dp
 private val DockVerticalPadding = 8.dp
 
-// Per-preset dock tile dimensions, scaled in step with the drawer grid's
-// presets (the dock previously hardcoded the MEDIUM values and ignored the
-// user's icon-size choice). Tile widths keep a readable one-line label and
-// stay above the touch-target floor via the tile's min height. Internal (not
-// private): the Recent row wants tiles that look identical to the Pinned
-// dock's, so it reuses this same size mapping rather than duplicating it.
-internal data class DockDimensions(
-    val tileWidth: Dp,
-    val iconSize: Dp,
-)
-
-internal fun DrawerIconSize.dockDimensions(): DockDimensions =
-    when (this) {
-        DrawerIconSize.SMALL -> DockDimensions(tileWidth = 80.dp, iconSize = 48.dp)
-        DrawerIconSize.MEDIUM -> DockDimensions(tileWidth = 96.dp, iconSize = 64.dp)
-        DrawerIconSize.LARGE -> DockDimensions(tileWidth = 128.dp, iconSize = 88.dp)
-    }
-
 /**
  * Pinned-apps dock fixed at the bottom of the drawer sheet: a horizontally
- * scrolling row of icon + label tiles in pin order, visually separated from the
- * scrolling app grid by a divider on a raised container colour. Tap launches.
+ * scrolling row of icon + label tiles in pin order, separated from the
+ * scrolling app grid by a hairline seam over the panel glass — no surface of
+ * its own, so the map keeps blurring through. Tap launches.
  *
  * Long-press then drag reorders: the held tile follows the finger and swaps
  * places as it crosses its neighbours; lifting commits the new order through
- * [onReorder]. A long-press lifted WITHOUT travel opens the tile menu
- * (Unpin, plus Move left / Move right — the precision-free reorder path for
- * a bumpy cabin or accessibility services). The menu deliberately opens on
- * lift, not at the long-press timeout: a focusable popup appearing mid-press
- * cancels the pointer stream and would kill the drag.
+ * [onReorder]. A long-press lifted WITHOUT travel opens the shared
+ * [AppItemMenu] with Move left / Move right prepended — the precision-free
+ * reorder path for a bumpy cabin or accessibility services. The menu
+ * deliberately opens on lift, not at the long-press timeout: a focusable
+ * popup appearing mid-press cancels the pointer stream and would kill the
+ * drag.
  *
  * Callers skip composing the dock when [apps] is empty.
  */
@@ -101,6 +82,8 @@ internal fun PinnedDock(
     iconSize: DrawerIconSize,
     onLaunch: (ComponentName) -> Unit,
     onUnpin: (ComponentName) -> Unit,
+    onOpenAppInfo: (ComponentName) -> Unit,
+    onRequestUninstall: (ComponentName) -> Unit,
     onReorder: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier.fillMaxWidth()) {
@@ -108,7 +91,9 @@ internal fun PinnedDock(
     // thing separating the dock from the app grid, and a full-alpha divider
     // reads twice as heavy as every other hairline on the dashboard chrome.
     FemtoHorizontalDivider()
-    val dimensions = iconSize.dockDimensions()
+    // The grid's tile metric, shared so the dock's columns ride the same left
+    // line and pitch as the app grid and Recent row above.
+    val dimensions = iconSize.dimensions()
     // Local working order: drag swaps mutate this list optimistically per
     // frame; the persisted order arrives back through [apps] and re-seeds it.
     val order = remember(apps) { apps.toMutableStateList() }
@@ -117,95 +102,95 @@ internal fun PinnedDock(
     var dragTravelled by remember { mutableStateOf(false) }
     var menuKey by remember { mutableStateOf<String?>(null) }
     val stepPx = with(LocalDensity.current) { (dimensions.tileWidth + FemtoDimens.GridGutter).toPx() }
-    Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding =
-                PaddingValues(horizontal = FemtoDimens.ScreenPadding, vertical = DockVerticalPadding),
-            horizontalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
-        ) {
-            items(items = order, key = { it.componentName.flattenToString() }) { entry ->
-                val key = entry.componentName.flattenToString()
-                val dragging = draggingKey == key
-                DockTile(
-                    entry = entry,
-                    dimensions = dimensions,
-                    menuOpen = menuKey == key,
-                    canMoveLeft = order.indexOf(entry) > 0,
-                    canMoveRight = order.indexOf(entry) < order.lastIndex,
-                    onLaunch = onLaunch,
-                    onUnpin = onUnpin,
-                    onDismissMenu = { menuKey = null },
-                    onMove = { offset ->
-                        val index = order.indexOf(entry)
-                        val target = (index + offset).coerceIn(0, order.lastIndex)
-                        if (target != index) {
-                            order.add(target, order.removeAt(index))
-                            onReorder(order.map { it.componentName.flattenToString() })
-                        }
-                    },
-                    modifier =
-                        Modifier
-                            // The held tile rides above its neighbours and tracks
-                            // the finger; everyone else stays put (the swap
-                            // animation is the position change itself).
-                            .zIndex(if (dragging) 1f else 0f)
-                            .graphicsLayer { translationX = if (dragging) dragDelta else 0f }
-                            .pointerInput(key, stepPx) {
-                                detectDragGesturesAfterLongPress(
-                                    onDragStart = {
-                                        draggingKey = key
-                                        dragDelta = 0f
-                                        dragTravelled = false
-                                    },
-                                    onDrag = { change, amount ->
-                                        change.consume()
-                                        dragDelta += amount.x
-                                        if (abs(dragDelta) > viewConfiguration.touchSlop) dragTravelled = true
-                                        val index = order.indexOfFirst { it.componentName.flattenToString() == key }
-                                        val (reordered, residual) = reorderByDrag(
-                                            order.toList(),
-                                            index,
-                                            dragDelta,
-                                            stepPx,
-                                        )
-                                        if (reordered.size == order.size && reordered != order.toList()) {
-                                            order.clear()
-                                            order.addAll(reordered)
-                                        }
-                                        dragDelta = residual
-                                    },
-                                    onDragEnd = {
-                                        if (dragTravelled) {
-                                            onReorder(order.map { it.componentName.flattenToString() })
-                                        } else {
-                                            menuKey = key
-                                        }
-                                        draggingKey = null
-                                        dragDelta = 0f
-                                    },
-                                    onDragCancel = {
-                                        if (dragTravelled) {
-                                            // Revert the optimistic swaps: nothing
-                                            // was committed, so the dock falls back
-                                            // to the persisted order.
-                                            order.clear()
-                                            order.addAll(apps)
-                                        } else {
-                                            // A no-travel lift lands HERE, not in
-                                            // onDragEnd: the child clickable
-                                            // consumes the up (its tap), which the
-                                            // detector reports as a cancel. It is
-                                            // the menu gesture.
-                                            menuKey = key
-                                        }
-                                        draggingKey = null
-                                        dragDelta = 0f
-                                    },
-                                )
-                            },
-                )
-            }
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding =
+            PaddingValues(horizontal = FemtoDimens.ScreenPadding, vertical = DockVerticalPadding),
+        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
+    ) {
+        items(items = order, key = { it.componentName.flattenToString() }) { entry ->
+            val key = entry.componentName.flattenToString()
+            val dragging = draggingKey == key
+            DockTile(
+                entry = entry,
+                dimensions = dimensions,
+                menuOpen = menuKey == key,
+                canMoveLeft = order.indexOf(entry) > 0,
+                canMoveRight = order.indexOf(entry) < order.lastIndex,
+                onLaunch = onLaunch,
+                onUnpin = onUnpin,
+                onOpenAppInfo = onOpenAppInfo,
+                onRequestUninstall = onRequestUninstall,
+                onDismissMenu = { menuKey = null },
+                onMove = { offset ->
+                    val index = order.indexOf(entry)
+                    val target = (index + offset).coerceIn(0, order.lastIndex)
+                    if (target != index) {
+                        order.add(target, order.removeAt(index))
+                        onReorder(order.map { it.componentName.flattenToString() })
+                    }
+                },
+                modifier =
+                    Modifier
+                        // The held tile rides above its neighbours and tracks
+                        // the finger; everyone else stays put (the swap
+                        // animation is the position change itself).
+                        .zIndex(if (dragging) 1f else 0f)
+                        .graphicsLayer { translationX = if (dragging) dragDelta else 0f }
+                        .pointerInput(key, stepPx) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    draggingKey = key
+                                    dragDelta = 0f
+                                    dragTravelled = false
+                                },
+                                onDrag = { change, amount ->
+                                    change.consume()
+                                    dragDelta += amount.x
+                                    if (abs(dragDelta) > viewConfiguration.touchSlop) dragTravelled = true
+                                    val index = order.indexOfFirst { it.componentName.flattenToString() == key }
+                                    val (reordered, residual) = reorderByDrag(
+                                        order.toList(),
+                                        index,
+                                        dragDelta,
+                                        stepPx,
+                                    )
+                                    if (reordered.size == order.size && reordered != order.toList()) {
+                                        order.clear()
+                                        order.addAll(reordered)
+                                    }
+                                    dragDelta = residual
+                                },
+                                onDragEnd = {
+                                    if (dragTravelled) {
+                                        onReorder(order.map { it.componentName.flattenToString() })
+                                    } else {
+                                        menuKey = key
+                                    }
+                                    draggingKey = null
+                                    dragDelta = 0f
+                                },
+                                onDragCancel = {
+                                    if (dragTravelled) {
+                                        // Revert the optimistic swaps: nothing
+                                        // was committed, so the dock falls back
+                                        // to the persisted order.
+                                        order.clear()
+                                        order.addAll(apps)
+                                    } else {
+                                        // A no-travel lift lands HERE, not in
+                                        // onDragEnd: the child clickable
+                                        // consumes the up (its tap), which the
+                                        // detector reports as a cancel. It is
+                                        // the menu gesture.
+                                        menuKey = key
+                                    }
+                                    draggingKey = null
+                                    dragDelta = 0f
+                                },
+                            )
+                        },
+            )
         }
     }
 }
@@ -243,12 +228,14 @@ internal fun <T> reorderByDrag(
 @Composable
 private fun DockTile(
     entry: AppEntry,
-    dimensions: DockDimensions,
+    dimensions: DrawerDimensions,
     menuOpen: Boolean,
     canMoveLeft: Boolean,
     canMoveRight: Boolean,
     onLaunch: (ComponentName) -> Unit,
     onUnpin: (ComponentName) -> Unit,
+    onOpenAppInfo: (ComponentName) -> Unit,
+    onRequestUninstall: (ComponentName) -> Unit,
     onDismissMenu: () -> Unit,
     onMove: (Int) -> Unit,
     modifier: Modifier = Modifier,
@@ -270,7 +257,7 @@ private fun DockTile(
             painter = BitmapPainter(entry.icon.asImageBitmap()),
             contentDescription = entry.label,
             tint = Color.Unspecified,
-            modifier = Modifier.size(dimensions.iconSize),
+            modifier = Modifier.size(dimensions.gridIconSize),
         )
         Spacer(Modifier.height(DockIconLabelGap))
         // Same deterministic line box as the grid tiles (see tileLabel), so
@@ -285,40 +272,37 @@ private fun DockTile(
             modifier = Modifier.fillMaxWidth(),
         )
     }
-    DropdownMenu(expanded = menuOpen, onDismissRequest = onDismissMenu) {
-        if (canMoveLeft) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.drawer_move_left)) },
-                // M3's default menu-item height (48 dp) sits below the automotive floor.
-                modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
-                leadingIcon = { FemtoIcon(imageVector = Lucide.ArrowLeft, contentDescription = null) },
-                onClick = {
-                    onMove(-1)
-                    onDismissMenu()
-                },
-            )
-        }
-        if (canMoveRight) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.drawer_move_right)) },
-                modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
-                leadingIcon = { FemtoIcon(imageVector = Lucide.ArrowRight, contentDescription = null) },
-                onClick = {
-                    onMove(1)
-                    onDismissMenu()
-                },
-            )
-        }
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.drawer_unpin)) },
-            modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
-            leadingIcon = { FemtoIcon(imageVector = Lucide.PinOff, contentDescription = null) },
-            onClick = {
-                onUnpin(entry.componentName)
-                onDismissMenu()
-            },
-        )
-    }
+    AppItemMenu(
+        entry = entry,
+        isPinned = true,
+        expanded = menuOpen,
+        onDismiss = onDismissMenu,
+        onTogglePin = onUnpin,
+        onOpenAppInfo = onOpenAppInfo,
+        onRequestUninstall = onRequestUninstall,
+        leadingItems = {
+            if (canMoveLeft) {
+                AppMenuItem(
+                    label = stringResource(R.string.drawer_move_left),
+                    icon = Lucide.ArrowLeft,
+                    onClick = {
+                        onMove(-1)
+                        onDismissMenu()
+                    },
+                )
+            }
+            if (canMoveRight) {
+                AppMenuItem(
+                    label = stringResource(R.string.drawer_move_right),
+                    icon = Lucide.ArrowRight,
+                    onClick = {
+                        onMove(1)
+                        onDismissMenu()
+                    },
+                )
+            }
+        },
+    )
 }
 
 @PreviewLightDark
@@ -336,6 +320,8 @@ private fun PinnedDockPreview() {
             iconSize = DrawerIconSize.MEDIUM,
             onLaunch = {},
             onUnpin = {},
+            onOpenAppInfo = {},
+            onRequestUninstall = {},
             onReorder = {},
         )
     }

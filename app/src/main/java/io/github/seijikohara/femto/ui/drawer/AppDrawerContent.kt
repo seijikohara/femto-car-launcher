@@ -21,8 +21,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,40 +36,45 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.Pin
-import com.composables.icons.lucide.PinOff
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
 import io.github.seijikohara.femto.data.apps.DrawerLayout
 import io.github.seijikohara.femto.ui.drawer.components.AlphabetIndexRail
+import io.github.seijikohara.femto.ui.drawer.components.AppItemMenu
 import io.github.seijikohara.femto.ui.drawer.components.AppListRow
 import io.github.seijikohara.femto.ui.drawer.components.AppTile
+import io.github.seijikohara.femto.ui.drawer.components.DrawerSectionHeader
 import io.github.seijikohara.femto.ui.drawer.components.FloatingLetterIndicator
 import io.github.seijikohara.femto.ui.drawer.components.IndexRailWidth
 import io.github.seijikohara.femto.ui.drawer.components.PinnedDock
 import io.github.seijikohara.femto.ui.drawer.components.RecentAppsRow
+import io.github.seijikohara.femto.ui.home.components.FemtoHorizontalDivider
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.drawerBody
 import kotlinx.coroutines.launch
 
-// Per-preset drawer dimensions. MEDIUM matches the pre-preset values: a 120 dp
-// minimum tile yields ~5 columns on the 853 dp-wide reference head unit, giving
-// each tile room for a 64 dp icon plus its label without crowding. Every preset
-// keeps tiles and rows above FemtoDimens.MinTouchTarget.
+// Per-preset drawer dimensions — the one tile-metric SSOT for the grid, the
+// Recent row, and the pinned dock (the dock and Recent row previously carried
+// their own narrower widths, which broke the sections' shared column lines).
+// MEDIUM keeps the pre-preset look: a 120 dp tile yields ~5 columns on the
+// 853 dp-wide reference head unit, with room for a 64 dp icon plus its label.
+// tileWidth is the exact FixedSize grid cell, not a minimum: fixed cells
+// left-pack instead of stretching, so every section's first column starts on
+// the same left line at the same pitch. Every preset keeps tiles and rows
+// above FemtoDimens.MinTouchTarget.
 internal data class DrawerDimensions(
-    val minTileWidth: Dp,
+    val tileWidth: Dp,
     val gridIconSize: Dp,
     val listIconSize: Dp,
 )
 
 internal fun DrawerIconSize.dimensions(): DrawerDimensions =
     when (this) {
-        DrawerIconSize.SMALL -> DrawerDimensions(minTileWidth = 96.dp, gridIconSize = 48.dp, listIconSize = 32.dp)
-        DrawerIconSize.MEDIUM -> DrawerDimensions(minTileWidth = 120.dp, gridIconSize = 64.dp, listIconSize = 40.dp)
-        DrawerIconSize.LARGE -> DrawerDimensions(minTileWidth = 160.dp, gridIconSize = 88.dp, listIconSize = 56.dp)
+        DrawerIconSize.SMALL -> DrawerDimensions(tileWidth = 96.dp, gridIconSize = 48.dp, listIconSize = 32.dp)
+        DrawerIconSize.MEDIUM -> DrawerDimensions(tileWidth = 120.dp, gridIconSize = 64.dp, listIconSize = 40.dp)
+        DrawerIconSize.LARGE -> DrawerDimensions(tileWidth = 160.dp, gridIconSize = 88.dp, listIconSize = 56.dp)
     }
 
 internal const val APP_DRAWER_PROGRESS_TEST_TAG = "app-drawer-progress"
@@ -97,6 +100,8 @@ internal fun AppDrawerContent(
     query: String,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
+    onOpenAppInfo: (ComponentName) -> Unit,
+    onRequestUninstall: (ComponentName) -> Unit,
     onReorderPins: (List<String>) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
@@ -111,6 +116,8 @@ internal fun AppDrawerContent(
             recentApps = uiState.recentApps,
             onLaunch = onLaunch,
             onTogglePin = onTogglePin,
+            onOpenAppInfo = onOpenAppInfo,
+            onRequestUninstall = onRequestUninstall,
             onReorderPins = onReorderPins,
             modifier = modifier,
         )
@@ -141,6 +148,8 @@ private fun ContentState(
     recentApps: List<AppEntry>,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
+    onOpenAppInfo: (ComponentName) -> Unit,
+    onRequestUninstall: (ComponentName) -> Unit,
     onReorderPins: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier.fillMaxSize()) {
@@ -167,13 +176,26 @@ private fun ContentState(
     // A single bucket (or none) means nothing to jump between.
     val showRail = sectionIndex.size > 1
     val railInset = if (showRail) IndexRailWidth else 0.dp
-    if (!isSearching && recentApps.isNotEmpty()) {
+    val showRecent = !isSearching && recentApps.isNotEmpty()
+    if (showRecent) {
         RecentAppsRow(
             apps = recentApps,
             iconSize = iconSize,
+            pinned = pinnedSet,
             onLaunch = onLaunch,
+            onTogglePin = onTogglePin,
+            onOpenAppInfo = onOpenAppInfo,
+            onRequestUninstall = onRequestUninstall,
             modifier = Modifier.padding(end = railInset),
         )
+    }
+    if (!isSearching) {
+        // The all-apps region gets the same header treatment as Recent, with a
+        // seam mirroring the pinned dock's below, so the boundary between the
+        // history row and the full list is explicit rather than whitespace.
+        // The seam is skipped when Recent is absent (nothing to separate).
+        if (showRecent) FemtoHorizontalDivider()
+        DrawerSectionHeader(text = stringResource(R.string.drawer_all_apps))
     }
     Box(modifier = Modifier.weight(1f)) {
         if (matched.isEmpty()) {
@@ -198,6 +220,8 @@ private fun ContentState(
                         dimensions,
                         onLaunch,
                         onTogglePin,
+                        onOpenAppInfo,
+                        onRequestUninstall,
                         modifier = contentModifier,
                         state = gridState,
                     )
@@ -211,6 +235,8 @@ private fun ContentState(
                         sectionStarts,
                         onLaunch,
                         onTogglePin,
+                        onOpenAppInfo,
+                        onRequestUninstall,
                         modifier = contentModifier,
                         state = listState,
                     )
@@ -250,6 +276,8 @@ private fun ContentState(
             iconSize = iconSize,
             onLaunch = onLaunch,
             onUnpin = onTogglePin,
+            onOpenAppInfo = onOpenAppInfo,
+            onRequestUninstall = onRequestUninstall,
             onReorder = onReorderPins,
         )
     }
@@ -275,12 +303,14 @@ private fun GridApps(
     dimensions: DrawerDimensions,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
+    onOpenAppInfo: (ComponentName) -> Unit,
+    onRequestUninstall: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
     state: LazyGridState = rememberLazyGridState(),
 ) = LazyVerticalGrid(
     modifier = modifier,
     state = state,
-    columns = GridCells.Adaptive(minSize = dimensions.minTileWidth),
+    columns = GridCells.FixedSize(dimensions.tileWidth),
     contentPadding = PaddingValues(FemtoDimens.ScreenPadding),
     horizontalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
     verticalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
@@ -293,6 +323,8 @@ private fun GridApps(
             isPinned = entry.componentName.flattenToString() in pinnedSet,
             onLaunch = onLaunch,
             onTogglePin = onTogglePin,
+            onOpenAppInfo = onOpenAppInfo,
+            onRequestUninstall = onRequestUninstall,
         )
     }
 }
@@ -309,6 +341,8 @@ private fun ListApps(
     sectionStarts: Set<Int>,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
+    onOpenAppInfo: (ComponentName) -> Unit,
+    onRequestUninstall: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
     state: LazyListState = rememberLazyListState(),
 ) = LazyColumn(modifier = modifier, state = state, contentPadding = PaddingValues(vertical = FemtoDimens.GridGutter)) {
@@ -324,6 +358,8 @@ private fun ListApps(
                 isPinned = entry.componentName.flattenToString() in pinnedSet,
                 onLaunch = onLaunch,
                 onTogglePin = onTogglePin,
+                onOpenAppInfo = onOpenAppInfo,
+                onRequestUninstall = onRequestUninstall,
             )
         }
     }
@@ -343,7 +379,7 @@ private fun InlineLetterMarker(
     modifier = modifier.fillMaxWidth().padding(horizontal = FemtoDimens.ScreenPadding, vertical = 4.dp),
 )
 
-// One app entry (grid tile or list row) wrapping a long-press pin / unpin menu.
+// One app entry (grid tile or list row) wrapping the shared long-press menu.
 @Composable
 private fun DrawerAppItem(
     entry: AppEntry,
@@ -352,6 +388,8 @@ private fun DrawerAppItem(
     isPinned: Boolean,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
+    onOpenAppInfo: (ComponentName) -> Unit,
+    onRequestUninstall: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -377,22 +415,15 @@ private fun DrawerAppItem(
                 )
             }
         }
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(
-                text = {
-                    Text(stringResource(if (isPinned) R.string.drawer_unpin else R.string.drawer_pin))
-                },
-                // M3's default menu-item height (48 dp) sits below the automotive floor.
-                modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
-                leadingIcon = {
-                    FemtoIcon(imageVector = if (isPinned) Lucide.PinOff else Lucide.Pin, contentDescription = null)
-                },
-                onClick = {
-                    onTogglePin(entry.componentName)
-                    menuOpen = false
-                },
-            )
-        }
+        AppItemMenu(
+            entry = entry,
+            isPinned = isPinned,
+            expanded = menuOpen,
+            onDismiss = { menuOpen = false },
+            onTogglePin = onTogglePin,
+            onOpenAppInfo = onOpenAppInfo,
+            onRequestUninstall = onRequestUninstall,
+        )
     }
 }
 

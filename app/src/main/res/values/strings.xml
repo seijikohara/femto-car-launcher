@@ -169,6 +169,8 @@
     <string name="drawer_layout_list">List layout</string>
     <string name="drawer_pin">Pin</string>
     <string name="drawer_unpin">Unpin</string>
+    <string name="drawer_app_info">App info</string>
+    <string name="drawer_uninstall">Uninstall</string>
     <string name="drawer_move_left">Move left</string>
     <string name="drawer_move_right">Move right</string>
     <string name="drawer_search_hint">Search apps</string>
@@ -180,6 +182,7 @@
     <string name="drawer_icon_size_medium">Medium</string>
     <string name="drawer_icon_size_large">Large</string>
     <string name="drawer_recent_apps">Recent</string>
+    <string name="drawer_all_apps">All apps</string>
 
     <!-- Assistant sheet -->
     <string name="assistant_sheet_title">Voice assistant</string>

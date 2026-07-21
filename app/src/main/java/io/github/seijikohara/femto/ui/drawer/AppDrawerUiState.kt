@@ -40,11 +40,23 @@ internal sealed interface AppDrawerUiState {
  * [Launch] starts an app and, on a resolved launch, records it in the recent
  * history — the panel is self-contained, so the launch side effect lives with
  * the query state rather than being threaded up to the Activity.
+ *
+ * [OpenAppInfo] and [RequestUninstall] are the long-press management actions:
+ * both hand off to system UI (the App-info page, the uninstall confirmation)
+ * through the same self-contained seam idiom as [Launch].
  */
 internal sealed interface AppDrawerAction {
     data object Refresh : AppDrawerAction
 
     data class Launch(
+        val componentName: ComponentName,
+    ) : AppDrawerAction
+
+    data class OpenAppInfo(
+        val componentName: ComponentName,
+    ) : AppDrawerAction
+
+    data class RequestUninstall(
         val componentName: ComponentName,
     ) : AppDrawerAction
 }

@@ -31,6 +31,8 @@ class PinnedDockTest {
                     iconSize = DrawerIconSize.MEDIUM,
                     onLaunch = {},
                     onUnpin = {},
+                    onOpenAppInfo = {},
+                    onRequestUninstall = {},
                     onReorder = onReorder,
                 )
             }

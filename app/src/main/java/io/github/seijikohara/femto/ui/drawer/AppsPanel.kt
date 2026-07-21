@@ -96,6 +96,8 @@ internal fun AppsPanel(
     pinned: List<String>,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
+    onOpenAppInfo: (ComponentName) -> Unit,
+    onRequestUninstall: (ComponentName) -> Unit,
     onToggleLayout: () -> Unit,
     onSelectIconSize: (DrawerIconSize) -> Unit,
     onReorderPins: (List<String>) -> Unit,
@@ -142,6 +144,8 @@ internal fun AppsPanel(
                 query = query,
                 onLaunch = onLaunch,
                 onTogglePin = onTogglePin,
+                onOpenAppInfo = onOpenAppInfo,
+                onRequestUninstall = onRequestUninstall,
                 onReorderPins = onReorderPins,
                 onRetry = onRetry,
                 modifier = Modifier.fillMaxWidth().weight(1f),
@@ -322,6 +326,8 @@ internal fun AppDrawerPanelHost(
         onTogglePin = { component ->
             scope.launch { drawerPreferences.togglePinned(component.flattenToString()) }
         },
+        onOpenAppInfo = { component -> viewModel.onAction(AppDrawerAction.OpenAppInfo(component)) },
+        onRequestUninstall = { component -> viewModel.onAction(AppDrawerAction.RequestUninstall(component)) },
         onToggleLayout = {
             scope.launch {
                 drawerPreferences.setLayout(
@@ -360,6 +366,8 @@ private fun AppsPanelPreview() {
             pinned = listOf("com.example.maps/.Main", "com.example.phone/.Main"),
             onLaunch = {},
             onTogglePin = {},
+            onOpenAppInfo = {},
+            onRequestUninstall = {},
             onToggleLayout = {},
             onSelectIconSize = {},
             onReorderPins = {},
