@@ -20,7 +20,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -82,8 +81,9 @@ internal fun DrawerIconSize.dockDimensions(): DockDimensions =
 
 /**
  * Pinned-apps dock fixed at the bottom of the drawer sheet: a horizontally
- * scrolling row of icon + label tiles in pin order, visually separated from the
- * scrolling app grid by a divider on a raised container colour. Tap launches.
+ * scrolling row of icon + label tiles in pin order, separated from the
+ * scrolling app grid by a hairline seam over the panel glass — no surface of
+ * its own, so the map keeps blurring through. Tap launches.
  *
  * Long-press then drag reorders: the held tile follows the finger and swaps
  * places as it crosses its neighbours; lifting commits the new order through
@@ -117,95 +117,93 @@ internal fun PinnedDock(
     var dragTravelled by remember { mutableStateOf(false) }
     var menuKey by remember { mutableStateOf<String?>(null) }
     val stepPx = with(LocalDensity.current) { (dimensions.tileWidth + FemtoDimens.GridGutter).toPx() }
-    Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding =
-                PaddingValues(horizontal = FemtoDimens.ScreenPadding, vertical = DockVerticalPadding),
-            horizontalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
-        ) {
-            items(items = order, key = { it.componentName.flattenToString() }) { entry ->
-                val key = entry.componentName.flattenToString()
-                val dragging = draggingKey == key
-                DockTile(
-                    entry = entry,
-                    dimensions = dimensions,
-                    menuOpen = menuKey == key,
-                    canMoveLeft = order.indexOf(entry) > 0,
-                    canMoveRight = order.indexOf(entry) < order.lastIndex,
-                    onLaunch = onLaunch,
-                    onUnpin = onUnpin,
-                    onDismissMenu = { menuKey = null },
-                    onMove = { offset ->
-                        val index = order.indexOf(entry)
-                        val target = (index + offset).coerceIn(0, order.lastIndex)
-                        if (target != index) {
-                            order.add(target, order.removeAt(index))
-                            onReorder(order.map { it.componentName.flattenToString() })
-                        }
-                    },
-                    modifier =
-                        Modifier
-                            // The held tile rides above its neighbours and tracks
-                            // the finger; everyone else stays put (the swap
-                            // animation is the position change itself).
-                            .zIndex(if (dragging) 1f else 0f)
-                            .graphicsLayer { translationX = if (dragging) dragDelta else 0f }
-                            .pointerInput(key, stepPx) {
-                                detectDragGesturesAfterLongPress(
-                                    onDragStart = {
-                                        draggingKey = key
-                                        dragDelta = 0f
-                                        dragTravelled = false
-                                    },
-                                    onDrag = { change, amount ->
-                                        change.consume()
-                                        dragDelta += amount.x
-                                        if (abs(dragDelta) > viewConfiguration.touchSlop) dragTravelled = true
-                                        val index = order.indexOfFirst { it.componentName.flattenToString() == key }
-                                        val (reordered, residual) = reorderByDrag(
-                                            order.toList(),
-                                            index,
-                                            dragDelta,
-                                            stepPx,
-                                        )
-                                        if (reordered.size == order.size && reordered != order.toList()) {
-                                            order.clear()
-                                            order.addAll(reordered)
-                                        }
-                                        dragDelta = residual
-                                    },
-                                    onDragEnd = {
-                                        if (dragTravelled) {
-                                            onReorder(order.map { it.componentName.flattenToString() })
-                                        } else {
-                                            menuKey = key
-                                        }
-                                        draggingKey = null
-                                        dragDelta = 0f
-                                    },
-                                    onDragCancel = {
-                                        if (dragTravelled) {
-                                            // Revert the optimistic swaps: nothing
-                                            // was committed, so the dock falls back
-                                            // to the persisted order.
-                                            order.clear()
-                                            order.addAll(apps)
-                                        } else {
-                                            // A no-travel lift lands HERE, not in
-                                            // onDragEnd: the child clickable
-                                            // consumes the up (its tap), which the
-                                            // detector reports as a cancel. It is
-                                            // the menu gesture.
-                                            menuKey = key
-                                        }
-                                        draggingKey = null
-                                        dragDelta = 0f
-                                    },
-                                )
-                            },
-                )
-            }
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding =
+            PaddingValues(horizontal = FemtoDimens.ScreenPadding, vertical = DockVerticalPadding),
+        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
+    ) {
+        items(items = order, key = { it.componentName.flattenToString() }) { entry ->
+            val key = entry.componentName.flattenToString()
+            val dragging = draggingKey == key
+            DockTile(
+                entry = entry,
+                dimensions = dimensions,
+                menuOpen = menuKey == key,
+                canMoveLeft = order.indexOf(entry) > 0,
+                canMoveRight = order.indexOf(entry) < order.lastIndex,
+                onLaunch = onLaunch,
+                onUnpin = onUnpin,
+                onDismissMenu = { menuKey = null },
+                onMove = { offset ->
+                    val index = order.indexOf(entry)
+                    val target = (index + offset).coerceIn(0, order.lastIndex)
+                    if (target != index) {
+                        order.add(target, order.removeAt(index))
+                        onReorder(order.map { it.componentName.flattenToString() })
+                    }
+                },
+                modifier =
+                    Modifier
+                        // The held tile rides above its neighbours and tracks
+                        // the finger; everyone else stays put (the swap
+                        // animation is the position change itself).
+                        .zIndex(if (dragging) 1f else 0f)
+                        .graphicsLayer { translationX = if (dragging) dragDelta else 0f }
+                        .pointerInput(key, stepPx) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    draggingKey = key
+                                    dragDelta = 0f
+                                    dragTravelled = false
+                                },
+                                onDrag = { change, amount ->
+                                    change.consume()
+                                    dragDelta += amount.x
+                                    if (abs(dragDelta) > viewConfiguration.touchSlop) dragTravelled = true
+                                    val index = order.indexOfFirst { it.componentName.flattenToString() == key }
+                                    val (reordered, residual) = reorderByDrag(
+                                        order.toList(),
+                                        index,
+                                        dragDelta,
+                                        stepPx,
+                                    )
+                                    if (reordered.size == order.size && reordered != order.toList()) {
+                                        order.clear()
+                                        order.addAll(reordered)
+                                    }
+                                    dragDelta = residual
+                                },
+                                onDragEnd = {
+                                    if (dragTravelled) {
+                                        onReorder(order.map { it.componentName.flattenToString() })
+                                    } else {
+                                        menuKey = key
+                                    }
+                                    draggingKey = null
+                                    dragDelta = 0f
+                                },
+                                onDragCancel = {
+                                    if (dragTravelled) {
+                                        // Revert the optimistic swaps: nothing
+                                        // was committed, so the dock falls back
+                                        // to the persisted order.
+                                        order.clear()
+                                        order.addAll(apps)
+                                    } else {
+                                        // A no-travel lift lands HERE, not in
+                                        // onDragEnd: the child clickable
+                                        // consumes the up (its tap), which the
+                                        // detector reports as a cancel. It is
+                                        // the menu gesture.
+                                        menuKey = key
+                                    }
+                                    draggingKey = null
+                                    dragDelta = 0f
+                                },
+                            )
+                        },
+            )
         }
     }
 }
