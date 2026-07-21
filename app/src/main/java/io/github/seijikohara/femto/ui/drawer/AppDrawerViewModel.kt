@@ -38,12 +38,22 @@ private const val TAG = "AppDrawerViewModel"
  * seams (production wires [AppsRepository.launch] and
  * [RecentAppsPreferences.recordLaunch]) so the panel is self-contained and JVM
  * tests can assert the resolved-launch-only recents rule without Android types.
+ * [openAppInfo] and [requestUninstall] follow the same idiom for the
+ * long-press management actions.
+ *
+ * [packageChanges] mirrors [AppsRepository.packageChanges]: every emission
+ * re-queries in place (no Loading flash) so an uninstall completing — or an
+ * install landing — while the panel is open updates the grid without blanking
+ * it or resetting scroll.
  */
 internal class AppDrawerViewModel(
     private val queryApps: suspend () -> List<AppEntry>,
     recentComponents: Flow<List<String>> = emptyFlow(),
     private val launchApp: (ComponentName) -> Boolean = { false },
     private val recordLaunch: suspend (String) -> Unit = {},
+    private val openAppInfo: (ComponentName) -> Unit = {},
+    private val requestUninstall: (ComponentName) -> Unit = {},
+    packageChanges: Flow<Unit> = emptyFlow(),
 ) : ViewModel() {
     private val _uiState = MutableStateFlow<AppDrawerUiState>(AppDrawerUiState.Loading)
     val uiState: StateFlow<AppDrawerUiState> = _uiState.asStateFlow()
@@ -72,12 +82,17 @@ internal class AppDrawerViewModel(
                 }
             }
         }
+        viewModelScope.launch {
+            packageChanges.collect { refresh(silent = true) }
+        }
     }
 
     fun onAction(action: AppDrawerAction) =
         when (action) {
             AppDrawerAction.Refresh -> refresh()
             is AppDrawerAction.Launch -> launchAndRecord(action.componentName)
+            is AppDrawerAction.OpenAppInfo -> openAppInfo(action.componentName)
+            is AppDrawerAction.RequestUninstall -> requestUninstall(action.componentName)
         }
 
     // Only a resolved launch feeds the Recent row — a stale tile (its app
@@ -91,9 +106,11 @@ internal class AppDrawerViewModel(
     }
 
     // Flip back to Loading first so a retry shows progress rather than a stale
-    // error, mirroring the pre-ViewModel sheet behavior.
-    private fun refresh() {
-        _uiState.value = AppDrawerUiState.Loading
+    // error, mirroring the pre-ViewModel sheet behavior. A silent refresh (a
+    // package-change while the panel is open) skips that flip and, on failure,
+    // keeps the current grid — the stale list beats blanking an open panel.
+    private fun refresh(silent: Boolean = false) {
+        if (!silent) _uiState.value = AppDrawerUiState.Loading
         viewModelScope.launch {
             runCatching { queryApps() }
                 .onSuccess { apps ->
@@ -108,7 +125,7 @@ internal class AppDrawerViewModel(
                     // renders as the Error state.
                     if (it is CancellationException) throw it
                     Log.e(TAG, "app query failed", it)
-                    _uiState.value = AppDrawerUiState.Error
+                    if (!silent) _uiState.value = AppDrawerUiState.Error
                 }
         }
     }
@@ -129,6 +146,9 @@ internal val AppDrawerViewModelFactory: ViewModelProvider.Factory =
                 recentComponents = recentApps.recentComponents,
                 launchApp = appsRepository::launch,
                 recordLaunch = recentApps::recordLaunch,
+                openAppInfo = appsRepository::openAppDetails,
+                requestUninstall = appsRepository::requestUninstall,
+                packageChanges = appsRepository.packageChanges,
             )
         }
     }

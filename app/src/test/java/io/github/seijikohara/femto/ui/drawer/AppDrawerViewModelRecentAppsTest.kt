@@ -5,6 +5,7 @@ import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.testfixtures.fakeAppEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -118,6 +119,56 @@ class AppDrawerViewModelRecentAppsTest {
             viewModel.onAction(AppDrawerAction.Launch(maps.componentName))
 
             assertEquals(listOf(maps.componentName.flattenToString()), recorded)
+        }
+
+    @Test
+    fun `OpenAppInfo invokes the app-details seam`() =
+        runTest {
+            val opened = mutableListOf<android.content.ComponentName>()
+            val viewModel = AppDrawerViewModel(queryApps = { listOf(maps) }, openAppInfo = opened::add)
+
+            viewModel.onAction(AppDrawerAction.OpenAppInfo(maps.componentName))
+
+            assertEquals(listOf(maps.componentName), opened)
+        }
+
+    @Test
+    fun `RequestUninstall invokes the uninstall seam`() =
+        runTest {
+            val requested = mutableListOf<android.content.ComponentName>()
+            val viewModel = AppDrawerViewModel(queryApps = { listOf(maps) }, requestUninstall = requested::add)
+
+            viewModel.onAction(AppDrawerAction.RequestUninstall(maps.componentName))
+
+            assertEquals(listOf(maps.componentName), requested)
+        }
+
+    @Test
+    fun `a package change re-queries apps in place without a loading flash`() =
+        runTest {
+            var queryCount = 0
+            val packageChanges = MutableSharedFlow<Unit>()
+            val viewModel =
+                AppDrawerViewModel(
+                    queryApps = {
+                        queryCount++
+                        if (queryCount == 1) listOf(maps) else listOf(maps, music)
+                    },
+                    packageChanges = packageChanges,
+                )
+
+            viewModel.uiState.test {
+                assertEquals(AppDrawerUiState.Loading, awaitItem())
+                viewModel.onAction(AppDrawerAction.Refresh)
+                assertEquals(listOf(maps), assertIs<AppDrawerUiState.Content>(awaitItem()).apps)
+
+                // An uninstall (or install) landing while the panel is open:
+                // the next emission is the refreshed Content directly — a
+                // Loading flash here would blank the grid and reset scroll.
+                packageChanges.emit(Unit)
+                assertEquals(listOf(maps, music), assertIs<AppDrawerUiState.Content>(awaitItem()).apps)
+            }
+            assertEquals(2, queryCount)
         }
 
     @Test
