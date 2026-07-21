@@ -1,8 +1,9 @@
 package io.github.seijikohara.femto.ui.drawer.components
 
 import android.content.ComponentName
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -18,6 +19,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,18 +49,22 @@ private val LabelBottomPadding = 4.dp
 
 /**
  * "Recent" section: a horizontal row of the most-recently-launched apps
- * (backed by the drawer's launch-history store), tap to relaunch. Mirrors
- * [PinnedDock]'s tile idiom (icon + single-line label, sized via the shared
- * [DrawerIconSize.dimensions] tile metric) but without its drag-reorder /
- * unpin affordances — history order is derived, not user-curated. Callers
- * skip composing the row when [apps] is empty (a fresh install, or nothing
- * launched from the drawer yet).
+ * (backed by the drawer's launch-history store), tap to relaunch, long-press
+ * for the shared [AppItemMenu]. Mirrors [PinnedDock]'s tile idiom (icon +
+ * single-line label, sized via the shared [DrawerIconSize.dimensions] tile
+ * metric) but without its drag-reorder affordance — history order is derived,
+ * not user-curated. Callers skip composing the row when [apps] is empty (a
+ * fresh install, or nothing launched from the drawer yet).
  */
 @Composable
 internal fun RecentAppsRow(
     apps: List<AppEntry>,
     iconSize: DrawerIconSize,
+    pinned: Set<String>,
     onLaunch: (ComponentName) -> Unit,
+    onTogglePin: (ComponentName) -> Unit,
+    onOpenAppInfo: (ComponentName) -> Unit,
+    onRequestUninstall: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier.fillMaxWidth()) {
     DrawerSectionHeader(text = stringResource(R.string.drawer_recent_apps))
@@ -66,7 +75,15 @@ internal fun RecentAppsRow(
         horizontalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
     ) {
         items(items = apps, key = { it.componentName.flattenToString() }) { entry ->
-            RecentTile(entry = entry, dimensions = dimensions, onLaunch = onLaunch)
+            RecentTile(
+                entry = entry,
+                dimensions = dimensions,
+                isPinned = entry.componentName.flattenToString() in pinned,
+                onLaunch = onLaunch,
+                onTogglePin = onTogglePin,
+                onOpenAppInfo = onOpenAppInfo,
+                onRequestUninstall = onRequestUninstall,
+            )
         }
     }
 }
@@ -96,34 +113,59 @@ internal fun DrawerSectionHeader(
 private fun RecentTile(
     entry: AppEntry,
     dimensions: DrawerDimensions,
+    isPinned: Boolean,
     onLaunch: (ComponentName) -> Unit,
+    onTogglePin: (ComponentName) -> Unit,
+    onOpenAppInfo: (ComponentName) -> Unit,
+    onRequestUninstall: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
-) = Column(
-    modifier =
-        modifier
-            .width(dimensions.tileWidth)
-            .defaultMinSize(minHeight = FemtoDimens.MinTouchTarget)
-            .clickable(onClick = { onLaunch(entry.componentName) }),
-    horizontalAlignment = Alignment.CenterHorizontally,
 ) {
-    Icon(
-        painter = BitmapPainter(entry.icon.asImageBitmap()),
-        contentDescription = entry.label,
-        tint = Color.Unspecified,
-        modifier = Modifier.size(dimensions.gridIconSize),
-    )
-    Spacer(Modifier.height(IconLabelGap))
-    // Same deterministic line box as the grid / dock tiles (see tileLabel), so
-    // every tile row measures identically across scripts and fallbacks.
-    Text(
-        text = entry.label,
-        style = MaterialTheme.typography.tileLabel(),
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth(),
-    )
+    var menuOpen by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        Column(
+            modifier =
+                Modifier
+                    .width(dimensions.tileWidth)
+                    .defaultMinSize(minHeight = FemtoDimens.MinTouchTarget)
+                    // combinedClickable, not clickable: a recent tile is an app
+                    // tile like any other, so it carries the same long-press
+                    // management menu as the grid, list, and dock surfaces.
+                    .combinedClickable(
+                        onClick = { onLaunch(entry.componentName) },
+                        onLongClick = { menuOpen = true },
+                    ),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                painter = BitmapPainter(entry.icon.asImageBitmap()),
+                contentDescription = entry.label,
+                tint = Color.Unspecified,
+                modifier = Modifier.size(dimensions.gridIconSize),
+            )
+            Spacer(Modifier.height(IconLabelGap))
+            // Same deterministic line box as the grid / dock tiles (see
+            // tileLabel), so every tile row measures identically across
+            // scripts and fallbacks.
+            Text(
+                text = entry.label,
+                style = MaterialTheme.typography.tileLabel(),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        AppItemMenu(
+            entry = entry,
+            isPinned = isPinned,
+            expanded = menuOpen,
+            onDismiss = { menuOpen = false },
+            onTogglePin = onTogglePin,
+            onOpenAppInfo = onOpenAppInfo,
+            onRequestUninstall = onRequestUninstall,
+        )
+    }
 }
 
 @PreviewLightDark
@@ -139,7 +181,11 @@ private fun RecentAppsRowPreview() {
                     AppEntry(ComponentName("com.phone", ".Main"), "Phone", icon),
                 ),
             iconSize = DrawerIconSize.MEDIUM,
+            pinned = setOf("com.maps/.Main"),
             onLaunch = {},
+            onTogglePin = {},
+            onOpenAppInfo = {},
+            onRequestUninstall = {},
         )
     }
 }

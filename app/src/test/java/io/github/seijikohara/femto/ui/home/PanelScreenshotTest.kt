@@ -149,6 +149,8 @@ class PanelScreenshotTest {
             pinned = listOf("com.example.maps/.Main", "com.example.phone/.Main"),
             onLaunch = {},
             onTogglePin = {},
+            onOpenAppInfo = {},
+            onRequestUninstall = {},
             onToggleLayout = {},
             onSelectIconSize = {},
             onReorderPins = {},

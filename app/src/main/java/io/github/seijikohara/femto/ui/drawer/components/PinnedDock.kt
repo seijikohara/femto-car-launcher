@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -45,7 +43,6 @@ import androidx.core.graphics.createBitmap
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ArrowRight
 import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.PinOff
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
@@ -70,11 +67,12 @@ private val DockVerticalPadding = 8.dp
  *
  * Long-press then drag reorders: the held tile follows the finger and swaps
  * places as it crosses its neighbours; lifting commits the new order through
- * [onReorder]. A long-press lifted WITHOUT travel opens the tile menu
- * (Unpin, plus Move left / Move right — the precision-free reorder path for
- * a bumpy cabin or accessibility services). The menu deliberately opens on
- * lift, not at the long-press timeout: a focusable popup appearing mid-press
- * cancels the pointer stream and would kill the drag.
+ * [onReorder]. A long-press lifted WITHOUT travel opens the shared
+ * [AppItemMenu] with Move left / Move right prepended — the precision-free
+ * reorder path for a bumpy cabin or accessibility services. The menu
+ * deliberately opens on lift, not at the long-press timeout: a focusable
+ * popup appearing mid-press cancels the pointer stream and would kill the
+ * drag.
  *
  * Callers skip composing the dock when [apps] is empty.
  */
@@ -84,6 +82,8 @@ internal fun PinnedDock(
     iconSize: DrawerIconSize,
     onLaunch: (ComponentName) -> Unit,
     onUnpin: (ComponentName) -> Unit,
+    onOpenAppInfo: (ComponentName) -> Unit,
+    onRequestUninstall: (ComponentName) -> Unit,
     onReorder: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier.fillMaxWidth()) {
@@ -119,6 +119,8 @@ internal fun PinnedDock(
                 canMoveRight = order.indexOf(entry) < order.lastIndex,
                 onLaunch = onLaunch,
                 onUnpin = onUnpin,
+                onOpenAppInfo = onOpenAppInfo,
+                onRequestUninstall = onRequestUninstall,
                 onDismissMenu = { menuKey = null },
                 onMove = { offset ->
                     val index = order.indexOf(entry)
@@ -232,6 +234,8 @@ private fun DockTile(
     canMoveRight: Boolean,
     onLaunch: (ComponentName) -> Unit,
     onUnpin: (ComponentName) -> Unit,
+    onOpenAppInfo: (ComponentName) -> Unit,
+    onRequestUninstall: (ComponentName) -> Unit,
     onDismissMenu: () -> Unit,
     onMove: (Int) -> Unit,
     modifier: Modifier = Modifier,
@@ -268,40 +272,37 @@ private fun DockTile(
             modifier = Modifier.fillMaxWidth(),
         )
     }
-    DropdownMenu(expanded = menuOpen, onDismissRequest = onDismissMenu) {
-        if (canMoveLeft) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.drawer_move_left)) },
-                // M3's default menu-item height (48 dp) sits below the automotive floor.
-                modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
-                leadingIcon = { FemtoIcon(imageVector = Lucide.ArrowLeft, contentDescription = null) },
-                onClick = {
-                    onMove(-1)
-                    onDismissMenu()
-                },
-            )
-        }
-        if (canMoveRight) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.drawer_move_right)) },
-                modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
-                leadingIcon = { FemtoIcon(imageVector = Lucide.ArrowRight, contentDescription = null) },
-                onClick = {
-                    onMove(1)
-                    onDismissMenu()
-                },
-            )
-        }
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.drawer_unpin)) },
-            modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
-            leadingIcon = { FemtoIcon(imageVector = Lucide.PinOff, contentDescription = null) },
-            onClick = {
-                onUnpin(entry.componentName)
-                onDismissMenu()
-            },
-        )
-    }
+    AppItemMenu(
+        entry = entry,
+        isPinned = true,
+        expanded = menuOpen,
+        onDismiss = onDismissMenu,
+        onTogglePin = onUnpin,
+        onOpenAppInfo = onOpenAppInfo,
+        onRequestUninstall = onRequestUninstall,
+        leadingItems = {
+            if (canMoveLeft) {
+                AppMenuItem(
+                    label = stringResource(R.string.drawer_move_left),
+                    icon = Lucide.ArrowLeft,
+                    onClick = {
+                        onMove(-1)
+                        onDismissMenu()
+                    },
+                )
+            }
+            if (canMoveRight) {
+                AppMenuItem(
+                    label = stringResource(R.string.drawer_move_right),
+                    icon = Lucide.ArrowRight,
+                    onClick = {
+                        onMove(1)
+                        onDismissMenu()
+                    },
+                )
+            }
+        },
+    )
 }
 
 @PreviewLightDark
@@ -319,6 +320,8 @@ private fun PinnedDockPreview() {
             iconSize = DrawerIconSize.MEDIUM,
             onLaunch = {},
             onUnpin = {},
+            onOpenAppInfo = {},
+            onRequestUninstall = {},
             onReorder = {},
         )
     }
