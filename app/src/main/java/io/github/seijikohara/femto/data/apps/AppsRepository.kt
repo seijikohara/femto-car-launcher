@@ -3,13 +3,20 @@ package io.github.seijikohara.femto.data.apps
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.LauncherActivityInfo
 import android.content.pm.LauncherApps
 import android.os.Process
+import android.os.UserHandle
 import android.util.Log
 import androidx.core.content.getSystemService
 import androidx.core.graphics.drawable.toBitmap
+import androidx.core.net.toUri
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.withContext
 
 /**
@@ -85,6 +92,80 @@ internal class AppsRepository(
             )
 
     /**
+     * Open the system App-info page for the app — the sanctioned entry point
+     * for force-stop / disable / storage actions a Play-distributed launcher
+     * cannot perform itself. Uses the same [LauncherApps] family as [launch].
+     */
+    fun openAppDetails(componentName: ComponentName) {
+        runCatching { launcherApps.startAppDetailsActivity(componentName, Process.myUserHandle(), null, null) }
+            .onFailure { Log.w(TAG, "could not open app details for ${componentName.flattenToShortString()}", it) }
+    }
+
+    /**
+     * Ask the system uninstaller to remove the app; the confirmation UI and
+     * the actual deletion are the system's. Swallows resolution failures the
+     * same way [launch] does — a HOME launcher must never crash on a tap.
+     */
+    fun requestUninstall(componentName: ComponentName) {
+        runCatching {
+            context.startActivity(
+                Intent(Intent.ACTION_DELETE, "package:${componentName.packageName}".toUri())
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }.onFailure { Log.w(TAG, "could not request uninstall for ${componentName.flattenToShortString()}", it) }
+    }
+
+    /**
+     * Emits on every package add / remove / change for the current user, so an
+     * open drawer refreshes itself after an uninstall completes or an install
+     * lands. Registration lives only while the flow is collected.
+     */
+    val packageChanges: Flow<Unit> =
+        callbackFlow {
+            val callback =
+                object : LauncherApps.Callback() {
+                    override fun onPackageRemoved(
+                        packageName: String?,
+                        user: UserHandle?,
+                    ) {
+                        trySend(Unit)
+                    }
+
+                    override fun onPackageAdded(
+                        packageName: String?,
+                        user: UserHandle?,
+                    ) {
+                        trySend(Unit)
+                    }
+
+                    override fun onPackageChanged(
+                        packageName: String?,
+                        user: UserHandle?,
+                    ) {
+                        trySend(Unit)
+                    }
+
+                    override fun onPackagesAvailable(
+                        packageNames: Array<out String>?,
+                        user: UserHandle?,
+                        replacing: Boolean,
+                    ) {
+                        trySend(Unit)
+                    }
+
+                    override fun onPackagesUnavailable(
+                        packageNames: Array<out String>?,
+                        user: UserHandle?,
+                        replacing: Boolean,
+                    ) {
+                        trySend(Unit)
+                    }
+                }
+            launcherApps.registerCallback(callback)
+            awaitClose { launcherApps.unregisterCallback(callback) }
+        }
+
+    /**
      * Resolve a package to its primary launcher activity, or null when the
      * package exposes no launchable activity (e.g. a background-only media
      * service). Used to open the app behind the current media session, reusing
@@ -112,4 +193,7 @@ private fun LauncherActivityInfo.toAppEntry(): AppEntry =
         componentName = componentName,
         label = label.toString(),
         icon = getIcon(0).toBitmap(width = ICON_PIXELS, height = ICON_PIXELS),
+        isSystem =
+            applicationInfo.flags and
+                (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0,
     )
