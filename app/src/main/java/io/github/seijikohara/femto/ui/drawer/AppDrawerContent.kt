@@ -48,10 +48,12 @@ import io.github.seijikohara.femto.data.apps.DrawerLayout
 import io.github.seijikohara.femto.ui.drawer.components.AlphabetIndexRail
 import io.github.seijikohara.femto.ui.drawer.components.AppListRow
 import io.github.seijikohara.femto.ui.drawer.components.AppTile
+import io.github.seijikohara.femto.ui.drawer.components.DrawerSectionHeader
 import io.github.seijikohara.femto.ui.drawer.components.FloatingLetterIndicator
 import io.github.seijikohara.femto.ui.drawer.components.IndexRailWidth
 import io.github.seijikohara.femto.ui.drawer.components.PinnedDock
 import io.github.seijikohara.femto.ui.drawer.components.RecentAppsRow
+import io.github.seijikohara.femto.ui.home.components.FemtoHorizontalDivider
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.drawerBody
@@ -172,13 +174,22 @@ private fun ContentState(
     // A single bucket (or none) means nothing to jump between.
     val showRail = sectionIndex.size > 1
     val railInset = if (showRail) IndexRailWidth else 0.dp
-    if (!isSearching && recentApps.isNotEmpty()) {
+    val showRecent = !isSearching && recentApps.isNotEmpty()
+    if (showRecent) {
         RecentAppsRow(
             apps = recentApps,
             iconSize = iconSize,
             onLaunch = onLaunch,
             modifier = Modifier.padding(end = railInset),
         )
+    }
+    if (!isSearching) {
+        // The all-apps region gets the same header treatment as Recent, with a
+        // seam mirroring the pinned dock's below, so the boundary between the
+        // history row and the full list is explicit rather than whitespace.
+        // The seam is skipped when Recent is absent (nothing to separate).
+        if (showRecent) FemtoHorizontalDivider()
+        DrawerSectionHeader(text = stringResource(R.string.drawer_all_apps))
     }
     Box(modifier = Modifier.weight(1f)) {
         if (matched.isEmpty()) {

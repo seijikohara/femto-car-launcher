@@ -58,19 +58,7 @@ internal fun RecentAppsRow(
     onLaunch: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier.fillMaxWidth()) {
-    Text(
-        text = stringResource(R.string.drawer_recent_apps),
-        // Cleared at exactly the automotive body-text floor: the drawer is
-        // not one of the sanctioned card-relaxation areas in
-        // CLAUDE.md#automotive-overrides, so this label may not go smaller.
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier =
-            Modifier.padding(
-                horizontal = FemtoDimens.ScreenPadding,
-                vertical = LabelBottomPadding,
-            ),
-    )
+    DrawerSectionHeader(text = stringResource(R.string.drawer_recent_apps))
     val dimensions = iconSize.dimensions()
     LazyRow(
         modifier = Modifier.fillMaxWidth(),
@@ -82,6 +70,27 @@ internal fun RecentAppsRow(
         }
     }
 }
+
+/**
+ * Shared section-header recipe for the drawer's Recent and All-apps labels.
+ * titleSmall clears exactly the automotive body-text floor: the drawer is
+ * not one of the sanctioned card-relaxation areas in
+ * CLAUDE.md#automotive-overrides, so this label may not go smaller.
+ */
+@Composable
+internal fun DrawerSectionHeader(
+    text: String,
+    modifier: Modifier = Modifier,
+) = Text(
+    text = text,
+    style = MaterialTheme.typography.titleSmall,
+    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    modifier =
+        modifier.padding(
+            horizontal = FemtoDimens.ScreenPadding,
+            vertical = LabelBottomPadding,
+        ),
+)
 
 @Composable
 private fun RecentTile(
