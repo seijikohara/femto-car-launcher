@@ -203,12 +203,58 @@ private fun DashboardContent(
     var recenterNonce by remember { mutableIntStateOf(0) }
     var overlayHeightPx by remember { mutableIntStateOf(0) }
 
-    // The apps launcher is a maximize panel like calendar/weather, but its trigger
-    // is the dock's APPS button — a sibling of the overlays — so its expanded state
-    // lives here and the dock's OpenAppDrawer action is intercepted rather than
-    // routed to the ViewModel (the data-backed panels flip their own booleans from
-    // inside the overlays). rememberSaveable keeps it open across rotation.
+    // Every maximize panel's expanded state lives HERE, one level above the
+    // overlay tree, so one dismiss definition can drive catchers on both sides
+    // of the dock inset: the inner catcher (inside DashboardOverlays) covers
+    // the overlay box, the outer catcher below covers the dock-margin slivers
+    // outside it. The apps panel's trigger is the dock's APPS button — a
+    // sibling of the overlays — so its OpenAppDrawer action is intercepted
+    // here rather than routed to the ViewModel. rememberSaveable keeps an open
+    // panel open across rotation.
     var appsExpanded by rememberSaveable { mutableStateOf(false) }
+    var nowPlayingExpanded by rememberSaveable { mutableStateOf(false) }
+    var calendarExpanded by rememberSaveable { mutableStateOf(false) }
+    var weatherExpanded by rememberSaveable { mutableStateOf(false) }
+    var tripExpanded by rememberSaveable { mutableStateOf(false) }
+    // Auto-collapse when a panel's backing data disappears (session ended,
+    // permission revoked mid-session, cold cache) so a dead panel never strands
+    // over the map. The trip panel needs no gate: its ViewModel always has
+    // state. The snapshot render-caches that keep exit animations fed stay in
+    // DashboardOverlays.
+    val hasNowPlaying = (uiState.musicState as? MusicCardState.Playing)?.nowPlaying != null
+    LaunchedEffect(hasNowPlaying) {
+        if (!hasNowPlaying) nowPlayingExpanded = false
+    }
+    val hasCalendar = uiState.calendar?.takeIf { it.hasCalendarAccess && !it.queryFailed } != null
+    LaunchedEffect(hasCalendar) {
+        if (!hasCalendar) calendarExpanded = false
+    }
+    val hasWeather = uiState.weather != null
+    LaunchedEffect(hasWeather) {
+        if (!hasWeather) weatherExpanded = false
+    }
+    // The apps panel is the only one reachable while another panel is open —
+    // the dock stays operable — so opening it collapses whatever is underneath,
+    // mirroring how the old drawer sheet covered everything.
+    LaunchedEffect(appsExpanded) {
+        if (appsExpanded) {
+            nowPlayingExpanded = false
+            calendarExpanded = false
+            weatherExpanded = false
+            tripExpanded = false
+        }
+    }
+    // A tap outside an open panel's body dismisses it, matching the modal
+    // sheets' scrim-tap behavior. One definition shared by both catchers.
+    val dismissOpenPanel: (() -> Unit)? =
+        when {
+            nowPlayingExpanded -> ({ nowPlayingExpanded = false })
+            calendarExpanded -> ({ calendarExpanded = false })
+            weatherExpanded -> ({ weatherExpanded = false })
+            tripExpanded -> ({ tripExpanded = false })
+            appsExpanded -> ({ appsExpanded = false })
+            else -> null
+        }
     val overlayAction =
         remember(onAction) {
             { action: HomeAction ->
@@ -305,6 +351,22 @@ private fun DashboardContent(
         attributionBottomInset = attributionBottomInset,
     )
 
+    // While a panel is open, the sliver of viewport outside the overlay box —
+    // the dock's float margins, over the map — also dismisses on tap, and the
+    // map's own tap (OpenMaps) can no longer fire underneath an open panel.
+    // Composed under DashboardOverlays so panel bodies and overlay content keep
+    // winning hit-testing; the dock, a later sibling, stays operable above.
+    if (dismissOpenPanel != null) {
+        Box(
+            modifier =
+                Modifier
+                    .matchParentSize()
+                    .pointerInput(dismissOpenPanel) {
+                        detectTapGestures { dismissOpenPanel() }
+                    },
+        )
+    }
+
     // The overlay tree insets by the dock footprint so its glass never sits under
     // the dock's nav buttons while the map shows through behind it.
     DashboardOverlays(
@@ -335,8 +397,21 @@ private fun DashboardContent(
         onRecenter = { recenterNonce++ },
         onOverlayHeightChange = { overlayHeightPx = it },
         onAction = overlayAction,
+        nowPlayingExpanded = nowPlayingExpanded,
+        onExpandNowPlaying = { nowPlayingExpanded = true },
+        onCloseNowPlaying = { nowPlayingExpanded = false },
+        calendarExpanded = calendarExpanded,
+        onExpandCalendar = { calendarExpanded = true },
+        onCloseCalendar = { calendarExpanded = false },
+        weatherExpanded = weatherExpanded,
+        onExpandWeather = { weatherExpanded = true },
+        onCloseWeather = { weatherExpanded = false },
+        tripExpanded = tripExpanded,
+        onExpandTrip = { tripExpanded = true },
+        onCloseTrip = { tripExpanded = false },
         appsExpanded = appsExpanded,
         onCloseApps = { appsExpanded = false },
+        dismissOpenPanel = dismissOpenPanel,
         modifier = Modifier.fillMaxSize().padding(dockEdgePadding(dockPosition, dockExtent)),
         spectrum = spectrum,
         musicShowAlbum = musicShowAlbum,
@@ -377,11 +452,11 @@ private fun DashboardContent(
 }
 
 // The dashboard's glass overlay tree that floats over the map — map controls, the
-// clock and speed overlays, the floating info cards, and the three maximize
-// panels. The caller keeps the map (the blur source) and the dock composed one
-// level up, outside this tree, and supplies the dock-edge inset through [modifier]
-// so the overlays never sit under the dock's nav buttons while the map shows
-// through behind it.
+// clock and speed overlays, the floating info cards, and the five maximize
+// panels. The caller keeps the map (the blur source), the dock, and every
+// panel's expanded state composed one level up, outside this tree, and supplies
+// the dock-edge inset through [modifier] so the overlays never sit under the
+// dock's nav buttons while the map shows through behind it.
 @Composable
 private fun DashboardOverlays(
     uiState: HomeUiState,
@@ -411,73 +486,51 @@ private fun DashboardOverlays(
     onRecenter: () -> Unit,
     onOverlayHeightChange: (Int) -> Unit,
     onAction: (HomeAction) -> Unit,
-    // The apps maximize panel: its expanded state is owned by the parent (the dock
-    // that opens it is a sibling of this overlay tree), unlike the data-backed
-    // panels whose booleans live below.
+    // Every panel's expanded state is owned by the parent (see DashboardContent:
+    // the hoist lets one dismiss definition drive catchers on both sides of the
+    // dock inset); this tree renders the panels and raises the expand/close
+    // events.
+    nowPlayingExpanded: Boolean,
+    onExpandNowPlaying: () -> Unit,
+    onCloseNowPlaying: () -> Unit,
+    calendarExpanded: Boolean,
+    onExpandCalendar: () -> Unit,
+    onCloseCalendar: () -> Unit,
+    weatherExpanded: Boolean,
+    onExpandWeather: () -> Unit,
+    onCloseWeather: () -> Unit,
+    tripExpanded: Boolean,
+    onExpandTrip: () -> Unit,
+    onCloseTrip: () -> Unit,
     appsExpanded: Boolean,
     onCloseApps: () -> Unit,
+    // Non-null while any panel is open: the inner outside-tap catcher's action.
+    dismissOpenPanel: (() -> Unit)?,
     modifier: Modifier = Modifier,
     spectrum: StateFlow<FloatArray?>? = null,
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
     clock: Clock = Clock.systemDefaultZone(),
 ) {
-    // Full-screen Now Playing panel (issue #231). Pure UI state — saveable so a
-    // rotation keeps the panel open — auto-collapsed when the session leaves
-    // Playing so a dead session never strands an empty panel over the map.
-    var nowPlayingExpanded by rememberSaveable { mutableStateOf(false) }
+    // Render-caches for the exit animations, derived from uiState (the expanded
+    // booleans themselves live in DashboardContent). Hold the last live value so
+    // the collapse still renders content when the backing data goes null the
+    // same frame the panel starts fading out, rather than flashing empty
+    // mid-exit.
     val expandedNowPlaying = (uiState.musicState as? MusicCardState.Playing)?.nowPlaying
-    LaunchedEffect(expandedNowPlaying == null) {
-        if (expandedNowPlaying == null) nowPlayingExpanded = false
-    }
-    // Hold the last live track so the collapse animation still renders content
-    // when the session ends (expandedNowPlaying goes null the same frame the
-    // panel starts fading out) rather than flashing empty mid-exit.
     var panelNowPlaying by remember { mutableStateOf(expandedNowPlaying) }
     LaunchedEffect(expandedNowPlaying) {
         if (expandedNowPlaying != null) panelNowPlaying = expandedNowPlaying
     }
-    // Full-screen calendar panel, mirroring the Now Playing panel above: pure UI
-    // state, saveable across rotation, auto-collapsed once the snapshot no longer
-    // has real data to show (permission revoked mid-session or a query fault).
-    var calendarExpanded by rememberSaveable { mutableStateOf(false) }
     val expandedCalendar = uiState.calendar?.takeIf { it.hasCalendarAccess && !it.queryFailed }
-    LaunchedEffect(expandedCalendar == null) {
-        if (expandedCalendar == null) calendarExpanded = false
-    }
     var panelCalendar by remember { mutableStateOf(expandedCalendar) }
     LaunchedEffect(expandedCalendar) {
         if (expandedCalendar != null) panelCalendar = expandedCalendar
     }
-    // Full-screen weather panel, mirroring the calendar panel above: pure UI
-    // state, saveable across rotation, auto-collapsed once the snapshot goes
-    // null (e.g. a cold-start window with no cached data yet).
-    var weatherExpanded by rememberSaveable { mutableStateOf(false) }
     val expandedWeather = uiState.weather
-    LaunchedEffect(expandedWeather == null) {
-        if (expandedWeather == null) weatherExpanded = false
-    }
     var panelWeather by remember { mutableStateOf(expandedWeather) }
     LaunchedEffect(expandedWeather) {
         if (expandedWeather != null) panelWeather = expandedWeather
-    }
-    // Full-screen trip flyover, opened by a tap on the speed overlay. Unlike the
-    // data-backed panels above it needs no auto-collapse gate: its ViewModel
-    // always has state (an empty-history message when there are no trips), so an
-    // open panel is never stranded.
-    var tripExpanded by rememberSaveable { mutableStateOf(false) }
-
-    // The apps panel is the only one reachable while another panel is open — the
-    // card / speed triggers sit behind the panels, but the dock (which opens apps)
-    // stays operable. So make apps mutually exclusive: opening it collapses any
-    // panel underneath, mirroring how the old drawer sheet covered everything.
-    LaunchedEffect(appsExpanded) {
-        if (appsExpanded) {
-            nowPlayingExpanded = false
-            calendarExpanded = false
-            weatherExpanded = false
-            tripExpanded = false
-        }
     }
 
     // LEFT driver side mirrors the dashboard start <-> end: the cards, clock, and speed
@@ -585,7 +638,7 @@ private fun DashboardOverlays(
                 hazeState = hazeState,
                 glassConfig = glassConfig,
                 motionTier = motionTier,
-                onExpand = { tripExpanded = true },
+                onExpand = onExpandTrip,
                 modifier = Modifier.onSizeChanged { onOverlayHeightChange(it.height) },
             )
         }
@@ -604,9 +657,9 @@ private fun DashboardOverlays(
                 hazeState = hazeState,
                 glassConfig = glassConfig,
                 onAction = onAction,
-                onExpandNowPlaying = { nowPlayingExpanded = true },
-                onExpandCalendar = { calendarExpanded = true },
-                onExpandWeather = { weatherExpanded = true },
+                onExpandNowPlaying = onExpandNowPlaying,
+                onExpandCalendar = onExpandCalendar,
+                onExpandWeather = onExpandWeather,
                 spectrum = spectrum,
                 musicShowAlbum = musicShowAlbum,
                 musicShowArt = musicShowArt,
@@ -642,21 +695,15 @@ private fun DashboardOverlays(
 
         // A tap on the margin ring around an open maximize panel dismisses it,
         // matching the modal sheets' scrim-tap behavior. The catcher is drawn
-        // under the panels (they are later siblings), and the panel's Surface
-        // blocks touch propagation, so panel-body taps never reach it; the dock
-        // is outside this Box and stays operable. pointerInput only — no visual
-        // scrim (the glass design keeps the map visible) and no semantics node
-        // (the back gesture and the collapse button remain the accessible
-        // dismiss paths).
-        val dismissOpenPanel: (() -> Unit)? =
-            when {
-                nowPlayingExpanded -> ({ nowPlayingExpanded = false })
-                calendarExpanded -> ({ calendarExpanded = false })
-                weatherExpanded -> ({ weatherExpanded = false })
-                tripExpanded -> ({ tripExpanded = false })
-                appsExpanded -> onCloseApps
-                else -> null
-            }
+        // under the panels (they are later siblings) and OVER the cards, clock,
+        // and speed overlay, so their taps cannot fire behind an open panel;
+        // the panel's Surface blocks touch propagation, so panel-body taps
+        // never reach it; the dock is outside this Box and stays operable.
+        // pointerInput only — no visual scrim (the glass design keeps the map
+        // visible) and no semantics node (the back gesture and the collapse
+        // button remain the accessible dismiss paths). The dock-margin sliver
+        // outside this Box is covered by the outer catcher in DashboardContent,
+        // driven by this same [dismissOpenPanel].
         if (dismissOpenPanel != null) {
             Box(
                 modifier =
@@ -685,7 +732,7 @@ private fun DashboardOverlays(
                     nowPlaying = nowPlaying,
                     onCommand = { command -> onAction(HomeAction.Music(command)) },
                     onLaunchSource = { packageName -> onAction(HomeAction.LaunchMusicSource(packageName)) },
-                    onClose = { nowPlayingExpanded = false },
+                    onClose = onCloseNowPlaying,
                     hazeState = hazeState,
                     glassConfig = glassConfig,
                     spectrum = spectrum,
@@ -708,7 +755,7 @@ private fun DashboardOverlays(
                     snapshot = snapshot,
                     is24Hour = is24Hour,
                     onOpenExternal = { onAction(HomeAction.OpenCalendar) },
-                    onClose = { calendarExpanded = false },
+                    onClose = onCloseCalendar,
                     hazeState = hazeState,
                     glassConfig = glassConfig,
                     motionTier = motionTier,
@@ -730,7 +777,7 @@ private fun DashboardOverlays(
                     speedUnit = speedUnit,
                     is24Hour = is24Hour,
                     onOpenExternal = { onAction(HomeAction.OpenWeather) },
-                    onClose = { weatherExpanded = false },
+                    onClose = onCloseWeather,
                     hazeState = hazeState,
                     glassConfig = glassConfig,
                     motionTier = motionTier,
@@ -754,7 +801,7 @@ private fun DashboardOverlays(
                 transition.currentState == EnterExitState.Visible &&
                     transition.targetState == EnterExitState.Visible
             TripPanel(
-                onClose = { tripExpanded = false },
+                onClose = onCloseTrip,
                 speedUnit = speedUnit,
                 settled = settled,
                 modifier = Modifier.fillMaxSize(),

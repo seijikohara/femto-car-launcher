@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.ui.home
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -67,10 +68,25 @@ class PanelDismissTest {
         }
     }
 
-    private fun openTripPanel() {
-        rule.onNodeWithContentDescription("Open trip flyover").performClick()
-        rule.onNodeWithContentDescription("Collapse").assertIsDisplayed()
+    // Every panel's collapse control is the open/closed probe. The music panel
+    // labels its collapse "Collapse player"; the other four share "Collapse".
+    private fun openPanel(
+        trigger: String,
+        collapse: String = "Collapse",
+    ) {
+        rule.onNodeWithContentDescription(trigger).performClick()
+        rule.onNodeWithContentDescription(collapse).assertIsDisplayed()
     }
+
+    private fun openTripPanel() = openPanel("Open trip flyover")
+
+    // Bottom-centre, inside the dock bar's float margin: outside the overlay
+    // box, over the map — the spot a user hits aiming "below the panel, next
+    // to the dock". The overlay-box catcher never covered it.
+    private fun tapBesideTheDock() = rule.onRoot().performTouchInput { click(Offset(centerX, height - 6f)) }
+
+    private fun assertNoOpenPanel(collapse: String = "Collapse") =
+        rule.onNodeWithContentDescription(collapse).assertDoesNotExist()
 
     @Test
     fun trip_panel_body_tap_does_not_dismiss() {
@@ -93,6 +109,59 @@ class PanelDismissTest {
         rule.onRoot().performTouchInput { click(topLeft) }
 
         rule.onNodeWithContentDescription("Collapse").assertDoesNotExist()
+    }
+
+    @Test
+    fun calendar_panel_dismisses_on_a_tap_beside_the_dock() {
+        setDashboard()
+        openPanel("Open full-screen calendar")
+        tapBesideTheDock()
+        assertNoOpenPanel()
+    }
+
+    @Test
+    fun weather_panel_dismisses_on_a_tap_beside_the_dock() {
+        setDashboard()
+        openPanel("Open full-screen weather")
+        tapBesideTheDock()
+        assertNoOpenPanel()
+    }
+
+    @Test
+    fun now_playing_panel_dismisses_on_a_tap_beside_the_dock() {
+        setDashboard()
+        openPanel("Open the full-screen player", collapse = "Collapse player")
+        tapBesideTheDock()
+        assertNoOpenPanel(collapse = "Collapse player")
+    }
+
+    @Test
+    fun trip_panel_dismisses_on_a_tap_beside_the_dock() {
+        setDashboard()
+        openTripPanel()
+        tapBesideTheDock()
+        assertNoOpenPanel()
+    }
+
+    @Test
+    fun apps_panel_dismisses_on_a_tap_beside_the_dock() {
+        setDashboard()
+        openPanel("Apps")
+        tapBesideTheDock()
+        assertNoOpenPanel()
+    }
+
+    @Test
+    fun an_outside_tap_never_opens_maps_while_a_panel_is_open() {
+        setDashboard()
+        openPanel("Open full-screen calendar")
+
+        tapBesideTheDock()
+
+        // The tap must dismiss, not fall through to the map's OpenMaps tap —
+        // launching an external app from a "close the panel" gesture is the
+        // failure this pins.
+        kotlin.test.assertTrue(actions.none { it is HomeAction.OpenMaps })
     }
 
     private companion object {
