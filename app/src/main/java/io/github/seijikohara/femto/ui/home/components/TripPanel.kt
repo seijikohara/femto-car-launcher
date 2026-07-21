@@ -22,6 +22,7 @@ import androidx.compose.foundation.progressSemantics
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -134,65 +135,75 @@ internal fun TripPanel(
     // No opaque background on the panel itself: the native path is a media-overlay
     // SurfaceView composited *behind* the window, so the render only shows where
     // the Compose surface is transparent. Each state paints its own dark backdrop
-    // (the SurfaceView clears itself; the fallback and messages fill it).
-    Box(modifier = modifier.fillMaxSize().clip(RoundedCornerShape(24.dp))) {
-        when {
-            selection != null -> {
-                TripFlyoverHost(selection.wireframe, progress, palette, settled, Modifier.fillMaxSize())
+    // (the SurfaceView clears itself; the fallback and messages fill it). The
+    // transparent Surface draws nothing but blocks touch propagation, so body
+    // taps stop here instead of falling through to the dashboard's outside-tap
+    // catcher and closing the panel — the same contract as every other
+    // maximize panel's Surface root.
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        shape = RoundedCornerShape(24.dp),
+        color = Color.Transparent,
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            when {
+                selection != null -> {
+                    TripFlyoverHost(selection.wireframe, progress, palette, settled, Modifier.fillMaxSize())
+                }
+
+                !uiState.loading && uiState.trips.isEmpty() -> {
+                    CenteredMessage(stringResource(R.string.trip_viz_empty), backdrop)
+                }
+
+                else -> {
+                    CenteredMessage(stringResource(R.string.trip_viz_preparing), backdrop)
+                }
             }
 
-            !uiState.loading && uiState.trips.isEmpty() -> {
-                CenteredMessage(stringResource(R.string.trip_viz_empty), backdrop)
-            }
+            HudScrim(backdrop, Modifier.align(Alignment.BottomCenter).fillMaxWidth())
 
-            else -> {
-                CenteredMessage(stringResource(R.string.trip_viz_preparing), backdrop)
-            }
-        }
+            GlassCircleButton(
+                icon = Lucide.ChevronDown,
+                description = stringResource(R.string.panel_collapse),
+                onClick = onClose,
+                modifier = Modifier.align(Alignment.TopStart).padding(FemtoDimens.CardPadding),
+            )
 
-        HudScrim(backdrop, Modifier.align(Alignment.BottomCenter).fillMaxWidth())
-
-        GlassCircleButton(
-            icon = Lucide.ChevronDown,
-            description = stringResource(R.string.panel_collapse),
-            onClick = onClose,
-            modifier = Modifier.align(Alignment.TopStart).padding(FemtoDimens.CardPadding),
-        )
-
-        Column(
-            modifier =
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(horizontal = FemtoDimens.CardPadding, vertical = FemtoDimens.CardPadding),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            if (uiState.trips.isNotEmpty()) {
-                TripSelectorRow(
-                    trips = uiState.trips,
-                    selectedTripId = uiState.selectedTripId,
-                    onSelect = { viewModel.onAction(TripVizAction.Select(it)) },
-                )
-            }
-            selection?.let { current ->
-                TripStatsRow(stats = current.stats, speedUnit = speedUnit)
-                PlaybackControls(
-                    playing = playing,
-                    progress = progress,
-                    onTogglePlay = {
-                        // Replay from the start when toggling play after it finished.
-                        if (!playing && progress >= 1f) progress = 0f
-                        playing = !playing
-                    },
-                    onReplay = {
-                        progress = 0f
-                        playing = true
-                    },
-                    onScrub = {
-                        playing = false
-                        progress = it.coerceIn(0f, 1f)
-                    },
-                )
+            Column(
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(horizontal = FemtoDimens.CardPadding, vertical = FemtoDimens.CardPadding),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (uiState.trips.isNotEmpty()) {
+                    TripSelectorRow(
+                        trips = uiState.trips,
+                        selectedTripId = uiState.selectedTripId,
+                        onSelect = { viewModel.onAction(TripVizAction.Select(it)) },
+                    )
+                }
+                selection?.let { current ->
+                    TripStatsRow(stats = current.stats, speedUnit = speedUnit)
+                    PlaybackControls(
+                        playing = playing,
+                        progress = progress,
+                        onTogglePlay = {
+                            // Replay from the start when toggling play after it finished.
+                            if (!playing && progress >= 1f) progress = 0f
+                            playing = !playing
+                        },
+                        onReplay = {
+                            progress = 0f
+                            playing = true
+                        },
+                        onScrub = {
+                            playing = false
+                            progress = it.coerceIn(0f, 1f)
+                        },
+                    )
+                }
             }
         }
     }
