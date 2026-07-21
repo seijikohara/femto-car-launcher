@@ -31,6 +31,8 @@ import androidx.core.graphics.createBitmap
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
+import io.github.seijikohara.femto.ui.drawer.DrawerDimensions
+import io.github.seijikohara.femto.ui.drawer.dimensions
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
@@ -43,10 +45,10 @@ private val LabelBottomPadding = 4.dp
 /**
  * "Recent" section: a horizontal row of the most-recently-launched apps
  * (backed by the drawer's launch-history store), tap to relaunch. Mirrors
- * [PinnedDock]'s tile idiom (icon + single-line label, sized via
- * [DrawerIconSize.dockDimensions]) but without its drag-reorder / unpin
- * affordances — history order is derived, not user-curated. Callers skip
- * composing the row when [apps] is empty (a fresh install, or nothing
+ * [PinnedDock]'s tile idiom (icon + single-line label, sized via the shared
+ * [DrawerIconSize.dimensions] tile metric) but without its drag-reorder /
+ * unpin affordances — history order is derived, not user-curated. Callers
+ * skip composing the row when [apps] is empty (a fresh install, or nothing
  * launched from the drawer yet).
  */
 @Composable
@@ -69,7 +71,7 @@ internal fun RecentAppsRow(
                 vertical = LabelBottomPadding,
             ),
     )
-    val dimensions = iconSize.dockDimensions()
+    val dimensions = iconSize.dimensions()
     LazyRow(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = PaddingValues(horizontal = FemtoDimens.ScreenPadding, vertical = RowVerticalPadding),
@@ -84,7 +86,7 @@ internal fun RecentAppsRow(
 @Composable
 private fun RecentTile(
     entry: AppEntry,
-    dimensions: DockDimensions,
+    dimensions: DrawerDimensions,
     onLaunch: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(
@@ -99,7 +101,7 @@ private fun RecentTile(
         painter = BitmapPainter(entry.icon.asImageBitmap()),
         contentDescription = entry.label,
         tint = Color.Unspecified,
-        modifier = Modifier.size(dimensions.iconSize),
+        modifier = Modifier.size(dimensions.gridIconSize),
     )
     Spacer(Modifier.height(IconLabelGap))
     // Same deterministic line box as the grid / dock tiles (see tileLabel), so

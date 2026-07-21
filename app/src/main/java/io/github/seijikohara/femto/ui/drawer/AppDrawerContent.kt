@@ -57,21 +57,26 @@ import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.drawerBody
 import kotlinx.coroutines.launch
 
-// Per-preset drawer dimensions. MEDIUM matches the pre-preset values: a 120 dp
-// minimum tile yields ~5 columns on the 853 dp-wide reference head unit, giving
-// each tile room for a 64 dp icon plus its label without crowding. Every preset
-// keeps tiles and rows above FemtoDimens.MinTouchTarget.
+// Per-preset drawer dimensions — the one tile-metric SSOT for the grid, the
+// Recent row, and the pinned dock (the dock and Recent row previously carried
+// their own narrower widths, which broke the sections' shared column lines).
+// MEDIUM keeps the pre-preset look: a 120 dp tile yields ~5 columns on the
+// 853 dp-wide reference head unit, with room for a 64 dp icon plus its label.
+// tileWidth is the exact FixedSize grid cell, not a minimum: fixed cells
+// left-pack instead of stretching, so every section's first column starts on
+// the same left line at the same pitch. Every preset keeps tiles and rows
+// above FemtoDimens.MinTouchTarget.
 internal data class DrawerDimensions(
-    val minTileWidth: Dp,
+    val tileWidth: Dp,
     val gridIconSize: Dp,
     val listIconSize: Dp,
 )
 
 internal fun DrawerIconSize.dimensions(): DrawerDimensions =
     when (this) {
-        DrawerIconSize.SMALL -> DrawerDimensions(minTileWidth = 96.dp, gridIconSize = 48.dp, listIconSize = 32.dp)
-        DrawerIconSize.MEDIUM -> DrawerDimensions(minTileWidth = 120.dp, gridIconSize = 64.dp, listIconSize = 40.dp)
-        DrawerIconSize.LARGE -> DrawerDimensions(minTileWidth = 160.dp, gridIconSize = 88.dp, listIconSize = 56.dp)
+        DrawerIconSize.SMALL -> DrawerDimensions(tileWidth = 96.dp, gridIconSize = 48.dp, listIconSize = 32.dp)
+        DrawerIconSize.MEDIUM -> DrawerDimensions(tileWidth = 120.dp, gridIconSize = 64.dp, listIconSize = 40.dp)
+        DrawerIconSize.LARGE -> DrawerDimensions(tileWidth = 160.dp, gridIconSize = 88.dp, listIconSize = 56.dp)
     }
 
 internal const val APP_DRAWER_PROGRESS_TEST_TAG = "app-drawer-progress"
@@ -280,7 +285,7 @@ private fun GridApps(
 ) = LazyVerticalGrid(
     modifier = modifier,
     state = state,
-    columns = GridCells.Adaptive(minSize = dimensions.minTileWidth),
+    columns = GridCells.FixedSize(dimensions.tileWidth),
     contentPadding = PaddingValues(FemtoDimens.ScreenPadding),
     horizontalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
     verticalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),

@@ -39,7 +39,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.core.graphics.createBitmap
@@ -50,6 +49,8 @@ import com.composables.icons.lucide.PinOff
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
+import io.github.seijikohara.femto.ui.drawer.DrawerDimensions
+import io.github.seijikohara.femto.ui.drawer.dimensions
 import io.github.seijikohara.femto.ui.home.components.FemtoHorizontalDivider
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
@@ -60,24 +61,6 @@ import kotlin.math.abs
 
 private val DockIconLabelGap = 4.dp
 private val DockVerticalPadding = 8.dp
-
-// Per-preset dock tile dimensions, scaled in step with the drawer grid's
-// presets (the dock previously hardcoded the MEDIUM values and ignored the
-// user's icon-size choice). Tile widths keep a readable one-line label and
-// stay above the touch-target floor via the tile's min height. Internal (not
-// private): the Recent row wants tiles that look identical to the Pinned
-// dock's, so it reuses this same size mapping rather than duplicating it.
-internal data class DockDimensions(
-    val tileWidth: Dp,
-    val iconSize: Dp,
-)
-
-internal fun DrawerIconSize.dockDimensions(): DockDimensions =
-    when (this) {
-        DrawerIconSize.SMALL -> DockDimensions(tileWidth = 80.dp, iconSize = 48.dp)
-        DrawerIconSize.MEDIUM -> DockDimensions(tileWidth = 96.dp, iconSize = 64.dp)
-        DrawerIconSize.LARGE -> DockDimensions(tileWidth = 128.dp, iconSize = 88.dp)
-    }
 
 /**
  * Pinned-apps dock fixed at the bottom of the drawer sheet: a horizontally
@@ -108,7 +91,9 @@ internal fun PinnedDock(
     // thing separating the dock from the app grid, and a full-alpha divider
     // reads twice as heavy as every other hairline on the dashboard chrome.
     FemtoHorizontalDivider()
-    val dimensions = iconSize.dockDimensions()
+    // The grid's tile metric, shared so the dock's columns ride the same left
+    // line and pitch as the app grid and Recent row above.
+    val dimensions = iconSize.dimensions()
     // Local working order: drag swaps mutate this list optimistically per
     // frame; the persisted order arrives back through [apps] and re-seeds it.
     val order = remember(apps) { apps.toMutableStateList() }
@@ -241,7 +226,7 @@ internal fun <T> reorderByDrag(
 @Composable
 private fun DockTile(
     entry: AppEntry,
-    dimensions: DockDimensions,
+    dimensions: DrawerDimensions,
     menuOpen: Boolean,
     canMoveLeft: Boolean,
     canMoveRight: Boolean,
@@ -268,7 +253,7 @@ private fun DockTile(
             painter = BitmapPainter(entry.icon.asImageBitmap()),
             contentDescription = entry.label,
             tint = Color.Unspecified,
-            modifier = Modifier.size(dimensions.iconSize),
+            modifier = Modifier.size(dimensions.gridIconSize),
         )
         Spacer(Modifier.height(DockIconLabelGap))
         // Same deterministic line box as the grid tiles (see tileLabel), so
