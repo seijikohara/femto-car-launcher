@@ -17,6 +17,12 @@ const INITIAL_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
 const STYLE_FADE_MS = 500;
 const STYLE_FADE_MAX_WAIT_MS = 4000;
 
+// Outcome-gated pre-load fatal (see armStyleLoadFatal): long enough that a
+// slow-but-healthy first load with an early flaky-tile error still beats the
+// timer, short enough that a dead style load surfaces as a notice instead of
+// an indefinite blank page.
+const STYLE_LOAD_FATAL_GRACE_MS = 10_000;
+
 export function init(reporter: PageReporter, pending: PendingBridgeCalls): void {
     const { log, report, reportErrorThrottled } = reporter;
 
@@ -32,6 +38,12 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
     // lint block in vite.config.ts and no-let.js). The follow camera's state
     // lives inside the shared engine.
     const state = {
+        // Set on the first successful render/load; gates the error policy
+        // below (post-load errors are transient; a pre-load failure can mean
+        // the style never arrives).
+        styleLoaded: false,
+        // One armed grace timer per page load — see armStyleLoadFatal.
+        fatalArmed: false,
         currentStyleUrl: INITIAL_STYLE_URL,
         // Set by setStyleUrl for the ACCENT scheme, or null for a plain style.
         accentColors: null as AccentColors | null,
@@ -58,11 +70,15 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
         // onPageFinished, not this log.
         const onFirstRender = (): void => {
             if (!liveMap.isStyleLoaded()) return;
+            state.styleLoaded = true;
             log("rendered");
             liveMap.off("render", onFirstRender);
         };
         liveMap.on("render", onFirstRender);
-        liveMap.on("load", () => log("load"));
+        liveMap.on("load", () => {
+            state.styleLoaded = true;
+            log("load");
+        });
 
         // WebGL context loss is usually TRANSIENT on mobile / WebView GPUs,
         // and MapLibre auto-recovers: it preventDefault()s the loss, saves
@@ -72,12 +88,34 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
         liveMap.on("webglcontextlost", () => log("webglcontextlost (awaiting MapLibre restore)"));
         liveMap.on("webglcontextrestored", () => log("webglcontextrestored"));
 
-        // Tile / style / DEM fetch failures surface here; the host only logs
-        // them (transient by definition — never UI, never a backend switch).
+        // An error before the style has ever loaded CAN mean the style fetch
+        // itself failed — then the map stays blank forever (MapLibre does not
+        // re-fetch a failed style), which previously showed as a silent blank
+        // page until a connectivity edge. But a pre-load error can also be a
+        // single flaky tile on an otherwise healthy load, so the fatal is
+        // outcome-gated, not message-gated: arm one grace timer and report
+        // fatal only if the style has STILL not loaded when it fires. A
+        // healthy load ends with styleLoaded=true well inside the grace and
+        // the timer is a no-op; a dead style load cannot set it, so the host
+        // gets a notice (and its online auto-retry) instead of a blank map.
+        function armStyleLoadFatal(detail: string): void {
+            if (state.styleLoaded || state.fatalArmed) return;
+            state.fatalArmed = true;
+            setTimeout(() => {
+                if (state.styleLoaded) return;
+                log(`style never loaded after error: ${detail}`);
+                report("fatal", `style-load-failed: ${detail}`.slice(0, 200));
+            }, STYLE_LOAD_FATAL_GRACE_MS);
+        }
+
+        // Tile / style / DEM fetch failures surface here; after the style has
+        // loaded the host only logs them (transient by definition — never UI,
+        // never a backend switch). Before it, see armStyleLoadFatal.
         liveMap.on("error", (e) => {
             const detail = e?.error?.message || "unknown map error";
             log(`error: ${detail}`);
             reportErrorThrottled(String(detail));
+            if (!state.styleLoaded) armStyleLoadFatal(String(detail));
         });
 
         function applyStyle(): void {

@@ -88,9 +88,15 @@ import kotlinx.coroutines.delay
  * `fatal` for definitive never-going-to-render facts (no WebGL context, a missing
  * BYO credential, map construction threw), `follow` for camera-follow state flips,
  * and `bearing` (throttled) for the compass overlay. A `fatal` swaps the
- * permanently-blank WebView for a static notice pointing back at the Settings Map
- * section — same posture as renderer-death containment below: inform, never switch
- * the persisted backend.
+ * permanently-blank WebView for a static notice (centred in the exposed map
+ * region, clear of the floating cards) pointing back at the Settings Map
+ * section — same posture as renderer-death containment below: inform, never
+ * switch the persisted backend. While the network stays validated-online, a
+ * fatal is additionally retried with a capped exponential-backoff page reload
+ * (see the retry effect) — a flaky link can fail a fetch without ever going
+ * through the offline->online edge that normally reloads the page; the
+ * non-self-healing notices (missing credential, renderer give-up) never
+ * retry.
  *
  * Renderer-death containment is the one exception to "do nothing": without an
  * [android.webkit.WebViewClient.onRenderProcessGone] override the platform kills
@@ -170,9 +176,22 @@ internal fun WebMapView(
     // recomposition — like bearingHolder above); a normal online start, an
     // online->offline drop, or the initial value never bumps.
     var reloadGeneration by remember { mutableIntStateOf(0) }
+    // Auto-retry budget for retryable failures (see the retry effect below the
+    // failure remembers). Deliberately NOT keyed on reloadGeneration — each
+    // retry bumps that — so the budget survives its own reloads; a
+    // backend/credential change or a connectivity edge refunds it.
+    val retryAttempts =
+        remember(mapConfig.backend, effectiveMapboxToken, effectiveGoogleKey, effectiveGoogleMapId) {
+            mutableIntStateOf(0)
+        }
     val wasOnline = remember { booleanArrayOf(online) }
     LaunchedEffect(online) {
-        if (online && !wasOnline[0]) reloadGeneration++
+        if (online && !wasOnline[0]) {
+            reloadGeneration++
+            // A connectivity edge is a new world: refund the retry budget so a
+            // failure that exhausted it offline gets fresh attempts online.
+            retryAttempts.intValue = 0
+        }
         wasOnline[0] = online
     }
 
@@ -224,38 +243,57 @@ internal fun WebMapView(
     val googleMapsBackend = mapConfig.backend == MapBackend.GOOGLEMAPS
     val googleMapsKeyMissing = googleMapsBackend && mapConfig.googleMapsApiKey.isBlank()
 
+    // Failure auto-retry: a fatal while the network is validated-online is
+    // often transient (a dropped style/chunk fetch on a flaky link), but the
+    // offline->online edge above never fires in that state, so the notice used
+    // to stick until a backend or credential change. Reload with a capped
+    // exponential backoff instead, bounded by [MAX_LIVE_RELOAD_RETRIES] so a
+    // genuinely broken credential cannot hammer the provider (BYO keys
+    // rate-limit — repeated reloads have tripped gm_authFailure before). The
+    // non-self-healing notices (missing credential, renderer give-up) never
+    // retry, and the effect idles while offline: reconnection reloads via the
+    // edge above, which also refunds the budget.
+    val retryEligible = liveInitFailed && online && !rendererGaveUp && !mapboxTokenMissing && !googleMapsKeyMissing
+    LaunchedEffect(retryEligible, retryAttempts.intValue) {
+        if (!retryEligible || retryAttempts.intValue >= MAX_LIVE_RELOAD_RETRIES) return@LaunchedEffect
+        delay(liveReloadRetryDelayMs(retryAttempts.intValue))
+        retryAttempts.intValue++
+        reloadGeneration++
+    }
+
     if (rendererGaveUp || liveInitFailed || mapboxTokenMissing || googleMapsKeyMissing) {
         Box(modifier = modifier) {
-            LiveMapNotice(
-                titleRes =
-                    when {
-                        rendererGaveUp -> R.string.map_live_renderer_gone
+            ExposedMapRegion(mapConfig = mapConfig) {
+                LiveMapNotice(
+                    titleRes =
+                        when {
+                            rendererGaveUp -> R.string.map_live_renderer_gone
 
-                        // Check missing credential before liveInitFailed: a blank credential
-                        // also triggers a fatal from the page, so both can be true at once.
-                        mapboxTokenMissing -> R.string.map_mapbox_no_token
+                            // Check missing credential before liveInitFailed: a blank credential
+                            // also triggers a fatal from the page, so both can be true at once.
+                            mapboxTokenMissing -> R.string.map_mapbox_no_token
 
-                        mapboxBackend && liveInitFailed -> R.string.map_mapbox_failed
+                            mapboxBackend && liveInitFailed -> R.string.map_mapbox_failed
 
-                        googleMapsKeyMissing -> R.string.map_googlemaps_no_key
+                            googleMapsKeyMissing -> R.string.map_googlemaps_no_key
 
-                        googleMapsBackend && liveInitFailed -> R.string.map_googlemaps_failed
+                            googleMapsBackend && liveInitFailed -> R.string.map_googlemaps_failed
 
-                        else -> R.string.map_live_init_failed
-                    },
-                hintRes =
-                    when {
-                        rendererGaveUp -> R.string.map_live_renderer_gone_hint
-                        mapboxTokenMissing -> R.string.map_mapbox_no_token_hint
-                        mapboxBackend && liveInitFailed -> R.string.map_mapbox_failed_hint
-                        googleMapsKeyMissing -> R.string.map_googlemaps_no_key_hint
-                        googleMapsBackend && liveInitFailed -> R.string.map_googlemaps_failed_hint
-                        else -> R.string.map_live_init_failed_hint
-                    },
-                // Why it failed is debugging detail, not driver-facing content.
-                reason = (if (rendererGaveUp) lastRendererDeath else lastFatalDetail).takeIf { BuildConfig.DEBUG },
-                modifier = Modifier.align(Alignment.Center),
-            )
+                            else -> R.string.map_live_init_failed
+                        },
+                    hintRes =
+                        when {
+                            rendererGaveUp -> R.string.map_live_renderer_gone_hint
+                            mapboxTokenMissing -> R.string.map_mapbox_no_token_hint
+                            mapboxBackend && liveInitFailed -> R.string.map_mapbox_failed_hint
+                            googleMapsKeyMissing -> R.string.map_googlemaps_no_key_hint
+                            googleMapsBackend && liveInitFailed -> R.string.map_googlemaps_failed_hint
+                            else -> R.string.map_live_init_failed_hint
+                        },
+                    // Why it failed is debugging detail, not driver-facing content.
+                    reason = (if (rendererGaveUp) lastRendererDeath else lastFatalDetail).takeIf { BuildConfig.DEBUG },
+                )
+            }
         }
         return
     }
@@ -692,6 +730,21 @@ private fun LiveMapNoticePreview() {
 }
 
 private const val TAG = "WebMapView"
+
+// Auto-retry backoff for retryable live-page failures: 5 s, 10 s, 20 s, ...,
+// capped at the max delay, and stopped for good once the budget below is
+// spent (a broken BYO credential must not hammer the provider). The
+// offline->online edge and any backend/credential change refund the budget.
+internal fun liveReloadRetryDelayMs(attempt: Int): Long =
+    (LIVE_RELOAD_RETRY_BASE_MS shl attempt.coerceAtMost(LIVE_RELOAD_RETRY_MAX_SHIFT))
+        .coerceAtMost(LIVE_RELOAD_RETRY_MAX_DELAY_MS)
+
+private const val LIVE_RELOAD_RETRY_BASE_MS = 5_000L
+private const val LIVE_RELOAD_RETRY_MAX_DELAY_MS = 160_000L
+
+// coerceAtMost on the shift keeps the Long shift well-defined for any attempt.
+private const val LIVE_RELOAD_RETRY_MAX_SHIFT = 5
+internal const val MAX_LIVE_RELOAD_RETRIES = 6
 
 // Settle window for style pushes: longer than one animation frame (so a churning
 // theme fade keeps cancelling the push) but short enough to feel immediate once
