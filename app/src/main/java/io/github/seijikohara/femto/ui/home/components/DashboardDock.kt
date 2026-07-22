@@ -227,7 +227,7 @@ private fun HorizontalDock(
     // leading / trailing items. When the pill would overflow, fall back to the
     // weight-shared layout that shrinks the nav toward FemtoDimens.MinTouchTarget
     // so every button stays reachable and nothing clips
-    // (AGENTS.md#automotive-overrides, #launcher-behavior). The same choice sizes
+    // (AGENTS.md#automotive-overrides, AGENTS.md#launcher-behavior). The same choice sizes
     // the glass: the pill wraps its content (DashboardScaffold centres it), the
     // fallback fills the width so the weight distribution has room.
     BoxWithConstraints(modifier = modifier) {
