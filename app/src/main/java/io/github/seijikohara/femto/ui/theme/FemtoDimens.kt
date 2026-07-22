@@ -39,7 +39,7 @@ object FemtoDimens {
 
     /**
      * Minimum body text size for any driver-visible screen — the automotive body
-     * floor (CLAUDE.md#automotive-overrides). The [TextMd] scale step (16sp),
+     * floor (AGENTS.md#automotive-overrides). The [TextMd] scale step (16sp),
      * lowered from 18sp by explicit design decision so the floor sits on the
      * rem-scale base.
      */
@@ -48,7 +48,7 @@ object FemtoDimens {
     /**
      * Glance-metadata text size for the sanctioned card relaxations of
      * [MinBodyTextSize] — secondary captions, metrics, and progress labels
-     * inside dashboard cards (CLAUDE.md#automotive-overrides). The [TextSm] scale
+     * inside dashboard cards (AGENTS.md#automotive-overrides). The [TextSm] scale
      * step (12sp); one token so every card relaxes to the same size.
      */
     val GlanceTextSize = TextSm
@@ -107,7 +107,7 @@ object FemtoDimens {
      * Dock thickness: its height as a horizontal bar, its width as a vertical
      * rail. Set to exactly [MinTouchTarget] (64.dp): the dock holds full-size
      * nav buttons, so it cannot go lower without breaching the tap-target floor
-     * (CLAUDE.md#automotive-overrides).
+     * (AGENTS.md#automotive-overrides).
      */
     val DockThickness = 64.dp
 

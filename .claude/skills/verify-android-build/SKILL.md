@@ -62,7 +62,7 @@ task. Default is `assembleDebug`.
    Read the report (`app/build/reports/lint-results-*.{xml,html}`)
    and summarise: new errors (blocking), new warnings grouped by
    category, and any baseline regressions. Never suppress — fix at
-   source (CLAUDE.md#no-suppress) or surface the finding to the user
+   source (AGENTS.md#no-suppress) or surface the finding to the user
    for a decision.
 
 4. **Run unit tests** if you touched code that has corresponding
@@ -80,7 +80,7 @@ task. Default is `assembleDebug`.
 
    Do not claim success generically; cite the commands.
 
-6. **On red, fix the root cause** per `CLAUDE.md#no-suppress`, and
+6. **On red, fix the root cause** per `AGENTS.md#no-suppress`, and
    do not skip hooks. If a Compose API is experimental, opt in at
    file level — never at module level.
 
@@ -99,5 +99,5 @@ same commit.
 | `This API is experimental and is likely to change` | Variable-font `FontVariation` use | Add `@file:OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)` at the top of the file (see `.claude/rules/fonts.md`) |
 | `Unresolved reference: libs.<x>` | Forgot to add the alias in `libs.versions.toml` | Add to `[libraries]` (and `[plugins]` for plugins), then re-sync. See `.claude/rules/dependencies.md`. |
 | `Theme.Material3.DayNight.NoActionBar` not found | `com.google.android.material:material` removed | Re-add it in `libs.versions.toml` and `app/build.gradle.kts` |
-| `:app:buildWebMap` fails | TypeScript / Vite error under `webmap/` | Fix the webmap source; Gradle provisions Node and pnpm itself. Keep Vite's `build.target` at the WebView floor (`CLAUDE.md#tech-stack`) |
+| `:app:buildWebMap` fails | TypeScript / Vite error under `webmap/` | Fix the webmap source; Gradle provisions Node and pnpm itself. Keep Vite's `build.target` at the WebView floor (`AGENTS.md#tech-stack`) |
 | Compose Compiler version mismatch | The catalog was bypassed — `kotlin-compose` shares `version.ref = "kotlin"` in `gradle/libs.versions.toml` and cannot diverge through it (`.claude/rules/dependencies.md`) | Restore the shared `version.ref` |

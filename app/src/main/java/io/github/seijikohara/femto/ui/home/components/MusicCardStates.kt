@@ -71,7 +71,7 @@ internal fun MusicConnectState(onConnect: () -> Unit) =
             Box(modifier = Modifier.height(4.dp))
             Text(
                 // Actionable copy the user must read to unlock the card: clear
-                // the head-unit glance floor (CLAUDE.md#automotive-overrides),
+                // the head-unit glance floor (AGENTS.md#automotive-overrides),
                 // matching the equally actionable NoActiveSession Play hint below.
                 text = stringResource(R.string.music_connect_hint),
                 style = MaterialTheme.typography.cardCtaHint(),
@@ -136,7 +136,7 @@ internal fun MusicEmptyState(onPlay: () -> Unit) =
             Box(modifier = Modifier.height(4.dp))
             Text(
                 // Actionable copy the user must read to unlock the affordance:
-                // clear the head-unit glance floor (CLAUDE.md#automotive-overrides),
+                // clear the head-unit glance floor (AGENTS.md#automotive-overrides),
                 // matching MusicConnectState's hint now that this state is tappable.
                 text = stringResource(R.string.music_nothing_hint),
                 style = MaterialTheme.typography.cardCtaHint(),

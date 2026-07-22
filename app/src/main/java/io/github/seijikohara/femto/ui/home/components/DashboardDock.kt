@@ -227,7 +227,7 @@ private fun HorizontalDock(
     // leading / trailing items. When the pill would overflow, fall back to the
     // weight-shared layout that shrinks the nav toward FemtoDimens.MinTouchTarget
     // so every button stays reachable and nothing clips
-    // (CLAUDE.md#automotive-overrides, #launcher-behavior). The same choice sizes
+    // (AGENTS.md#automotive-overrides, #launcher-behavior). The same choice sizes
     // the glass: the pill wraps its content (DashboardScaffold centres it), the
     // fallback fills the width so the weight distribution has room.
     BoxWithConstraints(modifier = modifier) {
@@ -623,7 +623,7 @@ private fun DashboardDockNarrowPreview() {
 // Portrait phone mount (~400 dp): the tightest fallback — the status cluster drops
 // and the seven nav buttons share the width, shrinking to keep every button visible
 // (they cross below MinTouchTarget here, the sanctioned narrow-width trade-off over
-// clipping — CLAUDE.md#launcher-behavior).
+// clipping — AGENTS.md#launcher-behavior).
 @PreviewLightDark
 @Preview(name = "Dashboard dock (portrait phone)", widthDp = 400, heightDp = 64)
 @Composable

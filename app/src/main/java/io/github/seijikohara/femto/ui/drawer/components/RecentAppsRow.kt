@@ -92,7 +92,7 @@ internal fun RecentAppsRow(
  * Shared section-header recipe for the drawer's Recent and All-apps labels.
  * titleSmall clears exactly the automotive body-text floor: the drawer is
  * not one of the sanctioned card-relaxation areas in
- * CLAUDE.md#automotive-overrides, so this label may not go smaller.
+ * AGENTS.md#automotive-overrides, so this label may not go smaller.
  */
 @Composable
 internal fun DrawerSectionHeader(

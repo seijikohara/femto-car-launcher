@@ -224,7 +224,7 @@ private fun Head(head: CalendarHead) =
                 // The weekday is glance metadata beside the big day number, so it may
                 // relax below MinBodyTextSize to GlanceTextSize to keep the full
                 // localized name (e.g. "Wednesday") on the narrow head-unit card
-                // (CLAUDE.md#automotive-overrides). It shrinks only as far as needed.
+                // (AGENTS.md#automotive-overrides). It shrinks only as far as needed.
                 minFontSize = FemtoDimens.GlanceTextSize,
             )
             Text(

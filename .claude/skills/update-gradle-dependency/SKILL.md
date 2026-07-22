@@ -73,7 +73,7 @@ for manual or major bumps (`maplibre-gl`, Vite, TypeScript).
    then run `pnpm install` under `webmap/` to refresh
    `pnpm-lock.yaml`.
 2. For Vite or `maplibre-gl` majors, confirm Vite's `build.target`
-   stays at the WebView floor defined in `CLAUDE.md#tech-stack`.
+   stays at the WebView floor defined in `AGENTS.md#tech-stack`.
 3. For TypeScript majors, run `pnpm run check` under `webmap/` and
    treat compiler deprecation warnings as failures in the same
    bump. Never adopt a pre-stable compiler preview package (e.g. a

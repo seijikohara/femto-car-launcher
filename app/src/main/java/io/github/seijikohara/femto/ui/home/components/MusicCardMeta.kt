@@ -374,7 +374,7 @@ private fun MetaLine(
     // When set, an overflowing line scrolls end-to-end (basicMarquee) instead of
     // ellipsizing, so the full text is legible. Gated by the caller on the
     // vehicle being stationary — a perpetual scroll on the always-visible card
-    // is a driving-distraction profile (CLAUDE.md#driving-lockout), so it only
+    // is a driving-distraction profile (AGENTS.md#driving-lockout), so it only
     // runs when parked and stays a static ellipsis while moving.
     marquee: Boolean = false,
 ) = Motion.ContentCrossfade(
