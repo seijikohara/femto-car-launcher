@@ -537,7 +537,7 @@ private object ZeroIntrinsicWidthPolicy : MeasurePolicy {
 
 // The reset control's reported layout width: the full MinTouchTarget circle
 // claimed a metric cell's worth of mostly-empty width at the row's end. The
-// tap target itself must not shrink (CLAUDE.md#automotive-overrides — no
+// tap target itself must not shrink (AGENTS.md#automotive-overrides — no
 // persisted exception here, and a mis-tap while driving resets the trip), so
 // the 64 dp circle is kept and only its REPORTED width narrows; the overhang
 // lands symmetrically in the row gap and the card's end padding, both dead

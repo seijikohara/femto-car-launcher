@@ -63,7 +63,7 @@ oxlint. All Vite+ configuration lives in `vite.config.ts` (build,
   future decision — see the comment in `vite.config.ts`.)
 - `build.target` in `vite.config.ts` is the sole shipped-syntax
   floor. Never raise it above the Android 13 factory-WebView floor
-  (CLAUDE.md#tech-stack). A TypeScript compiler swap therefore
+  (AGENTS.md#tech-stack). A TypeScript compiler swap therefore
   structurally cannot move the floor.
 - oxfmt follows the root `.editorconfig` (4-space indent — the
   repo-wide formatting SSOT the retired Biome config used to

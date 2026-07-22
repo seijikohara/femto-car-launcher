@@ -46,7 +46,7 @@ private const val ALMOST_ONE = 0.999999f
  * Map a touch/drag offset along the fast-scroll rail to a letter index: the
  * rail scrubs proportionally across its full height rather than requiring the
  * finger to land inside one specific (necessarily small, per
- * CLAUDE.md#automotive-overrides) letter row — the standard launcher
+ * AGENTS.md#automotive-overrides) letter row — the standard launcher
  * fast-scroll interaction. Degrades to index 0 for a not-yet-measured
  * (zero-height) rail or an empty letter set.
  */

@@ -322,7 +322,7 @@ private fun TripChip(
                 .background(fill)
                 .clickable(onClick = onClick)
                 // Hold the automotive tap floor even though the chip's content is
-                // shorter (CLAUDE.md#automotive-overrides).
+                // shorter (AGENTS.md#automotive-overrides).
                 .heightIn(min = FemtoDimens.MinTouchTarget)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),

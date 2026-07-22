@@ -28,7 +28,7 @@ internal class NominatimApi(
     private val baseUrl: String,
     private val userAgent: String,
     // Read per request rather than captured at construction: the launcher is
-    // multi-region and no single language may be privileged (CLAUDE.md,
+    // multi-region and no single language may be privileged (AGENTS.md,
     // "multi-region distribution"), and it outlives locale changes (a phone
     // mounted as car nav crosses borders) — a captured language would pin
     // accept-language to the old locale until the process dies (mirrors

@@ -180,7 +180,7 @@ internal class EnvironmentFactsCollector(
 
     // The feature ladder from richest to poorest touch support; the fallback
     // is a WARNING because it validates the zoom +/- mandate elsewhere in the
-    // app (CLAUDE.md map-controls memory) — pinch-zoom is impossible without
+    // app (map-controls decision in the project memory) — pinch-zoom is impossible without
     // at least basic multitouch.
     private fun multitouchFact(packageManager: PackageManager): DiagnosticFact {
         val (value, health) =

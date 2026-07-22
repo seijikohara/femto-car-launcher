@@ -259,7 +259,7 @@ internal fun Typography.panelMetric(): TextStyle = titleLarge.copy(fontWeight = 
 /**
  * Return body text relaxed to the [FemtoDimens.GlanceTextSize] glance floor for
  * dense card metadata — the calendar "no events" / event-title lines and the
- * music "nothing playing" hint, per CLAUDE.md#automotive-overrides.
+ * music "nothing playing" hint, per AGENTS.md#automotive-overrides.
  */
 internal fun Typography.glanceBody(): TextStyle =
     bodyMedium.copy(
@@ -273,7 +273,7 @@ internal fun Typography.glanceBody(): TextStyle =
  * Return the shared [FemtoDimens.GlanceTextSize] glance-caption style for the
  * dashboard's dense numeric/metadata text: the dock status readouts, the
  * calendar event time, the weather metric value and forecast temperature, and
- * the speed overlay's address line (CLAUDE.md#automotive-overrides). These
+ * the speed overlay's address line (AGENTS.md#automotive-overrides). These
  * sites split across two M3 lineages with different line-box metrics — the
  * label lineage ([Typography.labelLarge], the default) and the body lineage
  * ([Typography.bodyMedium] / [cardMeta], the latter carrying a fixed line box
@@ -301,7 +301,7 @@ internal fun Typography.glanceCaption(
 /**
  * Return the music transport's position / duration caption style. Sized at
  * the [FemtoDimens.GlanceTextSize] glance floor — the progress-caption
- * relaxation CLAUDE.md#automotive-overrides routes through that token — with
+ * relaxation AGENTS.md#automotive-overrides routes through that token — with
  * tabular figures so the ticking position never reflows the progress row.
  */
 internal fun Typography.progressCaption(): TextStyle =
@@ -315,7 +315,7 @@ internal fun Typography.progressCaption(): TextStyle =
  * Return the dense monospace reference-text style for legal / log content shown
  * in sub-sheets (the open-source licenses body and the diagnostics log tail).
  * Relaxed to the [FemtoDimens.GlanceTextSize] glance floor per
- * CLAUDE.md#automotive-overrides.
+ * AGENTS.md#automotive-overrides.
  */
 internal fun Typography.monoReference(): TextStyle =
     bodySmall.copy(
@@ -398,7 +398,7 @@ internal fun Typography.cardTitle(): TextStyle =
  * Return the dashboard-card secondary metadata line style (artist / album
  * rows). 12sp glance metadata — the [FemtoDimens.TextSm] scale step, one of the
  * sanctioned card relaxations of the [FemtoDimens.MinBodyTextSize] body floor
- * (CLAUDE.md#automotive-overrides). Normal weight so it sits a clear step below
+ * (AGENTS.md#automotive-overrides). Normal weight so it sits a clear step below
  * the SemiBold [cardTitle] above it (premium media cards subordinate the
  * artist / album through weight + dimmer colour, not just size). Fixed line box
  * as in [cardTitle], with the same caveat: height stability across font
@@ -468,7 +468,7 @@ internal fun Typography.drawerBody(): TextStyle = bodyLarge.copy(fontSize = Femt
  * Return the map attribution credit's style. Legal copyright text, not
  * glance content — OSM ODbL / OpenMapTiles CC-BY require it and it is not
  * read on the move — so it is exempt from the 16sp body floor
- * (CLAUDE.md#automotive-overrides) and sized at the smallest scale step,
+ * (AGENTS.md#automotive-overrides) and sized at the smallest scale step,
  * [FemtoDimens.TextXs] (8sp), for this static, arm's-length legal credit.
  */
 internal fun Typography.attributionCredit(): TextStyle =
