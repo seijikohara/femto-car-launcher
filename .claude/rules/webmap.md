@@ -48,14 +48,17 @@ corner wherever the backend's own ToS permits:
   (CLAUDE.md#tech-stack). A TypeScript compiler swap therefore
   structurally cannot move the floor.
 
-## TypeScript 7 readiness
+## TypeScript 7 (native compiler)
 
-Readiness criteria, not an upgrade mandate. Never adopt a
-pre-stable compiler preview package (e.g. native-compiler
-previews) as a build dependency; adopt the native compiler only
-when it ships stable under the `typescript` npm package, via the
+The webmap type-checks with the native TypeScript 7 compiler — the
+stable `typescript` npm package (adopted 2026-07, once 7.x shipped
+as `latest`; version pin: `webmap/package.json`). Never adopt a
+pre-stable compiler preview package as a build dependency; bumps go
+through the
 [`update-gradle-dependency`](../skills/update-gradle-dependency/SKILL.md)
-skill's webmap path.
+skill's webmap path. The criteria below predate the switch as the
+"TS7 readiness" rules and remain binding — they are what keeps the
+sources native-compiler-clean:
 
 - ESM-only (`"type": "module"` in `package.json`) with erasable
   TypeScript syntax: no enums (erasable-syntax rules bar regular
