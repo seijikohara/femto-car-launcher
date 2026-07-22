@@ -117,11 +117,11 @@ object FemtoDimens {
     /**
      * Minimum width guaranteed to the music card's title / artist / album
      * column before the album art is allowed to claim its full [MusicArtSize].
-     * The art's width is height-driven (a square that grows with the row's
-     * available height via `aspectRatio`), so on a tall card it can otherwise
-     * grow wide enough to squeeze the text column below what a track's title
-     * or album name needs, truncating it despite the card having plenty of
-     * width overall — the art shrinks first instead.
+     * The art's width is height-driven (a square that grows with the meta
+     * column's height via `aspectRatio`), so on a tall meta block it could
+     * otherwise grow wide enough to squeeze the text column below what a
+     * track's title or album name needs, truncating it despite the card having
+     * plenty of width overall — the art shrinks first instead.
      */
     val MusicMetaMinWidth = 190.dp
 
@@ -237,10 +237,12 @@ object FemtoDimens {
 
     /**
      * Reserved height for the music card's idle states (nothing playing / connect),
-     * so the card keeps the size it has while playing instead of shrinking to its
-     * sparse content and letting the calendar / weather row jump taller. Matches the
-     * Playing card's content height — album art ([MusicArtSize]) over the transport
-     * row ([MusicPlayButton]), with the section gap and both paddings.
+     * so the card keeps a playing-card-sized presence instead of shrinking to its
+     * sparse content and letting the calendar / weather row jump taller. Sized to
+     * the tallest playing layout — album art at its [MusicArtSize] cap over the
+     * transport row ([MusicPlayButton]), with the section gap and both paddings.
+     * The live playing card can run a little shorter: its art is a square tracking
+     * the meta column's natural height, which typically sits under the cap.
      */
     val MusicCardMinHeight = CardPaddingCompact * 2 + MusicArtSize + CardSectionGapCompact + MusicPlayButton
 
