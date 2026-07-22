@@ -1,27 +1,28 @@
 {
-	"name": "femto-webmap",
-	"private": true,
-	"type": "module",
-	"packageManager": "pnpm@11.13.1",
-	"engines": {
-		"node": ">=20.11"
-	},
-	"scripts": {
-		"dev": "vite",
-		"build": "pnpm run check && vite build",
-		"check": "biome check . && tsc --noEmit && vitest run",
-		"test": "vitest run",
-		"lint": "biome check .",
-		"format": "biome format --write ."
-	},
-	"dependencies": {
-		"mapbox-gl": "^3.25.0",
-		"maplibre-gl": "^5.24.0"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "^2.4.16",
-		"typescript": "~6.0.3",
-		"vite": "^8.0.16",
-		"vitest": "^4.1.8"
-	}
+  "name": "femto-webmap",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "pnpm run check && vp build",
+    "check": "vp check && tsc --noEmit && vp test run",
+    "test": "vp test run",
+    "lint": "vp lint",
+    "format": "vp fmt"
+  },
+  "dependencies": {
+    "@googlemaps/js-api-loader": "^2.1.1",
+    "mapbox-gl": "^3.25.0",
+    "maplibre-gl": "^5.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "~7.0.2",
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.11.0"
+  },
+  "packageManager": "pnpm@11.13.1"
 }

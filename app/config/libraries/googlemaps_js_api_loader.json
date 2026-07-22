@@ -1,0 +1,17 @@
+{
+  "uniqueId": "com.googlemaps:js-api-loader",
+  "name": "Google Maps JS API Loader",
+  "description": "Official loader package for the Maps JavaScript API, bundled into the Google Maps map WebView backend (BYO key); the API itself loads from Google's CDN at runtime.",
+  "website": "https://github.com/googlemaps/js-api-loader",
+  "developers": [
+    {
+      "name": "Google"
+    }
+  ],
+  "scm": {
+    "url": "https://github.com/googlemaps/js-api-loader"
+  },
+  "licenses": [
+    "googlemaps_js_api_loader_apache2"
+  ]
+}

@@ -5,12 +5,14 @@ import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -22,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Lucide
@@ -78,25 +81,55 @@ internal fun MapPanel(
                 attributionBottomInset = attributionBottomInset,
             )
         } else {
-            // Centre the placeholder in the exposed map region — clear of the side
-            // cards (left OR right, whichever the driver-side reserve occupies) and
-            // above the bottom overlays (the same safe fractions the marker honours) —
-            // instead of the full screen, so its text does not slide under the
-            // floating cards and read as off-centre. Only one horizontal reserve is
-            // ever non-zero; a left reserve pins the exposed region to the end side.
-            Box(
-                modifier =
-                    Modifier
-                        .align(if (mapConfig.leftSafeFraction > 0f) Alignment.TopEnd else Alignment.TopStart)
-                        .fillMaxWidth(1f - mapConfig.rightSafeFraction - mapConfig.leftSafeFraction)
-                        .fillMaxHeight(1f - mapConfig.bottomSafeFraction),
-                contentAlignment = Alignment.Center,
-            ) {
+            ExposedMapRegion(mapConfig = mapConfig) {
                 Fallback()
             }
         }
     }
 }
+
+/**
+ * Centre [content] in the exposed map region — clear of the side cards (left
+ * OR right, whichever the driver-side reserve occupies) and above the bottom
+ * overlays (the same safe fractions the self-marker honours) — instead of the
+ * full screen, so the content does not slide under the floating cards and
+ * read as off-centre. Only one horizontal reserve is ever non-zero; a left
+ * reserve pins the exposed region to the end side. Shared by the no-location
+ * placeholder here and the live-map failure notice (WebMapView).
+ */
+@Composable
+internal fun BoxScope.ExposedMapRegion(
+    mapConfig: MapConfig,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) = Box(
+    modifier =
+        modifier
+            .align(if (mapConfig.leftSafeFraction > 0f) Alignment.TopEnd else Alignment.TopStart)
+            .fillMaxWidth(1f - mapConfig.rightSafeFraction - mapConfig.leftSafeFraction)
+            .fillMaxHeight(1f - mapConfig.bottomSafeFraction)
+            // The safe fractions cover the floating cards and bottom overlays,
+            // but the map controls (locate / zoom pill, compass) ride the
+            // exposed region's driver-side edge, over the map. Inset the
+            // content past that strip on BOTH sides — symmetric, so the layout
+            // holds for left- and right-hand drive alike — and cap its width
+            // so long text stays a readable centred column on wide screens.
+            .padding(horizontal = ExposedContentClearance),
+    contentAlignment = Alignment.Center,
+) {
+    Box(modifier = Modifier.widthIn(max = ExposedContentMaxWidth)) {
+        content()
+    }
+}
+
+// Controls strip plus its screen-edge padding and an equal breathing gap
+// before the content (the strip is padded by up to ScreenPadding from the
+// edge — see DashboardScaffold's outerPad).
+private val ExposedContentClearance = MapControlsStripWidth + FemtoDimens.ScreenPadding * 2
+
+// Widest a centred placeholder / failure notice may grow; keeps hint lines
+// readable on the widest head-unit screens.
+private val ExposedContentMaxWidth = 480.dp
 
 internal fun Location.carriedBearing(holder: FloatArray): Float =
     if (hasBearing() && bearing != 0f) {
@@ -170,12 +203,14 @@ internal fun Fallback(modifier: Modifier = Modifier) =
             text = stringResource(R.string.map_unavailable),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
             text = stringResource(R.string.map_permission_cta),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 4.dp),
         )
     }

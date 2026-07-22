@@ -22,7 +22,7 @@ export const MAX_EASE_MS = 2_000;
 // default): every fix interrupted the running ease and restarted its
 // accelerate-decelerate curve, which read as stop-start jank.
 export function easeDurationMs(dtMs: number): number {
-	return Math.max(MIN_EASE_MS, Math.min(MAX_EASE_MS, dtMs));
+    return Math.max(MIN_EASE_MS, Math.min(MAX_EASE_MS, dtMs));
 }
 
 // Constant-velocity easing for chained per-fix eases. The default cubic curve
@@ -30,7 +30,7 @@ export function easeDurationMs(dtMs: number): number {
 // back-to-back linear segments compose into one continuous glide (the GPS
 // speed itself provides the real-world acceleration).
 export function linearEase(t: number): number {
-	return t;
+    return t;
 }
 
 // Bearings above this delta track immediately: a genuine turn must not lag
@@ -43,26 +43,26 @@ export const BEARING_SMOOTHING_ALPHA = 0.5;
 
 // The signed shortest rotation from [from] to [to], in [-180, 180).
 export function shortestBearingDelta(from: number, to: number): number {
-	const raw = (((to - from) % 360) + 540) % 360;
-	return raw - 180;
+    const raw = (((to - from) % 360) + 540) % 360;
+    return raw - 180;
 }
 
 // Smooth the raw GNSS bearing against the previously applied one: jitter-scale
 // deltas are low-passed, turn-scale deltas pass through, and a null previous
 // bearing (first fix, or a fix after a signal gap) adopts the raw value.
 export function smoothedBearing(
-	previous: number | null,
-	next: number,
-	alpha: number = BEARING_SMOOTHING_ALPHA,
+    previous: number | null,
+    next: number,
+    alpha: number = BEARING_SMOOTHING_ALPHA,
 ): number {
-	if (previous === null) return normalizeBearing(next);
-	const delta = shortestBearingDelta(previous, next);
-	if (Math.abs(delta) > BEARING_SNAP_DELTA_DEG) return normalizeBearing(next);
-	return normalizeBearing(previous + alpha * delta);
+    if (previous === null) return normalizeBearing(next);
+    const delta = shortestBearingDelta(previous, next);
+    if (Math.abs(delta) > BEARING_SNAP_DELTA_DEG) return normalizeBearing(next);
+    return normalizeBearing(previous + alpha * delta);
 }
 
 function normalizeBearing(bearing: number): number {
-	return ((bearing % 360) + 360) % 360;
+    return ((bearing % 360) + 360) % 360;
 }
 
 // How long after the user's last gesture the camera re-attaches to the
@@ -74,7 +74,7 @@ export const AUTO_REFOLLOW_MS = 15_000;
 // The bearing the follow camera applies: north-up pins the map to north and
 // leaves orientation to the chevron; heading-up rotates the map itself.
 export function appliedBearing(northUp: boolean, heading: number): number {
-	return northUp ? 0 : heading;
+    return northUp ? 0 : heading;
 }
 
 // --- Layout-reflow lockstep --------------------------------------------------
@@ -99,12 +99,12 @@ const REFLOW_CENTER_EPSILON_DEG = 1e-7;
 // pair generically — the Google Maps page's lat/lng fix maps onto the same
 // shape at its call site.
 export interface ReflowFix {
-	lon: number;
-	lat: number;
-	markerPos: number;
-	bottomSafe: number;
-	rightSafe: number;
-	leftSafe: number;
+    lon: number;
+    lat: number;
+    markerPos: number;
+    bottomSafe: number;
+    rightSafe: number;
+    leftSafe: number;
 }
 
 // True when [next] holds the same center as [previous] but a different
@@ -113,28 +113,26 @@ export interface ReflowFix {
 // alongside a padding change) both return false — see the call sites, which
 // additionally gate this on "not the first camera push" and "not a signal
 // gap" (those already force the existing snap path regardless).
-export function isPaddingOnlyReflow(
-	previous: ReflowFix | null,
-	next: ReflowFix,
-): boolean {
-	if (!previous) return false;
-	const sameCenter =
-		Math.abs(previous.lon - next.lon) < REFLOW_CENTER_EPSILON_DEG &&
-		Math.abs(previous.lat - next.lat) < REFLOW_CENTER_EPSILON_DEG;
-	if (!sameCenter) return false;
-	return (
-		previous.markerPos !== next.markerPos ||
-		previous.bottomSafe !== next.bottomSafe ||
-		previous.rightSafe !== next.rightSafe ||
-		previous.leftSafe !== next.leftSafe
-	);
+export function isPaddingOnlyReflow(previous: ReflowFix | null, next: ReflowFix): boolean {
+    if (!previous) return false;
+    const sameCenter =
+        Math.abs(previous.lon - next.lon) < REFLOW_CENTER_EPSILON_DEG &&
+        Math.abs(previous.lat - next.lat) < REFLOW_CENTER_EPSILON_DEG;
+    if (!sameCenter) return false;
+    return (
+        previous.markerPos !== next.markerPos ||
+        previous.bottomSafe !== next.bottomSafe ||
+        previous.rightSafe !== next.rightSafe ||
+        previous.leftSafe !== next.leftSafe
+    );
 }
 
-// Fixed lockstep duration for a padding-only reflow, used by the OSM/Mapbox
-// pages: the marker's CSS transition and the camera's easeTo both run this
-// long, so they land together. (The Google Maps page needs no such constant —
+// Fixed lockstep duration for a padding-only reflow, used by the shared
+// follow-camera engine (OSM/Mapbox): the marker's CSS transition and the
+// camera's easeTo both run this long, so they land together. (The Google Maps
+// backend needs no such constant —
 // its camera has no native easing to lock the marker against; see the note in
-// googlemaps-main.ts.) A reflow is driven by a dashboard layout transition,
+// backends/googlemaps.ts.) A reflow is driven by a dashboard layout transition,
 // not a new GPS fix, so it uses a fixed duration matched to the app-side
 // layout-transition pace (Motion.kt's STANDARD tween is 220 ms, plus margin)
 // rather than easeDurationMs's cadence-matched (and much wider, up to

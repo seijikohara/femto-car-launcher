@@ -1,140 +1,136 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
-	appliedBearing,
-	BEARING_SNAP_DELTA_DEG,
-	easeDurationMs,
-	isPaddingOnlyReflow,
-	linearEase,
-	MAX_EASE_MS,
-	MIN_EASE_MS,
-	type ReflowFix,
-	shortestBearingDelta,
-	smoothedBearing,
+    appliedBearing,
+    BEARING_SNAP_DELTA_DEG,
+    easeDurationMs,
+    isPaddingOnlyReflow,
+    linearEase,
+    MAX_EASE_MS,
+    MIN_EASE_MS,
+    type ReflowFix,
+    shortestBearingDelta,
+    smoothedBearing,
 } from "./camera";
 
 describe("easeDurationMs", () => {
-	it("matches the measured inter-fix interval", () => {
-		expect(easeDurationMs(250)).toBe(250);
-		expect(easeDurationMs(1000)).toBe(1000);
-	});
+    it("matches the measured inter-fix interval", () => {
+        expect(easeDurationMs(250)).toBe(250);
+        expect(easeDurationMs(1000)).toBe(1000);
+    });
 
-	it("clamps a burst of near-simultaneous fixes to the floor", () => {
-		expect(easeDurationMs(0)).toBe(MIN_EASE_MS);
-		expect(easeDurationMs(40)).toBe(MIN_EASE_MS);
-	});
+    it("clamps a burst of near-simultaneous fixes to the floor", () => {
+        expect(easeDurationMs(0)).toBe(MIN_EASE_MS);
+        expect(easeDurationMs(40)).toBe(MIN_EASE_MS);
+    });
 
-	it("clamps a slow provider to the ceiling", () => {
-		expect(easeDurationMs(5_000)).toBe(MAX_EASE_MS);
-	});
+    it("clamps a slow provider to the ceiling", () => {
+        expect(easeDurationMs(5_000)).toBe(MAX_EASE_MS);
+    });
 });
 
 describe("linearEase", () => {
-	it("is the identity over the animation progress", () => {
-		expect(linearEase(0)).toBe(0);
-		expect(linearEase(0.25)).toBe(0.25);
-		expect(linearEase(1)).toBe(1);
-	});
+    it("is the identity over the animation progress", () => {
+        expect(linearEase(0)).toBe(0);
+        expect(linearEase(0.25)).toBe(0.25);
+        expect(linearEase(1)).toBe(1);
+    });
 });
 
 describe("shortestBearingDelta", () => {
-	it("returns the signed shortest rotation", () => {
-		expect(shortestBearingDelta(10, 30)).toBe(20);
-		expect(shortestBearingDelta(30, 10)).toBe(-20);
-	});
+    it("returns the signed shortest rotation", () => {
+        expect(shortestBearingDelta(10, 30)).toBe(20);
+        expect(shortestBearingDelta(30, 10)).toBe(-20);
+    });
 
-	it("crosses the 0/360 seam the short way", () => {
-		expect(shortestBearingDelta(350, 10)).toBe(20);
-		expect(shortestBearingDelta(10, 350)).toBe(-20);
-	});
+    it("crosses the 0/360 seam the short way", () => {
+        expect(shortestBearingDelta(350, 10)).toBe(20);
+        expect(shortestBearingDelta(10, 350)).toBe(-20);
+    });
 
-	it("treats the antipode as -180 (range [-180, 180))", () => {
-		expect(shortestBearingDelta(0, 180)).toBe(-180);
-	});
+    it("treats the antipode as -180 (range [-180, 180))", () => {
+        expect(shortestBearingDelta(0, 180)).toBe(-180);
+    });
 });
 
 describe("smoothedBearing", () => {
-	it("adopts the raw bearing when there is no previous one", () => {
-		expect(smoothedBearing(null, 123)).toBe(123);
-	});
+    it("adopts the raw bearing when there is no previous one", () => {
+        expect(smoothedBearing(null, 123)).toBe(123);
+    });
 
-	it("low-passes jitter-scale deltas toward the raw bearing", () => {
-		// alpha 0.5: halfway between previous and raw.
-		expect(smoothedBearing(100, 110, 0.5)).toBe(105);
-	});
+    it("low-passes jitter-scale deltas toward the raw bearing", () => {
+        // alpha 0.5: halfway between previous and raw.
+        expect(smoothedBearing(100, 110, 0.5)).toBe(105);
+    });
 
-	it("smooths across the 0/360 seam without spinning the long way", () => {
-		expect(smoothedBearing(358, 6, 0.5)).toBe(2);
-		expect(smoothedBearing(6, 358, 0.5)).toBe(2);
-	});
+    it("smooths across the 0/360 seam without spinning the long way", () => {
+        expect(smoothedBearing(358, 6, 0.5)).toBe(2);
+        expect(smoothedBearing(6, 358, 0.5)).toBe(2);
+    });
 
-	it("passes a turn-scale delta straight through", () => {
-		expect(smoothedBearing(0, BEARING_SNAP_DELTA_DEG + 10)).toBe(
-			BEARING_SNAP_DELTA_DEG + 10,
-		);
-	});
+    it("passes a turn-scale delta straight through", () => {
+        expect(smoothedBearing(0, BEARING_SNAP_DELTA_DEG + 10)).toBe(BEARING_SNAP_DELTA_DEG + 10);
+    });
 
-	it("normalizes the result into [0, 360)", () => {
-		expect(smoothedBearing(null, 370)).toBe(10);
-		expect(smoothedBearing(2, 354, 0.5)).toBe(358);
-	});
+    it("normalizes the result into [0, 360)", () => {
+        expect(smoothedBearing(null, 370)).toBe(10);
+        expect(smoothedBearing(2, 354, 0.5)).toBe(358);
+    });
 });
 
 describe("appliedBearing", () => {
-	it("pins the camera to north when north-up is on", () => {
-		expect(appliedBearing(true, 137)).toBe(0);
-	});
+    it("pins the camera to north when north-up is on", () => {
+        expect(appliedBearing(true, 137)).toBe(0);
+    });
 
-	it("follows the travel heading when north-up is off", () => {
-		expect(appliedBearing(false, 137)).toBe(137);
-	});
+    it("follows the travel heading when north-up is off", () => {
+        expect(appliedBearing(false, 137)).toBe(137);
+    });
 });
 
 describe("isPaddingOnlyReflow", () => {
-	const fix: ReflowFix = {
-		lon: 139.767,
-		lat: 35.681,
-		markerPos: 70,
-		bottomSafe: 0.1,
-		rightSafe: 0.4,
-		leftSafe: 0,
-	};
+    const fix: ReflowFix = {
+        lon: 139.767,
+        lat: 35.681,
+        markerPos: 70,
+        bottomSafe: 0.1,
+        rightSafe: 0.4,
+        leftSafe: 0,
+    };
 
-	it("is false with no previous push", () => {
-		expect(isPaddingOnlyReflow(null, fix)).toBe(false);
-	});
+    it("is false with no previous push", () => {
+        expect(isPaddingOnlyReflow(null, fix)).toBe(false);
+    });
 
-	it("is false when neither the center nor the padding changed", () => {
-		expect(isPaddingOnlyReflow(fix, { ...fix })).toBe(false);
-	});
+    it("is false when neither the center nor the padding changed", () => {
+        expect(isPaddingOnlyReflow(fix, { ...fix })).toBe(false);
+    });
 
-	it("is true when the center holds but a safe fraction changed (a layout change)", () => {
-		expect(
-			isPaddingOnlyReflow(fix, { ...fix, rightSafe: 0, leftSafe: 0 }),
-		).toBe(true);
-	});
+    it("is true when the center holds but a safe fraction changed (a layout change)", () => {
+        expect(isPaddingOnlyReflow(fix, { ...fix, rightSafe: 0, leftSafe: 0 })).toBe(true);
+    });
 
-	it("is true when only markerPos changed", () => {
-		expect(isPaddingOnlyReflow(fix, { ...fix, markerPos: 40 })).toBe(true);
-	});
+    it("is true when only markerPos changed", () => {
+        expect(isPaddingOnlyReflow(fix, { ...fix, markerPos: 40 })).toBe(true);
+    });
 
-	it("is false when the center moved (a genuine GPS fix), even alongside a padding change", () => {
-		expect(
-			isPaddingOnlyReflow(fix, {
-				...fix,
-				lon: fix.lon + 0.001,
-				rightSafe: 0,
-				leftSafe: 0,
-			}),
-		).toBe(false);
-	});
+    it("is false when the center moved (a genuine GPS fix), even alongside a padding change", () => {
+        expect(
+            isPaddingOnlyReflow(fix, {
+                ...fix,
+                lon: fix.lon + 0.001,
+                rightSafe: 0,
+                leftSafe: 0,
+            }),
+        ).toBe(false);
+    });
 
-	it("tolerates float round-trip noise in the center without flagging a fix", () => {
-		expect(
-			isPaddingOnlyReflow(fix, {
-				...fix,
-				lat: fix.lat + 1e-9,
-				bottomSafe: 0,
-			}),
-		).toBe(true);
-	});
+    it("tolerates float round-trip noise in the center without flagging a fix", () => {
+        expect(
+            isPaddingOnlyReflow(fix, {
+                ...fix,
+                lat: fix.lat + 1e-9,
+                bottomSafe: 0,
+            }),
+        ).toBe(true);
+    });
 });

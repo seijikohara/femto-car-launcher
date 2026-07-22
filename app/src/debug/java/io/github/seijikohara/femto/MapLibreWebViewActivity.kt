@@ -20,7 +20,7 @@ import androidx.webkit.WebViewClientCompat
 /**
  * Debug-only proof-of-concept for the WebView map backend (Stage 1/2 of the staged
  * fallback). Renders the same MapLibre GL JS page the production [WebMapView] uses
- * (app/src/main/assets/web/map.html), served via [WebViewAssetLoader] from the
+ * (assets/web/index.html, OSM backend), served via [WebViewAssetLoader] from the
  * real https origin appassets.androidplatform.net so the tile-processing Web Worker
  * can fetch cross-origin tiles. The JS health bridge (AndroidMapBridge) reports
  * onMapReady / onWebGlFailed; here it just logs.
@@ -66,7 +66,7 @@ class MapLibreWebViewActivity : ComponentActivity() {
                                     return true
                                 }
                             }
-                        loadUrl("https://appassets.androidplatform.net/assets/web/map.html")
+                        loadUrl("https://appassets.androidplatform.net/assets/web/index.html?backend=osm")
                     }
                 },
             )

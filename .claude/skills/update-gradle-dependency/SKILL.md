@@ -16,6 +16,7 @@ paths:
   - settings.gradle.kts
   - webmap/package.json
   - webmap/pnpm-lock.yaml
+  - webmap/pnpm-workspace.yaml
 ---
 
 # Updating a Gradle dependency
@@ -67,8 +68,10 @@ Rules: see `.claude/rules/dependencies.md`.
 Renovate automerges routine (non-major) webmap bumps — this path is
 for manual or major bumps (`maplibre-gl`, Vite, TypeScript).
 
-1. Edit `webmap/package.json`, then run `pnpm install` under
-   `webmap/` to refresh `pnpm-lock.yaml`.
+1. Edit `webmap/package.json` — or, for the Vite+ toolchain pins
+   (`vite`, `vite-plus`), the catalog in `webmap/pnpm-workspace.yaml` —
+   then run `pnpm install` under `webmap/` to refresh
+   `pnpm-lock.yaml`.
 2. For Vite or `maplibre-gl` majors, confirm Vite's `build.target`
    stays at the WebView floor defined in `CLAUDE.md#tech-stack`.
 3. For TypeScript majors, run `pnpm run check` under `webmap/` and
