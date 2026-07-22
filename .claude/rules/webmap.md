@@ -9,7 +9,8 @@ Rules for `webmap/`, the TypeScript source of the map WebView pages
 (one HTML entry point per backend — `map.html` for OSM/MapLibre,
 `mapbox.html` for Mapbox, `googlemaps.html` for Google Maps).
 Dependency versions live in `webmap/package.json` +
-`pnpm-lock.yaml` (the SSOT) — never restate version numbers here.
+`pnpm-lock.yaml` + `pnpm-workspace.yaml` (the Vite+ catalog; together
+the SSOT) — never restate version numbers here.
 `app/src/main/assets/licenses/` holds the license texts for the
 bundled OSS map styles (Positron / Dark Matter) and MapLibre GL JS
 (BSD-3-Clause) — keep it in step with what each page bundles under
@@ -40,13 +41,26 @@ corner wherever the backend's own ToS permits:
 
 ## Toolchain split
 
+The toolchain is Vite+ (`vite-plus`, the `vp` CLI): `vp build` owns
+emit, `vp test` runs the bundled Vitest, and `vp check` runs oxfmt +
+oxlint. All Vite+ configuration lives in `vite.config.ts` (build,
+`test`, and `lint` blocks — the Vite+ docs deprecate separate
+`.oxlintrc.json` files).
+
 - `tsc` is type-check-only: `tsc --noEmit` runs inside
-  `pnpm run check`. Vite owns emit and ignores the tsconfig
-  `target`.
+  `pnpm run check`. `vp build` owns emit and ignores the tsconfig
+  `target`. (The tsgolint `typeAware`/`typeCheck` pair is a coupled
+  future decision — see the comment in `vite.config.ts`.)
 - `build.target` in `vite.config.ts` is the sole shipped-syntax
   floor. Never raise it above the Android 13 factory-WebView floor
   (CLAUDE.md#tech-stack). A TypeScript compiler swap therefore
   structurally cannot move the floor.
+- oxfmt follows the root `.editorconfig` (4-space indent — the
+  repo-wide formatting SSOT the retired Biome config used to
+  override with tabs).
+- `let`/`var` are banned (const holders for mutable state): the
+  eslint core rules plus the `femto/no-let` Oxlint JS plugin in
+  `webmap/no-let.js`, wired via the `lint.jsPlugins` block.
 
 ## TypeScript 7 (native compiler)
 

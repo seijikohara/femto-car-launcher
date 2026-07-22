@@ -38,13 +38,13 @@ val buildWebMap =
         pnpmCommand.set(listOf("run", "build"))
         inputs.dir("../webmap/src")
         inputs.files(
-            "../webmap/biome.json",
             "../webmap/googlemaps.html",
             "../webmap/map.html",
             "../webmap/mapbox.html",
-            "../webmap/no-let.grit",
+            "../webmap/no-let.js",
             "../webmap/package.json",
             "../webmap/pnpm-lock.yaml",
+            "../webmap/pnpm-workspace.yaml",
             "../webmap/tsconfig.json",
             "../webmap/vite.config.ts",
         )

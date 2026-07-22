@@ -15,36 +15,33 @@
 // already-settled target, since a fix and a reflow write the same left/top
 // for an unchanged layout.
 export interface MarkerTransition {
-	// Arms (or clears) the CSS transition; call before writing the new
-	// left/top so the write itself is what animates (or jumps).
-	setActive(active: boolean): void;
+    // Arms (or clears) the CSS transition; call before writing the new
+    // left/top so the write itself is what animates (or jumps).
+    setActive(active: boolean): void;
 }
 
-export function createMarkerTransition(
-	el: HTMLElement,
-	durationMs: number,
-): MarkerTransition {
-	// Mutable state in one const holder (let/var are banned — see biome.json
-	// and no-let.grit). Guards the self-clearing timeout below against a stale
-	// clear: two reflows in quick succession (a rapid layout toggle) must not
-	// have the first reflow's timeout wipe out the second reflow's
-	// still-running transition.
-	const marker = { generation: 0 };
-	return {
-		setActive(active: boolean): void {
-			marker.generation += 1;
-			const thisGeneration = marker.generation;
-			if (!active) {
-				el.style.transition = "";
-				return;
-			}
-			el.style.transition = `left ${durationMs}ms linear, top ${durationMs}ms linear`;
-			// Self-clearing: a reflow with no follow-up push (GPS momentarily
-			// idle) must not leave the transition armed forever, where it would
-			// silently animate some unrelated later left/top write.
-			setTimeout(() => {
-				if (thisGeneration === marker.generation) el.style.transition = "";
-			}, durationMs);
-		},
-	};
+export function createMarkerTransition(el: HTMLElement, durationMs: number): MarkerTransition {
+    // Mutable state in one const holder (let/var are banned — see
+    // .oxlintrc.json and no-let.js). Guards the self-clearing timeout below against a stale
+    // clear: two reflows in quick succession (a rapid layout toggle) must not
+    // have the first reflow's timeout wipe out the second reflow's
+    // still-running transition.
+    const marker = { generation: 0 };
+    return {
+        setActive(active: boolean): void {
+            marker.generation += 1;
+            const thisGeneration = marker.generation;
+            if (!active) {
+                el.style.transition = "";
+                return;
+            }
+            el.style.transition = `left ${durationMs}ms linear, top ${durationMs}ms linear`;
+            // Self-clearing: a reflow with no follow-up push (GPS momentarily
+            // idle) must not leave the transition armed forever, where it would
+            // silently animate some unrelated later left/top write.
+            setTimeout(() => {
+                if (thisGeneration === marker.generation) el.style.transition = "";
+            }, durationMs);
+        },
+    };
 }

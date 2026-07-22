@@ -32,9 +32,10 @@ applicable rule wins when markets diverge.
 - `minSdk = 33`, `targetSdk = 36` with `compileSdk { release(37) }`
   (compile against API 37 as `androidx.core` 1.19+ requires; the
   supported-device floor stays Android 13 / API 33).
-- Web map page (`webmap/`): TypeScript + Vite + `maplibre-gl` /
-  `mapbox-gl`, managed with pnpm (pinned via `packageManager`). Vite's
-  `build.target` is `chrome109` — the Android 13 factory WebView;
+- Web map page (`webmap/`): TypeScript (native TS 7 compiler) +
+  Vite+ (the `vp` CLI: build / test / oxlint / oxfmt) + `maplibre-gl` /
+  `mapbox-gl`, managed with pnpm (pinned via `packageManager`). The
+  Vite `build.target` is `chrome109` — the Android 13 factory WebView;
   aftermarket AI boxes may never update it, so never raise it
   without revisiting that floor (phone WebViews stay current, but
   the strictest device class governs). Rules: `.claude/rules/webmap.md`.
