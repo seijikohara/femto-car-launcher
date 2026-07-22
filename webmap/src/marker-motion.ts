@@ -1,10 +1,10 @@
-// Screen-pinned self-marker CSS-transition control, shared by the OSM and
-// Mapbox pages (main.ts / mapbox-main.ts render the same #self-marker element
-// positioned via left/top percentages — see style.ts for the percentage
-// math). The Google Maps page does not use this: its camera has no native
-// easing to lock the marker step against (see the note in
-// googlemaps-main.ts), so its marker and camera already update in the same
-// synchronous call.
+// Screen-pinned self-marker CSS-transition control, used by the shared
+// follow-camera engine for the OSM and Mapbox backends (both position the
+// same #self-marker element via left/top percentages — see style.ts for the
+// percentage math). The Google Maps backend does not use this: its camera has
+// no native easing to lock the marker step against (see the note in
+// backends/googlemaps.ts), so its marker and camera already update in the
+// same synchronous call.
 //
 // A layout reflow (see camera.ts isPaddingOnlyReflow) needs the marker
 // to glide left/top over the SAME fixed duration the camera eases over,
@@ -21,11 +21,11 @@ export interface MarkerTransition {
 }
 
 export function createMarkerTransition(el: HTMLElement, durationMs: number): MarkerTransition {
-    // Mutable state in one const holder (let/var are banned — see
-    // .oxlintrc.json and no-let.js). Guards the self-clearing timeout below against a stale
-    // clear: two reflows in quick succession (a rapid layout toggle) must not
-    // have the first reflow's timeout wipe out the second reflow's
-    // still-running transition.
+    // Mutable state in one const holder (let/var are banned — see the
+    // vite.config.ts lint block and no-let.js). Guards the self-clearing
+    // timeout below against a stale clear: two reflows in quick succession (a
+    // rapid layout toggle) must not have the first reflow's timeout wipe out
+    // the second reflow's still-running transition.
     const marker = { generation: 0 };
     return {
         setActive(active: boolean): void {

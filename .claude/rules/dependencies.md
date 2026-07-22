@@ -6,6 +6,7 @@ paths:
   - "settings.gradle.kts"
   - "webmap/package.json"
   - "webmap/pnpm-lock.yaml"
+  - "webmap/pnpm-workspace.yaml"
 ---
 
 # Dependencies

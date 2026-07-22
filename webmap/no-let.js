@@ -1,9 +1,10 @@
-// `let` is forbidden alongside `var` (eslint/no-var in .oxlintrc.json):
-// every binding is a const, and mutable state lives in fields of a const
-// holder object (see the `state` holder in src/main.ts).
+// `let` is forbidden alongside `var` (eslint/no-var in the vite.config.ts
+// lint block): every binding is a const, and mutable state lives in fields of
+// a const holder object (see the `state` holders in src/follow-camera.ts and
+// src/backends/).
 //
 // Oxlint JS plugin (ESLint-compatible rule shape), wired up via the
-// `jsPlugins` key in .oxlintrc.json. Replaces the Biome GritQL predecessor
+// `jsPlugins` key of the vite.config.ts lint block. Replaces the Biome GritQL predecessor
 // (no-let.grit), which matched on source text because Biome's bridge did not
 // expose the declaration kind; the ESLint AST does, so this rule matches the
 // `kind` field directly.

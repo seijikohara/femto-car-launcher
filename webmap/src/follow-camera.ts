@@ -90,7 +90,7 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
     const markerTransition = createMarkerTransition(markerEl, LAYOUT_REFLOW_MS);
 
     // Mutable engine state in one const holder (let/var are banned — see
-    // .oxlintrc wiring in vite.config.ts and no-let.js). Camera pushes and
+    // the lint block in vite.config.ts and no-let.js). Camera pushes and
     // follow flips all read and write through here.
     const state = {
         firstCamera: true,

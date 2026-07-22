@@ -127,11 +127,12 @@ export function isPaddingOnlyReflow(previous: ReflowFix | null, next: ReflowFix)
     );
 }
 
-// Fixed lockstep duration for a padding-only reflow, used by the OSM/Mapbox
-// pages: the marker's CSS transition and the camera's easeTo both run this
-// long, so they land together. (The Google Maps page needs no such constant —
+// Fixed lockstep duration for a padding-only reflow, used by the shared
+// follow-camera engine (OSM/Mapbox): the marker's CSS transition and the
+// camera's easeTo both run this long, so they land together. (The Google Maps
+// backend needs no such constant —
 // its camera has no native easing to lock the marker against; see the note in
-// googlemaps-main.ts.) A reflow is driven by a dashboard layout transition,
+// backends/googlemaps.ts.) A reflow is driven by a dashboard layout transition,
 // not a new GPS fix, so it uses a fixed duration matched to the app-side
 // layout-transition pace (Motion.kt's STANDARD tween is 220 ms, plus margin)
 // rather than easeDurationMs's cadence-matched (and much wider, up to

@@ -178,11 +178,12 @@ export function installPendingStubs(): PendingBridgeCalls {
 
 // WebGL availability probe. Each backend applies its own policy: MapLibre
 // accepts webgl2 or webgl, mapbox-gl v3 hard-requires webgl2, and a Google
-// raster map needs neither.
+// raster map needs neither. One canvas per probe: a canvas locks to its first
+// context mode, so asking one canvas for webgl2 then webgl would report a
+// false webgl1=false on every WebGL2-capable device.
 export function webglSupport(): { webgl2: boolean; webgl1: boolean } {
-    const c = document.createElement("canvas");
     return {
-        webgl2: c.getContext("webgl2") != null,
-        webgl1: c.getContext("webgl") != null,
+        webgl2: document.createElement("canvas").getContext("webgl2") != null,
+        webgl1: document.createElement("canvas").getContext("webgl") != null,
     };
 }
