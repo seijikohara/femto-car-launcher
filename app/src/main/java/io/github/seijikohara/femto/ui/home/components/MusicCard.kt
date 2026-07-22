@@ -63,7 +63,9 @@ private val RowContentGap = 16.dp
  *     short for all of them ([MusicMetaAndProgress]).
  *  3. Transport row — 64 dp prev / next + 72 dp primary play / pause
  *
- * Empty variants render in the same outer dimensions: `NeedsPermission` is
+ * Empty variants render in the same outer dimensions, reserved by measuring
+ * an unplaced sample of the Playing layout (see `PlayingHeightReserve` in
+ * `MusicCardStates.kt`): `NeedsPermission` is
  * the connect CTA; `NoActiveSession` is a "nothing is playing" Play
  * affordance (tap resumes the last session via a media key, falling back to
  * launching the user's music app — see [MusicEmptyState]).
@@ -98,11 +100,11 @@ internal fun MusicCard(
 ) {
     when (state) {
         MusicCardState.NeedsPermission -> {
-            MusicConnectState(onConnect = onConnect)
+            MusicConnectState(onConnect = onConnect, showAlbum = showAlbum)
         }
 
         MusicCardState.NoActiveSession -> {
-            MusicEmptyState(onPlay = onPlay)
+            MusicEmptyState(onPlay = onPlay, showAlbum = showAlbum)
         }
 
         is MusicCardState.Playing -> {

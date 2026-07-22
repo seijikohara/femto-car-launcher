@@ -236,17 +236,6 @@ object FemtoDimens {
     val CardSectionGapCompact = 8.dp
 
     /**
-     * Reserved height for the music card's idle states (nothing playing / connect),
-     * so the card keeps a playing-card-sized presence instead of shrinking to its
-     * sparse content and letting the calendar / weather row jump taller. Sized to
-     * the tallest playing layout — album art at its [MusicArtSize] cap over the
-     * transport row ([MusicPlayButton]), with the section gap and both paddings.
-     * The live playing card can run a little shorter: its art is a square tracking
-     * the meta column's natural height, which typically sits under the cap.
-     */
-    val MusicCardMinHeight = CardPaddingCompact * 2 + MusicArtSize + CardSectionGapCompact + MusicPlayButton
-
-    /**
      * Shared opacity for the dashboard's content dividers — the dock's nav /
      * status separator, the speed overlay's metric separators and metric /
      * address rule, and the map-control pill's segment dividers — so every
