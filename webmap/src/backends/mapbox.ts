@@ -62,10 +62,12 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
     // Verify WebGL 2 is available before spending any budget on map
     // construction. mapbox-gl v3 has no WebGL 1 fallback — it only ever
     // acquires a webgl2 context — so a missing webgl2 context is a definitive
-    // never-going-to-render fact.
+    // never-going-to-render fact: report it and stop, skipping the UMD load
+    // for a page the host is about to tear down.
     if (!webglSupport().webgl2) {
         log("no-webgl-context");
         report("fatal", "no-webgl-context");
+        return;
     }
 
     // Mutable style state in one const holder (let/var are banned — see the
@@ -84,7 +86,9 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
 
         // A missing token means the backend cannot function; report a fatal
         // so the host shows an explanatory notice rather than a blank map.
-        const token = mapboxBridge()?.mapboxToken() ?? "";
+        // Method-optional like the googlemaps bridge accessors: outside the
+        // launcher a femtoBridge stand-in may not carry this getter.
+        const token = mapboxBridge()?.mapboxToken?.() ?? "";
         if (!token) {
             log("mapbox-token-missing");
             report("fatal", "mapbox-token-missing");

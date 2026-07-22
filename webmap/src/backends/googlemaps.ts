@@ -176,11 +176,16 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     const gl = webglSupport();
     if (!gl.webgl2 && !gl.webgl1) {
         if (mapId !== "") {
+            // Report and stop: loading the API for the doomed vector page is
+            // wasted work (the host tears the page down on the fatal).
+            // Whether a vector request should instead defer to Google's own
+            // silent raster downgrade (see the tilesloaded handler) is a
+            // separate product decision — the explicit-choice fatal stands.
             log("no-webgl-context");
             report("fatal", "no-webgl-context");
-        } else {
-            log("no-webgl-context (raster map renders without WebGL)");
+            return;
         }
+        log("no-webgl-context (raster map renders without WebGL)");
     }
 
     // Mutable page state in one const holder (let/var are banned — see the

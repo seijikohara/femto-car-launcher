@@ -27,11 +27,14 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
     const { log, report, reportErrorThrottled } = reporter;
 
     // MapLibre renders WebGL 2 or falls back to WebGL 1; neither available is
-    // a definitive never-going-to-render fact.
+    // a definitive never-going-to-render fact — report it and stop.
+    // Constructing the map anyway would only throw a second, noisier fatal
+    // from a page the host is about to tear down.
     const gl = webglSupport();
     if (!gl.webgl2 && !gl.webgl1) {
         log("no-webgl-context");
         report("fatal", "no-webgl-context");
+        return;
     }
 
     // Mutable style state in one const holder (let/var are banned — see the
