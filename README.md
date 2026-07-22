@@ -9,236 +9,190 @@
 [![CI](https://github.com/seijikohara/femto-car-launcher/actions/workflows/ci.yml/badge.svg)](https://github.com/seijikohara/femto-car-launcher/actions/workflows/ci.yml)
 [![Download nightly APK](https://img.shields.io/badge/download-nightly_APK-3BE0AE?logo=android&logoColor=white)](https://github.com/seijikohara/femto-car-launcher/releases/tag/nightly)
 [![Android 13+](https://img.shields.io/badge/Android-13%2B_(API_33)-3DDC84?logo=android&logoColor=white)](https://developer.android.com/about/versions/13)
-[![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
-[![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/develop/ui/compose)
 
 </div>
 
-Femto Car Launcher is an Android home-screen replacement (launcher) for
-in-car displays. It targets three hardware classes: aftermarket CarPlay /
-Android Auto AI boxes that inject Android into a factory display,
-built-in Android head units, and smartphones mounted as a car-navigation
-display. The launcher replaces the stock home screen with a single
-glanceable dashboard tuned for automotive viewing distances and touch
-accuracy. On a phone it also runs as a regular app — becoming the
-default home screen is optional.
+Femto Car Launcher replaces the Android home screen with a single
+fixed dashboard designed for automotive viewing distances and touch
+accuracy. The dashboard combines a live map, driving data, weather,
+calendar, and media control on one screen, so a driver reads the
+essentials at a glance instead of navigating between apps.
 
-The minimum supported platform is Android 13 (Application Programming
-Interface (API) level 33). The launcher is built for multi-region
-distribution: no single market is privileged, locale-specific behaviour
-(language, units, font fallback, regulation) is parameterised, and the
-strictest applicable rule wins when markets diverge.
+Femto Car Launcher targets three hardware classes: aftermarket
+CarPlay / Android Auto AI boxes that inject Android into a factory
+display, built-in Android head units, and smartphones mounted as a
+car-navigation display. On a smartphone the launcher also runs as a
+regular app; becoming the default home screen stays optional. The
+minimum supported platform is Android 13 (Application Programming
+Interface — API — level 33). No single market is privileged: language,
+units, and locale-specific behaviour adapt per device.
 
-## Features
+## Live map
 
-The home screen is a fixed dashboard rather than a scrolling grid of apps.
+The dashboard background is a full-bleed live map that follows the
+vehicle.
 
-- **Map panel** — a live vector map rendered by MapLibre GL JS inside a
-  WebView. The default backend uses OpenStreetMap tiles served by
-  the keyless OpenFreeMap service. An optional Mapbox backend — offering
-  satellite imagery, real-time traffic, and Mapbox 3D styles — is
-  available by entering your own Mapbox public access token in
-  Settings → Map. A further optional Google Maps backend — offering the
-  roadmap, satellite, hybrid, and terrain map types with a traffic
-  overlay, rendered by the Google Maps JavaScript API — is available by
-  entering your own Google Maps Platform API key in the same screen. The
-  view is heading-up (the map rotates so the travel
-  direction points up) and offers an optional three-dimensional terrain
-  relief layer (Mapterhorn elevation tiles).
-- **Trip overlay** — current speed, trip distance, and average speed
-  derived from the Global Positioning System (GPS), plus the
-  reverse-geocoded address of the current position.
-- **Weather card** — current conditions, apparent ("feels-like")
-  temperature, wind, humidity, and an hourly forecast from MET Norway
-  (`api.met.no`). Tap the header to open a full-screen forecast panel.
-- **Calendar card** — a six-day strip and the upcoming events read from the
-  device calendar, with a Settings option to choose which of the
-  device's calendars are shown. Tap the header to open a full-screen panel.
-- **Now-playing card** — the active media session (title, artist, source
-  app, and transport controls), read through a notification-listener
-  service. Tap the cover art to open a full-screen player.
-- **Clock overlay** — a self-updating clock that honours the system
-  12/24-hour setting, with an optional seconds display.
-- **Status cluster** — graduated Wi-Fi and cellular signal strength,
-  Bluetooth connection state, GPS reception, and battery level and charging
-  state.
-- **App dock and drawer** — an application dock that the user can attach
-  to any screen edge (bottom, top, left, or right). Long-press a dock
-  button or status icon to reorder or hide it. A full app drawer offers
-  search, a pinned-apps row, a recently-used-apps row, an A-Z fast-scroll
-  index, and small / medium / large icon-size presets.
-- **Voice assistant** — a microphone button opens a bottom sheet that
-  captures speech in-launcher (`android.speech.SpeechRecognizer`) with a
-  live transcript. When no on-device recognizer exists or the microphone
-  permission is denied, the sheet degrades to launching the system voice
-  assistant, voice command, or voice search.
-- **Fonts** — the head-unit system font by default, any Google Fonts
-  family chosen per slot (a Latin face plus a CJK — Chinese, Japanese,
-  Korean — fallback face), downloaded on demand and cached on disk, or
-  any font already installed on the device, read directly with no
-  download. No fonts are bundled in the APK and no Play Services are
-  required.
-- **Settings** — in-app preferences grouped into seven sections:
-  **Appearance** (theme, accent colour, map colour matching,
-  glass-effect blur and opacity, and font pairing), **Screen** (UI
-  scale, screen orientation, fullscreen, keep-screen-on, dock edge,
-  a dock-layout reset, driver-side card anchoring, motion reduction, and
-  voice-assistant launch behaviour), **Units** (speed and temperature units,
-  clock format and seconds), **Map** (backend choice, an optional Mapbox
-  access token or Google Maps Platform API key to enable the paid backends,
-  3D buildings, terrain, and camera behaviour), **Location**
-  (location-update tuning), **Panels** (show or hide the calendar, weather,
-  and music cards; which device calendars the calendar card shows; and the
-  music card's spectrum, album-name, and cover-art visibility toggles), and
-  **System** (shortcuts to the system notification-access and Android
-  settings screens, in-app diagnostics, the open-source licenses list, and
-  the privacy policy, plus a one-tap reset to defaults).
+- **Three map providers.** OpenStreetMap data rendered through the
+  keyless OpenFreeMap service works out of the box with no account and
+  no API key. A Mapbox provider (satellite imagery, real-time traffic,
+  Mapbox 3D styles) activates when the user enters a personal Mapbox
+  public access token in Settings → Map. A Google Maps provider
+  (roadmap, satellite, hybrid, and terrain map types with a traffic
+  overlay) activates the same way with a personal Google Maps Platform
+  API key. Usage of a paid provider bills the key owner's own account;
+  Femto Car Launcher adds no fees.
+- **A car-navigation camera.** The camera follows the Global
+  Positioning System (GPS) position with smooth easing, keeps the
+  travel direction pointing up (heading-up), and offers a north-up
+  mode. A drag detaches the camera for free panning; the camera
+  re-attaches automatically after a pause, or immediately via the
+  locate button. Zoom buttons and a compass sit at the screen edge in
+  reach of the driver.
+- **Depth and style.** Optional three-dimensional buildings and
+  terrain relief add depth on the OpenStreetMap provider. Map colours
+  can follow the launcher accent and the light/dark theme, or use the
+  provider's own styles.
+- **Self-healing.** A map that fails to load — an unstable link, a
+  provider outage, a missing key — shows a clear notice in the visible
+  map area and recovers automatically: reloads retry with a capped
+  backoff while the network reports connectivity, and a reconnect after
+  an offline period reloads the map without user action.
 
-Each panel degrades gracefully. A panel whose runtime permission is denied,
-or whose data source is unavailable, renders an empty or reduced state
-instead of failing. The dashboard renders the same tree regardless of
-vehicle motion; distraction responsibility stays with the driver and the
-vehicle's own cluster.
+## Driving data and trips
 
-## Download
+- **Speed overlay.** Current speed, trip distance, average speed,
+  altitude, and the reverse-geocoded address of the current position,
+  rendered in high-contrast numerals. A tap on the reset button starts
+  a new trip with a "Since" timestamp.
+- **Trip recording.** An on-device track log records the route at one
+  fix per second while driving, with a configurable retention period.
+  Recorded trips export as GPS Exchange Format (GPX) files through the
+  system file picker.
+- **Trip flythrough.** A tap on the speed panel opens a
+  three-dimensional wireframe replay of the recorded track — a
+  flythrough with a speed-coloured trail and altitude curtain, rendered
+  natively for smooth motion, with a two-dimensional fallback on
+  devices without the required graphics support.
+
+## Glanceable panels
+
+- **Weather.** Current conditions, feels-like temperature, wind, and
+  humidity from the Norwegian Meteorological Institute (MET Norway),
+  with an hourly strip on the card and a full-screen panel built around
+  a 24-hour temperature curve, precipitation nowcast, and daily range
+  bars. Forecasts stay readable offline through an on-device cache.
+- **Calendar.** A multi-day strip plus upcoming events read from the
+  device calendar, with per-calendar visibility selection and a
+  full-screen agenda panel. Event colours match the calendar colours.
+- **Now playing.** The active media session of any music app: title,
+  artist, album, cover art, and transport controls, including shuffle
+  and repeat where the source app supports them. Cover art opens a
+  full-screen player. Long titles scroll only while the vehicle is
+  parked and truncate while moving. A spectrum visualisation renders on
+  devices whose audio stack supports capture.
+- **Clock.** A self-updating clock honouring the system 12/24-hour
+  preference, with optional seconds.
+- **Status cluster.** Wi-Fi and cellular signal, Bluetooth state, GPS
+  reception, and battery level with charging state.
+
+## Apps and voice
+
+- **Dock.** An application dock attaches to any screen edge. A
+  long-press edits the dock: buttons and status icons reorder or hide
+  individually, and a reset restores the default layout.
+- **App panel.** A full-screen application panel offers search, a
+  pinned-apps row, recently used apps, an A–Z fast-scroll index, and
+  three icon-size presets. A long-press on an app opens App info or
+  uninstalls the app.
+- **Voice assistant.** A microphone button captures speech in-launcher
+  with a live transcript, and falls back to the system voice assistant
+  when no on-device recognizer exists or the microphone permission is
+  denied.
+
+## Made for the car — and adjustable
+
+Automotive defaults keep the dashboard legible and operable while
+driving: body text stays at or above 16 sp, touch targets stay at or
+above 64 dp, and the layout anchors cards clear of the driver's view
+with a left- and right-hand-drive switch. Every default remains a user
+choice rather than a lockout:
+
+- **Layout.** Any orientation and aspect ratio, from wide head units to
+  portrait phone mounts; the dashboard reflows across a matrix of
+  screen sizes. Display size offers small / medium / large scales, and
+  the small scale deliberately trades the automotive floors for
+  density.
+- **Appearance.** Material You dynamic colour by default, fixed accent
+  presets as an alternative, light / dark / automatic theme, and a
+  configurable glass look (blur, borders, drop shadows) for the
+  floating cards.
+- **Typography.** The system font by default, any Google Fonts family
+  per slot (a Latin face plus a Chinese-Japanese-Korean fallback face)
+  downloaded on demand, or any font already installed on the device —
+  plus user-adjustable text size, weight, and letter spacing. No fonts
+  ship inside the APK and no Play Services are required.
+- **Motion.** A reduced-motion setting calms animations across the
+  dashboard.
+- **Panels.** Calendar, weather, and music cards toggle individually;
+  the music card's spectrum, album name, and cover art each have a
+  visibility switch.
+- **Units.** Speed and temperature units and the clock format follow
+  the user, independent of the system locale.
+
+Every panel degrades gracefully: a denied permission or an unavailable
+data source renders a reduced state instead of an error screen. The
+dashboard renders identically regardless of vehicle motion —
+distraction responsibility stays with the driver and the vehicle's own
+instruments.
+
+## Privacy and data
+
+- Femto Car Launcher requires no account and contains no advertising
+  and no analytics.
+- Location, calendar, and media data stay on the device. Network
+  traffic goes only to the services the user selects: map tiles from
+  the chosen map provider, weather from MET Norway, and — only when the
+  user configures a self-hosted geocoding host — reverse-geocoding
+  queries; the default reverse geocoder runs on-device.
+- Mapbox tokens and Google Maps keys are entered by the user, stored
+  only on the device, and sent only to the matching provider.
+- Notification access, when granted, is used solely to read and control
+  the active media session for the now-playing card.
+- An in-app diagnostics report (Settings → System) summarises device
+  and runtime facts for troubleshooting, and the open-source licenses
+  screen lists every bundled third-party component.
+
+## Installation
 
 Every merge to `main` publishes a release-signed APK as a rolling
 prerelease tagged
 [`nightly`](https://github.com/seijikohara/femto-car-launcher/releases/tag/nightly).
-The tag is re-pointed to the built commit each run, so the release always
-reflects the latest `main`. Install it with `adb install -r <apk>` or by
-sideloading on the head unit. Play Store publication is not planned at this
-time; sideloading is the supported installation path.
+Install the APK by sideloading on the head unit or with
+`adb install -r femto-car-launcher-nightly.apk`. Play Store publication
+is not planned at present; sideloading is the supported installation
+path. Android 13 or later is required.
 
-## Architecture
+To enable the optional paid map providers in Settings → Map:
 
-- **UI:** Jetpack Compose with Material 3 and Material You dynamic colour.
-- **Pattern:** unidirectional data flow (UDF). State flows down through an
-  immutable `UiState`; events flow up through an `(Action) -> Unit` lambda.
-  Stateful screens follow the `Route` + `Screen` + `ViewModel` shape.
-- **Entry point:** a single `ComponentActivity` (`MainActivity`) registered
-  as a `HOME` launcher with `launchMode="singleTask"`.
-- **Data:** one repository per dashboard source, each exposing a Kotlin
-  `Flow`. User preferences persist through Jetpack DataStore.
-- **Map page:** the live map is a separate TypeScript application under
-  [`webmap/`](webmap/) (Vite + MapLibre GL JS). Gradle builds it with a
-  self-provisioned Node.js + pnpm toolchain and embeds the output in the
-  app's assets; the launcher loads it in a WebView.
-- **Network:** the map is keyless. Weather uses MET Norway
-  (`api.met.no`, free for commercial use); reverse geocoding uses the
-  on-device platform geocoder by default. Both accept a configurable
-  self-hosted host (see [Configuration](#configuration)).
+- **Mapbox** — enter a personal public access token (`pk.…`). The
+  token stores on-device; no build-time configuration exists.
+- **Google Maps** — enter a personal Google Maps Platform API key with
+  the Maps JavaScript API enabled and an HTTP-referrer restriction
+  allowing `https://appassets.androidplatform.net/*`. An optional Map
+  ID (created in the Google Cloud console) renders a vector map with
+  heading-up rotation, tilt, and 3D; a blank Map ID renders a flat
+  north-up raster map.
 
-## Tech stack
+## Building from source
 
-- Kotlin and Jetpack Compose (Material 3), built with the Android Gradle
-  Plugin (AGP) 9.
-- Gradle 9, a Java Development Kit (JDK) 21 toolchain, and Java 11
-  source/target compatibility.
-- `minSdk = 33` (Android 13), `targetSdk = 36`.
-- Web map page: TypeScript, Vite, and MapLibre GL JS, managed with pnpm.
-  The Gradle build provisions Node.js and pnpm itself, so no local
-  Node.js installation is needed. Vite targets `chrome109` — the
-  Android 13 factory WebView floor.
-
-[`gradle/libs.versions.toml`](gradle/libs.versions.toml) is the single
-source of truth for Gradle dependency versions
-([`webmap/package.json`](webmap/package.json) for the web page).
-
-## Project layout
-
-```text
-app/src/main/
-├── java/io/github/seijikohara/femto/
-│   ├── MainActivity.kt   # single launcher entry (HOME activity)
-│   ├── data/             # repositories, DataStore wrappers, network APIs
-│   └── ui/
-│       ├── home/         # the dashboard: panels, overlays, status cluster
-│       ├── drawer/       # full app drawer with pinned dock
-│       ├── assistant/    # voice-assistant bottom sheet
-│       ├── settings/     # in-app settings
-│       ├── diagnostics/  # in-app diagnostics report
-│       ├── licenses/     # open-source licenses screen
-│       ├── fontpicker/   # per-slot Google Fonts picker
-│       ├── common/       # shared modal-sheet helpers
-│       ├── locale/       # unit and locale formatting
-│       └── theme/        # FemtoTheme, design tokens, previews
-└── res/                  # themes, strings (per-locale), launcher icon
-webmap/                   # TypeScript source of the live map page
-                          # (built into app assets by Gradle)
-```
-
-## Build and run
-
-**Prerequisites:** JDK 21, Android Studio (latest stable), and an Android
-13+ device or Android Virtual Device (AVD). Node.js and pnpm are **not**
-prerequisites — the Gradle build downloads its own copies to compile the
-`webmap/` page.
+A Java Development Kit (JDK) 21 and an Android 13+ device or emulator
+are the only prerequisites; the Gradle build provisions Node.js and
+pnpm on demand for the bundled map page.
 
 ```bash
-./gradlew assembleDebug      # build the debug APK (includes the webmap build)
-./gradlew test               # JVM unit tests
-./gradlew lint               # Android Lint
-./gradlew connectedAndroidTest  # instrumented tests (device / emulator)
-./gradlew spotlessCheck      # format / lint check
-./gradlew spotlessApply      # auto-fix format violations
+./gradlew assembleDebug   # debug APK at app/build/outputs/apk/debug/
+./gradlew test lint       # unit tests and Android Lint
 ```
 
-The debug Android Package (APK) is written to
-`app/build/outputs/apk/debug/app-debug.apk`. Install it with
-`adb install -r <apk>` or run the app from Android Studio. To smoke-test on
-an emulator, create an AVD that approximates a head-unit display (a wide
-landscape profile) and launch the app as the home activity, or use a
-regular phone AVD in portrait — the dashboard adapts to both.
-
-## Configuration
-
-The launcher runs with no configuration: `./gradlew assembleDebug`
-produces a working build. The default OSM map backend (MapLibre + OpenFreeMap)
-needs no API key. To enable the optional Mapbox backend, enter your own Mapbox
-public access token (`pk.…`) in Settings → Map on the device; the token is
-stored on-device and requires no build-time configuration. The optional Google
-Maps backend works the same way: enter your own Google Maps Platform API key in
-Settings → Map. The key needs the Maps JavaScript API enabled and an
-HTTP-referrer restriction that allows `https://appassets.androidplatform.net/*`;
-it is stored on-device and requires no build-time configuration. Optionally,
-also enter a **Map ID** (created in the Google Cloud console) to render a vector
-map with heading-up rotation, tilt, and 3D; leave it blank for a flat north-up
-raster map. An invalid Map ID renders nothing — clear it to fall back to the
-raster map.
-
-Two network services default to shared public endpoints that are fine for
-development and evaluation but are rate-limited and unsuitable for
-production traffic. Override them for a release build through the git-ignored
-`local.properties` file, which feeds `BuildConfig` at build time:
-
-| Property | Purpose | Default |
-| --- | --- | --- |
-| `WEATHER_BASE_URL` | MET Norway host (or a self-hosted proxy) | `https://api.met.no/` |
-| `GEOCODER_BASE_URL` | Self-hosted Nominatim-compatible reverse-geocoding host | empty (on-device platform geocoder) |
-| `GEOCODER_API_KEY` | Geocoder key (when the host requires one) | empty |
-
-Weather defaults to the public MET Norway endpoint (free for commercial use,
-ToS-compliant). Reverse geocoding has **no** public default: when
-`GEOCODER_BASE_URL` is empty the launcher uses the on-device platform geocoder;
-set it to a self-hosted host to use network geocoding instead.
-
-## Continuous integration
-
-The [`CI`](.github/workflows/ci.yml) workflow runs on every pull request
-and on pushes to `main`:
-
-- **Checks** (all triggers): three parallel jobs on Temurin JDK 21
-  runners — `static-checks` (`spotlessCheck lint`), `unit-tests`
-  (`test verifyRoborazziDebug`), and `assemble` (`assembleDebug`).
-- **Validate** (all triggers): a lightweight gate that requires every
-  `Checks` job to succeed; this is the single required status check.
-- **Publish nightly** (`main` pushes and manual `workflow_dispatch`
-  only, after `Validate` passes): builds the release-signed APK and
-  AAB behind the [Download](#download) badge.
-
-The nightly APK is **release-signed**; local and contributor
-`./gradlew assembleRelease` builds stay **unsigned**, because the signing
-config is registered only when the keystore environment variables are
-present. Maintainer setup for the signing secrets lives in
-[`.github/RELEASING.md`](.github/RELEASING.md).
+Contributor documentation, including verification commands and coding
+rules, lives in [`CLAUDE.md`](CLAUDE.md) and `.claude/rules/`.
