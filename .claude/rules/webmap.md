@@ -5,9 +5,15 @@ paths:
 
 # Webmap
 
-Rules for `webmap/`, the TypeScript source of the map WebView pages
-(one HTML entry point per backend — `map.html` for OSM/MapLibre,
-`mapbox.html` for Mapbox, `googlemaps.html` for Google Maps).
+Rules for `webmap/`, the TypeScript source of the map WebView page:
+one entry point (`index.html`), whose `?backend=` query parameter
+(`osm` / `mapbox` / `googlemaps`, resolved in `src/backend-name.ts`)
+selects the dynamically imported backend module under
+`src/backends/` — Vite code-splits each backend into its own chunk,
+so a page only fetches the library it renders with. The shared
+camera-follow engine (`src/follow-camera.ts`), chevron helpers
+(`src/chevron.ts`), and bridge plumbing (`src/bridge.ts`) are one
+implementation across backends.
 Dependency versions live in `webmap/package.json` +
 `pnpm-lock.yaml` + `pnpm-workspace.yaml` (the Vite+ catalog; together
 the SSOT) — never restate version numbers here.
@@ -32,7 +38,8 @@ corner wherever the backend's own ToS permits:
   `showsNativeAttribution`).
 - **Mapbox**: the wordmark (`logoPosition`) and the
   `AttributionControl` are both pinned `"bottom-left"` in
-  `mapbox-main.ts`; ToS forbid hiding either, only moving them.
+  `src/backends/mapbox.ts`; ToS forbid hiding either, only moving
+  them.
 - **Google Maps**: the **one exception**. The Maps JS API fixes the
   Google logo bottom-left but the copyright / ToS text bottom-right
   and exposes no supported way to relocate either; the split stays

@@ -60,9 +60,11 @@ import kotlinx.coroutines.delay
 /**
  * Live map in a WebView — the only path that renders a smooth, animated map
  * *inside Compose*. The backend chosen in the Settings Map section (OSM / MapLibre,
- * or the BYO-credential Mapbox and Google Maps backends) selects the page loaded —
- * `map.html`, `mapbox.html`, or `googlemaps.html` — and all three honour the same
- * host-bridge contract, so this one composable drives any of them. A native live
+ * or the BYO-credential Mapbox and Google Maps backends) selects the
+ * `index.html?backend=` query parameter; the page's entry module
+ * dynamic-imports the matching backend module (`webmap/src/backends/`), and
+ * every backend honours the same host-bridge contract, so this one composable
+ * drives any of them. A native live
  * `MapView` is grey in a Compose `AndroidView` on the head unit (its GL surface is
  * not composited); a WebView composites inline through HWUI and the GL JS library
  * animates the camera. Each page (TypeScript under `webmap/`, built by Gradle into
@@ -339,18 +341,18 @@ internal fun WebMapView(
                         // Block body: a @JavascriptInterface method must not leak
                         // a non-primitive return type to the JS side.
 
-                        // Read synchronously by mapbox.html before map initialisation
+                        // Read synchronously by the mapbox backend module before map initialisation
                         // to authenticate the Mapbox GL JS instance. The token comes
                         // from MapConfig (user-supplied at runtime via DisplaySettings).
                         @JavascriptInterface
                         fun mapboxToken(): String = mapConfig.mapboxToken
 
-                        // Read synchronously by googlemaps.html before map initialisation
+                        // Read synchronously by the googlemaps backend module before map initialisation
                         // to authenticate the Maps JavaScript API instance.
                         @JavascriptInterface
                         fun googleMapsApiKey(): String = mapConfig.googleMapsApiKey
 
-                        // Read synchronously by googlemaps.html to enable vector
+                        // Read synchronously by the googlemaps backend module to enable vector
                         // rendering; empty string means the default raster map is used.
                         @JavascriptInterface
                         fun googleMapsMapId(): String = mapConfig.googleMapsMapId
@@ -409,7 +411,7 @@ internal fun WebMapView(
     val markerColor = MaterialTheme.colorScheme.primary.toCssHex()
 
     // Resolve the colour scheme for the active light/dark context. ACCENT recolours
-    // the bundled base with these Material colours (in map.html's transformStyle);
+    // the bundled base with these Material colours (the OSM module's transformStyle);
     // the others are plain hosted / bundled styles.
     val styleRef = mapStyleRefFor(if (isDark) mapConfig.schemeDark else mapConfig.schemeLight, isDark)
     val accentColors = accentMapColors(isDark)
@@ -646,21 +648,24 @@ private const val WEB_BASE = "$APPASSETS_ORIGIN/assets/web/"
 // MapLibre's tile Worker can fetch it (and the asset's OpenFreeMap sources) cross-origin.
 private fun appAssetsUrl(asset: String): String = "$APPASSETS_ORIGIN/assets/$asset"
 
-// Select the HTML page to load based on the active map backend.
+// Page URL for the active map backend: one entry page, selected by the
+// ?backend= query parameter (the value set mirrors webmap/src/backend-name.ts,
+// a compatibility contract). Distinct URLs per backend keep a backend switch a
+// full page load.
 internal fun mapPageUrl(backend: MapBackend) =
-    WEB_BASE + when (backend) {
-        MapBackend.MAPBOX -> "mapbox.html"
-        MapBackend.GOOGLEMAPS -> "googlemaps.html"
-        MapBackend.OSM -> "map.html"
+    WEB_BASE + "index.html?backend=" + when (backend) {
+        MapBackend.MAPBOX -> "mapbox"
+        MapBackend.GOOGLEMAPS -> "googlemaps"
+        MapBackend.OSM -> "osm"
     }
 
 // Whether the host draws the native tile-credit overlay ([Attribution]) for this
-// backend. Only the OSM page hides its web-side attribution (map.html's CSS +
-// main.ts's `attributionControl: false`) and leans on the host for the
+// backend. Only the OSM backend hides its web-side attribution (index.html's CSS +
+// the OSM module's `attributionControl: false`) and leans on the host for the
 // OpenStreetMap / OpenMapTiles / OpenFreeMap credit. Mapbox and Google Maps render
-// their own ToS-mandated attribution INSIDE the WebView (mapbox-main.ts keeps the
-// Mapbox AttributionControl + logo; googlemaps-main.ts keeps Google's logo +
-// credit), so a native overlay there would both duplicate that credit and — by
+// their own ToS-mandated attribution INSIDE the WebView (backends/mapbox.ts keeps
+// the Mapbox AttributionControl + logo; backends/googlemaps.ts keeps Google's logo
+// + credit), so a native overlay there would both duplicate that credit and — by
 // naming OpenMapTiles / OpenFreeMap — misattribute tiles those backends never serve.
 internal fun showsNativeAttribution(backend: MapBackend) = backend == MapBackend.OSM
 

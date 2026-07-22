@@ -6,7 +6,7 @@ import { defineConfig } from "vite-plus";
 
 export default defineConfig({
     // Relative asset URLs: the page is served from
-    // https://appassets.androidplatform.net/assets/web/map.html, so absolute
+    // https://appassets.androidplatform.net/assets/web/index.html, so absolute
     // "/assets/..." URLs would escape the web/ asset subtree.
     base: "./",
     build: {
@@ -17,11 +17,10 @@ export default defineConfig({
         // whole dist/ directory is wired into the Android assets source set.
         outDir: "dist/web",
         rollupOptions: {
-            input: {
-                map: resolve(import.meta.dirname, "map.html"),
-                mapbox: resolve(import.meta.dirname, "mapbox.html"),
-                googlemaps: resolve(import.meta.dirname, "googlemaps.html"),
-            },
+            // One entry page for all backends; main.ts resolves ?backend= and
+            // dynamic-imports the matching module, which Vite code-splits into
+            // per-backend chunks.
+            input: resolve(import.meta.dirname, "index.html"),
         },
     },
     test: {

@@ -38,9 +38,7 @@ val buildWebMap =
         pnpmCommand.set(listOf("run", "build"))
         inputs.dir("../webmap/src")
         inputs.files(
-            "../webmap/googlemaps.html",
-            "../webmap/map.html",
-            "../webmap/mapbox.html",
+            "../webmap/index.html",
             "../webmap/no-let.js",
             "../webmap/package.json",
             "../webmap/pnpm-lock.yaml",

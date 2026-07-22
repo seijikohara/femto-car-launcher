@@ -8,23 +8,23 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class WebMapPageTest {
-    @Test fun `osm backend loads map_html`() {
+    @Test fun `osm backend loads the entry page with the osm parameter`() {
         assertEquals(
-            "https://appassets.androidplatform.net/assets/web/map.html",
+            "https://appassets.androidplatform.net/assets/web/index.html?backend=osm",
             mapPageUrl(MapBackend.OSM),
         )
     }
 
-    @Test fun `mapbox backend loads mapbox_html`() {
+    @Test fun `mapbox backend loads the entry page with the mapbox parameter`() {
         assertEquals(
-            "https://appassets.androidplatform.net/assets/web/mapbox.html",
+            "https://appassets.androidplatform.net/assets/web/index.html?backend=mapbox",
             mapPageUrl(MapBackend.MAPBOX),
         )
     }
 
-    @Test fun `google maps backend loads googlemaps_html`() {
+    @Test fun `google maps backend loads the entry page with the googlemaps parameter`() {
         assertEquals(
-            "https://appassets.androidplatform.net/assets/web/googlemaps.html",
+            "https://appassets.androidplatform.net/assets/web/index.html?backend=googlemaps",
             mapPageUrl(MapBackend.GOOGLEMAPS),
         )
     }

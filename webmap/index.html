@@ -7,35 +7,36 @@
             content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
         />
         <style>
-            /* Google Maps lays out its internal containers with height:100%, so the
-         map element needs a DEFINITE height to resolve against — a
-         position:fixed;inset:0 box (as the OSM/Mapbox pages use, where the GL
-         lib measures the element in JS) leaves Google's inner divs at height 0
-         and the map renders blank. Give html/body/#map an explicit 100% height
-         chain, exactly as the Google Maps reference requires. */
             html,
             body {
                 margin: 0;
                 padding: 0;
-                height: 100%;
                 background: #eaeaea;
             }
-            /* #map is positioned but sized in JS with explicit pixel width/height
-         (sizeContainer in googlemaps-main.ts). Google Maps' inner containers use
-         height:100%, which only resolves against a DEFINITE container height — a
-         position:fixed;inset:0 box (as the OSM/Mapbox pages use, where the GL lib
-         measures the element itself) is auto-height and Google's inner divs
-         collapse to 0, leaving the map blank. Explicit px makes it definite. */
+            /* height:100% resolves to 0 inside an Android WebView (the container
+         measures 0 px tall); fixed/inset fills the WebView viewport reliably
+         for the GL backends, whose libraries measure the element themselves.
+         The Google Maps backend additionally sets explicit pixel width/height
+         from JS (sizeContainer in backends/googlemaps.ts) because Google's
+         inner height:100% containers need a DEFINITE height to resolve
+         against — the explicit size wins over the inset shorthand. */
             #map {
                 position: fixed;
-                top: 0;
-                left: 0;
+                inset: 0;
             }
-            /* Self-location chevron pinned at a fixed screen spot. The camera centres
-         the location to it, so the chevron stays put and the map slides /
-         rotates beneath it (car-nav style) instead of the marker sliding to
-         catch the eased camera. Shared marker model with the OSM and Mapbox
-         pages (main.ts / mapbox-main.ts). */
+            /* OSM backend only: the page hides MapLibre's own attribution and
+         logo; the OSM tile credit is drawn natively by the host
+         (showsNativeAttribution in WebMapView.kt). The Mapbox and Google
+         backends keep their ToS-mandated in-page attribution — their classes
+         never match these selectors. */
+            .maplibregl-ctrl-attrib,
+            .maplibregl-ctrl-logo {
+                display: none;
+            }
+            /* Self-location chevron pinned at a fixed screen spot (centre X,
+         markerPos height). The camera brings the location to it, so the
+         chevron stays put and the map slides / rotates beneath it (car-nav
+         style) instead of the marker sliding to catch the eased camera. */
             #self-marker {
                 position: fixed;
                 left: 50%;
@@ -44,17 +45,19 @@
                 display: none;
                 will-change: top, transform;
             }
-            /* Shared marker styling (.self-marker class): colour, ripple, and
-         stale-greying. */
+            /* Shared marker styling (.self-marker class): applies to the
+         screen-fixed chevron AND the geo-anchored clone shown while the
+         camera is detached, so colour, ripple, and stale-greying stay
+         identical in both modes. */
             .self-marker {
                 pointer-events: none;
             }
             /* Live-position ripple: a fading disc per period expanding past the
          chevron, with a ring edge so the pulse reads clearly. Coloured by
-         --marker-color (Material primary, set per fix from googlemaps-main.ts).
-         Mirrors the OSM / Mapbox chevron's ripple. */
-            /* Keep the chevron above the ripple (a positioned sibling would otherwise
-         paint over it). */
+         --marker-color (Material primary, set per fix by the backend
+         modules). */
+            /* Keep the chevron above the ripple (a positioned sibling would
+         otherwise paint over it). */
             .self-marker svg {
                 position: relative;
                 z-index: 1;
@@ -82,18 +85,35 @@
                     opacity: 0;
                 }
             }
-            /* Position lost (a tunnel): grey the chevron whatever its colour and stop
-         the ripple. googlemaps-main.ts toggles .stale from the staleness timer. */
+            /* Position lost (a tunnel): grey the chevron whatever its colour and
+         stop the ripple. The backend modules toggle .stale from the shared
+         staleness ticker (chevron.ts). */
             .self-marker.stale svg {
                 filter: grayscale(1);
             }
             .self-marker.stale .ripple {
                 display: none;
             }
+            /* Style-swap cross-fade (OSM backend only): a frozen capture of the
+         outgoing style pinned over the map, faded out once the incoming
+         style has rendered. Hidden and inert for the other backends. */
+            #style-fade {
+                position: fixed;
+                inset: 0;
+                z-index: 10;
+                pointer-events: none;
+                display: none;
+                opacity: 0;
+            }
+            #style-fade img {
+                width: 100%;
+                height: 100%;
+            }
         </style>
     </head>
     <body>
         <div id="map"></div>
+        <div id="style-fade"><img alt="" /></div>
         <div id="self-marker" class="self-marker">
             <!-- Decorative self-location chevron; the host UI owns the accessible name. -->
             <span class="ripple"></span>
@@ -113,6 +133,6 @@
                 />
             </svg>
         </div>
-        <script type="module" src="/src/googlemaps-main.ts"></script>
+        <script type="module" src="/src/main.ts"></script>
     </body>
 </html>
