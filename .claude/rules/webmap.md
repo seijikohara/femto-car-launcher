@@ -18,13 +18,16 @@ Dependency versions live in `webmap/package.json` +
 `pnpm-lock.yaml` + `pnpm-workspace.yaml` (the Vite+ catalog; together
 the SSOT) — never restate version numbers here.
 `app/src/main/assets/licenses/` holds the license texts for the
-bundled OSS map styles (Positron / Dark Matter) and MapLibre GL JS
-(BSD-3-Clause) — keep it in step with what each page bundles under
-an OSS license. Mapbox GL JS ships under Mapbox's own proprietary
+bundled OSS map styles (Positron / Dark Matter), MapLibre GL JS
+(BSD-3-Clause), and the Google Maps JS API loader package
+(Apache-2.0) — keep it in step with what the page bundles under an
+OSS license (AboutLibraries manual entries under `app/config/`
+mirror the same set). Mapbox GL JS ships under Mapbox's own proprietary
 Terms of Service rather than a redistributable OSS license (the end
 user's own Mapbox account and token govern its use), so it has no
-bundled license file here; a CDN-loaded library (e.g. the Google
-Maps JavaScript API) likewise needs none.
+bundled license file here; a CDN-loaded library (the Google Maps
+JavaScript API itself, fetched at runtime by the bundled loader)
+likewise needs none.
 
 ## Credit placement
 

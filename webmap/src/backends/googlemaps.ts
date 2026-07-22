@@ -2,10 +2,11 @@
 // the host loads index.html?backend=googlemaps.
 //
 // The Google Maps JS API is loaded at runtime from Google's CDN via the
-// official inline bootstrap loader — it must never be bundled or self-hosted
-// (Google Maps Platform ToS). The loader is injected programmatically so the
-// API key comes from the Android bridge at runtime rather than being baked
-// into the HTML at build time.
+// official @googlemaps/js-api-loader npm package — the loading path Google
+// recommends (developers.google.com/maps/documentation/javascript/libraries-open-source).
+// Only the LOADER is bundled; the API itself must never be bundled or
+// self-hosted (Google Maps Platform ToS). The key comes from the Android
+// bridge at runtime rather than being baked in at build time.
 //
 // Two render modes, chosen by whether the user supplied a Cloud Map ID
 // (femtoBridge.googleMapsMapId()):
@@ -34,6 +35,7 @@
 // chevron simply hides while detached (a geo-anchored OverlayView is the
 // documented follow-up). It shares the chevron helpers, the bridge plumbing,
 // and the camera.ts / style.ts pure math.
+import { importLibrary, setOptions } from "@googlemaps/js-api-loader";
 import type { PageReporter, PendingBridgeCalls } from "../bridge";
 import { webglSupport } from "../bridge";
 import {
@@ -63,7 +65,10 @@ interface GoogleMapsFemtoBridge {
 }
 
 // Minimal type stubs for the Google Maps JS API (CDN-loaded at runtime,
-// never bundled). These cover only the surface this module exercises.
+// never bundled). These cover only the surface this module exercises — kept
+// narrow and local on purpose, decoupled from the full weekly-channel
+// @types/google.maps global surface the loader package pulls in; the one
+// boundary cast sits at the importLibrary call.
 interface GMLatLng {
     lat: number;
     lng: number;
@@ -117,8 +122,6 @@ interface GMMapsLibrary {
     TrafficLayer: new () => GMTrafficLayer;
 }
 interface GMNamespace {
-    importLibrary(name: "maps"): Promise<GMMapsLibrary>;
-    importLibrary(name: string): Promise<Record<string, unknown>>;
     // google.maps.Point constructor — Projection.fromPointToLatLng requires a
     // Point instance (it does not accept a literal).
     Point: new (x: number, y: number) => GMPoint;
@@ -237,8 +240,8 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     }
 
     // gm_authFailure is Google's global hook for invalid/revoked API keys.
-    // Install it before injecting the bootstrap loader so it is in place
-    // before any authentication attempt. Only report fatal before the first
+    // Install it before the loader fetches the API so it is in place before
+    // any authentication attempt. Only report fatal before the first
     // successful render — errors after that are transient, not a permanent
     // key failure.
     window.gm_authFailure = () => {
@@ -246,17 +249,13 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         if (!state.rendered) report("fatal", "google-maps-auth");
     };
 
-    // Inject the official Google Maps JS API inline bootstrap loader with the
-    // runtime key. The loader snippet is taken verbatim from Google's docs
-    // (https://developers.google.com/maps/documentation/javascript/dynamic-loading).
-    // The API must be loaded from Google's CDN — never bundled or self-hosted.
-    const bootstrapScript = document.createElement("script");
-    bootstrapScript.textContent = `(g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=\`https://maps.\${c}apis.com/maps/api/js?\`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({key:${JSON.stringify(key)},v:"weekly"});`;
-    document.head.appendChild(bootstrapScript);
-
-    // importLibrary is available immediately after the bootstrap snippet runs.
-    const gm = gmapsNS();
-    const mapsLib = await gm.importLibrary("maps");
+    // Load the Maps JS API from Google's CDN through the official loader
+    // package with the runtime key. A rejected import (network, blocked CDN)
+    // propagates to the boot module's catch, which reports a fatal the host
+    // can auto-retry. The cast narrows the loader's full google.maps typing
+    // to the local stubs above.
+    setOptions({ key, v: "weekly" });
+    const mapsLib = (await importLibrary("maps")) as unknown as GMMapsLibrary;
 
     const mapEl = document.getElementById("map");
     if (!mapEl) {
