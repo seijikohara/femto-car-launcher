@@ -72,11 +72,23 @@ export interface PageReporter {
 
 const ERROR_REPORT_INTERVAL_MS = 10_000;
 
+// Credential query parameters ride the provider URLs inside error strings
+// (Mapbox appends the BYO access_token to style/tile URLs; Google appends
+// key). Redact them before a detail leaves the page: the host logs details
+// to logcat in EVERY build, and the debug notice prints them on screen. A
+// pk. public token is client-embedded by design, but a screenshot or a log
+// capture must not hand it out verbatim.
+const SECRET_QUERY_PARAM = /([?&](?:access_token|api_?key|key|token)=)[^&#\s"']+/gi;
+
+export function redactSecrets(detail: string): string {
+    return detail.replace(SECRET_QUERY_PARAM, "$1<redacted>");
+}
+
 // Module-scoped (it captures nothing per reporter): the one funnel for every
 // JS -> Android event.
 function reportToHost(kind: MapEventKind, detail: unknown): void {
     try {
-        window.femtoBridge?.onMapEvent(kind, String(detail ?? ""));
+        window.femtoBridge?.onMapEvent(kind, redactSecrets(String(detail ?? "")));
     } catch {
         // The bridge may be absent outside the launcher (e.g. vp dev).
     }
@@ -89,7 +101,9 @@ export function createReporter(prefix: string): PageReporter {
     return {
         log(msg: string): void {
             try {
-                console.log(`[${prefix}] ${msg}`);
+                // Redacted like reportToHost: WebView console lines reach
+                // logcat in every build.
+                console.log(`[${prefix}] ${redactSecrets(msg)}`);
             } catch {
                 // Logging must never break the page.
             }
