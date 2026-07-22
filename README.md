@@ -112,10 +112,11 @@ vehicle.
 ## Made for the car — and adjustable
 
 Automotive defaults keep the dashboard legible and operable while
-driving: body text stays at or above 16 sp, touch targets stay at or
-above 64 dp, and the layout anchors cards clear of the driver's view
-with a left- and right-hand-drive switch. Every default remains a user
-choice rather than a lockout:
+driving: at the default display size, body text stays at or above
+16 sp and touch targets stay at or above 64 dp, and the layout
+anchors cards clear of the driver's view with a left- and
+right-hand-drive switch. Every default remains a user choice rather
+than a lockout:
 
 - **Layout.** Any orientation and aspect ratio, from wide head units to
   portrait phone mounts; the dashboard reflows across a matrix of
@@ -195,4 +196,4 @@ pnpm on demand for the bundled map page.
 ```
 
 Contributor documentation, including verification commands and coding
-rules, lives in [`CLAUDE.md`](CLAUDE.md) and `.claude/rules/`.
+rules, lives in [`AGENTS.md`](AGENTS.md) and `.claude/rules/`.
