@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -658,12 +659,14 @@ private fun LiveMapNotice(
         text = stringResource(titleRes),
         style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onSurface,
+        textAlign = TextAlign.Center,
         modifier = Modifier.padding(top = 8.dp),
     )
     Text(
         text = stringResource(hintRes),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
         modifier = Modifier.padding(top = 4.dp),
     )
     if (reason != null) {
@@ -671,6 +674,7 @@ private fun LiveMapNotice(
             text = reason,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 4.dp),
         )
     }
