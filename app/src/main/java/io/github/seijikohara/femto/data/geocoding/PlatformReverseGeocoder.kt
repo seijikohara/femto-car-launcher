@@ -22,7 +22,7 @@ private const val TAG = "PlatformReverseGeocoder"
  * backend, which [Geocoder.isPresent] reports up front.
  *
  * Follows the device locale (read per request via [localeProvider]) so no single
- * market is privileged (CLAUDE.md, multi-region distribution).
+ * market is privileged (AGENTS.md, multi-region distribution).
  */
 internal class PlatformReverseGeocoder(
     context: Context,

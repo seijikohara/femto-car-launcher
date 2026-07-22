@@ -7,7 +7,7 @@ paths:
 # Design system
 
 Design-system rules for femto-car-launcher UI; the automotive
-floors live in `CLAUDE.md#automotive-overrides`.
+floors live in `AGENTS.md#automotive-overrides`.
 
 Material You (Material 3) foundation, **Bold Minimal** aesthetic,
 with automotive overrides on top.

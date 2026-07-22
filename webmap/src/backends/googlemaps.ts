@@ -446,7 +446,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             // Maps has no mapId-free, non-deprecated geo-marker —
             // AdvancedMarkerElement needs a Cloud-configured mapId, and the
             // classic google.maps.Marker is deprecated (barred by
-            // CLAUDE.md#no-suppress). So the self-marker is simply hidden
+            // AGENTS.md#no-suppress). So the self-marker is simply hidden
             // while detached. A geo-anchored OverlayView (the only mapId-free,
             // non-deprecated route, materially more complex) is a documented
             // follow-up.

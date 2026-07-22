@@ -40,7 +40,7 @@
         hardware; the cellular indicator degrades — cellularFlow()
         and cellularLevelFlow() guard FEATURE_TELEPHONY and emit null — so
         such units must still see and install the launcher (multi-region
-        distribution). See CLAUDE.md#launcher-behavior.
+        distribution). See AGENTS.md#launcher-behavior.
     -->
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 

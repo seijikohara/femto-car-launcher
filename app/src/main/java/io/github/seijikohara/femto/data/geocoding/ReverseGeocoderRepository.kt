@@ -152,7 +152,7 @@ internal class ReverseGeocoderRepository(
     )
 
     // Internal (not private) so tests reference these bounds directly instead
-    // of mirroring the values (CLAUDE.md#ssot-dry).
+    // of mirroring the values (AGENTS.md#ssot-dry).
     internal companion object {
         const val BUCKET_M = 100f
 

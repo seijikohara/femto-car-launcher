@@ -30,16 +30,16 @@ scope rather than reviewing the whole repo.
 
 ## Source of truth
 
-`CLAUDE.md` (always loaded) plus the rule files under
+`AGENTS.md` (the rule SSOT) plus the rule files under
 `.claude/rules/` are the rule SSOT. Before flagging or clearing
 findings, Read every `.claude/rules/*.md` whose scope (per
-CLAUDE.md's rules index) covers a file in the diff — they are
+AGENTS.md's rules index) covers a file in the diff — they are
 short; when in doubt read them all. If the project memory
 directory described in CLAUDE.md's Memory section is readable,
 consult it for decision history; skip silently if not.
 
 Do **not** maintain a parallel rule list from memory or in this
-agent. If a rule changes, it changes in `CLAUDE.md` or
+agent. If a rule changes, it changes in `AGENTS.md` or
 `.claude/rules/`; re-read on each invocation.
 
 ## What you check
@@ -47,20 +47,20 @@ agent. If a rule changes, it changes in `CLAUDE.md` or
 These findings are **Blocking**:
 
 - Tap-target or body-text floor violations on dashboard surfaces
-  (`CLAUDE.md#automotive-overrides`).
+  (`AGENTS.md#automotive-overrides`).
 - Removal of HOME / DEFAULT / LAUNCHER categories or pinning
-  `screenOrientation` (`CLAUDE.md#launcher-behavior`).
+  `screenOrientation` (`AGENTS.md#launcher-behavior`).
 - Bypassing the `FontRepository` SSOT or its cache-eviction
   contract (`.claude/rules/fonts.md`).
 - New warning/lint suppressions or baselines
-  (`CLAUDE.md#no-suppress`).
+  (`AGENTS.md#no-suppress`).
 - Leaked ViewModel mutability (`.claude/rules/compose.md`).
 - In `webmap/`: raising Vite `build.target` above the WebView
   floor, bypassing the pnpm `packageManager` pin, or adopting
-  pre-stable compiler previews (`CLAUDE.md#tech-stack` +
+  pre-stable compiler previews (`AGENTS.md#tech-stack` +
   `.claude/rules/webmap.md`).
 
-Everything else in `CLAUDE.md` and `.claude/rules/` is
+Everything else in `AGENTS.md` and `.claude/rules/` is
 **Suggestion** severity.
 
 ## How to report
@@ -69,7 +69,7 @@ Group findings by severity:
 
 1. **Blocking** — violates a rule that must hold for the launcher
    to function safely or per project policy. Cite `file:line` and
-   the rule location (CLAUDE.md anchor or rule-file path).
+   the rule location (AGENTS.md anchor or rule-file path).
 2. **Suggestion** — improves alignment or reduces drift. Cite
    `file:line` and the rule location.
 3. **Praise** — note any non-obvious-good choices. Use sparingly,

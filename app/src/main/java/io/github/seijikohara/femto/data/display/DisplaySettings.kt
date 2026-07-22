@@ -27,7 +27,7 @@ enum class AccentColor { DYNAMIC, BLUE, TEAL, GREEN, AMBER, ORANGE, RED, VIOLET,
  * Global UI scale, applied as a density multiplier over the whole UI (text, icons,
  * and layout). Five steps, symmetric around [MEDIUM] (factor 1.0): [COMPACT] and
  * [COMFORTABLE] are the midpoints between [MEDIUM] and each anchor. [MEDIUM] is the
- * safe default that honours the automotive floors (CLAUDE.md#automotive-overrides);
+ * safe default that honours the automotive floors (AGENTS.md#automotive-overrides);
  * [SMALL] and [LARGE] are explicit user opt-ins that may fall below / rise above them
  * — sanctioned because this ships as a general Play-Store app, mirroring the system
  * font-size / display-size controls. [COMPACT] and [COMFORTABLE] stay within
@@ -80,7 +80,7 @@ internal enum class MotionTier { STANDARD, REDUCED, OFF }
 
 /**
  * Screen orientation: follow the head unit ([AUTO], the default — portrait and
- * landscape units must both work, per CLAUDE.md#launcher-behavior), or force
+ * landscape units must both work, per AGENTS.md#launcher-behavior), or force
  * landscape / portrait for units that misreport their natural orientation.
  */
 internal enum class OrientationSetting { AUTO, LANDSCAPE, PORTRAIT }

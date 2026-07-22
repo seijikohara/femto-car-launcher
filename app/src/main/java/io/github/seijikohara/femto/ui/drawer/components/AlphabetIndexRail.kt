@@ -36,7 +36,7 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 // rather than requiring the finger to land inside one specific letter row —
 // the standard launcher fast-scroll interaction, and the same kind of narrow,
 // low-precision control the map zoom / follow pill is sanctioned as
-// (CLAUDE.md#automotive-overrides). Internal (not private): the drawer screen
+// (AGENTS.md#automotive-overrides). Internal (not private): the drawer screen
 // insets the app grid/list and the Recent row by this same width so nothing
 // scrolls under the rail.
 internal val IndexRailWidth = 28.dp
@@ -98,7 +98,7 @@ internal fun AlphabetIndexRail(
             Text(
                 text = letter,
                 // titleSmall (18sp) keeps the rail's letters on the automotive body-text
-                // floor (CLAUDE.md#automotive-overrides) — this drawer is not one of the
+                // floor (AGENTS.md#automotive-overrides) — this drawer is not one of the
                 // sanctioned relaxation surfaces. The letters distribute via weight(1f).
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
