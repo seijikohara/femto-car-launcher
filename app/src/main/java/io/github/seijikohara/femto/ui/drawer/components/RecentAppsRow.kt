@@ -94,9 +94,14 @@ internal fun RecentAppsRow(
 
 /**
  * Shared section-header recipe for the drawer's Recent and All-apps labels.
- * titleSmall clears exactly the automotive body-text floor: the drawer is
- * not one of the sanctioned card-relaxation areas in
- * AGENTS.md#automotive-overrides, so this label may not go smaller.
+ * Uppercased to read as a structural section marker rather than another app
+ * label: the grid tile label ([tileLabel]) is also titleSmall-sized SemiBold,
+ * so at Title case the two were indistinguishable but for colour — uppercase is
+ * the app's established section-eyebrow idiom (the top-bar APPS label, the music
+ * source) applied here, untracked per the Bold Minimal type system. titleSmall
+ * clears exactly the automotive body-text floor: the drawer is not one of the
+ * sanctioned card-relaxation areas in AGENTS.md#automotive-overrides, so this
+ * label may not go smaller (hence 16 sp, not the 12 sp eyebrow).
  */
 @Composable
 internal fun DrawerSectionHeader(
@@ -104,7 +109,7 @@ internal fun DrawerSectionHeader(
     modifier: Modifier = Modifier,
     horizontalPadding: Dp = FemtoDimens.ScreenPadding,
 ) = Text(
-    text = text,
+    text = text.uppercase(),
     style = MaterialTheme.typography.titleSmall,
     color = MaterialTheme.colorScheme.onSurfaceVariant,
     modifier =
