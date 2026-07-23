@@ -6,10 +6,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -42,8 +45,9 @@ private val RowContentGap = 16.dp
  * Music card. Vertical layout inherited from the `.music-card` rules of the
  * retired dashboard-v2 design mockup:
  *
- *  1. Album art, up to 140 dp / 14 dp corner — narrower on a narrow card so the
- *     meta column beside it keeps a fair share of the width
+ *  1. Album art, a square matching the meta column's height (14 dp corner),
+ *     capped at 140 dp — and narrower on a narrow card so the meta column
+ *     beside it keeps a fair share of the width
  *     ([FemtoDimens.MusicMetaMinWidth]).
  *  2. Meta — uppercase source eyebrow (12sp), 20sp title, 12sp artist
  *     / album, plus the progress bar. Title and progress always show; the
@@ -51,7 +55,9 @@ private val RowContentGap = 16.dp
  *     short for all of them ([MusicMetaAndProgress]).
  *  3. Transport row — 64 dp prev / next + 72 dp primary play / pause
  *
- * Empty variants render in the same outer dimensions: `NeedsPermission` is
+ * Empty variants render in the same outer dimensions, reserved by measuring
+ * an unplaced sample of the Playing layout (see `PlayingHeightReserve` in
+ * `MusicCardStates.kt`): `NeedsPermission` is
  * the connect CTA; `NoActiveSession` is a "nothing is playing" Play
  * affordance (tap resumes the last session via a media key, falling back to
  * launching the user's music app — see [MusicEmptyState]).
@@ -86,11 +92,11 @@ internal fun MusicCard(
 ) {
     when (state) {
         MusicCardState.NeedsPermission -> {
-            MusicConnectState(onConnect = onConnect)
+            MusicConnectState(onConnect = onConnect, showAlbum = showAlbum)
         }
 
         MusicCardState.NoActiveSession -> {
-            MusicEmptyState(onPlay = onPlay)
+            MusicEmptyState(onPlay = onPlay, showAlbum = showAlbum)
         }
 
         is MusicCardState.Playing -> {
@@ -134,13 +140,12 @@ private fun PlayingState(
                 // the card edge and match the calendar / weather cards beside it.
                 .padding(FemtoDimens.CardPaddingCompact),
     ) {
-        // The art is a square sized off the row's available WIDTH alone (reserving
-        // FemtoDimens.MusicMetaMinWidth for the text column so a narrow card can't
-        // starve it), capped at FemtoDimens.MusicArtSize. Deliberately independent of
-        // the card's height: with no height term the content height is well-defined,
-        // so the card wraps its content (below) rather than being stretched to an
-        // outer allocation and opening empty top / bottom bands on a tall display.
-        val artSize =
+        // The art's WIDTH budget: whatever the row can spare after reserving
+        // FemtoDimens.MusicMetaMinWidth for the text column (so a narrow card
+        // can't starve it), capped at FemtoDimens.MusicArtSize. The art's actual
+        // size is height-first — a square matching the meta column beside it
+        // (see the row below) — with this budget as the narrow-card ceiling.
+        val artMaxWidth =
             if (showArt) {
                 minOf(
                     maxWidth - FemtoDimens.MusicMetaMinWidth - RowContentGap,
@@ -164,19 +169,37 @@ private fun PlayingState(
             // three >= 64 dp controls leaves no room for them, so the controls drop to a
             // full-width strip where they always fit.
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                // Pinned to the row's min intrinsic height, which the art sits out
+                // (see ZeroIntrinsicHeight): the meta column's natural height alone
+                // sets the row, and the art grows a square to match it — capped by
+                // artMaxWidth, so a narrow card still protects the text column. The
+                // pin keeps the content height well-defined, so the card wraps its
+                // content (below) rather than being stretched to an outer allocation
+                // and opening empty top / bottom bands on a tall display.
+                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                 horizontalArrangement = Arrangement.spacedBy(RowContentGap),
-                verticalAlignment = Alignment.Top,
+                // When the width budget caps the art below the meta column's height,
+                // the smaller square sits balanced beside the text instead of hugging
+                // the row's top edge. A full-height art makes this a no-op.
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Hidden entirely when showArt is off, so the meta column takes
                 // the full width.
                 if (showArt) {
-                    AlbumArt(
-                        nowPlaying = nowPlaying,
-                        onTap = onExpand,
-                        modifier = Modifier.size(artSize),
-                        motionTier = motionTier,
-                    )
+                    ZeroIntrinsicHeight {
+                        AlbumArt(
+                            nowPlaying = nowPlaying,
+                            onTap = onExpand,
+                            // Height-first square: match the meta column's height,
+                            // falling back to the width budget when the card is too
+                            // narrow for a square that tall.
+                            modifier =
+                                Modifier
+                                    .sizeIn(maxWidth = artMaxWidth, maxHeight = FemtoDimens.MusicArtSize)
+                                    .aspectRatio(1f, matchHeightConstraintsFirst = true),
+                            motionTier = motionTier,
+                        )
+                    }
                 }
                 MusicMetaAndProgress(
                     source = sourceLabel(nowPlaying.packageName),

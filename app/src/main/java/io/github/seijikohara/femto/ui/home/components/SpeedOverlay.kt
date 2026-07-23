@@ -24,13 +24,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.IntrinsicMeasurable
-import androidx.compose.ui.layout.IntrinsicMeasureScope
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.Measurable
-import androidx.compose.ui.layout.MeasurePolicy
-import androidx.compose.ui.layout.MeasureResult
-import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -41,7 +34,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Lucide
@@ -495,44 +487,6 @@ private fun WidthReserve(
                 .clearAndSetSemantics {},
     )
     content()
-}
-
-/**
- * Exclude [content] from the parent's intrinsic-width measurement. Under
- * `width(IntrinsicSize.Max)` a `fillMaxWidth`/`weight` Text still contributes
- * its full un-ellipsized string to the max-intrinsic pass (ellipsis never
- * affects intrinsics), so a long geocoded address would stretch the overlay
- * and the next, shorter one shrink it back. Reporting zero intrinsic width
- * takes the row out of that vote; at measure time it simply fills whatever
- * width the metric row set.
- *
- * [modifier] must never carry a width-affecting modifier — sizing this node
- * would re-enter it into the very intrinsic vote it exists to sit out.
- */
-@Composable
-private fun ZeroIntrinsicWidth(
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
-) = Layout(content = content, modifier = modifier, measurePolicy = ZeroIntrinsicWidthPolicy)
-
-private object ZeroIntrinsicWidthPolicy : MeasurePolicy {
-    override fun MeasureScope.measure(
-        measurables: List<Measurable>,
-        constraints: Constraints,
-    ): MeasureResult {
-        val placeable = measurables.single().measure(constraints)
-        return layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
-    }
-
-    override fun IntrinsicMeasureScope.minIntrinsicWidth(
-        measurables: List<IntrinsicMeasurable>,
-        height: Int,
-    ): Int = 0
-
-    override fun IntrinsicMeasureScope.maxIntrinsicWidth(
-        measurables: List<IntrinsicMeasurable>,
-        height: Int,
-    ): Int = 0
 }
 
 // The reset control's reported layout width: the full MinTouchTarget circle
