@@ -98,9 +98,12 @@ internal fun AppDrawerContent(
     layout: DrawerLayout,
     iconSize: DrawerIconSize,
     pinned: List<String>,
+    hidden: Set<String>,
+    showHidden: Boolean,
     query: String,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
+    onToggleHide: (ComponentName) -> Unit,
     onOpenAppInfo: (ComponentName) -> Unit,
     onRequestUninstall: (ComponentName) -> Unit,
     onReorderPins: (List<String>) -> Unit,
@@ -113,10 +116,13 @@ internal fun AppDrawerContent(
             layout = layout,
             iconSize = iconSize,
             pinned = pinned,
+            hidden = hidden,
+            showHidden = showHidden,
             query = query,
             recentApps = uiState.recentApps,
             onLaunch = onLaunch,
             onTogglePin = onTogglePin,
+            onToggleHide = onToggleHide,
             onOpenAppInfo = onOpenAppInfo,
             onRequestUninstall = onRequestUninstall,
             onReorderPins = onReorderPins,
@@ -145,10 +151,13 @@ private fun ContentState(
     layout: DrawerLayout,
     iconSize: DrawerIconSize,
     pinned: List<String>,
+    hidden: Set<String>,
+    showHidden: Boolean,
     query: String,
     recentApps: List<AppEntry>,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
+    onToggleHide: (ComponentName) -> Unit,
     onOpenAppInfo: (ComponentName) -> Unit,
     onRequestUninstall: (ComponentName) -> Unit,
     onReorderPins: (List<String>) -> Unit,
@@ -159,8 +168,20 @@ private fun ContentState(
         return@Column
     }
     val pinnedSet = remember(pinned) { pinned.toSet() }
+    // Hidden apps drop out of the grid and Recent row unless the user turned on
+    // "Show hidden" (the display-options toggle) to reach an Unhide — the dock's
+    // pins are independent and stay put. Filter before ranking so a hidden app
+    // never surfaces in search results either.
+    val visibleApps =
+        remember(apps, hidden, showHidden) {
+            if (showHidden) apps else apps.filterNot { it.componentName.flattenToString() in hidden }
+        }
+    val visibleRecent =
+        remember(recentApps, hidden, showHidden) {
+            if (showHidden) recentApps else recentApps.filterNot { it.componentName.flattenToString() in hidden }
+        }
     // Prefix matches rank before substring matches; an empty query shows everything.
-    val matched = remember(apps, query) { filterAndRank(apps, query) { it.label } }
+    val matched = remember(visibleApps, query) { filterAndRank(visibleApps, query) { it.label } }
     // Both the Recent row and the A-Z index are browsing aids; they step
     // aside the moment a query is active, when the filtered flat list is the
     // primary signal (and a jump-to-letter rail over a relevance-ranked
@@ -177,7 +198,7 @@ private fun ContentState(
     // A single bucket (or none) means nothing to jump between.
     val showRail = sectionIndex.size > 1
     val railInset = if (showRail) IndexRailWidth else 0.dp
-    val showRecent = !isSearching && recentApps.isNotEmpty()
+    val showRecent = !isSearching && visibleRecent.isNotEmpty()
     // Recent row + "All apps" header no longer sit fixed above the grid — they
     // ride along as the app list's leading item (built below), so the whole
     // region scrolls as one and the all-apps grid reclaims their height once
@@ -211,11 +232,13 @@ private fun ContentState(
                     {
                         DrawerLeadingSections(
                             showRecent = showRecent,
-                            recentApps = recentApps,
+                            recentApps = visibleRecent,
                             iconSize = iconSize,
                             pinnedSet = pinnedSet,
+                            hidden = hidden,
                             onLaunch = onLaunch,
                             onTogglePin = onTogglePin,
+                            onToggleHide = onToggleHide,
                             onOpenAppInfo = onOpenAppInfo,
                             onRequestUninstall = onRequestUninstall,
                             horizontalPadding = leadingPadding,
@@ -230,9 +253,11 @@ private fun ContentState(
                     GridApps(
                         matched,
                         pinnedSet,
+                        hidden,
                         dimensions,
                         onLaunch,
                         onTogglePin,
+                        onToggleHide,
                         onOpenAppInfo,
                         onRequestUninstall,
                         modifier = contentModifier,
@@ -245,10 +270,12 @@ private fun ContentState(
                     ListApps(
                         matched,
                         pinnedSet,
+                        hidden,
                         dimensions,
                         sectionStarts,
                         onLaunch,
                         onTogglePin,
+                        onToggleHide,
                         onOpenAppInfo,
                         onRequestUninstall,
                         modifier = contentModifier,
@@ -317,8 +344,10 @@ private fun DrawerLeadingSections(
     recentApps: List<AppEntry>,
     iconSize: DrawerIconSize,
     pinnedSet: Set<String>,
+    hidden: Set<String>,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
+    onToggleHide: (ComponentName) -> Unit,
     onOpenAppInfo: (ComponentName) -> Unit,
     onRequestUninstall: (ComponentName) -> Unit,
     horizontalPadding: Dp,
@@ -329,8 +358,10 @@ private fun DrawerLeadingSections(
             apps = recentApps,
             iconSize = iconSize,
             pinned = pinnedSet,
+            hidden = hidden,
             onLaunch = onLaunch,
             onTogglePin = onTogglePin,
+            onToggleHide = onToggleHide,
             onOpenAppInfo = onOpenAppInfo,
             onRequestUninstall = onRequestUninstall,
             horizontalPadding = horizontalPadding,
@@ -352,9 +383,11 @@ private fun DrawerLeadingSections(
 private fun GridApps(
     apps: List<AppEntry>,
     pinnedSet: Set<String>,
+    hidden: Set<String>,
     dimensions: DrawerDimensions,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
+    onToggleHide: (ComponentName) -> Unit,
     onOpenAppInfo: (ComponentName) -> Unit,
     onRequestUninstall: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
@@ -380,8 +413,10 @@ private fun GridApps(
             layout = DrawerLayout.GRID,
             dimensions = dimensions,
             isPinned = entry.componentName.flattenToString() in pinnedSet,
+            isHidden = entry.componentName.flattenToString() in hidden,
             onLaunch = onLaunch,
             onTogglePin = onTogglePin,
+            onToggleHide = onToggleHide,
             onOpenAppInfo = onOpenAppInfo,
             onRequestUninstall = onRequestUninstall,
         )
@@ -396,10 +431,12 @@ private fun GridApps(
 private fun ListApps(
     apps: List<AppEntry>,
     pinnedSet: Set<String>,
+    hidden: Set<String>,
     dimensions: DrawerDimensions,
     sectionStarts: Set<Int>,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
+    onToggleHide: (ComponentName) -> Unit,
     onOpenAppInfo: (ComponentName) -> Unit,
     onRequestUninstall: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
@@ -421,8 +458,10 @@ private fun ListApps(
                 layout = DrawerLayout.LIST,
                 dimensions = dimensions,
                 isPinned = entry.componentName.flattenToString() in pinnedSet,
+                isHidden = entry.componentName.flattenToString() in hidden,
                 onLaunch = onLaunch,
                 onTogglePin = onTogglePin,
+                onToggleHide = onToggleHide,
                 onOpenAppInfo = onOpenAppInfo,
                 onRequestUninstall = onRequestUninstall,
             )
@@ -451,8 +490,10 @@ private fun DrawerAppItem(
     layout: DrawerLayout,
     dimensions: DrawerDimensions,
     isPinned: Boolean,
+    isHidden: Boolean,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
+    onToggleHide: (ComponentName) -> Unit,
     onOpenAppInfo: (ComponentName) -> Unit,
     onRequestUninstall: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
@@ -483,9 +524,11 @@ private fun DrawerAppItem(
         AppItemMenu(
             entry = entry,
             isPinned = isPinned,
+            isHidden = isHidden,
             expanded = menuOpen,
             onDismiss = { menuOpen = false },
             onTogglePin = onTogglePin,
+            onToggleHide = onToggleHide,
             onOpenAppInfo = onOpenAppInfo,
             onRequestUninstall = onRequestUninstall,
         )

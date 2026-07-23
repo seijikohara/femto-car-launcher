@@ -171,6 +171,9 @@
     <string name="drawer_unpin">Unpin</string>
     <string name="drawer_remove_pin">Remove from dock</string>
     <string name="drawer_edit_done">Done</string>
+    <string name="drawer_hide">Hide</string>
+    <string name="drawer_unhide">Unhide</string>
+    <string name="drawer_show_hidden">Show hidden apps</string>
     <string name="drawer_app_info">App info</string>
     <string name="drawer_uninstall">Uninstall</string>
     <string name="drawer_move_left">Move left</string>

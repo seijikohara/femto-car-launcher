@@ -9,6 +9,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import com.composables.icons.lucide.Eye
+import com.composables.icons.lucide.EyeOff
 import com.composables.icons.lucide.Info
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Pin
@@ -21,21 +23,24 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 
 /**
- * Shared long-press menu for every app-tile surface — grid tile, list row,
- * recent tile, and pinned-dock tile — so one gesture yields one menu across
- * the whole drawer: optional surface-specific [leadingItems] first (the
- * dock's Move left / right), then Pin / Unpin, and the management pair —
+ * Shared long-press menu for the drawer's app-tile surfaces — grid tile, list
+ * row, and recent tile — so one gesture yields one menu across the drawer:
+ * optional surface-specific [leadingItems] first, then the drawer-local
+ * curation (Pin / Unpin and Hide / Unhide), and the management pair —
  * App info, and Uninstall. Uninstall is hidden for system apps
  * ([AppEntry.isSystem]): the platform will not fully uninstall them, so
- * offering the row would only dead-end in the system dialog.
+ * offering the row would only dead-end in the system dialog. (The pinned dock
+ * curates through its edit mode instead of this menu.)
  */
 @Composable
 internal fun AppItemMenu(
     entry: AppEntry,
     isPinned: Boolean,
+    isHidden: Boolean,
     expanded: Boolean,
     onDismiss: () -> Unit,
     onTogglePin: (ComponentName) -> Unit,
+    onToggleHide: (ComponentName) -> Unit,
     onOpenAppInfo: (ComponentName) -> Unit,
     onRequestUninstall: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
@@ -47,6 +52,17 @@ internal fun AppItemMenu(
         icon = if (isPinned) Lucide.PinOff else Lucide.Pin,
         onClick = {
             onTogglePin(entry.componentName)
+            onDismiss()
+        },
+    )
+    // Hide removes the app from the all-apps list (and Recent); Unhide restores
+    // it. Independent of pinning — a pinned app can still be hidden from the
+    // grid while staying in the dock.
+    AppMenuItem(
+        label = stringResource(if (isHidden) R.string.drawer_unhide else R.string.drawer_hide),
+        icon = if (isHidden) Lucide.Eye else Lucide.EyeOff,
+        onClick = {
+            onToggleHide(entry.componentName)
             onDismiss()
         },
     )
