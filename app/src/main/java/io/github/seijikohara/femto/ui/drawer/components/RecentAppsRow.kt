@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.createBitmap
 import io.github.seijikohara.femto.R
@@ -66,12 +67,15 @@ internal fun RecentAppsRow(
     onOpenAppInfo: (ComponentName) -> Unit,
     onRequestUninstall: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
+    // ScreenPadding when the row stands alone; the drawer passes 0 when it embeds
+    // the row inside the app grid, whose contentPadding already insets the row.
+    horizontalPadding: Dp = FemtoDimens.ScreenPadding,
 ) = Column(modifier = modifier.fillMaxWidth()) {
-    DrawerSectionHeader(text = stringResource(R.string.drawer_recent_apps))
+    DrawerSectionHeader(text = stringResource(R.string.drawer_recent_apps), horizontalPadding = horizontalPadding)
     val dimensions = iconSize.dimensions()
     LazyRow(
         modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = FemtoDimens.ScreenPadding, vertical = RowVerticalPadding),
+        contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = RowVerticalPadding),
         horizontalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
     ) {
         items(items = apps, key = { it.componentName.flattenToString() }) { entry ->
@@ -90,21 +94,27 @@ internal fun RecentAppsRow(
 
 /**
  * Shared section-header recipe for the drawer's Recent and All-apps labels.
- * titleSmall clears exactly the automotive body-text floor: the drawer is
- * not one of the sanctioned card-relaxation areas in
- * AGENTS.md#automotive-overrides, so this label may not go smaller.
+ * Uppercased to read as a structural section marker rather than another app
+ * label: the grid tile label ([tileLabel]) is also titleSmall-sized SemiBold,
+ * so at Title case the two were indistinguishable but for colour — uppercase is
+ * the app's established section-eyebrow idiom (the top-bar APPS label, the music
+ * source) applied here, untracked per the Bold Minimal type system. titleSmall
+ * clears exactly the automotive body-text floor: the drawer is not one of the
+ * sanctioned card-relaxation areas in AGENTS.md#automotive-overrides, so this
+ * label may not go smaller (hence 16 sp, not the 12 sp eyebrow).
  */
 @Composable
 internal fun DrawerSectionHeader(
     text: String,
     modifier: Modifier = Modifier,
+    horizontalPadding: Dp = FemtoDimens.ScreenPadding,
 ) = Text(
-    text = text,
+    text = text.uppercase(),
     style = MaterialTheme.typography.titleSmall,
     color = MaterialTheme.colorScheme.onSurfaceVariant,
     modifier =
         modifier.padding(
-            horizontal = FemtoDimens.ScreenPadding,
+            horizontal = horizontalPadding,
             vertical = LabelBottomPadding,
         ),
 )
