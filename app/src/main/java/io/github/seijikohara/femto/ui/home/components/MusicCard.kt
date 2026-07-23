@@ -20,16 +20,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.IntrinsicMeasurable
-import androidx.compose.ui.layout.IntrinsicMeasureScope
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.Measurable
-import androidx.compose.ui.layout.MeasurePolicy
-import androidx.compose.ui.layout.MeasureResult
-import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Music
 import dev.chrisbanes.haze.HazeState
@@ -245,59 +237,6 @@ private fun PlayingState(
             }
         }
     }
-}
-
-/**
- * Exclude [content] from the parent row's intrinsic-height measurement. The
- * playing row is pinned to `height(IntrinsicSize.Min)` so the album art can
- * size itself off the meta column's natural height, but the art's own
- * `aspectRatio` would vote its width-derived height into that very intrinsic
- * pass — up to its width budget — and hold the row at today's width-driven
- * size instead of letting the meta column set it. Reporting zero intrinsic
- * height takes the art out of the vote; at measure time it simply fills the
- * height the meta column won. Width intrinsics delegate to the content so the
- * row's width distribution is unaffected.
- *
- * The height twin of `ZeroIntrinsicWidth` in `SpeedOverlay.kt` (which keeps
- * the ticking address line out of the overlay's intrinsic-width vote).
- *
- * [modifier] must never carry a height-affecting modifier — sizing this node
- * would re-enter it into the very intrinsic vote it exists to sit out.
- */
-@Composable
-private fun ZeroIntrinsicHeight(
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
-) = Layout(content = content, modifier = modifier, measurePolicy = ZeroIntrinsicHeightPolicy)
-
-private object ZeroIntrinsicHeightPolicy : MeasurePolicy {
-    override fun MeasureScope.measure(
-        measurables: List<Measurable>,
-        constraints: Constraints,
-    ): MeasureResult {
-        val placeable = measurables.single().measure(constraints)
-        return layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
-    }
-
-    override fun IntrinsicMeasureScope.minIntrinsicHeight(
-        measurables: List<IntrinsicMeasurable>,
-        width: Int,
-    ): Int = 0
-
-    override fun IntrinsicMeasureScope.maxIntrinsicHeight(
-        measurables: List<IntrinsicMeasurable>,
-        width: Int,
-    ): Int = 0
-
-    override fun IntrinsicMeasureScope.minIntrinsicWidth(
-        measurables: List<IntrinsicMeasurable>,
-        height: Int,
-    ): Int = measurables.single().minIntrinsicWidth(height)
-
-    override fun IntrinsicMeasureScope.maxIntrinsicWidth(
-        measurables: List<IntrinsicMeasurable>,
-        height: Int,
-    ): Int = measurables.single().maxIntrinsicWidth(height)
 }
 
 @PreviewLightDark
