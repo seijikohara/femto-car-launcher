@@ -169,6 +169,8 @@
     <string name="drawer_layout_list">List layout</string>
     <string name="drawer_pin">Pin</string>
     <string name="drawer_unpin">Unpin</string>
+    <string name="drawer_remove_pin">Remove from dock</string>
+    <string name="drawer_edit_done">Done</string>
     <string name="drawer_app_info">App info</string>
     <string name="drawer_uninstall">Uninstall</string>
     <string name="drawer_move_left">Move left</string>

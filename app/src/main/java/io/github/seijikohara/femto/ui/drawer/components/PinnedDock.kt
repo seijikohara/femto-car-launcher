@@ -1,21 +1,25 @@
 package io.github.seijikohara.femto.ui.drawer.components
 
 import android.content.ComponentName
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -28,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -35,14 +40,16 @@ import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.core.graphics.createBitmap
-import com.composables.icons.lucide.ArrowLeft
-import com.composables.icons.lucide.ArrowRight
+import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.X
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
@@ -53,26 +60,27 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.cardCta
 import io.github.seijikohara.femto.ui.theme.tileLabel
 import kotlin.math.abs
 
 private val DockIconLabelGap = 4.dp
 private val DockVerticalPadding = 8.dp
+private val RemoveBadgeSize = 28.dp
 
 /**
  * Pinned-apps dock fixed at the bottom of the drawer sheet: a horizontally
  * scrolling row of icon + label tiles in pin order, separated from the
- * scrolling app grid by a hairline seam over the panel glass — no surface of
- * its own, so the map keeps blurring through. Tap launches.
+ * scrolling app grid by a hairline seam over the panel glass. Tap launches.
  *
- * Long-press then drag reorders: the held tile follows the finger and swaps
- * places as it crosses its neighbours; lifting commits the new order through
- * [onReorder]. A long-press lifted WITHOUT travel opens the shared
- * [AppItemMenu] with Move left / Move right prepended — the precision-free
- * reorder path for a bumpy cabin or accessibility services. The menu
- * deliberately opens on lift, not at the long-press timeout: a focusable
- * popup appearing mid-press cancels the pointer stream and would kill the
- * drag.
+ * Reordering and unpinning live behind one explicit **edit mode** — the shared
+ * interaction the dashboard dock uses too — rather than overloading the tap.
+ * Long-press any tile enters edit mode: from that same gesture the held tile
+ * drags to reorder (it follows the finger and swaps as it crosses neighbours,
+ * committing through [onReorder] on lift), each tile shows a remove (×) badge
+ * that unpins via [onUnpin], and a "Done" control exits. A normal tap launches
+ * only while NOT editing. App info / uninstall are reached from the app grid's
+ * long-press menu, not here — the dock's job is pin ordering.
  *
  * Callers skip composing the dock when [apps] is empty.
  */
@@ -82,8 +90,6 @@ internal fun PinnedDock(
     iconSize: DrawerIconSize,
     onLaunch: (ComponentName) -> Unit,
     onUnpin: (ComponentName) -> Unit,
-    onOpenAppInfo: (ComponentName) -> Unit,
-    onRequestUninstall: (ComponentName) -> Unit,
     onReorder: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier.fillMaxWidth()) {
@@ -97,11 +103,24 @@ internal fun PinnedDock(
     // Local working order: drag swaps mutate this list optimistically per
     // frame; the persisted order arrives back through [apps] and re-seeds it.
     val order = remember(apps) { apps.toMutableStateList() }
+    var editing by remember { mutableStateOf(false) }
     var draggingKey by remember { mutableStateOf<String?>(null) }
     var dragDelta by remember { mutableFloatStateOf(0f) }
     var dragTravelled by remember { mutableStateOf(false) }
-    var menuKey by remember { mutableStateOf<String?>(null) }
     val stepPx = with(LocalDensity.current) { (dimensions.tileWidth + FemtoDimens.GridGutter).toPx() }
+    // The "Done" affordance sits above the tiles (always visible, never scrolled
+    // off) so exiting edit mode is one reachable tap rather than a hunt.
+    if (editing) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = FemtoDimens.ScreenPadding),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            EditDoneButton(onClick = { editing = false })
+        }
+    }
     LazyRow(
         modifier = Modifier.fillMaxWidth(),
         contentPadding =
@@ -114,22 +133,9 @@ internal fun PinnedDock(
             DockTile(
                 entry = entry,
                 dimensions = dimensions,
-                menuOpen = menuKey == key,
-                canMoveLeft = order.indexOf(entry) > 0,
-                canMoveRight = order.indexOf(entry) < order.lastIndex,
+                editing = editing,
                 onLaunch = onLaunch,
                 onUnpin = onUnpin,
-                onOpenAppInfo = onOpenAppInfo,
-                onRequestUninstall = onRequestUninstall,
-                onDismissMenu = { menuKey = null },
-                onMove = { offset ->
-                    val index = order.indexOf(entry)
-                    val target = (index + offset).coerceIn(0, order.lastIndex)
-                    if (target != index) {
-                        order.add(target, order.removeAt(index))
-                        onReorder(order.map { it.componentName.flattenToString() })
-                    }
-                },
                 modifier =
                     Modifier
                         // The held tile rides above its neighbours and tracks
@@ -139,7 +145,11 @@ internal fun PinnedDock(
                         .graphicsLayer { translationX = if (dragging) dragDelta else 0f }
                         .pointerInput(key, stepPx) {
                             detectDragGesturesAfterLongPress(
+                                // The long-press itself enters edit mode; the same
+                                // gesture then drags if the finger travels, so one
+                                // press both reveals the × badges and reorders.
                                 onDragStart = {
+                                    editing = true
                                     draggingKey = key
                                     dragDelta = 0f
                                     dragTravelled = false
@@ -161,29 +171,21 @@ internal fun PinnedDock(
                                     }
                                     dragDelta = residual
                                 },
+                                // Commit a travelled reorder; a no-travel press just
+                                // leaves edit mode active (the × badges are now shown).
                                 onDragEnd = {
                                     if (dragTravelled) {
                                         onReorder(order.map { it.componentName.flattenToString() })
-                                    } else {
-                                        menuKey = key
                                     }
                                     draggingKey = null
                                     dragDelta = 0f
                                 },
                                 onDragCancel = {
+                                    // A travelled drag cancelled mid-flight reverts to
+                                    // the persisted order (nothing was committed).
                                     if (dragTravelled) {
-                                        // Revert the optimistic swaps: nothing
-                                        // was committed, so the dock falls back
-                                        // to the persisted order.
                                         order.clear()
                                         order.addAll(apps)
-                                    } else {
-                                        // A no-travel lift lands HERE, not in
-                                        // onDragEnd: the child clickable
-                                        // consumes the up (its tap), which the
-                                        // detector reports as a cancel. It is
-                                        // the menu gesture.
-                                        menuKey = key
                                     }
                                     draggingKey = null
                                     dragDelta = 0f
@@ -229,15 +231,9 @@ internal fun <T> reorderByDrag(
 private fun DockTile(
     entry: AppEntry,
     dimensions: DrawerDimensions,
-    menuOpen: Boolean,
-    canMoveLeft: Boolean,
-    canMoveRight: Boolean,
+    editing: Boolean,
     onLaunch: (ComponentName) -> Unit,
     onUnpin: (ComponentName) -> Unit,
-    onOpenAppInfo: (ComponentName) -> Unit,
-    onRequestUninstall: (ComponentName) -> Unit,
-    onDismissMenu: () -> Unit,
-    onMove: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) = Box(modifier = modifier) {
     Column(
@@ -245,12 +241,11 @@ private fun DockTile(
             Modifier
                 .width(dimensions.tileWidth)
                 .defaultMinSize(minHeight = FemtoDimens.MinTouchTarget)
-                // Plain clickable launches on tap. The menu must NOT open at
-                // the long-press timeout: a focusable popup appearing mid-press
-                // cancels the original pointer stream and would make the
-                // reorder drag impossible — so the dock's drag detector opens
-                // it on lift instead.
-                .clickable(onClick = { onLaunch(entry.componentName) }),
+                // Tap launches only while NOT editing: in edit mode the tile is a
+                // reorder handle and the × badge owns removal, so a stray tap must
+                // not fire the app. The long-press (owned by the parent drag
+                // detector) enters edit mode and reorders.
+                .clickable(onClick = { if (!editing) onLaunch(entry.componentName) }),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
@@ -272,36 +267,68 @@ private fun DockTile(
             modifier = Modifier.fillMaxWidth(),
         )
     }
-    AppItemMenu(
-        entry = entry,
-        isPinned = true,
-        expanded = menuOpen,
-        onDismiss = onDismissMenu,
-        onTogglePin = onUnpin,
-        onOpenAppInfo = onOpenAppInfo,
-        onRequestUninstall = onRequestUninstall,
-        leadingItems = {
-            if (canMoveLeft) {
-                AppMenuItem(
-                    label = stringResource(R.string.drawer_move_left),
-                    icon = Lucide.ArrowLeft,
-                    onClick = {
-                        onMove(-1)
-                        onDismissMenu()
-                    },
-                )
-            }
-            if (canMoveRight) {
-                AppMenuItem(
-                    label = stringResource(R.string.drawer_move_right),
-                    icon = Lucide.ArrowRight,
-                    onClick = {
-                        onMove(1)
-                        onDismissMenu()
-                    },
-                )
-            }
-        },
+    if (editing) {
+        RemoveBadge(
+            label = stringResource(R.string.drawer_remove_pin),
+            onClick = { onUnpin(entry.componentName) },
+            modifier = Modifier.align(Alignment.TopEnd),
+        )
+    }
+}
+
+// The edit-mode remove (×) badge: an error-tinted circle over the tile's
+// top-end corner, tapped to unpin. Shown only in edit mode, so it never
+// competes with a launch tap in normal use.
+@Composable
+private fun RemoveBadge(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) = Box(
+    modifier =
+        modifier
+            .size(RemoveBadgeSize)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = label },
+    contentAlignment = Alignment.Center,
+) {
+    FemtoIcon(
+        imageVector = Lucide.X,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onErrorContainer,
+        modifier = Modifier.size(16.dp),
+    )
+}
+
+// "Done" pill that leaves edit mode. A filled tonal chip so it reads as the
+// primary way out; sized to the automotive touch floor.
+@Composable
+private fun EditDoneButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) = Row(
+    modifier =
+        modifier
+            .defaultMinSize(minHeight = FemtoDimens.MinTouchTarget)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(6.dp),
+) {
+    FemtoIcon(
+        imageVector = Lucide.Check,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+        modifier = Modifier.size(18.dp),
+    )
+    Text(
+        text = stringResource(R.string.drawer_edit_done),
+        style = MaterialTheme.typography.cardCta(),
+        color = MaterialTheme.colorScheme.onSecondaryContainer,
     )
 }
 
@@ -320,8 +347,6 @@ private fun PinnedDockPreview() {
             iconSize = DrawerIconSize.MEDIUM,
             onLaunch = {},
             onUnpin = {},
-            onOpenAppInfo = {},
-            onRequestUninstall = {},
             onReorder = {},
         )
     }

@@ -291,8 +291,6 @@ private fun ContentState(
             iconSize = iconSize,
             onLaunch = onLaunch,
             onUnpin = onTogglePin,
-            onOpenAppInfo = onOpenAppInfo,
-            onRequestUninstall = onRequestUninstall,
             onReorder = onReorderPins,
         )
     }
