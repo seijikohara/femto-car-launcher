@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -177,26 +178,10 @@ private fun ContentState(
     val showRail = sectionIndex.size > 1
     val railInset = if (showRail) IndexRailWidth else 0.dp
     val showRecent = !isSearching && recentApps.isNotEmpty()
-    if (showRecent) {
-        RecentAppsRow(
-            apps = recentApps,
-            iconSize = iconSize,
-            pinned = pinnedSet,
-            onLaunch = onLaunch,
-            onTogglePin = onTogglePin,
-            onOpenAppInfo = onOpenAppInfo,
-            onRequestUninstall = onRequestUninstall,
-            modifier = Modifier.padding(end = railInset),
-        )
-    }
-    if (!isSearching) {
-        // The all-apps region gets the same header treatment as Recent, with a
-        // seam mirroring the pinned dock's below, so the boundary between the
-        // history row and the full list is explicit rather than whitespace.
-        // The seam is skipped when Recent is absent (nothing to separate).
-        if (showRecent) FemtoHorizontalDivider()
-        DrawerSectionHeader(text = stringResource(R.string.drawer_all_apps))
-    }
+    // Recent row + "All apps" header no longer sit fixed above the grid — they
+    // ride along as the app list's leading item (built below), so the whole
+    // region scrolls as one and the all-apps grid reclaims their height once
+    // scrolled up, instead of being boxed into the sliver left beneath them.
     Box(modifier = Modifier.weight(1f)) {
         if (matched.isEmpty()) {
             CenteredMessage(text = stringResource(R.string.drawer_no_matches))
@@ -212,6 +197,34 @@ private fun ContentState(
             // The app list/grid flows continuously (no per-letter header breaking a
             // row), inset from the rail's width so nothing scrolls under it.
             val contentModifier = Modifier.fillMaxSize().padding(end = railInset)
+            // The grid already insets a full-span item by its own ScreenPadding
+            // contentPadding, so the embedded leading block drops its horizontal
+            // padding there to stay column-aligned with the tiles; the list carries
+            // no horizontal contentPadding, so the block keeps ScreenPadding to
+            // match the rows. Absent while searching (Recent and the header both
+            // step aside for the flat results).
+            val leadingPadding = if (effective == DrawerLayout.GRID) 0.dp else FemtoDimens.ScreenPadding
+            val leading: (@Composable () -> Unit)? =
+                if (isSearching) {
+                    null
+                } else {
+                    {
+                        DrawerLeadingSections(
+                            showRecent = showRecent,
+                            recentApps = recentApps,
+                            iconSize = iconSize,
+                            pinnedSet = pinnedSet,
+                            onLaunch = onLaunch,
+                            onTogglePin = onTogglePin,
+                            onOpenAppInfo = onOpenAppInfo,
+                            onRequestUninstall = onRequestUninstall,
+                            horizontalPadding = leadingPadding,
+                        )
+                    }
+                }
+            // The leading block occupies one lazy slot ahead of the apps, so an
+            // A-Z jump into the flat app index steps past it.
+            val leadingOffset = if (leading != null) 1 else 0
             when (effective) {
                 DrawerLayout.GRID -> {
                     GridApps(
@@ -224,6 +237,7 @@ private fun ContentState(
                         onRequestUninstall,
                         modifier = contentModifier,
                         state = gridState,
+                        leading = leading,
                     )
                 }
 
@@ -239,6 +253,7 @@ private fun ContentState(
                         onRequestUninstall,
                         modifier = contentModifier,
                         state = listState,
+                        leading = leading,
                     )
                 }
             }
@@ -250,8 +265,8 @@ private fun ContentState(
                         val index = sectionIndex[letter] ?: return@AlphabetIndexRail
                         scope.launch {
                             when (effective) {
-                                DrawerLayout.GRID -> gridState.animateScrollToItem(index)
-                                DrawerLayout.LIST -> listState.animateScrollToItem(index)
+                                DrawerLayout.GRID -> gridState.animateScrollToItem(index + leadingOffset)
+                                DrawerLayout.LIST -> listState.animateScrollToItem(index + leadingOffset)
                             }
                         }
                     },
@@ -291,6 +306,45 @@ private fun rememberDockApps(
     pinned: List<String>,
 ): List<AppEntry> = remember(apps, pinned) { resolveByOrder(apps, pinned) { it.componentName.flattenToString() } }
 
+// The drawer's leading block: the Recent row (a browsing aid) over a seam and
+// the "All apps" header. Emitted as the app list's first scrolling item (see
+// GridApps / ListApps) rather than pinned above it, so it scrolls away with the
+// list and the all-apps grid is no longer confined to the height left beneath a
+// fixed header. The seam is skipped when Recent is absent (nothing to separate).
+// [horizontalPadding] aligns the block with the app column under each layout's
+// differing content inset — see the call site.
+@Composable
+private fun DrawerLeadingSections(
+    showRecent: Boolean,
+    recentApps: List<AppEntry>,
+    iconSize: DrawerIconSize,
+    pinnedSet: Set<String>,
+    onLaunch: (ComponentName) -> Unit,
+    onTogglePin: (ComponentName) -> Unit,
+    onOpenAppInfo: (ComponentName) -> Unit,
+    onRequestUninstall: (ComponentName) -> Unit,
+    horizontalPadding: Dp,
+    modifier: Modifier = Modifier,
+) = Column(modifier = modifier.fillMaxWidth()) {
+    if (showRecent) {
+        RecentAppsRow(
+            apps = recentApps,
+            iconSize = iconSize,
+            pinned = pinnedSet,
+            onLaunch = onLaunch,
+            onTogglePin = onTogglePin,
+            onOpenAppInfo = onOpenAppInfo,
+            onRequestUninstall = onRequestUninstall,
+            horizontalPadding = horizontalPadding,
+        )
+        FemtoHorizontalDivider()
+    }
+    DrawerSectionHeader(
+        text = stringResource(R.string.drawer_all_apps),
+        horizontalPadding = horizontalPadding,
+    )
+}
+
 // Continuous, densely-packed grid: apps flow multiple-per-row with no
 // per-letter header breaking a row (the sparse-grid fix — a header-per-letter
 // forced a new row at every letter, and most letters in a realistic app list
@@ -307,6 +361,10 @@ private fun GridApps(
     onRequestUninstall: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
     state: LazyGridState = rememberLazyGridState(),
+    // Full-span leading block (Recent + header) that scrolls with the grid; null
+    // while searching. Rendered as the first item so the grid reclaims its height
+    // on scroll — see DrawerLeadingSections.
+    leading: (@Composable () -> Unit)? = null,
 ) = LazyVerticalGrid(
     modifier = modifier,
     state = state,
@@ -315,6 +373,9 @@ private fun GridApps(
     horizontalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
     verticalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
 ) {
+    if (leading != null) {
+        item(span = { GridItemSpan(maxLineSpan) }, key = "drawer-leading", contentType = "leading") { leading() }
+    }
     items(items = apps, key = { it.componentName.flattenToString() }) { entry ->
         DrawerAppItem(
             entry = entry,
@@ -345,7 +406,13 @@ private fun ListApps(
     onRequestUninstall: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
     state: LazyListState = rememberLazyListState(),
+    // Leading block (Recent + header) that scrolls with the list; null while
+    // searching. See DrawerLeadingSections.
+    leading: (@Composable () -> Unit)? = null,
 ) = LazyColumn(modifier = modifier, state = state, contentPadding = PaddingValues(vertical = FemtoDimens.GridGutter)) {
+    if (leading != null) {
+        item(key = "drawer-leading", contentType = "leading") { leading() }
+    }
     itemsIndexed(items = apps, key = { _, entry -> entry.componentName.flattenToString() }) { index, entry ->
         Column {
             if (index in sectionStarts) {

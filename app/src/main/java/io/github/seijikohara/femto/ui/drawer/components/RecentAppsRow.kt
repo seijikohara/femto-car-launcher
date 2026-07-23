@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.createBitmap
 import io.github.seijikohara.femto.R
@@ -66,12 +67,15 @@ internal fun RecentAppsRow(
     onOpenAppInfo: (ComponentName) -> Unit,
     onRequestUninstall: (ComponentName) -> Unit,
     modifier: Modifier = Modifier,
+    // ScreenPadding when the row stands alone; the drawer passes 0 when it embeds
+    // the row inside the app grid, whose contentPadding already insets the row.
+    horizontalPadding: Dp = FemtoDimens.ScreenPadding,
 ) = Column(modifier = modifier.fillMaxWidth()) {
-    DrawerSectionHeader(text = stringResource(R.string.drawer_recent_apps))
+    DrawerSectionHeader(text = stringResource(R.string.drawer_recent_apps), horizontalPadding = horizontalPadding)
     val dimensions = iconSize.dimensions()
     LazyRow(
         modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = FemtoDimens.ScreenPadding, vertical = RowVerticalPadding),
+        contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = RowVerticalPadding),
         horizontalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
     ) {
         items(items = apps, key = { it.componentName.flattenToString() }) { entry ->
@@ -98,13 +102,14 @@ internal fun RecentAppsRow(
 internal fun DrawerSectionHeader(
     text: String,
     modifier: Modifier = Modifier,
+    horizontalPadding: Dp = FemtoDimens.ScreenPadding,
 ) = Text(
     text = text,
     style = MaterialTheme.typography.titleSmall,
     color = MaterialTheme.colorScheme.onSurfaceVariant,
     modifier =
         modifier.padding(
-            horizontal = FemtoDimens.ScreenPadding,
+            horizontal = horizontalPadding,
             vertical = LabelBottomPadding,
         ),
 )
