@@ -1,6 +1,8 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -42,9 +45,13 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.zIndex
 import com.composables.icons.lucide.Bluetooth
+import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Globe
 import com.composables.icons.lucide.LayoutGrid
 import com.composables.icons.lucide.Lucide
@@ -52,6 +59,7 @@ import com.composables.icons.lucide.Mic
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Navigation
 import com.composables.icons.lucide.Phone
+import com.composables.icons.lucide.RotateCcw
 import com.composables.icons.lucide.Settings
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
@@ -66,6 +74,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.cardCta
 import kotlin.math.abs
 
 /**
@@ -366,6 +375,22 @@ private fun HorizontalDock(
                 }
             }
         }
+        // Floating edit-mode toolbar above the bar (Reset + Done) as a Popup, so
+        // it never widens the bar or shifts the buttons. focusable=false so the
+        // drag / badges below keep receiving input.
+        if (editing) {
+            val toolbarOffsetY = with(LocalDensity.current) { -(FemtoDimens.MinTouchTarget + 24.dp).roundToPx() }
+            Popup(
+                alignment = Alignment.TopCenter,
+                offset = IntOffset(0, toolbarOffsetY),
+                properties = PopupProperties(focusable = false),
+            ) {
+                DockEditToolbar(
+                    onReset = { onAction(HomeAction.ResetDock) },
+                    onDone = { editing = false },
+                )
+            }
+        }
     }
 }
 
@@ -407,6 +432,19 @@ private fun VerticalDock(
             onAction = onAction,
             modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
         )
+        // Floating Reset + Done toolbar beside the rail (a Popup, so the rail
+        // width is untouched). Back also exits.
+        val toolbarOffsetX = with(LocalDensity.current) { FemtoDimens.MinTouchTarget.roundToPx() }
+        Popup(
+            alignment = Alignment.CenterEnd,
+            offset = IntOffset(toolbarOffsetX, 0),
+            properties = PopupProperties(focusable = false),
+        ) {
+            DockEditToolbar(
+                onReset = { onAction(HomeAction.ResetDock) },
+                onDone = { editing = false },
+            )
+        }
     } else {
         Row {
             BoxWithConstraints(
@@ -717,6 +755,67 @@ private fun DockNavEditTile(
         )
     }
     RemoveBadge(label = removeLabel, onClick = onHide, modifier = Modifier.align(Alignment.TopEnd))
+}
+
+// Floating edit-mode toolbar, shown as a Popup just outside the dock so it never
+// widens the bar or pushes the buttons: Reset dock — restore hidden buttons and
+// the default order / visibility (nav AND status) via HomeAction.ResetDock — and
+// Done to leave edit mode. Once the status cluster stays put in edit mode, the
+// head-unit bar has no inline room for these, so they float (and the back
+// gesture still exits).
+@Composable
+private fun DockEditToolbar(
+    onReset: () -> Unit,
+    onDone: () -> Unit,
+    modifier: Modifier = Modifier,
+) = Surface(
+    modifier = modifier,
+    shape = MaterialTheme.shapes.large,
+    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+) {
+    Row(
+        modifier = Modifier.padding(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        DockEditChip(
+            icon = Lucide.RotateCcw,
+            label = stringResource(R.string.settings_reset_dock),
+            container = MaterialTheme.colorScheme.surfaceContainerHighest,
+            content = MaterialTheme.colorScheme.onSurface,
+            onClick = onReset,
+        )
+        DockEditChip(
+            icon = Lucide.Check,
+            label = stringResource(R.string.edit_done),
+            container = MaterialTheme.colorScheme.secondaryContainer,
+            content = MaterialTheme.colorScheme.onSecondaryContainer,
+            onClick = onDone,
+        )
+    }
+}
+
+@Composable
+private fun DockEditChip(
+    icon: ImageVector,
+    label: String,
+    container: Color,
+    content: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) = Row(
+    modifier =
+        modifier
+            .defaultMinSize(minHeight = FemtoDimens.MinTouchTarget)
+            .clip(RoundedCornerShape(16.dp))
+            .background(container)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
+    horizontalArrangement = Arrangement.spacedBy(6.dp),
+    verticalAlignment = Alignment.CenterVertically,
+) {
+    FemtoIcon(imageVector = icon, contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
+    Text(text = label, style = MaterialTheme.typography.cardCta(), color = content)
 }
 
 // Wide dock: the fixed-margin pill fits, so the bar wraps its content to a compact
