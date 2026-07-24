@@ -55,7 +55,10 @@ import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
 import io.github.seijikohara.femto.ui.drawer.DrawerDimensions
 import io.github.seijikohara.femto.ui.drawer.dimensions
+import io.github.seijikohara.femto.ui.home.components.EditDoneButton
 import io.github.seijikohara.femto.ui.home.components.FemtoHorizontalDivider
+import io.github.seijikohara.femto.ui.home.components.RemoveBadge
+import io.github.seijikohara.femto.ui.home.components.reorderByDrag
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -66,7 +69,6 @@ import kotlin.math.abs
 
 private val DockIconLabelGap = 4.dp
 private val DockVerticalPadding = 8.dp
-private val RemoveBadgeSize = 28.dp
 
 /**
  * Pinned-apps dock fixed at the bottom of the drawer sheet: a horizontally
@@ -197,36 +199,6 @@ internal fun PinnedDock(
     }
 }
 
-/**
- * Advance a horizontal drag-reorder by one gesture frame: while the
- * accumulated [dragDelta] has crossed more than half a slot ([stepPx]) the
- * dragged item at [fromIndex] swaps one position in that direction and the
- * delta is rebased on the new slot. Returns the (possibly) reordered list and
- * the residual delta. Pure, so the swap math is JVM-unit-testable.
- */
-internal fun <T> reorderByDrag(
-    items: List<T>,
-    fromIndex: Int,
-    dragDelta: Float,
-    stepPx: Float,
-): Pair<List<T>, Float> {
-    if (fromIndex !in items.indices || stepPx <= 0f) return items to dragDelta
-    val reordered = items.toMutableList()
-    var index = fromIndex
-    var delta = dragDelta
-    while (delta > stepPx / 2 && index < reordered.lastIndex) {
-        reordered.add(index + 1, reordered.removeAt(index))
-        index++
-        delta -= stepPx
-    }
-    while (delta < -stepPx / 2 && index > 0) {
-        reordered.add(index - 1, reordered.removeAt(index))
-        index--
-        delta += stepPx
-    }
-    return reordered to delta
-}
-
 @Composable
 private fun DockTile(
     entry: AppEntry,
@@ -274,62 +246,6 @@ private fun DockTile(
             modifier = Modifier.align(Alignment.TopEnd),
         )
     }
-}
-
-// The edit-mode remove (×) badge: an error-tinted circle over the tile's
-// top-end corner, tapped to unpin. Shown only in edit mode, so it never
-// competes with a launch tap in normal use.
-@Composable
-private fun RemoveBadge(
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) = Box(
-    modifier =
-        modifier
-            .size(RemoveBadgeSize)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.errorContainer)
-            .clickable(onClick = onClick)
-            .semantics { contentDescription = label },
-    contentAlignment = Alignment.Center,
-) {
-    FemtoIcon(
-        imageVector = Lucide.X,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.onErrorContainer,
-        modifier = Modifier.size(16.dp),
-    )
-}
-
-// "Done" pill that leaves edit mode. A filled tonal chip so it reads as the
-// primary way out; sized to the automotive touch floor.
-@Composable
-private fun EditDoneButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) = Row(
-    modifier =
-        modifier
-            .defaultMinSize(minHeight = FemtoDimens.MinTouchTarget)
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.secondaryContainer)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp),
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(6.dp),
-) {
-    FemtoIcon(
-        imageVector = Lucide.Check,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-        modifier = Modifier.size(18.dp),
-    )
-    Text(
-        text = stringResource(R.string.drawer_edit_done),
-        style = MaterialTheme.typography.cardCta(),
-        color = MaterialTheme.colorScheme.onSecondaryContainer,
-    )
 }
 
 @PreviewLightDark

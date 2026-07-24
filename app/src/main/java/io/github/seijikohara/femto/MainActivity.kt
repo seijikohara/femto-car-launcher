@@ -428,6 +428,10 @@ class MainActivity : ComponentActivity() {
                 lifecycleScope.launch { dockPreferences.moveNav(event.id, event.direction) }
             }
 
+            is HomeEvent.SetDockNavOrder -> {
+                lifecycleScope.launch { dockPreferences.setNavOrder(event.order) }
+            }
+
             is HomeEvent.HideDockNav -> {
                 lifecycleScope.launch { dockPreferences.toggleNavHidden(event.id) }
             }

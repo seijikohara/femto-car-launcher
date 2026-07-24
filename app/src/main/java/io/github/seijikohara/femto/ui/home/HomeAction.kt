@@ -64,6 +64,15 @@ internal sealed interface HomeAction {
         val direction: Int,
     ) : HomeAction
 
+    /**
+     * The dock's edit-mode drag-reorder commit: the new full nav order (hidden
+     * ids kept at their slots by the caller), persisted wholesale via
+     * `DockSettingsStore.setNavOrder`.
+     */
+    data class SetDockNavOrder(
+        val order: List<DockNavId>,
+    ) : HomeAction
+
     /** The dock's long-press menu: drop a nav button from the visible order. */
     data class HideDockNav(
         val id: DockNavId,
