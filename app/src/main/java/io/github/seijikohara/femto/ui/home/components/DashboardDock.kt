@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -246,8 +247,10 @@ private fun HorizontalDock(
         // Long-pressing any nav button flips the bar into edit mode (see
         // DockNavEditStrip). The strip wraps its content just like the pill, so
         // the bar keeps its footprint — same width class (pill wraps / fallback
-        // fills), no widening or button shift on entering edit.
+        // fills), no widening or button shift on entering edit. The back gesture
+        // exits (no room for a Done chip without widening past the pill).
         var editing by remember { mutableStateOf(false) }
+        BackHandler(enabled = editing) { editing = false }
 
         Surface(
             // Floating rounded glass bar: transparent + glassChrome (rounded clip +
@@ -267,8 +270,11 @@ private fun HorizontalDock(
                     navOrder = dockConfig.navOrder,
                     navHidden = dockConfig.navHidden,
                     vertical = false,
+                    systemStatus = systemStatus,
+                    visibleStatus = dockConfig.visibleStatus,
+                    showStatusCluster = showStatusCluster,
+                    motionTier = motionTier,
                     onAction = onAction,
-                    onDone = { editing = false },
                     modifier = Modifier.fillMaxHeight().padding(horizontal = FemtoDimens.DockButtonMargin),
                 )
             } else if (pillFits) {
@@ -386,15 +392,19 @@ private fun VerticalDock(
 ) {
     val visibleNav = dockConfig.visibleNav
     // Long-press a nav button to edit; the rail swaps to the vertical reorder
-    // strip (drag + × + Done) — see DockNavEditStrip.
+    // strip (drag + ×), keeping the status cluster in place. Back exits.
     var editing by remember { mutableStateOf(false) }
+    BackHandler(enabled = editing) { editing = false }
     if (editing) {
         DockNavEditStrip(
             navOrder = dockConfig.navOrder,
             navHidden = dockConfig.navHidden,
             vertical = true,
+            systemStatus = systemStatus,
+            visibleStatus = dockConfig.visibleStatus,
+            showStatusCluster = dockConfig.visibleStatus.isNotEmpty(),
+            motionTier = motionTier,
             onAction = onAction,
-            onDone = { editing = false },
             modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
         )
     } else {
@@ -554,22 +564,27 @@ private val DockEditTileGap: Dp = FemtoDimens.DockButtonMargin * 2
 
 /**
  * The dock nav row's edit mode: fixed-width reorderable icon tiles with × (hide)
- * badges plus a Done control, replacing the normal pill / weight-shared / rail
- * content while editing. Long-pressing a nav button enters it (see
- * [EditableNavButton]); dragging a tile reorders (committed as a new full nav
- * order via [HomeAction.SetDockNavOrder], hidden ids kept at their slots), the ×
- * hides ([HomeAction.HideDockNav]), and Done exits. The interaction and its
- * shared primitives ([reorderByDrag] / [RemoveBadge] / [EditDoneButton]) are the
- * drawer pinned dock's — the two docks now edit the same way. [vertical] lays it
- * out down the rail instead of across the bar.
+ * badges, replacing the normal nav content while keeping the read-only status
+ * cluster exactly where it was so the bar's footprint — and every button's
+ * position — stays put on entering edit. Long-pressing a nav button enters it
+ * (see [EditableNavButton]); dragging a tile reorders (committed as a new full
+ * nav order via [HomeAction.SetDockNavOrder], hidden ids kept at their slots),
+ * the × hides ([HomeAction.HideDockNav]); the back gesture exits (the bar has no
+ * room for a Done chip without widening — see the BackHandler in the caller).
+ * The tile pitch matches the pill's per-button pitch so nothing shifts. The
+ * drag / × primitives ([reorderByDrag] / [RemoveBadge]) are the drawer pinned
+ * dock's. [vertical] lays it out down the rail instead of across the bar.
  */
 @Composable
 private fun DockNavEditStrip(
     navOrder: List<DockNavId>,
     navHidden: Set<DockNavId>,
     vertical: Boolean,
+    systemStatus: SystemStatus,
+    visibleStatus: List<DockStatusId>,
+    showStatusCluster: Boolean,
+    motionTier: MotionTier,
     onAction: (HomeAction) -> Unit,
-    onDone: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val visible = remember(navOrder, navHidden) { navOrder.filterNot { it in navHidden } }
@@ -638,7 +653,19 @@ private fun DockNavEditStrip(
                         },
             )
         }
-        EditDoneButton(onClick = onDone)
+        // The read-only status cluster stays put (same divider + cluster as the
+        // normal bar) so entering edit mode neither hides the status icons nor
+        // shifts the nav buttons. It keeps its own long-press DockEditMenu.
+        if (showStatusCluster) {
+            if (vertical) VerticalDockDivider() else HorizontalDockDivider()
+            StatusCluster(
+                status = systemStatus,
+                vertical = vertical,
+                order = visibleStatus,
+                onAction = onAction,
+                motionTier = motionTier,
+            )
+        }
     }
     if (vertical) {
         Column(
