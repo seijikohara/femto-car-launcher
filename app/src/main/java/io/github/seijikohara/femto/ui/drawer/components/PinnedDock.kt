@@ -110,24 +110,14 @@ internal fun PinnedDock(
     var dragDelta by remember { mutableFloatStateOf(0f) }
     var dragTravelled by remember { mutableStateOf(false) }
     val stepPx = with(LocalDensity.current) { (dimensions.tileWidth + FemtoDimens.GridGutter).toPx() }
-    // The "Done" affordance sits above the tiles (always visible, never scrolled
-    // off) so exiting edit mode is one reachable tap rather than a hunt.
-    if (editing) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = FemtoDimens.ScreenPadding),
-            horizontalArrangement = Arrangement.End,
-        ) {
-            EditDoneButton(onClick = { editing = false })
-        }
-    }
     LazyRow(
         modifier = Modifier.fillMaxWidth(),
         contentPadding =
             PaddingValues(horizontal = FemtoDimens.ScreenPadding, vertical = DockVerticalPadding),
         horizontalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
+        // Centre the taller "Done" chip (added as a trailing item in edit mode)
+        // against the icon+label tiles rather than top-aligning it.
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         items(items = order, key = { it.componentName.flattenToString() }) { entry ->
             val key = entry.componentName.flattenToString()
@@ -195,6 +185,13 @@ internal fun PinnedDock(
                             )
                         },
             )
+        }
+        // The "Done" chip trails the pins inline (matching the dashboard dock's
+        // edit strip) rather than sitting in a separate row above them.
+        if (editing) {
+            item(key = "pinned-dock-done") {
+                EditDoneButton(onClick = { editing = false })
+            }
         }
     }
 }

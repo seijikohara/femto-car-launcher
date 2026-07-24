@@ -1,8 +1,7 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -18,9 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -246,9 +243,10 @@ private fun HorizontalDock(
         // nav keeps room — see compactDockExtent. Applied in both layouts.
         val showStatusCluster = maxWidth >= compactDockExtent(visibleNav.size)
         val pillFits = horizontalDockPillFits(maxWidth, visibleNav.size)
-        // Long-pressing any nav button flips the whole bar into edit mode (see
-        // DockNavEditStrip); the bar fills the width then so the reorder strip and
-        // its Done control have room regardless of the normal pill/fallback choice.
+        // Long-pressing any nav button flips the bar into edit mode (see
+        // DockNavEditStrip). The strip wraps its content just like the pill, so
+        // the bar keeps its footprint — same width class (pill wraps / fallback
+        // fills), no widening or button shift on entering edit.
         var editing by remember { mutableStateOf(false) }
 
         Surface(
@@ -259,7 +257,7 @@ private fun HorizontalDock(
             modifier =
                 Modifier
                     .height(FemtoDimens.DockThickness)
-                    .then(if (pillFits && !editing) Modifier else Modifier.fillMaxWidth())
+                    .then(if (pillFits) Modifier else Modifier.fillMaxWidth())
                     .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
             color = Color.Transparent,
             contentColor = MaterialTheme.colorScheme.onSurface,
@@ -271,7 +269,7 @@ private fun HorizontalDock(
                     vertical = false,
                     onAction = onAction,
                     onDone = { editing = false },
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
+                    modifier = Modifier.fillMaxHeight().padding(horizontal = FemtoDimens.DockButtonMargin),
                 )
             } else if (pillFits) {
                 // Fixed-margin pill: each button reserves a DockButtonMargin on both
@@ -548,9 +546,11 @@ private fun EditableNavButton(
 }
 
 // The tile size for the dock's edit strip: the tap-target floor, so the fixed
-// drag step ([reorderByDrag]) is one whole tile plus its gap.
+// drag step ([reorderByDrag]) is one whole tile plus its gap. The gap matches
+// the normal pill's per-button spacing (a DockButtonMargin on each side) so
+// entering edit mode neither shifts the buttons nor tightens their gaps.
 private val DockEditTileSize: Dp = FemtoDimens.MinTouchTarget
-private val DockEditTileGap: Dp = 8.dp
+private val DockEditTileGap: Dp = FemtoDimens.DockButtonMargin * 2
 
 /**
  * The dock nav row's edit mode: fixed-width reorderable icon tiles with × (hide)
@@ -593,7 +593,11 @@ private fun DockNavEditStrip(
                             val offset = if (dragging) dragDelta else 0f
                             if (vertical) translationY = offset else translationX = offset
                         }.pointerInput(id, stepPx, vertical) {
-                            detectDragGesturesAfterLongPress(
+                            // Immediate drag (not after-long-press): the bar is
+                            // already in edit mode, so a plain press-drag on a tile
+                            // reorders — no second long-press. There is no scroll to
+                            // compete with (the strip wraps its content).
+                            detectDragGestures(
                                 onDragStart = {
                                     draggingKey = id
                                     dragDelta = 0f
@@ -638,13 +642,13 @@ private fun DockNavEditStrip(
     }
     if (vertical) {
         Column(
-            modifier = modifier.verticalScroll(rememberScrollState()),
+            modifier = modifier,
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(DockEditTileGap, Alignment.CenterVertically),
         ) { tiles() }
     } else {
         Row(
-            modifier = modifier.horizontalScroll(rememberScrollState()),
+            modifier = modifier,
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(DockEditTileGap, Alignment.CenterHorizontally),
         ) { tiles() }
