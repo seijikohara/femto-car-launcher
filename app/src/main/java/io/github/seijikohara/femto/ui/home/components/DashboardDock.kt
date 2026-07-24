@@ -634,62 +634,69 @@ private fun DockNavEditStrip(
     val removeLabel = stringResource(R.string.dock_hide)
     val tiles: @Composable () -> Unit = {
         order.forEach { id ->
-            val dragging = draggingKey == id
-            DockNavEditTile(
-                id = id,
-                removeLabel = removeLabel,
-                onHide = { onAction(HomeAction.HideDockNav(id)) },
-                modifier =
-                    Modifier
-                        .zIndex(if (dragging) 1f else 0f)
-                        .graphicsLayer {
-                            val offset = if (dragging) dragDelta else 0f
-                            if (vertical) translationY = offset else translationX = offset
-                        }.pointerInput(id, stepPx, vertical) {
-                            // Immediate drag (not after-long-press): the bar is
-                            // already in edit mode, so a plain press-drag on a tile
-                            // reorders — no second long-press. There is no scroll to
-                            // compete with (the strip wraps its content).
-                            detectDragGestures(
-                                onDragStart = {
-                                    draggingKey = id
-                                    dragDelta = 0f
-                                    dragTravelled = false
-                                },
-                                onDrag = { change, amount ->
-                                    change.consume()
-                                    dragDelta += if (vertical) amount.y else amount.x
-                                    if (abs(dragDelta) > viewConfiguration.touchSlop) dragTravelled = true
-                                    val index = order.indexOf(id)
-                                    val (reordered, residual) = reorderByDrag(order.toList(), index, dragDelta, stepPx)
-                                    if (reordered.size == order.size && reordered != order.toList()) {
-                                        order.clear()
-                                        order.addAll(reordered)
-                                    }
-                                    dragDelta = residual
-                                },
-                                onDragEnd = {
-                                    if (dragTravelled) {
-                                        onAction(
-                                            HomeAction.SetDockNavOrder(
-                                                mergeNavOrder(navOrder, navHidden, order.toList()),
-                                            ),
-                                        )
-                                    }
-                                    draggingKey = null
-                                    dragDelta = 0f
-                                },
-                                onDragCancel = {
-                                    if (dragTravelled) {
-                                        order.clear()
-                                        order.addAll(visible)
-                                    }
-                                    draggingKey = null
-                                    dragDelta = 0f
-                                },
-                            )
-                        },
-            )
+            // key(id), not positional: without it a mid-drag reorder rebinds each
+            // tile's pointerInput to a new id, restarting the gesture coroutine so
+            // the drag ends without onDragEnd — the reorder is never committed and
+            // reverts on exit. Keying tracks the dragged tile across swaps.
+            key(id) {
+                val dragging = draggingKey == id
+                DockNavEditTile(
+                    id = id,
+                    removeLabel = removeLabel,
+                    onHide = { onAction(HomeAction.HideDockNav(id)) },
+                    modifier =
+                        Modifier
+                            .zIndex(if (dragging) 1f else 0f)
+                            .graphicsLayer {
+                                val offset = if (dragging) dragDelta else 0f
+                                if (vertical) translationY = offset else translationX = offset
+                            }.pointerInput(id, stepPx, vertical) {
+                                // Immediate drag (not after-long-press): the bar is
+                                // already in edit mode, so a plain press-drag on a tile
+                                // reorders — no second long-press. There is no scroll to
+                                // compete with (the strip wraps its content).
+                                detectDragGestures(
+                                    onDragStart = {
+                                        draggingKey = id
+                                        dragDelta = 0f
+                                        dragTravelled = false
+                                    },
+                                    onDrag = { change, amount ->
+                                        change.consume()
+                                        dragDelta += if (vertical) amount.y else amount.x
+                                        if (abs(dragDelta) > viewConfiguration.touchSlop) dragTravelled = true
+                                        val index = order.indexOf(id)
+                                        val (reordered, residual) =
+                                            reorderByDrag(order.toList(), index, dragDelta, stepPx)
+                                        if (reordered.size == order.size && reordered != order.toList()) {
+                                            order.clear()
+                                            order.addAll(reordered)
+                                        }
+                                        dragDelta = residual
+                                    },
+                                    onDragEnd = {
+                                        if (dragTravelled) {
+                                            onAction(
+                                                HomeAction.SetDockNavOrder(
+                                                    mergeNavOrder(navOrder, navHidden, order.toList()),
+                                                ),
+                                            )
+                                        }
+                                        draggingKey = null
+                                        dragDelta = 0f
+                                    },
+                                    onDragCancel = {
+                                        if (dragTravelled) {
+                                            order.clear()
+                                            order.addAll(visible)
+                                        }
+                                        draggingKey = null
+                                        dragDelta = 0f
+                                    },
+                                )
+                            },
+                )
+            }
         }
         // The read-only status cluster stays put (same divider + cluster as the
         // normal bar) so entering edit mode neither hides the status icons nor

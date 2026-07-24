@@ -2,8 +2,8 @@ package io.github.seijikohara.femto.ui.drawer.components
 
 import android.content.ComponentName
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -118,6 +118,10 @@ internal fun PinnedDock(
         // Centre the taller "Done" chip (added as a trailing item in edit mode)
         // against the icon+label tiles rather than top-aligning it.
         verticalAlignment = Alignment.CenterVertically,
+        // No horizontal scroll while editing: the tiles take immediate drags to
+        // reorder (see below), so the row must not consume them as a scroll —
+        // the same reason the dashboard dock's edit strip does not scroll.
+        userScrollEnabled = !editing,
     ) {
         items(items = order, key = { it.componentName.flattenToString() }) { entry ->
             val key = entry.componentName.flattenToString()
@@ -128,6 +132,7 @@ internal fun PinnedDock(
                 editing = editing,
                 onLaunch = onLaunch,
                 onUnpin = onUnpin,
+                onEnterEdit = { editing = true },
                 modifier =
                     Modifier
                         // The held tile rides above its neighbours and tracks
@@ -135,55 +140,54 @@ internal fun PinnedDock(
                         // animation is the position change itself).
                         .zIndex(if (dragging) 1f else 0f)
                         .graphicsLayer { translationX = if (dragging) dragDelta else 0f }
-                        .pointerInput(key, stepPx) {
-                            detectDragGesturesAfterLongPress(
-                                // The long-press itself enters edit mode; the same
-                                // gesture then drags if the finger travels, so one
-                                // press both reveals the × badges and reorders.
-                                onDragStart = {
-                                    editing = true
-                                    draggingKey = key
-                                    dragDelta = 0f
-                                    dragTravelled = false
-                                },
-                                onDrag = { change, amount ->
-                                    change.consume()
-                                    dragDelta += amount.x
-                                    if (abs(dragDelta) > viewConfiguration.touchSlop) dragTravelled = true
-                                    val index = order.indexOfFirst { it.componentName.flattenToString() == key }
-                                    val (reordered, residual) = reorderByDrag(
-                                        order.toList(),
-                                        index,
-                                        dragDelta,
-                                        stepPx,
+                        // Immediate drag ONLY in edit mode (entered by the tile's
+                        // long-press below), matching the dashboard dock: a plain
+                        // press-drag on a tile reorders — no second long-press.
+                        .then(
+                            if (editing) {
+                                Modifier.pointerInput(key, stepPx) {
+                                    detectDragGestures(
+                                        onDragStart = {
+                                            draggingKey = key
+                                            dragDelta = 0f
+                                            dragTravelled = false
+                                        },
+                                        onDrag = { change, amount ->
+                                            change.consume()
+                                            dragDelta += amount.x
+                                            if (abs(dragDelta) > viewConfiguration.touchSlop) {
+                                                dragTravelled = true
+                                            }
+                                            val index = order.indexOfFirst { it.componentName.flattenToString() == key }
+                                            val (reordered, residual) =
+                                                reorderByDrag(order.toList(), index, dragDelta, stepPx)
+                                            if (reordered.size == order.size && reordered != order.toList()) {
+                                                order.clear()
+                                                order.addAll(reordered)
+                                            }
+                                            dragDelta = residual
+                                        },
+                                        onDragEnd = {
+                                            if (dragTravelled) {
+                                                onReorder(order.map { it.componentName.flattenToString() })
+                                            }
+                                            draggingKey = null
+                                            dragDelta = 0f
+                                        },
+                                        onDragCancel = {
+                                            if (dragTravelled) {
+                                                order.clear()
+                                                order.addAll(apps)
+                                            }
+                                            draggingKey = null
+                                            dragDelta = 0f
+                                        },
                                     )
-                                    if (reordered.size == order.size && reordered != order.toList()) {
-                                        order.clear()
-                                        order.addAll(reordered)
-                                    }
-                                    dragDelta = residual
-                                },
-                                // Commit a travelled reorder; a no-travel press just
-                                // leaves edit mode active (the × badges are now shown).
-                                onDragEnd = {
-                                    if (dragTravelled) {
-                                        onReorder(order.map { it.componentName.flattenToString() })
-                                    }
-                                    draggingKey = null
-                                    dragDelta = 0f
-                                },
-                                onDragCancel = {
-                                    // A travelled drag cancelled mid-flight reverts to
-                                    // the persisted order (nothing was committed).
-                                    if (dragTravelled) {
-                                        order.clear()
-                                        order.addAll(apps)
-                                    }
-                                    draggingKey = null
-                                    dragDelta = 0f
-                                },
-                            )
-                        },
+                                }
+                            } else {
+                                Modifier
+                            },
+                        ),
             )
         }
         // The "Done" chip trails the pins inline (matching the dashboard dock's
@@ -203,6 +207,7 @@ private fun DockTile(
     editing: Boolean,
     onLaunch: (ComponentName) -> Unit,
     onUnpin: (ComponentName) -> Unit,
+    onEnterEdit: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Box(modifier = modifier) {
     Column(
@@ -210,11 +215,20 @@ private fun DockTile(
             Modifier
                 .width(dimensions.tileWidth)
                 .defaultMinSize(minHeight = FemtoDimens.MinTouchTarget)
-                // Tap launches only while NOT editing: in edit mode the tile is a
-                // reorder handle and the × badge owns removal, so a stray tap must
-                // not fire the app. The long-press (owned by the parent drag
-                // detector) enters edit mode and reorders.
-                .clickable(onClick = { if (!editing) onLaunch(entry.componentName) }),
+                // Normal mode: tap launches, long-press enters edit mode. Edit
+                // mode has NO tile clickable — the × badge owns removal and the
+                // parent modifier owns the reorder drag, so a stray tap does
+                // nothing rather than launching.
+                .then(
+                    if (editing) {
+                        Modifier
+                    } else {
+                        Modifier.combinedClickable(
+                            onClick = { onLaunch(entry.componentName) },
+                            onLongClick = onEnterEdit,
+                        )
+                    },
+                ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
