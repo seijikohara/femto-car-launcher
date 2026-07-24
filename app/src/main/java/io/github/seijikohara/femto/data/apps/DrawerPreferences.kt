@@ -29,6 +29,14 @@ internal interface DrawerSettingsStore {
     val iconSize: Flow<DrawerIconSize>
     val pinned: Flow<List<String>>
 
+    /**
+     * Components (flattened [android.content.ComponentName]) hidden from the
+     * all-apps list — a user-curated declutter, unordered. Distinct from a
+     * pin: a hidden app is filtered out of the grid / list / Recent row, while
+     * a pin surfaces it in the bottom dock. The two are independent sets.
+     */
+    val hidden: Flow<Set<String>>
+
     suspend fun setLayout(value: DrawerLayout)
 
     suspend fun setIconSize(value: DrawerIconSize)
@@ -42,6 +50,9 @@ internal interface DrawerSettingsStore {
      * the rendered dock, which is itself resolved from the persisted order.
      */
     suspend fun setPinnedOrder(value: List<String>)
+
+    /** Hide the component if visible, unhide it if hidden. */
+    suspend fun toggleHidden(flattenedComponent: String)
 }
 
 // A flattened ComponentName ("package/class") can never contain a newline, so it
@@ -83,6 +94,11 @@ internal class DrawerPreferences(
             .catchIoAsDefaults(TAG)
             .map { prefs -> resolvePinnedOrder(prefs[PINNED_ORDER_KEY], prefs[LEGACY_PINNED_KEY]) }
 
+    override val hidden: Flow<Set<String>> =
+        context.drawerDataStore.data
+            .catchIoAsDefaults(TAG)
+            .map { prefs -> prefs[HIDDEN_KEY].orEmpty() }
+
     override suspend fun setLayout(value: DrawerLayout) {
         context.drawerDataStore.editOrLog(TAG) { it[LAYOUT_KEY] = value.name }
     }
@@ -109,10 +125,19 @@ internal class DrawerPreferences(
         }
     }
 
+    override suspend fun toggleHidden(flattenedComponent: String) {
+        context.drawerDataStore.editOrLog(TAG) { prefs ->
+            val current = prefs[HIDDEN_KEY].orEmpty()
+            prefs[HIDDEN_KEY] =
+                if (flattenedComponent in current) current - flattenedComponent else current + flattenedComponent
+        }
+    }
+
     private companion object {
         val LAYOUT_KEY = stringPreferencesKey("drawer_layout")
         val ICON_SIZE_KEY = stringPreferencesKey("drawer_icon_size")
         val PINNED_ORDER_KEY = stringPreferencesKey("drawer_pinned_order")
         val LEGACY_PINNED_KEY = stringSetPreferencesKey("drawer_pinned")
+        val HIDDEN_KEY = stringSetPreferencesKey("drawer_hidden")
     }
 }

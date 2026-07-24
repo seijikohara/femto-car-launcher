@@ -94,8 +94,10 @@ internal fun AppsPanel(
     layout: DrawerLayout,
     iconSize: DrawerIconSize,
     pinned: List<String>,
+    hidden: Set<String>,
     onLaunch: (ComponentName) -> Unit,
     onTogglePin: (ComponentName) -> Unit,
+    onToggleHide: (ComponentName) -> Unit,
     onOpenAppInfo: (ComponentName) -> Unit,
     onRequestUninstall: (ComponentName) -> Unit,
     onToggleLayout: () -> Unit,
@@ -109,9 +111,11 @@ internal fun AppsPanel(
 ) {
     BackHandler(onBack = onClose)
     // Reset per open: the panel leaves composition on collapse, so a plain
-    // remember starts each open with search closed and an empty query.
+    // remember starts each open with search closed, an empty query, and hidden
+    // apps tucked away.
     var searchActive by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
+    var showHidden by remember { mutableStateOf(false) }
     Surface(
         modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
         shape = MaterialTheme.shapes.large,
@@ -134,6 +138,8 @@ internal fun AppsPanel(
                 onToggleLayout = onToggleLayout,
                 iconSize = iconSize,
                 onSelectIconSize = onSelectIconSize,
+                showHidden = showHidden,
+                onShowHiddenChange = { showHidden = it },
                 onClose = onClose,
             )
             AppDrawerContent(
@@ -141,9 +147,12 @@ internal fun AppsPanel(
                 layout = layout,
                 iconSize = iconSize,
                 pinned = pinned,
+                hidden = hidden,
+                showHidden = showHidden,
                 query = query,
                 onLaunch = onLaunch,
                 onTogglePin = onTogglePin,
+                onToggleHide = onToggleHide,
                 onOpenAppInfo = onOpenAppInfo,
                 onRequestUninstall = onRequestUninstall,
                 onReorderPins = onReorderPins,
@@ -167,6 +176,8 @@ private fun AppsTopBar(
     onToggleLayout: () -> Unit,
     iconSize: DrawerIconSize,
     onSelectIconSize: (DrawerIconSize) -> Unit,
+    showHidden: Boolean,
+    onShowHiddenChange: (Boolean) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Row(
@@ -214,6 +225,8 @@ private fun AppsTopBar(
             onToggleLayout = onToggleLayout,
             iconSize = iconSize,
             onSelectIconSize = onSelectIconSize,
+            showHidden = showHidden,
+            onShowHiddenChange = onShowHiddenChange,
         )
     }
 }
@@ -227,6 +240,8 @@ private fun DisplayOptionsButton(
     onToggleLayout: () -> Unit,
     iconSize: DrawerIconSize,
     onSelectIconSize: (DrawerIconSize) -> Unit,
+    showHidden: Boolean,
+    onShowHiddenChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) = Box(modifier = modifier) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -273,6 +288,21 @@ private fun DisplayOptionsButton(
                 },
             )
         }
+        // Reveal hidden apps in the grid (each carrying an Unhide in its menu).
+        // A checkmark marks the toggle on; it stays open-agnostic — flipping it
+        // dismisses the menu so the grid change is immediately visible.
+        FemtoHorizontalDivider()
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.drawer_show_hidden)) },
+            modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
+            trailingIcon = {
+                if (showHidden) FemtoIcon(imageVector = Lucide.Check, contentDescription = null)
+            },
+            onClick = {
+                onShowHiddenChange(!showHidden)
+                menuOpen = false
+            },
+        )
     }
 }
 
@@ -312,6 +342,7 @@ internal fun AppDrawerPanelHost(
     // is gone with the compact view, so the empty-list default is safe: the pinned
     // dock simply stays hidden until the persisted pins land, then appears.
     val pinned by drawerPreferences.pinned.collectAsStateWithLifecycle(initialValue = emptyList())
+    val hidden by drawerPreferences.hidden.collectAsStateWithLifecycle(initialValue = emptySet())
     val scope = rememberCoroutineScope()
 
     AppsPanel(
@@ -319,12 +350,16 @@ internal fun AppDrawerPanelHost(
         layout = layout,
         iconSize = iconSize,
         pinned = pinned,
+        hidden = hidden,
         onLaunch = { component ->
             viewModel.onAction(AppDrawerAction.Launch(component))
             onClose()
         },
         onTogglePin = { component ->
             scope.launch { drawerPreferences.togglePinned(component.flattenToString()) }
+        },
+        onToggleHide = { component ->
+            scope.launch { drawerPreferences.toggleHidden(component.flattenToString()) }
         },
         onOpenAppInfo = { component -> viewModel.onAction(AppDrawerAction.OpenAppInfo(component)) },
         onRequestUninstall = { component -> viewModel.onAction(AppDrawerAction.RequestUninstall(component)) },
@@ -364,8 +399,10 @@ private fun AppsPanelPreview() {
             layout = DrawerLayout.GRID,
             iconSize = DrawerIconSize.MEDIUM,
             pinned = listOf("com.example.maps/.Main", "com.example.phone/.Main"),
+            hidden = emptySet(),
             onLaunch = {},
             onTogglePin = {},
+            onToggleHide = {},
             onOpenAppInfo = {},
             onRequestUninstall = {},
             onToggleLayout = {},

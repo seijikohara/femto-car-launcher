@@ -226,6 +226,10 @@ internal class HomeViewModel(
                 mutableEvents.tryEmit(HomeEvent.MoveDockNav(action.id, action.direction))
             }
 
+            is HomeAction.SetDockNavOrder -> {
+                mutableEvents.tryEmit(HomeEvent.SetDockNavOrder(action.order))
+            }
+
             is HomeAction.HideDockNav -> {
                 mutableEvents.tryEmit(HomeEvent.HideDockNav(action.id))
             }

@@ -69,6 +69,11 @@ internal sealed interface HomeEvent {
         val direction: Int,
     ) : HomeEvent
 
+    /** Persist the dock edit-mode drag-reorder's new full nav order. */
+    data class SetDockNavOrder(
+        val order: List<DockNavId>,
+    ) : HomeEvent
+
     /** Persist a nav-button hide/show toggle from the dock's long-press menu. */
     data class HideDockNav(
         val id: DockNavId,

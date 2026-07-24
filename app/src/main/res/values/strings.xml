@@ -135,6 +135,8 @@
     <string name="nav_assistant">Assistant</string>
     <string name="nav_settings">Settings</string>
 
+    <!-- Shared edit-mode "Done" affordance (drawer pinned dock + dashboard dock nav). -->
+    <string name="edit_done">Done</string>
     <!-- Dashboard footer: long-press edit menu (nav buttons and status icons share it) -->
     <string name="dock_hide">Hide</string>
     <!-- Accessibility label for the long press that OPENS the edit menu (move/hide/reset);
@@ -169,6 +171,10 @@
     <string name="drawer_layout_list">List layout</string>
     <string name="drawer_pin">Pin</string>
     <string name="drawer_unpin">Unpin</string>
+    <string name="drawer_remove_pin">Remove from dock</string>
+    <string name="drawer_hide">Hide</string>
+    <string name="drawer_unhide">Unhide</string>
+    <string name="drawer_show_hidden">Show hidden apps</string>
     <string name="drawer_app_info">App info</string>
     <string name="drawer_uninstall">Uninstall</string>
     <string name="drawer_move_left">Move left</string>

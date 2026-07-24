@@ -1,6 +1,10 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -19,24 +23,35 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.zIndex
 import com.composables.icons.lucide.Bluetooth
+import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Globe
 import com.composables.icons.lucide.LayoutGrid
 import com.composables.icons.lucide.Lucide
@@ -44,6 +59,7 @@ import com.composables.icons.lucide.Mic
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Navigation
 import com.composables.icons.lucide.Phone
+import com.composables.icons.lucide.RotateCcw
 import com.composables.icons.lucide.Settings
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
@@ -58,6 +74,8 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.cardCta
+import kotlin.math.abs
 
 /**
  * The dock's data-driven layout: which nav buttons and status indicators show,
@@ -235,6 +253,13 @@ private fun HorizontalDock(
         // nav keeps room — see compactDockExtent. Applied in both layouts.
         val showStatusCluster = maxWidth >= compactDockExtent(visibleNav.size)
         val pillFits = horizontalDockPillFits(maxWidth, visibleNav.size)
+        // Long-pressing any nav button flips the bar into edit mode (see
+        // DockNavEditStrip). The strip wraps its content just like the pill, so
+        // the bar keeps its footprint — same width class (pill wraps / fallback
+        // fills), no widening or button shift on entering edit. The back gesture
+        // exits (no room for a Done chip without widening past the pill).
+        var editing by remember { mutableStateOf(false) }
+        BackHandler(enabled = editing) { editing = false }
 
         Surface(
             // Floating rounded glass bar: transparent + glassChrome (rounded clip +
@@ -249,7 +274,19 @@ private fun HorizontalDock(
             color = Color.Transparent,
             contentColor = MaterialTheme.colorScheme.onSurface,
         ) {
-            if (pillFits) {
+            if (editing) {
+                DockNavEditStrip(
+                    navOrder = dockConfig.navOrder,
+                    navHidden = dockConfig.navHidden,
+                    vertical = false,
+                    systemStatus = systemStatus,
+                    visibleStatus = dockConfig.visibleStatus,
+                    showStatusCluster = showStatusCluster,
+                    motionTier = motionTier,
+                    onAction = onAction,
+                    modifier = Modifier.fillMaxHeight().padding(horizontal = FemtoDimens.DockButtonMargin),
+                )
+            } else if (pillFits) {
                 // Fixed-margin pill: each button reserves a DockButtonMargin on both
                 // sides, so adjacent buttons sit two margins apart and the first /
                 // last button sits one margin from the bar edge. The row wraps its
@@ -259,14 +296,12 @@ private fun HorizontalDock(
                     modifier = Modifier.fillMaxHeight(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    visibleNav.forEachIndexed { index, id ->
+                    visibleNav.forEach { id ->
                         key(id) {
                             EditableNavButton(
                                 id = id,
-                                canMoveLeft = index > 0,
-                                canMoveRight = index < visibleNav.lastIndex,
-                                canHide = visibleNav.size > 1,
                                 onAction = onAction,
+                                onEnterEdit = { editing = true },
                                 modifier = Modifier.padding(horizontal = FemtoDimens.DockButtonMargin),
                             )
                         }
@@ -314,14 +349,12 @@ private fun HorizontalDock(
                             // Each button takes an equal weight so the nav row shares the
                             // width and shrinks toward FemtoDimens.MinTouchTarget instead of
                             // clipping when the row is narrow.
-                            visibleNav.forEachIndexed { index, id ->
+                            visibleNav.forEach { id ->
                                 key(id) {
                                     EditableNavButton(
                                         id = id,
-                                        canMoveLeft = index > 0,
-                                        canMoveRight = index < visibleNav.lastIndex,
-                                        canHide = visibleNav.size > 1,
                                         onAction = onAction,
+                                        onEnterEdit = { editing = true },
                                         modifier = Modifier.weight(1f),
                                     )
                                 }
@@ -340,6 +373,22 @@ private fun HorizontalDock(
                         )
                     }
                 }
+            }
+        }
+        // Floating edit-mode toolbar above the bar (Reset + Done) as a Popup, so
+        // it never widens the bar or shifts the buttons. focusable=false so the
+        // drag / badges below keep receiving input.
+        if (editing) {
+            val toolbarOffsetY = with(LocalDensity.current) { -(FemtoDimens.MinTouchTarget + 24.dp).roundToPx() }
+            Popup(
+                alignment = Alignment.TopCenter,
+                offset = IntOffset(0, toolbarOffsetY),
+                properties = PopupProperties(focusable = false),
+            ) {
+                DockEditToolbar(
+                    onReset = { onAction(HomeAction.ResetDock) },
+                    onDone = { editing = false },
+                )
             }
         }
     }
@@ -367,64 +416,92 @@ private fun VerticalDock(
     contentColor = MaterialTheme.colorScheme.onSurface,
 ) {
     val visibleNav = dockConfig.visibleNav
-    Row {
-        BoxWithConstraints(
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(vertical = 24.dp),
+    // Long-press a nav button to edit; the rail swaps to the vertical reorder
+    // strip (drag + ×), keeping the status cluster in place. Back exits.
+    var editing by remember { mutableStateOf(false) }
+    BackHandler(enabled = editing) { editing = false }
+    if (editing) {
+        DockNavEditStrip(
+            navOrder = dockConfig.navOrder,
+            navHidden = dockConfig.navHidden,
+            vertical = true,
+            systemStatus = systemStatus,
+            visibleStatus = dockConfig.visibleStatus,
+            showStatusCluster = dockConfig.visibleStatus.isNotEmpty(),
+            motionTier = motionTier,
+            onAction = onAction,
+            modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
+        )
+        // Floating Reset + Done toolbar beside the rail (a Popup, so the rail
+        // width is untouched). Back also exits.
+        val toolbarOffsetX = with(LocalDensity.current) { FemtoDimens.MinTouchTarget.roundToPx() }
+        Popup(
+            alignment = Alignment.CenterEnd,
+            offset = IntOffset(toolbarOffsetX, 0),
+            properties = PopupProperties(focusable = false),
         ) {
-            val showStatusCluster = maxHeight >= compactDockExtent(visibleNav.size)
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
+            DockEditToolbar(
+                onReset = { onAction(HomeAction.ResetDock) },
+                onDone = { editing = false },
+            )
+        }
+    } else {
+        Row {
+            BoxWithConstraints(
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .padding(vertical = 24.dp),
             ) {
-                // The slot competing with the status cluster for height; centred so
-                // the capped cluster below sits in the middle of its share instead
-                // of hugging the leading edge on a tall rail — mirrors the
-                // horizontal bar's weight-shared fallback, turned 90 degrees.
-                Box(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentAlignment = Alignment.Center,
+                val showStatusCluster = maxHeight >= compactDockExtent(visibleNav.size)
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Column(
-                        // Fill the slot up to the cap — see the horizontal bar's
-                        // matching comment above for the rationale.
-                        modifier =
-                            Modifier
-                                .heightIn(max = FemtoDimens.DockNavClusterMaxWidth)
-                                .fillMaxHeight(),
-                        verticalArrangement = Arrangement.SpaceBetween,
-                        horizontalAlignment = Alignment.CenterHorizontally,
+                    // The slot competing with the status cluster for height; centred so
+                    // the capped cluster below sits in the middle of its share instead
+                    // of hugging the leading edge on a tall rail — mirrors the
+                    // horizontal bar's weight-shared fallback, turned 90 degrees.
+                    Box(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        // The same equal-weight sharing as the horizontal bar's fallback,
-                        // on the height instead of the width.
-                        visibleNav.forEachIndexed { index, id ->
-                            key(id) {
-                                EditableNavButton(
-                                    id = id,
-                                    canMoveLeft = index > 0,
-                                    canMoveRight = index < visibleNav.lastIndex,
-                                    canHide = visibleNav.size > 1,
-                                    onAction = onAction,
-                                    modifier = Modifier.weight(1f),
-                                    vertical = true,
-                                )
+                        Column(
+                            // Fill the slot up to the cap — see the horizontal bar's
+                            // matching comment above for the rationale.
+                            modifier =
+                                Modifier
+                                    .heightIn(max = FemtoDimens.DockNavClusterMaxWidth)
+                                    .fillMaxHeight(),
+                            verticalArrangement = Arrangement.SpaceBetween,
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            // The same equal-weight sharing as the horizontal bar's fallback,
+                            // on the height instead of the width.
+                            visibleNav.forEach { id ->
+                                key(id) {
+                                    EditableNavButton(
+                                        id = id,
+                                        onAction = onAction,
+                                        onEnterEdit = { editing = true },
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
                             }
                         }
                     }
-                }
-                if (showStatusCluster) {
-                    VerticalDockDivider()
-                    StatusCluster(
-                        status = systemStatus,
-                        vertical = true,
-                        order = dockConfig.visibleStatus,
-                        onAction = onAction,
-                        motionTier = motionTier,
-                        modifier = Modifier.padding(top = 20.dp),
-                    )
+                    if (showStatusCluster) {
+                        VerticalDockDivider()
+                        StatusCluster(
+                            status = systemStatus,
+                            vertical = true,
+                            order = dockConfig.visibleStatus,
+                            onAction = onAction,
+                            motionTier = motionTier,
+                            modifier = Modifier.padding(top = 20.dp),
+                        )
+                    }
                 }
             }
         }
@@ -488,54 +565,264 @@ private fun NavButton(
 }
 
 /**
- * A dock nav button wired for in-place editing: a normal tap still dispatches
- * [id]'s launch action ([navSpecFor]); a long press opens [DockEditMenu] —
- * Move left/right (Move up/down when [vertical], swap [id] one step within
- * the visible nav order) and Hide (drop it), governed by [canMoveLeft] /
- * [canMoveRight] / [canHide] from the caller's position in the visible list,
- * plus the always-present Reset dock. `combinedClickable` (not a second
- * gesture detector layered over the tap) is the reliable tap-vs-long-press
- * split here — see [NavButton] — so the gesture never leaks through to the
- * map behind or fires a spurious launch; it also exposes the long click to
- * accessibility services for free, which [NavButton]'s `onLongClickLabel`
- * then names.
+ * A dock nav button in normal mode: a tap dispatches [id]'s launch action
+ * ([navSpecFor]); a long press enters the dock's edit mode ([onEnterEdit]),
+ * where drag reorders and a × badge hides — the same edit-mode interaction the
+ * drawer's pinned dock uses (see [DockNavEditStrip]). This replaces the former
+ * long-press dropdown. `combinedClickable` (not a second gesture detector
+ * layered over the tap) is the reliable tap-vs-long-press split here — see
+ * [NavButton] — so the gesture never leaks through to the map behind or fires a
+ * spurious launch; it also exposes the long click to accessibility services for
+ * free, which [NavButton]'s `onLongClickLabel` then names.
  */
 @Composable
 private fun EditableNavButton(
     id: DockNavId,
-    canMoveLeft: Boolean,
-    canMoveRight: Boolean,
-    canHide: Boolean,
     onAction: (HomeAction) -> Unit,
+    onEnterEdit: () -> Unit,
     modifier: Modifier = Modifier,
-    // True on the vertical rail (DockPosition.LEFT / RIGHT), where a -1/+1
-    // move is up/down rather than left/right — see DockEditMenu.
-    vertical: Boolean = false,
 ) {
     val spec = navSpecFor(id)
-    var menuOpen by remember { mutableStateOf(false) }
     NavButton(
         icon = spec.icon,
         description = stringResource(spec.labelRes),
         onClick = { onAction(spec.action) },
         modifier = modifier,
         onLongClickLabel = stringResource(R.string.dock_edit),
-        onLongClick = { menuOpen = true },
-        menu = {
-            DockEditMenu(
-                expanded = menuOpen,
-                onDismiss = { menuOpen = false },
-                canMoveLeft = canMoveLeft,
-                canMoveRight = canMoveRight,
-                canHide = canHide,
-                onMoveLeft = { onAction(HomeAction.MoveDockNav(id, -1)) },
-                onMoveRight = { onAction(HomeAction.MoveDockNav(id, 1)) },
-                onHide = { onAction(HomeAction.HideDockNav(id)) },
-                onResetDock = { onAction(HomeAction.ResetDock) },
-                vertical = vertical,
-            )
-        },
+        onLongClick = onEnterEdit,
     )
+}
+
+// The tile size for the dock's edit strip: the tap-target floor, so the fixed
+// drag step ([reorderByDrag]) is one whole tile plus its gap. The gap matches
+// the normal pill's per-button spacing (a DockButtonMargin on each side) so
+// entering edit mode neither shifts the buttons nor tightens their gaps.
+private val DockEditTileSize: Dp = FemtoDimens.MinTouchTarget
+private val DockEditTileGap: Dp = FemtoDimens.DockButtonMargin * 2
+
+/**
+ * The dock nav row's edit mode: fixed-width reorderable icon tiles with × (hide)
+ * badges, replacing the normal nav content while keeping the read-only status
+ * cluster exactly where it was so the bar's footprint — and every button's
+ * position — stays put on entering edit. Long-pressing a nav button enters it
+ * (see [EditableNavButton]); dragging a tile reorders (committed as a new full
+ * nav order via [HomeAction.SetDockNavOrder], hidden ids kept at their slots),
+ * the × hides ([HomeAction.HideDockNav]); the back gesture exits (the bar has no
+ * room for a Done chip without widening — see the BackHandler in the caller).
+ * The tile pitch matches the pill's per-button pitch so nothing shifts. The
+ * drag / × primitives ([reorderByDrag] / [RemoveBadge]) are the drawer pinned
+ * dock's. [vertical] lays it out down the rail instead of across the bar.
+ */
+@Composable
+private fun DockNavEditStrip(
+    navOrder: List<DockNavId>,
+    navHidden: Set<DockNavId>,
+    vertical: Boolean,
+    systemStatus: SystemStatus,
+    visibleStatus: List<DockStatusId>,
+    showStatusCluster: Boolean,
+    motionTier: MotionTier,
+    onAction: (HomeAction) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val visible = remember(navOrder, navHidden) { navOrder.filterNot { it in navHidden } }
+    val order = remember(visible) { visible.toMutableStateList() }
+    var draggingKey by remember { mutableStateOf<DockNavId?>(null) }
+    var dragDelta by remember { mutableFloatStateOf(0f) }
+    var dragTravelled by remember { mutableStateOf(false) }
+    val stepPx = with(LocalDensity.current) { (DockEditTileSize + DockEditTileGap).toPx() }
+    val removeLabel = stringResource(R.string.dock_hide)
+    val tiles: @Composable () -> Unit = {
+        order.forEach { id ->
+            // key(id), not positional: without it a mid-drag reorder rebinds each
+            // tile's pointerInput to a new id, restarting the gesture coroutine so
+            // the drag ends without onDragEnd — the reorder is never committed and
+            // reverts on exit. Keying tracks the dragged tile across swaps.
+            key(id) {
+                val dragging = draggingKey == id
+                DockNavEditTile(
+                    id = id,
+                    removeLabel = removeLabel,
+                    onHide = { onAction(HomeAction.HideDockNav(id)) },
+                    modifier =
+                        Modifier
+                            .zIndex(if (dragging) 1f else 0f)
+                            .graphicsLayer {
+                                val offset = if (dragging) dragDelta else 0f
+                                if (vertical) translationY = offset else translationX = offset
+                            }.pointerInput(id, stepPx, vertical) {
+                                // Immediate drag (not after-long-press): the bar is
+                                // already in edit mode, so a plain press-drag on a tile
+                                // reorders — no second long-press. There is no scroll to
+                                // compete with (the strip wraps its content).
+                                detectDragGestures(
+                                    onDragStart = {
+                                        draggingKey = id
+                                        dragDelta = 0f
+                                        dragTravelled = false
+                                    },
+                                    onDrag = { change, amount ->
+                                        change.consume()
+                                        dragDelta += if (vertical) amount.y else amount.x
+                                        if (abs(dragDelta) > viewConfiguration.touchSlop) dragTravelled = true
+                                        val index = order.indexOf(id)
+                                        val (reordered, residual) =
+                                            reorderByDrag(order.toList(), index, dragDelta, stepPx)
+                                        if (reordered.size == order.size && reordered != order.toList()) {
+                                            order.clear()
+                                            order.addAll(reordered)
+                                        }
+                                        dragDelta = residual
+                                    },
+                                    onDragEnd = {
+                                        if (dragTravelled) {
+                                            onAction(
+                                                HomeAction.SetDockNavOrder(
+                                                    mergeNavOrder(navOrder, navHidden, order.toList()),
+                                                ),
+                                            )
+                                        }
+                                        draggingKey = null
+                                        dragDelta = 0f
+                                    },
+                                    onDragCancel = {
+                                        if (dragTravelled) {
+                                            order.clear()
+                                            order.addAll(visible)
+                                        }
+                                        draggingKey = null
+                                        dragDelta = 0f
+                                    },
+                                )
+                            },
+                )
+            }
+        }
+        // The read-only status cluster stays put (same divider + cluster as the
+        // normal bar) so entering edit mode neither hides the status icons nor
+        // shifts the nav buttons. It keeps its own long-press DockEditMenu.
+        if (showStatusCluster) {
+            if (vertical) VerticalDockDivider() else HorizontalDockDivider()
+            StatusCluster(
+                status = systemStatus,
+                vertical = vertical,
+                order = visibleStatus,
+                onAction = onAction,
+                motionTier = motionTier,
+            )
+        }
+    }
+    if (vertical) {
+        Column(
+            modifier = modifier,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(DockEditTileGap, Alignment.CenterVertically),
+        ) { tiles() }
+    } else {
+        Row(
+            modifier = modifier,
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(DockEditTileGap, Alignment.CenterHorizontally),
+        ) { tiles() }
+    }
+}
+
+// Merge a reordered VISIBLE nav list back into the full order, keeping hidden
+// ids at their original absolute slots (so an unhide later restores them where
+// they were) — the same invariant DockPreferences.moveWithinVisible enforces for
+// step-moves, here for a whole-list drag commit.
+private fun mergeNavOrder(
+    fullOrder: List<DockNavId>,
+    hidden: Set<DockNavId>,
+    reorderedVisible: List<DockNavId>,
+): List<DockNavId> {
+    val next = reorderedVisible.iterator()
+    return fullOrder.map { id -> if (id in hidden) id else next.next() }
+}
+
+// One edit-strip tile: the nav icon under a × (hide) badge, sized to the
+// tap-target floor. Drag handling lives on the caller's [modifier].
+@Composable
+private fun DockNavEditTile(
+    id: DockNavId,
+    removeLabel: String,
+    onHide: () -> Unit,
+    modifier: Modifier = Modifier,
+) = Box(modifier = modifier.size(DockEditTileSize)) {
+    val spec = navSpecFor(id)
+    Box(
+        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(14.dp)),
+        contentAlignment = Alignment.Center,
+    ) {
+        FemtoIcon(
+            imageVector = spec.icon,
+            contentDescription = stringResource(spec.labelRes),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(26.dp),
+        )
+    }
+    RemoveBadge(label = removeLabel, onClick = onHide, modifier = Modifier.align(Alignment.TopEnd))
+}
+
+// Floating edit-mode toolbar, shown as a Popup just outside the dock so it never
+// widens the bar or pushes the buttons: Reset dock — restore hidden buttons and
+// the default order / visibility (nav AND status) via HomeAction.ResetDock — and
+// Done to leave edit mode. Once the status cluster stays put in edit mode, the
+// head-unit bar has no inline room for these, so they float (and the back
+// gesture still exits).
+@Composable
+private fun DockEditToolbar(
+    onReset: () -> Unit,
+    onDone: () -> Unit,
+    modifier: Modifier = Modifier,
+) = Surface(
+    modifier = modifier,
+    shape = MaterialTheme.shapes.large,
+    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+) {
+    Row(
+        modifier = Modifier.padding(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        DockEditChip(
+            icon = Lucide.RotateCcw,
+            label = stringResource(R.string.settings_reset_dock),
+            container = MaterialTheme.colorScheme.surfaceContainerHighest,
+            content = MaterialTheme.colorScheme.onSurface,
+            onClick = onReset,
+        )
+        DockEditChip(
+            icon = Lucide.Check,
+            label = stringResource(R.string.edit_done),
+            container = MaterialTheme.colorScheme.secondaryContainer,
+            content = MaterialTheme.colorScheme.onSecondaryContainer,
+            onClick = onDone,
+        )
+    }
+}
+
+@Composable
+private fun DockEditChip(
+    icon: ImageVector,
+    label: String,
+    container: Color,
+    content: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) = Row(
+    modifier =
+        modifier
+            .defaultMinSize(minHeight = FemtoDimens.MinTouchTarget)
+            .clip(RoundedCornerShape(16.dp))
+            .background(container)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
+    horizontalArrangement = Arrangement.spacedBy(6.dp),
+    verticalAlignment = Alignment.CenterVertically,
+) {
+    FemtoIcon(imageVector = icon, contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
+    Text(text = label, style = MaterialTheme.typography.cardCta(), color = content)
 }
 
 // Wide dock: the fixed-margin pill fits, so the bar wraps its content to a compact

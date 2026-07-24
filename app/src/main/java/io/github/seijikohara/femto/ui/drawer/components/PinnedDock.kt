@@ -1,18 +1,19 @@
 package io.github.seijikohara.femto.ui.drawer.components
 
 import android.content.ComponentName
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -40,15 +41,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.core.graphics.createBitmap
-import com.composables.icons.lucide.ArrowLeft
-import com.composables.icons.lucide.ArrowRight
-import com.composables.icons.lucide.Lucide
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
 import io.github.seijikohara.femto.ui.drawer.DrawerDimensions
 import io.github.seijikohara.femto.ui.drawer.dimensions
+import io.github.seijikohara.femto.ui.home.components.EditDoneButton
 import io.github.seijikohara.femto.ui.home.components.FemtoHorizontalDivider
+import io.github.seijikohara.femto.ui.home.components.RemoveBadge
+import io.github.seijikohara.femto.ui.home.components.reorderByDrag
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -62,17 +63,16 @@ private val DockVerticalPadding = 8.dp
 /**
  * Pinned-apps dock fixed at the bottom of the drawer sheet: a horizontally
  * scrolling row of icon + label tiles in pin order, separated from the
- * scrolling app grid by a hairline seam over the panel glass — no surface of
- * its own, so the map keeps blurring through. Tap launches.
+ * scrolling app grid by a hairline seam over the panel glass. Tap launches.
  *
- * Long-press then drag reorders: the held tile follows the finger and swaps
- * places as it crosses its neighbours; lifting commits the new order through
- * [onReorder]. A long-press lifted WITHOUT travel opens the shared
- * [AppItemMenu] with Move left / Move right prepended — the precision-free
- * reorder path for a bumpy cabin or accessibility services. The menu
- * deliberately opens on lift, not at the long-press timeout: a focusable
- * popup appearing mid-press cancels the pointer stream and would kill the
- * drag.
+ * Reordering and unpinning live behind one explicit **edit mode** — the shared
+ * interaction the dashboard dock uses too — rather than overloading the tap.
+ * Long-press any tile enters edit mode: from that same gesture the held tile
+ * drags to reorder (it follows the finger and swaps as it crosses neighbours,
+ * committing through [onReorder] on lift), each tile shows a remove (×) badge
+ * that unpins via [onUnpin], and a "Done" control exits. A normal tap launches
+ * only while NOT editing. App info / uninstall are reached from the app grid's
+ * long-press menu, not here — the dock's job is pin ordering.
  *
  * Callers skip composing the dock when [apps] is empty.
  */
@@ -82,8 +82,6 @@ internal fun PinnedDock(
     iconSize: DrawerIconSize,
     onLaunch: (ComponentName) -> Unit,
     onUnpin: (ComponentName) -> Unit,
-    onOpenAppInfo: (ComponentName) -> Unit,
-    onRequestUninstall: (ComponentName) -> Unit,
     onReorder: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier.fillMaxWidth()) {
@@ -97,16 +95,23 @@ internal fun PinnedDock(
     // Local working order: drag swaps mutate this list optimistically per
     // frame; the persisted order arrives back through [apps] and re-seeds it.
     val order = remember(apps) { apps.toMutableStateList() }
+    var editing by remember { mutableStateOf(false) }
     var draggingKey by remember { mutableStateOf<String?>(null) }
     var dragDelta by remember { mutableFloatStateOf(0f) }
     var dragTravelled by remember { mutableStateOf(false) }
-    var menuKey by remember { mutableStateOf<String?>(null) }
     val stepPx = with(LocalDensity.current) { (dimensions.tileWidth + FemtoDimens.GridGutter).toPx() }
     LazyRow(
         modifier = Modifier.fillMaxWidth(),
         contentPadding =
             PaddingValues(horizontal = FemtoDimens.ScreenPadding, vertical = DockVerticalPadding),
         horizontalArrangement = Arrangement.spacedBy(FemtoDimens.GridGutter),
+        // Centre the taller "Done" chip (added as a trailing item in edit mode)
+        // against the icon+label tiles rather than top-aligning it.
+        verticalAlignment = Alignment.CenterVertically,
+        // No horizontal scroll while editing: the tiles take immediate drags to
+        // reorder (see below), so the row must not consume them as a scroll —
+        // the same reason the dashboard dock's edit strip does not scroll.
+        userScrollEnabled = !editing,
     ) {
         items(items = order, key = { it.componentName.flattenToString() }) { entry ->
             val key = entry.componentName.flattenToString()
@@ -114,22 +119,10 @@ internal fun PinnedDock(
             DockTile(
                 entry = entry,
                 dimensions = dimensions,
-                menuOpen = menuKey == key,
-                canMoveLeft = order.indexOf(entry) > 0,
-                canMoveRight = order.indexOf(entry) < order.lastIndex,
+                editing = editing,
                 onLaunch = onLaunch,
                 onUnpin = onUnpin,
-                onOpenAppInfo = onOpenAppInfo,
-                onRequestUninstall = onRequestUninstall,
-                onDismissMenu = { menuKey = null },
-                onMove = { offset ->
-                    val index = order.indexOf(entry)
-                    val target = (index + offset).coerceIn(0, order.lastIndex)
-                    if (target != index) {
-                        order.add(target, order.removeAt(index))
-                        onReorder(order.map { it.componentName.flattenToString() })
-                    }
-                },
+                onEnterEdit = { editing = true },
                 modifier =
                     Modifier
                         // The held tile rides above its neighbours and tracks
@@ -137,107 +130,74 @@ internal fun PinnedDock(
                         // animation is the position change itself).
                         .zIndex(if (dragging) 1f else 0f)
                         .graphicsLayer { translationX = if (dragging) dragDelta else 0f }
-                        .pointerInput(key, stepPx) {
-                            detectDragGesturesAfterLongPress(
-                                onDragStart = {
-                                    draggingKey = key
-                                    dragDelta = 0f
-                                    dragTravelled = false
-                                },
-                                onDrag = { change, amount ->
-                                    change.consume()
-                                    dragDelta += amount.x
-                                    if (abs(dragDelta) > viewConfiguration.touchSlop) dragTravelled = true
-                                    val index = order.indexOfFirst { it.componentName.flattenToString() == key }
-                                    val (reordered, residual) = reorderByDrag(
-                                        order.toList(),
-                                        index,
-                                        dragDelta,
-                                        stepPx,
+                        // Immediate drag ONLY in edit mode (entered by the tile's
+                        // long-press below), matching the dashboard dock: a plain
+                        // press-drag on a tile reorders — no second long-press.
+                        .then(
+                            if (editing) {
+                                Modifier.pointerInput(key, stepPx) {
+                                    detectDragGestures(
+                                        onDragStart = {
+                                            draggingKey = key
+                                            dragDelta = 0f
+                                            dragTravelled = false
+                                        },
+                                        onDrag = { change, amount ->
+                                            change.consume()
+                                            dragDelta += amount.x
+                                            if (abs(dragDelta) > viewConfiguration.touchSlop) {
+                                                dragTravelled = true
+                                            }
+                                            val index = order.indexOfFirst { it.componentName.flattenToString() == key }
+                                            val (reordered, residual) =
+                                                reorderByDrag(order.toList(), index, dragDelta, stepPx)
+                                            if (reordered.size == order.size && reordered != order.toList()) {
+                                                order.clear()
+                                                order.addAll(reordered)
+                                            }
+                                            dragDelta = residual
+                                        },
+                                        onDragEnd = {
+                                            if (dragTravelled) {
+                                                onReorder(order.map { it.componentName.flattenToString() })
+                                            }
+                                            draggingKey = null
+                                            dragDelta = 0f
+                                        },
+                                        onDragCancel = {
+                                            if (dragTravelled) {
+                                                order.clear()
+                                                order.addAll(apps)
+                                            }
+                                            draggingKey = null
+                                            dragDelta = 0f
+                                        },
                                     )
-                                    if (reordered.size == order.size && reordered != order.toList()) {
-                                        order.clear()
-                                        order.addAll(reordered)
-                                    }
-                                    dragDelta = residual
-                                },
-                                onDragEnd = {
-                                    if (dragTravelled) {
-                                        onReorder(order.map { it.componentName.flattenToString() })
-                                    } else {
-                                        menuKey = key
-                                    }
-                                    draggingKey = null
-                                    dragDelta = 0f
-                                },
-                                onDragCancel = {
-                                    if (dragTravelled) {
-                                        // Revert the optimistic swaps: nothing
-                                        // was committed, so the dock falls back
-                                        // to the persisted order.
-                                        order.clear()
-                                        order.addAll(apps)
-                                    } else {
-                                        // A no-travel lift lands HERE, not in
-                                        // onDragEnd: the child clickable
-                                        // consumes the up (its tap), which the
-                                        // detector reports as a cancel. It is
-                                        // the menu gesture.
-                                        menuKey = key
-                                    }
-                                    draggingKey = null
-                                    dragDelta = 0f
-                                },
-                            )
-                        },
+                                }
+                            } else {
+                                Modifier
+                            },
+                        ),
             )
         }
+        // The "Done" chip trails the pins inline (matching the dashboard dock's
+        // edit strip) rather than sitting in a separate row above them.
+        if (editing) {
+            item(key = "pinned-dock-done") {
+                EditDoneButton(onClick = { editing = false })
+            }
+        }
     }
-}
-
-/**
- * Advance a horizontal drag-reorder by one gesture frame: while the
- * accumulated [dragDelta] has crossed more than half a slot ([stepPx]) the
- * dragged item at [fromIndex] swaps one position in that direction and the
- * delta is rebased on the new slot. Returns the (possibly) reordered list and
- * the residual delta. Pure, so the swap math is JVM-unit-testable.
- */
-internal fun <T> reorderByDrag(
-    items: List<T>,
-    fromIndex: Int,
-    dragDelta: Float,
-    stepPx: Float,
-): Pair<List<T>, Float> {
-    if (fromIndex !in items.indices || stepPx <= 0f) return items to dragDelta
-    val reordered = items.toMutableList()
-    var index = fromIndex
-    var delta = dragDelta
-    while (delta > stepPx / 2 && index < reordered.lastIndex) {
-        reordered.add(index + 1, reordered.removeAt(index))
-        index++
-        delta -= stepPx
-    }
-    while (delta < -stepPx / 2 && index > 0) {
-        reordered.add(index - 1, reordered.removeAt(index))
-        index--
-        delta += stepPx
-    }
-    return reordered to delta
 }
 
 @Composable
 private fun DockTile(
     entry: AppEntry,
     dimensions: DrawerDimensions,
-    menuOpen: Boolean,
-    canMoveLeft: Boolean,
-    canMoveRight: Boolean,
+    editing: Boolean,
     onLaunch: (ComponentName) -> Unit,
     onUnpin: (ComponentName) -> Unit,
-    onOpenAppInfo: (ComponentName) -> Unit,
-    onRequestUninstall: (ComponentName) -> Unit,
-    onDismissMenu: () -> Unit,
-    onMove: (Int) -> Unit,
+    onEnterEdit: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Box(modifier = modifier) {
     Column(
@@ -245,12 +205,20 @@ private fun DockTile(
             Modifier
                 .width(dimensions.tileWidth)
                 .defaultMinSize(minHeight = FemtoDimens.MinTouchTarget)
-                // Plain clickable launches on tap. The menu must NOT open at
-                // the long-press timeout: a focusable popup appearing mid-press
-                // cancels the original pointer stream and would make the
-                // reorder drag impossible — so the dock's drag detector opens
-                // it on lift instead.
-                .clickable(onClick = { onLaunch(entry.componentName) }),
+                // Normal mode: tap launches, long-press enters edit mode. Edit
+                // mode has NO tile clickable — the × badge owns removal and the
+                // parent modifier owns the reorder drag, so a stray tap does
+                // nothing rather than launching.
+                .then(
+                    if (editing) {
+                        Modifier
+                    } else {
+                        Modifier.combinedClickable(
+                            onClick = { onLaunch(entry.componentName) },
+                            onLongClick = onEnterEdit,
+                        )
+                    },
+                ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
@@ -272,37 +240,13 @@ private fun DockTile(
             modifier = Modifier.fillMaxWidth(),
         )
     }
-    AppItemMenu(
-        entry = entry,
-        isPinned = true,
-        expanded = menuOpen,
-        onDismiss = onDismissMenu,
-        onTogglePin = onUnpin,
-        onOpenAppInfo = onOpenAppInfo,
-        onRequestUninstall = onRequestUninstall,
-        leadingItems = {
-            if (canMoveLeft) {
-                AppMenuItem(
-                    label = stringResource(R.string.drawer_move_left),
-                    icon = Lucide.ArrowLeft,
-                    onClick = {
-                        onMove(-1)
-                        onDismissMenu()
-                    },
-                )
-            }
-            if (canMoveRight) {
-                AppMenuItem(
-                    label = stringResource(R.string.drawer_move_right),
-                    icon = Lucide.ArrowRight,
-                    onClick = {
-                        onMove(1)
-                        onDismissMenu()
-                    },
-                )
-            }
-        },
-    )
+    if (editing) {
+        RemoveBadge(
+            label = stringResource(R.string.drawer_remove_pin),
+            onClick = { onUnpin(entry.componentName) },
+            modifier = Modifier.align(Alignment.TopEnd),
+        )
+    }
 }
 
 @PreviewLightDark
@@ -320,8 +264,6 @@ private fun PinnedDockPreview() {
             iconSize = DrawerIconSize.MEDIUM,
             onLaunch = {},
             onUnpin = {},
-            onOpenAppInfo = {},
-            onRequestUninstall = {},
             onReorder = {},
         )
     }
