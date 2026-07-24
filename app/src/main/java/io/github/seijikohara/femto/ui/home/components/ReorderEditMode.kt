@@ -33,6 +33,12 @@ import io.github.seijikohara.femto.ui.theme.cardCta
 // drag reorders, a × badge removes (unpin / hide), and a Done pill exits, so the
 // two surfaces read as one interaction rather than two divergent gestures.
 
+// A deliberate sub-floor tap target (< FemtoDimens.MinTouchTarget), sanctioned
+// like the map controls' 48 dp exception (AGENTS.md#automotive-overrides). The
+// badge is a corner affordance on a tile whose BODY is the >= 64 dp drag
+// handle; sizing the × to the floor would blanket the tile and make an
+// accidental unpin/hide during a drag-to-arrange more likely, not less. Edit
+// mode is a deliberate, stationary action, not a glance-and-tap.
 private val RemoveBadgeSize = 28.dp
 
 /**
