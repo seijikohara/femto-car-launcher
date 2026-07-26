@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 
 /**
@@ -336,26 +337,38 @@ internal fun Typography.monoReference(): TextStyle =
 internal fun Typography.sectionLabel(
     sizeSp: Int,
     fontWeight: FontWeight = strongWeight,
+    lineHeight: TextUnit = TextUnit.Unspecified,
 ): TextStyle =
     labelSmall.copy(
         fontSize = sizeSp.sp,
         fontWeight = fontWeight,
         fontFeatureSettings = TabularFigures,
+        // Default keeps labelSmall's leading; callers packing a label into a tight
+        // band (e.g. the calendar head's month under the hero digit) pass a
+        // line height equal to the font size to drop the extra leading.
+        lineHeight = lineHeight.takeIf { it.isSpecified } ?: labelSmall.lineHeight,
     )
 
 // Uppercase section eyebrow (e.g. the music source, the calendar month) at one
 // shared size, so every eyebrow reads identically. Built on [sectionLabel] so
-// it inherits the labelSmall + tabular base.
-internal fun Typography.eyebrow(): TextStyle = sectionLabel(12)
+// it inherits the labelSmall + tabular base. [lineHeight] defaults to the shared
+// leading; the calendar head passes a tight value so the month packs under the
+// hero day numeral without spilling past the digit band.
+internal fun Typography.eyebrow(lineHeight: TextUnit = TextUnit.Unspecified): TextStyle =
+    sectionLabel(12, lineHeight = lineHeight)
 
 // The calendar head's weekday name: titleLarge tightened a notch for the head
 // unit. Rendered through [FitText] so a long localized weekday ("Wednesday",
 // "Mittwoch") shrinks to fit the narrow head column instead of truncating.
-internal fun Typography.calendarWeekday(): TextStyle =
+// [size] defaults to the panel's [FemtoDimens.TextLg]; the dashboard card head
+// passes a smaller step so the weekday + month block fits the hero digit band
+// (the height of the big day numeral) rather than overshooting it. lineHeight
+// tracks the size so the box carries no extra leading.
+internal fun Typography.calendarWeekday(size: TextUnit = FemtoDimens.TextLg): TextStyle =
     titleLarge.copy(
-        fontSize = FemtoDimens.TextLg,
+        fontSize = size,
         fontWeight = strongWeight,
-        lineHeight = FemtoDimens.TextLg,
+        lineHeight = size,
     )
 
 // Shared line-box policy for the styles whose rows aim at a stable height:

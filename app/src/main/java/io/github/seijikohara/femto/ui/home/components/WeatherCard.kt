@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -213,15 +214,25 @@ private fun Head(
 ) {
     val tempLabel = "${temperatureUnit.fromCelsius(snapshot.tempC).roundToInt()}"
     val glyphs = weatherGlyphs()
+    val tempStyle = MaterialTheme.typography.bigNumber(
+        size = FemtoDimens.Text4Xl,
+        weight = MaterialTheme.typography.normalWeight,
+    )
+    // The card's hero condition glyph, sized to the temperature's line box through
+    // the theme's (scaled) density — so it tracks the temperature under the user's
+    // font-size setting rather than drifting from the digits as a fixed dp. Smaller
+    // than the maximized panel's FemtoDimens.WeatherGlyphHero.
+    val glyphSize = with(LocalDensity.current) { tempStyle.lineHeight.toDp() }
     // Big temperature on the left, the hero condition glyph beside it on the right;
-    // SpaceBetween balances the two across the card width. Top-aligned (not
-    // centered) so the temperature's clamped slot starts exactly at the card
-    // padding — the shared hero-row contract with the calendar day and the clock
-    // (see CalendarCard.Head / ClockOverlay); the hero glyph hangs from that line.
+    // SpaceBetween balances the two across the card width. Centre-aligned on the
+    // temperature's clamped slot (which, sized to the hero band, is the tallest
+    // child), so the temperature keeps its ink on the shared hero line with the
+    // calendar day and the clock while the glyph centres on that same line rather
+    // than hanging below it (see CalendarCard.Head / ClockOverlay).
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Column {
             // Stale-data eyebrow: only present once the snapshot ages past the
@@ -238,15 +249,11 @@ private fun Head(
             // value's baseline — the shared dashboard value/unit treatment; the 4dp
             // gap replaces the old top/start superscript padding.
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                // Clamped to its own lineHeight: without this, the platform's default
-                // font padding inflates the hero numeral's measured height well past
-                // its nominal line box (55px vs. 42px at this size). Keeping the head
-                // compact leaves the scrollable forecast below a taller viewport, so
-                // more hours show before it needs to scroll.
-                val tempStyle = MaterialTheme.typography.bigNumber(
-                    size = FemtoDimens.Text4Xl,
-                    weight = MaterialTheme.typography.normalWeight,
-                )
+                // Clamped to its own lineHeight (singleLineBox): without this, the
+                // platform's default font padding inflates the hero numeral's measured
+                // height well past its nominal line box (55px vs. 42px at this size).
+                // Keeping the head compact leaves the scrollable forecast below a
+                // taller viewport, so more hours show before it needs to scroll.
                 Text(
                     text = tempLabel,
                     style = tempStyle,
@@ -261,7 +268,7 @@ private fun Head(
             imageVector = glyphIconFor(snapshot.code, snapshot.isDay),
             contentDescription = stringResource(labelResFor(snapshot.code)),
             tint = glyphTintFor(snapshot.code, snapshot.isDay, glyphs),
-            modifier = Modifier.size(FemtoDimens.WeatherGlyphHero),
+            modifier = Modifier.size(glyphSize),
         )
     }
 }
