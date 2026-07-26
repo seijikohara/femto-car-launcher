@@ -12,9 +12,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 
 /**
@@ -337,25 +337,33 @@ internal fun Typography.monoReference(): TextStyle =
 internal fun Typography.sectionLabel(
     sizeSp: Int,
     fontWeight: FontWeight = strongWeight,
-    lineHeight: TextUnit = TextUnit.Unspecified,
+    // Defaults to the inherited labelSmall leading; a caller packing a label into a
+    // fixed band passes the font size to drop the extra leading (see [eyebrowTight]).
+    lineHeight: TextUnit = labelSmall.lineHeight,
 ): TextStyle =
     labelSmall.copy(
         fontSize = sizeSp.sp,
         fontWeight = fontWeight,
         fontFeatureSettings = TabularFigures,
-        // Default keeps labelSmall's leading; callers packing a label into a tight
-        // band (e.g. the calendar head's month under the hero digit) pass a
-        // line height equal to the font size to drop the extra leading.
-        lineHeight = lineHeight.takeIf { it.isSpecified } ?: labelSmall.lineHeight,
+        lineHeight = lineHeight,
     )
 
 // Uppercase section eyebrow (e.g. the music source, the calendar month) at one
 // shared size, so every eyebrow reads identically. Built on [sectionLabel] so
-// it inherits the labelSmall + tabular base. [lineHeight] defaults to the shared
-// leading; the calendar head passes a tight value so the month packs under the
-// hero day numeral without spilling past the digit band.
-internal fun Typography.eyebrow(lineHeight: TextUnit = TextUnit.Unspecified): TextStyle =
-    sectionLabel(12, lineHeight = lineHeight)
+// it inherits the labelSmall + tabular base.
+internal fun Typography.eyebrow(): TextStyle = sectionLabel(EYEBROW_SIZE_SP)
+
+/**
+ * Return the [eyebrow] with its leading tightened to its own font size, for a
+ * label packed into a fixed band — the calendar head's month, which sits under
+ * the hero day numeral and must stay inside the digit band. Defined beside
+ * [eyebrow] so the size / leading equality lives in one place rather than being
+ * reassembled from two tokens at the call site.
+ */
+internal fun Typography.eyebrowTight(): TextStyle = sectionLabel(EYEBROW_SIZE_SP, lineHeight = EYEBROW_SIZE_SP.sp)
+
+// The one eyebrow size, snapped to the FemtoDimens.TextSm scale step.
+private const val EYEBROW_SIZE_SP = 12
 
 // The calendar head's weekday name: titleLarge tightened a notch for the head
 // unit. Rendered through [FitText] so a long localized weekday ("Wednesday",
@@ -488,27 +496,38 @@ internal fun Typography.attributionCredit(): TextStyle =
     labelSmall.copy(fontSize = FemtoDimens.TextXs, lineHeight = FemtoDimens.TextXs)
 
 /**
- * Constrain a single-line [androidx.compose.material3.Text] to exactly its
- * [style]'s `lineHeight`, regardless of which font face renders it.
+ * Constrain content to exactly [style]'s `lineHeight`, regardless of which font
+ * face renders it. Used for a single-line
+ * [androidx.compose.material3.Text] (the clock, the calendar day, the weather
+ * temperature) and for a small block that must occupy the same band as one of
+ * those hero numerals (the calendar head's weekday + month column).
  *
  * Why a layout clamp and not a text style: Android applies *fallback line
  * spacing* after the line-height machinery, so a line whose glyphs resolve
  * through a fallback face (e.g. CJK over a Latin primary) grows to the
  * fallback's taller metrics even under [LineHeightStyle.Mode.Fixed] —
  * measured on-device. The fixed-height slot pins the row's measured height;
- * `wrapContentHeight(unbounded)` lets the taller text measure freely and
+ * `wrapContentHeight(unbounded)` lets the taller content measure freely and
  * centres it in the slot, and since CJK ink stays within the em box the
  * overflow is metric air, not visible clipping.
  */
 @Composable
-internal fun Modifier.singleLineBox(style: TextStyle): Modifier {
+internal fun Modifier.singleLineBox(style: TextStyle): Modifier =
+    height(lineBoxHeight(style))
+        .wrapContentHeight(align = Alignment.CenterVertically, unbounded = true)
+
+/**
+ * Return [style]'s nominal single-line box height in dp — the conversion behind
+ * [singleLineBox], shared with callers that need the same band as a plain layout
+ * dimension (the weather head's condition glyph, sized to the temperature's
+ * line box so it tracks the user's font-size setting).
+ */
+@Composable
+internal fun lineBoxHeight(style: TextStyle): Dp {
     // toDp() would throw a unitless IllegalStateException for em/unspecified;
     // fail fast with the actual contract instead.
     require(style.lineHeight.isSp) {
-        "singleLineBox needs a style with an sp lineHeight, got ${style.lineHeight}"
+        "lineBoxHeight needs a style with an sp lineHeight, got ${style.lineHeight}"
     }
-    return with(LocalDensity.current) {
-        height(style.lineHeight.toDp())
-            .wrapContentHeight(align = Alignment.CenterVertically, unbounded = true)
-    }
+    return with(LocalDensity.current) { style.lineHeight.toDp() }
 }

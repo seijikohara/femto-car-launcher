@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -25,7 +24,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -48,7 +46,7 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import io.github.seijikohara.femto.ui.theme.bigNumber
 import io.github.seijikohara.femto.ui.theme.calendarWeekday
-import io.github.seijikohara.femto.ui.theme.eyebrow
+import io.github.seijikohara.femto.ui.theme.eyebrowTight
 import io.github.seijikohara.femto.ui.theme.glanceBody
 import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.glanceMetric
@@ -206,13 +204,6 @@ private fun Head(head: CalendarHead) =
             size = FemtoDimens.Text4Xl,
             weight = MaterialTheme.typography.normalWeight,
         )
-        // The day numeral's clamped line box is the head's reference height. The
-        // weekday + month column is bound to that exact height and its two lines
-        // centred within it, so the block spans the SAME height as the big day
-        // number — one hero band shared with the clock and the weather
-        // temperature — instead of the weekday floating above the line (top-
-        // aligned) or riding the numeral's baseline below its centre.
-        val headHeight = with(LocalDensity.current) { dayStyle.lineHeight.toDp() }
         Text(
             text = "${head.day}",
             style = dayStyle,
@@ -221,35 +212,30 @@ private fun Head(head: CalendarHead) =
             modifier = Modifier.singleLineBox(dayStyle),
         )
         Column(
-            // Centre the two lines within the day numeral's line-box slot, and size
-            // them (weekday one scale step down, month with tight leading) so their
-            // combined INK stays inside the day's DIGIT height — the ~28dp cap-to-
-            // baseline band the clock and temperature also occupy — rather than
-            // spilling above and below it. wrapContentHeight(unbounded) mirrors the
-            // day numeral's singleLineBox so both ink blocks share one centre line.
-            modifier =
-                Modifier
-                    .height(headHeight)
-                    .wrapContentHeight(align = Alignment.CenterVertically, unbounded = true),
-            verticalArrangement = Arrangement.spacedBy(0.dp),
+            // The weekday + month block shares the day numeral's line-box slot, so it
+            // spans the same band as the big number — one hero band across the clock,
+            // the calendar day and the weather temperature — instead of floating above
+            // it (top-aligned) or riding the numeral's baseline below its centre. The
+            // two lines are sized (weekday one scale step down, month with tight
+            // leading) to keep their combined ink inside the day's digit height.
+            modifier = Modifier.singleLineBox(dayStyle),
         ) {
             FitText(
                 text = head.weekday,
-                // One step below the panel's weekday (TextLg): glance metadata beside
-                // the big day number, sized so the two-line block fits the hero digit
-                // band. May still relax to GlanceTextSize for a long localized name
-                // (e.g. "Wednesday") on the narrow head-unit card
-                // (AGENTS.md#automotive-overrides).
-                style = MaterialTheme.typography.calendarWeekday(FemtoDimens.GlanceMetricSize),
+                // One step below the panel's weekday (TextLg), landing on the body
+                // floor: glance metadata beside the big day number, sized so the
+                // two-line block fits the hero digit band. May still relax to
+                // GlanceTextSize for a long localized name (e.g. "Wednesday") on the
+                // narrow head-unit card (AGENTS.md#automotive-overrides).
+                style = MaterialTheme.typography.calendarWeekday(FemtoDimens.MinBodyTextSize),
                 color = MaterialTheme.colorScheme.onSurface,
                 minFontSize = FemtoDimens.GlanceTextSize,
             )
             Text(
                 text = head.month.uppercase(),
-                // Tight leading (lineHeight == font size) drops labelSmall's extra
-                // leading so the month sits directly under the weekday inside the
-                // digit band instead of adding a padded line box below it.
-                style = MaterialTheme.typography.eyebrow(lineHeight = FemtoDimens.TextSm),
+                // Tight leading, so the month packs directly under the weekday inside
+                // the digit band instead of adding a padded line box below it.
+                style = MaterialTheme.typography.eyebrowTight(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

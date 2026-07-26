@@ -22,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -58,6 +57,7 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.bigNumber
 import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.glanceCaption
+import io.github.seijikohara.femto.ui.theme.lineBoxHeight
 import io.github.seijikohara.femto.ui.theme.normalWeight
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import io.github.seijikohara.femto.ui.theme.singleLineBox
@@ -218,33 +218,29 @@ private fun Head(
         size = FemtoDimens.Text4Xl,
         weight = MaterialTheme.typography.normalWeight,
     )
-    // The card's hero condition glyph, sized to the temperature's line box through
-    // the theme's (scaled) density — so it tracks the temperature under the user's
-    // font-size setting rather than drifting from the digits as a fixed dp. Smaller
-    // than the maximized panel's FemtoDimens.WeatherGlyphHero.
-    val glyphSize = with(LocalDensity.current) { tempStyle.lineHeight.toDp() }
-    // Big temperature on the left, the hero condition glyph beside it on the right;
-    // SpaceBetween balances the two across the card width. Centre-aligned on the
-    // temperature's clamped slot (which, sized to the hero band, is the tallest
-    // child), so the temperature keeps its ink on the shared hero line with the
-    // calendar day and the clock while the glyph centres on that same line rather
-    // than hanging below it (see CalendarCard.Head / ClockOverlay).
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column {
-            // Stale-data eyebrow: only present once the snapshot ages past the
-            // staleness threshold, so fresh readings carry no extra chrome.
-            if (asOfLabel != null) {
-                Text(
-                    text = asOfLabel,
-                    style = MaterialTheme.typography.sectionLabel(12, fontWeight = FontWeight.Normal),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                )
-            }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Stale-data eyebrow: only present once the snapshot ages past the
+        // staleness threshold, so fresh readings carry no extra chrome.
+        if (asOfLabel != null) {
+            Text(
+                text = asOfLabel,
+                style = MaterialTheme.typography.sectionLabel(12, fontWeight = FontWeight.Normal),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
+        // Big temperature on the left, the hero condition glyph beside it on the
+        // right; SpaceBetween balances the two across the card width. The glyph is a
+        // sibling of the temperature (not of the whole head column), so it centres on
+        // the temperature's clamped slot whether or not the stale eyebrow is present —
+        // the temperature keeps its ink on the shared hero line with the calendar day
+        // and the clock, and the glyph centres on that line (see CalendarCard.Head /
+        // ClockOverlay).
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             // Temperature value + the dimmed scale (°C / °F) trailing it on the
             // value's baseline — the shared dashboard value/unit treatment; the 4dp
             // gap replaces the old top/start superscript padding.
@@ -263,13 +259,16 @@ private fun Head(
                 )
                 UnitSuffix(temperatureUnit.label(), modifier = Modifier.alignByBaseline())
             }
+            FemtoIcon(
+                imageVector = glyphIconFor(snapshot.code, snapshot.isDay),
+                contentDescription = stringResource(labelResFor(snapshot.code)),
+                tint = glyphTintFor(snapshot.code, snapshot.isDay, glyphs),
+                // Sized to the temperature's line box (not a fixed dp), so it tracks
+                // the digits under the user's font-size setting. Smaller than the
+                // maximized panel's FemtoDimens.WeatherGlyphHero.
+                modifier = Modifier.size(lineBoxHeight(tempStyle)),
+            )
         }
-        FemtoIcon(
-            imageVector = glyphIconFor(snapshot.code, snapshot.isDay),
-            contentDescription = stringResource(labelResFor(snapshot.code)),
-            tint = glyphTintFor(snapshot.code, snapshot.isDay, glyphs),
-            modifier = Modifier.size(glyphSize),
-        )
     }
 }
 
