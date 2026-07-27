@@ -387,10 +387,16 @@ class SystemStatusRepositoryTest {
     /**
      * Build the repository with every flow on the test's own dispatcher. This is the
      * class-wide contract: an [UnconfinedTestDispatcher] backed by runTest's scheduler
-     * runs each `callbackFlow` body eagerly on the test thread, so a receiver or
-     * [ConnectivityManager.NetworkCallback] is registered — and visible — before the
-     * collector observes the first emission, and `advanceTimeBy` still drives gpsFlow's
-     * freshness delay.
+     * runs each `callbackFlow` body on the test thread, so a receiver or
+     * [ConnectivityManager.NetworkCallback] is registered — and visible — as soon as the
+     * scheduler is allowed to run, and `advanceTimeBy` still drives gpsFlow's freshness
+     * delay.
+     *
+     * Registration is *not* ordered against the first emission on its own: statusFlow
+     * seeds each signal with `onStart`, which emits before the upstream `callbackFlow`
+     * body is collected. A test that needs the registration drains the scheduler first
+     * (see [registeredNetworkCallback] and [firstStatusAfterBatteryBroadcast]) — a
+     * deterministic step on the test scheduler rather than a wait on another thread.
      *
      * The alternative, letting the flows run on Dispatchers.Default and waiting for the
      * registration to appear, is what made this class flaky: the wait blocked a worker
@@ -429,8 +435,9 @@ class SystemStatusRepositoryTest {
         predicate: (SystemStatus) -> Boolean,
     ): SystemStatus {
         val status = async { repository().statusFlow().first(predicate) }
-        // Run the collector far enough to register the receiver. Deterministic on the
-        // test scheduler, where the old wall-clock poll raced an off-thread registration.
+        // Drain the scheduler so the collector reaches the receiver registration before
+        // the broadcast below. Deterministic on the test scheduler, where the old
+        // wall-clock poll raced an off-thread registration.
         runCurrent()
         application.sendBroadcast(intent)
         // The receiver was registered without a handler, so delivery is posted
@@ -440,14 +447,18 @@ class SystemStatusRepositoryTest {
     }
 
     /**
-     * The single [ConnectivityManager.NetworkCallback] statusFlow / onlineFlow has
-     * registered by the time the collector sees its first emission. [setUp] forces
-     * telephony off so the Wi-Fi callback is the only one, making `single()` an
-     * invariant rather than a race.
+     * The single [ConnectivityManager.NetworkCallback] statusFlow / onlineFlow
+     * registers. Draining the scheduler first is what orders the registration ahead of
+     * this read — the seeded first emission does not (see [repository]) — so `single()`
+     * is an invariant rather than a race. [setUp] forces telephony off, making the
+     * Wi-Fi callback the only one.
      */
-    private fun registeredNetworkCallback(
+    private fun TestScope.registeredNetworkCallback(
         shadowConnectivity: ShadowConnectivityManager,
-    ): ConnectivityManager.NetworkCallback = shadowConnectivity.networkCallbacks.single()
+    ): ConnectivityManager.NetworkCallback {
+        runCurrent()
+        return shadowConnectivity.networkCallbacks.single()
+    }
 
     // Drive the default adapter's power state through its shadow. isEnabled() needs
     // no permission, so this is the lever readBluetooth falls back to when
