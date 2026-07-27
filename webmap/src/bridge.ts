@@ -56,9 +56,12 @@ declare global {
 // (no WebGL context, a missing BYO credential, map construction threw);
 // "error" = transient resource failures (tile / style / DEM fetch), log-only
 // on the host; "follow" = camera-follow state flips; "bearing" = throttled
-// camera bearing for the compass overlay. No kind triggers a backend switch —
-// the host keeps the chosen backend (no auto-fallback).
-export type MapEventKind = "fatal" | "error" | "follow" | "bearing";
+// camera bearing for the compass overlay. `ready` marks the first frame the
+// backend actually painted — the host records it for the MAP diagnostics
+// section, which otherwise cannot tell a working map from one that failed
+// silently. No kind triggers a backend switch — the host keeps the chosen
+// backend (no auto-fallback).
+export type MapEventKind = "ready" | "fatal" | "error" | "follow" | "bearing";
 
 export interface PageReporter {
     // Diagnostic logging only (visible via chrome://inspect or the debug

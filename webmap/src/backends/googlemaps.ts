@@ -522,6 +522,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     const tilesListener = liveMap.addListener("tilesloaded", () => {
         if (state.rendered) return;
         state.rendered = true;
+        report("ready", "");
         // Google silently downgrades a VECTOR map to RASTER when the device's
         // WebGL cannot host a vector map (e.g. a low-end head unit with no
         // usable 3D context). Detect the ACTUAL rendering type once tiles are

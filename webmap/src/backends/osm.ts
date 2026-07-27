@@ -82,12 +82,14 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
         // Log the first rendered frame once, then detach: "render" fires on
         // every painted frame, so a persistent listener spews ~60 lines/sec
         // into logcat (and the in-app diagnostics tail) during the GPS camera
-        // ease. Diagnostics only — the host detects readiness via
-        // onPageFinished, not this log.
+        // ease. The host learns the page loaded from onPageFinished, but only
+        // this first painted frame proves the map actually renders, so it also
+        // reports `ready` for the MAP diagnostics section.
         const onFirstRender = (): void => {
             if (!liveMap.isStyleLoaded()) return;
             state.styleLoaded = true;
             log("rendered");
+            report("ready", "");
             liveMap.off("render", onFirstRender);
         };
         liveMap.on("render", onFirstRender);

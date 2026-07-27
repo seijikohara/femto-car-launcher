@@ -446,6 +446,7 @@
     <string name="diagnostics_section_storage">Storage</string>
     <string name="diagnostics_section_input">Input</string>
     <string name="diagnostics_section_webview">WebView</string>
+    <string name="diagnostics_section_map">Map</string>
     <string name="diagnostics_section_settings">Settings</string>
     <string name="diagnostics_section_logs">Recent warnings (%1$d)</string>
     <string name="diagnostics_spectrum_hint">Probe the spectrum while music is playing: silence here with an active session means the player bypasses the audio mixer.</string>

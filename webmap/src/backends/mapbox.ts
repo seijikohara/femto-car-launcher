@@ -129,6 +129,7 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
                 if (!liveMap.isStyleLoaded()) return;
                 state.styleLoaded = true;
                 log("rendered");
+                report("ready", "");
                 liveMap.off("render", onFirstRender);
             };
             liveMap.on("render", onFirstRender);

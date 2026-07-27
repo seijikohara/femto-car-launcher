@@ -28,6 +28,7 @@ internal fun diagnosticsCollectors(context: Context): List<SectionCollector> {
     val performance = PerformanceFactsCollector(context)
     val storage = StorageFactsCollector(context)
     val webView = WebViewFactsCollector(context)
+    val map = MapFactsCollector(context)
     val settings = SettingsFactsCollector(context)
     val logs = LogTailCollector()
     val spectrumProbed = CompletableDeferred<Unit>()
@@ -52,6 +53,7 @@ internal fun diagnosticsCollectors(context: Context): List<SectionCollector> {
         SectionCollector(SectionId.STORAGE, storage::storageFacts),
         SectionCollector(SectionId.INPUT, environment::inputFacts),
         SectionCollector(SectionId.WEBVIEW, webView::webViewFacts),
+        SectionCollector(SectionId.MAP, map::mapFacts),
         SectionCollector(SectionId.SETTINGS, settings::settingsFacts),
         SectionCollector(SectionId.LOGS) {
             // Bounded: a wedged spectrum probe must not hold the log tail hostage.

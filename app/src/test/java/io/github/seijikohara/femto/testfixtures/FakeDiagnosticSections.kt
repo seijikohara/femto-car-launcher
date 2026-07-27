@@ -101,6 +101,10 @@ private fun fakePayload(
             facts(fact("WebView", "com.google.android.webview 110.0.5481.154"))
         }
 
+        SectionId.MAP -> {
+            facts(fact("WebGL 2", "expected (OpenGL ES 3.2)"), fact("Last failure", "none this session"))
+        }
+
         SectionId.SETTINGS -> {
             facts(fact("Map backend", "OSM"), fact("UI scale", "MEDIUM"))
         }
