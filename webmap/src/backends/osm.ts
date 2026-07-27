@@ -3,13 +3,26 @@
 // OSM-only style bridge (setStyleUrl / setFeatures with the ACCENT recolour
 // palette and the 3D-buildings / terrain injection); the follow camera and
 // chevron come from the shared follow-camera engine.
-import maplibregl from "maplibre-gl";
+// MapLibre 6 is ESM-only and publishes no default export, so the classes come in
+// by name. `MapLibreMap` is the library's own alias for its `Map` export, which
+// would otherwise shadow the global `Map`.
+import { MapLibreMap, Marker, setWorkerUrl } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+// MapLibre 6 resolves its worker through `import.meta.url`, which a bundler
+// cannot honour, so every bundled consumer must hand it the URL. `?worker&url`
+// (not a plain `?url`) is required: the published worker imports a sibling
+// chunk, and only the worker transform bundles that sibling in. Without this
+// call the build still succeeds and the page still loads — but the worker URL
+// points at a file Vite never emits, so no tile is ever parsed and the map
+// stays blank. Neither tsc nor the lint/test pass can catch it.
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import type { PageReporter, PendingBridgeCalls } from "../bridge";
 import { webglSupport } from "../bridge";
 import { chevronHandles } from "../chevron";
 import { createFollowEngine } from "../follow-camera";
 import { type AccentColors, injectFeatures } from "../style";
+
+setWorkerUrl(maplibreWorkerUrl);
 
 const INITIAL_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
 
@@ -26,12 +39,12 @@ const STYLE_LOAD_FATAL_GRACE_MS = 10_000;
 export function init(reporter: PageReporter, pending: PendingBridgeCalls): void {
     const { log, report, reportErrorThrottled } = reporter;
 
-    // MapLibre renders WebGL 2 or falls back to WebGL 1; neither available is
-    // a definitive never-going-to-render fact — report it and stop.
-    // Constructing the map anyway would only throw a second, noisier fatal
-    // from a page the host is about to tear down.
-    const gl = webglSupport();
-    if (!gl.webgl2 && !gl.webgl1) {
+    // MapLibre 6 dropped the WebGL 1 fallback and only ever acquires a webgl2
+    // context, so a missing one is a definitive never-going-to-render fact —
+    // report it and stop, matching the mapbox backend's gate. Constructing the
+    // map anyway would only throw a second, noisier fatal (a
+    // GPUInitializationError) from a page the host is about to tear down.
+    if (!webglSupport().webgl2) {
         log("no-webgl-context");
         report("fatal", "no-webgl-context");
         return;
@@ -59,7 +72,7 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
     };
 
     try {
-        const liveMap = new maplibregl.Map({
+        const liveMap = new MapLibreMap({
             container: "map",
             style: INITIAL_STYLE_URL,
             center: [0, 0],
@@ -217,7 +230,7 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
             chevron: chevronHandles(),
             map: liveMap,
             createGeoMarker: (el, lngLat) =>
-                new maplibregl.Marker({
+                new Marker({
                     element: el,
                     rotationAlignment: "map",
                     pitchAlignment: "map",

@@ -190,11 +190,12 @@ export function installPendingStubs(): PendingBridgeCalls {
     return pending;
 }
 
-// WebGL availability probe. Each backend applies its own policy: MapLibre
-// accepts webgl2 or webgl, mapbox-gl v3 hard-requires webgl2, and a Google
-// raster map needs neither. One canvas per probe: a canvas locks to its first
-// context mode, so asking one canvas for webgl2 then webgl would report a
-// false webgl1=false on every WebGL2-capable device.
+// WebGL availability probe. Each backend applies its own policy: maplibre-gl 6
+// and mapbox-gl 3 both hard-require webgl2 (MapLibre dropped its WebGL 1
+// fallback in 6), while a Google raster map needs neither — only its vector
+// mode does. One canvas per probe: a canvas locks to its first context mode, so
+// asking one canvas for webgl2 then webgl would report a false webgl1=false on
+// every WebGL2-capable device.
 export function webglSupport(): { webgl2: boolean; webgl1: boolean } {
     return {
         webgl2: document.createElement("canvas").getContext("webgl2") != null,
