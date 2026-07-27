@@ -19,17 +19,18 @@ import androidx.core.content.getSystemService
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
 import io.github.seijikohara.femto.testfixtures.fakeLocation
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -54,7 +55,7 @@ class SystemStatusRepositoryTest {
         // statusFlow's cellularFlow registers no NetworkCallback when the device
         // reports no telephony feature, so forcing it off keeps these tests
         // deterministic — the only registered callback is the Wi-Fi one, and
-        // [awaitRegisteredNetworkCallback]'s single() invariant holds.
+        // [registeredNetworkCallback]'s single() invariant holds.
         shadowOf(application.packageManager).setSystemFeature(PackageManager.FEATURE_TELEPHONY, false)
     }
 
@@ -69,7 +70,7 @@ class SystemStatusRepositoryTest {
             // returns false here would hang the predicate.
             setBluetoothEnabled(true)
 
-            val status = firstStatusMatching(SystemStatusRepository(application)) { it.bluetoothConnected }
+            val status = firstStatusMatching(repository()) { it.bluetoothConnected }
 
             assertTrue(status.bluetoothConnected)
         }
@@ -81,7 +82,7 @@ class SystemStatusRepositoryTest {
             // without BLUETOOTH_CONNECT; the dock lights the icon on it.
             setBluetoothEnabled(true)
 
-            val status = firstStatusMatching(SystemStatusRepository(application)) { it.bluetoothEnabled }
+            val status = firstStatusMatching(repository()) { it.bluetoothEnabled }
 
             assertTrue(status.bluetoothEnabled)
         }
@@ -142,16 +143,14 @@ class SystemStatusRepositoryTest {
             val connectivity = application.getSystemService<ConnectivityManager>()!!
             val shadowConnectivity = shadowOf(connectivity)
 
-            SystemStatusRepository(application).statusFlow().test {
+            repository().statusFlow().test {
                 // The combine seeds wifi via onStart(false), so the first emission
                 // is the default before any network capability arrives.
                 assertFalse(awaitItem().wifiConnected)
 
-                // statusFlow runs on Dispatchers.Default, so the repository's own
-                // NetworkCallback is registered on another thread; wait for it to
-                // appear before driving it the way the framework would, with a real
-                // validated WIFI capability set.
-                val callback = awaitRegisteredNetworkCallback(shadowConnectivity)
+                // Drive the repository's own NetworkCallback the way the framework
+                // would, with a real validated WIFI capability set.
+                val callback = registeredNetworkCallback(shadowConnectivity)
                 callback.onCapabilitiesChanged(WIFI_NETWORK, validatedWifiCapabilities())
 
                 assertTrue(awaitItem().wifiConnected)
@@ -168,10 +167,10 @@ class SystemStatusRepositoryTest {
             val connectivity = application.getSystemService<ConnectivityManager>()!!
             val shadowConnectivity = shadowOf(connectivity)
 
-            SystemStatusRepository(application).statusFlow().test {
+            repository().statusFlow().test {
                 assertEquals(0, awaitItem().wifiSignalLevel)
 
-                val callback = awaitRegisteredNetworkCallback(shadowConnectivity)
+                val callback = registeredNetworkCallback(shadowConnectivity)
                 callback.onCapabilitiesChanged(WIFI_NETWORK, validatedWifiCapabilities(rssiDbm = -66))
 
                 assertEquals(3, awaitItem().wifiSignalLevel)
@@ -188,10 +187,10 @@ class SystemStatusRepositoryTest {
             // callback below drives the offline->online edge the map reloads on.
             shadowConnectivity.clearAllNetworks()
 
-            SystemStatusRepository(application).onlineFlow().test {
+            repository().onlineFlow().test {
                 assertFalse(awaitItem())
 
-                val callback = awaitRegisteredNetworkCallback(shadowConnectivity)
+                val callback = registeredNetworkCallback(shadowConnectivity)
                 callback.onAvailable(WIFI_NETWORK)
 
                 assertTrue(awaitItem())
@@ -206,10 +205,10 @@ class SystemStatusRepositoryTest {
             val shadowConnectivity = shadowOf(connectivity)
             shadowConnectivity.clearAllNetworks()
 
-            SystemStatusRepository(application).onlineFlow().test {
+            repository().onlineFlow().test {
                 assertFalse(awaitItem())
 
-                val callback = awaitRegisteredNetworkCallback(shadowConnectivity)
+                val callback = registeredNetworkCallback(shadowConnectivity)
                 callback.onAvailable(WIFI_NETWORK)
                 assertTrue(awaitItem())
 
@@ -233,7 +232,7 @@ class SystemStatusRepositoryTest {
             val activeNetwork = connectivity.activeNetwork!!
             shadowConnectivity.setNetworkCapabilities(activeNetwork, validatedWifiCapabilities())
 
-            SystemStatusRepository(application).onlineFlow().test {
+            repository().onlineFlow().test {
                 assertTrue(awaitItem())
                 cancelAndIgnoreRemainingEvents()
             }
@@ -244,7 +243,7 @@ class SystemStatusRepositoryTest {
         runTest {
             // setUp forces FEATURE_TELEPHONY off, so cellularLevelFlow never
             // registers a TelephonyCallback and stays null.
-            val status = SystemStatusRepository(application).statusFlow().first()
+            val status = repository().statusFlow().first()
 
             assertNull(status.cellularSignalLevel)
         }
@@ -257,7 +256,7 @@ class SystemStatusRepositoryTest {
             // null — the dock degrades to the binary cellular icon.
             shadowOf(application.packageManager).setSystemFeature(PackageManager.FEATURE_TELEPHONY, true)
 
-            val status = SystemStatusRepository(application).statusFlow().first()
+            val status = repository().statusFlow().first()
 
             assertNull(status.cellularSignalLevel)
         }
@@ -267,7 +266,7 @@ class SystemStatusRepositoryTest {
         runTest {
             val locations = MutableSharedFlow<Location?>(extraBufferCapacity = 1)
 
-            gpsRepository(locations).statusFlow().test {
+            repository(locations).statusFlow().test {
                 // gpsFlow seeds false via onStart before any fix arrives.
                 assertFalse(awaitItem().gpsFixed)
 
@@ -283,7 +282,7 @@ class SystemStatusRepositoryTest {
         runTest {
             val locations = MutableSharedFlow<Location?>(extraBufferCapacity = 1)
 
-            gpsRepository(locations).statusFlow().test {
+            repository(locations).statusFlow().test {
                 assertFalse(awaitItem().gpsFixed)
 
                 locations.emit(fakeLocation(provider = LocationManager.GPS_PROVIDER))
@@ -302,7 +301,7 @@ class SystemStatusRepositoryTest {
         runTest {
             val locations = MutableSharedFlow<Location?>(extraBufferCapacity = 1)
 
-            gpsRepository(locations).statusFlow().test {
+            repository(locations).statusFlow().test {
                 assertFalse(awaitItem().gpsFixed)
 
                 // A cell-tower / Wi-Fi fix centres the map but is not a GPS lock, so
@@ -323,7 +322,7 @@ class SystemStatusRepositoryTest {
             // rather than registering a GnssStatus callback.
             val locations = MutableSharedFlow<Location?>(extraBufferCapacity = 1)
 
-            val status = gpsRepository(locations).statusFlow().first()
+            val status = repository(locations).statusFlow().first()
 
             assertEquals(0, status.gpsSatelliteCount)
         }
@@ -338,7 +337,7 @@ class SystemStatusRepositoryTest {
             val locations = MutableSharedFlow<Location?>(extraBufferCapacity = 1)
             val locationManager = application.getSystemService<LocationManager>()!!
 
-            gpsRepository(locations).statusFlow().test {
+            repository(locations).statusFlow().test {
                 assertEquals(0, awaitItem().gpsSatelliteCount)
 
                 shadowOf(application).grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -385,9 +384,27 @@ class SystemStatusRepositoryTest {
                 }
             }.build()
 
-    // statusFlow runs its combine on the injected dispatcher; an UnconfinedTestDispatcher
-    // backed by runTest's scheduler lets advanceTimeBy drive gpsFlow's freshness delay.
-    private fun TestScope.gpsRepository(locationFlow: MutableSharedFlow<Location?>): SystemStatusRepository =
+    /**
+     * Build the repository with every flow on the test's own dispatcher. This is the
+     * class-wide contract: an [UnconfinedTestDispatcher] backed by runTest's scheduler
+     * runs each `callbackFlow` body on the test thread, so a receiver or
+     * [ConnectivityManager.NetworkCallback] is registered — and visible — as soon as the
+     * scheduler is allowed to run, and `advanceTimeBy` still drives gpsFlow's freshness
+     * delay.
+     *
+     * Registration is *not* ordered against the first emission on its own: statusFlow
+     * seeds each signal with `onStart`, which emits before the upstream `callbackFlow`
+     * body is collected. A test that needs the registration drains the scheduler first
+     * (see [registeredNetworkCallback] and [firstStatusAfterBatteryBroadcast]) — a
+     * deterministic step on the test scheduler rather than a wait on another thread.
+     *
+     * The alternative, letting the flows run on Dispatchers.Default and waiting for the
+     * registration to appear, is what made this class flaky: the wait blocked a worker
+     * of the very pool the registration needed, so on a loaded two-core CI runner it
+     * could time out (`NoSuchElementException` from the fallback `single()`), and it
+     * read Robolectric's non-synchronized shadow collections across threads.
+     */
+    private fun TestScope.repository(locationFlow: Flow<Location?> = emptyFlow()): SystemStatusRepository =
         SystemStatusRepository(
             context = application,
             locationFlow = locationFlow,
@@ -395,10 +412,9 @@ class SystemStatusRepositoryTest {
         )
 
     /**
-     * Collect the first [SystemStatus] satisfying [predicate]. statusFlow runs its
-     * callback flows on Dispatchers.Default, so the meaningful reading arrives on an
-     * emission after the onStart-seeded default; [Flow.first] with a predicate skips
-     * the seed without weakening the assertion that follows.
+     * Collect the first [SystemStatus] satisfying [predicate]. The meaningful reading
+     * arrives on an emission after the onStart-seeded default; [Flow.first] with a
+     * predicate skips the seed without weakening the assertion that follows.
      */
     private suspend fun firstStatusMatching(
         repository: SystemStatusRepository,
@@ -418,11 +434,11 @@ class SystemStatusRepositoryTest {
         intent: Intent,
         predicate: (SystemStatus) -> Boolean,
     ): SystemStatus {
-        val status =
-            async(Dispatchers.Default) {
-                SystemStatusRepository(application).statusFlow().first(predicate)
-            }
-        awaitRegisteredBatteryReceiver()
+        val status = async { repository().statusFlow().first(predicate) }
+        // Drain the scheduler so the collector reaches the receiver registration before
+        // the broadcast below. Deterministic on the test scheduler, where the old
+        // wall-clock poll raced an off-thread registration.
+        runCurrent()
         application.sendBroadcast(intent)
         // The receiver was registered without a handler, so delivery is posted
         // to the paused main looper; idle() runs it.
@@ -431,42 +447,18 @@ class SystemStatusRepositoryTest {
     }
 
     /**
-     * Wait until statusFlow has registered its battery receiver on the Default
-     * dispatcher. Same wall-clock poll rationale as
-     * [awaitRegisteredNetworkCallback].
+     * The single [ConnectivityManager.NetworkCallback] statusFlow / onlineFlow
+     * registers. Draining the scheduler first is what orders the registration ahead of
+     * this read — the seeded first emission does not (see [repository]) — so `single()`
+     * is an invariant rather than a race. [setUp] forces telephony off, making the
+     * Wi-Fi callback the only one.
      */
-    private suspend fun awaitRegisteredBatteryReceiver() =
-        withContext(Dispatchers.Default) {
-            val deadline = System.nanoTime() + CALLBACK_POLL_TIMEOUT_NANOS
-            while (System.nanoTime() < deadline && !batteryReceiverRegistered()) {
-                Thread.sleep(CALLBACK_POLL_INTERVAL_MS)
-            }
-            check(batteryReceiverRegistered()) { "battery receiver never registered" }
-        }
-
-    private fun batteryReceiverRegistered(): Boolean =
-        shadowOf(application).registeredReceivers.any {
-            it.intentFilter.hasAction(Intent.ACTION_BATTERY_CHANGED)
-        }
-
-    /**
-     * Wait until statusFlow has registered its [ConnectivityManager.NetworkCallback]
-     * on the Default dispatcher. The poll uses real wall-clock time on a real
-     * dispatcher so it advances independently of the runTest virtual scheduler, which
-     * skips delays. Polling avoids a flaky [List.single] race against the off-thread
-     * registration.
-     */
-    private suspend fun awaitRegisteredNetworkCallback(
+    private fun TestScope.registeredNetworkCallback(
         shadowConnectivity: ShadowConnectivityManager,
-    ): ConnectivityManager.NetworkCallback =
-        withContext(Dispatchers.Default) {
-            val deadline = System.nanoTime() + CALLBACK_POLL_TIMEOUT_NANOS
-            while (System.nanoTime() < deadline) {
-                shadowConnectivity.networkCallbacks.firstOrNull()?.let { return@withContext it }
-                Thread.sleep(CALLBACK_POLL_INTERVAL_MS)
-            }
-            shadowConnectivity.networkCallbacks.single()
-        }
+    ): ConnectivityManager.NetworkCallback {
+        runCurrent()
+        return shadowConnectivity.networkCallbacks.single()
+    }
 
     // Drive the default adapter's power state through its shadow. isEnabled() needs
     // no permission, so this is the lever readBluetooth falls back to when
@@ -506,7 +498,5 @@ class SystemStatusRepositoryTest {
 
     private companion object {
         val WIFI_NETWORK: Network = ShadowNetwork.newInstance(1)
-        const val CALLBACK_POLL_INTERVAL_MS = 5L
-        val CALLBACK_POLL_TIMEOUT_NANOS = 2_000_000_000L // 2 s real-time ceiling.
     }
 }
