@@ -52,6 +52,7 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.display.MapboxStyle
+import io.github.seijikohara.femto.data.map.MapRuntimeSignals
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.LocalFemtoDarkTheme
@@ -83,7 +84,10 @@ import kotlinx.coroutines.delay
  * notice below rather than a silent blank map.
  *
  * The page reports into the host over a one-method [JavascriptInterface] bridge
- * (`window.femtoBridge.onMapEvent(kind, detail)`). Four kinds exist: `error`
+ * (`window.femtoBridge.onMapEvent(kind, detail)`). Five kinds exist: `ready` for
+ * the first frame the backend actually painted (recorded in
+ * [MapRuntimeSignals] for the MAP diagnostics section, which otherwise could not
+ * tell a working map from one that failed silently), `error`
  * for transient resource failures (tile / style / DEM fetch — logged, never UI,
  * because the removed auto-downgrade misfired on exactly such ambiguous signals),
  * `fatal` for definitive never-going-to-render facts (no WebGL context, a missing
@@ -402,6 +406,14 @@ internal fun WebMapView(
                             detail: String,
                         ) {
                             when (kind) {
+                                // The backend painted its first frame. Recorded for
+                                // the MAP diagnostics section, which otherwise cannot
+                                // tell a working map from one that failed silently —
+                                // onPageFinished only proves the script ran.
+                                "ready" -> {
+                                    MapRuntimeSignals.recordRendered()
+                                }
+
                                 // Transient by definition (tile / style / DEM
                                 // fetch): log only. The removed auto-downgrade
                                 // misfired on exactly such ambiguous signals —
@@ -412,6 +424,11 @@ internal fun WebMapView(
 
                                 "fatal" -> {
                                     Log.e(TAG, "LIVE map fatal: $detail")
+                                    // Kept beyond this composable's lifetime so the
+                                    // diagnostics report can state why the map is
+                                    // blank; the log tail alone is bounded and drops
+                                    // the line once enough logging follows it.
+                                    MapRuntimeSignals.recordFailure(detail, SystemClock.elapsedRealtime())
                                     // Bridge calls arrive on a background thread.
                                     mainHandler.post {
                                         lastFatalDetail = detail

@@ -37,6 +37,7 @@ internal fun SectionId.reportTitle(): String =
         SectionId.STORAGE -> "Storage"
         SectionId.INPUT -> "Input"
         SectionId.WEBVIEW -> "WebView"
+        SectionId.MAP -> "Map"
         SectionId.SETTINGS -> "Settings"
         SectionId.LOGS -> "Recent warnings"
     }
