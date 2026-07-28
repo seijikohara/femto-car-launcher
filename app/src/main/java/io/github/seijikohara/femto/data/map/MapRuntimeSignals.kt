@@ -40,7 +40,12 @@ internal object MapRuntimeSignals {
         failureCount.incrementAndGet()
     }
 
-    /** Clear the record once the map renders, so a recovered map reads clean. */
+    /**
+     * Clear the *last failure* once the map renders, so a recovered map stops
+     * reporting a failure it has moved past. [failureCount] is deliberately kept:
+     * a map that fails and recovers repeatedly still reads as flapping, which a
+     * cleared counter would hide.
+     */
     fun recordRendered() {
         lastFailure.set(null)
     }
