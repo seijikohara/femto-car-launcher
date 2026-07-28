@@ -168,19 +168,30 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // (heading-up, tilt, 3D). Blank = a flat north-up RASTER map.
     const mapId = gmBridge()?.googleMapsMapId?.() ?? "";
 
-    // A vector map hard-requires WebGL: with no context there is nothing to
-    // render, so report fatal and let the host show a clear notice. A raster
-    // map needs no WebGL, so a missing context there is logged only — the
-    // raster tiles still render and a premature fatal would blank a working
-    // map.
+    // A raster map is server-rendered pixel tiles and needs no WebGL, so a
+    // missing context there is logged only — a premature fatal would blank a
+    // working map.
+    //
+    // A vector map is drawn client-side on the GPU, and Google's own bar for it
+    // is WebGL 2 (their support page tells you to test `getContext("webgl2")`).
+    // Google does NOT fail without it: a vector Map ID silently falls back to
+    // raster. So this fatal is a deliberate product choice, not a technical
+    // necessity — we would rather tell the user their vector opt-in cannot be
+    // honoured than hand them a flat north-up map with no explanation.
+    //
+    // KNOWN GAPS, deliberately left as-is here (behaviour predates the check
+    // against Google's docs):
+    //  - the gate accepts webgl1, so a WebGL-1-only device passes and then gets
+    //    Google's silent raster downgrade — the very outcome the fatal exists to
+    //    avoid;
+    //  - the downgrade is sampled once at the first `tilesloaded` rather than
+    //    subscribed via Google's `renderingtype_changed`, so a later switch
+    //    (e.g. a dynamic-GPU handover) goes unnoticed.
     const gl = webglSupport();
     if (!gl.webgl2 && !gl.webgl1) {
         if (mapId !== "") {
-            // Report and stop: loading the API for the doomed vector page is
-            // wasted work (the host tears the page down on the fatal).
-            // Whether a vector request should instead defer to Google's own
-            // silent raster downgrade (see the tilesloaded handler) is a
-            // separate product decision — the explicit-choice fatal stands.
+            // Report and stop: loading the API for a page the host is about to
+            // tear down is wasted work.
             log("no-webgl-context");
             report("fatal", "no-webgl-context");
             return;
@@ -522,6 +533,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     const tilesListener = liveMap.addListener("tilesloaded", () => {
         if (state.rendered) return;
         state.rendered = true;
+        report("ready", "");
         // Google silently downgrades a VECTOR map to RASTER when the device's
         // WebGL cannot host a vector map (e.g. a low-end head unit with no
         // usable 3D context). Detect the ACTUAL rendering type once tiles are

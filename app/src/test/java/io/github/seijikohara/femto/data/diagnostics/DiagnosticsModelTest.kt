@@ -87,6 +87,7 @@ class DiagnosticsModelTest {
                 SectionId.STORAGE,
                 SectionId.INPUT,
                 SectionId.WEBVIEW,
+                SectionId.MAP,
                 SectionId.SETTINGS,
                 SectionId.LOGS,
             ),

@@ -98,6 +98,8 @@ internal fun SectionId.title(): String =
 
         SectionId.WEBVIEW -> stringResource(R.string.diagnostics_section_webview)
 
+        SectionId.MAP -> stringResource(R.string.diagnostics_section_map)
+
         SectionId.SETTINGS -> stringResource(R.string.diagnostics_section_settings)
 
         // The tail length is unknowable from the id alone; SectionHeader

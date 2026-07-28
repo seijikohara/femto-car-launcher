@@ -57,6 +57,38 @@ class DiagnosticsReportTest {
     }
 
     @Test
+    fun `a blank map surfaces its reason in the issues block and the Map section`() {
+        // The whole point of the MAP section: "my map is blank" has to be
+        // answerable from the pasted report alone, without reading the log tail.
+        val report =
+            diagnosticsReport(
+                sections(
+                    DiagnosticSection(
+                        SectionId.MAP,
+                        SectionPayload.Facts(
+                            listOf(
+                                DiagnosticFact(
+                                    "WebGL 2",
+                                    FactValue.Status("unavailable (OpenGL ES 2.0, needs 3.0)", FactHealth.WARNING),
+                                ),
+                                DiagnosticFact(
+                                    "Last failure",
+                                    FactValue.Status("no-webgl-context (12s ago)", FactHealth.ERROR),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+                generatedAt,
+            )
+
+        assertTrue(report.contains("- Map: WebGL 2: unavailable (OpenGL ES 2.0, needs 3.0)"))
+        assertTrue(report.contains("- Map: Last failure: no-webgl-context (12s ago)"))
+        assertTrue(report.contains("## Map\n\n- WebGL 2: unavailable (OpenGL ES 2.0, needs 3.0)"))
+        assertTrue(report.indexOf("## WebView") < report.indexOf("## Map"))
+    }
+
+    @Test
     fun `permission table keeps the v1 shape with denied shouted`() {
         val report =
             diagnosticsReport(

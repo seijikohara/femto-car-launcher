@@ -77,6 +77,7 @@ internal enum class SectionId {
     STORAGE,
     INPUT,
     WEBVIEW,
+    MAP,
     SETTINGS,
     LOGS,
 }
