@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.data.diagnostics
 
+import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.map.MapRuntimeSignals
 import org.junit.Test
@@ -9,11 +10,20 @@ class MapFactsTest {
     private fun facts(
         glEsVersion: String? = "3.2",
         backend: MapBackend = MapBackend.OSM,
+        googleRendering: GoogleMapsRendering = GoogleMapsRendering.AUTO,
         hasGoogleMapId: Boolean = false,
         lastFailure: MapRuntimeSignals.MapFailure? = null,
         failureCount: Int = 0,
         nowElapsedRealtimeMs: Long = 0L,
-    ) = mapFactsFrom(glEsVersion, backend, hasGoogleMapId, lastFailure, failureCount, nowElapsedRealtimeMs)
+    ) = mapFactsFrom(
+        glEsVersion,
+        backend,
+        googleRendering,
+        hasGoogleMapId,
+        lastFailure,
+        failureCount,
+        nowElapsedRealtimeMs,
+    )
 
     @Test
     fun `a WebGL 2 backend below the OpenGL ES floor warns that it cannot render`() {
@@ -42,7 +52,42 @@ class MapFactsTest {
         // report a problem on a map that draws perfectly.
         assertEquals(
             DiagnosticFact("WebGL 2", FactValue.Text("not required (Google Maps raster)")),
-            facts(glEsVersion = "2.0", backend = MapBackend.GOOGLEMAPS, hasGoogleMapId = false).first(),
+            facts(
+                glEsVersion = "2.0",
+                backend = MapBackend.GOOGLEMAPS,
+                googleRendering = GoogleMapsRendering.AUTO,
+                hasGoogleMapId = false,
+            ).first(),
+        )
+    }
+
+    @Test
+    fun `an explicit Google raster choice never warns, even with a Map ID set`() {
+        // RASTER overrides the Map ID's cloud configuration, so the Map ID no
+        // longer implies vector — the pre-setting inference would have warned here.
+        assertEquals(
+            DiagnosticFact("WebGL 2", FactValue.Text("not required (Google Maps raster)")),
+            facts(
+                glEsVersion = "2.0",
+                backend = MapBackend.GOOGLEMAPS,
+                googleRendering = GoogleMapsRendering.RASTER,
+                hasGoogleMapId = true,
+            ).first(),
+        )
+    }
+
+    @Test
+    fun `an explicit Google vector choice warns without a Map ID`() {
+        // Vector no longer needs a Map ID (Maps JS 3.56.10+), so the warning must
+        // not depend on one.
+        assertEquals(
+            FactHealth.WARNING,
+            facts(
+                glEsVersion = "2.0",
+                backend = MapBackend.GOOGLEMAPS,
+                googleRendering = GoogleMapsRendering.VECTOR,
+                hasGoogleMapId = false,
+            ).first().health,
         )
     }
 
@@ -58,7 +103,12 @@ class MapFactsTest {
                     FactHealth.WARNING,
                 ),
             ),
-            facts(glEsVersion = "2.0", backend = MapBackend.GOOGLEMAPS, hasGoogleMapId = true).first(),
+            facts(
+                glEsVersion = "2.0",
+                backend = MapBackend.GOOGLEMAPS,
+                googleRendering = GoogleMapsRendering.AUTO,
+                hasGoogleMapId = true,
+            ).first(),
         )
     }
 

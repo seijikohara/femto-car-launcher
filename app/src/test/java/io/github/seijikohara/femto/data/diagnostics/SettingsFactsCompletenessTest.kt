@@ -62,6 +62,7 @@ class SettingsFactsCompletenessTest {
             "mapboxStyle" to "Mapbox style",
             "mapboxTraffic" to "Mapbox traffic",
             "mapboxAccessToken" to "Mapbox token",
+            "googleMapsRendering" to "Google Maps rendering",
             "googleMapsMapType" to "Google Maps type",
             "googleMapsTraffic" to "Google Maps traffic",
             "googleMapsApiKey" to "Google Maps key",

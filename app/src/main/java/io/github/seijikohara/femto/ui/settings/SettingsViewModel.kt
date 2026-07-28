@@ -112,6 +112,7 @@ internal class SettingsViewModel(
                 mapboxAccessToken = display.mapboxAccessToken,
                 googleMapsApiKey = display.googleMapsApiKey,
                 googleMapsMapId = display.googleMapsMapId,
+                googleMapsRendering = display.googleMapsRendering,
                 googleMapsMapType = display.googleMapsMapType,
                 googleMapsTraffic = display.googleMapsTraffic,
                 latinFont = font.latin.displayNameOrNull,
@@ -366,6 +367,10 @@ internal class SettingsViewModel(
 
                 SettingsAction.ClearGoogleMapsMapId -> {
                     displayPreferences.setGoogleMapsMapId("")
+                }
+
+                is SettingsAction.SetGoogleMapsRendering -> {
+                    displayPreferences.setGoogleMapsRendering(action.value)
                 }
 
                 is SettingsAction.SetGoogleMapsMapType -> {

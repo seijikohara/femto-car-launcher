@@ -239,6 +239,9 @@ internal data class DisplaySettings(
     val googleMapsApiKey: String = "",
     /** User-supplied Google Maps Map ID; blank uses the default raster map. */
     val googleMapsMapId: String = "",
+    // Raster / vector is independent of the Map ID (Maps JS 3.56.10+); AUTO leaves
+    // the Map ID's Cloud configuration in charge. See GoogleMapsRendering.
+    val googleMapsRendering: GoogleMapsRendering = GoogleMapsRendering.AUTO,
     // Google Maps map type, only meaningful when mapBackend == GOOGLEMAPS.
     val googleMapsMapType: GoogleMapType = GoogleMapType.ROADMAP,
     // Whether to overlay live traffic on the Google Maps map.
@@ -291,6 +294,7 @@ internal data class DisplaySettings(
                 mapboxAccessToken = "",
                 googleMapsApiKey = "",
                 googleMapsMapId = "",
+                googleMapsRendering = GoogleMapsRendering.AUTO,
                 googleMapsMapType = GoogleMapType.ROADMAP,
                 googleMapsTraffic = false,
             )

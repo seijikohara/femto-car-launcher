@@ -59,9 +59,13 @@ interface GoogleMapsFemtoBridge {
     // key. Returns an empty string when unconfigured.
     googleMapsApiKey(): string;
     // Synchronous getter injected by the host; returns the Cloud Map ID the
-    // user supplied (a non-empty value opts into a VECTOR map), or "" for a
-    // raster map.
+    // user supplied, or "" when unconfigured. Independent of the rendering
+    // mode below (Maps JS 3.56.10+ renders vector without a Map ID); the Map ID
+    // still gates advanced markers and cloud styling.
     googleMapsMapId(): string;
+    // Synchronous getter injected by the host; the user's rendering choice as
+    // the Kotlin enum name: "AUTO" | "RASTER" | "VECTOR".
+    googleMapsRendering(): string;
 }
 
 // Minimal type stubs for the Google Maps JS API (CDN-loaded at runtime,
@@ -164,9 +168,19 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         return;
     }
 
-    // A non-empty Cloud Map ID = the user opted into a VECTOR map
-    // (heading-up, tilt, 3D). Blank = a flat north-up RASTER map.
     const mapId = gmBridge()?.googleMapsMapId?.() ?? "";
+
+    // The user's explicit choice. AUTO passes no renderingType, leaving the Map
+    // ID's cloud configuration in charge (and, with no Map ID, the API's own
+    // RASTER default); RASTER / VECTOR are passed through and OVERRIDE that
+    // configuration. Vector is only ever a request: the API silently falls back
+    // to raster on a device that cannot host it, which the tilesloaded handler
+    // below detects. Requesting vector no longer needs a Map ID.
+    const rendering = gmBridge()?.googleMapsRendering?.() ?? "AUTO";
+    // What we ASK for. AUTO cannot be resolved until the map has loaded, so it
+    // starts optimistic when a Map ID might select vector, and the tilesloaded
+    // handler corrects it either way.
+    const wantsVector = rendering === "VECTOR" || (rendering === "AUTO" && mapId !== "");
 
     // A raster map is server-rendered pixel tiles and needs no WebGL, so a
     // missing context there is logged only — a premature fatal would blank a
@@ -179,8 +193,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // necessity — we would rather tell the user their vector opt-in cannot be
     // honoured than hand them a flat north-up map with no explanation.
     //
-    // KNOWN GAPS, deliberately left as-is here (behaviour predates the check
-    // against Google's docs):
+    // KNOWN GAPS, deliberately left as-is here:
     //  - the gate accepts webgl1, so a WebGL-1-only device passes and then gets
     //    Google's silent raster downgrade — the very outcome the fatal exists to
     //    avoid;
@@ -189,7 +202,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     //    (e.g. a dynamic-GPU handover) goes unnoticed.
     const gl = webglSupport();
     if (!gl.webgl2 && !gl.webgl1) {
-        if (mapId !== "") {
+        if (wantsVector) {
             // Report and stop: loading the API for a page the host is about to
             // tear down is wasted work.
             log("no-webgl-context");
@@ -205,9 +218,10 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     const state = {
         map: undefined as GMMap | undefined,
         trafficLayer: null as GMTrafficLayer | null,
-        // True when the user supplied a Cloud Map ID: render a VECTOR map
-        // (heading-up rotation + tilt). False = RASTER map (north-up only).
-        isVector: mapId !== "",
+        // What the page currently believes it is rendering: VECTOR unlocks
+        // heading-up rotation + tilt, RASTER is flat and north-up. Seeded from
+        // the request and corrected from getRenderingType() once tiles land.
+        isVector: wantsVector,
         // Set to true on the first tilesloaded event; gates fatal error
         // reporting (errors after first render are transient, not key/auth
         // failures).
@@ -306,12 +320,19 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // bottom-right and exposes no supported way to move it, so the split
     // stays as Google places it.
     //
-    // VECTOR (Map ID present): enable host-driven heading-up rotation +
-    // tilt/3D; headingInteractionEnabled is false because heading is driven
+    // renderingType is only sent for an explicit RASTER / VECTOR choice, since
+    // sending it overrides the Map ID's cloud configuration — which is exactly
+    // what AUTO must not do. The Map ID rides along whenever it is set: it is
+    // independent of the rendering mode and still gates advanced markers and
+    // cloud styling, so a raster map keeps it too.
+    //
+    // heading/tilt are vector-only. On a raster map the API reinterprets them
+    // rather than rejecting them (heading applies to aerial imagery and snaps to
+    // available angles; tilt takes only 0 or 45 as an imagery-switching policy),
+    // and passing them stops moveCamera from positioning — so they are omitted
+    // entirely. headingInteractionEnabled stays false because heading is driven
     // solely by the host (north-up vs heading-up), never by user rotation
-    // gestures. RASTER (no Map ID): omit mapId/heading/tilt entirely — a
-    // raster map rejects heading/tilt, and passing them stops moveCamera from
-    // positioning.
+    // gestures.
     const liveMap = new mapsLib.Map(mapEl as HTMLElement, {
         center: { lat: 0, lng: 0 },
         zoom: 1,
@@ -319,7 +340,9 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         disableDefaultUI: true,
         gestureHandling: "greedy",
         keyboardShortcuts: false,
-        ...(state.isVector ? { mapId, heading: 0, tilt: 0, headingInteractionEnabled: false } : {}),
+        ...(mapId !== "" ? { mapId } : {}),
+        ...(rendering === "AUTO" ? {} : { renderingType: rendering }),
+        ...(state.isVector ? { heading: 0, tilt: 0, headingInteractionEnabled: false } : {}),
     });
     state.map = liveMap;
     // Traffic layer is created once and toggled on/off via setMap (memoized).

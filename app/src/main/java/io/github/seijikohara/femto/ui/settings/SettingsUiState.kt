@@ -10,6 +10,7 @@ import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.GoogleMapType
+import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapStyleSetting
@@ -81,6 +82,7 @@ internal data class SettingsUiState(
     val mapboxAccessToken: String = "",
     val googleMapsApiKey: String = "",
     val googleMapsMapId: String = "",
+    val googleMapsRendering: GoogleMapsRendering = DisplaySettings.Default.googleMapsRendering,
     val googleMapsMapType: GoogleMapType = DisplaySettings.Default.googleMapsMapType,
     val googleMapsTraffic: Boolean = DisplaySettings.Default.googleMapsTraffic,
     val availableCalendars: List<CalendarInfo> = emptyList(),
@@ -147,6 +149,7 @@ internal data class SettingsUiState(
                 mapboxAccessToken = DisplaySettings.Default.mapboxAccessToken,
                 googleMapsApiKey = DisplaySettings.Default.googleMapsApiKey,
                 googleMapsMapId = DisplaySettings.Default.googleMapsMapId,
+                googleMapsRendering = DisplaySettings.Default.googleMapsRendering,
                 googleMapsMapType = DisplaySettings.Default.googleMapsMapType,
                 googleMapsTraffic = DisplaySettings.Default.googleMapsTraffic,
             )
@@ -374,6 +377,10 @@ internal sealed interface SettingsAction {
     ) : SettingsAction
 
     data object ClearGoogleMapsMapId : SettingsAction
+
+    data class SetGoogleMapsRendering(
+        val value: GoogleMapsRendering,
+    ) : SettingsAction
 
     data class SetGoogleMapsMapType(
         val value: GoogleMapType,

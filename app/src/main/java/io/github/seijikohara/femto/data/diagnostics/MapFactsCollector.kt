@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.SystemClock
 import androidx.core.content.getSystemService
 import io.github.seijikohara.femto.data.display.DisplayPreferences
+import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.map.MapRuntimeSignals
 import kotlinx.coroutines.Dispatchers
@@ -32,11 +33,25 @@ private enum class WebGl2Need { TO_RENDER, FOR_VECTOR, NONE }
 
 private fun webGl2Need(
     backend: MapBackend,
+    googleRendering: GoogleMapsRendering,
     hasGoogleMapId: Boolean,
 ): WebGl2Need =
     when (backend) {
-        MapBackend.OSM, MapBackend.MAPBOX -> WebGl2Need.TO_RENDER
-        MapBackend.GOOGLEMAPS -> if (hasGoogleMapId) WebGl2Need.FOR_VECTOR else WebGl2Need.NONE
+        MapBackend.OSM, MapBackend.MAPBOX -> {
+            WebGl2Need.TO_RENDER
+        }
+
+        // Mirrors `wantsVector` in webmap/src/backends/googlemaps.ts, which is the
+        // page-side home of the same rule: an explicit VECTOR asks for it, AUTO
+        // may get it from the Map ID's cloud configuration, and everything else
+        // renders raster.
+        MapBackend.GOOGLEMAPS -> {
+            when (googleRendering) {
+                GoogleMapsRendering.VECTOR -> WebGl2Need.FOR_VECTOR
+                GoogleMapsRendering.AUTO -> if (hasGoogleMapId) WebGl2Need.FOR_VECTOR else WebGl2Need.NONE
+                GoogleMapsRendering.RASTER -> WebGl2Need.NONE
+            }
+        }
     }
 
 /**
@@ -46,20 +61,22 @@ private fun webGl2Need(
  *
  * Reports what the map DID, not how it is configured: every map setting
  * (backend, style, credentials) is already a SETTINGS fact, and restating it
- * here would be a second home for the same value. [backend] and [hasGoogleMapId]
- * are read only to judge what a missing WebGL 2 actually costs — flagging it
- * unconditionally would warn about a Google raster map that renders perfectly.
+ * here would be a second home for the same value. [backend], [googleRendering]
+ * and [hasGoogleMapId] are read only to judge what a missing WebGL 2 actually
+ * costs — flagging it unconditionally would warn about a Google raster map that
+ * renders perfectly.
  */
 internal fun mapFactsFrom(
     glEsVersion: String?,
     backend: MapBackend,
+    googleRendering: GoogleMapsRendering,
     hasGoogleMapId: Boolean,
     lastFailure: MapRuntimeSignals.MapFailure?,
     failureCount: Int,
     nowElapsedRealtimeMs: Long,
 ): List<DiagnosticFact> =
     buildList {
-        add(webGl2Fact(glEsVersion, webGl2Need(backend, hasGoogleMapId)))
+        add(webGl2Fact(glEsVersion, webGl2Need(backend, googleRendering, hasGoogleMapId)))
         add(lastFailureFact(lastFailure, nowElapsedRealtimeMs))
         if (failureCount > 1) {
             add(DiagnosticFact("Failures this session", FactValue.Text("$failureCount")))
@@ -142,6 +159,7 @@ internal class MapFactsCollector(
                 mapFactsFrom(
                     glEsVersion = context.getSystemService<ActivityManager>()?.deviceConfigurationInfo?.glEsVersion,
                     backend = display.mapBackend,
+                    googleRendering = display.googleMapsRendering,
                     hasGoogleMapId = display.googleMapsMapId.isNotBlank(),
                     lastFailure = MapRuntimeSignals.lastFailureOrNull(),
                     failureCount = MapRuntimeSignals.failureCount(),
