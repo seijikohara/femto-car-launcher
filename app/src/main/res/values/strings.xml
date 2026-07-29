@@ -350,10 +350,15 @@
     <string name="settings_google_maps_key_save">Save</string>
     <string name="settings_google_maps_key_clear">Clear</string>
     <string name="settings_google_maps_map_id">Map ID (optional)</string>
-    <string name="settings_google_maps_map_id_unset">Not set — flat north-up map; tap to enable a vector map</string>
-    <string name="settings_google_maps_map_id_hint">Optional. Enter a Map ID created in your Google Cloud console (Map Management) to render a vector map with heading-up rotation, tilt, and 3D. Leave blank for a flat north-up raster map.</string>
+    <string name="settings_google_maps_map_id_unset">Not set — tap to add one for cloud styling and advanced markers</string>
+    <string name="settings_google_maps_map_id_hint">Optional. Enter a Map ID created in your Google Cloud console (Map Management) for cloud styling and advanced markers. It does not control raster vs vector — the Rendering setting above does, except on Automatic, where the map ID\'s cloud configuration decides.</string>
     <string name="settings_google_maps_map_id_save">Save</string>
     <string name="settings_google_maps_map_id_clear">Clear</string>
+    <string name="settings_google_maps_rendering">Rendering</string>
+    <string name="settings_google_maps_rendering_auto">Automatic</string>
+    <string name="settings_google_maps_rendering_raster">Raster</string>
+    <string name="settings_google_maps_rendering_vector">Vector</string>
+    <string name="settings_google_maps_rendering_note">Vector adds heading-up rotation and tilt; raster is flat and north-up. Automatic follows the map ID\'s cloud configuration, and renders raster when no map ID is set. Vector needs no map ID, but a device that cannot render it falls back to raster on its own.</string>
     <string name="settings_google_maps_type">Map type</string>
     <string name="settings_google_maps_type_roadmap">Roadmap</string>
     <string name="settings_google_maps_type_satellite">Satellite</string>

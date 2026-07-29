@@ -25,6 +25,7 @@ import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Lucide
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.GoogleMapType
+import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MapBackend
@@ -115,6 +116,26 @@ internal fun MapSection(
         }
         AnimatedVisibility(visible = uiState.mapBackend == MapBackend.GOOGLEMAPS) {
             Column {
+                ChoiceRow(
+                    title = stringResource(R.string.settings_google_maps_rendering),
+                    options =
+                        listOf(
+                            GoogleMapsRendering.AUTO to
+                                stringResource(R.string.settings_google_maps_rendering_auto),
+                            GoogleMapsRendering.RASTER to
+                                stringResource(R.string.settings_google_maps_rendering_raster),
+                            GoogleMapsRendering.VECTOR to
+                                stringResource(R.string.settings_google_maps_rendering_vector),
+                        ),
+                    selected = uiState.googleMapsRendering,
+                    onSelect = { onAction(SettingsAction.SetGoogleMapsRendering(it)) },
+                )
+                Text(
+                    text = stringResource(R.string.settings_google_maps_rendering_note),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                )
                 ChoiceRow(
                     title = stringResource(R.string.settings_google_maps_type),
                     options =

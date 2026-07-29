@@ -68,6 +68,7 @@ internal enum class SettingsSectionId(
             DisplayPreferences.MAPBOX_ACCESS_TOKEN_KEY,
             DisplayPreferences.GOOGLE_MAPS_API_KEY_KEY,
             DisplayPreferences.GOOGLE_MAPS_MAP_ID_KEY,
+            DisplayPreferences.GOOGLE_MAPS_RENDERING_KEY,
             DisplayPreferences.GOOGLE_MAPS_MAP_TYPE_KEY,
             DisplayPreferences.GOOGLE_MAPS_TRAFFIC_KEY,
             DisplayPreferences.MAP_3D_BUILDINGS_KEY,

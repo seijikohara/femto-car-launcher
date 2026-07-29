@@ -129,6 +129,8 @@ internal interface DisplaySettingsStore {
 
     suspend fun setGoogleMapsMapId(value: String)
 
+    suspend fun setGoogleMapsRendering(value: GoogleMapsRendering)
+
     suspend fun setGoogleMapsMapType(value: GoogleMapType)
 
     suspend fun setGoogleMapsTraffic(value: Boolean)
@@ -204,6 +206,8 @@ internal class DisplayPreferences(
                     mapboxAccessToken = prefs[MAPBOX_ACCESS_TOKEN_KEY].orEmpty(),
                     googleMapsApiKey = prefs[GOOGLE_MAPS_API_KEY_KEY].orEmpty(),
                     googleMapsMapId = prefs[GOOGLE_MAPS_MAP_ID_KEY].orEmpty(),
+                    googleMapsRendering =
+                        prefs[GOOGLE_MAPS_RENDERING_KEY].toEnumOr(GoogleMapsRendering.AUTO),
                     googleMapsMapType = prefs[GOOGLE_MAPS_MAP_TYPE_KEY].toEnumOr(GoogleMapType.ROADMAP),
                     googleMapsTraffic = prefs[GOOGLE_MAPS_TRAFFIC_KEY] ?: false,
                 )
@@ -395,6 +399,10 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[GOOGLE_MAPS_MAP_ID_KEY] = value }
     }
 
+    override suspend fun setGoogleMapsRendering(value: GoogleMapsRendering) {
+        context.displayDataStore.editOrLog(TAG) { it[GOOGLE_MAPS_RENDERING_KEY] = value.name }
+    }
+
     override suspend fun setGoogleMapsMapType(value: GoogleMapType) {
         context.displayDataStore.editOrLog(TAG) { it[GOOGLE_MAPS_MAP_TYPE_KEY] = value.name }
     }
@@ -465,6 +473,7 @@ internal class DisplayPreferences(
         val MAPBOX_ACCESS_TOKEN_KEY = stringPreferencesKey("mapbox_access_token")
         val GOOGLE_MAPS_API_KEY_KEY = stringPreferencesKey("google_maps_api_key")
         val GOOGLE_MAPS_MAP_ID_KEY = stringPreferencesKey("google_maps_map_id")
+        val GOOGLE_MAPS_RENDERING_KEY = stringPreferencesKey("google_maps_rendering")
         val GOOGLE_MAPS_MAP_TYPE_KEY = stringPreferencesKey("google_maps_map_type")
         val GOOGLE_MAPS_TRAFFIC_KEY = booleanPreferencesKey("google_maps_traffic")
 
@@ -525,6 +534,7 @@ internal class DisplayPreferences(
                 MAPBOX_ACCESS_TOKEN_KEY,
                 GOOGLE_MAPS_API_KEY_KEY,
                 GOOGLE_MAPS_MAP_ID_KEY,
+                GOOGLE_MAPS_RENDERING_KEY,
                 GOOGLE_MAPS_MAP_TYPE_KEY,
                 GOOGLE_MAPS_TRAFFIC_KEY,
             )

@@ -68,6 +68,7 @@ internal fun displaySettingsFacts(display: DisplaySettings): List<DiagnosticFact
         entry("Mapbox style", display.mapboxStyle.name),
         entry("Mapbox traffic", "${display.mapboxTraffic}"),
         entry("Mapbox token", display.mapboxAccessToken.secretLabel()),
+        entry("Google Maps rendering", display.googleMapsRendering.name),
         entry("Google Maps type", display.googleMapsMapType.name),
         entry("Google Maps traffic", "${display.googleMapsTraffic}"),
         entry("Google Maps key", display.googleMapsApiKey.secretLabel()),

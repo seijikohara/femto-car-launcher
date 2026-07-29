@@ -49,6 +49,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPinOff
 import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.display.MapboxStyle
@@ -152,6 +153,10 @@ internal fun WebMapView(
     val effectiveMapboxToken = if (mapConfig.backend == MapBackend.MAPBOX) mapConfig.mapboxToken else ""
     val effectiveGoogleKey = if (mapConfig.backend == MapBackend.GOOGLEMAPS) mapConfig.googleMapsApiKey else ""
     val effectiveGoogleMapId = if (mapConfig.backend == MapBackend.GOOGLEMAPS) mapConfig.googleMapsMapId else ""
+    // The Maps JS API fixes raster/vector at construction, so a change has to
+    // rebuild the WebView rather than push into the live page.
+    val effectiveGoogleRendering =
+        if (mapConfig.backend == MapBackend.GOOGLEMAPS) mapConfig.googleMapsRendering else GoogleMapsRendering.AUTO
 
     // Renderer-death containment state (see the KDoc): bumping the generation
     // rebuilds the WebView after the renderer process dies; once deaths repeat
@@ -186,7 +191,13 @@ internal fun WebMapView(
     // retry bumps that — so the budget survives its own reloads; a
     // backend/credential change or a connectivity edge refunds it.
     val retryAttempts =
-        remember(mapConfig.backend, effectiveMapboxToken, effectiveGoogleKey, effectiveGoogleMapId) {
+        remember(
+            mapConfig.backend,
+            effectiveMapboxToken,
+            effectiveGoogleKey,
+            effectiveGoogleMapId,
+            effectiveGoogleRendering,
+        ) {
             mutableIntStateOf(0)
         }
     val wasOnline = remember { booleanArrayOf(online) }
@@ -217,6 +228,7 @@ internal fun WebMapView(
             effectiveMapboxToken,
             effectiveGoogleKey,
             effectiveGoogleMapId,
+            effectiveGoogleRendering,
         ) { mutableStateOf(false) }
 
     // Set by a `fatal` bridge event (see the KDoc): the page itself determined it
@@ -228,11 +240,25 @@ internal fun WebMapView(
     // connectivity-recovery reload clears an offline-triggered fatal (Mapbox / Google
     // Maps report one when opened offline) and the rebuilt page gets a fresh online init.
     var liveInitFailed by
-        remember(reloadGeneration, mapConfig.backend, effectiveMapboxToken, effectiveGoogleKey, effectiveGoogleMapId) {
+        remember(
+            reloadGeneration,
+            mapConfig.backend,
+            effectiveMapboxToken,
+            effectiveGoogleKey,
+            effectiveGoogleMapId,
+            effectiveGoogleRendering,
+        ) {
             mutableStateOf(false)
         }
     var lastFatalDetail by
-        remember(reloadGeneration, mapConfig.backend, effectiveMapboxToken, effectiveGoogleKey, effectiveGoogleMapId) {
+        remember(
+            reloadGeneration,
+            mapConfig.backend,
+            effectiveMapboxToken,
+            effectiveGoogleKey,
+            effectiveGoogleMapId,
+            effectiveGoogleRendering,
+        ) {
             mutableStateOf<String?>(null)
         }
     // Bridge callbacks arrive on a WebView-managed background thread; Compose
@@ -318,6 +344,7 @@ internal fun WebMapView(
             effectiveMapboxToken,
             effectiveGoogleKey,
             effectiveGoogleMapId,
+            effectiveGoogleRendering,
         ) {
             val assetLoader =
                 WebViewAssetLoader
@@ -399,6 +426,13 @@ internal fun WebMapView(
                         // rendering; empty string means the default raster map is used.
                         @JavascriptInterface
                         fun googleMapsMapId(): String = mapConfig.googleMapsMapId
+
+                        // Read synchronously by the googlemaps backend module before map
+                        // initialisation: raster/vector is a construction-time option, and an
+                        // explicit value overrides the Map ID's cloud configuration. AUTO sends
+                        // nothing and leaves that configuration in charge.
+                        @JavascriptInterface
+                        fun googleMapsRendering(): String = mapConfig.googleMapsRendering.name
 
                         @JavascriptInterface
                         fun onMapEvent(

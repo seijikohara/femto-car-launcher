@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import io.github.seijikohara.femto.data.display.GoogleMapType
+import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapStyleSetting
@@ -30,6 +31,9 @@ internal data class MapConfig(
     // Google Maps-specific fields; ignored when backend != GOOGLEMAPS.
     val googleMapsApiKey: String = "",
     val googleMapsMapId: String = "",
+    // Construction-time for the Maps JS API, so a change rebuilds the WebView
+    // (see WebMapView's effectiveGoogleRendering).
+    val googleMapsRendering: GoogleMapsRendering = GoogleMapsRendering.AUTO,
     val googleMapsMapType: GoogleMapType = GoogleMapType.ROADMAP,
     val googleMapsTraffic: Boolean = false,
     val markerPos: Int = 70,

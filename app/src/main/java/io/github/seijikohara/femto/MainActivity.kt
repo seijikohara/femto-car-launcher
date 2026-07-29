@@ -253,6 +253,7 @@ class MainActivity : ComponentActivity() {
                             mapboxTraffic = settings.mapboxTraffic,
                             googleMapsApiKey = settings.googleMapsApiKey,
                             googleMapsMapId = settings.googleMapsMapId,
+                            googleMapsRendering = settings.googleMapsRendering,
                             googleMapsMapType = settings.googleMapsMapType,
                             googleMapsTraffic = settings.googleMapsTraffic,
                         ),

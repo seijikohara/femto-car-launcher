@@ -11,6 +11,7 @@ import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.GoogleMapType
+import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MapBackend
@@ -139,6 +140,9 @@ internal class FakeDisplaySettingsStore(
     override suspend fun setGoogleMapsApiKey(value: String) = state.update { it.copy(googleMapsApiKey = value) }
 
     override suspend fun setGoogleMapsMapId(value: String) = state.update { it.copy(googleMapsMapId = value) }
+
+    override suspend fun setGoogleMapsRendering(value: GoogleMapsRendering) =
+        state.update { it.copy(googleMapsRendering = value) }
 
     override suspend fun setGoogleMapsMapType(value: GoogleMapType) =
         state.update { it.copy(googleMapsMapType = value) }

@@ -111,6 +111,7 @@ class DisplayPreferencesTest {
             store.resetToDefaults()
             store.setGoogleMapsApiKey("AIzaTESTKEY")
             store.setGoogleMapsMapId("test-map-id-01")
+            store.setGoogleMapsRendering(GoogleMapsRendering.VECTOR)
             store.setGoogleMapsMapType(GoogleMapType.HYBRID)
             store.setGoogleMapsTraffic(true)
             val settings = store.settings.first()
@@ -256,6 +257,7 @@ class DisplayPreferencesTest {
                     mapboxAccessToken = DisplaySettings.Default.mapboxAccessToken,
                     googleMapsApiKey = DisplaySettings.Default.googleMapsApiKey,
                     googleMapsMapId = DisplaySettings.Default.googleMapsMapId,
+                    googleMapsRendering = DisplaySettings.Default.googleMapsRendering,
                     googleMapsMapType = DisplaySettings.Default.googleMapsMapType,
                     googleMapsTraffic = DisplaySettings.Default.googleMapsTraffic,
                     map3dBuildings = DisplaySettings.Default.map3dBuildings,
@@ -368,6 +370,7 @@ class DisplayPreferencesTest {
         setMapboxAccessToken("pk.mutated")
         setGoogleMapsApiKey("mutated-key")
         setGoogleMapsMapId("mutated-id")
+        setGoogleMapsRendering(GoogleMapsRendering.VECTOR)
         setGoogleMapsMapType(GoogleMapType.HYBRID)
         setGoogleMapsTraffic(true)
         return settings.first()
