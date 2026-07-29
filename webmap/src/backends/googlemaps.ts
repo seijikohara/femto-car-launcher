@@ -177,10 +177,14 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // to raster on a device that cannot host it, which the tilesloaded handler
     // below detects. Requesting vector no longer needs a Map ID.
     const rendering = gmBridge()?.googleMapsRendering?.() ?? "AUTO";
-    // What we ASK for. AUTO cannot be resolved until the map has loaded, so it
-    // starts optimistic when a Map ID might select vector, and the tilesloaded
-    // handler corrects it either way.
-    const wantsVector = rendering === "VECTOR" || (rendering === "AUTO" && mapId !== "");
+    // Only an EXPLICIT vector choice is a vector request. AUTO's outcome lives in
+    // the Map ID's cloud configuration, which the page cannot read, so guessing
+    // "Map ID means vector" would drive a raster-configured Map ID as vector —
+    // pushing heading/tilt at a map that reinterprets them, and failing the WebGL
+    // gate below on a device where Google would have rendered raster quite
+    // happily. AUTO therefore starts raster and the tilesloaded handler resolves
+    // it from getRenderingType(), which is the only authoritative answer.
+    const wantsVector = rendering === "VECTOR";
 
     // A raster map is server-rendered pixel tiles and needs no WebGL, so a
     // missing context there is logged only — a premature fatal would blank a
@@ -557,16 +561,27 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         if (state.rendered) return;
         state.rendered = true;
         report("ready", "");
-        // Google silently downgrades a VECTOR map to RASTER when the device's
-        // WebGL cannot host a vector map (e.g. a low-end head unit with no
-        // usable 3D context). Detect the ACTUAL rendering type once tiles are
-        // in and downgrade our state so updateCamera stops sending
-        // heading/tilt — a raster map rejects them ("not supported on raster
-        // maps") and passing them stops the camera from positioning. easeHome
-        // re-issues a raster camera move + chevron sync.
-        if (state.isVector && liveMap.getRenderingType() === "RASTER") {
-            log("vector-fallback-to-raster");
-            state.isVector = false;
+        // getRenderingType() is the only authoritative answer, and it resolves
+        // only once tiles are in, so reconcile in BOTH directions here.
+        //
+        // Downgrade: Google silently renders RASTER when the device's WebGL
+        // cannot host a vector map (e.g. a low-end head unit with no usable 3D
+        // context), so stop sending heading/tilt — a raster map reinterprets
+        // them and passing them stops the camera from positioning.
+        //
+        // Upgrade: AUTO starts raster because the Map ID's cloud configuration
+        // is unreadable from here, so a Map ID configured for vector arrives as
+        // an upgrade. Nothing needs re-constructing — heading/tilt ride every
+        // updateCamera push, and headingInteractionEnabled already defaults to
+        // false on a vector map, which is what the launcher wants anyway.
+        //
+        // easeHome re-issues a camera move + chevron sync for the resolved mode.
+        const resolved = liveMap.getRenderingType();
+        log(`renderingType=${resolved}`);
+        const resolvedVector = resolved === "VECTOR";
+        if (state.isVector !== resolvedVector) {
+            log(resolvedVector ? "resolved-to-vector" : "vector-fallback-to-raster");
+            state.isVector = resolvedVector;
             easeHome();
         }
         log("rendered");

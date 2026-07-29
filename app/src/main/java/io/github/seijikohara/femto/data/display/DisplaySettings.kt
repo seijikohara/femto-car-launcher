@@ -237,7 +237,12 @@ internal data class DisplaySettings(
     val mapboxAccessToken: String = "",
     /** User-supplied Google Maps API key; blank disables the Google Maps backend. */
     val googleMapsApiKey: String = "",
-    /** User-supplied Google Maps Map ID; blank uses the default raster map. */
+    /**
+     * User-supplied Google Maps Map ID. Independent of the rendering mode below:
+     * it carries cloud styling and advanced markers, and only under
+     * [GoogleMapsRendering.AUTO] does its cloud configuration also decide raster
+     * vs vector. Blank is supported in every mode.
+     */
     val googleMapsMapId: String = "",
     // Raster / vector is independent of the Map ID (Maps JS 3.56.10+); AUTO leaves
     // the Map ID's Cloud configuration in charge. See GoogleMapsRendering.
