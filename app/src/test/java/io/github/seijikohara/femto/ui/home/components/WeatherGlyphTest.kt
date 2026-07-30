@@ -1,7 +1,12 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.data.weather.WeatherCode
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -11,6 +16,8 @@ import kotlin.test.assertTrue
  * without reading a label the compact card never shows — these tests exist to
  * keep them from collapsing back together.
  */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33])
 class WeatherGlyphTest {
     private val wetOrStormy =
         listOf(
@@ -91,6 +98,23 @@ class WeatherGlyphTest {
         // branch would silence the chip rather than fail loudly.
         WeatherCode.entries.forEach { code ->
             assertTrue(labelResFor(code) != 0, "$code has no label resource")
+        }
+    }
+
+    @Test
+    fun `every label resolves to non-blank text`() {
+        // A resource id is not enough: this label is both the panel hero's visible
+        // caption and the accessible name for every condition glyph (the panel's
+        // hero icon is decorative and defers to the text), so a blank value leaves
+        // a gap on screen and an unnamed node for a screen reader. UNKNOWN was
+        // exactly that until it was given a real string.
+        val resources = ApplicationProvider.getApplicationContext<Context>().resources
+
+        WeatherCode.entries.forEach { code ->
+            assertTrue(
+                resources.getString(labelResFor(code)).isNotBlank(),
+                "$code resolves to a blank label",
+            )
         }
     }
 }
