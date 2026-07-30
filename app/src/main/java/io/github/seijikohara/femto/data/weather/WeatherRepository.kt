@@ -86,12 +86,18 @@ internal class WeatherRepository(
         cached =
             WeatherSnapshot(
                 tempC = temp,
-                // MET provides no "feels like"; the air temperature stands in.
-                apparentTempC = temp,
                 code = WeatherCode.fromMetSymbol(symbol),
                 windKmh = (instant.windSpeed ?: 0.0) * MS_TO_KMH,
                 windDirectionDeg = instant.windFromDirection,
                 humidityPercent = instant.relativeHumidity?.roundToInt(),
+                // The hour ahead, from the 1-hour block only: a 6-hour block would
+                // answer a different question (the chance somewhere in the next six
+                // hours) under the same label. Absent on the far tail, so null-safe.
+                precipitationProbabilityPercent =
+                    first.data.next1Hours
+                        ?.details
+                        ?.probabilityOfPrecipitation
+                        ?.roundToInt(),
                 uvIndex = instant.ultravioletIndexClearSky,
                 // Day unless the symbol explicitly carries the _night suffix
                 // (_day / _polartwilight / no suffix all read as day).

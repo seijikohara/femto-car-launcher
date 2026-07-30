@@ -85,7 +85,10 @@
     <string name="weather_open_app">Open weather</string>
     <!-- Shown on the weather card when the data is stale (a refresh outage); %1$s is the local fetch time. -->
     <string name="weather_as_of">as of %1$s</string>
-    <string name="weather_metric_feels">FEELS</string>
+    <!-- Chance of precipitation in the hour ahead (rain or snow), shown on the
+         compact card. Kept to the same short uppercase form as the metrics
+         beside it. -->
+    <string name="weather_metric_precip">PRECIP</string>
     <string name="weather_metric_wind">WIND</string>
     <string name="weather_metric_humidity">HUMID</string>
     <string name="weather_cond_sunny">Sunny</string>

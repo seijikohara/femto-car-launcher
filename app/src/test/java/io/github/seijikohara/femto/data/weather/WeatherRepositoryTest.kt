@@ -68,7 +68,6 @@ class WeatherRepositoryTest {
                 val snapshot = assertNotNull(awaitItem())
                 assertEquals(16.0, snapshot.tempC, 0.0)
                 // MET has no "feels like": apparent falls back to the air temperature.
-                assertEquals(16.0, snapshot.apparentTempC, 0.0)
                 assertEquals(WeatherCode.CLEAR, snapshot.code)
                 // 3.5 m/s -> 12.6 km/h.
                 assertEquals(12.6, snapshot.windKmh, 1e-9)
@@ -397,7 +396,6 @@ class WeatherRepositoryTest {
             repo.snapshotFlow().test {
                 val snapshot = assertNotNull(awaitItem())
                 assertEquals(18.5, snapshot.tempC, 0.0)
-                assertEquals(18.5, snapshot.apparentTempC, 0.0)
                 assertEquals(WeatherCode.CLEAR, snapshot.code)
                 assertEquals(0.0, snapshot.windKmh, 0.0)
                 assertNull(snapshot.humidityPercent)
@@ -451,6 +449,19 @@ class WeatherRepositoryTest {
                   { "time": "2026-05-02T18:00:00Z", "data": { "instant": { "details": { "air_temperature": 15.0 } }, "next_1_hours": { "summary": { "symbol_code": "cloudy" } } } },
                   { "time": "2026-05-03T06:00:00Z", "data": { "instant": { "details": { "air_temperature": 13.0 } }, "next_1_hours": { "summary": { "symbol_code": "cloudy" } } } },
                   { "time": "2026-05-03T12:00:00Z", "data": { "instant": { "details": { "air_temperature": 21.0 } }, "next_6_hours": { "summary": { "symbol_code": "lightrainshowers_day" }, "details": { "probability_of_precipitation": 55.0, "air_temperature_max": 25.0, "air_temperature_min": 10.0 } } } }
+                ]
+              }
+            }
+        """
+
+        // The current entry carries a 1-hour probability (17.4, to check rounding)
+        // AND a 6-hour probability (90). Only the 1-hour value answers "the hour
+        // ahead", so the snapshot must take 17 and ignore 90.
+        const val CURRENT_PRECIP_BODY = """
+            {
+              "properties": {
+                "timeseries": [
+                  { "time": "2026-05-01T05:00:00Z", "data": { "instant": { "details": { "air_temperature": 12.0 } }, "next_1_hours": { "summary": { "symbol_code": "rain" }, "details": { "probability_of_precipitation": 17.4 } }, "next_6_hours": { "summary": { "symbol_code": "rain" }, "details": { "probability_of_precipitation": 90.0 } } } }
                 ]
               }
             }

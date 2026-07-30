@@ -7,13 +7,15 @@ import java.time.LocalTime
 
 internal data class WeatherSnapshot(
     val tempC: Double,
-    val apparentTempC: Double,
     val code: WeatherCode,
     val windKmh: Double,
     // Meteorological "from" direction in degrees (0 = from north, clockwise);
     // null when MET omits it.
     val windDirectionDeg: Double? = null,
     val humidityPercent: Int?,
+    // Chance of precipitation for the hour ahead, from the current entry's
+    // 1-hour block; null when MET omits it (it is absent on the far tail).
+    val precipitationProbabilityPercent: Int? = null,
     val uvIndex: Double?,
     val isDay: Boolean,
     val sunrise: LocalTime?,

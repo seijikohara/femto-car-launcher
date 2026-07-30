@@ -4,7 +4,14 @@ import androidx.annotation.StringRes
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.composables.icons.lucide.Cloud
+import com.composables.icons.lucide.CloudDrizzle
+import com.composables.icons.lucide.CloudFog
+import com.composables.icons.lucide.CloudHail
+import com.composables.icons.lucide.CloudLightning
+import com.composables.icons.lucide.CloudRain
+import com.composables.icons.lucide.CloudSnow
 import com.composables.icons.lucide.CloudSun
+import com.composables.icons.lucide.CloudSunRain
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Moon
 import com.composables.icons.lucide.Sun
@@ -28,16 +35,31 @@ internal fun glyphIconFor(
 
         WeatherCode.PARTLY_CLOUDY -> Lucide.CloudSun
 
-        WeatherCode.CLOUDY,
-        WeatherCode.FOG,
-        WeatherCode.DRIZZLE,
-        WeatherCode.RAIN,
-        WeatherCode.FREEZING_RAIN,
+        // Thunder first: it is the one condition a driver should never have to
+        // read a label to notice.
+        WeatherCode.THUNDERSTORM -> Lucide.CloudLightning
+
+        // Sleet / freezing rain gets the hail glyph — the only one that reads as
+        // "falling ice" rather than either rain or snow.
+        WeatherCode.FREEZING_RAIN -> Lucide.CloudHail
+
         WeatherCode.SNOW,
         WeatherCode.SNOW_GRAINS,
-        WeatherCode.RAIN_SHOWERS,
         WeatherCode.SNOW_SHOWERS,
-        WeatherCode.THUNDERSTORM,
+        -> Lucide.CloudSnow
+
+        WeatherCode.DRIZZLE -> Lucide.CloudDrizzle
+
+        // Showers are intermittent, so the sun-behind-rain glyph separates them
+        // from steady rain.
+        WeatherCode.RAIN_SHOWERS -> Lucide.CloudSunRain
+
+        WeatherCode.RAIN -> Lucide.CloudRain
+
+        WeatherCode.FOG -> Lucide.CloudFog
+
+        // Nothing falling, nothing to distinguish: the plain cloud.
+        WeatherCode.CLOUDY,
         WeatherCode.UNKNOWN,
         -> Lucide.Cloud
     }
@@ -49,8 +71,28 @@ internal fun glyphTintFor(
 ): Color =
     when (code) {
         WeatherCode.CLEAR -> if (isDay) glyphs.sun else glyphs.moon
+
         WeatherCode.PARTLY_CLOUDY -> glyphs.cloudSun
-        else -> glyphs.cloud
+
+        WeatherCode.THUNDERSTORM -> glyphs.thunder
+
+        // Freezing rain rides the icy tint: what matters on the road is the ice,
+        // not that it arrives as rain.
+        WeatherCode.FREEZING_RAIN,
+        WeatherCode.SNOW,
+        WeatherCode.SNOW_GRAINS,
+        WeatherCode.SNOW_SHOWERS,
+        -> glyphs.snow
+
+        WeatherCode.DRIZZLE,
+        WeatherCode.RAIN,
+        WeatherCode.RAIN_SHOWERS,
+        -> glyphs.rain
+
+        WeatherCode.CLOUDY,
+        WeatherCode.FOG,
+        WeatherCode.UNKNOWN,
+        -> glyphs.cloud
     }
 
 @StringRes
