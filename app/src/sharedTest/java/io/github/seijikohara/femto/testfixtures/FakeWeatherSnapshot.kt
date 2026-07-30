@@ -10,7 +10,7 @@ import java.time.LocalTime
 
 internal fun fakeWeatherSnapshot(
     tempC: Double = 18.0,
-    apparentTempC: Double = 17.0,
+    precipitationProbabilityPercent: Int? = 20,
     code: WeatherCode = WeatherCode.CLEAR,
     windKmh: Double = 9.6,
     windDirectionDeg: Double? = 225.0,
@@ -99,7 +99,7 @@ internal fun fakeWeatherSnapshot(
 ): WeatherSnapshot =
     WeatherSnapshot(
         tempC = tempC,
-        apparentTempC = apparentTempC,
+        precipitationProbabilityPercent = precipitationProbabilityPercent,
         code = code,
         windKmh = windKmh,
         windDirectionDeg = windDirectionDeg,

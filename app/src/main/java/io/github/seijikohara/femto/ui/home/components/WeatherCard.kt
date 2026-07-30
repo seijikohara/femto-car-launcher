@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Cloud
 import com.composables.icons.lucide.Droplet
 import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.Thermometer
+import com.composables.icons.lucide.Umbrella
 import com.composables.icons.lucide.Wind
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
@@ -283,14 +283,20 @@ private fun Metrics(
     speedUnit: SpeedUnit,
 ) {
     val humidityLabel = snapshot.humidityPercent?.let { "$it%" } ?: "—"
+    // The chance of precipitation in the hour ahead. This slot used to show a
+    // "feels like" temperature, but MET publishes no apparent temperature and the
+    // card simply repeated the air temperature — a second reading that could never
+    // differ from the one above it. The precipitation chance is a value the driver
+    // cannot get anywhere else on the compact card.
+    val precipLabel = snapshot.precipitationProbabilityPercent?.let { "$it%" } ?: "—"
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Metric(
-            icon = Lucide.Thermometer,
-            label = stringResource(R.string.weather_metric_feels),
-            value = "${temperatureUnit.fromCelsius(snapshot.apparentTempC).roundToInt()}°",
+            icon = Lucide.Umbrella,
+            label = stringResource(R.string.weather_metric_precip),
+            value = precipLabel,
             modifier = Modifier.weight(1f),
         )
         Metric(
@@ -424,7 +430,10 @@ private fun ForecastChip(
         )
         FemtoIcon(
             imageVector = glyphIconFor(forecast.code, isDay),
-            contentDescription = null,
+            // Named rather than null: the glyph carries the only rain / snow /
+            // thunder distinction in the chip, so a null description would drop it
+            // from the reading entirely.
+            contentDescription = stringResource(labelResFor(forecast.code)),
             tint = glyphTintFor(forecast.code, isDay, glyphs),
             modifier = Modifier.size(FemtoDimens.WeatherGlyphSmall),
         )
@@ -471,7 +480,6 @@ private fun WeatherCardPreview() {
             snapshot =
                 WeatherSnapshot(
                     tempC = 13.0,
-                    apparentTempC = 11.0,
                     code = WeatherCode.CLOUDY,
                     windKmh = 11.0,
                     humidityPercent = 58,

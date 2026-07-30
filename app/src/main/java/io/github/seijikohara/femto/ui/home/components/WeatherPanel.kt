@@ -401,7 +401,6 @@ private fun WeatherPanelPreview() {
             snapshot =
                 WeatherSnapshot(
                     tempC = 18.0,
-                    apparentTempC = 17.0,
                     code = WeatherCode.CLEAR,
                     windKmh = 9.6,
                     windDirectionDeg = 225.0,

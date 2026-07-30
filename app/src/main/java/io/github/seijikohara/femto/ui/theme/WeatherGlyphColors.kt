@@ -17,6 +17,13 @@ data class WeatherGlyphColors(
     val moon: Color,
     val cloudSun: Color,
     val cloud: Color,
+    // Precipitation families. Every wet or stormy condition used to share
+    // [cloud], which made rain, snow and thunder indistinguishable at a glance;
+    // the icon shape now differs too (see glyphIconFor), and the tint reinforces
+    // it in the one axis a driver reads fastest.
+    val rain: Color,
+    val snow: Color,
+    val thunder: Color,
 )
 
 internal val DarkWeatherGlyphs =
@@ -25,6 +32,9 @@ internal val DarkWeatherGlyphs =
         moon = Color(0xFF9EB8DA),
         cloudSun = Color(0xFFD6A06A),
         cloud = Color(0xFF93A3B8),
+        rain = Color(0xFF7FB3E8),
+        snow = Color(0xFFCFE3F5),
+        thunder = Color(0xFFF6B73C),
     )
 
 internal val LightWeatherGlyphs =
@@ -33,6 +43,9 @@ internal val LightWeatherGlyphs =
         moon = Color(0xFF5D7A9E),
         cloudSun = Color(0xFFB07A30),
         cloud = Color(0xFF6F7E90),
+        rain = Color(0xFF2F6DA3),
+        snow = Color(0xFF5F87A8),
+        thunder = Color(0xFFB87A00),
     )
 
 /**

@@ -85,7 +85,10 @@
     <string name="weather_open_app">Open weather</string>
     <!-- Shown on the weather card when the data is stale (a refresh outage); %1$s is the local fetch time. -->
     <string name="weather_as_of">as of %1$s</string>
-    <string name="weather_metric_feels">FEELS</string>
+    <!-- Chance of precipitation in the hour ahead (rain or snow), shown on the
+         compact card. Kept to the same short uppercase form as the metrics
+         beside it. -->
+    <string name="weather_metric_precip">PRECIP</string>
     <string name="weather_metric_wind">WIND</string>
     <string name="weather_metric_humidity">HUMID</string>
     <string name="weather_cond_sunny">Sunny</string>
@@ -100,7 +103,12 @@
     <string name="weather_cond_rain_showers">Rain showers</string>
     <string name="weather_cond_snow_showers">Snow showers</string>
     <string name="weather_cond_thunderstorm">Thunderstorm</string>
-    <string name="weather_cond_unknown"></string>
+    <!-- MET sent no symbol, or one this build does not recognise. Non-empty on
+         purpose: this label is both the panel hero's visible caption AND the
+         accessible name for every condition glyph (the panel hero icon is
+         decorative and defers to this text), so an empty value leaves a blank
+         gap on screen and an unnamed node for a screen reader. -->
+    <string name="weather_cond_unknown">Conditions unknown</string>
     <!-- CC BY 4.0 attribution required by the MET Norway terms of service. -->
     <string name="weather_attribution">Weather data from MET Norway (CC BY 4.0)</string>
 
