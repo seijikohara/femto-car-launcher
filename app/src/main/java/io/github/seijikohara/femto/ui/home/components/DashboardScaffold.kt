@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import android.location.Location
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterExitState
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -124,6 +125,9 @@ internal fun DashboardScaffold(
     musicShowArt: Boolean = true,
     motionTier: MotionTier = MotionTier.STANDARD,
     clock: Clock = Clock.systemDefaultZone(),
+    // Forwarded to MapPanel; null means the real WebView map. Screenshot tests
+    // pass a still capture (see MapPanel.mapSurface).
+    mapSurface: (@Composable (Location) -> Unit)? = null,
 ) = DashboardContent(
     uiState = uiState,
     is24Hour = is24Hour,
@@ -146,6 +150,7 @@ internal fun DashboardScaffold(
     musicShowArt = musicShowArt,
     motionTier = motionTier,
     clock = clock,
+    mapSurface = mapSurface,
 )
 
 // The full-screen dashboard body: the map fills the viewport as the background
@@ -172,6 +177,9 @@ private fun DashboardContent(
     musicShowArt: Boolean = true,
     motionTier: MotionTier = MotionTier.STANDARD,
     clock: Clock = Clock.systemDefaultZone(),
+    // Forwarded to MapPanel; null means the real WebView map. Screenshot tests
+    // pass a still capture (see MapPanel.mapSurface).
+    mapSurface: (@Composable (Location) -> Unit)? = null,
 ) = BoxWithConstraints(modifier = modifier) {
     val compact = maxHeight < CompactHeightBreakpoint || maxWidth < CompactWidthBreakpoint
     val portrait = maxHeight > maxWidth
@@ -348,6 +356,7 @@ private fun DashboardContent(
         online = uiState.online,
         onFollowChange = { following = it },
         onBearingChange = { bearingDeg = it },
+        mapSurface = mapSurface,
         attributionBottomInset = attributionBottomInset,
     )
 
