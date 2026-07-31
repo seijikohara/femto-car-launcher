@@ -27,6 +27,19 @@ minimum supported platform is Android 13 (Application Programming
 Interface — API — level 33). No single market is privileged: language,
 units, and locale-specific behaviour adapt per device.
 
+<div align="center">
+
+<img src="app/src/test/screenshots/dashboard-head-unit-853x512.png" alt="The dashboard on a head unit: live map with the self-marker, clock, calendar and weather cards, media controls, trip readout and the dock" width="820">
+
+<sub>The dashboard on a head-unit display. These images are the project's own
+screenshot-test references, regenerated from the current code on every UI
+change, so they cannot drift from the build. The map behind the interface is a
+still capture of this app's OpenStreetMap backend — the map itself renders in a
+WebView, which the screenshot harness cannot run (see
+<a href="app/src/test/resources/README.md">app/src/test/resources</a>).</sub>
+
+</div>
+
 ## Live map
 
 The dashboard background is a full-bleed live map that follows the
