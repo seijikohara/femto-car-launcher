@@ -152,16 +152,23 @@ class DashboardScreenshotTest {
     fun dashboard_phone_portrait_driver_left() =
         capture("phone-portrait-412x915-driver-left", driverSide = DriverSide.LEFT)
 
+    // Dark variant: the glass chrome, the card surfaces and the map style all
+    // swap, and none of the light goldens above exercise that pairing.
+    @Test
+    @Config(qualifiers = "w853dp-h512dp-mdpi")
+    fun dashboard_head_unit_dark() = capture("head-unit-853x512-dark", darkTheme = true)
+
     private fun capture(
         name: String,
         uiScale: UiScale = UiScale.MEDIUM,
         driverSide: DriverSide = DriverSide.RIGHT,
+        darkTheme: Boolean = false,
     ) {
         captureRoboImage(
             filePath = "src/test/screenshots/dashboard-$name.png",
             roborazziOptions = ScreenshotCompareOptions,
         ) {
-            FemtoTheme(uiScale = uiScale) {
+            FemtoTheme(uiScale = uiScale, darkTheme = darkTheme) {
                 DashboardScaffold(
                     uiState = STATE,
                     is24Hour = true,
@@ -175,7 +182,7 @@ class DashboardScreenshotTest {
                     modifier = Modifier.fillMaxSize(),
                     driverSide = driverSide,
                     clock = FIXED_CLOCK,
-                    mapSurface = { MapBackdrop() },
+                    mapSurface = { MapBackdrop(darkTheme) },
                 )
             }
         }
@@ -195,9 +202,12 @@ class DashboardScreenshotTest {
      * (OpenStreetMap data, ODbL) — see app/src/test/resources/README.md.
      */
     @Composable
-    private fun MapBackdrop() {
+    private fun MapBackdrop(darkTheme: Boolean) {
         Image(
-            bitmap = BACKDROP,
+            // The app swaps the map style with the theme (Positron / Dark Matter),
+            // so the still has to swap too — a light map under dark glass chrome
+            // would misrepresent the product, not just look odd.
+            bitmap = if (darkTheme) BACKDROP_DARK else BACKDROP,
             contentDescription = null,
             // Crop, not Fit: the goldens span landscape and portrait geometries, and
             // a letterboxed backdrop would show bars the running app never has.
@@ -209,11 +219,14 @@ class DashboardScreenshotTest {
     private companion object {
         // Decoded once per class: 1060x900, large enough that Crop still resolves
         // sharply on the widest golden.
-        val BACKDROP: ImageBitmap =
-            checkNotNull(
-                DashboardScreenshotTest::class.java.getResourceAsStream("/map-backdrop-osm.png"),
-            ) { "map-backdrop-osm.png missing from test resources" }
-                .use { BitmapFactory.decodeStream(it) }
+        val BACKDROP: ImageBitmap = backdrop("/map-backdrop-osm.png")
+
+        val BACKDROP_DARK: ImageBitmap = backdrop("/map-backdrop-osm-dark.png")
+
+        private fun backdrop(resource: String): ImageBitmap =
+            checkNotNull(DashboardScreenshotTest::class.java.getResourceAsStream(resource)) {
+                "$resource missing from test resources"
+            }.use { BitmapFactory.decodeStream(it) }
                 .asImageBitmap()
 
         // Fixed so the dashboard clock is deterministic across CI record/verify runs.
