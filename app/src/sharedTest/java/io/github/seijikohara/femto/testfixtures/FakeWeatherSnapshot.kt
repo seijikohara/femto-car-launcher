@@ -11,6 +11,9 @@ import java.time.LocalTime
 internal fun fakeWeatherSnapshot(
     tempC: Double = 18.0,
     precipitationProbabilityPercent: Int? = 20,
+    // Defaults alongside the probability so the existing captures keep the
+    // chance they already render; the precipReading tests drive both.
+    precipitationMm: Double? = 0.4,
     code: WeatherCode = WeatherCode.CLEAR,
     windKmh: Double = 9.6,
     windDirectionDeg: Double? = 225.0,
@@ -100,6 +103,7 @@ internal fun fakeWeatherSnapshot(
     WeatherSnapshot(
         tempC = tempC,
         precipitationProbabilityPercent = precipitationProbabilityPercent,
+        precipitationMm = precipitationMm,
         code = code,
         windKmh = windKmh,
         windDirectionDeg = windDirectionDeg,

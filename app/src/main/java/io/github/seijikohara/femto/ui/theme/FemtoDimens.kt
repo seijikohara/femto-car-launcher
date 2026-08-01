@@ -122,8 +122,15 @@ object FemtoDimens {
      * otherwise grow wide enough to squeeze the text column below what a
      * track's title or album name needs, truncating it despite the card having
      * plenty of width overall — the art shrinks first instead.
+     *
+     * Set so the square can still reach the meta column's own height on the
+     * head-unit card: at 190 dp the art was starved to 95 dp against a 133 dp
+     * meta block, and the leftover 19 dp opened as an uneven band above and
+     * below it (the art centres when the width budget caps it). The title
+     * marquees when parked and the artist / album ellipsise, so the narrower
+     * floor costs less than the visible misalignment did.
      */
-    val MusicMetaMinWidth = 190.dp
+    val MusicMetaMinWidth = 150.dp
 
     /** Skip-previous / skip-next transport button hit area. */
     val MusicTransportButton = 64.dp

@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -40,6 +41,12 @@ import kotlinx.coroutines.flow.StateFlow
 
 // Gap between the album art and the meta column in the playing-state row.
 private val RowContentGap = 16.dp
+
+// Test tags for the art / meta pair. The card's contract is that the square art
+// matches the meta column's height, so the padding reads evenly on all four
+// sides; MusicCardArtHeightTest asserts it rather than leaving it to the eye.
+internal const val MUSIC_ART_TAG = "music-card-art"
+internal const val MUSIC_META_TAG = "music-card-meta"
 
 /**
  * Music card. Vertical layout inherited from the `.music-card` rules of the
@@ -195,6 +202,7 @@ private fun PlayingState(
                             // narrow for a square that tall.
                             modifier =
                                 Modifier
+                                    .testTag(MUSIC_ART_TAG)
                                     .sizeIn(maxWidth = artMaxWidth, maxHeight = FemtoDimens.MusicArtSize)
                                     .aspectRatio(1f, matchHeightConstraintsFirst = true),
                             motionTier = motionTier,
@@ -219,7 +227,7 @@ private fun PlayingState(
                     // No height cap: the card wraps its content, so the meta block
                     // keeps every line (the album included) and reports its natural
                     // height for the row to wrap to.
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).testTag(MUSIC_META_TAG),
                 )
             }
             // The spectrum paints behind the transport strip only: matchParentSize

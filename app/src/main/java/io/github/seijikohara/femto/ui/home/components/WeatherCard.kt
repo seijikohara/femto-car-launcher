@@ -193,6 +193,44 @@ private fun rememberWeatherFresh(snapshot: WeatherSnapshot): Boolean =
 // granularity flips the caption within a minute of crossing it.
 private const val STALE_RECHECK_INTERVAL_MS = 60_000L
 
+// Below this the hour counts as dry for a driver's purposes and the slot says so
+// in words. Note this is a threshold, not the display rounding: 0.09 mm would
+// format as "0.1", so without the cut-off a trace would read like real rain.
+private const val DRY_THRESHOLD_MM = 0.1
+
+/**
+ * What the PRECIP slot has to report, resolved from the snapshot before any
+ * formatting. Keeping it a type rather than a formatted string is what lets the
+ * unit suffix follow the data — inferring "is this a quantity?" from the
+ * rendered characters coupled the two and broke on an empty string.
+ */
+internal sealed interface PrecipReading {
+    /** MET's probability, published only inside its Nordic model domain. */
+    data class Chance(
+        val percent: Int,
+    ) : PrecipReading
+
+    /** Forecast millimetres, at or above [DRY_THRESHOLD_MM]. */
+    data class Amount(
+        val mm: Double,
+    ) : PrecipReading
+
+    /** An amount below the threshold: reported in words, not as a number. */
+    data object Dry : PrecipReading
+
+    /** Neither field present — the reading is missing, not zero. */
+    data object Unknown : PrecipReading
+}
+
+// Chance first where MET publishes it: a probability answers the driver's
+// question better than a quantity. Everywhere else the global model's amount is
+// the only reading there is.
+internal fun precipReading(snapshot: WeatherSnapshot): PrecipReading {
+    snapshot.precipitationProbabilityPercent?.let { return PrecipReading.Chance(it) }
+    val mm = snapshot.precipitationMm ?: return PrecipReading.Unknown
+    return if (mm < DRY_THRESHOLD_MM) PrecipReading.Dry else PrecipReading.Amount(mm)
+}
+
 private val AsOfFormatter12: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
 
 // "as of" needs minute precision, so it cannot reuse the forecast's hour-only
@@ -283,12 +321,26 @@ private fun Metrics(
     speedUnit: SpeedUnit,
 ) {
     val humidityLabel = snapshot.humidityPercent?.let { "$it%" } ?: "—"
-    // The chance of precipitation in the hour ahead. This slot used to show a
-    // "feels like" temperature, but MET publishes no apparent temperature and the
-    // card simply repeated the air temperature — a second reading that could never
-    // differ from the one above it. The precipitation chance is a value the driver
-    // cannot get anywhere else on the compact card.
-    val precipLabel = snapshot.precipitationProbabilityPercent?.let { "$it%" } ?: "—"
+    // Precipitation for the hour ahead. This slot used to show a "feels like"
+    // temperature, but MET publishes no apparent temperature and the card simply
+    // repeated the air temperature — a second reading that could never differ from
+    // the one above it.
+    //
+    // Probability first, amount as the fallback: MET publishes
+    // probability_of_precipitation only inside its Nordic model domain (verified
+    // absent for Tokyo, London and San Francisco), so keying the slot on it alone
+    // left most of the world reading a permanent em dash. The amount comes from the
+    // global model, so somewhere in the world always has a value to show.
+    // Decide WHAT the slot reports before deciding how it reads, so the unit below
+    // follows the data rather than being inferred from the rendered characters.
+    val precip = precipReading(snapshot)
+    val precipLabel =
+        when (precip) {
+            is PrecipReading.Chance -> "${precip.percent}%"
+            is PrecipReading.Amount -> "%.1f".format(precip.mm)
+            PrecipReading.Dry -> stringResource(R.string.weather_precip_none)
+            PrecipReading.Unknown -> "—"
+        }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -298,6 +350,9 @@ private fun Metrics(
             label = stringResource(R.string.weather_metric_precip),
             value = precipLabel,
             modifier = Modifier.weight(1f),
+            // The unit rides a measured amount only: a chance carries its own "%",
+            // and "None" / the em dash are words, not quantities.
+            unit = if (precip is PrecipReading.Amount) stringResource(R.string.weather_precip_unit_mm) else null,
         )
         Metric(
             icon = Lucide.Wind,
