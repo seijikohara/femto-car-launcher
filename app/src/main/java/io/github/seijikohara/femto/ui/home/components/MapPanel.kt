@@ -58,6 +58,12 @@ internal fun MapPanel(
     // bottom-hosted dock instead of sitting under its nav buttons. 0 when the dock
     // hosts another edge (see DashboardScaffold's attributionBottomInset).
     attributionBottomInset: Dp = 0.dp,
+    // Substitute for the live map surface; null means the real [WebMapView].
+    // Screenshot tests pass a still capture, because Robolectric's WebView is a
+    // shadow with no Chromium behind it — a golden could otherwise only ever show
+    // a blank map region, and one that fetched real tiles would stop being
+    // deterministic. See DashboardScreenshotTest.
+    mapSurface: (@Composable (Location) -> Unit)? = null,
 ) = Surface(
     modifier = modifier,
     // Full-bleed: the map fills the dashboard to the screen edges, so it keeps
@@ -69,7 +75,7 @@ internal fun MapPanel(
         // A location fix is the only gate: with it we have permission and a
         // centre point; without it the map has nothing to show, so fall back.
         if (location != null) {
-            WebMapView(
+            mapSurface?.invoke(location) ?: WebMapView(
                 location = location,
                 mapConfig = mapConfig,
                 onTap = onTap,

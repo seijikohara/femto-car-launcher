@@ -1,7 +1,13 @@
 package io.github.seijikohara.femto.ui.home
 
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.UiScale
@@ -9,6 +15,7 @@ import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.testfixtures.ScreenshotCompareOptions
 import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
+import io.github.seijikohara.femto.testfixtures.fakeLocation
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.testfixtures.fakeSystemStatus
 import io.github.seijikohara.femto.testfixtures.fakeTripState
@@ -145,16 +152,23 @@ class DashboardScreenshotTest {
     fun dashboard_phone_portrait_driver_left() =
         capture("phone-portrait-412x915-driver-left", driverSide = DriverSide.LEFT)
 
+    // Dark variant: the glass chrome, the card surfaces and the map style all
+    // swap, and none of the light goldens above exercise that pairing.
+    @Test
+    @Config(qualifiers = "w853dp-h512dp-mdpi")
+    fun dashboard_head_unit_dark() = capture("head-unit-853x512-dark", darkTheme = true)
+
     private fun capture(
         name: String,
         uiScale: UiScale = UiScale.MEDIUM,
         driverSide: DriverSide = DriverSide.RIGHT,
+        darkTheme: Boolean = false,
     ) {
         captureRoboImage(
             filePath = "src/test/screenshots/dashboard-$name.png",
             roborazziOptions = ScreenshotCompareOptions,
         ) {
-            FemtoTheme(uiScale = uiScale) {
+            FemtoTheme(uiScale = uiScale, darkTheme = darkTheme) {
                 DashboardScaffold(
                     uiState = STATE,
                     is24Hour = true,
@@ -168,19 +182,72 @@ class DashboardScreenshotTest {
                     modifier = Modifier.fillMaxSize(),
                     driverSide = driverSide,
                     clock = FIXED_CLOCK,
+                    mapSurface = { MapBackdrop(darkTheme) },
                 )
             }
         }
     }
 
+    /**
+     * Still OSM capture standing in for the live map.
+     *
+     * Robolectric's WebView is a shadow with no Chromium behind it, so the real
+     * [io.github.seijikohara.femto.ui.home.components.WebMapView] can only ever
+     * paint an empty region here — and a golden that fetched live tiles would stop
+     * being deterministic. This keeps every pixel the app itself draws (cards,
+     * dock, overlays, marker, controls) generated from the current code, and pins
+     * only the map imagery, which changes just when the map style does.
+     *
+     * The source is a device capture of this app rendering OpenFreeMap tiles
+     * (OpenStreetMap data, ODbL) — see app/src/test/resources/README.md.
+     */
+    @Composable
+    private fun MapBackdrop(darkTheme: Boolean) {
+        Image(
+            // The app swaps the map style with the theme (Positron / Dark Matter),
+            // so the still has to swap too — a light map under dark glass chrome
+            // would misrepresent the product, not just look odd.
+            bitmap = if (darkTheme) BACKDROP_DARK else BACKDROP,
+            contentDescription = null,
+            // Crop, not Fit: the goldens span landscape and portrait geometries, and
+            // a letterboxed backdrop would show bars the running app never has.
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+
     private companion object {
+        // Decoded once per class. The captures are smaller than the widest golden
+        // (2000x1200), so Crop upscales there — acceptable because the backdrop is
+        // scenery behind the UI, not a subject under test, and the goldens exist to
+        // catch changes in what the app draws over it. Enlarging the asset would
+        // add megabytes to every re-record for pixels nothing asserts on.
+        val BACKDROP: ImageBitmap = backdrop("/map-backdrop-osm.png")
+
+        val BACKDROP_DARK: ImageBitmap = backdrop("/map-backdrop-osm-dark.png")
+
+        private fun backdrop(resource: String): ImageBitmap =
+            checkNotNull(DashboardScreenshotTest::class.java.getResourceAsStream(resource)) {
+                "$resource missing from test resources"
+            }.use { stream ->
+                // decodeStream returns null on a corrupt or unreadable file; without
+                // this the failure surfaces as an NPE inside asImageBitmap with no
+                // clue which resource was at fault.
+                checkNotNull(BitmapFactory.decodeStream(stream)) { "$resource could not be decoded" }
+            }.asImageBitmap()
+
         // Fixed so the dashboard clock is deterministic across CI record/verify runs.
         val FIXED_CLOCK: Clock = Clock.fixed(Instant.parse("2026-05-01T10:08:00Z"), ZoneOffset.UTC)
 
         val STATE =
             HomeUiState.Initial.copy(
-                location = null,
-                address = fakeAddress(),
+                // A fix is the gate for the map surface, the compass, the control
+                // column and the self-marker — with none of them the golden shows an
+                // empty region that looks nothing like the running app.
+                location = fakeLocation(latitude = 37.7793, longitude = -122.4193),
+                // Matched to the backdrop's city so the reverse-geocoded line and the
+                // map agree; the shared fixture's Tokyo default would contradict it.
+                address = fakeAddress(locality = "San Francisco", region = "CA"),
                 weather = fakeWeatherSnapshot(),
                 calendar = fakeCalendarSnapshot(),
                 musicState = MusicCardState.Playing(fakeNowPlaying()),
