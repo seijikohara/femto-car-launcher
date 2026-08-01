@@ -193,6 +193,10 @@ private fun rememberWeatherFresh(snapshot: WeatherSnapshot): Boolean =
 // granularity flips the caption within a minute of crossing it.
 private const val STALE_RECHECK_INTERVAL_MS = 60_000L
 
+// Below this the hour is dry for a driver's purposes; MET reports a bare 0.0
+// for most hours and "0.0 mm" reads as a stuck readout.
+private const val DRY_THRESHOLD_MM = 0.1
+
 private val AsOfFormatter12: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
 
 // "as of" needs minute precision, so it cannot reuse the forecast's hour-only
@@ -283,12 +287,24 @@ private fun Metrics(
     speedUnit: SpeedUnit,
 ) {
     val humidityLabel = snapshot.humidityPercent?.let { "$it%" } ?: "—"
-    // The chance of precipitation in the hour ahead. This slot used to show a
-    // "feels like" temperature, but MET publishes no apparent temperature and the
-    // card simply repeated the air temperature — a second reading that could never
-    // differ from the one above it. The precipitation chance is a value the driver
-    // cannot get anywhere else on the compact card.
-    val precipLabel = snapshot.precipitationProbabilityPercent?.let { "$it%" } ?: "—"
+    // Precipitation for the hour ahead. This slot used to show a "feels like"
+    // temperature, but MET publishes no apparent temperature and the card simply
+    // repeated the air temperature — a second reading that could never differ from
+    // the one above it.
+    //
+    // Probability first, amount as the fallback: MET publishes
+    // probability_of_precipitation only inside its Nordic model domain (verified
+    // absent for Tokyo, London and San Francisco), so keying the slot on it alone
+    // left most of the world reading a permanent em dash. The amount comes from the
+    // global model, so somewhere in the world always has a value to show.
+    val precipLabel =
+        snapshot.precipitationProbabilityPercent?.let { "$it%" }
+            ?: snapshot.precipitationMm?.let { mm ->
+                // Sub-0.1 mm rounds to "0.0", which reads as a broken gauge rather
+                // than as dry; say dry instead.
+                if (mm < DRY_THRESHOLD_MM) stringResource(R.string.weather_precip_none) else "%.1f".format(mm)
+            }
+            ?: "—"
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -298,6 +314,12 @@ private fun Metrics(
             label = stringResource(R.string.weather_metric_precip),
             value = precipLabel,
             modifier = Modifier.weight(1f),
+            // The unit rides the amount only; a probability carries its own "%".
+            unit = if (snapshot.precipitationProbabilityPercent == null && precipLabel.first().isDigit()) {
+                stringResource(R.string.weather_precip_unit_mm)
+            } else {
+                null
+            },
         )
         Metric(
             icon = Lucide.Wind,
