@@ -29,7 +29,7 @@ units, and locale-specific behaviour adapt per device.
 
 <div align="center">
 
-<img src="app/src/test/screenshots/dashboard-head-unit-853x512.png" alt="The dashboard on a head unit in the light theme: live map with the self-marker, clock, calendar and weather cards, media controls, trip readout and the dock" width="820">
+<img src="app/src/test/screenshots/dashboard-head-unit-853x512.png" alt="The dashboard on a head unit in the light theme: a map with the self-marker, clock, calendar and weather cards, media controls, trip readout and the dock" width="820">
 
 <img src="app/src/test/screenshots/dashboard-head-unit-853x512-dark.png" alt="The same dashboard in the dark theme, with the map switched to its dark style" width="820">
 

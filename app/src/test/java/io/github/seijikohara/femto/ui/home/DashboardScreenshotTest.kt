@@ -217,8 +217,11 @@ class DashboardScreenshotTest {
     }
 
     private companion object {
-        // Decoded once per class: 1060x900, large enough that Crop still resolves
-        // sharply on the widest golden.
+        // Decoded once per class. The captures are smaller than the widest golden
+        // (2000x1200), so Crop upscales there — acceptable because the backdrop is
+        // scenery behind the UI, not a subject under test, and the goldens exist to
+        // catch changes in what the app draws over it. Enlarging the asset would
+        // add megabytes to every re-record for pixels nothing asserts on.
         val BACKDROP: ImageBitmap = backdrop("/map-backdrop-osm.png")
 
         val BACKDROP_DARK: ImageBitmap = backdrop("/map-backdrop-osm-dark.png")
@@ -226,8 +229,12 @@ class DashboardScreenshotTest {
         private fun backdrop(resource: String): ImageBitmap =
             checkNotNull(DashboardScreenshotTest::class.java.getResourceAsStream(resource)) {
                 "$resource missing from test resources"
-            }.use { BitmapFactory.decodeStream(it) }
-                .asImageBitmap()
+            }.use { stream ->
+                // decodeStream returns null on a corrupt or unreadable file; without
+                // this the failure surfaces as an NPE inside asImageBitmap with no
+                // clue which resource was at fault.
+                checkNotNull(BitmapFactory.decodeStream(stream)) { "$resource could not be decoded" }
+            }.asImageBitmap()
 
         // Fixed so the dashboard clock is deterministic across CI record/verify runs.
         val FIXED_CLOCK: Clock = Clock.fixed(Instant.parse("2026-05-01T10:08:00Z"), ZoneOffset.UTC)
