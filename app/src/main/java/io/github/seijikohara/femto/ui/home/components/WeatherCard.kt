@@ -193,8 +193,9 @@ private fun rememberWeatherFresh(snapshot: WeatherSnapshot): Boolean =
 // granularity flips the caption within a minute of crossing it.
 private const val STALE_RECHECK_INTERVAL_MS = 60_000L
 
-// Below this the hour is dry for a driver's purposes; MET reports a bare 0.0
-// for most hours and "0.0 mm" reads as a stuck readout.
+// Below this the hour counts as dry for a driver's purposes and the slot says so
+// in words. Note this is a threshold, not the display rounding: 0.09 mm would
+// format as "0.1", so without the cut-off a trace would read like real rain.
 private const val DRY_THRESHOLD_MM = 0.1
 
 private val AsOfFormatter12: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
@@ -300,8 +301,10 @@ private fun Metrics(
     val precipLabel =
         snapshot.precipitationProbabilityPercent?.let { "$it%" }
             ?: snapshot.precipitationMm?.let { mm ->
-                // Sub-0.1 mm rounds to "0.0", which reads as a broken gauge rather
-                // than as dry; say dry instead.
+                // A dry-threshold, not a rounding artefact: anything under
+                // DRY_THRESHOLD_MM is reported as dry rather than as a number. MET
+                // sends a bare 0.0 for most hours, and a slot that permanently reads
+                // "0.0 mm" looks like a stuck gauge.
                 if (mm < DRY_THRESHOLD_MM) stringResource(R.string.weather_precip_none) else "%.1f".format(mm)
             }
             ?: "—"
