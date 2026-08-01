@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.seijikohara.femto.data.music.NowPlaying
@@ -90,10 +91,7 @@ class NowPlayingPanelScreenshotTest {
             roborazziOptions = ScreenshotCompareOptions,
         ) {
             FemtoTheme(darkTheme = darkTheme) {
-                // The glass panel is translucent, so a dark capture needs a theme
-                // backdrop behind it or it renders milky over Robolectric's white
-                // window (same reason as PanelScreenshotTest).
-                Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+                val panel: @Composable () -> Unit = {
                     NowPlayingPanel(
                         nowPlaying = state,
                         onCommand = {},
@@ -104,6 +102,16 @@ class NowPlayingPanelScreenshotTest {
                         showAlbum = showAlbum,
                         showArt = showArt,
                     )
+                }
+                if (darkTheme) {
+                    // The glass panel is translucent: a dark capture needs a theme
+                    // backdrop behind it or it renders milky over Robolectric's white
+                    // window. The light captures read fine without one, and adding it
+                    // there would rewrite eight goldens for no UI change (same
+                    // treatment as PanelScreenshotTest).
+                    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { panel() }
+                } else {
+                    panel()
                 }
             }
         }
