@@ -14,8 +14,14 @@ internal data class WeatherSnapshot(
     val windDirectionDeg: Double? = null,
     val humidityPercent: Int?,
     // Chance of precipitation for the hour ahead, from the current entry's
-    // 1-hour block; null when MET omits it (it is absent on the far tail).
+    // 1-hour block. MET publishes this only inside its Nordic model domain —
+    // verified absent for Tokyo, London and San Francisco — so most of the world
+    // sees null here and the card falls back to [precipitationMm].
     val precipitationProbabilityPercent: Int? = null,
+    // Forecast precipitation for the hour ahead, in millimetres. Unlike the
+    // probability above this is part of the global model, so it is the reading
+    // the card can actually show everywhere.
+    val precipitationMm: Double? = null,
     val uvIndex: Double?,
     val isDay: Boolean,
     val sunrise: LocalTime?,

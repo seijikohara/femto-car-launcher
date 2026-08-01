@@ -89,6 +89,10 @@
          compact card. Kept to the same short uppercase form as the metrics
          beside it. -->
     <string name="weather_metric_precip">PRECIP</string>
+    <!-- Shown in the PRECIP slot when the forecast amount rounds to nothing. -->
+    <string name="weather_precip_none">None</string>
+    <!-- Millimetres, trailing the precipitation amount. -->
+    <string name="weather_precip_unit_mm">mm</string>
     <string name="weather_metric_wind">WIND</string>
     <string name="weather_metric_humidity">HUMID</string>
     <string name="weather_cond_sunny">Sunny</string>

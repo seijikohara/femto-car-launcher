@@ -93,11 +93,18 @@ internal class WeatherRepository(
                 // The hour ahead, from the 1-hour block only: a 6-hour block would
                 // answer a different question (the chance somewhere in the next six
                 // hours) under the same label. Absent on the far tail, so null-safe.
+                //
+                // The probability is Nordic-domain only — MET's global model omits it
+                // entirely, so it stays null for most of the world and the card reads
+                // the amount instead.
                 precipitationProbabilityPercent =
                     first.data.next1Hours
                         ?.details
                         ?.probabilityOfPrecipitation
                         ?.roundToInt(),
+                precipitationMm = first.data.next1Hours
+                    ?.details
+                    ?.precipitationAmount,
                 uvIndex = instant.ultravioletIndexClearSky,
                 // Day unless the symbol explicitly carries the _night suffix
                 // (_day / _polartwilight / no suffix all read as day).
