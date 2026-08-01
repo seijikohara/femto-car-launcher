@@ -1,6 +1,9 @@
 package io.github.seijikohara.femto.ui.home
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.seijikohara.femto.data.music.NowPlaying
@@ -67,28 +70,41 @@ class NowPlayingPanelScreenshotTest {
     @Config(qualifiers = "w853dp-h512dp-mdpi")
     fun nowplaying_head_unit_minimal() = capture("head-unit-853x512-minimal", FULL, showAlbum = false, showArt = false)
 
+    // Dark variant: the whole player is glass over the album art's own colours,
+    // and every other panel family already has one — this was the last all-light
+    // set in the suite.
+    @Test
+    @Config(qualifiers = "w853dp-h512dp-mdpi")
+    fun nowplaying_head_unit_dark() = capture("head-unit-853x512-dark", FULL, darkTheme = true)
+
     private fun capture(
         name: String,
         state: NowPlaying,
         spectrum: StateFlow<FloatArray?>? = null,
         showAlbum: Boolean = true,
         showArt: Boolean = true,
+        darkTheme: Boolean = false,
     ) {
         captureRoboImage(
             filePath = "src/test/screenshots/nowplaying-$name.png",
             roborazziOptions = ScreenshotCompareOptions,
         ) {
-            FemtoTheme {
-                NowPlayingPanel(
-                    nowPlaying = state,
-                    onCommand = {},
-                    onLaunchSource = {},
-                    onClose = {},
-                    modifier = Modifier.fillMaxSize(),
-                    spectrum = spectrum,
-                    showAlbum = showAlbum,
-                    showArt = showArt,
-                )
+            FemtoTheme(darkTheme = darkTheme) {
+                // The glass panel is translucent, so a dark capture needs a theme
+                // backdrop behind it or it renders milky over Robolectric's white
+                // window (same reason as PanelScreenshotTest).
+                Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+                    NowPlayingPanel(
+                        nowPlaying = state,
+                        onCommand = {},
+                        onLaunchSource = {},
+                        onClose = {},
+                        modifier = Modifier.fillMaxSize(),
+                        spectrum = spectrum,
+                        showAlbum = showAlbum,
+                        showArt = showArt,
+                    )
+                }
             }
         }
     }

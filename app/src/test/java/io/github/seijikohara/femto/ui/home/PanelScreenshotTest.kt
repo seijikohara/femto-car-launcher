@@ -12,6 +12,8 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
 import io.github.seijikohara.femto.data.apps.DrawerLayout
+import io.github.seijikohara.femto.data.calendar.DayCell
+import io.github.seijikohara.femto.data.calendar.EventItem
 import io.github.seijikohara.femto.testfixtures.ScreenshotCompareOptions
 import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
 import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
@@ -27,6 +29,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import java.time.LocalDate
+import java.time.LocalTime
 
 /**
  * Calendar / weather maximize-panel goldens across a head-unit landscape and a
@@ -57,6 +61,23 @@ class PanelScreenshotTest {
         capture("calendar-panel-portrait-412x915") {
             CalendarPanel(
                 snapshot = fakeCalendarSnapshot(),
+                is24Hour = true,
+                onOpenExternal = {},
+                onClose = {},
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
+    // Dark variant: the agenda's per-calendar colour bars and dots are the one
+    // thing here that a dark scheme can break — they are curated colours drawn
+    // over the glass rather than Material roles that follow the theme. Weather
+    // and apps already have a dark golden; the calendar was the gap.
+    @Test
+    @Config(qualifiers = "w853dp-h512dp-mdpi")
+    fun calendar_panel_head_unit_dark() =
+        capture("calendar-panel-head-unit-853x512-dark", darkTheme = true) {
+            CalendarPanel(
+                snapshot = COLOURED_CALENDAR,
                 is24Hour = true,
                 onOpenExternal = {},
                 onClose = {},
@@ -160,6 +181,49 @@ class PanelScreenshotTest {
             onClose = {},
             modifier = Modifier.fillMaxSize(),
         )
+    }
+
+    private companion object {
+        // Two calendars with provider colours, so multipleCalendarsVisible opens the
+        // colour-bar path. The default fixture leaves the bar off (one calendar, no
+        // colours), which would have made a "colour bar" golden prove nothing.
+        val COLOURED_CALENDAR =
+            fakeCalendarSnapshot(
+                multipleCalendarsVisible = true,
+                days =
+                    listOf(
+                        DayCell(
+                            LocalDate.of(2026, 5, 1),
+                            "Fri",
+                            listOf(
+                                EventItem(
+                                    LocalTime.of(10, 30),
+                                    "Team standup",
+                                    endTime = LocalTime.of(11, 0),
+                                    location = "Room 4",
+                                    color = 0xFF4285F4.toInt(),
+                                ),
+                                EventItem(
+                                    LocalTime.of(14, 0),
+                                    "Pick up kids",
+                                    endTime = LocalTime.of(14, 30),
+                                    color = 0xFFEA4335.toInt(),
+                                ),
+                            ),
+                        ),
+                        DayCell(LocalDate.of(2026, 5, 2), "Sat", emptyList()),
+                        DayCell(
+                            LocalDate.of(2026, 5, 3),
+                            "Sun",
+                            listOf(EventItem(LocalTime.of(9, 0), "Brunch", color = 0xFF34A853.toInt())),
+                        ),
+                        DayCell(
+                            LocalDate.of(2026, 5, 6),
+                            "Wed",
+                            listOf(EventItem(null, "Holiday", color = 0xFFFBBC04.toInt())),
+                        ),
+                    ),
+            )
     }
 
     private fun capture(

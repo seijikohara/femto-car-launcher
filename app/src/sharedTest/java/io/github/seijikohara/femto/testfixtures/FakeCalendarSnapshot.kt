@@ -28,6 +28,10 @@ internal fun fakeCalendarSnapshot(
         ),
     hasCalendarAccess: Boolean = true,
     queryFailed: Boolean = false,
+    // Gates the per-calendar colour bar. False by default so the existing captures
+    // stay byte-identical; a caller that wants the bar must also give its events a
+    // non-zero EventItem.color, exactly as the provider does.
+    multipleCalendarsVisible: Boolean = false,
 ): CalendarSnapshot =
     CalendarSnapshot(
         today = today,
@@ -36,4 +40,5 @@ internal fun fakeCalendarSnapshot(
         days = days,
         hasCalendarAccess = hasCalendarAccess,
         queryFailed = queryFailed,
+        multipleCalendarsVisible = multipleCalendarsVisible,
     )
