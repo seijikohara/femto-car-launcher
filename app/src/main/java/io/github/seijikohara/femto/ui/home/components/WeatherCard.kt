@@ -198,6 +198,39 @@ private const val STALE_RECHECK_INTERVAL_MS = 60_000L
 // format as "0.1", so without the cut-off a trace would read like real rain.
 private const val DRY_THRESHOLD_MM = 0.1
 
+/**
+ * What the PRECIP slot has to report, resolved from the snapshot before any
+ * formatting. Keeping it a type rather than a formatted string is what lets the
+ * unit suffix follow the data — inferring "is this a quantity?" from the
+ * rendered characters coupled the two and broke on an empty string.
+ */
+internal sealed interface PrecipReading {
+    /** MET's probability, published only inside its Nordic model domain. */
+    data class Chance(
+        val percent: Int,
+    ) : PrecipReading
+
+    /** Forecast millimetres, at or above [DRY_THRESHOLD_MM]. */
+    data class Amount(
+        val mm: Double,
+    ) : PrecipReading
+
+    /** An amount below the threshold: reported in words, not as a number. */
+    data object Dry : PrecipReading
+
+    /** Neither field present — the reading is missing, not zero. */
+    data object Unknown : PrecipReading
+}
+
+// Chance first where MET publishes it: a probability answers the driver's
+// question better than a quantity. Everywhere else the global model's amount is
+// the only reading there is.
+internal fun precipReading(snapshot: WeatherSnapshot): PrecipReading {
+    snapshot.precipitationProbabilityPercent?.let { return PrecipReading.Chance(it) }
+    val mm = snapshot.precipitationMm ?: return PrecipReading.Unknown
+    return if (mm < DRY_THRESHOLD_MM) PrecipReading.Dry else PrecipReading.Amount(mm)
+}
+
 private val AsOfFormatter12: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
 
 // "as of" needs minute precision, so it cannot reuse the forecast's hour-only
@@ -298,16 +331,16 @@ private fun Metrics(
     // absent for Tokyo, London and San Francisco), so keying the slot on it alone
     // left most of the world reading a permanent em dash. The amount comes from the
     // global model, so somewhere in the world always has a value to show.
+    // Decide WHAT the slot reports before deciding how it reads, so the unit below
+    // follows the data rather than being inferred from the rendered characters.
+    val precip = precipReading(snapshot)
     val precipLabel =
-        snapshot.precipitationProbabilityPercent?.let { "$it%" }
-            ?: snapshot.precipitationMm?.let { mm ->
-                // A dry-threshold, not a rounding artefact: anything under
-                // DRY_THRESHOLD_MM is reported as dry rather than as a number. MET
-                // sends a bare 0.0 for most hours, and a slot that permanently reads
-                // "0.0 mm" looks like a stuck gauge.
-                if (mm < DRY_THRESHOLD_MM) stringResource(R.string.weather_precip_none) else "%.1f".format(mm)
-            }
-            ?: "—"
+        when (precip) {
+            is PrecipReading.Chance -> "${precip.percent}%"
+            is PrecipReading.Amount -> "%.1f".format(precip.mm)
+            PrecipReading.Dry -> stringResource(R.string.weather_precip_none)
+            PrecipReading.Unknown -> "—"
+        }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -317,12 +350,9 @@ private fun Metrics(
             label = stringResource(R.string.weather_metric_precip),
             value = precipLabel,
             modifier = Modifier.weight(1f),
-            // The unit rides the amount only; a probability carries its own "%".
-            unit = if (snapshot.precipitationProbabilityPercent == null && precipLabel.first().isDigit()) {
-                stringResource(R.string.weather_precip_unit_mm)
-            } else {
-                null
-            },
+            // The unit rides a measured amount only: a chance carries its own "%",
+            // and "None" / the em dash are words, not quantities.
+            unit = if (precip is PrecipReading.Amount) stringResource(R.string.weather_precip_unit_mm) else null,
         )
         Metric(
             icon = Lucide.Wind,
