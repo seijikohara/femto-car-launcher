@@ -359,6 +359,145 @@ class CalendarRepositoryTest {
             assertTrue(snapshot.multipleCalendarsVisible)
         }
 
+    /**
+     * `Instances` answers with every row that **overlaps** the window, so a
+     * multi-day event already running when the window opens arrives with a BEGIN
+     * before today. Bucketing on BEGIN's day alone dropped it — a holiday
+     * vanished from the agenda partway through itself.
+     */
+    @Test
+    fun `lists an ongoing multi-day event under today and the days it still spans`() =
+        runTest {
+            shadowOf(application).grantPermissions(Manifest.permission.READ_CALENDAR)
+            Robolectric
+                .buildContentProvider(SpanningCalendarProvider::class.java)
+                .create(CalendarContract.AUTHORITY)
+
+            val snapshot = spanningRepository().snapshotFlow().first()
+            assertNotNull(snapshot)
+
+            fun titlesOn(offset: Long) =
+                snapshot.days
+                    .first { it.date == SpanningCalendarProvider.TODAY.plusDays(offset) }
+                    .events
+                    .map { it.title }
+
+            // The holiday runs Oct 3 – Oct 7 and today is Oct 5: it belongs to
+            // today and to each remaining day, never to the days already past.
+            assertTrue("Holiday" in titlesOn(0))
+            // Tomorrow also carries the tail of the midnight-crossing "Overtime";
+            // the holiday leads it because Instances hands rows back BEGIN ASC.
+            assertEquals(listOf("Holiday", "Overtime"), titlesOn(1))
+            assertEquals(listOf("Holiday"), titlesOn(2))
+            assertEquals(emptyList(), titlesOn(3))
+        }
+
+    @Test
+    fun `keeps an event ending exactly at midnight off the following day`() =
+        runTest {
+            // END is exclusive, so a 22:00 – 00:00 event occupies its own day
+            // only. Reading the end instant itself would spill a zero-length
+            // entry onto the next morning.
+            shadowOf(application).grantPermissions(Manifest.permission.READ_CALENDAR)
+            Robolectric
+                .buildContentProvider(SpanningCalendarProvider::class.java)
+                .create(CalendarContract.AUTHORITY)
+
+            val snapshot = spanningRepository().snapshotFlow().first()
+            assertNotNull(snapshot)
+
+            assertTrue(
+                "Late shift" in
+                    snapshot.days
+                        .first { it.date == SpanningCalendarProvider.TODAY }
+                        .events
+                        .map { it.title },
+            )
+            assertFalse(
+                "Late shift" in
+                    snapshot.days
+                        .first { it.date == SpanningCalendarProvider.TODAY.plusDays(1) }
+                        .events
+                        .map { it.title },
+            )
+        }
+
+    @Test
+    fun `keeps the color-bar gate off for a calendar whose only row lands outside the window`() =
+        runTest {
+            // The gate used to count every scanned row's calendar, including
+            // rows that never reached a rendered day — so a second calendar
+            // could raise color bars with no second calendar on screen.
+            shadowOf(application).grantPermissions(Manifest.permission.READ_CALENDAR)
+            Robolectric
+                .buildContentProvider(SpanningCalendarProvider::class.java)
+                .create(CalendarContract.AUTHORITY)
+
+            val snapshot = spanningRepository().snapshotFlow().first()
+            assertNotNull(snapshot)
+
+            // Calendar 2's single row ended yesterday, so nothing it owns renders.
+            assertTrue(snapshot.days.flatMap { it.events }.none { it.title == "Yesterday" })
+            assertFalse(snapshot.multipleCalendarsVisible)
+        }
+
+    @Test
+    fun `carries no clock time onto a day a multi-day event merely spans`() =
+        runTest {
+            // The start and end times belong to the days they fall on. Printing
+            // the event's own 14:00 – 11:00 under every day it runs through would
+            // claim it restarts each morning; a spanned day carries neither bound
+            // and reads as "all day", which is what it is.
+            shadowOf(application).grantPermissions(Manifest.permission.READ_CALENDAR)
+            Robolectric
+                .buildContentProvider(SpanningCalendarProvider::class.java)
+                .create(CalendarContract.AUTHORITY)
+
+            val snapshot = spanningRepository().snapshotFlow().first()
+            assertNotNull(snapshot)
+
+            // "Overtime" runs today 20:00 → tomorrow 02:00.
+            val startDay = snapshot.days.first { it.date == SpanningCalendarProvider.TODAY }
+            val spanDay = snapshot.days.first { it.date == SpanningCalendarProvider.TODAY.plusDays(1) }
+            assertEquals(LocalTime.of(20, 0), startDay.events.first { it.title == "Overtime" }.time)
+            assertNull(startDay.events.first { it.title == "Overtime" }.endTime)
+            assertNull(spanDay.events.first { it.title == "Overtime" }.time)
+            assertEquals(LocalTime.of(2, 0), spanDay.events.first { it.title == "Overtime" }.endTime)
+        }
+
+    @Test
+    fun `reads an all-day span in UTC whatever the device zone`() =
+        runTest {
+            // All-day bounds are stored as UTC midnights, so the covered days must
+            // not shift with the device zone — the same trap the single-day
+            // negative-offset test guards, now across a span. Tokyo is east of UTC;
+            // the earlier test covers the west side.
+            shadowOf(application).grantPermissions(Manifest.permission.READ_CALENDAR)
+            Robolectric
+                .buildContentProvider(SpanningCalendarProvider::class.java)
+                .create(CalendarContract.AUTHORITY)
+
+            val snapshot = spanningRepository(ZoneId.of("Asia/Tokyo")).snapshotFlow().first()
+            assertNotNull(snapshot)
+
+            val holidayDays =
+                snapshot.days
+                    .filter { day -> day.events.any { it.title == "Holiday" } }
+                    .map { it.date }
+            assertEquals((0L..2L).map { SpanningCalendarProvider.TODAY.plusDays(it) }, holidayDays)
+            // The out-of-window row is still out of window east of UTC, so the
+            // second calendar must not reach the color-bar gate either.
+            assertFalse(snapshot.multipleCalendarsVisible)
+        }
+
+    private fun spanningRepository(zone: ZoneId = ZoneOffset.UTC) =
+        CalendarRepository(
+            application,
+            clockFlow = flowOf(ClockTick(LocalTime.NOON, SpanningCalendarProvider.TODAY)),
+            hiddenCalendarIds = flowOf(emptySet()),
+            zoneProvider = { zone },
+        )
+
     @Test
     fun `month label follows the locale field order`() =
         runTest {
@@ -785,6 +924,129 @@ class CalendarRepositoryTest {
                     .atZone(ZoneOffset.UTC)
                     .toInstant()
                     .toEpochMilli()
+        }
+    }
+
+    /**
+     * Stand-in calendar provider for the day-coverage rules, serving the three
+     * row shapes `Instances` can hand back for a window opening on [TODAY]:
+     *
+     * - an all-day holiday that began two days ago and runs two days on, the
+     *   overlap case BEGIN-only bucketing dropped;
+     * - a timed row that ended yesterday — returned here to stand in for any
+     *   row that clamps out of the window, and owned by a second calendar so
+     *   the color-bar gate is exercised too;
+     * - a timed row ending exactly at midnight, which must not spill onto
+     *   tomorrow.
+     *
+     * Rows are served in `BEGIN ASC` order, as the real provider does.
+     */
+    class SpanningCalendarProvider : ContentProvider() {
+        override fun onCreate(): Boolean = true
+
+        override fun query(
+            uri: Uri,
+            projection: Array<out String>?,
+            selection: String?,
+            selectionArgs: Array<out String>?,
+            sortOrder: String?,
+        ): Cursor {
+            val columns: Array<out String> =
+                projection ?: arrayOf(CalendarContract.Instances.BEGIN)
+            val cursor = MatrixCursor(columns)
+            ROWS.forEach { row ->
+                cursor.addRow(
+                    columns.map { column ->
+                        when (column) {
+                            CalendarContract.Instances.BEGIN -> row.beginMs
+                            CalendarContract.Instances.END -> row.endMs
+                            CalendarContract.Instances.ALL_DAY -> if (row.allDay) 1 else 0
+                            CalendarContract.Instances.TITLE -> row.title
+                            CalendarContract.Instances.CALENDAR_ID -> row.calId
+                            else -> null
+                        }
+                    },
+                )
+            }
+            return cursor
+        }
+
+        override fun getType(uri: Uri): String? = null
+
+        override fun insert(
+            uri: Uri,
+            values: ContentValues?,
+        ): Uri? = null
+
+        override fun delete(
+            uri: Uri,
+            selection: String?,
+            selectionArgs: Array<out String>?,
+        ): Int = 0
+
+        override fun update(
+            uri: Uri,
+            values: ContentValues?,
+            selection: String?,
+            selectionArgs: Array<out String>?,
+        ): Int = 0
+
+        data class Row(
+            val calId: Long,
+            val title: String,
+            val beginMs: Long,
+            val endMs: Long,
+            val allDay: Boolean,
+        )
+
+        companion object {
+            val TODAY: LocalDate = LocalDate.of(2099, 10, 5)
+
+            private fun midnight(date: LocalDate): Long = date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+
+            private fun at(
+                date: LocalDate,
+                hour: Int,
+            ): Long =
+                date
+                    .atTime(hour, 0)
+                    .atZone(ZoneOffset.UTC)
+                    .toInstant()
+                    .toEpochMilli()
+
+            val ROWS: List<Row> =
+                listOf(
+                    // Oct 3 – Oct 7 inclusive; all-day END is the next UTC midnight.
+                    Row(
+                        calId = 1L,
+                        title = "Holiday",
+                        beginMs = midnight(TODAY.minusDays(2)),
+                        endMs = midnight(TODAY.plusDays(3)),
+                        allDay = true,
+                    ),
+                    Row(
+                        calId = 2L,
+                        title = "Yesterday",
+                        beginMs = at(TODAY.minusDays(1), 9),
+                        endMs = at(TODAY.minusDays(1), 10),
+                        allDay = false,
+                    ),
+                    // Crosses midnight, so it covers two days with one bound on each.
+                    Row(
+                        calId = 1L,
+                        title = "Overtime",
+                        beginMs = at(TODAY, 20),
+                        endMs = at(TODAY.plusDays(1), 2),
+                        allDay = false,
+                    ),
+                    Row(
+                        calId = 1L,
+                        title = "Late shift",
+                        beginMs = at(TODAY, 22),
+                        endMs = midnight(TODAY.plusDays(1)),
+                        allDay = false,
+                    ),
+                )
         }
     }
 

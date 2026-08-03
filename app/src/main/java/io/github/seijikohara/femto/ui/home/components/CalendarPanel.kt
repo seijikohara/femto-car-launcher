@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -45,19 +47,24 @@ import java.time.LocalTime
  *
  * Unlike the compact card — which only ever lists days that already carry an
  * event, so a glance never scrolls past blank days — the panel has room to
- * spend on rhythm: it walks [CalendarSnapshot.days] itself for up to
- * [CalendarPanelWindowDays] days (today, every day with an event, and the free
- * days between them) instead of reusing [CalendarSnapshot.visibleDays], so the
+ * spend on rhythm: it walks [CalendarSnapshot.days] itself instead of reusing
+ * [CalendarSnapshot.visibleDays], keeping the free days *between* events so the
  * agenda reads as a real look-ahead rather than a handful of sparse rows
  * floating in an otherwise-empty sheet. Every event carries its end time and
  * location, both panel-only fields the compact card omits.
  *
+ * The panel must never show less than the card it expanded from, so it covers
+ * the same window the snapshot carries ([CalendarSnapshot.agendaDays]) and **scrolls** the
+ * overflow. Capping the agenda to whatever fit the panel's height — the earlier
+ * [FitWholeRows] treatment — silently dropped trailing days, which on a busy
+ * month meant maximizing a card made real events disappear.
+ *
  * A landscape panel (wider than tall — the reference head unit and beyond)
  * splits the agenda into two load-balanced columns so the days use the full
  * width instead of a single left-packed column; a portrait panel (the
- * phone-mount case) keeps one full-width column. Either way, each column is
- * capped to whatever [FitWholeRows] fits its height, dropping only whole
- * trailing days rather than clipping mid-event.
+ * phone-mount case) keeps one full-width column. Both columns share the one
+ * scroll, so the spread reads like a newspaper page: down the left, then down
+ * the right, in date order throughout.
  */
 @Composable
 internal fun CalendarPanel(
@@ -78,49 +85,56 @@ internal fun CalendarPanel(
     hazeState = hazeState,
     glassConfig = glassConfig,
 ) {
-    val panelDays = remember(snapshot) { snapshot.days.take(CALENDAR_PANEL_WINDOW_DAYS) }
-    // Landscape reads wider than tall (the reference head unit is 853x512);
-    // portrait (the phone-mount case, 412x915) keeps a single full-width
-    // column instead of splitting an already-narrow column in two.
-    if (maxHeight > maxWidth) {
-        AgendaColumn(
-            days = panelDays,
-            today = snapshot.today,
-            is24Hour = is24Hour,
-            showColorBars = snapshot.multipleCalendarsVisible,
-            motionTier = motionTier,
-            modifier = Modifier.fillMaxSize(),
-        )
-    } else {
-        val (left, right) = remember(panelDays) { panelDays.splitAgendaColumns() }
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.spacedBy(FemtoDimens.ScreenPadding),
-        ) {
+    val panelDays = remember(snapshot) { snapshot.agendaDays }
+    // Read off the BoxWithConstraints receiver here: both layout scopes carry
+    // @LayoutScopeMarker, so inside the Column below the outer receiver is out
+    // of reach rather than merely shadowed.
+    val portrait = maxHeight > maxWidth
+    // One scroll for the whole agenda, so nothing is dropped for want of height.
+    // A plain scrollable Column rather than a LazyColumn, matching the card: the
+    // day list is bounded by the snapshot window and short enough to compose
+    // whole, and the landscape spread needs both columns inside one scrollable.
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        // Landscape reads wider than tall (the reference head unit is 853x512);
+        // portrait (the phone-mount case, 412x915) keeps a single full-width
+        // column instead of splitting an already-narrow column in two. A lone day
+        // takes the single column too — splitAgendaColumns always sends the last
+        // day right, which on a one-day agenda would leave the left half blank.
+        if (portrait || panelDays.size < 2) {
             AgendaColumn(
-                left,
-                snapshot.today,
-                is24Hour,
-                snapshot.multipleCalendarsVisible,
-                motionTier,
-                Modifier.weight(1f).fillMaxHeight(),
+                days = panelDays,
+                today = snapshot.today,
+                is24Hour = is24Hour,
+                showColorBars = snapshot.multipleCalendarsVisible,
+                motionTier = motionTier,
+                modifier = Modifier.fillMaxWidth(),
             )
-            AgendaColumn(
-                right,
-                snapshot.today,
-                is24Hour,
-                snapshot.multipleCalendarsVisible,
-                motionTier,
-                Modifier.weight(1f).fillMaxHeight(),
-            )
+        } else {
+            val (left, right) = remember(panelDays) { panelDays.splitAgendaColumns() }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(FemtoDimens.ScreenPadding),
+            ) {
+                AgendaColumn(
+                    days = left,
+                    today = snapshot.today,
+                    is24Hour = is24Hour,
+                    showColorBars = snapshot.multipleCalendarsVisible,
+                    motionTier = motionTier,
+                    modifier = Modifier.weight(1f),
+                )
+                AgendaColumn(
+                    days = right,
+                    today = snapshot.today,
+                    is24Hour = is24Hour,
+                    showColorBars = snapshot.multipleCalendarsVisible,
+                    motionTier = motionTier,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }
-
-// Two weeks is enough room to catch every upcoming event without turning a
-// quiet month into a scroll of blank "No events" rows; FitWholeRows caps the
-// rendered count further to whatever the panel's actual height admits.
-private const val CALENDAR_PANEL_WINDOW_DAYS = 14
 
 // Chronological split: earlier days fill the left column, later days the
 // right, so reading the left column top-to-bottom then the right stays in
@@ -145,10 +159,9 @@ private fun List<DayCell>.splitAgendaColumns(): Pair<List<DayCell>, List<DayCell
     return left to right
 }
 
-// One agenda column: every day is a single FitWholeRows child (its leading
-// divider travels with it), so a day dropped for lack of height never leaves
-// an orphaned rule behind. mandatoryCount = 1 keeps the column's nearest day
-// visible even on a panel too short for it to fully fit.
+// One agenda column: every day is a single child carrying its own leading
+// divider, so the column reads as distinct beats however far the shared scroll
+// runs.
 @Composable
 private fun AgendaColumn(
     days: List<DayCell>,
@@ -157,10 +170,9 @@ private fun AgendaColumn(
     showColorBars: Boolean,
     motionTier: MotionTier,
     modifier: Modifier = Modifier,
-) = FitWholeRows(
+) = Column(
     modifier = modifier,
-    verticalGap = FemtoDimens.CardSectionGap,
-    mandatoryCount = 1,
+    verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
 ) {
     days.forEachIndexed { index, day ->
         AgendaDay(
@@ -191,9 +203,7 @@ private fun AgendaDay(
     // A day's block dissolves when its events change on a refresh (DayCell
     // equality is structural). isFirst is positional, so the leading divider
     // stays consistent across the swap; isToday derives from the faded day so the
-    // outgoing frame stays internally consistent. FitWholeRows still measures one
-    // child per day (the Crossfade's single root), so its fit-to-height count is
-    // unaffected.
+    // outgoing frame stays internally consistent.
     targetState = day,
     tier = motionTier,
     label = "agendaDay",
@@ -311,16 +321,23 @@ private fun AgendaEvent(
     }
 }
 
-// "10:30 – 11:00", "10:30" (no end), or "All day".
+// "10:30 – 11:00", "10:30" (starts here, runs on), "– 11:00" (started earlier,
+// ends here), or "All day" — which covers both a real all-day event and a middle
+// day of a multi-day one, since neither bound falls on such a day.
 @Composable
 private fun eventTimeRange(
     event: EventItem,
     is24Hour: Boolean,
 ): String {
     val formatter = clockTimeFormatter(is24Hour)
-    val start = event.time ?: return stringResource(R.string.calendar_all_day)
-    return event.endTime?.let { "${start.format(formatter)} – ${it.format(formatter)}" }
-        ?: start.format(formatter)
+    val start = event.time?.format(formatter)
+    val end = event.endTime?.format(formatter)
+    return when {
+        start != null && end != null -> "$start – $end"
+        start != null -> start
+        end != null -> "– $end"
+        else -> stringResource(R.string.calendar_all_day)
+    }
 }
 
 @PreviewLightDark

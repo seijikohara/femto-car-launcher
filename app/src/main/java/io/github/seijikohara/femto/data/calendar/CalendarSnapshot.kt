@@ -42,10 +42,34 @@ internal data class CalendarSnapshot(
     // Days worth showing on the compact dashboard card: those with events,
     // plus today even when free. The card is short on room, so it skips every
     // other free day rather than clip before reaching a real entry. The
-    // full-screen maximize panel has room to spare; it walks [days] itself for
-    // a wider look-ahead (see CalendarPanel.kt) instead of reusing this
-    // narrower filter, so the two intentionally diverge.
+    // full-screen maximize panel covers the same [days] window — it must never
+    // show less than the card it expanded from — but has room to keep the free
+    // days between events for rhythm, so it walks [days] itself (see
+    // CalendarPanel.kt) rather than reusing this narrower filter.
     val visibleDays: List<DayCell> get() = days.filter { it.hasEvent || it.date == today }
+
+    // Days the full-screen maximize panel renders: everything up to its last day
+    // with an event, but never fewer than [PANEL_MIN_LOOKAHEAD_DAYS].
+    //
+    // Two rules meet here. Reaching the last event is what makes the panel a
+    // superset of the card — a shorter panel-only window used to hide events the
+    // card was already showing. The floor is what keeps it a *look-ahead*:
+    // trimming alone would collapse a quiet month to a single row, less than the
+    // panel has ever shown. Between them only the trailing free days go; the free
+    // days between events are the rhythm the panel spends its room on.
+    //
+    // Sitting beside [visibleDays] on purpose: the two are one fact with two
+    // answers, and the invariant that binds them — the panel never shows less
+    // than the card it expanded from — is only obvious when both rules are read
+    // together.
+    val agendaDays: List<DayCell>
+        get() = days.take(maxOf(days.indexOfLast { it.hasEvent } + 1, PANEL_MIN_LOOKAHEAD_DAYS))
+
+    internal companion object {
+        // Two weeks of agenda even when nothing is scheduled — the window the
+        // panel carried before it grew to follow the card's full horizon.
+        const val PANEL_MIN_LOOKAHEAD_DAYS = 14
+    }
 }
 
 @Immutable

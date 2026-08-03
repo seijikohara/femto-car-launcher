@@ -24,6 +24,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 private const val TAG = "CalendarRepository"
@@ -102,11 +103,14 @@ internal class CalendarRepository(
             days = days,
             hasCalendarAccess = granted,
             queryFailed = scan == null,
-            // A per-event color bar only tells calendars apart when the window's
-            // events actually span more than one calendar — distinct CALENDAR_IDs,
-            // not distinct colors, so a single calendar whose events carry
-            // per-event color overrides sprouts no indicators. The denied path is
-            // an empty scan and the query-failed path is null; both leave it false.
+            // A per-event color bar only tells calendars apart when the events
+            // actually on screen span more than one calendar — distinct
+            // CALENDAR_IDs, not distinct colors, so a single calendar whose events
+            // carry per-event color overrides sprouts no indicators. readWindow
+            // counts an id only once its row lands on a rendered day, so an
+            // overlapping row clamped out of the window cannot raise the gate on
+            // its own. The denied path is an empty scan and the query-failed path
+            // is null; both leave it false.
             multipleCalendarsVisible = (scan?.calendarIds?.size ?: 0) > 1,
         )
     }
@@ -171,11 +175,12 @@ internal class CalendarRepository(
     }
 
     /**
-     * Scan the window once, group every event by its local day, and collect the
-     * distinct calendars those events belong to. The card lists
-     * each day's full set of events (no per-day cap — the card scrolls), so the
-     * whole day is held with no `BEGIN >= now` future-only filter. Rows arrive
-     * `BEGIN ASC`, so each day's list stays time-ordered.
+     * Scan the window once, group every event onto each local day it covers (see
+     * [coveredDays]), and collect the distinct calendars those events belong to.
+     * The card lists each day's full set of events (no per-day cap — the card
+     * scrolls), so the whole day is held with no `BEGIN >= now` future-only
+     * filter. Rows arrive `BEGIN ASC`, so each day's list stays time-ordered,
+     * with a multi-day event leading the days it carries into.
      *
      * A mid-stream permission revoke (SecurityException) or an OEM provider
      * fault (SQLiteException) must not tear down the dashboard StateFlow, so the
@@ -235,6 +240,19 @@ internal class CalendarRepository(
                         val title = cursor.getString(1) ?: continue
                         val allDay = cursor.getInt(2) != 0
                         val endMs = cursor.getLong(3)
+                        val startDate = localDateOf(startMs, allDay, zone)
+                        // END is exclusive on both row shapes (all-day rows end at
+                        // the next UTC midnight, timed rows at the closing instant),
+                        // so the last covered day is read one millisecond earlier —
+                        // which also keeps an event ending exactly at midnight off
+                        // the following day. A zero-length, absent, or reversed END
+                        // collapses to the start day.
+                        val endDate = localDateOf(maxOf(endMs - 1, startMs), allDay, zone)
+                        // A row whose covered days fall wholly outside the rendered
+                        // window contributes nothing — neither an event nor a
+                        // calendar id for the color-bar gate.
+                        val covered = coveredDays(startDate, endDate, today)
+                        if (covered.isEmpty()) continue
                         val location = cursor.getString(4)?.takeUnless { it.isBlank() }
                         // DISPLAY_COLOR may arrive with a zero alpha byte, which would
                         // render the bar invisible; force it opaque before storing.
@@ -242,19 +260,29 @@ internal class CalendarRepository(
                         // An OEM provider may answer the projection with a null id;
                         // treat that as "unknown" rather than crash the scan.
                         if (!cursor.isNull(6)) calendarIds += cursor.getLong(6)
-                        byDay.getOrPut(localDateOf(startMs, allDay, zone)) { mutableListOf() } +=
-                            EventItem(
-                                // All-day rows carry no clock time; surface null
-                                // so the card renders an "all day" label instead
-                                // of a spurious 00:00 derived from the system zone.
-                                time = if (allDay) null else LocalTime.ofInstant(Instant.ofEpochMilli(startMs), zone),
-                                title = title,
-                                // All-day END is the next-midnight boundary, not a
-                                // meaningful clock time, so drop it too.
-                                endTime = if (allDay) null else LocalTime.ofInstant(Instant.ofEpochMilli(endMs), zone),
-                                location = location,
-                                color = color,
-                            )
+                        // All-day rows carry no clock time; surface null so the card
+                        // renders an "all day" label instead of a spurious 00:00
+                        // derived from the system zone. All-day END is the
+                        // next-midnight boundary, not a meaningful clock time, so it
+                        // goes the same way.
+                        val startTime = if (allDay) null else LocalTime.ofInstant(Instant.ofEpochMilli(startMs), zone)
+                        val endTime = if (allDay) null else LocalTime.ofInstant(Instant.ofEpochMilli(endMs), zone)
+                        covered.forEach { date ->
+                            byDay.getOrPut(date) { mutableListOf() } +=
+                                EventItem(
+                                    // A clock time belongs only to the day it falls
+                                    // on: printing an event's 14:00 start under each
+                                    // day it runs through would claim it starts afresh
+                                    // every morning. A day it merely spans carries
+                                    // neither bound and reads as "all day", which is
+                                    // what it is.
+                                    time = startTime.takeIf { date == startDate },
+                                    title = title,
+                                    endTime = endTime.takeIf { date == endDate },
+                                    location = location,
+                                    color = color,
+                                )
+                        }
                     }
                 }
             WindowScan(byDay.mapValues { (_, events) -> events.toList() }, calendarIds)
@@ -269,25 +297,56 @@ internal class CalendarRepository(
         }.getOrElse { if (it is SecurityException) WindowScan.Empty else null }
 
     /**
-     * Resolve an Instances.BEGIN epoch-millis to the local calendar day.
+     * The local days an instance occupies, clamped to the rendered window.
      *
-     * All-day instances store BEGIN as UTC midnight of the event day, so they
-     * must be read with [ZoneOffset.UTC]; applying the system zone west of UTC
-     * shifts the day one earlier. Timed instances are absolute instants and
+     * `Instances` returns every row that **overlaps** the query window, so an
+     * event already running when the window opens arrives with a BEGIN before
+     * [windowStart]. Bucketing on BEGIN's day alone dropped those rows on the
+     * floor — a five-day holiday vanished from the agenda on its third day, and
+     * its calendar still counted toward the color-bar gate. Listing an instance
+     * under every day it covers puts an ongoing event back under today and
+     * repeats a multi-day event across the days it spans, which is what an
+     * agenda answers "am I free on Thursday?" with.
+     *
+     * The window's last day is `windowStart + WINDOW_DAYS - 1`, matching the
+     * cells `buildSnapshot` builds; a row landing wholly outside yields no days.
+     */
+    private fun coveredDays(
+        startDate: LocalDate,
+        endDate: LocalDate,
+        windowStart: LocalDate,
+    ): List<LocalDate> {
+        val first = maxOf(startDate, windowStart)
+        val last = minOf(endDate, windowStart.plusDays(WINDOW_DAYS - 1L))
+        return if (first > last) {
+            emptyList()
+        } else {
+            (0..ChronoUnit.DAYS.between(first, last)).map(first::plusDays)
+        }
+    }
+
+    /**
+     * Resolve an Instances epoch-millis to the local calendar day.
+     *
+     * All-day instances store their bounds as UTC midnight of the event day, so
+     * they must be read with [ZoneOffset.UTC]; applying the system zone west of
+     * UTC shifts the day one earlier. Timed instances are absolute instants and
      * resolve in the system [zone].
      */
     private fun localDateOf(
-        startMs: Long,
+        epochMs: Long,
         allDay: Boolean,
         zone: ZoneId,
     ): LocalDate =
         Instant
-            .ofEpochMilli(startMs)
+            .ofEpochMilli(epochMs)
             .atZone(if (allDay) ZoneOffset.UTC else zone)
             .toLocalDate()
 
-    private companion object {
-        // Vertical day-list horizon (today .. today + WINDOW_DAYS).
+    internal companion object {
+        // Vertical day-list horizon (today .. today + WINDOW_DAYS). Internal
+        // rather than private because it is the contract the surfaces and their
+        // tests are written against, not a detail of the scan.
         const val WINDOW_DAYS = 30
     }
 }
