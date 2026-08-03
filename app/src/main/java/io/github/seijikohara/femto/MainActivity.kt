@@ -54,6 +54,7 @@ import io.github.seijikohara.femto.data.location.hasFineLocationPermission
 import io.github.seijikohara.femto.data.system.SystemPermissionSignals
 import io.github.seijikohara.femto.ui.assistant.AssistantOption
 import io.github.seijikohara.femto.ui.assistant.AssistantSheet
+import io.github.seijikohara.femto.ui.common.ModalSheetHost
 import io.github.seijikohara.femto.ui.common.hideSystemBarsTransiently
 import io.github.seijikohara.femto.ui.diagnostics.DiagnosticsSheet
 import io.github.seijikohara.femto.ui.fontpicker.FontPickerSheet
@@ -290,50 +291,55 @@ class MainActivity : ComponentActivity() {
                 // launcher is no longer a sheet — it is a maximize panel inside the
                 // dashboard (see DashboardOverlays / AppDrawerPanelHost).
                 val fullscreen = settings.fullscreen == FullscreenSetting.ON
-                if (showAssistant) {
-                    AssistantSheet(
-                        onLaunchOption = { option ->
-                            launchAssistantOption(option)
-                            showAssistant = false
-                        },
-                        onSubmitQuery = { query ->
-                            submitVoiceQuery(query)
-                            showAssistant = false
-                        },
-                        onDismiss = { showAssistant = false },
-                        fullscreen = fullscreen,
-                    )
-                }
-                if (showSettings) {
-                    SettingsSheet(
-                        onOpenNotificationAccess = ::openNotificationListenerSettings,
-                        onOpenSystemSettings = ::openSystemSettings,
-                        onOpenFontPicker = { fontPickerSlot = it },
-                        onOpenDiagnostics = { showDiagnostics = true },
-                        onOpenLicenses = { showLicenses = true },
-                        onOpenPrivacyPolicy = ::openPrivacyPolicy,
-                        onDismiss = { showSettings = false },
-                        fullscreen = fullscreen,
-                    )
-                }
-                fontPickerSlot?.let { slot ->
-                    FontPickerSheet(
-                        slot = slot,
-                        onDismiss = { fontPickerSlot = null },
-                        fullscreen = fullscreen,
-                    )
-                }
-                if (showDiagnostics) {
-                    DiagnosticsSheet(
-                        onDismiss = { showDiagnostics = false },
-                        fullscreen = fullscreen,
-                    )
-                }
-                if (showLicenses) {
-                    LicensesSheet(
-                        onDismiss = { showLicenses = false },
-                        fullscreen = fullscreen,
-                    )
+                // Every sheet is hosted at the platform density so adjusting UI scale
+                // or font size cannot rebuild the open sheet's window — see
+                // ModalSheetHost.
+                ModalSheetHost {
+                    if (showAssistant) {
+                        AssistantSheet(
+                            onLaunchOption = { option ->
+                                launchAssistantOption(option)
+                                showAssistant = false
+                            },
+                            onSubmitQuery = { query ->
+                                submitVoiceQuery(query)
+                                showAssistant = false
+                            },
+                            onDismiss = { showAssistant = false },
+                            fullscreen = fullscreen,
+                        )
+                    }
+                    if (showSettings) {
+                        SettingsSheet(
+                            onOpenNotificationAccess = ::openNotificationListenerSettings,
+                            onOpenSystemSettings = ::openSystemSettings,
+                            onOpenFontPicker = { fontPickerSlot = it },
+                            onOpenDiagnostics = { showDiagnostics = true },
+                            onOpenLicenses = { showLicenses = true },
+                            onOpenPrivacyPolicy = ::openPrivacyPolicy,
+                            onDismiss = { showSettings = false },
+                            fullscreen = fullscreen,
+                        )
+                    }
+                    fontPickerSlot?.let { slot ->
+                        FontPickerSheet(
+                            slot = slot,
+                            onDismiss = { fontPickerSlot = null },
+                            fullscreen = fullscreen,
+                        )
+                    }
+                    if (showDiagnostics) {
+                        DiagnosticsSheet(
+                            onDismiss = { showDiagnostics = false },
+                            fullscreen = fullscreen,
+                        )
+                    }
+                    if (showLicenses) {
+                        LicensesSheet(
+                            onDismiss = { showLicenses = false },
+                            fullscreen = fullscreen,
+                        )
+                    }
                 }
             }
         }
