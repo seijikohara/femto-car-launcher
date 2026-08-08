@@ -1,10 +1,27 @@
 package io.github.seijikohara.femto.ui.locale
 
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Before
 import org.junit.Test
 import java.util.Locale
 
 class SystemUnitsTest {
+    private lateinit var defaultLocale: Locale
+
+    // precipitationValueLabel formats for the user's locale on purpose — a German
+    // driver reads "0,49" — so the expected strings below only mean anything with
+    // the default pinned.
+    @Before
+    fun pinDefaultLocale() {
+        defaultLocale = Locale.getDefault()
+        Locale.setDefault(Locale.US)
+    }
+
+    @After
+    fun restoreDefaultLocale() = Locale.setDefault(defaultLocale)
+
     @Test
     fun `us country defaults to imperial speed`() {
         assertEquals(SpeedUnit.MILES_PER_HOUR, speedUnitFor(Locale.US))
@@ -178,6 +195,18 @@ class SystemUnitsTest {
     }
 
     @Test
+    fun `the amount is written the way the user's locale writes numbers`() {
+        // Not an accident of String.format: the slot is a reading for the driver in
+        // front of it, so the decimal mark follows their locale. Pinned as a
+        // contract because the expected strings elsewhere in this class depend on
+        // it — they are the en-US rendering, not a universal one.
+        Locale.setDefault(Locale.GERMANY)
+
+        assertEquals("0,49", precipitationValueLabel(12.4, SpeedUnit.MILES_PER_HOUR))
+        assertEquals("12,4", precipitationValueLabel(12.4, SpeedUnit.KILOMETERS_PER_HOUR))
+    }
+
+    @Test
     fun `precipitationValueLabel rounds an inch exactly`() {
         assertEquals("1.00", precipitationValueLabel(25.4, SpeedUnit.MILES_PER_HOUR))
     }
@@ -197,18 +226,17 @@ class SystemUnitsTest {
     @Test
     fun `each dry threshold is the smallest amount its unit can print`() {
         // Ties the two constants above to the formatter rather than restating them:
-        // one step below the threshold must round away, the threshold itself must not.
+        // the threshold itself must survive rounding, one step below it must not.
+        // Compared against the formatter's own zero, so this case says what it means
+        // in any locale.
         SpeedUnit.entries.forEach { unit ->
+            val zero = precipitationValueLabel(0.0, unit)
             val threshold = precipitationDryThresholdMm(unit)
+            assertNotEquals("$unit rounds its own threshold away", zero, precipitationValueLabel(threshold, unit))
             assertEquals(
-                "$unit prints its own threshold as zero",
-                false,
-                precipitationValueLabel(threshold, unit).all { it == '0' || it == '.' || it == ',' },
-            )
-            assertEquals(
-                "$unit prints a sub-threshold trace as a non-zero amount",
-                true,
-                precipitationValueLabel(threshold * 0.4, unit).all { it == '0' || it == '.' || it == ',' },
+                "$unit prints a sub-threshold trace as rain",
+                zero,
+                precipitationValueLabel(threshold * 0.4, unit),
             )
         }
     }

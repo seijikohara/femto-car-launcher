@@ -176,9 +176,11 @@ internal fun precipitationUnitLabel(speedUnit: SpeedUnit): String =
 /**
  * Format a precipitation amount (supplied in millimetres by the weather
  * provider) for the unit paired with [speedUnit], without the unit glyph.
- * Inches take a second decimal: the conventional imperial resolution is
- * hundredths, and a single decimal would collapse every ordinary shower to
- * "0.0".
+ * Inches take a second decimal: hundredths are the conventional imperial
+ * resolution, and rendering them at one decimal — as millimetres are — would
+ * collapse every ordinary shower to "0.0".
+ *
+ * The number follows the user's locale, so a German driver reads "0,49".
  */
 internal fun precipitationValueLabel(
     mm: Double,
