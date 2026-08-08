@@ -10,6 +10,8 @@ private const val METERS_PER_MILE = 1609.344
 
 private const val SECONDS_PER_HOUR = 3.6
 
+private const val MM_PER_INCH = 25.4
+
 internal enum class SpeedUnit { KILOMETERS_PER_HOUR, MILES_PER_HOUR }
 
 internal enum class TemperatureUnit { CELSIUS, FAHRENHEIT }
@@ -158,6 +160,50 @@ internal fun windLabel(
     windKmh: Double,
     speedUnit: SpeedUnit,
 ): String = "${windValue(windKmh, speedUnit)} ${windUnitLabel(speedUnit)}"
+
+/**
+ * Precipitation unit glyph paired with this speed unit: inches in imperial
+ * locales, millimetres elsewhere. Derived from the speed setting rather than a
+ * setting of its own, the same way [windUnitLabel] is — a driver who reads miles
+ * reads rainfall in inches.
+ */
+internal fun precipitationUnitLabel(speedUnit: SpeedUnit): String =
+    when (speedUnit) {
+        SpeedUnit.MILES_PER_HOUR -> "in"
+        SpeedUnit.KILOMETERS_PER_HOUR -> "mm"
+    }
+
+/**
+ * Format a precipitation amount (supplied in millimetres by the weather
+ * provider) for the unit paired with [speedUnit], without the unit glyph.
+ * Inches take a second decimal: the conventional imperial resolution is
+ * hundredths, and a single decimal would collapse every ordinary shower to
+ * "0.0".
+ */
+internal fun precipitationValueLabel(
+    mm: Double,
+    speedUnit: SpeedUnit,
+): String =
+    when (speedUnit) {
+        SpeedUnit.MILES_PER_HOUR -> "%.2f".format(mm / MM_PER_INCH)
+        SpeedUnit.KILOMETERS_PER_HOUR -> "%.1f".format(mm)
+    }
+
+/**
+ * Smallest amount, in millimetres, that [precipitationValueLabel] can print as a
+ * non-zero number in the unit paired with [speedUnit] — one step of the last
+ * decimal it renders.
+ *
+ * The cut-off follows the display unit because it exists to stop rounding from
+ * inventing rain: 0.09 mm renders as "0.1", and 0.2 mm renders as "0.01 in", so
+ * a fixed metric threshold would let a trace read as real rainfall on one side
+ * and print "0.00 in" on the other.
+ */
+internal fun precipitationDryThresholdMm(speedUnit: SpeedUnit): Double =
+    when (speedUnit) {
+        SpeedUnit.MILES_PER_HOUR -> MM_PER_INCH / 100
+        SpeedUnit.KILOMETERS_PER_HOUR -> 0.1
+    }
 
 internal fun TemperatureUnit.fromCelsius(celsius: Double): Double =
     when (this) {

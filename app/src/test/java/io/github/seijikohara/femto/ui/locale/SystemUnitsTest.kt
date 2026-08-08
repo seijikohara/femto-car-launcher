@@ -154,4 +154,62 @@ class SystemUnitsTest {
         // 100 km/h rounds to 62 mph, matching the SpeedOverlay reading.
         assertEquals("62 mph", windLabel(100.0, SpeedUnit.MILES_PER_HOUR))
     }
+
+    @Test
+    fun `precipitationUnitLabel returns millimetres when speed unit is metric`() {
+        assertEquals("mm", precipitationUnitLabel(SpeedUnit.KILOMETERS_PER_HOUR))
+    }
+
+    @Test
+    fun `precipitationUnitLabel returns inches when speed unit is imperial`() {
+        assertEquals("in", precipitationUnitLabel(SpeedUnit.MILES_PER_HOUR))
+    }
+
+    @Test
+    fun `precipitationValueLabel keeps millimetres at one decimal`() {
+        assertEquals("12.4", precipitationValueLabel(12.4, SpeedUnit.KILOMETERS_PER_HOUR))
+    }
+
+    @Test
+    fun `precipitationValueLabel converts to inches at two decimals`() {
+        // 12.4 mm is 0.488 in; hundredths are the conventional imperial resolution,
+        // and a single decimal would collapse an ordinary shower to "0.5".
+        assertEquals("0.49", precipitationValueLabel(12.4, SpeedUnit.MILES_PER_HOUR))
+    }
+
+    @Test
+    fun `precipitationValueLabel rounds an inch exactly`() {
+        assertEquals("1.00", precipitationValueLabel(25.4, SpeedUnit.MILES_PER_HOUR))
+    }
+
+    @Test
+    fun `the metric dry threshold is one tenth of a millimetre`() {
+        assertEquals(0.1, precipitationDryThresholdMm(SpeedUnit.KILOMETERS_PER_HOUR), 1e-9)
+    }
+
+    @Test
+    fun `the imperial dry threshold is one hundredth of an inch`() {
+        // The smallest amount "%.2f" can print in inches — below it the slot would
+        // read "0.00 in" instead of saying the hour is dry.
+        assertEquals(0.254, precipitationDryThresholdMm(SpeedUnit.MILES_PER_HOUR), 1e-9)
+    }
+
+    @Test
+    fun `each dry threshold is the smallest amount its unit can print`() {
+        // Ties the two constants above to the formatter rather than restating them:
+        // one step below the threshold must round away, the threshold itself must not.
+        SpeedUnit.entries.forEach { unit ->
+            val threshold = precipitationDryThresholdMm(unit)
+            assertEquals(
+                "$unit prints its own threshold as zero",
+                false,
+                precipitationValueLabel(threshold, unit).all { it == '0' || it == '.' || it == ',' },
+            )
+            assertEquals(
+                "$unit prints a sub-threshold trace as a non-zero amount",
+                true,
+                precipitationValueLabel(threshold * 0.4, unit).all { it == '0' || it == '.' || it == ',' },
+            )
+        }
+    }
 }
