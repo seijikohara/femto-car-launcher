@@ -2,7 +2,6 @@ package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,6 +45,7 @@ import io.github.seijikohara.femto.data.music.trackKey
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.Motion
+import io.github.seijikohara.femto.ui.theme.ScrollingText
 import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.cardTitle
 import io.github.seijikohara.femto.ui.theme.eyebrow
@@ -371,11 +371,11 @@ private fun MetaLine(
     color: Color,
     tier: MotionTier,
     modifier: Modifier = Modifier,
-    // When set, an overflowing line scrolls end-to-end (basicMarquee) instead of
-    // ellipsizing, so the full text is legible. Gated by the caller on the
-    // vehicle being stationary — a perpetual scroll on the always-visible card
-    // is a driving-distraction profile (AGENTS.md#driving-lockout), so it only
-    // runs when parked and stays a static ellipsis while moving.
+    // When set, an overflowing line scrolls end-to-end instead of ellipsizing, so
+    // the full text is legible. Gated by the caller on the vehicle being
+    // stationary — a perpetual scroll on the always-visible card is a
+    // driving-distraction profile (AGENTS.md#driving-lockout), so it only runs
+    // when parked and stays a static ellipsis while moving.
     marquee: Boolean = false,
 ) = Motion.ContentCrossfade(
     targetState = text,
@@ -383,14 +383,11 @@ private fun MetaLine(
     label = "musicMetaLine",
     modifier = modifier,
 ) { lineText ->
-    Text(
+    ScrollingText(
         text = lineText,
         style = style,
         color = color,
-        maxLines = 1,
-        // Clip (not Ellipsis) under marquee: the scroll shows the whole string,
-        // so a trailing "…" would be wrong.
-        overflow = if (marquee) TextOverflow.Clip else TextOverflow.Ellipsis,
-        modifier = Modifier.singleLineBox(style).then(if (marquee) Modifier.basicMarquee() else Modifier),
+        scrolling = marquee,
+        modifier = Modifier.singleLineBox(style),
     )
 }

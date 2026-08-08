@@ -25,6 +25,14 @@ internal data class TripState(
     val currentSpeedMs: Double,
     val startedAtEpochMs: Long? = null,
 ) {
+    /**
+     * Whether the vehicle is parked, i.e. below the [MIN_MOVING_SPEED_MS] floor
+     * the repository already uses to reject GPS drift. One definition of "parked"
+     * for every reader: the dashboard gates its scrolling text on it, so the card
+     * and the full-screen player cannot disagree about when the car is moving.
+     */
+    val stationary: Boolean get() = currentSpeedMs < MIN_MOVING_SPEED_MS
+
     companion object {
         val Initial: TripState = TripState(distanceMeters = 0.0, avgSpeedMs = 0.0, currentSpeedMs = 0.0)
     }
