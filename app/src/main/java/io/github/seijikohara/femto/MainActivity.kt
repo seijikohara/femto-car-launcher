@@ -209,6 +209,9 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(settings.keepScreenOn) {
                 applyKeepScreenOn(settings.keepScreenOn)
             }
+            LaunchedEffect(darkTheme) {
+                applyBarIconContrast(darkTheme)
+            }
             FemtoTheme(
                 fontFamily = fontFamily,
                 accent = settings.accentColor,
@@ -362,6 +365,21 @@ class MainActivity : ComponentActivity() {
         when (setting) {
             FullscreenSetting.ON -> controller.hideSystemBarsTransiently()
             FullscreenSetting.OFF -> controller.show(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
+    // Dark or light icons in the status / navigation bars, driven from the theme
+    // the app actually composed.
+    //
+    // enableEdgeToEdge() resolves this once, at Activity creation, from the system
+    // configuration — which is wrong twice over. It ignores a user ThemeMode
+    // override (forcing DARK on a light system left dark icons on a dark bar), and
+    // since uiMode is now handled without a relaunch (see AndroidManifest), a
+    // system flip would otherwise leave the icons on the theme they started with.
+    private fun applyBarIconContrast(darkTheme: Boolean) {
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = !darkTheme
+            isAppearanceLightNavigationBars = !darkTheme
         }
     }
 
