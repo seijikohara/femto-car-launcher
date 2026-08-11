@@ -90,10 +90,8 @@
          beside it. -->
     <string name="weather_metric_precip">PRECIP</string>
     <!-- Shown in the PRECIP slot when the forecast amount is below the dry
-         threshold (WeatherCard's DRY_THRESHOLD_MM), not when it rounds to zero. -->
+         threshold (precipitationDryThresholdMm), not when it rounds to zero. -->
     <string name="weather_precip_none">None</string>
-    <!-- Millimetres, trailing the precipitation amount. -->
-    <string name="weather_precip_unit_mm">mm</string>
     <string name="weather_metric_wind">WIND</string>
     <string name="weather_metric_humidity">HUMID</string>
     <string name="weather_cond_sunny">Sunny</string>

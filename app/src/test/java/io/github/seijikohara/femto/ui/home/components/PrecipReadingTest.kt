@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
+import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import org.junit.Test
 import kotlin.test.assertEquals
 
@@ -11,6 +12,9 @@ import kotlin.test.assertEquals
  * MET publishes only inside its Nordic model domain — so outside it the card
  * rendered a permanent em dash. These cases pin the fallback that fixed it, and
  * the dry cut-off that keeps a trace from reading like rain.
+ *
+ * The cut-off tracks the display unit, so the imperial cases below are not
+ * duplicates of the metric ones: they pin a different threshold.
  */
 class PrecipReadingTest {
     @Test
@@ -18,6 +22,7 @@ class PrecipReadingTest {
         val reading =
             precipReading(
                 fakeWeatherSnapshot(precipitationProbabilityPercent = 60, precipitationMm = 2.0),
+                SpeedUnit.KILOMETERS_PER_HOUR,
             )
 
         // A probability answers the driver's question better than a quantity, so it
@@ -31,6 +36,7 @@ class PrecipReadingTest {
         val reading =
             precipReading(
                 fakeWeatherSnapshot(precipitationProbabilityPercent = null, precipitationMm = 1.4),
+                SpeedUnit.KILOMETERS_PER_HOUR,
             )
 
         assertEquals(PrecipReading.Amount(1.4), reading)
@@ -43,6 +49,7 @@ class PrecipReadingTest {
         val reading =
             precipReading(
                 fakeWeatherSnapshot(precipitationProbabilityPercent = null, precipitationMm = 0.0),
+                SpeedUnit.KILOMETERS_PER_HOUR,
             )
 
         assertEquals(PrecipReading.Dry, reading)
@@ -55,6 +62,7 @@ class PrecipReadingTest {
         val reading =
             precipReading(
                 fakeWeatherSnapshot(precipitationProbabilityPercent = null, precipitationMm = 0.09),
+                SpeedUnit.KILOMETERS_PER_HOUR,
             )
 
         assertEquals(PrecipReading.Dry, reading)
@@ -65,9 +73,34 @@ class PrecipReadingTest {
         val reading =
             precipReading(
                 fakeWeatherSnapshot(precipitationProbabilityPercent = null, precipitationMm = 0.1),
+                SpeedUnit.KILOMETERS_PER_HOUR,
             )
 
         assertEquals(PrecipReading.Amount(0.1), reading)
+    }
+
+    @Test
+    fun `an amount the metric slot would show is dry when inches cannot print it`() {
+        // 0.2 mm is 0.008 in, which "%.2f" renders as "0.00" — the imperial form of
+        // the stuck-gauge reading the metric threshold exists to prevent.
+        val reading =
+            precipReading(
+                fakeWeatherSnapshot(precipitationProbabilityPercent = null, precipitationMm = 0.2),
+                SpeedUnit.MILES_PER_HOUR,
+            )
+
+        assertEquals(PrecipReading.Dry, reading)
+    }
+
+    @Test
+    fun `one hundredth of an inch is the smallest imperial amount`() {
+        val reading =
+            precipReading(
+                fakeWeatherSnapshot(precipitationProbabilityPercent = null, precipitationMm = 0.254),
+                SpeedUnit.MILES_PER_HOUR,
+            )
+
+        assertEquals(PrecipReading.Amount(0.254), reading)
     }
 
     @Test
@@ -77,6 +110,7 @@ class PrecipReadingTest {
         val reading =
             precipReading(
                 fakeWeatherSnapshot(precipitationProbabilityPercent = null, precipitationMm = null),
+                SpeedUnit.KILOMETERS_PER_HOUR,
             )
 
         assertEquals(PrecipReading.Unknown, reading)
