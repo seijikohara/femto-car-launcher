@@ -2,7 +2,6 @@ package io.github.seijikohara.femto.ui.home.components
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,7 +29,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -58,6 +56,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
+import io.github.seijikohara.femto.ui.theme.ScrollingText
 import io.github.seijikohara.femto.ui.theme.cardCta
 import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.eyebrow
@@ -71,12 +70,12 @@ import kotlinx.coroutines.flow.StateFlow
  * card's album art; left via the collapse button, the system back gesture, or
  * automatically when the session stops playing (the host drops the panel).
  *
- * The whole point over the card is untruncated metadata: the artist and album
- * lines render at display size and scroll (marquee) instead of ellipsizing.
- * The title is the one exception — it can run to headline length (see the
- * screenshot fixture), so it wraps up to two lines and then ellipsizes rather
- * than marqueeing a single line, which used to hard-clip long titles at the
- * panel's right edge (see [TitleLine]).
+ * The whole point over the card is untruncated metadata: parked, the title,
+ * artist and album render at display size and scroll end to end
+ * ([io.github.seijikohara.femto.ui.theme.ScrollingText]) instead of ellipsizing,
+ * so a headline-length title is readable in full. Moving, every line rests as a
+ * static ellipsis — the same motion gate the card applies, and the reason the
+ * scroll can be endless without becoming ambient movement in the driver's eye.
  */
 @Composable
 internal fun NowPlayingPanel(
@@ -91,6 +90,10 @@ internal fun NowPlayingPanel(
     showAlbum: Boolean = true,
     showArt: Boolean = true,
     motionTier: MotionTier = MotionTier.STANDARD,
+    // Below the trip's moving-speed floor the vehicle is parked, so the title /
+    // artist / album lines scroll to full length; above it they rest as a static
+    // ellipsis, matching MusicCard (see TripState.stationary).
+    stationary: Boolean = false,
 ) {
     BackHandler(onBack = onClose)
     Surface(
@@ -137,6 +140,7 @@ internal fun NowPlayingPanel(
                         inlineToggles = false,
                         showAlbum = showAlbum,
                         portrait = true,
+                        stationary = stationary,
                         queueMaxHeight = queueMaxHeight,
                         motionTier = motionTier,
                         modifier = Modifier.fillMaxWidth().weight(1f),
@@ -165,6 +169,7 @@ internal fun NowPlayingPanel(
                             inlineToggles = true,
                             showAlbum = showAlbum,
                             portrait = false,
+                            stationary = stationary,
                             queueMaxHeight = queueMaxHeight,
                             motionTier = motionTier,
                             modifier = Modifier.weight(1f).fillMaxHeight(),
@@ -244,6 +249,7 @@ private fun PanelControls(
     inlineToggles: Boolean,
     showAlbum: Boolean,
     portrait: Boolean,
+    stationary: Boolean,
     queueMaxHeight: Dp,
     motionTier: MotionTier,
     modifier: Modifier = Modifier,
@@ -261,7 +267,13 @@ private fun PanelControls(
             Arrangement.spacedBy(FemtoDimens.CardSectionGap, Alignment.CenterVertically)
         },
 ) {
-    ExpandedMeta(nowPlaying = nowPlaying, portrait = portrait, motionTier = motionTier, showAlbum = showAlbum)
+    ExpandedMeta(
+        nowPlaying = nowPlaying,
+        portrait = portrait,
+        stationary = stationary,
+        motionTier = motionTier,
+        showAlbum = showAlbum,
+    )
     PlaybackSeekBar(
         positionMs = nowPlaying.positionMs,
         durationMs = nowPlaying.durationMs,
@@ -465,16 +477,16 @@ private fun PlayingNextList(
     }
 }
 
-// Display-size metadata. The artist / album lines never truncate: one line
-// each, marquee on overflow (the deliberate inverse of the card's ellipsis +
-// FitText, which shrink; here there is room to scroll instead). The title
-// wraps + ellipsizes instead (see [TitleLine]). Cross-fades on track change
-// in step with the art, honoring [motionTier] like every other content fade
-// (Motion.contentFadeSpec) instead of the plain default Crossfade spec.
+// Display-size metadata. Parked, every line scrolls to its full length rather
+// than truncating; moving, every line rests as a static ellipsis. Cross-fades on
+// track change in step with the art, honoring [motionTier] like every other
+// content fade (Motion.contentFadeSpec) instead of the plain default Crossfade
+// spec.
 @Composable
 private fun ExpandedMeta(
     nowPlaying: NowPlaying,
     portrait: Boolean,
+    stationary: Boolean,
     motionTier: MotionTier,
     modifier: Modifier = Modifier,
     showAlbum: Boolean = true,
@@ -485,66 +497,49 @@ private fun ExpandedMeta(
     modifier = modifier,
 ) { (title, artist, album) ->
     // Flush-left metadata lines, mirroring the small card's iconless Meta (the
-    // per-line track / person / disc glyphs were dropped by design); unlike the
-    // card, the artist / album text marquees instead of ellipsizing so a long
-    // value is shown in full.
+    // per-line track / person / disc glyphs were dropped by design).
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        TitleLine(
+        ScrollingText(
             text = title,
-            // Portrait's headline column is narrow, so a long title needs the
-            // second line before ellipsizing; landscape has width to spare
-            // for one.
-            maxLines = if (portrait) 2 else 1,
-        )
-        MarqueeMetaLine(
-            text = artist?.takeUnless { it.isBlank() } ?: "—",
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.onSurface,
+            scrolling = stationary,
+            // At rest, portrait's narrow headline column needs a second line
+            // before ellipsizing; landscape has the width for one. Parked, the
+            // scroll collapses either to a single line and shows the whole
+            // title, so portrait gets one line back when the car pulls away.
+            restingMaxLines = if (portrait) 2 else 1,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        PanelMetaLine(
+            text = artist?.takeUnless { it.isBlank() } ?: "—",
+            color = MaterialTheme.colorScheme.onSurface,
+            scrolling = stationary,
         )
         if (showAlbum) {
-            MarqueeMetaLine(
+            PanelMetaLine(
                 text = album?.takeUnless { it.isBlank() } ?: "—",
-                style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                scrolling = stationary,
             )
         }
     }
 }
 
-// The track title: unlike the artist / album lines, a title can run to
-// headline length (see the panel's screenshot fixture), and a single-line
-// marquee left it hard-clipped at the panel's right edge with no ellipsis —
-// mid-word in landscape, mid-letter against the narrower portrait headline
-// column. Wrapping to [maxLines] and then ellipsizing keeps it fully inside
-// the content column regardless of width.
+// One panel metadata line under the title. Artist and album differ only in
+// colour, so the shared style lives here rather than at both call sites.
 @Composable
-private fun TitleLine(
+private fun PanelMetaLine(
     text: String,
-    maxLines: Int,
-    modifier: Modifier = Modifier,
-) = Text(
-    text = text,
-    style = MaterialTheme.typography.headlineLarge,
-    color = MaterialTheme.colorScheme.onSurface,
-    maxLines = maxLines,
-    overflow = TextOverflow.Ellipsis,
-    modifier = modifier.fillMaxWidth(),
-)
-
-// One panel metadata line: single-line marquee text, so a long value scrolls
-// into view instead of ellipsizing.
-@Composable
-private fun MarqueeMetaLine(
-    text: String,
-    style: TextStyle,
     color: Color,
+    scrolling: Boolean,
     modifier: Modifier = Modifier,
-) = Text(
+) = ScrollingText(
     text = text,
-    style = style,
+    style = MaterialTheme.typography.titleLarge,
     color = color,
-    maxLines = 1,
-    modifier = modifier.fillMaxWidth().basicMarquee(),
+    scrolling = scrolling,
+    modifier = modifier.fillMaxWidth(),
 )
 
 private fun previewNowPlaying(): NowPlaying =

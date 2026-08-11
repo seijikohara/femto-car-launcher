@@ -37,3 +37,16 @@ internal fun fakeNowPlaying(
         repeatMode = repeatMode,
         queue = queue,
     )
+
+/**
+ * A track whose title, artist and album each outrun the column they land in, on
+ * the compact card and in the full-screen player alike. The fixture for the
+ * scroll-vs-ellipsis gate: with the default [fakeNowPlaying] strings nothing
+ * overflows, so both branches would render identically and prove nothing.
+ */
+internal fun fakeOverflowingNowPlaying(): NowPlaying =
+    fakeNowPlaying(
+        title = "The Song With An Extremely Long Title That Overflows",
+        artist = "A Very Long Featured Artist Collaboration",
+        album = "An Album Title That Runs Well Past The Card Edge",
+    )
