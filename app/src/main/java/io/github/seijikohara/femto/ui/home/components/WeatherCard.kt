@@ -46,6 +46,9 @@ import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.locale.fromCelsius
 import io.github.seijikohara.femto.ui.locale.label
+import io.github.seijikohara.femto.ui.locale.precipitationDryThresholdMm
+import io.github.seijikohara.femto.ui.locale.precipitationUnitLabel
+import io.github.seijikohara.femto.ui.locale.precipitationValueLabel
 import io.github.seijikohara.femto.ui.locale.windUnitLabel
 import io.github.seijikohara.femto.ui.locale.windValue
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -193,11 +196,6 @@ private fun rememberWeatherFresh(snapshot: WeatherSnapshot): Boolean =
 // granularity flips the caption within a minute of crossing it.
 private const val STALE_RECHECK_INTERVAL_MS = 60_000L
 
-// Below this the hour counts as dry for a driver's purposes and the slot says so
-// in words. Note this is a threshold, not the display rounding: 0.09 mm would
-// format as "0.1", so without the cut-off a trace would read like real rain.
-private const val DRY_THRESHOLD_MM = 0.1
-
 /**
  * What the PRECIP slot has to report, resolved from the snapshot before any
  * formatting. Keeping it a type rather than a formatted string is what lets the
@@ -210,7 +208,11 @@ internal sealed interface PrecipReading {
         val percent: Int,
     ) : PrecipReading
 
-    /** Forecast millimetres, at or above [DRY_THRESHOLD_MM]. */
+    /**
+     * Forecast millimetres, at or above the display unit's dry cut-off
+     * ([precipitationDryThresholdMm]). Always millimetres — the provider's unit —
+     * with the conversion left to the formatting site.
+     */
     data class Amount(
         val mm: Double,
     ) : PrecipReading
@@ -224,11 +226,15 @@ internal sealed interface PrecipReading {
 
 // Chance first where MET publishes it: a probability answers the driver's
 // question better than a quantity. Everywhere else the global model's amount is
-// the only reading there is.
-internal fun precipReading(snapshot: WeatherSnapshot): PrecipReading {
+// the only reading there is. [speedUnit] settles the dry cut-off, which tracks
+// the unit the amount will be printed in.
+internal fun precipReading(
+    snapshot: WeatherSnapshot,
+    speedUnit: SpeedUnit,
+): PrecipReading {
     snapshot.precipitationProbabilityPercent?.let { return PrecipReading.Chance(it) }
     val mm = snapshot.precipitationMm ?: return PrecipReading.Unknown
-    return if (mm < DRY_THRESHOLD_MM) PrecipReading.Dry else PrecipReading.Amount(mm)
+    return if (mm < precipitationDryThresholdMm(speedUnit)) PrecipReading.Dry else PrecipReading.Amount(mm)
 }
 
 private val AsOfFormatter12: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
@@ -333,11 +339,11 @@ private fun Metrics(
     // global model, so somewhere in the world always has a value to show.
     // Decide WHAT the slot reports before deciding how it reads, so the unit below
     // follows the data rather than being inferred from the rendered characters.
-    val precip = precipReading(snapshot)
+    val precip = precipReading(snapshot, speedUnit)
     val precipLabel =
         when (precip) {
             is PrecipReading.Chance -> "${precip.percent}%"
-            is PrecipReading.Amount -> "%.1f".format(precip.mm)
+            is PrecipReading.Amount -> precipitationValueLabel(precip.mm, speedUnit)
             PrecipReading.Dry -> stringResource(R.string.weather_precip_none)
             PrecipReading.Unknown -> "—"
         }
@@ -352,7 +358,7 @@ private fun Metrics(
             modifier = Modifier.weight(1f),
             // The unit rides a measured amount only: a chance carries its own "%",
             // and "None" / the em dash are words, not quantities.
-            unit = if (precip is PrecipReading.Amount) stringResource(R.string.weather_precip_unit_mm) else null,
+            unit = if (precip is PrecipReading.Amount) precipitationUnitLabel(speedUnit) else null,
         )
         Metric(
             icon = Lucide.Wind,
@@ -370,9 +376,17 @@ private fun Metrics(
     }
 }
 
-// One metric as a centred icon-over-value column. A worded [unit] (wind) trails
-// the value as a dimmed baseline suffix; the bare "°" (feels-like) and "%"
-// (humidity) values pass no unit and stay tight to the number.
+// One metric as a centred icon-over-value column. A worded [unit] (wind,
+// precipitation) trails the value as a dimmed suffix; the bare "%" (humidity)
+// value passes no unit and stays tight to the number.
+//
+// The reading is one auto-shrinking line rather than a value and a unit side by
+// side in a Row. Three metrics split the narrow card evenly, so a cell is about
+// 41dp on the 853x512 reference and less on the 800x480 floor — and a Row
+// measures its children in order, handing the value the width it asks for and
+// clipping the unit out of the remainder. "12.4 mm" measured 48dp against that
+// 41dp cell and printed as "12.4 m": a plausible wrong unit rather than visibly
+// broken text. Measured together, the pair shrinks instead.
 @Composable
 private fun Metric(
     icon: ImageVector,
@@ -391,30 +405,19 @@ private fun Metric(
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.size(16.dp),
     )
-    val valueStyle =
-        MaterialTheme.typography.glanceCaption(
-            base = MaterialTheme.typography.cardMeta(),
-            fontWeight = FontWeight.Normal,
-        )
-    if (unit == null) {
-        Text(
-            text = value,
-            style = valueStyle,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-        )
-    } else {
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = value,
-                style = valueStyle,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                modifier = Modifier.alignByBaseline(),
-            )
-            UnitSuffix(unit, modifier = Modifier.alignByBaseline())
-        }
-    }
+    FitText(
+        text = valueWithUnit(value, unit),
+        style =
+            MaterialTheme.typography.glanceCaption(
+                base = MaterialTheme.typography.cardMeta(),
+                fontWeight = FontWeight.Normal,
+            ),
+        color = MaterialTheme.colorScheme.onSurface,
+        // Glance metadata already sits below the body floor by design
+        // (AGENTS.md#automotive-overrides); this is how far the safety valve may
+        // go before the reading ellipsizes instead, matching the forecast chip.
+        minFontSize = FemtoDimens.TextXs,
+    )
 }
 
 // The forecast lays its hours out three to a row (left-to-right, then

@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.takeOrElse
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -47,17 +48,67 @@ internal fun FitText(
     onTextLayout: ((TextLayoutResult) -> Unit)? = null,
 ) {
     val resolved = color.takeOrElse { LocalContentColor.current }
-    // The style's own size is the ceiling; fall back to the floor when a caller
-    // passes a size-less style so StepBased always gets max >= min.
-    val ceiling = style.fontSize.takeOrElse { minFontSize }
     BasicText(
         text = text,
         modifier = modifier,
-        style = if (textAlign != null) style.copy(textAlign = textAlign) else style,
+        style = style.aligned(textAlign),
         color = { resolved },
         onTextLayout = onTextLayout,
         overflow = overflow,
         maxLines = maxLines,
-        autoSize = TextAutoSize.StepBased(minFontSize = minFontSize, maxFontSize = ceiling),
+        autoSize = autoSizeWithin(style, minFontSize),
     )
 }
+
+/**
+ * [FitText] over a styled string, for a value that carries its own inline spans —
+ * a measured value with its trailing unit, say. Spans must express size
+ * relatively (`em`) or not at all: auto-size scales the *base* style, so a span
+ * pinning an absolute `sp` would keep its size while the rest of the line shrank
+ * around it.
+ *
+ * The pair-in-one-string shape is the point. A value and its unit laid out as two
+ * siblings in a `Row` are measured in order, so the value takes the width it wants
+ * and the unit is clipped out of whatever is left — which silently rendered "mm"
+ * as "m". One string shrinks the whole reading together instead.
+ */
+@Composable
+internal fun FitText(
+    text: AnnotatedString,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+    minFontSize: TextUnit = FemtoDimens.MinBodyTextSize,
+    maxLines: Int = 1,
+    overflow: TextOverflow = TextOverflow.Ellipsis,
+    textAlign: TextAlign? = null,
+    onTextLayout: ((TextLayoutResult) -> Unit)? = null,
+) {
+    val resolved = color.takeOrElse { LocalContentColor.current }
+    BasicText(
+        text = text,
+        modifier = modifier,
+        style = style.aligned(textAlign),
+        color = { resolved },
+        onTextLayout = onTextLayout,
+        overflow = overflow,
+        maxLines = maxLines,
+        autoSize = autoSizeWithin(style, minFontSize),
+    )
+}
+
+private fun TextStyle.aligned(textAlign: TextAlign?): TextStyle =
+    if (textAlign != null) copy(textAlign = textAlign) else this
+
+// The style's own size is the ceiling; fall back to the floor when a caller
+// passes a size-less style so StepBased always gets max >= min.
+private fun autoSizeWithin(
+    style: TextStyle,
+    minFontSize: TextUnit,
+): TextAutoSize =
+    TextAutoSize.StepBased(
+        minFontSize = minFontSize,
+        maxFontSize = style.fontSize.takeOrElse {
+            minFontSize
+        },
+    )
