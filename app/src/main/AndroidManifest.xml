@@ -88,8 +88,20 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.FemtoCarLauncher">
+        <!--
+          uiMode is handled in place. Without it a system light/dark flip destroys
+          and recreates the launcher: the dashboard blanks, the map WebView is torn
+          down and rebuilt, and the relaunch comes back through the splash — so the
+          theme appears to change *after* the launcher has finished starting.
+          Handled here, the new Configuration reaches Compose, isSystemInDarkTheme()
+          recomposes, and FemtoTheme cross-fades in place with the content intact.
+          The one resource this bypasses is the theme's windowLightStatusBar; the
+          bar icons are driven from the composed flag instead (applyBarIconContrast),
+          which is also the only way they can follow a user ThemeMode override.
+        -->
         <activity
             android:name=".MainActivity"
+            android:configChanges="uiMode"
             android:exported="true"
             android:launchMode="singleTask"
             android:stateNotNeeded="true"
