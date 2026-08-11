@@ -73,6 +73,15 @@ with automotive overrides on top.
 - `ui/theme/FitText.kt` is the SSOT for a single-line label that
   shrinks to fit its available width across locales and screen sizes
   (weekday names, track titles, metric values).
+  `ui/theme/ScrollingText.kt` is its companion for text that must keep
+  its design size and move instead: scrolling, one clipped line;
+  resting, the caller's line budget with an ellipsis. Its `scrolling`
+  flag is always a motion gate (`TripState.stationary`), never a
+  constant — an endless scroll while driving is a distraction profile
+  of its own (`AGENTS.md#driving-lockout`). A capture of a scrolling
+  line needs `createComposeRule` with `mainClock.autoAdvance = false`;
+  the composable-content form of `captureRoboImage` waits for an idle
+  composition that never comes.
   `ui/theme/PreviewTextStress.kt` is a `@Preview` annotation bundling
   pseudolocale (`en-XA`, `ar-XB`) and large-font-scale cases; apply it
   alongside `@PreviewLightDark` on text-heavy components.

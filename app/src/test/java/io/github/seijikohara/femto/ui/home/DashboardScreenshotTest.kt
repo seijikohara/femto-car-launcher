@@ -11,15 +11,8 @@ import androidx.compose.ui.layout.ContentScale
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.UiScale
-import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.testfixtures.ScreenshotCompareOptions
-import io.github.seijikohara.femto.testfixtures.fakeAddress
-import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
-import io.github.seijikohara.femto.testfixtures.fakeLocation
-import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
-import io.github.seijikohara.femto.testfixtures.fakeSystemStatus
-import io.github.seijikohara.femto.testfixtures.fakeTripState
-import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
+import io.github.seijikohara.femto.testfixtures.fakeHomeUiState
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
@@ -239,20 +232,6 @@ class DashboardScreenshotTest {
         // Fixed so the dashboard clock is deterministic across CI record/verify runs.
         val FIXED_CLOCK: Clock = Clock.fixed(Instant.parse("2026-05-01T10:08:00Z"), ZoneOffset.UTC)
 
-        val STATE =
-            HomeUiState.Initial.copy(
-                // A fix is the gate for the map surface, the compass, the control
-                // column and the self-marker — with none of them the golden shows an
-                // empty region that looks nothing like the running app.
-                location = fakeLocation(latitude = 37.7793, longitude = -122.4193),
-                // Matched to the backdrop's city so the reverse-geocoded line and the
-                // map agree; the shared fixture's Tokyo default would contradict it.
-                address = fakeAddress(locality = "San Francisco", region = "CA"),
-                weather = fakeWeatherSnapshot(),
-                calendar = fakeCalendarSnapshot(),
-                musicState = MusicCardState.Playing(fakeNowPlaying()),
-                systemStatus = fakeSystemStatus(),
-                tripState = fakeTripState(),
-            )
+        val STATE = fakeHomeUiState()
     }
 }
