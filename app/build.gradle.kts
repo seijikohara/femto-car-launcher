@@ -28,7 +28,7 @@ node {
     // Mirrors webmap/package.json "packageManager" (the pin pnpm itself reads
     // when invoked directly); this copy provisions the Gradle-managed install.
     // renovate: datasource=npm depName=pnpm
-    pnpmVersion = "11.20.0"
+    pnpmVersion = "11.21.0"
     nodeProjectDir = file("../webmap")
 }
 
