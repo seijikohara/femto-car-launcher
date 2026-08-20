@@ -4,8 +4,11 @@ import {
     BEARING_SNAP_DELTA_DEG,
     easeDurationMs,
     isPaddingOnlyReflow,
+    isRealPosition,
     linearEase,
     MAX_EASE_MS,
+    MAX_LATITUDE_DEG,
+    MAX_LONGITUDE_DEG,
     MIN_EASE_MS,
     type ReflowFix,
     shortestBearingDelta,
@@ -132,5 +135,23 @@ describe("isPaddingOnlyReflow", () => {
                 bottomSafe: 0,
             }),
         ).toBe(true);
+    });
+});
+
+describe("isRealPosition", () => {
+    it("accepts a coordinate on the globe", () => {
+        expect(isRealPosition(35.658, 139.7016)).toBe(true);
+        expect(isRealPosition(0, 0)).toBe(true);
+        expect(isRealPosition(-MAX_LATITUDE_DEG, MAX_LONGITUDE_DEG)).toBe(true);
+    });
+
+    it("rejects a non-finite coordinate", () => {
+        expect(isRealPosition(Number.NaN, 139.7016)).toBe(false);
+        expect(isRealPosition(35.658, Number.POSITIVE_INFINITY)).toBe(false);
+    });
+
+    it("rejects a coordinate off the globe", () => {
+        expect(isRealPosition(MAX_LATITUDE_DEG + 1, 0)).toBe(false);
+        expect(isRealPosition(0, -MAX_LONGITUDE_DEG - 1)).toBe(false);
     });
 });

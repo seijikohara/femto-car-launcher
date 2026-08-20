@@ -55,6 +55,14 @@ internal interface TripStateStore {
 // must never wipe the running odometer.
 private val Context.tripStateDataStore: DataStore<Preferences> by preferencesDataStore(name = "trip_state")
 
+// A total the odometer can never legitimately hold. The store is written
+// through on every accepted fix, so a poisoned value outlives the fix that
+// produced it: a pre-#351 build could accrue distance across a NaN coordinate,
+// and the restored NaN then throws out of the hero row's roundToInt() on every
+// launch — with the reset control behind the crash. Restore 0 instead.
+// Internal so the guard is JVM-unit-testable without real DataStore IO.
+internal fun Double?.orZeroWhenUnusable(): Double = this?.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
+
 /** DataStore-backed accessor for [PersistedTrip]. */
 internal class TripStatePreferences(
     private val context: Context,
@@ -64,8 +72,8 @@ internal class TripStatePreferences(
             .catchIoAsDefaults(TAG)
             .map { prefs ->
                 PersistedTrip(
-                    totalMeters = prefs[TOTAL_METERS_KEY] ?: 0.0,
-                    totalSeconds = prefs[TOTAL_SECONDS_KEY] ?: 0.0,
+                    totalMeters = prefs[TOTAL_METERS_KEY].orZeroWhenUnusable(),
+                    totalSeconds = prefs[TOTAL_SECONDS_KEY].orZeroWhenUnusable(),
                     startedAtEpochMs = prefs[STARTED_AT_KEY],
                     tripId = prefs[TRIP_ID_KEY] ?: 0L,
                 )

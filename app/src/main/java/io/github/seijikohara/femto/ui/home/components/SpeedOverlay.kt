@@ -134,21 +134,34 @@ internal fun SpeedOverlay(
     val smoother = remember { SpeedSmoothState() }
     val smoothedSpeedMs =
         remember(location) {
-            smoother.estimateMs =
-                location?.let { fix ->
-                    // dt is meaningful only once an estimate exists (the seed
-                    // path ignores it); gating on the estimate rather than a
-                    // zero-timestamp sentinel keeps a legitimate
-                    // elapsedRealtimeNanos == 0 fix from stalling a tick.
-                    val dtMillis =
-                        if (smoother.estimateMs == null) {
-                            0L
-                        } else {
-                            (fix.elapsedRealtimeNanos - smoother.basisElapsedNanos) / 1_000_000L
-                        }
-                    smoother.basisElapsedNanos = fix.elapsedRealtimeNanos
-                    speedSmoothingStep(smoother.estimateMs, tripState.currentSpeedMs.toFloat(), dtMillis)
+            if (location == null) {
+                smoother.estimateMs = null
+            } else {
+                // dt is meaningful only once an estimate exists (the seed
+                // path ignores it); gating on the estimate rather than a
+                // zero-timestamp sentinel keeps a legitimate
+                // elapsedRealtimeNanos == 0 fix from stalling a tick.
+                val dtMillis =
+                    if (smoother.estimateMs == null) {
+                        0L
+                    } else {
+                        (location.elapsedRealtimeNanos - smoother.basisElapsedNanos) / 1_000_000L
+                    }
+                // A fix whose monotonic timestamp sits behind the basis is a
+                // REPLAYED older fix (the location flow re-seeds
+                // getLastKnownLocation on every re-subscribe, and this holder
+                // outlives that teardown because the Activity is stopped, not
+                // destroyed). Skip it entirely rather than clamping dt to 0:
+                // clamping while still re-anchoring the basis would move the
+                // basis backwards and inflate the next legitimate fix's dt.
+                // TripRepository re-anchors without accruing for the same
+                // reason (issue #351).
+                if (dtMillis >= 0L) {
+                    smoother.basisElapsedNanos = location.elapsedRealtimeNanos
+                    smoother.estimateMs =
+                        speedSmoothingStep(smoother.estimateMs, tripState.currentSpeedMs.toFloat(), dtMillis)
                 }
+            }
             smoother.estimateMs
         }
     val currentSpeedText =
@@ -159,8 +172,10 @@ internal fun SpeedOverlay(
     val avgSpeed = speedUnit.fromMetersPerSecond(tripState.avgSpeedMs.toFloat()).roundToInt()
     val shortAddress = address?.displayString().orEmpty()
     // Altitude (metres) from the fix when the chip reports it; null hides the
-    // altitude readout rather than showing a misleading 0.
-    val altitudeM = location?.takeIf { it.hasAltitude() }?.altitude?.roundToInt()
+    // altitude readout rather than showing a misleading 0. hasAltitude() only
+    // says the HAL filled the field, not that it filled it with a number, and
+    // Double.roundToInt() throws on NaN rather than saturating.
+    val altitudeM = location?.takeIf { it.hasAltitude() && it.altitude.isFinite() }?.altitude?.roundToInt()
     Column(
         modifier =
             modifier
@@ -535,13 +550,22 @@ private fun ResetButton(
  * Advance the displayed speed by one fix using a TIME-based exponential
  * step: `alpha = 1 - exp(-dt/τ)`, so the response settles in ~3·τ of real
  * time at any fix cadence (a fixed-alpha tick EMA made the settle time
- * scale with the location-interval setting). Two deliberate edges:
+ * scale with the location-interval setting). Three deliberate edges,
+ * in the order the `when` tests them:
  *
  *  - A [sampleMs] below [MIN_MOVING_SPEED_MS] returns 0 immediately — a
  *    real speedometer reads a crisp 0 at a standstill, and smoothing the
  *    decay below the stationary floor only manufactures a phantom crawl
  *    (the on-device "takes seconds to reach 0" report).
  *  - A null [previous] seeds the estimate with the sample itself.
+ *  - A non-positive [dtMillis] holds the estimate. The gain is a
+ *    fraction of the remaining error only while the clock moves
+ *    forward; a backwards one turns it into a large negative
+ *    multiplier that diverges the estimate by orders of magnitude in
+ *    either direction, and far enough back it overflows `exp` to
+ *    Infinity and yields NaN, which `Float.roundToInt()` throws on
+ *    rather than saturating (issue #351). The caller rejects such a
+ *    fix outright; this keeps the step total.
  *
  * Pure so the smoothing math is JVM-unit-testable in isolation from
  * Compose.
@@ -554,6 +578,7 @@ internal fun speedSmoothingStep(
     when {
         sampleMs < MIN_MOVING_SPEED_MS -> 0f
         previous == null -> sampleMs
+        dtMillis <= 0L -> previous
         else -> previous + (1f - exp(-dtMillis / SPEED_SMOOTHING_TAU_MS)) * (sampleMs - previous)
     }
 

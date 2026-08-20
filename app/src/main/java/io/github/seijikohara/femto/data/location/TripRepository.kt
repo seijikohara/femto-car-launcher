@@ -298,8 +298,12 @@ internal class TripRepository(
         val speed = effectiveSpeed(previous, current, deltaSeconds) ?: return true
         lastLocation = current
         // Drop implausible speeds (teleport jumps, bad chip reports): re-anchor
-        // but do not publish, accrue, or record them.
-        if (speed > MAX_PLAUSIBLE_SPEED_MS) return false
+        // but do not publish, accrue, or record them. The test is two-sided
+        // because a chip can report a NEGATIVE speed, which used to be
+        // published verbatim — flipping TripState.stationary with it, and so
+        // the parked-only music marquee. `!in` also rejects NaN, which a
+        // one-sided `>` comparison silently admits (issue #351).
+        if (speed !in 0.0..MAX_PLAUSIBLE_SPEED_MS) return false
         currentSpeedMs = speed
         speedEstablished = true
         // Count every tracked interval toward the average's time base,
