@@ -33,6 +33,23 @@ export function linearEase(t: number): number {
     return t;
 }
 
+// WGS84 coordinate bounds. A push outside them (or a non-finite one) makes the
+// camera target garbage and throws the marker off the viewport until the next
+// fix lands. Kotlin filters such fixes before they reach the bridge — see
+// isUsableFix in LocationSanity.kt, which is the primary gate; this is defence
+// in depth on the one value the page cannot render its way out of.
+export const MAX_LATITUDE_DEG = 90;
+export const MAX_LONGITUDE_DEG = 180;
+
+export function isRealPosition(lat: number, lon: number): boolean {
+    return (
+        Number.isFinite(lat) &&
+        Number.isFinite(lon) &&
+        Math.abs(lat) <= MAX_LATITUDE_DEG &&
+        Math.abs(lon) <= MAX_LONGITUDE_DEG
+    );
+}
+
 // Bearings above this delta track immediately: a genuine turn must not lag
 // behind a low-pass filter. Below it, the EMA damps the few-degree GNSS
 // azimuth jitter that otherwise wobbles the whole heading-up map.

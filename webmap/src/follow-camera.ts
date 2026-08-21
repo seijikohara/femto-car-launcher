@@ -10,6 +10,7 @@ import {
     appliedBearing,
     easeDurationMs,
     isPaddingOnlyReflow,
+    isRealPosition,
     LAYOUT_REFLOW_MS,
     LOCATION_STALE_THRESHOLD_MS,
     linearEase,
@@ -276,6 +277,9 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
             leftSafe,
             markerColor,
         ): void {
+            // Drop a push the Kotlin gate should already have filtered rather
+            // than letting it become the camera target; the last good fix stays.
+            if (!isRealPosition(lat, lon)) return;
             // Captured before state.lastFix below is overwritten with this
             // push: compared against it to tell a genuine GPS fix (the center
             // moves) from a layout reflow (the center holds, only the

@@ -34,6 +34,25 @@ class SpeedOverlaySmoothingTest {
     }
 
     @Test
+    fun `a backwards dt holds the previous estimate instead of diverging`() {
+        // A replayed cached fix carries a boot-clock timestamp behind the
+        // basis. The exponential gain is only in (0, 1] for a forward clock;
+        // unguarded, a negative dt turns it into a large negative multiplier
+        // and the estimate diverges by eight orders of magnitude (issue #351:
+        // "spikes to an insane number ... then it retracks the normal speed").
+        assertEquals(20f, speedSmoothingStep(previous = 20f, sampleMs = 22f, dtMillis = -6_500L), 0f)
+    }
+
+    @Test
+    fun `a backwards dt never manufactures a non-finite estimate`() {
+        // exp() of a large positive exponent overflows to Infinity, and
+        // Infinity * 0 is NaN — which Float.roundToInt() throws on rather than
+        // saturating, crashing the composition that renders the hero numeral.
+        val estimate = speedSmoothingStep(previous = 20f, sampleMs = 20f, dtMillis = -60_000L)
+        assertTrue("estimate $estimate must stay finite", estimate.isFinite())
+    }
+
+    @Test
     fun `settles near a steady sample within one second of accumulated time`() {
         // 4 fixes x 250 ms = 1 s ≈ 3 time constants: ≥ 90% of the step covered.
         val settled =

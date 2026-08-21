@@ -7,6 +7,7 @@ import android.content.Context
 import android.location.Location
 import android.location.LocationManager
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.getSystemService
 import androidx.core.location.LocationListenerCompat
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.onStart
@@ -40,6 +42,10 @@ internal class LocationRepository(
     // Repository-scoped scope owns the single shared GPS subscription. The default keeps
     // production wiring trivial; tests inject their own scope to drive shareIn deterministically.
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    // Boot clock the recency baseline is judged against, injected for the same reason as the
+    // scope: Robolectric's SystemClock starts at zero, so tests would otherwise be unable to
+    // place a fix's stamp on either side of "now".
+    private val nowElapsedRealtimeNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
 ) {
     private val locationManager: LocationManager = checkNotNull(context.getSystemService())
 
@@ -58,9 +64,12 @@ internal class LocationRepository(
     // degraded precision, and a device without network location still gets GPS. Each provider
     // is guarded by its own runCatching so a SecurityException or a missing provider on one
     // never disturbs the other. A per-provider failure is dropped (no null emission) so a
-    // working provider is never blanked by the other's absence.
+    // working provider is never blanked by the other's absence — and neither is an empty
+    // cache: getLastKnownLocation returns null for a provider that has never fixed, and
+    // forwarding that null would blank the fix the other provider just seeded (the
+    // "never emits null once seeded" contract [LocationFreshness] states).
     @SuppressLint("MissingPermission") // Caller checks fine or coarse location before subscribing.
-    private fun rawLocationFlow(settings: LocationSettings): Flow<Location?> =
+    private fun rawLocationFlow(settings: LocationSettings): Flow<Location> =
         callbackFlow {
             // One listener shared across both registrations; each fix is forwarded verbatim.
             val listener = LocationListenerCompat { location -> trySend(location) }
@@ -68,7 +77,7 @@ internal class LocationRepository(
             listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).forEach { provider ->
                 runCatching {
                     locationManager.getLastKnownLocation(provider)
-                }.onSuccess { trySend(it) }
+                }.onSuccess { cached -> cached?.let { trySend(it) } }
                     .onFailure { logProviderFailure("getLastKnownLocation", provider, it) }
 
                 runCatching {
@@ -84,6 +93,32 @@ internal class LocationRepository(
 
             awaitClose { locationManager.removeUpdates(listener) }
         }.flowOn(Dispatchers.Main.immediate)
+
+    // Newest boot-clock timestamp forwarded to consumers. Repository-scoped rather than
+    // per-collection on purpose: the shared flow is torn down ~5 s after the last collector
+    // leaves and re-seeds getLastKnownLocation when it comes back, so a per-collection basis
+    // would wave that replayed cached fix straight through — the case issue #351 reports.
+    // Written and read only from the single upstream collector shareIn maintains; @Volatile
+    // covers the hand-off when a restart resumes on another thread.
+    @Volatile
+    private var lastAcceptedElapsedNanos: Long? = null
+
+    // Sanity gate for every consumer (speed numeral, map camera, geocoding, weather). It sits
+    // upstream of shareIn so the policy is applied once, not per collector. TripRepository
+    // keeps its own accrual filters; this only ever removes fixes those would have rejected
+    // too. See [isUsableFix] for the rules and for why accuracy is not one of them.
+    //
+    // Advancing the baseline is a narrower decision than forwarding the fix: it outlives every
+    // collector and only ratchets forward, so [canAnchorRecency] keeps a stamp the boot clock
+    // cannot vouch for from pinning it out of reach for the life of the process.
+    private fun Flow<Location>.dropUnusableFixes(): Flow<Location> =
+        filter { fix ->
+            val usable = isUsableFix(fix, lastAcceptedElapsedNanos)
+            if (usable && canAnchorRecency(fix, nowElapsedRealtimeNanos())) {
+                lastAcceptedElapsedNanos = fix.elapsedRealtimeNanos
+            }
+            usable
+        }
 
     // Single hot fan-out of the cold raw flow. On an always-on head unit the consumers
     // (ViewModel combine, ReverseGeocoder, Weather, Trip, SystemStatus) collect the same
@@ -105,12 +140,13 @@ internal class LocationRepository(
     // per-provider registration that a denied-at-start SecurityException killed is
     // retried. onStart(Unit) seeds the first registration; the pair is deliberately
     // not distinctUntilChanged'd so a same-settings refresh still re-registers.
-    private val shared: SharedFlow<Location?> =
+    private val shared: SharedFlow<Location> =
         combine(
             settings.distinctUntilChanged(),
             SystemPermissionSignals.refreshes.onStart { emit(Unit) },
         ) { locationSettings, _ -> locationSettings }
             .flatMapLatest { rawLocationFlow(it) }
+            .dropUnusableFixes()
             .shareIn(scope, WhileUiSubscribed, replay = 1)
 
     // The repository factory already builds one LocationRepository and passes the single flow

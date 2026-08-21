@@ -312,6 +312,52 @@ class TripRepositoryTest {
         }
 
     @Test
+    fun `rejects a negative reported speed`() =
+        runTest {
+            // The plausibility gate used to guard the high side only, so a
+            // negative chip report was published verbatim as currentSpeedMs —
+            // which also flips TripState.stationary and with it the
+            // parked-only music marquee (issue #351).
+            val flow =
+                flowOf(
+                    fakeLocation(latitude = ORIGIN_LAT, speedMps = 11f, elapsedRealtimeNanos = 0L),
+                    fakeLocation(latitude = ORIGIN_LAT + STEP, speedMps = -12f, elapsedRealtimeNanos = tenSeconds(1)),
+                )
+
+            TripRepository(flow, FakeTripStateStore()).stateFlow().test {
+                skipItems(2) // initial snapshot + first fix
+                // currentSpeedMs is the falsifiable assertion: distanceMeters stays
+                // zero either way, because -12.0 never clears MIN_MOVING_SPEED_MS.
+                assertEquals(0.0, awaitItem().currentSpeedMs, 0.0)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `rejects a NaN reported speed`() =
+        runTest {
+            // `speed > MAX_PLAUSIBLE_SPEED_MS` is false for NaN, so the old
+            // one-sided gate let it through; a NaN current speed reaches
+            // Float.roundToInt(), which throws rather than saturating.
+            val flow =
+                flowOf(
+                    fakeLocation(latitude = ORIGIN_LAT, speedMps = 11f, elapsedRealtimeNanos = 0L),
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + STEP,
+                        speedMps = Float.NaN,
+                        elapsedRealtimeNanos = tenSeconds(1),
+                    ),
+                )
+
+            TripRepository(flow, FakeTripStateStore()).stateFlow().test {
+                skipItems(2) // initial snapshot + first fix
+                val afterNaN = awaitItem()
+                assertEquals(0.0, afterNaN.currentSpeedMs, 0.0)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
     fun `rejects an impossible speed from a sub-second gap between position fixes`() =
         runTest {
             // Two speed-less fixes far apart in position but ~20 ms apart on the

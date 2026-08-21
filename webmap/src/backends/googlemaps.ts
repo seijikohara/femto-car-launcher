@@ -41,6 +41,7 @@ import { webglSupport } from "../bridge";
 import {
     AUTO_REFOLLOW_MS,
     appliedBearing,
+    isRealPosition,
     LOCATION_STALE_THRESHOLD_MS,
     smoothedBearing,
 } from "../camera";
@@ -611,6 +612,9 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         leftSafe,
         markerColor,
     ) => {
+        // Same gate as the shared follow camera: never make an unreal
+        // coordinate the camera target (see isRealPosition).
+        if (!isRealPosition(lat, lon)) return;
         const now = Date.now();
         const sinceLastFixMs = state.lastFixMs > 0 ? now - state.lastFixMs : 0;
         const signalGap = sinceLastFixMs > LOCATION_STALE_THRESHOLD_MS;

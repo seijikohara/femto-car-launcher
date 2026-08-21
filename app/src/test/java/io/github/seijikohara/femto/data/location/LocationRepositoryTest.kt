@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -30,6 +31,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 // rawLocationFlow registers its listener on getMainLooper, so it runs on
 // Dispatchers.Main.immediate. setUp redirects Main to an UnconfinedTestDispatcher;
@@ -66,10 +68,11 @@ class LocationRepositoryTest {
                     CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
                 )
 
-            // The first non-null fix arrives before any live update exists, proving
-            // the stale cache is forwarded on subscribe rather than the flow blocking
-            // until a live fix arrives. (A provider with no cache yields a null, which
-            // consumers treat as "no fix"; filterNotNull mirrors that contract.)
+            // The first fix arrives before any live update exists, proving the stale
+            // cache is forwarded on subscribe rather than the flow blocking until a
+            // live fix arrives. (A provider with no cache yields a null from
+            // getLastKnownLocation, which the repository swallows rather than
+            // forwarding; filterNotNull here only satisfies the nullable signature.)
             val emitted = repository.locationFlow().filterNotNull().first()
 
             assertEquals(seedFix.latitude, emitted.latitude, 0.0)
@@ -186,6 +189,83 @@ class LocationRepositoryTest {
             collectJob.cancel()
         }
 
+    @Test
+    fun `drops a fix whose boot clock sits behind the newest forwarded one`() =
+        runTest {
+            val settings = MutableStateFlow(LocationSettings.Default)
+            val repository = repositoryFor(settings)
+
+            val fixes = mutableListOf<android.location.Location>()
+            val collectJob =
+                launch(UnconfinedTestDispatcher(testScheduler)) {
+                    repository.locationFlow().filterNotNull().collect { fixes.add(it) }
+                }
+
+            simulateFix(fakeLocation(latitude = 20.0, elapsedRealtimeNanos = 10_000_000_000L))
+            advanceUntilIdle()
+            assertEquals(20.0, fixes.last().latitude, 0.0)
+
+            // The replayed cached fix a re-subscribe seeds: the NETWORK cache is
+            // routinely older than the GPS one. Forwarding it would teleport the map
+            // camera back and drive the speed smoother's dt negative, which diverges
+            // the hero numeral (issue #351).
+            reRegister(settings)
+            simulateFix(fakeLocation(latitude = 10.0, elapsedRealtimeNanos = 1_000_000_000L))
+            advanceUntilIdle()
+
+            assertTrue(fixes.none { it.latitude == 10.0 }, "the replayed older fix reached consumers")
+            assertEquals(20.0, fixes.last().latitude, 0.0)
+
+            collectJob.cancel()
+        }
+
+    @Test
+    fun `a fix stamped from the future never pins the recency baseline`() =
+        runTest {
+            // A mock-location app (routine on AI boxes) stamping epoch nanos where
+            // boot nanos belong. The baseline only ratchets forward and outlives
+            // every collector, so anchoring on it would starve the whole location
+            // stack — map, geocoding, weather, trip — until the process restarts.
+            val settings = MutableStateFlow(LocationSettings.Default)
+            val repository = repositoryFor(settings)
+
+            val fixes = mutableListOf<android.location.Location>()
+            val collectJob =
+                launch(UnconfinedTestDispatcher(testScheduler)) {
+                    repository.locationFlow().filterNotNull().collect { fixes.add(it) }
+                }
+
+            simulateFix(fakeLocation(latitude = 30.0, elapsedRealtimeNanos = EPOCH_STAMP_NANOS))
+            advanceUntilIdle()
+            // Forwarded: a broken clock says nothing about where the vehicle is.
+            assertEquals(30.0, fixes.last().latitude, 0.0)
+
+            reRegister(settings)
+            simulateFix(fakeLocation(latitude = 40.0, elapsedRealtimeNanos = 20_000_000_000L))
+            advanceUntilIdle()
+
+            assertEquals(40.0, fixes.last().latitude, 0.0, "a genuine fix was starved by the bogus stamp")
+
+            collectJob.cancel()
+        }
+
+    private fun TestScope.repositoryFor(settings: MutableStateFlow<LocationSettings>): LocationRepository =
+        LocationRepository(
+            application,
+            settings,
+            CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+            nowElapsedRealtimeNanos = { UPTIME_NANOS },
+        )
+
+    // ShadowLocationManager drops a fix whose elapsedRealtimeNanos regresses below the
+    // last one IT delivered, so an out-of-order fix cannot reach the repository through
+    // a live registration at all. A settings change tears the registration down and
+    // brings up a fresh one with no delivery history — which is also when production
+    // replays the cached seed, i.e. the case under test.
+    private fun reRegister(settings: MutableStateFlow<LocationSettings>) {
+        settings.value = settings.value.copy(intervalMillis = settings.value.intervalMillis + 1)
+    }
+
     // Dispatch a live fix to whatever listeners are currently registered for the
     // fix's provider (GPS here, matching the repository's GPS_PROVIDER registration).
     // The shadow posts the callback to the registration's main Looper, so idle it
@@ -208,5 +288,15 @@ class LocationRepositoryTest {
     ) {
         val locationManager = checkNotNull(application.getSystemService<LocationManager>())
         shadowOf(locationManager).setLastKnownLocation(provider, location)
+    }
+
+    private companion object {
+        // A plausible head-unit uptime: every test stamp below sits under it, so
+        // the recency baseline advances the way it does on a real boot clock.
+        const val UPTIME_NANOS = 60_000_000_000L
+
+        // Wall-clock epoch nanos, the value a mis-stamping provider supplies where
+        // boot nanos belong — five orders of magnitude past any real uptime.
+        const val EPOCH_STAMP_NANOS = 1_700_000_000_000_000_000L
     }
 }
