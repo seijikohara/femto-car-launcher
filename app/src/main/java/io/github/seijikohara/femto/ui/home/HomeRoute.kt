@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.DockWidth
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.ui.home.components.DockConfig
@@ -31,6 +32,7 @@ internal fun HomeRoute(
     onEvent: (HomeEvent) -> Unit,
     modifier: Modifier = Modifier,
     dockPosition: DockPosition = DockPosition.BOTTOM,
+    dockWidth: DockWidth = DockWidth.COMPACT,
     dockConfig: DockConfig = DockConfig(),
     driverSide: DriverSide = DriverSide.RIGHT,
     musicShowAlbum: Boolean = true,
@@ -57,6 +59,7 @@ internal fun HomeRoute(
         onAction = viewModel::onAction,
         modifier = modifier,
         dockPosition = dockPosition,
+        dockWidth = dockWidth,
         dockConfig = dockConfig,
         driverSide = driverSide,
         musicShowAlbum = musicShowAlbum,

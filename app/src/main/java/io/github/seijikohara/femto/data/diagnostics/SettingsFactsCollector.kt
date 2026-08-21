@@ -37,6 +37,7 @@ internal fun displaySettingsFacts(display: DisplaySettings): List<DiagnosticFact
         entry("Clock seconds", "${display.showClockSeconds}"),
         entry("Fullscreen", display.fullscreen.name),
         entry("Dock position", display.dockPosition.name),
+        entry("Dock width", display.dockWidth.name),
         entry("Driver side", display.driverSide.name),
         entry("Motion tier", display.motionTier.name),
         entry("Orientation", display.orientation.name),

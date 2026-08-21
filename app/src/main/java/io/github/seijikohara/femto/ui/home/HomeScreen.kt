@@ -6,6 +6,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.DockWidth
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
@@ -32,6 +33,7 @@ internal fun HomeScreen(
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
     dockPosition: DockPosition = DockPosition.BOTTOM,
+    dockWidth: DockWidth = DockWidth.COMPACT,
     dockConfig: DockConfig = DockConfig(),
     driverSide: DriverSide = DriverSide.RIGHT,
     musicShowAlbum: Boolean = true,
@@ -54,6 +56,7 @@ internal fun HomeScreen(
         onAction = onAction,
         modifier = Modifier.fillMaxSize(),
         dockPosition = dockPosition,
+        dockWidth = dockWidth,
         dockConfig = dockConfig,
         driverSide = driverSide,
         musicShowAlbum = musicShowAlbum,

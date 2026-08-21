@@ -5,6 +5,7 @@ import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.DockWidth
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.GoogleMapType
@@ -18,6 +19,7 @@ import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
 import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.data.dock.DockNavId
+import io.github.seijikohara.femto.data.dock.DockStatusId
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.data.fonts.FontSource
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
@@ -617,6 +619,38 @@ class SettingsViewModelTest {
 
             assertEquals(DockNavId.entries, dockStore.navOrder.first())
             assertEquals(emptySet(), dockStore.navHidden.first())
+        }
+
+    @Test
+    fun `SetDockWidth writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetDockWidth(DockWidth.EXTENDED))
+            advanceUntilIdle()
+            assertEquals(DockWidth.EXTENDED, store.settings.first().dockWidth)
+        }
+
+    @Test
+    fun `SetDockStatusVisible false hides every indicator in the dock store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetDockStatusVisible(false))
+            advanceUntilIdle()
+            assertEquals(DockStatusId.entries.toSet(), dockStore.statusHidden.first())
+        }
+
+    // The switch owns no boolean of its own: it reads the dock store's hidden
+    // set, so a per-indicator hide from the dock's long-press menu moves it too.
+    @Test
+    fun `dockStatusVisible is derived from the dock store's hidden set`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            // Subscribe so WhileUiSubscribed keeps the upstream combine alive across both phases.
+            backgroundScope.launch { vm.uiState.collect { } }
+            advanceUntilIdle()
+            assertEquals(true, vm.uiState.value.dockStatusVisible)
+
+            DockStatusId.entries.forEach { dockStore.toggleStatusHidden(it) }
+            advanceUntilIdle()
+            assertEquals(false, vm.uiState.value.dockStatusVisible)
         }
 
     private fun viewModel() =

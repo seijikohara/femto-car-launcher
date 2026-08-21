@@ -47,6 +47,8 @@ internal interface DisplaySettingsStore {
 
     suspend fun setDockPosition(value: DockPosition)
 
+    suspend fun setDockWidth(value: DockWidth)
+
     suspend fun setDriverSide(value: DriverSide)
 
     suspend fun setMotionTier(value: MotionTier)
@@ -171,6 +173,7 @@ internal class DisplayPreferences(
                     showClockSeconds = prefs[SHOW_CLOCK_SECONDS_KEY] ?: false,
                     fullscreen = prefs[FULLSCREEN_KEY].toEnumOr(FullscreenSetting.ON),
                     dockPosition = prefs[DOCK_POSITION_KEY].toEnumOr(DockPosition.BOTTOM),
+                    dockWidth = prefs[DOCK_WIDTH_KEY].toEnumOr(DockWidth.COMPACT),
                     driverSide = prefs[DRIVER_SIDE_KEY].toEnumOr(DriverSide.RIGHT),
                     motionTier = prefs[MOTION_TIER_KEY].toEnumOr(MotionTier.STANDARD),
                     orientation = prefs[ORIENTATION_KEY].toEnumOr(OrientationSetting.AUTO),
@@ -243,6 +246,10 @@ internal class DisplayPreferences(
 
     override suspend fun setDockPosition(value: DockPosition) {
         context.displayDataStore.editOrLog(TAG) { it[DOCK_POSITION_KEY] = value.name }
+    }
+
+    override suspend fun setDockWidth(value: DockWidth) {
+        context.displayDataStore.editOrLog(TAG) { it[DOCK_WIDTH_KEY] = value.name }
     }
 
     override suspend fun setDriverSide(value: DriverSide) {
@@ -438,6 +445,7 @@ internal class DisplayPreferences(
         val SHOW_CLOCK_SECONDS_KEY = booleanPreferencesKey("show_clock_seconds")
         val FULLSCREEN_KEY = stringPreferencesKey("fullscreen")
         val DOCK_POSITION_KEY = stringPreferencesKey("dock_position")
+        val DOCK_WIDTH_KEY = stringPreferencesKey("dock_width")
         val DRIVER_SIDE_KEY = stringPreferencesKey("driver_side")
         val MOTION_TIER_KEY = stringPreferencesKey("motion_tier")
         val ORIENTATION_KEY = stringPreferencesKey("orientation")
@@ -499,6 +507,7 @@ internal class DisplayPreferences(
                 SHOW_CLOCK_SECONDS_KEY,
                 FULLSCREEN_KEY,
                 DOCK_POSITION_KEY,
+                DOCK_WIDTH_KEY,
                 DRIVER_SIDE_KEY,
                 MOTION_TIER_KEY,
                 ORIENTATION_KEY,

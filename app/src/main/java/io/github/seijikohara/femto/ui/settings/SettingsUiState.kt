@@ -7,6 +7,7 @@ import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.DockWidth
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.GoogleMapType
@@ -37,6 +38,20 @@ internal data class SettingsUiState(
     val showClockSeconds: Boolean,
     val fullscreen: FullscreenSetting,
     val dockPosition: DockPosition,
+    val dockWidth: DockWidth,
+    // Whether the dock's status cluster shows any indicator. Derived from the dock
+    // store's hidden set rather than persisted here, so the Screen switch and the
+    // dock's own long-press Hide can never disagree; the write flips the whole set
+    // (DockSettingsStore.setStatusClusterVisible).
+    //
+    // The default sits on the field, not in [Initial] with the DisplaySettings
+    // ones, for the same reason [hasCalendarAccess]'s does: no DisplaySettings
+    // field backs it, and SettingsViewModel's store combine builds the whole
+    // state before the dock flows are folded in — a default in [Initial] alone
+    // would leave that intermediate needing a second literal. True matches the
+    // dock store's read path, which resolves an absent hidden set to "nothing
+    // hidden", so the row reads correctly before the first dock emission.
+    val dockStatusVisible: Boolean = true,
     val driverSide: DriverSide,
     val motionTier: MotionTier,
     val orientation: OrientationSetting,
@@ -106,6 +121,7 @@ internal data class SettingsUiState(
                 showClockSeconds = DisplaySettings.Default.showClockSeconds,
                 fullscreen = DisplaySettings.Default.fullscreen,
                 dockPosition = DisplaySettings.Default.dockPosition,
+                dockWidth = DisplaySettings.Default.dockWidth,
                 driverSide = DisplaySettings.Default.driverSide,
                 motionTier = DisplaySettings.Default.motionTier,
                 orientation = DisplaySettings.Default.orientation,
@@ -192,6 +208,19 @@ internal sealed interface SettingsAction {
 
     data class SetDockPosition(
         val value: DockPosition,
+    ) : SettingsAction
+
+    data class SetDockWidth(
+        val value: DockWidth,
+    ) : SettingsAction
+
+    /**
+     * Show every dock status indicator, or hide every one. Writes the dock's
+     * hidden set (not a DisplaySettings field): that set is the single home for
+     * which indicators show, shared with the dock's long-press Hide.
+     */
+    data class SetDockStatusVisible(
+        val value: Boolean,
     ) : SettingsAction
 
     data class SetDriverSide(

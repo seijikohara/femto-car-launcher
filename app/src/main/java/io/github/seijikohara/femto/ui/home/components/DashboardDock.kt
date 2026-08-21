@@ -65,6 +65,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.DockWidth
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.dock.DockNavId
 import io.github.seijikohara.femto.data.dock.DockStatusId
@@ -130,21 +131,52 @@ private fun compactDockExtent(visibleNavCount: Int): Dp =
 // never clips (see HorizontalDock).
 private val DockStatusSideReserve: Dp = 240.dp
 
+// Whether the dock renders the read-only status cluster along [extent] (the
+// horizontal bar's width, the vertical rail's height): it needs an indicator left
+// to show, and room to spare once the actionable nav has its own (see
+// compactDockExtent). The user can hide every indicator, which drops the cluster
+// and its divider at any extent — and, on the horizontal bar, releases the width
+// the fit test below reserves for it.
+private fun dockShowsStatus(
+    extent: Dp,
+    navCount: Int,
+    statusCount: Int,
+): Boolean = statusCount > 0 && extent >= compactDockExtent(navCount)
+
 // Whether the fixed-margin (pill) horizontal dock fits [availableWidth]: each nav
 // button is MinTouchTarget + two DockButtonMargins wide, plus DockStatusSideReserve
-// when the status cluster shows. Shared by HorizontalDock (to pick the pill vs the
-// weight-shared fallback) and DashboardScaffold (to decide whether the freed
-// bottom-left corner lets the map attribution sit flush there instead of clearing
-// the dock).
-internal fun horizontalDockPillFits(
+// when the status cluster shows.
+private fun horizontalDockPillFits(
     availableWidth: Dp,
     navCount: Int,
+    statusCount: Int,
 ): Boolean {
-    val showStatusCluster = availableWidth >= compactDockExtent(navCount)
     val pillButtonWidth = FemtoDimens.MinTouchTarget + FemtoDimens.DockButtonMargin * 2
-    val requiredPillWidth = pillButtonWidth * navCount + (if (showStatusCluster) DockStatusSideReserve else 0.dp)
-    return requiredPillWidth <= availableWidth
+    val statusReserve = if (dockShowsStatus(availableWidth, navCount, statusCount)) DockStatusSideReserve else 0.dp
+    return pillButtonWidth * navCount + statusReserve <= availableWidth
 }
+
+// Whether the horizontal bar draws as the centred pill: the user's [dockWidth]
+// choice first, then the fit test. Only [DockWidth.COMPACT] can reach the pill, and
+// even then only where it fits — the pill is a fixed footprint, so forcing it onto
+// a narrow bar clips the leading / trailing buttons below FemtoDimens.MinTouchTarget
+// (AGENTS.md#automotive-overrides), while [DockWidth.EXTENDED]'s weight-shared bar
+// shrinks toward that floor and never clips. So the preference can turn the pill
+// OFF anywhere, but never on where the geometry says no.
+//
+// Called from two places: HorizontalDock picks its layout from it, and
+// DashboardScaffold asks it again (through mapCreditClearsDock) to decide whether
+// the freed bottom-left corner lets the map attribution sit flush there instead of
+// clearing the dock. [availableWidth] is the BAR's width, never the viewport's —
+// the bar floats inset by dockFloatPadding, and the scaffold subtracts that before
+// calling. Feeding the two calls different widths is what drops the credit under a
+// full-width bar, so both must stay on this one signature.
+internal fun horizontalDockUsesPill(
+    dockWidth: DockWidth,
+    availableWidth: Dp,
+    navCount: Int,
+    statusCount: Int,
+): Boolean = dockWidth == DockWidth.COMPACT && horizontalDockPillFits(availableWidth, navCount, statusCount)
 
 // One dock nav button's icon / label / action. Shared by the horizontal bar and
 // the vertical rail so the set and order stay identical; [navSpecFor] is the
@@ -197,6 +229,7 @@ internal fun DashboardDock(
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
     position: DockPosition = DockPosition.BOTTOM,
+    dockWidth: DockWidth = DockWidth.COMPACT,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
     dockConfig: DockConfig = DockConfig(),
@@ -209,6 +242,7 @@ internal fun DashboardDock(
             hazeState = hazeState,
             glassConfig = glassConfig,
             modifier = modifier,
+            dockWidth = dockWidth,
             dockConfig = dockConfig,
             motionTier = motionTier,
         )
@@ -233,6 +267,7 @@ private fun HorizontalDock(
     onAction: (HomeAction) -> Unit,
     hazeState: HazeState,
     glassConfig: GlassConfig,
+    dockWidth: DockWidth,
     modifier: Modifier = Modifier,
     dockConfig: DockConfig = DockConfig(),
     motionTier: MotionTier = MotionTier.STANDARD,
@@ -242,17 +277,19 @@ private fun HorizontalDock(
     // pill is a fixed footprint: on a wide dock it fits and reads as a compact,
     // centred glass pill, but on the reference 853 dp head unit or a portrait
     // phone the nav buttons + status cluster overflow it and the glass clips the
-    // leading / trailing items. When the pill would overflow, fall back to the
-    // weight-shared layout that shrinks the nav toward FemtoDimens.MinTouchTarget
-    // so every button stays reachable and nothing clips
-    // (AGENTS.md#automotive-overrides, AGENTS.md#launcher-behavior). The same choice sizes
-    // the glass: the pill wraps its content (DashboardScaffold centres it), the
-    // fallback fills the width so the weight distribution has room.
+    // leading / trailing items. When the pill would overflow — or the user asked
+    // for DockWidth.EXTENDED — take the weight-shared layout that shrinks the nav
+    // toward FemtoDimens.MinTouchTarget so every button stays reachable and nothing
+    // clips (AGENTS.md#automotive-overrides, AGENTS.md#launcher-behavior); see
+    // horizontalDockUsesPill. The same choice sizes the glass: the pill wraps its
+    // content (DashboardScaffold centres it), the fallback fills the width so the
+    // weight distribution has room.
     BoxWithConstraints(modifier = modifier) {
         // Below the threshold the read-only status cluster yields so the actionable
-        // nav keeps room — see compactDockExtent. Applied in both layouts.
-        val showStatusCluster = maxWidth >= compactDockExtent(visibleNav.size)
-        val pillFits = horizontalDockPillFits(maxWidth, visibleNav.size)
+        // nav keeps room, and an emptied cluster drops at any width — see
+        // dockShowsStatus. Applied in both layouts.
+        val showStatusCluster = dockShowsStatus(maxWidth, visibleNav.size, dockConfig.visibleStatus.size)
+        val usesPill = horizontalDockUsesPill(dockWidth, maxWidth, visibleNav.size, dockConfig.visibleStatus.size)
         // Long-pressing any nav button flips the bar into edit mode (see
         // DockNavEditStrip). The strip wraps its content just like the pill, so
         // the bar keeps its footprint — same width class (pill wraps / fallback
@@ -269,7 +306,7 @@ private fun HorizontalDock(
             modifier =
                 Modifier
                     .height(FemtoDimens.DockThickness)
-                    .then(if (pillFits) Modifier else Modifier.fillMaxWidth())
+                    .then(if (usesPill) Modifier else Modifier.fillMaxWidth())
                     .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
             color = Color.Transparent,
             contentColor = MaterialTheme.colorScheme.onSurface,
@@ -286,7 +323,7 @@ private fun HorizontalDock(
                     onAction = onAction,
                     modifier = Modifier.fillMaxHeight().padding(horizontal = FemtoDimens.DockButtonMargin),
                 )
-            } else if (pillFits) {
+            } else if (usesPill) {
                 // Fixed-margin pill: each button reserves a DockButtonMargin on both
                 // sides, so adjacent buttons sit two margins apart and the first /
                 // last button sits one margin from the bar edge. The row wraps its
@@ -420,88 +457,85 @@ private fun VerticalDock(
     // strip (drag + ×), keeping the status cluster in place. Back exits.
     var editing by remember { mutableStateOf(false) }
     BackHandler(enabled = editing) { editing = false }
-    if (editing) {
-        DockNavEditStrip(
-            navOrder = dockConfig.navOrder,
-            navHidden = dockConfig.navHidden,
-            vertical = true,
-            systemStatus = systemStatus,
-            visibleStatus = dockConfig.visibleStatus,
-            showStatusCluster = dockConfig.visibleStatus.isNotEmpty(),
-            motionTier = motionTier,
-            onAction = onAction,
-            modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
-        )
-        // Floating Reset + Done toolbar beside the rail (a Popup, so the rail
-        // width is untouched). Back also exits.
-        val toolbarOffsetX = with(LocalDensity.current) { FemtoDimens.MinTouchTarget.roundToPx() }
-        Popup(
-            alignment = Alignment.CenterEnd,
-            offset = IntOffset(toolbarOffsetX, 0),
-            properties = PopupProperties(focusable = false),
-        ) {
-            DockEditToolbar(
-                onReset = { onAction(HomeAction.ResetDock) },
-                onDone = { editing = false },
+    // Both branches take the cluster gate from this one measured height, so edit
+    // mode cannot grow a cluster the rail drops at rest: below compactDockExtent
+    // the nav keeps the height either way (see dockShowsStatus). The rail's inner
+    // margin sits here rather than on each branch for the same reason — the height
+    // measured is the height the content gets.
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(vertical = 24.dp)) {
+        val showStatusCluster = dockShowsStatus(maxHeight, visibleNav.size, dockConfig.visibleStatus.size)
+        if (editing) {
+            DockNavEditStrip(
+                navOrder = dockConfig.navOrder,
+                navHidden = dockConfig.navHidden,
+                vertical = true,
+                systemStatus = systemStatus,
+                visibleStatus = dockConfig.visibleStatus,
+                showStatusCluster = showStatusCluster,
+                motionTier = motionTier,
+                onAction = onAction,
+                modifier = Modifier.fillMaxSize(),
             )
-        }
-    } else {
-        Row {
-            BoxWithConstraints(
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .padding(vertical = 24.dp),
+            // Floating Reset + Done toolbar beside the rail (a Popup, so the rail
+            // width is untouched). Back also exits.
+            val toolbarOffsetX = with(LocalDensity.current) { FemtoDimens.MinTouchTarget.roundToPx() }
+            Popup(
+                alignment = Alignment.CenterEnd,
+                offset = IntOffset(toolbarOffsetX, 0),
+                properties = PopupProperties(focusable = false),
             ) {
-                val showStatusCluster = maxHeight >= compactDockExtent(visibleNav.size)
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                DockEditToolbar(
+                    onReset = { onAction(HomeAction.ResetDock) },
+                    onDone = { editing = false },
+                )
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                // The slot competing with the status cluster for height; centred so
+                // the capped cluster below sits in the middle of its share instead
+                // of hugging the leading edge on a tall rail — mirrors the
+                // horizontal bar's weight-shared fallback, turned 90 degrees.
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    // The slot competing with the status cluster for height; centred so
-                    // the capped cluster below sits in the middle of its share instead
-                    // of hugging the leading edge on a tall rail — mirrors the
-                    // horizontal bar's weight-shared fallback, turned 90 degrees.
-                    Box(
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
+                    Column(
+                        // Fill the slot up to the cap — see the horizontal bar's
+                        // matching comment above for the rationale.
+                        modifier =
+                            Modifier
+                                .heightIn(max = FemtoDimens.DockNavClusterMaxWidth)
+                                .fillMaxHeight(),
+                        verticalArrangement = Arrangement.SpaceBetween,
+                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Column(
-                            // Fill the slot up to the cap — see the horizontal bar's
-                            // matching comment above for the rationale.
-                            modifier =
-                                Modifier
-                                    .heightIn(max = FemtoDimens.DockNavClusterMaxWidth)
-                                    .fillMaxHeight(),
-                            verticalArrangement = Arrangement.SpaceBetween,
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            // The same equal-weight sharing as the horizontal bar's fallback,
-                            // on the height instead of the width.
-                            visibleNav.forEach { id ->
-                                key(id) {
-                                    EditableNavButton(
-                                        id = id,
-                                        onAction = onAction,
-                                        onEnterEdit = { editing = true },
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                }
+                        // The same equal-weight sharing as the horizontal bar's fallback,
+                        // on the height instead of the width.
+                        visibleNav.forEach { id ->
+                            key(id) {
+                                EditableNavButton(
+                                    id = id,
+                                    onAction = onAction,
+                                    onEnterEdit = { editing = true },
+                                    modifier = Modifier.weight(1f),
+                                )
                             }
                         }
                     }
-                    if (showStatusCluster) {
-                        VerticalDockDivider()
-                        StatusCluster(
-                            status = systemStatus,
-                            vertical = true,
-                            order = dockConfig.visibleStatus,
-                            onAction = onAction,
-                            motionTier = motionTier,
-                            modifier = Modifier.padding(top = 20.dp),
-                        )
-                    }
+                }
+                if (showStatusCluster) {
+                    VerticalDockDivider()
+                    StatusCluster(
+                        status = systemStatus,
+                        vertical = true,
+                        order = dockConfig.visibleStatus,
+                        onAction = onAction,
+                        motionTier = motionTier,
+                        modifier = Modifier.padding(top = 20.dp),
+                    )
                 }
             }
         }

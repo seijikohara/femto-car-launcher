@@ -77,6 +77,7 @@ internal class SettingsViewModel(
                 showClockSeconds = display.showClockSeconds,
                 fullscreen = display.fullscreen,
                 dockPosition = display.dockPosition,
+                dockWidth = display.dockWidth,
                 driverSide = display.driverSide,
                 motionTier = display.motionTier,
                 orientation = display.orientation,
@@ -129,9 +130,21 @@ internal class SettingsViewModel(
             )
         }
 
+    // The Screen switch's checked state, read off the dock store instead of a
+    // boolean of its own: this is DockConfig.visibleStatus.isNotEmpty() expressed
+    // on the two flows it derives from, so a per-indicator Hide from the dock's
+    // long-press menu moves the switch too.
+    private val dockStatusVisible: Flow<Boolean> =
+        combine(dockPreferences.statusOrder, dockPreferences.statusHidden) { order, hidden ->
+            order.any { it !in hidden }
+        }
+
+    // Folded in here rather than into the store combine above, which already holds
+    // kotlinx's five-flow typed overload.
     val uiState: StateFlow<SettingsUiState> =
-        combine(storeState, trackExportState) { state, export -> state.copy(trackExport = export) }
-            .stateIn(viewModelScope, WhileUiSubscribed, SettingsUiState.Initial)
+        combine(storeState, trackExportState, dockStatusVisible) { state, export, statusVisible ->
+            state.copy(trackExport = export, dockStatusVisible = statusVisible)
+        }.stateIn(viewModelScope, WhileUiSubscribed, SettingsUiState.Initial)
 
     fun onAction(action: SettingsAction) {
         // Each branch is a single suspending write; launch once and dispatch.
@@ -167,6 +180,14 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetDockPosition -> {
                     displayPreferences.setDockPosition(action.value)
+                }
+
+                is SettingsAction.SetDockWidth -> {
+                    displayPreferences.setDockWidth(action.value)
+                }
+
+                is SettingsAction.SetDockStatusVisible -> {
+                    dockPreferences.setStatusClusterVisible(action.value)
                 }
 
                 is SettingsAction.SetDriverSide -> {
