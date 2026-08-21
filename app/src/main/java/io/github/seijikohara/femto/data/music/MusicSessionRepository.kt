@@ -381,10 +381,12 @@ internal class MusicSessionRepository(
                 }
                 // media3 only carries the shuffle / repeat extras, and this runs
                 // on platform callback dispatch as well as from rewatch. A throw
-                // here must cost the extras, not the session flow: an escaping
-                // exception would leave HomeViewModel's catchAsDefault to
-                // complete the music source for good (see its KDoc), freezing
-                // the card until the process restarts.
+                // here must cost the extras, not more: escaping from the
+                // subscription-time path degrades the whole music card for the
+                // rest of the subscription epoch (HomeViewModel's catchAsDefault
+                // completes the failed source until the next WhileUiSubscribed
+                // restart), and escaping from callback dispatch is an uncaught
+                // main-thread exception — a crash of the HOME app.
             }.onFailure { Log.w(TAG, "media3 retarget failed", it) }
         }
 
