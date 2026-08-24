@@ -206,6 +206,11 @@ in the skill directory; `create-avd.sh` recreates it).
 
 - Conventional Commits for commit messages and PR titles (the PR
   title becomes the squash subject).
+- A PR that resolves a user-filed issue posts a closing comment on
+  that issue: one or two sentences of cause, and the first nightly
+  that carries the fix. The rolling nightly is the only distribution
+  channel, so the issue thread is where a reporter learns their fix
+  shipped; a wordless keyword-close tells them nothing.
 - Merges are rebase + squash; history on `main` stays linear.
   Force-push is denied; update a stale branch via the GitHub
   update-branch API (`gh pr update-branch`).
