@@ -131,13 +131,30 @@ private fun compactDockExtent(visibleNavCount: Int): Dp =
 // never clips (see HorizontalDock).
 private val DockStatusSideReserve: Dp = 240.dp
 
+/**
+ * Width past which [DockWidth.EXTENDED]'s glass stops growing and centres.
+ *
+ * The bar's content stops growing first: the nav cluster caps at
+ * [FemtoDimens.DockNavClusterMaxWidth] and the status flank never needs more
+ * than [DockStatusSideReserve], so any glass beyond their sum plus the inner
+ * margins is empty — on an ultrawide panel the full-bleed bar read as a slab
+ * of dead glass around a huddled cluster. Derived from the content, not tuned
+ * to a device: re-derive by growing a constituent, never by editing a literal
+ * here. Every geometry whose bar is narrower than the cap (the 853 dp
+ * reference head unit included) renders exactly as before.
+ */
+internal fun extendedDockMaxWidth(showsStatus: Boolean): Dp =
+    FemtoDimens.DockNavClusterMaxWidth +
+        (if (showsStatus) DockStatusSideReserve else 0.dp) +
+        FemtoDimens.DockButtonMargin * 2
+
 // Whether the dock renders the read-only status cluster along [extent] (the
 // horizontal bar's width, the vertical rail's height): it needs an indicator left
 // to show, and room to spare once the actionable nav has its own (see
 // compactDockExtent). The user can hide every indicator, which drops the cluster
 // and its divider at any extent — and, on the horizontal bar, releases the width
 // the fit test below reserves for it.
-private fun dockShowsStatus(
+internal fun dockShowsStatus(
     extent: Dp,
     navCount: Int,
     statusCount: Int,
@@ -306,8 +323,16 @@ private fun HorizontalDock(
             modifier =
                 Modifier
                     .height(FemtoDimens.DockThickness)
-                    .then(if (usesPill) Modifier else Modifier.fillMaxWidth())
-                    .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
+                    .then(
+                        if (usesPill) {
+                            Modifier
+                        } else {
+                            // Fill the inset band up to the content-derived cap; the
+                            // scaffold's centre alignment centres a capped bar the same
+                            // way it centres the pill (see extendedDockMaxWidth).
+                            Modifier.widthIn(max = extendedDockMaxWidth(showStatusCluster)).fillMaxWidth()
+                        },
+                    ).glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
             color = Color.Transparent,
             contentColor = MaterialTheme.colorScheme.onSurface,
         ) {
