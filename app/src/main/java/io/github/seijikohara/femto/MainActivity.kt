@@ -236,6 +236,7 @@ class MainActivity : ComponentActivity() {
                     is24Hour = resolveIs24Hour(settings.clock),
                     showClockSeconds = settings.showClockSeconds,
                     dockPosition = settings.dockPosition,
+                    dockWidth = settings.dockWidth,
                     dockConfig = dock,
                     driverSide = settings.driverSide,
                     speedUnit = settings.speedUnit.resolved(),

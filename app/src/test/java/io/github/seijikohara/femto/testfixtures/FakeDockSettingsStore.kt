@@ -30,7 +30,19 @@ internal class FakeDockSettingsStore : DockSettingsStore {
     }
 
     override suspend fun toggleNavHidden(id: DockNavId) {
-        navHiddenState.update { if (id in it) it - id else it + id }
+        // Keeps DockPreferences' floor: hiding the last visible nav button is a
+        // no-op there, so a fake without it would let a view-model test hide the
+        // whole nav — the state production cannot reach. The status setters below
+        // deliberately have no such floor, which is the asymmetry under test.
+        navHiddenState.update {
+            if (id in it) {
+                it - id
+            } else if ((it + id).containsAll(DockNavId.entries)) {
+                it
+            } else {
+                it + id
+            }
+        }
     }
 
     override suspend fun moveNav(
@@ -46,6 +58,10 @@ internal class FakeDockSettingsStore : DockSettingsStore {
 
     override suspend fun toggleStatusHidden(id: DockStatusId) {
         statusHiddenState.update { if (id in it) it - id else it + id }
+    }
+
+    override suspend fun setStatusClusterVisible(visible: Boolean) {
+        statusHiddenState.value = if (visible) emptySet() else DockStatusId.entries.toSet()
     }
 
     override suspend fun moveStatus(

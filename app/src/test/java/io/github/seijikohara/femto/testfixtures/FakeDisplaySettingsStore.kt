@@ -8,6 +8,7 @@ import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DisplaySettingsStore
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.DockWidth
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.GoogleMapType
@@ -59,6 +60,8 @@ internal class FakeDisplaySettingsStore(
     override suspend fun setFullscreen(value: FullscreenSetting) = state.update { it.copy(fullscreen = value) }
 
     override suspend fun setDockPosition(value: DockPosition) = state.update { it.copy(dockPosition = value) }
+
+    override suspend fun setDockWidth(value: DockWidth) = state.update { it.copy(dockWidth = value) }
 
     override suspend fun setDriverSide(value: DriverSide) = state.update { it.copy(driverSide = value) }
 
@@ -200,6 +203,10 @@ internal class FakeDisplaySettingsStore(
 
             DisplayPreferences.DOCK_POSITION_KEY -> {
                 copy(dockPosition = default.dockPosition)
+            }
+
+            DisplayPreferences.DOCK_WIDTH_KEY -> {
+                copy(dockWidth = default.dockWidth)
             }
 
             DisplayPreferences.DRIVER_SIDE_KEY -> {

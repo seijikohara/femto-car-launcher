@@ -29,6 +29,7 @@ class SettingsFactsCompletenessTest {
             "showClockSeconds" to "Clock seconds",
             "fullscreen" to "Fullscreen",
             "dockPosition" to "Dock position",
+            "dockWidth" to "Dock width",
             "driverSide" to "Driver side",
             "motionTier" to "Motion tier",
             "orientation" to "Orientation",

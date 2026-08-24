@@ -61,7 +61,34 @@ internal enum class AssistantLaunchSetting { SYSTEM, IN_APP }
  * Which screen edge hosts the dashboard dock. [BOTTOM] and [TOP] render the
  * horizontal bar; [LEFT] and [RIGHT] render it as a vertical rail.
  */
-internal enum class DockPosition { BOTTOM, TOP, LEFT, RIGHT }
+internal enum class DockPosition {
+    BOTTOM,
+    TOP,
+    LEFT,
+    RIGHT,
+    ;
+
+    /**
+     * True on the two edges that draw the horizontal bar — the split
+     * `DashboardDock` dispatches on. Lets a caller gate bar-only behaviour
+     * (e.g. the Dock width setting, which a rail ignores) by asking the
+     * question instead of re-listing the constants.
+     */
+    val hostsHorizontalBar: Boolean get() = this == BOTTOM || this == TOP
+}
+
+/**
+ * How wide the horizontal dock draws itself. [COMPACT] is a centred pill that
+ * wraps its buttons; [EXTENDED] is a full-width bar whose buttons share the
+ * width. [COMPACT] is the default, so a fresh install keeps today's centred
+ * pill — and it means "pill where it fits", not "pill always": the pill is a
+ * fixed footprint, so a bar too narrow for it falls back to [EXTENDED] rather
+ * than clipping its leading / trailing buttons below the automotive tap floor
+ * (AGENTS.md#automotive-overrides). [EXTENDED] shrinks toward that floor instead
+ * and never clips, so it is safe at any width. Only [DockPosition.BOTTOM] /
+ * [DockPosition.TOP] render a horizontal bar; the rails ignore this.
+ */
+internal enum class DockWidth { COMPACT, EXTENDED }
 
 /**
  * Which side the driver sits on. The dashboard anchors its info-dense
@@ -156,6 +183,9 @@ internal data class DisplaySettings(
     val fullscreen: FullscreenSetting,
     // Which screen edge hosts the dashboard dock; BOTTOM is the classic dock.
     val dockPosition: DockPosition,
+    // Whether the horizontal dock draws as a centred pill or a full-width bar.
+    // COMPACT is the default; see DockWidth for why it is not a hard "pill always".
+    val dockWidth: DockWidth,
     // Which side the driver sits on; the dashboard anchors to it. RIGHT is
     // today's layout, unchanged for a fresh install.
     val driverSide: DriverSide,
@@ -264,6 +294,7 @@ internal data class DisplaySettings(
                 showClockSeconds = false,
                 fullscreen = FullscreenSetting.ON,
                 dockPosition = DockPosition.BOTTOM,
+                dockWidth = DockWidth.COMPACT,
                 driverSide = DriverSide.RIGHT,
                 motionTier = MotionTier.STANDARD,
                 orientation = OrientationSetting.AUTO,

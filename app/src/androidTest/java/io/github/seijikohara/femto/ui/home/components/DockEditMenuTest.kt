@@ -7,10 +7,10 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
 
-// DockEditMenu is shared by the horizontal dock's nav buttons and the vertical
-// rail's nav buttons / status indicators (DashboardDock, DockStatusCluster);
-// these tests pin its orientation-aware move labels directly, without needing
-// a long-press gesture to open it first.
+// DockEditMenu belongs to the status cluster alone (StatusCluster, its only
+// caller); nav buttons long-press into DockNavEditStrip instead. These tests pin
+// its orientation-aware move labels directly, without needing a long-press
+// gesture to open it first.
 class DockEditMenuTest {
     @get:Rule
     val rule = createComposeRule()
@@ -24,7 +24,6 @@ class DockEditMenuTest {
                     onDismiss = {},
                     canMoveLeft = true,
                     canMoveRight = true,
-                    canHide = true,
                     onMoveLeft = {},
                     onMoveRight = {},
                     onHide = {},
@@ -45,14 +44,14 @@ class DockEditMenuTest {
     fun horizontal_menu_keeps_move_left_and_move_right_labels() {
         rule.setContent {
             FemtoTheme {
-                // vertical defaults to false: the horizontal dock bar's existing
-                // behavior must stay byte-identical.
+                // vertical defaults to false — the status cluster as the horizontal
+                // bar hosts it, whose left/right labels predate the rail support
+                // and must stay unchanged.
                 DockEditMenu(
                     expanded = true,
                     onDismiss = {},
                     canMoveLeft = true,
                     canMoveRight = true,
-                    canHide = true,
                     onMoveLeft = {},
                     onMoveRight = {},
                     onHide = {},

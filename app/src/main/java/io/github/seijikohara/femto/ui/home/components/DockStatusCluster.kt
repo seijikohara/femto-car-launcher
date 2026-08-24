@@ -77,7 +77,6 @@ internal fun StatusCluster(
                     vertical = vertical,
                     canMoveLeft = index > 0,
                     canMoveRight = index < order.lastIndex,
-                    canHide = order.size > 1,
                     tier = motionTier,
                     onAction = onAction,
                 )
@@ -105,8 +104,8 @@ internal fun StatusCluster(
 
 /**
  * Wraps one status indicator's rendered content with the long-press dock-edit
- * menu ([DockEditMenu], shared with the dock's nav buttons — Move left/right,
- * or up/down when [vertical] / Hide / Reset dock). Status icons are read-only
+ * menu ([DockEditMenu] — Move left/right, or up/down when [vertical] / Hide /
+ * Reset dock). Status icons are read-only
  * at rest — a tap does nothing — so the long press is wired via a raw
  * [detectTapGestures] rather than `combinedClickable`: the latter would add a
  * "double-tap to activate" semantics action for a control with no click
@@ -130,7 +129,6 @@ private fun EditableStatusIndicator(
     vertical: Boolean,
     canMoveLeft: Boolean,
     canMoveRight: Boolean,
-    canHide: Boolean,
     tier: MotionTier,
     onAction: (HomeAction) -> Unit,
 ) {
@@ -154,7 +152,6 @@ private fun EditableStatusIndicator(
             onDismiss = { menuOpen = false },
             canMoveLeft = canMoveLeft,
             canMoveRight = canMoveRight,
-            canHide = canHide,
             onMoveLeft = { onAction(HomeAction.MoveDockStatus(id, -1)) },
             onMoveRight = { onAction(HomeAction.MoveDockStatus(id, 1)) },
             onHide = { onAction(HomeAction.HideDockStatus(id)) },

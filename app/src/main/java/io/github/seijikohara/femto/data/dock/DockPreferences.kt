@@ -126,8 +126,22 @@ internal interface DockSettingsStore {
     /** Replace the status-indicator order wholesale. */
     suspend fun setStatusOrder(value: List<DockStatusId>)
 
-    /** Hide [id] if currently shown, show it again if currently hidden. */
+    /**
+     * Hide [id] if currently shown, show it again if currently hidden. Unlike
+     * [toggleNavHidden] there is no keep-one floor: the status cluster is
+     * read-only, so an empty one strands no action, and Settings > Screen can
+     * bring the whole cluster back once no indicator is left to long-press.
+     */
     suspend fun toggleStatusHidden(id: DockStatusId)
+
+    /**
+     * Show every status indicator, or hide every one — the whole-cluster switch
+     * behind Settings > Screen. Showing clears the hidden set rather than
+     * restoring a previous per-indicator selection: that set is the single home
+     * for which indicators show, and remembering a pre-hide subset would need a
+     * second one that could disagree with it.
+     */
+    suspend fun setStatusClusterVisible(visible: Boolean)
 
     /** Swap [id] one step left/earlier (-1) or right/later (+1) within the visible status order. */
     suspend fun moveStatus(
@@ -202,11 +216,17 @@ internal class DockPreferences(
     override suspend fun toggleStatusHidden(id: DockStatusId) {
         context.dockDataStore.editOrLog(TAG) { prefs ->
             val current = resolveDockHidden<DockStatusId>(prefs[STATUS_HIDDEN_KEY])
-            val hiding = id !in current
-            // Keep at least one status indicator, for the same reason as toggleNavHidden.
-            if (hiding && (current + id).containsAll(DockStatusId.entries)) return@editOrLog
-            val updated = if (hiding) current + id else current - id
+            // No keep-one floor here, deliberately: toggleNavHidden's floor keeps the
+            // dock ACTIONABLE, and read-only indicators have nothing to keep reachable.
+            val updated = if (id in current) current - id else current + id
             prefs[STATUS_HIDDEN_KEY] = updated.mapTo(mutableSetOf()) { it.name }
+        }
+    }
+
+    override suspend fun setStatusClusterVisible(visible: Boolean) {
+        context.dockDataStore.editOrLog(TAG) { prefs ->
+            prefs[STATUS_HIDDEN_KEY] =
+                if (visible) mutableSetOf() else DockStatusId.entries.mapTo(mutableSetOf()) { it.name }
         }
     }
 

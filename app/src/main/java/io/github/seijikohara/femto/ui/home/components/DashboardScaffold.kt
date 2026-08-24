@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,11 +38,13 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.DockWidth
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.MusicCardState
@@ -68,6 +72,48 @@ internal data class PanelVisibility(
     // overlay is dropped entirely so the map shows uncovered.
     val anyInfoPanel: Boolean get() = calendar || weather || music
 }
+
+// The width a horizontal bar lays out in on a [viewportWidth] dashboard: the
+// viewport less the start and end margins dockFloatPadding insets the floating
+// bar by. Read off dockFloatPadding rather than restating the margin, so the two
+// move together. The layout direction only decides which of the two margins is
+// the start one; their sum — all this needs — is the same either way.
+private fun horizontalDockWidth(
+    viewportWidth: Dp,
+    dockMargin: Dp,
+): Dp {
+    // BOTTOM stands in for either horizontal position: dockFloatPadding gives
+    // BOTTOM and TOP the same start/end margins, and only their sum is read here.
+    val floatPadding = dockFloatPadding(DockPosition.BOTTOM, dockMargin)
+    return viewportWidth -
+        floatPadding.calculateStartPadding(LayoutDirection.Ltr) -
+        floatPadding.calculateEndPadding(LayoutDirection.Ltr)
+}
+
+// Whether the map's bottom-start attribution credit must be lifted clear of the
+// dock instead of sitting flush in the corner as OSM/OpenFreeMap intend. Only a
+// bottom-hosted dock reaches that corner, and only while the bar spans the width:
+// a centred pill leaves the corner free.
+//
+// [viewportWidth] is the dashboard viewport, NOT the bar's own width, so this
+// converts (horizontalDockWidth) before asking horizontalDockUsesPill. That
+// conversion is the whole point of taking [dockMargin]: HorizontalDock answers
+// the same question against the width it was actually given, and handing this
+// one the raw viewport instead put the two answers a float margin apart —
+// enough to disagree in real width bands and leave the credit under a
+// full-width bar. Per-backend map attribution is an invariant here, so this
+// stays a second evaluation of the SAME predicate on the SAME width; changing
+// either side's inputs means changing both.
+internal fun mapCreditClearsDock(
+    dockPosition: DockPosition,
+    dockWidth: DockWidth,
+    viewportWidth: Dp,
+    dockMargin: Dp,
+    navCount: Int,
+    statusCount: Int,
+): Boolean =
+    dockPosition == DockPosition.BOTTOM &&
+        !horizontalDockUsesPill(dockWidth, horizontalDockWidth(viewportWidth, dockMargin), navCount, statusCount)
 
 /**
  * Top-level dashboard layout: the map is the full-screen background and
@@ -117,6 +163,7 @@ internal fun DashboardScaffold(
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
     dockPosition: DockPosition = DockPosition.BOTTOM,
+    dockWidth: DockWidth = DockWidth.COMPACT,
     dockConfig: DockConfig = DockConfig(),
     driverSide: DriverSide = DriverSide.RIGHT,
     spectrum: StateFlow<FloatArray?>? = null,
@@ -138,6 +185,7 @@ internal fun DashboardScaffold(
     glassConfig = glassConfig,
     onAction = onAction,
     dockPosition = dockPosition,
+    dockWidth = dockWidth,
     dockConfig = dockConfig,
     driverSide = driverSide,
     modifier =
@@ -168,6 +216,7 @@ private fun DashboardContent(
     glassConfig: GlassConfig,
     onAction: (HomeAction) -> Unit,
     dockPosition: DockPosition,
+    dockWidth: DockWidth,
     driverSide: DriverSide,
     modifier: Modifier = Modifier,
     dockConfig: DockConfig = DockConfig(),
@@ -275,14 +324,16 @@ private fun DashboardContent(
     // margin + the thickness) so none sit under it.
     val dockExtent = FemtoDimens.DockThickness + outerPad
 
-    // The map's bottom-start attribution credit sits in the bottom-left screen
-    // corner. When the horizontal dock is a centred pill it frees that corner, so
-    // the credit sits flush there (inset 0) as OSM/OpenFreeMap intend; when the pill
-    // would overflow and the dock falls back to a full-width bar (the 853 dp head
-    // unit, portrait phones) the credit is lifted by the dock's footprint so it
-    // clears the bar. Left/right/top docks never cover that corner.
     val attributionBottomInset =
-        if (dockPosition == DockPosition.BOTTOM && !horizontalDockPillFits(maxWidth, dockConfig.visibleNav.size)) {
+        if (mapCreditClearsDock(
+                dockPosition = dockPosition,
+                dockWidth = dockWidth,
+                viewportWidth = maxWidth,
+                dockMargin = outerPad,
+                navCount = dockConfig.visibleNav.size,
+                statusCount = dockConfig.visibleStatus.size,
+            )
+        ) {
             dockExtent
         } else {
             0.dp
@@ -432,6 +483,7 @@ private fun DashboardContent(
         systemStatus = uiState.systemStatus,
         onAction = overlayAction,
         position = dockPosition,
+        dockWidth = dockWidth,
         hazeState = hazeState,
         glassConfig = glassConfig,
         dockConfig = dockConfig,

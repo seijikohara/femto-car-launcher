@@ -159,6 +159,47 @@ class DockPreferencesTest {
         }
 
     @Test
+    fun `toggleStatusHidden hides the last visible indicator`() =
+        runTest {
+            val store = DockPreferences(ApplicationProvider.getApplicationContext())
+            store.resetToDefaults()
+
+            DockStatusId.entries.forEach { store.toggleStatusHidden(it) }
+
+            // No keep-one floor here: the cluster is read-only, so an empty one
+            // strands no action. Contrast `toggleNavHidden refuses to hide the
+            // last visible id`, where the floor keeps the dock actionable.
+            assertEquals(DockStatusId.entries.toSet(), store.statusHidden.first())
+        }
+
+    @Test
+    fun `setStatusClusterVisible flips the whole hidden set at once`() =
+        runTest {
+            val store = DockPreferences(ApplicationProvider.getApplicationContext())
+            store.resetToDefaults()
+
+            store.setStatusClusterVisible(false)
+            assertEquals(DockStatusId.entries.toSet(), store.statusHidden.first())
+
+            store.setStatusClusterVisible(true)
+            assertEquals(emptySet(), store.statusHidden.first())
+        }
+
+    @Test
+    fun `setStatusClusterVisible true also restores indicators hidden one at a time`() =
+        runTest {
+            val store = DockPreferences(ApplicationProvider.getApplicationContext())
+            store.resetToDefaults()
+            store.toggleStatusHidden(DockStatusId.GPS)
+
+            store.setStatusClusterVisible(true)
+
+            // Showing clears the set wholesale rather than restoring the pre-hide
+            // selection: the hidden set is the only home for that fact.
+            assertEquals(emptySet(), store.statusHidden.first())
+        }
+
+    @Test
     fun `moveStatus swaps an id with its right-hand visible neighbor`() =
         runTest {
             val store = DockPreferences(ApplicationProvider.getApplicationContext())
