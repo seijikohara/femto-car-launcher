@@ -1,9 +1,10 @@
 package io.github.seijikohara.femto.data.music
 
 import android.graphics.Bitmap
-import android.media.MediaMetadata
 import android.media.session.PlaybackState
+import io.github.seijikohara.femto.testfixtures.fakeMediaMetadata
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
+import io.github.seijikohara.femto.testfixtures.fakePlaybackState
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.ParameterizedRobolectricTestRunner
@@ -13,46 +14,15 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
-// Robolectric provides real PlaybackState / MediaMetadata builders, so the
-// extracted pure logic is exercised with genuine platform values instead of
-// mocks (MediaController itself stays out of reach — see MusicSessionRepository).
-private fun playbackState(
-    state: Int,
-    positionMs: Long = 0L,
-    speed: Float = 1f,
-    updateTimeMs: Long = 0L,
-    actions: Long = 0L,
-): PlaybackState =
-    PlaybackState
-        .Builder()
-        .setState(state, positionMs, speed, updateTimeMs)
-        .setActions(actions)
-        .build()
-
-private fun metadata(
-    title: String? = null,
-    displayTitle: String? = null,
-    artist: String? = null,
-    album: String? = null,
-    durationMs: Long = 0L,
-    albumArt: Bitmap? = null,
-    art: Bitmap? = null,
-): MediaMetadata =
-    MediaMetadata
-        .Builder()
-        .apply {
-            title?.let { putString(MediaMetadata.METADATA_KEY_TITLE, it) }
-            displayTitle?.let { putString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE, it) }
-            artist?.let { putString(MediaMetadata.METADATA_KEY_ARTIST, it) }
-            album?.let { putString(MediaMetadata.METADATA_KEY_ALBUM, it) }
-            putLong(MediaMetadata.METADATA_KEY_DURATION, durationMs)
-            albumArt?.let { putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, it) }
-            art?.let { putBitmap(MediaMetadata.METADATA_KEY_ART, it) }
-        }.build()
-
-/** Plain value holder standing in for a MediaController in selection tests. */
+/**
+ * Plain value holder standing in for a MediaController in selection and
+ * watch-set tests. [name] doubles as the key the watch set is reconciled by —
+ * production keys it by `MediaController.getSessionToken` — so two instances
+ * sharing a name stand for two enumerations of one session.
+ */
 private data class FakeSession(
     val name: String,
     val playbackState: PlaybackState?,
@@ -62,6 +32,11 @@ private fun selectPrimary(sessions: List<FakeSession>): FakeSession? =
     selectPrimarySession(sessions) {
         it.playbackState
     }
+
+private fun reconcile(
+    watched: Map<String, FakeSession>,
+    sessions: List<FakeSession>,
+): WatchSetUpdate<String, FakeSession> = reconcileWatchSet(watched, sessions) { it.name }
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -78,8 +53,8 @@ class MusicSessionMappingTest {
         val sessions =
             listOf(
                 FakeSession("stateless", playbackState = null),
-                FakeSession("stopped", playbackState(PlaybackState.STATE_STOPPED)),
-                FakeSession("errored", playbackState(PlaybackState.STATE_ERROR)),
+                FakeSession("stopped", fakePlaybackState(PlaybackState.STATE_STOPPED)),
+                FakeSession("errored", fakePlaybackState(PlaybackState.STATE_ERROR)),
             )
 
         assertNull(selectPrimary(sessions))
@@ -89,8 +64,8 @@ class MusicSessionMappingTest {
     fun `selectPrimarySession skips inactive sessions and picks the first playing one`() {
         val sessions =
             listOf(
-                FakeSession("stopped", playbackState(PlaybackState.STATE_STOPPED)),
-                FakeSession("playing", playbackState(PlaybackState.STATE_PLAYING)),
+                FakeSession("stopped", fakePlaybackState(PlaybackState.STATE_STOPPED)),
+                FakeSession("playing", fakePlaybackState(PlaybackState.STATE_PLAYING)),
             )
 
         assertEquals("playing", selectPrimary(sessions)?.name)
@@ -98,7 +73,7 @@ class MusicSessionMappingTest {
 
     @Test
     fun `selectPrimarySession keeps a paused session selectable so it stays resumable`() {
-        val sessions = listOf(FakeSession("paused", playbackState(PlaybackState.STATE_PAUSED)))
+        val sessions = listOf(FakeSession("paused", fakePlaybackState(PlaybackState.STATE_PAUSED)))
 
         assertEquals("paused", selectPrimary(sessions)?.name)
     }
@@ -109,8 +84,8 @@ class MusicSessionMappingTest {
         // playing-or-paused entry wins even when a lower-priority one is playing.
         val sessions =
             listOf(
-                FakeSession("paused", playbackState(PlaybackState.STATE_PAUSED)),
-                FakeSession("playing", playbackState(PlaybackState.STATE_PLAYING)),
+                FakeSession("paused", fakePlaybackState(PlaybackState.STATE_PAUSED)),
+                FakeSession("playing", fakePlaybackState(PlaybackState.STATE_PLAYING)),
             )
 
         assertEquals("paused", selectPrimary(sessions)?.name)
@@ -119,6 +94,81 @@ class MusicSessionMappingTest {
     @Test
     fun `a missing playback state is never playing or paused`() {
         assertFalse((null as PlaybackState?).isPlayingOrPaused())
+    }
+
+    @Test
+    fun `a missing playback state is never playing`() {
+        assertFalse((null as PlaybackState?).isPlaying())
+    }
+
+    // -- reconcileWatchSet ---------------------------------------------------
+    //
+    // These exercise the reconciler on its own. WHICH sessions production hands
+    // it — every enumerated one rather than only the one the card shows, the
+    // issue-#358 fix — is a property of the call site in SessionWatch, and is
+    // pinned in MusicSessionRepositoryTest, which drives the repository through
+    // a real MediaSessionManager.
+
+    @Test
+    fun `reconcileWatchSet adds every session of a first enumeration`() {
+        val playing = FakeSession("playing", fakePlaybackState(PlaybackState.STATE_PLAYING))
+        val stopped = FakeSession("stopped", fakePlaybackState(PlaybackState.STATE_STOPPED))
+
+        val update = reconcile(watched = emptyMap(), sessions = listOf(playing, stopped))
+
+        assertEquals(listOf(playing, stopped), update.added)
+        assertEquals(emptyList(), update.removed)
+        assertEquals(mapOf("playing" to playing, "stopped" to stopped), update.watched)
+    }
+
+    @Test
+    fun `reconcileWatchSet keeps the watched instance when a token re-enumerates`() {
+        // getActiveSessions mints a fresh MediaController per token on every
+        // call, so a same-token re-enumeration must diff to nothing and keep
+        // the instance that already carries the registration.
+        val registered = FakeSession("music", fakePlaybackState(PlaybackState.STATE_STOPPED))
+        val reEnumerated = FakeSession("music", fakePlaybackState(PlaybackState.STATE_PLAYING))
+
+        val update = reconcile(watched = mapOf("music" to registered), sessions = listOf(reEnumerated))
+
+        assertEquals(emptyList(), update.added)
+        assertEquals(emptyList(), update.removed)
+        assertSame(registered, update.watched["music"])
+    }
+
+    @Test
+    fun `reconcileWatchSet removes a departed session`() {
+        val gone = FakeSession("gone", fakePlaybackState(PlaybackState.STATE_PLAYING))
+        val stays = FakeSession("stays", fakePlaybackState(PlaybackState.STATE_PAUSED))
+
+        val update = reconcile(watched = mapOf("gone" to gone, "stays" to stays), sessions = listOf(stays))
+
+        assertEquals(listOf(gone), update.removed)
+        assertEquals(emptyList(), update.added)
+        assertEquals(mapOf("stays" to stays), update.watched)
+    }
+
+    @Test
+    fun `reconcileWatchSet clears the watch set when the enumeration comes back empty`() {
+        val gone = FakeSession("gone", fakePlaybackState(PlaybackState.STATE_PLAYING))
+
+        val update = reconcile(watched = mapOf("gone" to gone), sessions = emptyList())
+
+        assertEquals(listOf(gone), update.removed)
+        assertEquals(emptyMap(), update.watched)
+    }
+
+    @Test
+    fun `reconcileWatchSet keeps the enumeration priority order`() {
+        // The watch set doubles as the emitted controller list, and
+        // selectPrimarySession takes the first playing-or-paused entry, so the
+        // priority order MediaSessionManager returned must survive a rewatch.
+        val first = FakeSession("first", fakePlaybackState(PlaybackState.STATE_PAUSED))
+        val second = FakeSession("second", fakePlaybackState(PlaybackState.STATE_PLAYING))
+
+        val update = reconcile(watched = mapOf("second" to second), sessions = listOf(first, second))
+
+        assertEquals(listOf("first", "second"), update.watched.values.map { it.name })
     }
 
     // -- musicCardStateOf ----------------------------------------------------
@@ -162,7 +212,7 @@ class MusicSessionMappingTest {
     fun `nowPlayingOf uses the metadata title when present`() {
         val result =
             nowPlayingOf(
-                metadata = metadata(title = "Strobe", displayTitle = "Display"),
+                metadata = fakeMediaMetadata(title = "Strobe", displayTitle = "Display"),
                 playbackState = null,
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
@@ -175,7 +225,7 @@ class MusicSessionMappingTest {
     fun `nowPlayingOf falls back to the display title when the title is blank`() {
         val result =
             nowPlayingOf(
-                metadata = metadata(title = " ", displayTitle = "Display"),
+                metadata = fakeMediaMetadata(title = " ", displayTitle = "Display"),
                 playbackState = null,
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
@@ -188,7 +238,7 @@ class MusicSessionMappingTest {
     fun `nowPlayingOf falls back to the source label when both titles are blank`() {
         val result =
             nowPlayingOf(
-                metadata = metadata(title = "", displayTitle = " "),
+                metadata = fakeMediaMetadata(title = "", displayTitle = " "),
                 playbackState = null,
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
@@ -202,7 +252,7 @@ class MusicSessionMappingTest {
         // sourceLabel touches PackageManager in production, so it must stay
         // unevaluated while a usable title exists.
         nowPlayingOf(
-            metadata = metadata(title = "Strobe"),
+            metadata = fakeMediaMetadata(title = "Strobe"),
             playbackState = null,
             packageName = PACKAGE,
             fallbackTitle = { error("fallback resolved despite a usable title") },
@@ -213,8 +263,8 @@ class MusicSessionMappingTest {
     fun `nowPlayingOf is playing only for STATE_PLAYING`() {
         fun isPlayingFor(state: Int): Boolean =
             nowPlayingOf(
-                metadata = metadata(title = "Strobe"),
-                playbackState = playbackState(state),
+                metadata = fakeMediaMetadata(title = "Strobe"),
+                playbackState = fakePlaybackState(state),
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
             ).isPlaying
@@ -228,9 +278,9 @@ class MusicSessionMappingTest {
     fun `nowPlayingOf copies position, speed, and update basis from the playback state`() {
         val result =
             nowPlayingOf(
-                metadata = metadata(title = "Strobe"),
+                metadata = fakeMediaMetadata(title = "Strobe"),
                 playbackState =
-                    playbackState(
+                    fakePlaybackState(
                         PlaybackState.STATE_PLAYING,
                         positionMs = 5_000L,
                         speed = 1.5f,
@@ -249,7 +299,7 @@ class MusicSessionMappingTest {
     fun `nowPlayingOf defaults transport fields when the playback state is null`() {
         val result =
             nowPlayingOf(
-                metadata = metadata(title = "Strobe"),
+                metadata = fakeMediaMetadata(title = "Strobe"),
                 playbackState = null,
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
@@ -266,7 +316,7 @@ class MusicSessionMappingTest {
         val result =
             nowPlayingOf(
                 metadata =
-                    metadata(
+                    fakeMediaMetadata(
                         title = "Strobe",
                         artist = "deadmau5",
                         album = "For Lack of a Better Name",
@@ -289,7 +339,7 @@ class MusicSessionMappingTest {
 
         assertNotNull(
             nowPlayingOf(
-                metadata = metadata(title = "Strobe", albumArt = art),
+                metadata = fakeMediaMetadata(title = "Strobe", albumArt = art),
                 playbackState = null,
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
@@ -297,7 +347,7 @@ class MusicSessionMappingTest {
         )
         assertNull(
             nowPlayingOf(
-                metadata = metadata(title = "Strobe"),
+                metadata = fakeMediaMetadata(title = "Strobe"),
                 playbackState = null,
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
@@ -309,9 +359,9 @@ class MusicSessionMappingTest {
     fun `nowPlayingOf derives seek and queue capabilities from the action bits`() {
         val result =
             nowPlayingOf(
-                metadata = metadata(title = "Strobe"),
+                metadata = fakeMediaMetadata(title = "Strobe"),
                 playbackState =
-                    playbackState(
+                    fakePlaybackState(
                         PlaybackState.STATE_PLAYING,
                         actions = PlaybackState.ACTION_SEEK_TO or PlaybackState.ACTION_SKIP_TO_QUEUE_ITEM,
                     ),
@@ -331,8 +381,11 @@ class MusicSessionMappingTest {
     fun `nowPlayingOf reports no capabilities without matching action bits`() {
         val result =
             nowPlayingOf(
-                metadata = metadata(title = "Strobe"),
-                playbackState = playbackState(PlaybackState.STATE_PLAYING, actions = PlaybackState.ACTION_PLAY_PAUSE),
+                metadata = fakeMediaMetadata(title = "Strobe"),
+                playbackState = fakePlaybackState(
+                    PlaybackState.STATE_PLAYING,
+                    actions = PlaybackState.ACTION_PLAY_PAUSE,
+                ),
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
             )
@@ -347,7 +400,7 @@ class MusicSessionMappingTest {
     fun `nowPlayingOf reports no capabilities when the playback state is null`() {
         val result =
             nowPlayingOf(
-                metadata = metadata(title = "Strobe"),
+                metadata = fakeMediaMetadata(title = "Strobe"),
                 playbackState = null,
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
@@ -366,7 +419,7 @@ class MusicSessionMappingTest {
 
         val result =
             nowPlayingOf(
-                metadata = metadata(title = "Strobe", albumArt = thumb, art = full),
+                metadata = fakeMediaMetadata(title = "Strobe", albumArt = thumb, art = full),
                 playbackState = null,
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
@@ -381,7 +434,7 @@ class MusicSessionMappingTest {
 
         val result =
             nowPlayingOf(
-                metadata = metadata(title = "Strobe"),
+                metadata = fakeMediaMetadata(title = "Strobe"),
                 playbackState = null,
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
@@ -406,38 +459,46 @@ class MusicSessionMappingTest {
 }
 
 /**
- * State table for [isPlayingOrPaused]: every state that keeps the card on
- * screen (the platform `isActive` set plus STATE_PAUSED) versus the ones that
- * release it.
+ * State table for the two predicates the card reasons in. [isPlayingOrPaused]
+ * decides whether a session keeps the card (the platform `isActive` set plus
+ * STATE_PAUSED); [isPlaying] decides whether playback is running right now,
+ * which drives the Play / Pause affordance and, in SessionWatch, whether a push
+ * is worth re-reading the session priority order for.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @Config(sdk = [33])
-class IsPlayingOrPausedStateTest(
+class PlaybackStatePredicateTest(
     private val state: Int,
-    private val expected: Boolean,
+    private val keepsCard: Boolean,
+    private val playing: Boolean,
 ) {
     @Test
     fun `keeps the card on screen exactly for playing-or-paused states`() {
-        assertEquals(expected, playbackState(state).isPlayingOrPaused())
+        assertEquals(keepsCard, fakePlaybackState(state).isPlayingOrPaused())
+    }
+
+    @Test
+    fun `reports playback running only for STATE_PLAYING`() {
+        assertEquals(playing, fakePlaybackState(state).isPlaying())
     }
 
     companion object {
         @JvmStatic
-        @ParameterizedRobolectricTestRunner.Parameters(name = "state={0} -> {1}")
+        @ParameterizedRobolectricTestRunner.Parameters(name = "state={0} -> card={1} playing={2}")
         fun params(): List<Array<Any>> =
             listOf(
-                arrayOf(PlaybackState.STATE_PLAYING, true),
-                arrayOf(PlaybackState.STATE_PAUSED, true),
-                arrayOf(PlaybackState.STATE_BUFFERING, true),
-                arrayOf(PlaybackState.STATE_CONNECTING, true),
-                arrayOf(PlaybackState.STATE_FAST_FORWARDING, true),
-                arrayOf(PlaybackState.STATE_REWINDING, true),
-                arrayOf(PlaybackState.STATE_SKIPPING_TO_PREVIOUS, true),
-                arrayOf(PlaybackState.STATE_SKIPPING_TO_NEXT, true),
-                arrayOf(PlaybackState.STATE_SKIPPING_TO_QUEUE_ITEM, true),
-                arrayOf(PlaybackState.STATE_NONE, false),
-                arrayOf(PlaybackState.STATE_STOPPED, false),
-                arrayOf(PlaybackState.STATE_ERROR, false),
+                arrayOf(PlaybackState.STATE_PLAYING, true, true),
+                arrayOf(PlaybackState.STATE_PAUSED, true, false),
+                arrayOf(PlaybackState.STATE_BUFFERING, true, false),
+                arrayOf(PlaybackState.STATE_CONNECTING, true, false),
+                arrayOf(PlaybackState.STATE_FAST_FORWARDING, true, false),
+                arrayOf(PlaybackState.STATE_REWINDING, true, false),
+                arrayOf(PlaybackState.STATE_SKIPPING_TO_PREVIOUS, true, false),
+                arrayOf(PlaybackState.STATE_SKIPPING_TO_NEXT, true, false),
+                arrayOf(PlaybackState.STATE_SKIPPING_TO_QUEUE_ITEM, true, false),
+                arrayOf(PlaybackState.STATE_NONE, false, false),
+                arrayOf(PlaybackState.STATE_STOPPED, false, false),
+                arrayOf(PlaybackState.STATE_ERROR, false, false),
             )
     }
 }

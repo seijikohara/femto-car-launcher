@@ -252,9 +252,11 @@ internal class HomeViewModel(
 // Replace a source failure with that source's neutral value so one broken
 // repository degrades its own card instead of killing the launcher process.
 // Cancellation is rethrown to keep structured concurrency intact. By design the
-// failed source then COMPLETES: its card stays at the neutral value until the
-// process restarts. No automatic retry — a broken system service would turn a
-// retry loop into a battery drain on the head unit.
+// failed source then COMPLETES for the rest of the current subscription epoch:
+// its card stays at the neutral value until WhileUiSubscribed tears the chain
+// down and a later subscriber re-collects the cold sources from scratch. No
+// automatic retry within an epoch — a broken system service would turn a retry
+// loop into a battery drain on the head unit.
 private fun <T> Flow<T>.catchAsDefault(
     source: String,
     default: T,
