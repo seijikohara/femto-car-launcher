@@ -92,7 +92,7 @@ class MapCreditClearsDockTest {
             mapCreditClearsDock(
                 dockPosition = DockPosition.BOTTOM,
                 dockWidth = DockWidth.EXTENDED,
-                viewportWidth = 1280.dp,
+                viewportWidth = 1000.dp,
                 dockMargin = FemtoDimens.ScreenPadding,
                 navCount = navCount,
                 statusCount = statusCount,
@@ -108,6 +108,22 @@ class MapCreditClearsDockTest {
                 dockPosition = DockPosition.TOP,
                 dockWidth = DockWidth.EXTENDED,
                 viewportWidth = 1280.dp,
+                dockMargin = FemtoDimens.ScreenPadding,
+                navCount = navCount,
+                statusCount = statusCount,
+            ),
+        )
+
+    // Past the content cap the extended bar stops growing and centres, so the
+    // bottom-start corner is map again and the credit belongs flush in it.
+    // Before the cap existed this width kept the credit lifted over dead glass.
+    @Test
+    fun `a capped extended bar on an ultrawide leaves the corner to the credit`() =
+        assertFalse(
+            mapCreditClearsDock(
+                dockPosition = DockPosition.BOTTOM,
+                dockWidth = DockWidth.EXTENDED,
+                viewportWidth = 1920.dp,
                 dockMargin = FemtoDimens.ScreenPadding,
                 navCount = navCount,
                 statusCount = statusCount,

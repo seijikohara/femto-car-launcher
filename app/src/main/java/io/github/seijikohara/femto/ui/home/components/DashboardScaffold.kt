@@ -111,9 +111,15 @@ internal fun mapCreditClearsDock(
     dockMargin: Dp,
     navCount: Int,
     statusCount: Int,
-): Boolean =
-    dockPosition == DockPosition.BOTTOM &&
-        !horizontalDockUsesPill(dockWidth, horizontalDockWidth(viewportWidth, dockMargin), navCount, statusCount)
+): Boolean {
+    if (dockPosition != DockPosition.BOTTOM) return false
+    val barWidth = horizontalDockWidth(viewportWidth, dockMargin)
+    if (horizontalDockUsesPill(dockWidth, barWidth, navCount, statusCount)) return false
+    // A bar wider than the content cap is clamped and centred (see
+    // extendedDockMaxWidth), so it no longer reaches the bottom-start corner and
+    // the credit belongs flush in it again.
+    return barWidth <= extendedDockMaxWidth(dockShowsStatus(barWidth, navCount, statusCount))
+}
 
 /**
  * Top-level dashboard layout: the map is the full-screen background and
