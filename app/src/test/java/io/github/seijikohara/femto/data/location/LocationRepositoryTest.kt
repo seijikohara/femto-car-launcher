@@ -190,6 +190,63 @@ class LocationRepositoryTest {
         }
 
     @Test
+    fun `emits a null no-fix signal when no provider has a cache`() =
+        runTest {
+            // Cold start on a device that has never fixed: both getLastKnownLocation
+            // calls return null. The flow must still emit SOMETHING — HomeViewModel
+            // combines nine sources and emits only once every one of them has spoken,
+            // so a silent location source starves the whole dashboard into its
+            // Initial state (no cards, music stuck on the connect CTA, map
+            // unavailable) until the first live fix arrives. Reproduced on the
+            // TBox-Mock-Play AVD against 6cc0bf71.
+            val repository =
+                LocationRepository(
+                    application,
+                    flowOf(LocationSettings.Default),
+                    CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+                )
+
+            val emissions = mutableListOf<android.location.Location?>()
+            val collectJob =
+                launch(UnconfinedTestDispatcher(testScheduler)) {
+                    repository.locationFlow().collect { emissions.add(it) }
+                }
+            advanceUntilIdle()
+
+            assertEquals(listOf<android.location.Location?>(null), emissions)
+
+            collectJob.cancel()
+        }
+
+    @Test
+    fun `does not emit the no-fix signal when a provider cache seeded a fix`() =
+        runTest {
+            // The null is a cold-start signal only: once anything seeded, a null
+            // would blank the fix the other provider just delivered — the
+            // "never emits null once seeded" contract LocationFreshness states.
+            seedLastKnown(LocationManager.GPS_PROVIDER, fakeLocation(latitude = 10.0))
+
+            val repository =
+                LocationRepository(
+                    application,
+                    flowOf(LocationSettings.Default),
+                    CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+                )
+
+            val emissions = mutableListOf<android.location.Location?>()
+            val collectJob =
+                launch(UnconfinedTestDispatcher(testScheduler)) {
+                    repository.locationFlow().collect { emissions.add(it) }
+                }
+            advanceUntilIdle()
+
+            assertEquals(1, emissions.size)
+            assertEquals(10.0, emissions.single()?.latitude)
+
+            collectJob.cancel()
+        }
+
+    @Test
     fun `drops a fix whose boot clock sits behind the newest forwarded one`() =
         runTest {
             val settings = MutableStateFlow(LocationSettings.Default)

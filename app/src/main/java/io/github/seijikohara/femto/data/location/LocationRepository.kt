@@ -64,21 +64,31 @@ internal class LocationRepository(
     // degraded precision, and a device without network location still gets GPS. Each provider
     // is guarded by its own runCatching so a SecurityException or a missing provider on one
     // never disturbs the other. A per-provider failure is dropped (no null emission) so a
-    // working provider is never blanked by the other's absence — and neither is an empty
-    // cache: getLastKnownLocation returns null for a provider that has never fixed, and
-    // forwarding that null would blank the fix the other provider just seeded (the
-    // "never emits null once seeded" contract [LocationFreshness] states).
+    // working provider is never blanked by the other's absence — and so is an empty cache
+    // once ANYTHING seeded: getLastKnownLocation returns null for a provider that has never
+    // fixed, and forwarding that null would blank the fix the other provider just delivered
+    // (the "never emits null once seeded" contract [LocationFreshness] states). When NOTHING
+    // seeded, though, one null is emitted deliberately: it is the cold-start "no fix yet"
+    // signal. HomeViewModel combines nine sources and emits only once every one has spoken,
+    // so a location source that stays silent until the first live fix starves the whole
+    // dashboard into its Initial state — no cards, music stuck on the connect CTA, map
+    // unavailable (reproduced on-device against 6cc0bf71).
     @SuppressLint("MissingPermission") // Caller checks fine or coarse location before subscribing.
-    private fun rawLocationFlow(settings: LocationSettings): Flow<Location> =
+    private fun rawLocationFlow(settings: LocationSettings): Flow<Location?> =
         callbackFlow {
             // One listener shared across both registrations; each fix is forwarded verbatim.
             val listener = LocationListenerCompat { location -> trySend(location) }
+            var seeded = false
 
             listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).forEach { provider ->
                 runCatching {
                     locationManager.getLastKnownLocation(provider)
-                }.onSuccess { cached -> cached?.let { trySend(it) } }
-                    .onFailure { logProviderFailure("getLastKnownLocation", provider, it) }
+                }.onSuccess { cached ->
+                    cached?.let {
+                        seeded = true
+                        trySend(it)
+                    }
+                }.onFailure { logProviderFailure("getLastKnownLocation", provider, it) }
 
                 runCatching {
                     LocationManagerCompat.requestLocationUpdates(
@@ -90,6 +100,8 @@ internal class LocationRepository(
                     )
                 }.onFailure { logProviderFailure("register", provider, it) }
             }
+
+            if (!seeded) trySend(null)
 
             awaitClose { locationManager.removeUpdates(listener) }
         }.flowOn(Dispatchers.Main.immediate)
@@ -111,8 +123,11 @@ internal class LocationRepository(
     // Advancing the baseline is a narrower decision than forwarding the fix: it outlives every
     // collector and only ratchets forward, so [canAnchorRecency] keeps a stamp the boot clock
     // cannot vouch for from pinning it out of reach for the life of the process.
-    private fun Flow<Location>.dropUnusableFixes(): Flow<Location> =
+    private fun Flow<Location?>.dropUnusableFixes(): Flow<Location?> =
         filter { fix ->
+            // The null no-fix signal is not a fix; it passes untested and never
+            // touches the recency baseline.
+            if (fix == null) return@filter true
             val usable = isUsableFix(fix, lastAcceptedElapsedNanos)
             if (usable && canAnchorRecency(fix, nowElapsedRealtimeNanos())) {
                 lastAcceptedElapsedNanos = fix.elapsedRealtimeNanos
@@ -140,7 +155,7 @@ internal class LocationRepository(
     // per-provider registration that a denied-at-start SecurityException killed is
     // retried. onStart(Unit) seeds the first registration; the pair is deliberately
     // not distinctUntilChanged'd so a same-settings refresh still re-registers.
-    private val shared: SharedFlow<Location> =
+    private val shared: SharedFlow<Location?> =
         combine(
             settings.distinctUntilChanged(),
             SystemPermissionSignals.refreshes.onStart { emit(Unit) },
