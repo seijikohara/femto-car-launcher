@@ -168,6 +168,12 @@ jobs:
           # ("release not found") yet still blocks the tag_name on create —
           # a deadlock no rerun can clear. Listing sees every release, so this
           # shape cannot wedge; an empty list (first-ever run) simply skips.
+          # Remember what the outgoing nightly pointed at, for the changelog
+          # below. target_commitish can be a branch name on old releases; only
+          # a 40-hex value is usable as a range endpoint.
+          PREVIOUS_NIGHTLY_SHA=$(gh api "repos/$GITHUB_REPOSITORY/releases" \
+            --jq '[.[] | select(.tag_name == "nightly")][0].target_commitish // empty' | grep -E '^[0-9a-f]{40}$' || true)
+          echo "PREVIOUS_NIGHTLY_SHA=$PREVIOUS_NIGHTLY_SHA" >> "$GITHUB_ENV"
           gh api "repos/$GITHUB_REPOSITORY/releases" \
             --jq '.[] | select(.tag_name == "nightly") | .id' |
             while read -r release_id; do
@@ -178,11 +184,27 @@ jobs:
           # exists, so a stale ref would silently pin the new release to the
           # OLD commit. A 404 here just means no tag yet.
           gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/nightly" || true
+          # The release notes carry the commit subjects since the previously
+          # published nightly: the rolling release is the only distribution
+          # channel, so its notes are the only place a reporter can see that
+          # the fix for their issue has shipped. previous_sha comes from the
+          # release listing above (empty on the first-ever run, where the
+          # changelog degrades to just the current subject).
+          {
+            echo "Automated nightly build from ${GITHUB_SHA:0:7} (run #${{ github.run_number }}) on $(date -u +%Y-%m-%d)."
+            echo
+            echo "Changes since the previous nightly:"
+            if [ -n "$PREVIOUS_NIGHTLY_SHA" ] && git cat-file -e "$PREVIOUS_NIGHTLY_SHA" 2>/dev/null; then
+              git log --format='- %s' "$PREVIOUS_NIGHTLY_SHA..$GITHUB_SHA"
+            else
+              git log -1 --format='- %s' "$GITHUB_SHA"
+            fi
+          } > "$RUNNER_TEMP/nightly-notes.md"
           gh release create nightly \
             "$RUNNER_TEMP/femto-car-launcher-nightly.apk" \
             "$RUNNER_TEMP/femto-car-launcher-nightly.aab" \
             --target "$GITHUB_SHA" \
             --title "Nightly ${{ github.run_number }}" \
-            --notes "Automated nightly build from ${GITHUB_SHA:0:7} (run #${{ github.run_number }}) on $(date -u +%Y-%m-%d)." \
+            --notes-file "$RUNNER_TEMP/nightly-notes.md" \
             --prerelease \
             --latest=false
