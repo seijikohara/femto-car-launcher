@@ -354,8 +354,10 @@ class DashboardDockTest {
 
     @Test
     fun the_sole_visible_nav_button_menu_omits_hide() {
-        // canHide is visibleNav.size > 1, so once everything but one button is
-        // hidden the survivor cannot be hidden too — the dock can never render empty.
+        // The nav floor holds: once everything but one button is hidden the
+        // survivor's menu omits Hide, so the dock can never lose its last
+        // actionable button. Status indicators carry no such floor — they are
+        // read-only, so an empty cluster is a layout the design already produces.
         setDock(dockConfig = DockConfig(navHidden = DockNavId.entries.toSet() - DockNavId.APPS))
         rule.onNodeWithContentDescription("Apps").performTouchInput { longClick() }
         rule.onNodeWithText("Hide").assertDoesNotExist()

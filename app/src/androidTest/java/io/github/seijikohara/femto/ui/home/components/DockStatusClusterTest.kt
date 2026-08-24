@@ -41,7 +41,7 @@ class DockStatusClusterTest {
             .onNodeWithContentDescription("Wi-Fi connected")
             .assert(SemanticsMatcher.keyIsDefined(SemanticsActions.OnLongClick))
             .performSemanticsAction(SemanticsActions.OnLongClick)
-        // Reset dock has no canMoveLeft/canMoveRight/canHide guard, so it always
+        // Reset dock has no canMoveLeft/canMoveRight guard, so it always
         // renders once expanded — proof the menu actually opened.
         rule.onNodeWithText("Reset dock").assertIsDisplayed()
     }

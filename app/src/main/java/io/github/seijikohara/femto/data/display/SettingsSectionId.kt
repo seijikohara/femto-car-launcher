@@ -47,6 +47,7 @@ internal enum class SettingsSectionId(
             DisplayPreferences.FULLSCREEN_KEY,
             DisplayPreferences.KEEP_SCREEN_ON_KEY,
             DisplayPreferences.DOCK_POSITION_KEY,
+            DisplayPreferences.DOCK_WIDTH_KEY,
             DisplayPreferences.DRIVER_SIDE_KEY,
             DisplayPreferences.ASSISTANT_LAUNCH_KEY,
             DisplayPreferences.MOTION_TIER_KEY,

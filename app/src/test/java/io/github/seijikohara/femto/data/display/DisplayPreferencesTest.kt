@@ -220,6 +220,7 @@ class DisplayPreferencesTest {
                     fullscreen = DisplaySettings.Default.fullscreen,
                     keepScreenOn = DisplaySettings.Default.keepScreenOn,
                     dockPosition = DisplaySettings.Default.dockPosition,
+                    dockWidth = DisplaySettings.Default.dockWidth,
                     driverSide = DisplaySettings.Default.driverSide,
                     assistantLaunch = DisplaySettings.Default.assistantLaunch,
                     motionTier = DisplaySettings.Default.motionTier,
@@ -335,6 +336,7 @@ class DisplayPreferencesTest {
         setShowClockSeconds(true)
         setFullscreen(FullscreenSetting.OFF)
         setDockPosition(DockPosition.LEFT)
+        setDockWidth(DockWidth.EXTENDED)
         setDriverSide(DriverSide.LEFT)
         setMotionTier(MotionTier.OFF)
         setOrientation(OrientationSetting.PORTRAIT)

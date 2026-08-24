@@ -258,6 +258,11 @@
     <string name="settings_dock_top">Top</string>
     <string name="settings_dock_left">Left</string>
     <string name="settings_dock_right">Right</string>
+    <string name="settings_group_dock_width">Dock width</string>
+    <string name="settings_dock_width_compact">Compact</string>
+    <string name="settings_dock_width_extended">Extended</string>
+    <string name="settings_group_dock_status">Status icons</string>
+    <string name="settings_dock_status_summary">Show the status icons beside the dock buttons, where the dock has room for them. Long-press an icon to reorder or hide just that one.</string>
     <string name="settings_group_driver_side">Driver side</string>
     <string name="settings_driver_side_right">Right</string>
     <string name="settings_driver_side_left">Left</string>

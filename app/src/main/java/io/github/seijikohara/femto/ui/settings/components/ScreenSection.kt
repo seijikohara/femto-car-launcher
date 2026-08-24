@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.settings.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -7,6 +8,7 @@ import androidx.compose.ui.res.stringResource
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.DockPosition
+import io.github.seijikohara.femto.data.display.DockWidth
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.MotionTier
@@ -75,6 +77,37 @@ internal fun ScreenSection(
             ),
         selected = uiState.dockPosition,
         onSelect = { onAction(SettingsAction.SetDockPosition(it)) },
+    )
+    // Only the horizontal bar has two widths; a rail is a fixed thickness and
+    // ignores the setting, so the row is hidden there rather than left as a
+    // control that does nothing — the same gating MapSection gives its
+    // backend-specific rows. The stored choice is untouched meanwhile, so moving
+    // the dock back to a bar edge restores it.
+    //
+    // Compact means "pill where it fits" — a bar too narrow for the pill still
+    // draws extended, since the pill would clip its end buttons (see DockWidth).
+    AnimatedVisibility(visible = uiState.dockPosition.hostsHorizontalBar) {
+        ChoiceRow(
+            title = stringResource(R.string.settings_group_dock_width),
+            options =
+                listOf(
+                    DockWidth.COMPACT to stringResource(R.string.settings_dock_width_compact),
+                    DockWidth.EXTENDED to stringResource(R.string.settings_dock_width_extended),
+                ),
+            selected = uiState.dockWidth,
+            onSelect = { onAction(SettingsAction.SetDockWidth(it)) },
+        )
+    }
+    // The whole read-only cluster, in one switch. Per-indicator visibility stays
+    // on the dock's own long-press menu — a second surface for it here could
+    // disagree with the hidden set both of them write. This row is also the only
+    // way back once every indicator is hidden and there is nothing left to
+    // long-press, which is why it sits beside Reset dock.
+    SwitchRow(
+        title = stringResource(R.string.settings_group_dock_status),
+        checked = uiState.dockStatusVisible,
+        onCheckedChange = { onAction(SettingsAction.SetDockStatusVisible(it)) },
+        summary = stringResource(R.string.settings_dock_status_summary),
     )
     // Restores the dock's own nav/status order + hidden sets (a separate
     // DockPreferences store, not this section's DisplaySettings fields), so it
