@@ -58,6 +58,7 @@ internal class LocationGraph private constructor(
             // sees exactly the fixes trip math accepts — same lifecycle, no
             // second collector on the shared location flow.
             trackTap = TripFixTap { location, tripId -> trackLog.offer(location, tripId) },
+            autoReset = preferences.settings.map { it.tripAutoReset }.distinctUntilChanged(),
         )
 
     fun locationFlow(): Flow<Location?> = locationRepository.locationFlow()

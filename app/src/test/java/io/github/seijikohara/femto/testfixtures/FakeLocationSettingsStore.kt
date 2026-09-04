@@ -4,6 +4,7 @@ import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
 import io.github.seijikohara.femto.data.location.LocationSettingsStore
 import io.github.seijikohara.femto.data.location.TrackRetentionSetting
+import io.github.seijikohara.femto.data.location.TripAutoResetSetting
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -32,6 +33,8 @@ internal class FakeLocationSettingsStore(
         state.update {
             it.copy(backgroundRangingEnabled = value)
         }
+
+    override suspend fun setTripAutoReset(value: TripAutoResetSetting) = state.update { it.copy(tripAutoReset = value) }
 
     override suspend fun setTrackRecordingEnabled(value: Boolean) =
         state.update {
