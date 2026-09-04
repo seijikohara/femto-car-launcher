@@ -277,9 +277,9 @@ private fun Head(
         // right; SpaceBetween balances the two across the card width. The glyph is a
         // sibling of the temperature (not of the whole head column), so it centres on
         // the temperature's clamped slot whether or not the stale eyebrow is present —
-        // the temperature keeps its ink on the shared hero line with the calendar day
-        // and the clock, and the glyph centres on that line (see CalendarCard.Head /
-        // ClockOverlay).
+        // the temperature is the card's own hero numeral (the clock and the date sit
+        // on their own band in the DashboardHeader above the cluster), and the glyph
+        // centres on its line.
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,

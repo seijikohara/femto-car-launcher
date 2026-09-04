@@ -6,7 +6,6 @@ import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
 import android.provider.CalendarContract
-import android.text.format.DateFormat
 import android.util.Log
 import androidx.core.content.ContextCompat
 import io.github.seijikohara.femto.data.clock.ClockTick
@@ -22,7 +21,6 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -98,7 +96,7 @@ internal class CalendarRepository(
         }
         return CalendarSnapshot(
             today = today,
-            weekday = today.dayOfWeek.getDisplayName(TextStyle.FULL, locale),
+            weekday = weekdayLabelOf(today, locale),
             monthLabel = monthLabelOf(today, locale),
             days = days,
             hasCalendarAccess = granted,
@@ -114,24 +112,6 @@ internal class CalendarRepository(
             multipleCalendarsVisible = (scan?.calendarIds?.size ?: 0) > 1,
         )
     }
-
-    /**
-     * Format the "month year" head label using the locale's preferred field
-     * order. `getBestDateTimePattern` resolves the skeleton "yMMMM" to e.g.
-     * "MMMM y" for en (March 2026) but a year-first pattern for ja / ko
-     * (2026年3月). A hand-joined "Month Year" string would force English
-     * ordering on every locale.
-     */
-    private fun monthLabelOf(
-        today: LocalDate,
-        locale: Locale,
-    ): String =
-        today.format(
-            DateTimeFormatter.ofPattern(
-                DateFormat.getBestDateTimePattern(locale, "yMMMM"),
-                locale,
-            ),
-        )
 
     private fun hasPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR) ==

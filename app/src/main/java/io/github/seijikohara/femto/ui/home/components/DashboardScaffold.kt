@@ -131,19 +131,23 @@ internal fun mapCreditClearsDock(
  * ```
  * Landscape (wide)                    Portrait (tall)
  * +-------------------------------+   +-----------------------+
- * | clock     [calend][weather]   |   | clock                 |
- * | [marker]  map     [music   ]  |   | [marker]   map        |
- * |  speed [== dock ========== ]  |   |  speed                |
+ * |           [clock  ·   date ]  |   |                       |
+ * | [marker]  [calend][weather]   |   | [marker]   map        |
+ * |  map      [music   ]          |   |  speed                |
+ * |  speed [== dock ========== ]  |   | [clock  ·   date    ] |
  * +-------------------------------+   | [calend][weather]     |
  *  (the dock is glass, over the map)  | [music            ]   |
  *                                     | [== dock ======== ]   |
  *                                     +-----------------------+
  * ```
  *
- * Landscape floats the cards in a right-hand column — the calendar and weather
- * share the top row side by side and grow to fill the column, the music card sits
- * below at its content height; portrait lays the same arrangement along the
- * bottom. The self-marker is offset to stay in the exposed map region — left of
+ * Landscape floats the cards in a right-hand column headed by the clock + date
+ * band ([DashboardHeader]) — the calendar and weather share the row below it
+ * side by side and grow to fill the column, the music card sits at the bottom at
+ * its content height; portrait lays the same arrangement along the bottom. With
+ * every card hidden the header alone keeps the column's slot (landscape) or runs
+ * along the top edge (portrait), so the clock never disappears with the cards.
+ * The self-marker is offset to stay in the exposed map region — left of
  * the right cards
  * ([MapConfig.rightSafeFraction]) and above the bottom cards / speed overlay /
  * dock ([MapConfig.bottomSafeFraction]) — rather than pinned to screen centre. A
@@ -446,6 +450,7 @@ private fun DashboardContent(
         cardGap = cardGap,
         landscapeCards = landscapeCards,
         bottomCards = bottomCards,
+        portrait = portrait,
         bottomCardBand = bottomCardBand,
         floatingCardWidth = floatingCardWidth,
         hasCards = hasCards,
@@ -518,8 +523,8 @@ private fun DashboardContent(
 }
 
 // The dashboard's glass overlay tree that floats over the map — map controls, the
-// clock and speed overlays, the floating info cards, and the five maximize
-// panels. The caller keeps the map (the blur source), the dock, and every
+// speed overlay, the floating info cards under their clock + date header, and
+// the five maximize panels. The caller keeps the map (the blur source), the dock, and every
 // panel's expanded state composed one level up, outside this tree, and supplies
 // the dock-edge inset through [modifier] so the overlays never sit under the
 // dock's nav buttons while the map shows through behind it.
@@ -536,6 +541,9 @@ private fun DashboardOverlays(
     cardGap: Dp,
     landscapeCards: Boolean,
     bottomCards: Boolean,
+    // The viewport's orientation on its own (the two flags above fold in
+    // hasCards): the card-less header placement still needs it.
+    portrait: Boolean,
     bottomCardBand: Dp,
     floatingCardWidth: Dp,
     hasCards: Boolean,
@@ -631,35 +639,6 @@ private fun DashboardOverlays(
             )
         }
 
-        // Clock beside the date: in landscape it sits just inside the card column's
-        // outer edge (the top of that column), reading as a pair with the date; in
-        // portrait the column is absent, so it sits in the top corner on the card
-        // side, clear of the bottom cards. Both flip to the opposite corner/edge on a
-        // LEFT driver side.
-        ClockOverlay(
-            is24Hour = is24Hour,
-            showSeconds = showClockSeconds,
-            hazeState = hazeState,
-            glassConfig = glassConfig,
-            motionTier = motionTier,
-            clock = clock,
-            modifier =
-                Modifier
-                    .align(if (mirror) Alignment.TopStart else Alignment.TopEnd)
-                    .padding(
-                        cardSideInset(
-                            mirror = mirror,
-                            // The card column's outer margin lives inside floatingCardWidth
-                            // (its width is fixed before the padding applies), so the
-                            // column's on-screen footprint is floatingCardWidth alone —
-                            // adding outerPad on top double-counted the margin and doubled
-                            // the clock <-> cards gap relative to every other panel gap.
-                            horizontal = if (landscapeCards) floatingCardWidth + cardGap else outerPad,
-                            top = outerPad,
-                        ),
-                    ),
-        )
-
         // Speed overlay centred in the exposed map area above the dock, held clear of
         // the card column (landscape, on the driver's side) or the bottom card band
         // (portrait) by reserving their footprint so it centres in the visible map
@@ -683,8 +662,11 @@ private fun DashboardOverlays(
                         } else {
                             cardSideInset(
                                 mirror = mirror,
-                                // floatingCardWidth alone is the column's footprint — see
-                                // the clock inset above for the double-count rationale.
+                                // The card column's outer margin lives inside
+                                // floatingCardWidth (its width is fixed before the padding
+                                // applies), so the column's on-screen footprint is
+                                // floatingCardWidth alone — adding outerPad on top would
+                                // double-count the margin.
                                 horizontal = if (landscapeCards) floatingCardWidth + cardGap else 0.dp,
                                 bottom = cardGap,
                             )
@@ -716,10 +698,9 @@ private fun DashboardOverlays(
                 speedUnit = speedUnit,
                 panels = panels,
                 cardGap = cardGap,
-                // Landscape only: portrait's bottom band has no clock adjacency
-                // to preserve, so it keeps the calendar-first reading order.
-                calendarTrailing = mirror && landscapeCards,
                 is24Hour = is24Hour,
+                showClockSeconds = showClockSeconds,
+                clock = clock,
                 hazeState = hazeState,
                 glassConfig = glassConfig,
                 onAction = onAction,
@@ -739,9 +720,8 @@ private fun DashboardOverlays(
                             .padding(horizontal = outerPad, vertical = outerPad)
                     } else {
                         // Cards in a column on the driver's side, top-anchored and
-                        // height-capped so they pair with the clock and never stretch;
-                        // the map keeps the opposite side. Mirrors to the start edge on
-                        // a LEFT driver side.
+                        // height-capped so they never stretch; the map keeps the
+                        // opposite side. Mirrors to the start edge on a LEFT driver side.
                         Modifier
                             .align(if (mirror) Alignment.TopStart else Alignment.TopEnd)
                             .width(floatingCardWidth)
@@ -755,6 +735,32 @@ private fun DashboardOverlays(
                                     bottom = outerPad,
                                 ),
                             )
+                    },
+            )
+        } else {
+            // Every card hidden: the clock + date header keeps the cluster's slot on
+            // its own — the column's width and corner in landscape, a full-width
+            // strip along the top edge in portrait — so the clock never disappears
+            // with the cards. Inside the cluster it is the column's first child
+            // (see FloatingCardColumn).
+            DashboardHeader(
+                is24Hour = is24Hour,
+                showSeconds = showClockSeconds,
+                hazeState = hazeState,
+                glassConfig = glassConfig,
+                motionTier = motionTier,
+                clock = clock,
+                modifier =
+                    if (portrait) {
+                        Modifier
+                            .align(Alignment.TopCenter)
+                            .fillMaxWidth()
+                            .padding(horizontal = outerPad, vertical = outerPad)
+                    } else {
+                        Modifier
+                            .align(if (mirror) Alignment.TopStart else Alignment.TopEnd)
+                            .width(floatingCardWidth)
+                            .padding(cardSideInset(mirror = mirror, horizontal = outerPad, top = outerPad))
                     },
             )
         }
@@ -950,9 +956,9 @@ private fun dockAlignment(position: DockPosition): Alignment =
         DockPosition.RIGHT -> Alignment.CenterEnd
     }
 
-// The floating info cards: the calendar+weather row stacked over the music card,
-// hosted in the landscape right column or the portrait bottom band. Each card gets
-// the shared glass treatment so the map shows through.
+// The floating info cluster: the clock + date header over the calendar+weather
+// row over the music card, hosted in the landscape right column or the portrait
+// bottom band. Each piece gets the shared glass treatment so the map shows through.
 @Composable
 private fun FloatingCardColumn(
     uiState: HomeUiState,
@@ -960,8 +966,9 @@ private fun FloatingCardColumn(
     speedUnit: SpeedUnit,
     panels: PanelVisibility,
     cardGap: Dp,
-    calendarTrailing: Boolean,
     is24Hour: Boolean,
+    showClockSeconds: Boolean,
+    clock: Clock,
     hazeState: HazeState,
     glassConfig: GlassConfig,
     onAction: (HomeAction) -> Unit,
@@ -981,7 +988,6 @@ private fun FloatingCardColumn(
             onExpand = onExpandCalendar,
             hazeState = hazeState,
             glassConfig = glassConfig,
-            motionTier = motionTier,
             modifier = cardModifier,
         )
     }
@@ -1020,24 +1026,34 @@ private fun FloatingCardColumn(
         )
     }
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(cardGap)) {
+        // The clock + date header tops the cluster at the column's full width. It
+        // belongs to the column, not to a card, so hiding any card keeps it; the
+        // full width is what lets the time (seconds included) and the date share
+        // one band on the head-unit geometry (see DashboardHeader).
+        DashboardHeader(
+            is24Hour = is24Hour,
+            showSeconds = showClockSeconds,
+            hazeState = hazeState,
+            glassConfig = glassConfig,
+            motionTier = motionTier,
+            clock = clock,
+            modifier = Modifier.fillMaxWidth(),
+        )
         // Calendar + weather pair in a row so each keeps its designed height instead
         // of stacking three full cards into a column too short for them; a single
         // visible card takes the whole row. The row is the only weighted child, so it
-        // grows to fill whatever height the content-height music card below leaves.
+        // grows to fill whatever height the header above and the content-height
+        // music card below leave. Calendar-first on both driver sides: with the
+        // clock in the header there is no clock-facing edge for it to ride.
         if (panels.calendar || panels.weather) {
             Row(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 horizontalArrangement = Arrangement.spacedBy(cardGap),
             ) {
-                // The pair reads calendar-first, but a mirrored (LEFT-driver)
-                // landscape cluster trails the calendar instead so it rides the
-                // clock-facing inner edge — the clock pairs with the calendar
-                // on both driver sides.
                 listOfNotNull(
                     calendar.takeIf { panels.calendar },
                     weather.takeIf { panels.weather },
-                ).let { pair -> if (calendarTrailing) pair.reversed() else pair }
-                    .forEach { card -> card(Modifier.weight(1f).fillMaxHeight()) }
+                ).forEach { card -> card(Modifier.weight(1f).fillMaxHeight()) }
             }
         }
         // The music card sizes to its own content height (no weight): the row above

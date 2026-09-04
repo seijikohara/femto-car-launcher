@@ -37,36 +37,30 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.calendar.DayCell
 import io.github.seijikohara.femto.data.calendar.EventItem
-import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.FitText
-import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
-import io.github.seijikohara.femto.ui.theme.bigNumber
-import io.github.seijikohara.femto.ui.theme.calendarWeekday
-import io.github.seijikohara.femto.ui.theme.eyebrowTight
 import io.github.seijikohara.femto.ui.theme.glanceBody
 import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.glanceMetric
-import io.github.seijikohara.femto.ui.theme.normalWeight
 import io.github.seijikohara.femto.ui.theme.sectionLabel
-import io.github.seijikohara.femto.ui.theme.singleLineBox
 import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * Calendar card:
+ * Calendar card: the agenda — the coming days (today first), each row showing
+ * that day's full set of events, in a vertically scrollable region. Every
+ * visible day renders; overflow scrolls rather than being dropped, so the agenda
+ * never hides an entry behind the card's capped height. Days with no events are
+ * omitted so the agenda spends every row on real entries; only today stays when
+ * free, carrying an explicit no-events line.
  *
- *  1. Head — big day number (neutral onSurface) + weekday + month label, always
- *     today. Fixed at the top of the card.
- *  2. Days — the coming days (today first), each row showing that day's full set
- *     of events, in a vertically scrollable region beneath the fixed head. Every
- *     visible day renders; overflow scrolls rather than being dropped, so the
- *     agenda never hides an entry behind the card's capped height. Days with no
- *     events are omitted so the agenda spends every row on real entries; only
- *     today stays when free, carrying an explicit no-events line.
+ * Today's date (day numeral, weekday, month) is not the card's: it lives in the
+ * [DashboardHeader] above the cluster, beside the clock, so it shows without
+ * calendar permission and stays when this card is hidden — hiding the card is
+ * the "date and day only" dashboard.
  *
  * Typography and spacing originated in the retired dashboard-v2 design mockup;
  * the dashboard's body-size floor ([FemtoDimens.MinBodyTextSize]) is intentionally
@@ -80,10 +74,6 @@ internal fun CalendarCard(
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
-    // Fades the head only (the big day number + weekday + month) on a date change.
-    // The agenda below scrolls rather than crossfading, so a data refresh keeps the
-    // user's scroll position instead of resetting it to today (see CalendarContent).
-    motionTier: MotionTier = MotionTier.STANDARD,
 ) = Surface(
     modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
     shape = MaterialTheme.shapes.large,
@@ -104,7 +94,7 @@ internal fun CalendarCard(
             // a read failure, not a free month, so say so rather than fake it.
             snapshot.queryFailed -> CenteredHint(stringResource(R.string.calendar_query_failed))
 
-            else -> CalendarContent(snapshot, is24Hour, motionTier, onExpand)
+            else -> CalendarContent(snapshot, is24Hour, onExpand)
         }
     }
 }
@@ -113,22 +103,31 @@ internal fun CalendarCard(
 private fun CalendarContent(
     snapshot: CalendarSnapshot,
     is24Hour: Boolean,
-    motionTier: MotionTier,
     onExpand: () -> Unit,
 ) {
     // clickable + an explicit contentDescription (the AlbumArt idiom in
     // MusicCardMeta): onClickLabel alone sets only the OnClick action label, not
     // the node's content description, so the maximize entry stays discoverable.
     // Hoisted out of the semantics lambda, which is not @Composable. Applied to
-    // the whole card (not just the head) so tapping anywhere opens the full-screen
-    // panel; the scrollable agenda below has no other clickable children, so
-    // Compose routes a tap to this maximize click and a vertical drag to the
-    // agenda's scroll without a nested-gesture conflict.
+    // the whole card so tapping anywhere opens the full-screen panel; the
+    // scrollable agenda has no other clickable children, so Compose routes a tap
+    // to this maximize click and a vertical drag to the agenda's scroll without a
+    // nested-gesture conflict.
     val calendarExpandLabel = stringResource(R.string.calendar_expand)
     // Remembered at the content level (not keyed on the snapshot) so a data refresh
     // re-emitting the agenda keeps the user's scroll position rather than snapping
     // back to today.
     val agendaScroll = rememberScrollState()
+    // Free days are dropped rather than rendered as placeholder rows: the glance
+    // question is "what is coming up". Today is the one exception — it stays
+    // visible even when free.
+    val visibleDays = remember(snapshot) { snapshot.visibleDays }
+    // The whole card is the agenda's viewport: every visible day renders — overflow
+    // scrolls instead of being dropped whole (contrast FitWholeRows, still used by
+    // the maximize panels). A plain scrollable Column, not a LazyColumn: the day
+    // list is short, and a plain Column coexists cleanly with the parent maximize
+    // click. Deliberately not wrapped in a Crossfade — one would reset the user's
+    // scroll on every refresh.
     Column(
         modifier =
             Modifier
@@ -136,112 +135,21 @@ private fun CalendarContent(
                 .clickable { onExpand() }
                 .semantics { contentDescription = calendarExpandLabel }
                 // Tighter than the shared card padding/gap: the head-unit info-pane
-                // card is short, so pack the head and the list to avoid a clip.
-                .padding(FemtoDimens.CardPaddingCompact),
-        verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
+                // card is short, so pack the list to avoid a clip.
+                .padding(FemtoDimens.CardPaddingCompact)
+                .verticalScroll(agendaScroll),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        // Fade only the head on a date change, keyed on its own displayed identity so
-        // an agenda-only refresh (same day number / weekday / month) never re-fires it.
-        // The scrollable agenda below is deliberately NOT wrapped — a Crossfade there
-        // would reset the user's scroll on every refresh.
-        Motion.ContentCrossfade(
-            targetState = CalendarHead(snapshot.today.dayOfMonth, snapshot.weekday, snapshot.monthLabel),
-            tier = motionTier,
-            label = "calendarHead",
-        ) { head ->
-            Head(head)
-        }
-        // Free days are dropped rather than rendered as placeholder rows: the glance
-        // question is "what is coming up". Today is the one exception — it stays
-        // visible even when free.
-        val visibleDays = remember(snapshot) { snapshot.visibleDays }
-        // The head above stays fixed; the agenda scrolls beneath it. weight(1f)
-        // bounds this Column to the card's leftover height so verticalScroll has a
-        // real viewport, and every visible day renders — overflow scrolls instead of
-        // being dropped whole (contrast FitWholeRows, still used by the maximize
-        // panels). A plain scrollable Column, not a LazyColumn: the day list is
-        // short, and a plain Column coexists cleanly with the parent maximize click.
-        Column(
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .verticalScroll(agendaScroll),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            visibleDays.forEach { day ->
-                DayRow(
-                    day = day,
-                    isToday = day.date == snapshot.today,
-                    is24Hour = is24Hour,
-                    showColorBars = snapshot.multipleCalendarsVisible,
-                )
-            }
+        visibleDays.forEach { day ->
+            DayRow(
+                day = day,
+                isToday = day.date == snapshot.today,
+                is24Hour = is24Hour,
+                showColorBars = snapshot.multipleCalendarsVisible,
+            )
         }
     }
 }
-
-// The head's displayed identity: the big day number, weekday, and month label —
-// the fields [Head] renders. Carries all three (rather than the bare date) so the
-// crossfade's outgoing frame renders a fully-consistent old head while the incoming
-// one renders the new; equality on this drives the head fade.
-private data class CalendarHead(
-    val day: Int,
-    val weekday: String,
-    val month: String,
-)
-
-@Composable
-private fun Head(head: CalendarHead) =
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        // Clamped like the weather temperature: platform font padding otherwise
-        // inflates the measured box well past the nominal line box and drops the
-        // ink below the shared hero line.
-        val dayStyle = MaterialTheme.typography.bigNumber(
-            size = FemtoDimens.Text4Xl,
-            weight = MaterialTheme.typography.normalWeight,
-        )
-        Text(
-            text = "${head.day}",
-            style = dayStyle,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            modifier = Modifier.singleLineBox(dayStyle),
-        )
-        Column(
-            // The weekday + month block shares the day numeral's line-box slot, so it
-            // spans the same band as the big number — one hero band across the clock,
-            // the calendar day and the weather temperature — instead of floating above
-            // it (top-aligned) or riding the numeral's baseline below its centre. The
-            // two lines are sized (weekday one scale step down, month with tight
-            // leading) to keep their combined ink inside the day's digit height.
-            modifier = Modifier.singleLineBox(dayStyle),
-        ) {
-            FitText(
-                text = head.weekday,
-                // One step below the panel's weekday (TextLg), landing on the body
-                // floor: glance metadata beside the big day number, sized so the
-                // two-line block fits the hero digit band. May still relax to
-                // GlanceTextSize for a long localized name (e.g. "Wednesday") on the
-                // narrow head-unit card (AGENTS.md#automotive-overrides).
-                style = MaterialTheme.typography.calendarWeekday(FemtoDimens.MinBodyTextSize),
-                color = MaterialTheme.colorScheme.onSurface,
-                minFontSize = FemtoDimens.GlanceTextSize,
-            )
-            Text(
-                text = head.month.uppercase(),
-                // Tight leading, so the month packs directly under the weekday inside
-                // the digit band instead of adding a padded line box below it.
-                style = MaterialTheme.typography.eyebrowTight(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
 
 // One agenda row: a fixed-width date gutter on the left (today tinted primary) and
 // the day's events on the right — every event for the day, or a muted dash when the
@@ -395,11 +303,12 @@ private fun CenteredHint(text: String) =
         )
     }
 
-// Sized to the head-unit binding: each top-row card is ~165 x 207 dp (half the
-// info pane on the 853 x 512 dp / 5:3 projection). Wider panels only add slack.
+// Sized to the head-unit binding: each top-row card is ~159 x 207 dp (half the
+// info pane on the 853 x 512 dp / 5:3 projection, under the header). Wider panels
+// only add slack.
 @PreviewLightDark
 @PreviewTextStress
-@Preview(name = "Calendar card", widthDp = 165, heightDp = 207)
+@Preview(name = "Calendar card", widthDp = 159, heightDp = 207)
 @Composable
 private fun CalendarCardPreview() {
     FemtoTheme {
@@ -407,8 +316,6 @@ private fun CalendarCardPreview() {
             snapshot =
                 CalendarSnapshot(
                     today = LocalDate.of(2026, 3, 30),
-                    // The longest common English weekday / month exercise the head's
-                    // FitText fit-to-width on the narrow card.
                     weekday = "Wednesday",
                     monthLabel = "September 2026",
                     days =
