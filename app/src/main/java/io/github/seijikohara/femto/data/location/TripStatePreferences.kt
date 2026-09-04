@@ -73,9 +73,13 @@ internal fun Double?.orZeroWhenUnusable(): Double = this?.takeIf { it.isFinite()
 private fun MutablePreferences.setOrRemove(
     key: Preferences.Key<Long>,
     value: Long?,
-) = when (value) {
-    null -> remove(key)
-    else -> set(key, value)
+) {
+    // A statement, not an expression: remove() returns the old value and set()
+    // Unit, so the expression form would infer Any for a side-effect helper.
+    when (value) {
+        null -> remove(key)
+        else -> set(key, value)
+    }
 }
 
 /** DataStore-backed accessor for [PersistedTrip]. */

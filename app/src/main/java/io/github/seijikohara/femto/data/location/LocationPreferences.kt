@@ -64,11 +64,12 @@ private const val MILLIS_PER_DAY = 24 * MILLIS_PER_HOUR
  * overnight park does not — and it is the one boundary every device class
  * shares: an AI box cold-boots per drive, a head unit may sleep through many
  * ignition cycles, a phone reopens the launcher several times per drive, so
- * neither process nor Activity lifetime can stand in for "one drive". Hours
- * rather than minutes so a navigation app held in front for a while (no fix
- * reaches the launcher without background ranging) does not split a drive.
- * The 2 h default sits at the short end of the OEM range, so a commute and
- * its return read as two trips.
+ * neither process nor Activity lifetime can stand in for "one drive". The
+ * default is hours rather than minutes so a navigation app held in front for
+ * a while (no fix reaches the launcher without background ranging) does not
+ * split a drive; 2 h sits at the short end of the OEM range, so a commute and
+ * its return read as two trips. The 30-minute option suits a launcher that
+ * stays in front, or one paired with background ranging.
  */
 internal enum class TripAutoResetSetting(
     val parkedGapMs: Long?,

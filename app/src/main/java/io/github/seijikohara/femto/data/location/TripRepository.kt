@@ -256,8 +256,15 @@ internal class TripRepository(
                         }
 
                         TripSignal.Reset -> {
-                            startNextTrip()
+                            resetAccumulators()
+                            // Emit first so the tap's zeros never wait on the disk;
+                            // then write through (not a fire-and-forget enqueue) so
+                            // the zeros and the bumped trip id are durable before
+                            // the next signal — which is only processed once this
+                            // handler returns — and a crash after this can never
+                            // resurrect the old totals or reuse the previous id.
                             emit(snapshot())
+                            store.write(persisted())
                         }
 
                         is TripSignal.AutoResetChanged -> {
@@ -409,11 +416,12 @@ internal class TripRepository(
         store.write(persisted())
     }
 
-    // Ends the current trip and opens the next: shared by the user's tap and the
-    // parked-gap rule so both leave the same durable footprint. Write-through
-    // (not a fire-and-forget enqueue) so the zeros and the bumped trip id are
-    // durable before the next signal: a crash after this can never resurrect the
-    // old totals or reuse the previous trip's id.
+    // The parked-gap boundary: ends the current trip and opens the next one, with
+    // the zeros and the bumped trip id written through before the caller accrues
+    // or logs the boundary fix — so a crash can never resurrect the old totals or
+    // reuse the previous trip's id under an already-committed track point. The
+    // user's tap (the Reset branch) takes the same two steps with its emit in
+    // between, so the tap's zeros never wait on the disk write.
     private suspend fun startNextTrip() {
         resetAccumulators()
         store.write(persisted())
