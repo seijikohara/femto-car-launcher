@@ -26,6 +26,7 @@ import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
 import io.github.seijikohara.femto.data.location.TrackRetentionSetting
+import io.github.seijikohara.femto.data.location.TripAutoResetSetting
 
 /** State for the in-app settings screen: the persisted display + font choices. */
 internal data class SettingsUiState(
@@ -88,6 +89,7 @@ internal data class SettingsUiState(
     val locationIntervalMillis: Long,
     val locationMinDistanceMeters: Int,
     val backgroundRangingEnabled: Boolean,
+    val tripAutoReset: TripAutoResetSetting,
     val trackRecordingEnabled: Boolean,
     val trackRetention: TrackRetentionSetting,
     val trackExport: TrackExportState = TrackExportState.Idle,
@@ -157,6 +159,7 @@ internal data class SettingsUiState(
                 locationIntervalMillis = LocationSettings.Default.intervalMillis,
                 locationMinDistanceMeters = LocationSettings.Default.minUpdateDistanceMeters,
                 backgroundRangingEnabled = LocationSettings.Default.backgroundRangingEnabled,
+                tripAutoReset = LocationSettings.Default.tripAutoReset,
                 trackRecordingEnabled = LocationSettings.Default.trackRecordingEnabled,
                 trackRetention = LocationSettings.Default.trackRetention,
                 mapBackend = DisplaySettings.Default.mapBackend,
@@ -353,6 +356,10 @@ internal sealed interface SettingsAction {
 
     data class SetBackgroundRanging(
         val value: Boolean,
+    ) : SettingsAction
+
+    data class SetTripAutoReset(
+        val value: TripAutoResetSetting,
     ) : SettingsAction
 
     data class SetTrackRecording(

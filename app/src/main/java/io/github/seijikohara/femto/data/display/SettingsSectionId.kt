@@ -81,10 +81,9 @@ internal enum class SettingsSectionId(
         ),
     ),
 
-    // Every Location-section row (quality, interval, min distance, background
-    // ranging) persists in the LOCATION store, not DisplayPreferences — an
-    // empty set here; SettingsViewModel resets it entirely via the other-store
-    // call for this section.
+    // Every Location-section row persists in the LOCATION store (LocationPreferences),
+    // not DisplayPreferences — an empty set here; SettingsViewModel resets it
+    // entirely via the other-store call for this section.
     LOCATION(emptySet()),
 
     PANELS(

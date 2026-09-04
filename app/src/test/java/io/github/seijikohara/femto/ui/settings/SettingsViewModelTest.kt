@@ -24,6 +24,7 @@ import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.data.fonts.FontSource
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
+import io.github.seijikohara.femto.data.location.TripAutoResetSetting
 import io.github.seijikohara.femto.testfixtures.FakeCalendarPreferencesStore
 import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeDockSettingsStore
@@ -604,6 +605,26 @@ class SettingsViewModelTest {
             advanceUntilIdle()
             assertEquals(GoogleMapType.SATELLITE, vm.uiState.value.googleMapsMapType)
             assertEquals(true, vm.uiState.value.googleMapsTraffic)
+        }
+
+    @Test
+    fun `SetTripAutoReset writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetTripAutoReset(TripAutoResetSetting.OFF))
+            advanceUntilIdle()
+            assertEquals(TripAutoResetSetting.OFF, locationStore.settings.first().tripAutoReset)
+        }
+
+    @Test
+    fun `SetTripAutoReset surfaces in uiState`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            backgroundScope.launch { vm.uiState.collect { } }
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.SetTripAutoReset(TripAutoResetSetting.HOURS_12))
+            advanceUntilIdle()
+            assertEquals(TripAutoResetSetting.HOURS_12, vm.uiState.value.tripAutoReset)
         }
 
     @Test

@@ -122,6 +122,7 @@ internal class SettingsViewModel(
                 locationIntervalMillis = location.intervalMillis,
                 locationMinDistanceMeters = location.minUpdateDistanceMeters,
                 backgroundRangingEnabled = location.backgroundRangingEnabled,
+                tripAutoReset = location.tripAutoReset,
                 trackRecordingEnabled = location.trackRecordingEnabled,
                 trackRetention = location.trackRetention,
                 availableCalendars = catalog.calendars,
@@ -324,6 +325,10 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetBackgroundRanging -> {
                     locationPreferences.setBackgroundRangingEnabled(action.value)
+                }
+
+                is SettingsAction.SetTripAutoReset -> {
+                    locationPreferences.setTripAutoReset(action.value)
                 }
 
                 is SettingsAction.SetTrackRecording -> {
