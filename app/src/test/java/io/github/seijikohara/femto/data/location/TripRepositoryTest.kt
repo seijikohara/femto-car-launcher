@@ -1148,6 +1148,56 @@ class TripRepositoryTest {
         }
 
     @Test
+    fun `starts a new trip when the window reopens after the parked gap in the same process`() =
+        runTest {
+            // A head unit that slept through the gap: the process lived on, so the
+            // boot clock carries the span and the replay on re-subscription already
+            // shows the next drive's zeros — before any fix arrives.
+            val source = MutableSharedFlow<Location?>(replay = 0)
+            var bootNanos = 0L
+            val repository =
+                TripRepository(
+                    source,
+                    FakeTripStateStore(),
+                    dispatcher = UnconfinedTestDispatcher(testScheduler),
+                    nowElapsedRealtimeNanos = { bootNanos },
+                    autoReset = flowOf(TripAutoResetSetting.HOURS_2),
+                )
+
+            repository.stateFlow().test {
+                awaitItem() // initial snapshot
+                source.emit(
+                    fakeLocation(
+                        latitude = ORIGIN_LAT,
+                        timeMs = NOON_MS,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = tenSeconds(1),
+                    ),
+                )
+                awaitItem()
+                source.emit(
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + STEP,
+                        timeMs = NOON_MS + 10_000L,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = tenSeconds(2),
+                    ),
+                )
+                assertTrue(awaitItem().distanceMeters > 0.0)
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            // The boot clock ran past the gap while nobody was subscribed.
+            bootNanos = tenSeconds(2) + millisToNanos(parkedGapMs)
+            repository.stateFlow().test {
+                val replayed = awaitItem()
+                assertEquals(0.0, replayed.distanceMeters, 0.0)
+                assertNull(replayed.startedAtEpochMs)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
     fun `keeps the persisted trip when the first fix of a process predates its last fix`() =
         runTest {
             // Clock skew between the old and the new boot: a first fix stamped
