@@ -51,7 +51,41 @@ internal const val DEFAULT_BACKGROUND_RANGING_ENABLED = false
  */
 internal const val DEFAULT_TRACK_RECORDING_ENABLED = true
 
-private const val MILLIS_PER_DAY = 24L * 60 * 60 * 1_000
+private const val MILLIS_PER_MINUTE = 60L * 1_000
+private const val MILLIS_PER_HOUR = 60 * MILLIS_PER_MINUTE
+private const val MILLIS_PER_DAY = 24 * MILLIS_PER_HOUR
+
+/**
+ * When the trip meter starts a new trip on its own. [OFF] keeps the original
+ * contract — one trip from reset tap to reset tap. The timed options end a
+ * trip once no GPS fix has been accepted for that long: the next fix opens a
+ * new one. That is the parked-gap rule car trip computers apply to their
+ * "since start" memory — a fuel or shopping stop continues the trip, an
+ * overnight park does not — and it is the one boundary every device class
+ * shares: an AI box cold-boots per drive, a head unit may sleep through many
+ * ignition cycles, a phone reopens the launcher several times per drive, so
+ * neither process nor Activity lifetime can stand in for "one drive". The
+ * default is hours rather than minutes so a navigation app held in front for
+ * a while (no fix reaches the launcher without background ranging) does not
+ * split a drive; 2 h sits at the short end of the OEM range, so a commute and
+ * its return read as two trips. The 30-minute option suits a launcher that
+ * stays in front, or one paired with background ranging.
+ */
+internal enum class TripAutoResetSetting(
+    val parkedGapMs: Long?,
+) {
+    OFF(null),
+    MINUTES_30(30 * MILLIS_PER_MINUTE),
+    HOURS_1(MILLIS_PER_HOUR),
+    HOURS_2(2 * MILLIS_PER_HOUR),
+    HOURS_4(4 * MILLIS_PER_HOUR),
+    HOURS_12(12 * MILLIS_PER_HOUR),
+    ;
+
+    companion object {
+        val Default = HOURS_2
+    }
+}
 
 /**
  * How long recorded track points are kept before pruning. A privacy knob, not
@@ -84,6 +118,7 @@ internal data class LocationSettings(
     val intervalMillis: Long,
     val minUpdateDistanceMeters: Int,
     val backgroundRangingEnabled: Boolean,
+    val tripAutoReset: TripAutoResetSetting,
     val trackRecordingEnabled: Boolean,
     val trackRetention: TrackRetentionSetting,
 ) {
@@ -94,6 +129,7 @@ internal data class LocationSettings(
                 intervalMillis = DEFAULT_LOCATION_INTERVAL_MS,
                 minUpdateDistanceMeters = DEFAULT_LOCATION_MIN_DISTANCE_M,
                 backgroundRangingEnabled = DEFAULT_BACKGROUND_RANGING_ENABLED,
+                tripAutoReset = TripAutoResetSetting.Default,
                 trackRecordingEnabled = DEFAULT_TRACK_RECORDING_ENABLED,
                 trackRetention = TrackRetentionSetting.Default,
             )
@@ -115,6 +151,8 @@ internal interface LocationSettingsStore {
     suspend fun setMinUpdateDistanceMeters(value: Int)
 
     suspend fun setBackgroundRangingEnabled(value: Boolean)
+
+    suspend fun setTripAutoReset(value: TripAutoResetSetting)
 
     suspend fun setTrackRecordingEnabled(value: Boolean)
 
@@ -140,6 +178,7 @@ internal class LocationPreferences(
                     minUpdateDistanceMeters = prefs[MIN_DISTANCE_KEY] ?: DEFAULT_LOCATION_MIN_DISTANCE_M,
                     backgroundRangingEnabled =
                         prefs[BACKGROUND_RANGING_KEY] ?: DEFAULT_BACKGROUND_RANGING_ENABLED,
+                    tripAutoReset = prefs[TRIP_AUTO_RESET_KEY].toEnumOr(TripAutoResetSetting.Default),
                     trackRecordingEnabled =
                         prefs[TRACK_RECORDING_KEY] ?: DEFAULT_TRACK_RECORDING_ENABLED,
                     trackRetention = prefs[TRACK_RETENTION_KEY].toEnumOr(TrackRetentionSetting.Default),
@@ -162,6 +201,10 @@ internal class LocationPreferences(
         context.locationDataStore.editOrLog(TAG) { it[BACKGROUND_RANGING_KEY] = value }
     }
 
+    override suspend fun setTripAutoReset(value: TripAutoResetSetting) {
+        context.locationDataStore.editOrLog(TAG) { it[TRIP_AUTO_RESET_KEY] = value.name }
+    }
+
     override suspend fun setTrackRecordingEnabled(value: Boolean) {
         context.locationDataStore.editOrLog(TAG) { it[TRACK_RECORDING_KEY] = value }
     }
@@ -182,6 +225,7 @@ internal class LocationPreferences(
         val INTERVAL_KEY = longPreferencesKey("location_interval_ms")
         val MIN_DISTANCE_KEY = intPreferencesKey("location_min_distance_m")
         val BACKGROUND_RANGING_KEY = booleanPreferencesKey("background_ranging_enabled")
+        val TRIP_AUTO_RESET_KEY = stringPreferencesKey("trip_auto_reset")
         val TRACK_RECORDING_KEY = booleanPreferencesKey("track_recording_enabled")
         val TRACK_RETENTION_KEY = stringPreferencesKey("track_retention")
     }

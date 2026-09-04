@@ -12,6 +12,7 @@ import com.composables.icons.lucide.Trash2
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.TrackRetentionSetting
+import io.github.seijikohara.femto.data.location.TripAutoResetSetting
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
 import io.github.seijikohara.femto.ui.settings.TrackExportState
@@ -75,6 +76,22 @@ internal fun LocationSection(
         checked = uiState.backgroundRangingEnabled,
         onCheckedChange = { onAction(SettingsAction.SetBackgroundRanging(it)) },
         summary = stringResource(R.string.settings_background_ranging_desc),
+    )
+    // The trip meter's parked-gap rule (TripAutoResetSetting's KDoc has the
+    // rationale); "Never" keeps one trip until the user taps Reset.
+    ChoiceRow(
+        title = stringResource(R.string.settings_group_trip_auto_reset),
+        options =
+            listOf(
+                TripAutoResetSetting.OFF to stringResource(R.string.settings_trip_auto_reset_off),
+                TripAutoResetSetting.MINUTES_30 to stringResource(R.string.settings_trip_auto_reset_30m),
+                TripAutoResetSetting.HOURS_1 to stringResource(R.string.settings_trip_auto_reset_1h),
+                TripAutoResetSetting.HOURS_2 to stringResource(R.string.settings_trip_auto_reset_2h),
+                TripAutoResetSetting.HOURS_4 to stringResource(R.string.settings_trip_auto_reset_4h),
+                TripAutoResetSetting.HOURS_12 to stringResource(R.string.settings_trip_auto_reset_12h),
+            ),
+        selected = uiState.tripAutoReset,
+        onSelect = { onAction(SettingsAction.SetTripAutoReset(it)) },
     )
     SwitchRow(
         title = stringResource(R.string.settings_group_track_recording),

@@ -10,7 +10,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.filterNot
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
@@ -97,25 +99,46 @@ import kotlinx.coroutines.withContext
  * The GPS anchor is deliberately NOT restored: `elapsedRealtimeNanos` is
  * boot-relative, so the first fix of the new process re-anchors and the
  * dead period contributes neither time nor distance (the same semantics
- * as an unknown-onset gap). The user's reset tap is therefore the only
- * deliberate way a trip ends; a restart merely pauses it.
+ * as an unknown-onset gap). A restart alone merely pauses a trip; only
+ * the user's reset tap or the parked-gap rule below ends one.
  *
- * A trip spans reset to reset. [TripState.startedAtEpochMs] marks the
- * wall-clock time of the first GPS fix accepted after a reset (not the
- * tap itself — the car may sit parked long after it), which is also the
- * first point the track logger sees for the trip: [trackTap] is invoked
- * for every RECORDABLE fix from inside the merged collect (never the
- * upstream producer — that would read the trip id on a different
- * coroutine and race a concurrent reset), tagged with the current trip
- * id, a monotonic counter that increments on each reset and delimits
- * reset-to-reset trips in the track log. A fix whose effective speed is
- * an implausible teleport is not recordable: it is excluded from the
- * track log for the same reason the trip math refuses it.
+ * A trip ends at the user's reset tap or, when [TripAutoResetSetting] is
+ * timed, at a parked gap: the first fix accepted after no fix was
+ * accepted for the configured span opens the next trip (zeros, bumped
+ * id, its own start) exactly as a tap would. The span is measured on the
+ * boot clock while this process has seen a fix — immune to wall-clock
+ * corrections, and it keeps counting through a head unit's deep sleep —
+ * and on the wall clock only for the first gap after a process restart,
+ * against the persisted `Location.time` of the last fix, the one stamp
+ * that survives a reboot. A negative span is never a gap. The check also
+ * runs as each subscription window opens, so a trip parked past the gap
+ * ends before the first fix arrives and the dashboard shows the next
+ * drive's zeros through the GNSS warm-up rather than the previous
+ * drive's totals. The setting arrives as a third merged signal on the
+ * same sequence, and is re-read as the window opens (a Settings change
+ * while the dashboard was away had no live collector to reach it).
+ * Accrual pauses while the launcher is fully backgrounded without
+ * background ranging, so a navigation app held in front longer than the
+ * gap ends the trip on return — background ranging keeps the fixes, and
+ * so the trip, flowing.
  *
- * Location fixes and explicit [reset] requests are merged into a single
- * stream consumed by one sequential `collect`, so the plain (non-atomic)
- * accumulator fields are only ever read and written from that one
- * sequence — a reset can never interleave with an accrual.
+ * [TripState.startedAtEpochMs] marks the wall-clock time of the first GPS
+ * fix accepted after a trip boundary (not the tap itself — the car may
+ * sit parked long after it), which is also the first point the track
+ * logger sees for the trip: [trackTap] is invoked for every RECORDABLE
+ * fix from inside the merged collect (never the upstream producer — that
+ * would read the trip id on a different coroutine and race a concurrent
+ * reset), tagged with the current trip id, a monotonic counter that
+ * increments at each boundary and delimits trips in the track log. A fix
+ * whose effective speed is an implausible teleport is not recordable: it
+ * is excluded from the track log for the same reason the trip math
+ * refuses it.
+ *
+ * Location fixes, explicit [reset] requests, and setting changes are
+ * merged into a single stream consumed by one sequential `collect`, so
+ * the plain (non-atomic) accumulator fields are only ever read and
+ * written from that one sequence — a reset can never interleave with an
+ * accrual.
  *
  * Accrual still *pauses* while fully backgrounded — there is no eager
  * always-on GPS scope here — but the running total survives the gap and
@@ -136,6 +159,13 @@ internal class TripRepository(
     // Boot-clock source for the arrival-staleness filter; tests inject a fixed
     // value so fixture nanos stay deterministic.
     private val nowElapsedRealtimeNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
+    // The trip meter's auto-reset setting, observed live on the accrual
+    // sequence (see class KDoc). Production wires the Location settings store;
+    // the default keeps tests that only exercise trip math on the shipped rule.
+    private val autoReset: Flow<TripAutoResetSetting> = flowOf(TripAutoResetSetting.Default),
+    // Wall-clock source for the parked-gap check before this process has seen a
+    // fix (class KDoc); tests inject a fixed instant.
+    private val nowEpochMs: () -> Long = System::currentTimeMillis,
 ) {
     // Hoisted out of the cold flow {} so the running total survives a
     // WhileSubscribed stop/restart; see the class KDoc.
@@ -145,6 +175,16 @@ internal class TripRepository(
     private var currentSpeedMs = 0.0
     private var startedAtEpochMs: Long? = null
     private var tripId = 0L
+
+    // Stamps of the last accepted fix for the parked-gap rule: the boot-clock
+    // one is this process's only (never restored — it is boot-relative), the
+    // wall-clock one is persisted and covers the first gap after a restart.
+    private var lastFixEpochMs: Long? = null
+    private var lastFixElapsedNanos: Long? = null
+
+    // The configured parked gap; null while auto-reset is off. Read as each
+    // window opens and updated by the merged setting signal.
+    private var parkedGapMs: Long? = null
 
     // Whether currentSpeedMs has been published at least once this trip.
     // Distinguishes a real standstill (0.0 from a stationary fix) from the
@@ -169,7 +209,14 @@ internal class TripRepository(
 
     fun stateFlow(): Flow<TripState> =
         flow {
+            // Read as the window opens, not only via the merged signal below: a
+            // Settings change while the dashboard was away had no live collector
+            // to reach the field, and the first fix must not race the re-delivery.
+            parkedGapMs = autoReset.first().parkedGapMs
             restoreOnce()
+            // A trip parked past the gap ends as the window opens (class KDoc),
+            // so the replay below already shows the next drive's zeros.
+            if (parkedGapElapsed(atNanos = nowElapsedRealtimeNanos(), atEpochMs = nowEpochMs())) startNextTrip()
             // Replay the running total to a (re)subscriber instead of a
             // hardcoded Initial, so distance does not appear to reset to
             // zero when the window reopens.
@@ -185,29 +232,43 @@ internal class TripRepository(
                     .filterNot { arrivedStale(it) }
                     .map { TripSignal.Fix(it) }
             val resets: Flow<TripSignal> = resetSignals.map { TripSignal.Reset }
+            val settings: Flow<TripSignal> = autoReset.map { TripSignal.AutoResetChanged(it) }
             try {
-                merge(fixes, resets).collect { signal ->
+                merge(fixes, resets, settings).collect { signal ->
                     when (signal) {
                         is TripSignal.Fix -> {
+                            val fix = signal.location
+                            // The first fix after a parked gap opens the next trip
+                            // before it is accrued or logged, so the bumped id is
+                            // durable before the trip's first track point.
+                            if (parkedGapElapsed(atNanos = fix.elapsedRealtimeNanos, atEpochMs = fix.time)) {
+                                startNextTrip()
+                            }
                             // Tap here, on the single sequence, so the trip id the
                             // track logger reads is the one this fix accrues into,
                             // totally ordered with resets (see class KDoc). Skip
                             // implausible teleports the trip math rejects.
-                            if (accrue(signal.location)) {
-                                trackTap.onFix(signal.location, tripId)
+                            if (accrue(fix)) {
+                                trackTap.onFix(fix, tripId)
                             }
                             emit(snapshot())
-                            maybePersist(signal.location.elapsedRealtimeNanos)
+                            maybePersist(fix.elapsedRealtimeNanos)
                         }
 
                         TripSignal.Reset -> {
                             resetAccumulators()
+                            // Emit first so the tap's zeros never wait on the disk;
+                            // then write through (not a fire-and-forget enqueue) so
+                            // the zeros and the bumped trip id are durable before
+                            // the next signal — which is only processed once this
+                            // handler returns — and a crash after this can never
+                            // resurrect the old totals or reuse the previous id.
                             emit(snapshot())
-                            // Write-through (not a fire-and-forget enqueue) so the
-                            // zeros and the bumped trip id are durable before the
-                            // next signal: a crash after this can never resurrect
-                            // the old totals or reuse the previous trip's id.
                             store.write(persisted())
+                        }
+
+                        is TripSignal.AutoResetChanged -> {
+                            parkedGapMs = signal.setting.parkedGapMs
                         }
                     }
                 }
@@ -238,6 +299,7 @@ internal class TripRepository(
         totalMeters = persisted.totalMeters
         totalSeconds = persisted.totalSeconds
         startedAtEpochMs = persisted.startedAtEpochMs
+        lastFixEpochMs = persisted.lastFixEpochMs
         tripId = persisted.tripId
         restored = true
     }
@@ -252,6 +314,10 @@ internal class TripRepository(
     // whether the fix is recordable — true for any trustworthy position, false
     // only for an implausible teleport (which neither accrues nor is logged).
     private fun accrue(current: Location): Boolean {
+        // Every accepted fix, moving or not, re-arms the parked-gap rule: a
+        // receiver that keeps fixing is a car that is on, not one that is parked.
+        lastFixEpochMs = current.time
+        lastFixElapsedNanos = current.elapsedRealtimeNanos
         if (startedAtEpochMs == null) {
             // The trip starts at its first accepted fix — the same fix the
             // track logger records first — not at the reset tap; see class KDoc.
@@ -350,16 +416,45 @@ internal class TripRepository(
         store.write(persisted())
     }
 
+    // The parked-gap boundary: ends the current trip and opens the next one, with
+    // the zeros and the bumped trip id written through before the caller accrues
+    // or logs the boundary fix — so a crash can never resurrect the old totals or
+    // reuse the previous trip's id under an already-committed track point. The
+    // user's tap (the Reset branch) takes the same two steps with its emit in
+    // between, so the tap's zeros never wait on the disk write.
+    private suspend fun startNextTrip() {
+        resetAccumulators()
+        store.write(persisted())
+    }
+
+    // Whether the parked gap has elapsed by [atNanos] on the boot clock or, when
+    // this process has not yet seen a fix, by [atEpochMs] on the wall clock
+    // against the persisted stamp (class KDoc). A negative span — a clock that
+    // ran backward, a dead RTC booting into the past — is never a parked gap.
+    private fun parkedGapElapsed(
+        atNanos: Long,
+        atEpochMs: Long,
+    ): Boolean {
+        val gapMs = parkedGapMs ?: return false
+        val spanMs =
+            lastFixElapsedNanos?.let { (atNanos - it) / NANOS_PER_MILLI }
+                ?: lastFixEpochMs?.let { atEpochMs - it }
+                ?: return false
+        return spanMs >= gapMs
+    }
+
     private fun resetAccumulators() {
         // Drop the anchor too so the trip restarts cleanly from the next fix
         // rather than charging the gap between the reset and that fix.
         lastLocation = null
+        lastFixEpochMs = null
+        lastFixElapsedNanos = null
         totalMeters = 0.0
         totalSeconds = 0.0
         currentSpeedMs = 0.0
         speedEstablished = false
         startedAtEpochMs = null
-        // The next reset-to-reset trip begins; the track log keys points on this.
+        // The next trip begins; the track log keys points on this.
         tripId += 1
     }
 
@@ -376,20 +471,27 @@ internal class TripRepository(
             totalMeters = totalMeters,
             totalSeconds = totalSeconds,
             startedAtEpochMs = startedAtEpochMs,
+            lastFixEpochMs = lastFixEpochMs,
             tripId = tripId,
         )
 
-    // Merged input to the single accrual sequence: a GPS location fix or a reset.
+    // Merged input to the single accrual sequence: a GPS location fix, a reset,
+    // or a change of the auto-reset setting.
     private sealed interface TripSignal {
         data class Fix(
             val location: Location,
         ) : TripSignal
 
         data object Reset : TripSignal
+
+        data class AutoResetChanged(
+            val setting: TripAutoResetSetting,
+        ) : TripSignal
     }
 
     private companion object {
         const val NANOS_PER_SECOND = 1_000_000_000.0
+        const val NANOS_PER_MILLI = 1_000_000L
 
         // Must be strictly positive; covers same-instant emissions where
         // the boot clock didn't advance.

@@ -82,6 +82,7 @@ internal fun locationSettingsFacts(location: LocationSettings): List<DiagnosticF
         entry("Location interval", "${location.intervalMillis} ms"),
         entry("Location min distance", "${location.minUpdateDistanceMeters} m"),
         entry("Background ranging", "${location.backgroundRangingEnabled}"),
+        entry("Trip auto-reset", location.tripAutoReset.name),
         entry("Track recording", "${location.trackRecordingEnabled}"),
         entry("Track retention", location.trackRetention.name),
     )

@@ -3,9 +3,11 @@ package io.github.seijikohara.femto.data.location
 /**
  * Cumulative trip metrics for the dashboard's speed overlay.
  *
- * A trip spans reset to reset: the totals survive process restarts (persisted
- * via [TripStateStore]) and only the user's reset tap starts a new trip.
- * `distanceMeters` is the total ground distance covered this trip.
+ * A trip runs from one boundary to the next — the user's reset tap or, with
+ * [TripAutoResetSetting] timed, the first fix after the car sat parked past the
+ * configured gap; the totals survive process restarts (persisted via
+ * [TripStateStore]). `distanceMeters` is the total ground distance covered
+ * this trip.
  * `avgSpeedMs` is the overall trip average — total distance divided by the
  * total tracked time, including time spent stopped (only untracked gaps, e.g.
  * the app backgrounded or the process dead, are excluded at the repository
@@ -13,7 +15,7 @@ package io.github.seijikohara.femto.data.location
  * reported fix speed when the GPS chip supplies one, otherwise the
  * position-derived speed so the hero numeral still moves on speed-less HALs.
  * `startedAtEpochMs` is the wall-clock time of the trip's first accepted GPS
- * fix — null until one lands after a reset (or on the very first run).
+ * fix — null until one lands after a boundary (or on the very first run).
  *
  * All metrics default to zero so the speed overlay always renders; a fresh
  * subscriber sees the running total (or `Initial` before the first

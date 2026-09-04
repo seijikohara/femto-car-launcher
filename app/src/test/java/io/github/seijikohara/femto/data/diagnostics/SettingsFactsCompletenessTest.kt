@@ -1,23 +1,37 @@
 package io.github.seijikohara.femto.data.diagnostics
 
 import io.github.seijikohara.femto.data.display.DisplaySettings
+import io.github.seijikohara.femto.data.location.LocationSettings
 import org.junit.Test
 import java.lang.reflect.Modifier
 import kotlin.test.assertEquals
 
 /**
- * Completeness drift guard for the SETTINGS dump: every [DisplaySettings] field
- * must surface as a fact, so a field added without a matching fact is caught
- * here instead of silently vanishing from every diagnostics report — the same
- * guard [io.github.seijikohara.femto.data.display.SettingsSectionIdTest] applies
- * to section keys.
+ * Completeness drift guard for the SETTINGS dump: every [DisplaySettings] and
+ * [LocationSettings] field must surface as a fact, so a field added without a
+ * matching fact is caught here instead of silently vanishing from every
+ * diagnostics report — the same guard
+ * [io.github.seijikohara.femto.data.display.SettingsSectionIdTest] applies to
+ * section keys.
  *
- * [propertyToFactLabel] is the bridge: facts that fold several fields into one
- * row (e.g. the light/dark map schemes) repeat the label. Reflection over the
- * data class's declared properties (Java reflection — kotlin-reflect is not on
- * the classpath) is the authoritative set the bridge is checked against.
+ * [propertyToFactLabel] and [locationPropertyToFactLabel] are the bridges: facts
+ * that fold several fields into one row (e.g. the light/dark map schemes) repeat
+ * the label. Reflection over the data class's declared properties (Java
+ * reflection — kotlin-reflect is not on the classpath) is the authoritative set
+ * each bridge is checked against.
  */
 class SettingsFactsCompletenessTest {
+    private val locationPropertyToFactLabel: Map<String, String> =
+        mapOf(
+            "quality" to "Location quality",
+            "intervalMillis" to "Location interval",
+            "minUpdateDistanceMeters" to "Location min distance",
+            "backgroundRangingEnabled" to "Background ranging",
+            "tripAutoReset" to "Trip auto-reset",
+            "trackRecordingEnabled" to "Track recording",
+            "trackRetention" to "Track retention",
+        )
+
     private val propertyToFactLabel: Map<String, String> =
         mapOf(
             "themeMode" to "Theme mode",
@@ -72,13 +86,7 @@ class SettingsFactsCompletenessTest {
 
     @Test
     fun `every DisplaySettings property is mapped to a settings fact`() {
-        val declaredProperties =
-            DisplaySettings::class.java.declaredFields
-                .filterNot { it.isSynthetic || Modifier.isStatic(it.modifiers) }
-                .map { it.name }
-                .toSet()
-
-        assertEquals(declaredProperties, propertyToFactLabel.keys)
+        assertEquals(declaredProperties(DisplaySettings::class.java), propertyToFactLabel.keys)
     }
 
     @Test
@@ -87,4 +95,22 @@ class SettingsFactsCompletenessTest {
 
         assertEquals(propertyToFactLabel.values.toSet(), emittedLabels)
     }
+
+    @Test
+    fun `every LocationSettings property is mapped to a settings fact`() {
+        assertEquals(declaredProperties(LocationSettings::class.java), locationPropertyToFactLabel.keys)
+    }
+
+    @Test
+    fun `the collector emits every mapped location fact label`() {
+        val emittedLabels = locationSettingsFacts(LocationSettings.Default).map { it.label }.toSet()
+
+        assertEquals(locationPropertyToFactLabel.values.toSet(), emittedLabels)
+    }
+
+    private fun declaredProperties(type: Class<*>): Set<String> =
+        type.declaredFields
+            .filterNot { it.isSynthetic || Modifier.isStatic(it.modifiers) }
+            .map { it.name }
+            .toSet()
 }

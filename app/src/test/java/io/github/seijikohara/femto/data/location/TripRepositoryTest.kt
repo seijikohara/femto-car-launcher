@@ -7,6 +7,7 @@ import io.github.seijikohara.femto.testfixtures.FakeTripStateStore
 import io.github.seijikohara.femto.testfixtures.fakeLocation
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -562,7 +563,12 @@ class TripRepositoryTest {
         runTest {
             val store =
                 FakeTripStateStore(
-                    PersistedTrip(totalMeters = 1_000.0, totalSeconds = 100.0, startedAtEpochMs = 42L, tripId = 3L),
+                    PersistedTrip.Initial.copy(
+                        totalMeters = 1_000.0,
+                        totalSeconds = 100.0,
+                        startedAtEpochMs = 42L,
+                        tripId = 3L,
+                    ),
                 )
 
             TripRepository(flowOf(), store).stateFlow().test {
@@ -579,7 +585,7 @@ class TripRepositoryTest {
         runTest {
             val store =
                 FakeTripStateStore(
-                    PersistedTrip(totalMeters = 500.0, totalSeconds = 50.0, startedAtEpochMs = 42L, tripId = 0L),
+                    PersistedTrip.Initial.copy(totalMeters = 500.0, totalSeconds = 50.0, startedAtEpochMs = 42L),
                 )
             val repository = TripRepository(flowOf(), store)
 
@@ -660,10 +666,7 @@ class TripRepositoryTest {
                 awaitItem()
 
                 // The reset writes through synchronously on the accrual sequence.
-                assertEquals(
-                    PersistedTrip(totalMeters = 0.0, totalSeconds = 0.0, startedAtEpochMs = null, tripId = 1L),
-                    store.stored,
-                )
+                assertEquals(PersistedTrip.Initial.copy(tripId = 1L), store.stored)
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -805,6 +808,435 @@ class TripRepositoryTest {
             }
         }
 
+    @Test
+    fun `starts a new trip when a fix arrives after the parked gap`() =
+        runTest {
+            val source = MutableSharedFlow<Location?>(replay = 0)
+            val repository =
+                TripRepository(
+                    source,
+                    FakeTripStateStore(),
+                    dispatcher = UnconfinedTestDispatcher(testScheduler),
+                    autoReset = flowOf(TripAutoResetSetting.HOURS_2),
+                )
+
+            repository.stateFlow().test {
+                awaitItem() // initial snapshot
+                source.emit(
+                    fakeLocation(latitude = ORIGIN_LAT, timeMs = NOON_MS, speedMps = 11f, elapsedRealtimeNanos = 0L),
+                )
+                awaitItem()
+                source.emit(
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + STEP,
+                        timeMs = NOON_MS + 10_000L,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = tenSeconds(1),
+                    ),
+                )
+                assertTrue(awaitItem().distanceMeters > 0.0)
+
+                // Parked for the whole gap: the next fix opens a new trip (zero
+                // totals, its own start time) instead of extending this one.
+                val nextDrive = NOON_MS + 10_000L + parkedGapMs
+                source.emit(
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + 2 * STEP,
+                        timeMs = nextDrive,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = tenSeconds(1) + millisToNanos(parkedGapMs),
+                    ),
+                )
+                val fresh = awaitItem()
+                assertEquals(0.0, fresh.distanceMeters, 0.0)
+                assertEquals(nextDrive, fresh.startedAtEpochMs)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `persists the new trip id before tapping the first fix of an auto-started trip`() =
+        runTest {
+            val source = MutableSharedFlow<Location?>(replay = 0)
+            val store = FakeTripStateStore()
+            // Pair each tapped id with the id durable in the store at that moment.
+            val tapped = mutableListOf<Pair<Long, Long>>()
+            val repository =
+                TripRepository(
+                    source,
+                    store,
+                    trackTap = TripFixTap { _, tripId -> tapped += tripId to store.stored.tripId },
+                    dispatcher = UnconfinedTestDispatcher(testScheduler),
+                    autoReset = flowOf(TripAutoResetSetting.HOURS_2),
+                )
+
+            repository.stateFlow().test {
+                awaitItem() // initial snapshot
+                source.emit(
+                    fakeLocation(latitude = ORIGIN_LAT, timeMs = NOON_MS, speedMps = 11f, elapsedRealtimeNanos = 0L),
+                )
+                awaitItem()
+                source.emit(
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + STEP,
+                        timeMs = NOON_MS + parkedGapMs,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = millisToNanos(parkedGapMs),
+                    ),
+                )
+                awaitItem()
+                // The auto-started trip's id is written through before its first
+                // point reaches the track log, exactly as a manual reset's is.
+                assertEquals(listOf(0L to 0L, 1L to 1L), tapped)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `keeps the trip when the fix gap is shorter than the parked gap`() =
+        runTest {
+            val source = MutableSharedFlow<Location?>(replay = 0)
+            val repository =
+                TripRepository(
+                    source,
+                    FakeTripStateStore(),
+                    dispatcher = UnconfinedTestDispatcher(testScheduler),
+                    autoReset = flowOf(TripAutoResetSetting.HOURS_2),
+                )
+
+            repository.stateFlow().test {
+                awaitItem() // initial snapshot
+                source.emit(
+                    fakeLocation(latitude = ORIGIN_LAT, timeMs = NOON_MS, speedMps = 11f, elapsedRealtimeNanos = 0L),
+                )
+                awaitItem()
+                source.emit(
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + STEP,
+                        timeMs = NOON_MS + 10_000L,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = tenSeconds(1),
+                    ),
+                )
+                val beforeStop = awaitItem()
+
+                // A stop one second short of the gap (fuel, shopping) belongs to
+                // the same trip: the start stands and nothing is re-zeroed.
+                val shortStop = parkedGapMs - 1_000L
+                source.emit(
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + STEP,
+                        timeMs = NOON_MS + 10_000L + shortStop,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = tenSeconds(1) + millisToNanos(shortStop),
+                    ),
+                )
+                val afterStop = awaitItem()
+                assertEquals(beforeStop.startedAtEpochMs, afterStop.startedAtEpochMs)
+                assertEquals(beforeStop.distanceMeters, afterStop.distanceMeters, 0.0)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `never starts a new trip on its own while auto-reset is off`() =
+        runTest {
+            val source = MutableSharedFlow<Location?>(replay = 0)
+            val repository =
+                TripRepository(
+                    source,
+                    FakeTripStateStore(),
+                    dispatcher = UnconfinedTestDispatcher(testScheduler),
+                    autoReset = flowOf(TripAutoResetSetting.OFF),
+                )
+
+            repository.stateFlow().test {
+                awaitItem() // initial snapshot
+                source.emit(
+                    fakeLocation(latitude = ORIGIN_LAT, timeMs = NOON_MS, speedMps = 11f, elapsedRealtimeNanos = 0L),
+                )
+                val first = awaitItem()
+                // Three days parked: the original reset-to-reset contract holds.
+                val threeDays = 3 * 24 * 60 * 60_000L
+                source.emit(
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + STEP,
+                        timeMs = NOON_MS + threeDays,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = millisToNanos(threeDays),
+                    ),
+                )
+                assertEquals(first.startedAtEpochMs, awaitItem().startedAtEpochMs)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `starts a new trip on restore when the persisted trip is older than the parked gap`() =
+        runTest {
+            val store =
+                FakeTripStateStore(
+                    PersistedTrip.Initial.copy(
+                        totalMeters = 1_000.0,
+                        totalSeconds = 100.0,
+                        startedAtEpochMs = NOON_MS - 600_000L,
+                        lastFixEpochMs = NOON_MS,
+                        tripId = 3L,
+                    ),
+                )
+
+            TripRepository(
+                flowOf(),
+                store,
+                autoReset = flowOf(TripAutoResetSetting.HOURS_2),
+                nowEpochMs = { NOON_MS + parkedGapMs },
+            ).stateFlow().test {
+                // Zeroed before the first emission, so the dashboard never shows
+                // the previous drive's totals while waiting for a fix, and the
+                // bumped id is durable at once.
+                val restored = awaitItem()
+                assertEquals(0.0, restored.distanceMeters, 0.0)
+                assertNull(restored.startedAtEpochMs)
+                assertEquals(4L, store.stored.tripId)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `keeps the persisted trip on restore when the clock reads before its last fix`() =
+        runTest {
+            // A dead RTC boots into the past: the span is negative, not a parked
+            // gap, so the totals stand and the first live fix decides.
+            val store =
+                FakeTripStateStore(
+                    PersistedTrip.Initial.copy(
+                        totalMeters = 1_000.0,
+                        totalSeconds = 100.0,
+                        startedAtEpochMs = 42L,
+                        lastFixEpochMs = NOON_MS,
+                        tripId = 3L,
+                    ),
+                )
+
+            TripRepository(
+                flowOf(),
+                store,
+                autoReset = flowOf(TripAutoResetSetting.HOURS_2),
+                nowEpochMs = { NOON_MS - 24 * 60 * 60_000L },
+            ).stateFlow().test {
+                val restored = awaitItem()
+                assertEquals(1_000.0, restored.distanceMeters, 0.0)
+                assertEquals(42L, restored.startedAtEpochMs)
+                assertEquals(3L, store.stored.tripId)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `applies an auto-reset setting change to the next fix`() =
+        runTest {
+            val source = MutableSharedFlow<Location?>(replay = 0)
+            val setting = MutableStateFlow(TripAutoResetSetting.OFF)
+            val repository =
+                TripRepository(
+                    source,
+                    FakeTripStateStore(),
+                    dispatcher = UnconfinedTestDispatcher(testScheduler),
+                    autoReset = setting,
+                )
+
+            repository.stateFlow().test {
+                awaitItem() // initial snapshot
+                source.emit(
+                    fakeLocation(latitude = ORIGIN_LAT, timeMs = NOON_MS, speedMps = 11f, elapsedRealtimeNanos = 0L),
+                )
+                val first = awaitItem()
+                // Off: a fix a whole gap later still extends the trip.
+                source.emit(
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + STEP,
+                        timeMs = NOON_MS + parkedGapMs,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = millisToNanos(parkedGapMs),
+                    ),
+                )
+                assertEquals(first.startedAtEpochMs, awaitItem().startedAtEpochMs)
+
+                // Switched on mid-flight: the next fix, another gap later, opens a
+                // new trip without a re-subscription.
+                setting.value = TripAutoResetSetting.HOURS_2
+                val later = NOON_MS + 2 * parkedGapMs
+                source.emit(
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + 2 * STEP,
+                        timeMs = later,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = millisToNanos(2 * parkedGapMs),
+                    ),
+                )
+                assertEquals(later, awaitItem().startedAtEpochMs)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `ignores the wall clock once this process has seen a fix`() =
+        runTest {
+            // A mid-trip clock correction larger than the gap, backward. The
+            // boot-clock span (10 s) governs in-process, so the wall clock is
+            // never consulted and the trip keeps accruing.
+            val flow =
+                flowOf(
+                    fakeLocation(latitude = ORIGIN_LAT, timeMs = NOON_MS, speedMps = 11f, elapsedRealtimeNanos = 0L),
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + STEP,
+                        timeMs = NOON_MS - parkedGapMs - 1_000L,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = tenSeconds(1),
+                    ),
+                )
+
+            TripRepository(
+                flow,
+                FakeTripStateStore(),
+                autoReset = flowOf(TripAutoResetSetting.HOURS_2),
+            ).stateFlow().test {
+                awaitItem() // initial snapshot
+                val first = awaitItem()
+                val second = awaitItem()
+                assertEquals(first.startedAtEpochMs, second.startedAtEpochMs)
+                assertTrue(second.distanceMeters > 0.0)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `starts a new trip at the first fix of a process that lands after the parked gap`() =
+        runTest {
+            // The window-open check saw no gap (the clock still reads the last
+            // fix's time), so the first fix decides — on the wall clock, the only
+            // stamp that spans the restart.
+            val store =
+                FakeTripStateStore(
+                    PersistedTrip.Initial.copy(
+                        totalMeters = 1_000.0,
+                        totalSeconds = 100.0,
+                        startedAtEpochMs = 42L,
+                        lastFixEpochMs = NOON_MS,
+                        tripId = 3L,
+                    ),
+                )
+            val nextDrive = NOON_MS + parkedGapMs
+            val flow =
+                flowOf(
+                    fakeLocation(latitude = ORIGIN_LAT, timeMs = nextDrive, speedMps = 11f, elapsedRealtimeNanos = 0L),
+                )
+
+            TripRepository(
+                flow,
+                store,
+                autoReset = flowOf(TripAutoResetSetting.HOURS_2),
+                nowEpochMs = { NOON_MS },
+            ).stateFlow().test {
+                assertEquals(1_000.0, awaitItem().distanceMeters, 0.0) // restored, no gap yet
+                val fresh = awaitItem()
+                assertEquals(0.0, fresh.distanceMeters, 0.0)
+                assertEquals(nextDrive, fresh.startedAtEpochMs)
+                assertEquals(4L, store.stored.tripId)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `starts a new trip when the window reopens after the parked gap in the same process`() =
+        runTest {
+            // A head unit that slept through the gap: the process lived on, so the
+            // boot clock carries the span and the replay on re-subscription already
+            // shows the next drive's zeros — before any fix arrives.
+            val source = MutableSharedFlow<Location?>(replay = 0)
+            var bootNanos = 0L
+            val repository =
+                TripRepository(
+                    source,
+                    FakeTripStateStore(),
+                    dispatcher = UnconfinedTestDispatcher(testScheduler),
+                    nowElapsedRealtimeNanos = { bootNanos },
+                    autoReset = flowOf(TripAutoResetSetting.HOURS_2),
+                )
+
+            repository.stateFlow().test {
+                awaitItem() // initial snapshot
+                source.emit(
+                    fakeLocation(
+                        latitude = ORIGIN_LAT,
+                        timeMs = NOON_MS,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = tenSeconds(1),
+                    ),
+                )
+                awaitItem()
+                source.emit(
+                    fakeLocation(
+                        latitude = ORIGIN_LAT + STEP,
+                        timeMs = NOON_MS + 10_000L,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = tenSeconds(2),
+                    ),
+                )
+                assertTrue(awaitItem().distanceMeters > 0.0)
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            // The boot clock ran past the gap while nobody was subscribed.
+            bootNanos = tenSeconds(2) + millisToNanos(parkedGapMs)
+            repository.stateFlow().test {
+                val replayed = awaitItem()
+                assertEquals(0.0, replayed.distanceMeters, 0.0)
+                assertNull(replayed.startedAtEpochMs)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `keeps the persisted trip when the first fix of a process predates its last fix`() =
+        runTest {
+            // Clock skew between the old and the new boot: a first fix stamped
+            // before the persisted last fix is a negative span, not a parked gap.
+            val store =
+                FakeTripStateStore(
+                    PersistedTrip.Initial.copy(
+                        totalMeters = 1_000.0,
+                        totalSeconds = 100.0,
+                        startedAtEpochMs = 42L,
+                        lastFixEpochMs = NOON_MS,
+                        tripId = 3L,
+                    ),
+                )
+            val flow =
+                flowOf(
+                    fakeLocation(
+                        latitude = ORIGIN_LAT,
+                        timeMs = NOON_MS - parkedGapMs - 1_000L,
+                        speedMps = 11f,
+                        elapsedRealtimeNanos = 0L,
+                    ),
+                )
+
+            TripRepository(
+                flow,
+                store,
+                autoReset = flowOf(TripAutoResetSetting.HOURS_2),
+                nowEpochMs = { NOON_MS },
+            ).stateFlow().test {
+                awaitItem() // restored snapshot
+                val afterFix = awaitItem()
+                assertEquals(42L, afterFix.startedAtEpochMs)
+                assertEquals(1_000.0, afterFix.distanceMeters, 0.0)
+                assertEquals(3L, store.stored.tripId)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
     private companion object {
         const val ORIGIN_LAT = 35.6580
 
@@ -816,10 +1248,19 @@ class TripRepositoryTest {
         // accumulated delta clears the trust floor).
         const val SMALL_STEP = STEP / 20
 
+        // An arbitrary wall-clock instant for fixes whose Location.time matters.
+        const val NOON_MS = 1_700_000_000_000L
+
+        // The configured parked gap, read off the setting so the fixture can
+        // never drift from the production threshold.
+        val parkedGapMs: Long = checkNotNull(TripAutoResetSetting.HOURS_2.parkedGapMs)
+
         // n * 10 s expressed in boot-clock nanoseconds.
         fun tenSeconds(n: Long): Long = n * 10_000_000_000L
 
         // n * 250 ms expressed in boot-clock nanoseconds.
         fun quarterSecond(n: Long): Long = n * 250_000_000L
+
+        fun millisToNanos(ms: Long): Long = ms * 1_000_000L
     }
 }

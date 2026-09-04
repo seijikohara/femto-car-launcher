@@ -393,6 +393,13 @@
     <string name="settings_location_min_distance_desc">Skip updates closer than this to the last position; 0 delivers every fix.</string>
     <string name="settings_group_background_ranging">Background ranging</string>
     <string name="settings_background_ranging_desc">Keep measuring distance and average speed while you use another app, such as navigation. Runs continuous GPS with an ongoing notification, so it uses more power.</string>
+    <string name="settings_group_trip_auto_reset">Start a new trip automatically</string>
+    <string name="settings_trip_auto_reset_off">Never (tap Reset only)</string>
+    <string name="settings_trip_auto_reset_30m">After 30 min parked</string>
+    <string name="settings_trip_auto_reset_1h">After 1 h parked</string>
+    <string name="settings_trip_auto_reset_2h">After 2 h parked</string>
+    <string name="settings_trip_auto_reset_4h">After 4 h parked</string>
+    <string name="settings_trip_auto_reset_12h">After 12 h parked</string>
     <string name="settings_group_track_recording">Track recording</string>
     <string name="settings_track_recording_desc">Record position, speed, bearing, and altitude while driving, for later visualization. The history stays on this device.</string>
     <string name="settings_group_track_retention">Keep track history</string>
