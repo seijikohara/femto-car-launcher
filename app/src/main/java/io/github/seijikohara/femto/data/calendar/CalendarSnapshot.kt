@@ -21,8 +21,6 @@ import java.time.LocalTime
 @Immutable
 internal data class CalendarSnapshot(
     val today: LocalDate,
-    val weekday: String,
-    val monthLabel: String,
     val days: List<DayCell>,
     // false means READ_CALENDAR is denied, so the list carries no real data
     // and the card shows the denial message instead.

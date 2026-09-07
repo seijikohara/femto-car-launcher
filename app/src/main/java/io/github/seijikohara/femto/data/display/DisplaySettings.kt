@@ -176,9 +176,9 @@ internal data class DisplaySettings(
     val speedUnit: SpeedUnitSetting,
     val temperatureUnit: TemperatureUnitSetting,
     val clock: ClockSetting,
-    // Whether the clock overlay shows seconds. Defaults to false (HH:mm, self-timed
-    // per-minute); when true the overlay shows the full HH:mm:ss readout and ticks
-    // per-second.
+    // Whether the dashboard header's clock shows seconds. Defaults to false
+    // (HH:mm, self-timed per-minute); when true the header shows the full
+    // HH:mm:ss readout and ticks per-second.
     val showClockSeconds: Boolean,
     val fullscreen: FullscreenSetting,
     // Which screen edge hosts the dashboard dock; BOTTOM is the classic dock.

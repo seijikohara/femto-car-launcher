@@ -211,11 +211,11 @@ internal fun Typography.bigNumber(
     )
 
 /**
- * Return the glass-overlay hero numeral style (the clock readout, the speed
- * value). [FemtoDimens.Text4Xl] (40sp) tabular digits on a fixed 40sp line;
- * callers pass the [weight] their role warrants — the ambient clock runs at
- * Normal (sharing the dashboard's unified 40sp / Normal numerals) while the
- * safety-critical speed value stays a more emphatic SemiBold.
+ * Return the glass-overlay hero numeral style (the speed value).
+ * [FemtoDimens.Text4Xl] (40sp) tabular digits on a fixed 40sp line; callers
+ * pass the [weight] their role warrants — the safety-critical speed value stays
+ * a more emphatic SemiBold, where the dashboard's ambient numerals (the
+ * header's time and day, the weather temperature) run [bigNumber] at Normal.
  */
 internal fun Typography.heroNumeral(weight: FontWeight = strongWeight): TextStyle =
     displayMedium.copy(
@@ -355,8 +355,8 @@ internal fun Typography.eyebrow(): TextStyle = sectionLabel(EYEBROW_SIZE_SP)
 
 /**
  * Return the [eyebrow] with its leading tightened to its own font size, for a
- * label packed into a fixed band — the calendar head's month, which sits under
- * the hero day numeral and must stay inside the digit band. Defined beside
+ * label packed into a fixed band — the dashboard header's month, which sits
+ * under the day numeral and must stay inside the digit band. Defined beside
  * [eyebrow] so the size / leading equality lives in one place rather than being
  * reassembled from two tokens at the call site.
  */
@@ -365,12 +365,13 @@ internal fun Typography.eyebrowTight(): TextStyle = sectionLabel(EYEBROW_SIZE_SP
 // The one eyebrow size, snapped to the FemtoDimens.TextSm scale step.
 private const val EYEBROW_SIZE_SP = 12
 
-// The calendar head's weekday name: titleLarge tightened a notch for the head
-// unit. Rendered through [FitText] so a long localized weekday ("Wednesday",
-// "Mittwoch") shrinks to fit the narrow head column instead of truncating.
-// [size] defaults to the panel's [FemtoDimens.TextLg]; the dashboard card head
-// passes a smaller step so the weekday + month block fits the hero digit band
-// (the height of the big day numeral) rather than overshooting it. lineHeight
+// The weekday name (the calendar panel's head, the dashboard header's date):
+// titleLarge tightened a notch for the head unit. Rendered through [FitText] so
+// a long localized weekday ("Wednesday", "Mittwoch") shrinks to fit its slot
+// instead of truncating. [size] defaults to the panel's [FemtoDimens.TextLg];
+// the dashboard header passes a smaller step so the weekday + month block fits
+// the hero digit band (the height of the day numeral) rather than overshooting
+// it. lineHeight
 // tracks the size so the box carries no extra leading.
 internal fun Typography.calendarWeekday(size: TextUnit = FemtoDimens.TextLg): TextStyle =
     titleLarge.copy(
@@ -498,9 +499,9 @@ internal fun Typography.attributionCredit(): TextStyle =
 /**
  * Constrain content to exactly [style]'s `lineHeight`, regardless of which font
  * face renders it. Used for a single-line
- * [androidx.compose.material3.Text] (the clock, the calendar day, the weather
- * temperature) and for a small block that must occupy the same band as one of
- * those hero numerals (the calendar head's weekday + month column).
+ * [androidx.compose.material3.Text] (the header's time and day numeral, the
+ * weather temperature) and for a small block that must occupy the same band as
+ * one of those hero numerals (the header's weekday + month block).
  *
  * Why a layout clamp and not a text style: Android applies *fallback line
  * spacing* after the line-height machinery, so a line whose glyphs resolve

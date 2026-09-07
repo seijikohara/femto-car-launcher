@@ -30,8 +30,8 @@ private const val TAG = "CalendarRepository"
 /**
  * Calendar surface for the dashboard.
  *
- * Combines two upstream signals — the wall clock (so today / weekday /
- * month follow real time without an extra timer) and the events provider
+ * Combines two upstream signals — the wall clock (so today and the coming days
+ * follow real time without an extra timer) and the events provider
  * (so the per-day events refresh when the user edits a calendar event). The
  * events query window is `today + WINDOW_DAYS` so the card can render a vertical
  * scrollable list of the coming days; each day's full event list is attached to
@@ -96,8 +96,6 @@ internal class CalendarRepository(
         }
         return CalendarSnapshot(
             today = today,
-            weekday = weekdayLabelOf(today, locale),
-            monthLabel = monthLabelOf(today, locale),
             days = days,
             hasCalendarAccess = granted,
             queryFailed = scan == null,

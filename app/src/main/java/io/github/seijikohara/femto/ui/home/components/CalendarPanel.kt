@@ -351,8 +351,6 @@ private fun CalendarPanelPreview() {
             snapshot =
                 CalendarSnapshot(
                     today = LocalDate.of(2026, 5, 1),
-                    weekday = "Friday",
-                    monthLabel = "May 2026",
                     days =
                         listOf(
                             DayCell(

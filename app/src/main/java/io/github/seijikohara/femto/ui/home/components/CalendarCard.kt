@@ -316,8 +316,6 @@ private fun CalendarCardPreview() {
             snapshot =
                 CalendarSnapshot(
                     today = LocalDate.of(2026, 3, 30),
-                    weekday = "Wednesday",
-                    monthLabel = "September 2026",
                     days =
                         listOf(
                             DayCell(

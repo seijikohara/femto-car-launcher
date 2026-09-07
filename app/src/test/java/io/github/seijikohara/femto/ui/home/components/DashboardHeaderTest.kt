@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
+import io.github.seijikohara.femto.testfixtures.FixedDashboardClock
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
@@ -13,9 +14,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import java.time.Clock
-import java.time.Instant
-import java.time.ZoneOffset
 import java.util.Locale
 
 /**
@@ -34,7 +32,7 @@ class DashboardHeaderTest {
     fun `shows the time and today's date from the clock alone`() {
         rule.setContent {
             FemtoTheme {
-                DashboardHeader(is24Hour = true, showSeconds = false, clock = FixedClock, locale = Locale.US)
+                DashboardHeader(is24Hour = true, showSeconds = false, clock = FixedDashboardClock, locale = Locale.US)
             }
         }
 
@@ -48,7 +46,7 @@ class DashboardHeaderTest {
     fun `shows seconds only when asked`() {
         rule.setContent {
             FemtoTheme {
-                DashboardHeader(is24Hour = true, showSeconds = true, clock = FixedClock, locale = Locale.US)
+                DashboardHeader(is24Hour = true, showSeconds = true, clock = FixedDashboardClock, locale = Locale.US)
             }
         }
 
@@ -66,7 +64,7 @@ class DashboardHeaderTest {
                     modifier = Modifier.width(250.dp),
                     is24Hour = true,
                     showSeconds = true,
-                    clock = FixedClock,
+                    clock = FixedDashboardClock,
                     locale = Locale.US,
                 )
             }
@@ -76,10 +74,5 @@ class DashboardHeaderTest {
         rule.onNodeWithText("1").assertDoesNotExist()
         rule.onNodeWithText("Friday").assertDoesNotExist()
         rule.onNodeWithText("MAY 2026").assertDoesNotExist()
-    }
-
-    private companion object {
-        // Friday 1 May 2026, 10:08 UTC — the dashboard goldens' fixed instant.
-        val FixedClock: Clock = Clock.fixed(Instant.parse("2026-05-01T10:08:00Z"), ZoneOffset.UTC)
     }
 }

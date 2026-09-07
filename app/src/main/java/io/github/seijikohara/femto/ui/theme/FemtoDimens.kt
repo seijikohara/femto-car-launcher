@@ -169,7 +169,7 @@ object FemtoDimens {
      */
     val SpectrumHorizontalInset = 40.dp
 
-    /** Inner padding for the small glass map overlays (clock / speed pill). */
+    /** Inner padding for the glass overlays (the speed pill, the dashboard header band). */
     val OverlayPaddingHorizontal = 16.dp
     val OverlayPaddingVertical = 6.dp
 
@@ -234,7 +234,7 @@ object FemtoDimens {
 
     /**
      * Padding / section rhythm shared by the dashboard info cards (calendar,
-     * weather, music) and the clock overlay's vertical inset. Kept a touch tighter
+     * weather, music). Kept a touch tighter
      * than the full [CardPadding] for the head-unit info pane, but roomy enough
      * that the content breathes from the card edge rather than crowding it — one
      * value so every card reads as a consistent set.

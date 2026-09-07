@@ -11,6 +11,7 @@ import androidx.compose.ui.layout.ContentScale
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.UiScale
+import io.github.seijikohara.femto.testfixtures.FixedDashboardClock
 import io.github.seijikohara.femto.testfixtures.ScreenshotCompareOptions
 import io.github.seijikohara.femto.testfixtures.fakeHomeUiState
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
@@ -25,9 +26,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import java.time.Clock
-import java.time.Instant
-import java.time.ZoneOffset
 
 /**
  * JVM/Robolectric screenshot regression for the main dashboard across the display
@@ -174,7 +172,7 @@ class DashboardScreenshotTest {
                     onAction = {},
                     modifier = Modifier.fillMaxSize(),
                     driverSide = driverSide,
-                    clock = FIXED_CLOCK,
+                    clock = FixedDashboardClock,
                     mapSurface = { MapBackdrop(darkTheme) },
                 )
             }
@@ -228,9 +226,6 @@ class DashboardScreenshotTest {
                 // clue which resource was at fault.
                 checkNotNull(BitmapFactory.decodeStream(stream)) { "$resource could not be decoded" }
             }.asImageBitmap()
-
-        // Fixed so the dashboard clock is deterministic across CI record/verify runs.
-        val FIXED_CLOCK: Clock = Clock.fixed(Instant.parse("2026-05-01T10:08:00Z"), ZoneOffset.UTC)
 
         val STATE = fakeHomeUiState()
     }

@@ -212,7 +212,7 @@ private fun ControlIcon(
 // pill's width / per-segment height, the shared glyph size, and the horizontal
 // inset that keeps the segment dividers off the pill edges. The pill's corner is
 // MaterialTheme.shapes.large, shared with the other glass panels.
-// Shared with the dashboard, which keeps the portrait clock strip clear of it.
+// Shared with the dashboard, which keeps the portrait header band clear of it.
 internal val MapCompassSize = 48.dp
 
 // Width of the control pill — shared with ExposedMapRegion (MapPanel), whose

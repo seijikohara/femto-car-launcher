@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
@@ -23,12 +24,14 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.data.calendar.monthLabelOf
 import io.github.seijikohara.femto.data.calendar.weekdayLabelOf
+import io.github.seijikohara.femto.data.clock.SystemZoneClock
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.FitText
 import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import io.github.seijikohara.femto.ui.theme.atFitFloor
 import io.github.seijikohara.femto.ui.theme.bigNumber
 import io.github.seijikohara.femto.ui.theme.calendarWeekday
@@ -52,10 +55,8 @@ private val ClockFormatter12 = DateTimeFormatter.ofPattern("hh:mm:ss")
 private val ClockFormatter24NoSeconds = DateTimeFormatter.ofPattern("HH:mm")
 private val ClockFormatter12NoSeconds = DateTimeFormatter.ofPattern("hh:mm")
 
-// Gap between the day numeral and its weekday / month block.
-private val DateGroupGap = 16.dp
-
-// Minimum gap between the time and the date group.
+// One gap for the band: between the time and the date, and between the day
+// numeral and its weekday / month block.
 private val HeaderGap = 16.dp
 
 // The floor sizes the weekday / month lines shrink to before the block folds
@@ -100,8 +101,15 @@ internal fun DashboardHeader(
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
     motionTier: MotionTier = MotionTier.STANDARD,
-    clock: Clock = Clock.systemDefaultZone(),
-    locale: Locale = Locale.getDefault(),
+    // SystemZoneClock, not Clock.systemDefaultZone(): the latter freezes the zone
+    // it was built with, and this header outlives a timezone change (a car
+    // crossing a border). Read per tick, the zone follows the system within one
+    // tick — the same rule ClockRepository applies to the shared minute tick.
+    clock: Clock = SystemZoneClock,
+    // Read through LocalLocale rather than Locale.getDefault(): the latter is not
+    // observable Compose state, so the date labels would not recompose when the
+    // user changes the system locale mid-session (the WeatherPanel precedent).
+    locale: Locale = LocalLocale.current.platformLocale,
 ) {
     val now by produceState(initialValue = LocalDateTime.now(clock), showSeconds) {
         while (true) {
@@ -205,19 +213,26 @@ private fun DateGroup(
     modifier: Modifier = Modifier,
 ) = BoxWithConstraints(modifier = modifier) {
     val typography = MaterialTheme.typography
+    // One step below the panel's weekday (TextLg), landing on the body floor:
+    // glance metadata beside the numerals, sized so the two-line block fits the
+    // digit band; the month packs under it with tight leading.
+    val weekdayStyle = typography.calendarWeekday(FemtoDimens.MinBodyTextSize)
+    val monthStyle = typography.eyebrowTight()
     val measurer = rememberTextMeasurer()
     val numeralPx = measurer.measure("${date.day}", heroStyle).size.width
+    // The block's width at the floors of the very styles DateBlock renders, so
+    // the measured fold point is the one FitText actually reaches.
     val floorPx =
         maxOf(
-            measurer.measure(date.weekday, typography.calendarWeekday(WeekdayFloorSize)).size.width,
-            measurer.measure(date.month.uppercase(), typography.eyebrowTight().atFitFloor(MonthFloorSize)).size.width,
+            measurer.measure(date.weekday, weekdayStyle.atFitFloor(WeekdayFloorSize)).size.width,
+            measurer.measure(date.month.uppercase(), monthStyle.atFitFloor(MonthFloorSize)).size.width,
         )
-    val gapPx = with(LocalDensity.current) { DateGroupGap.roundToPx() }
+    val gapPx = with(LocalDensity.current) { HeaderGap.roundToPx() }
     // Unbounded width (a preview) never folds.
     if (!constraints.hasBoundedWidth || numeralPx + gapPx + floorPx <= constraints.maxWidth) {
-        Row(horizontalArrangement = Arrangement.spacedBy(DateGroupGap)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(HeaderGap)) {
             DayNumeral(date, heroStyle)
-            DateBlock(date, heroStyle)
+            DateBlock(date, heroStyle, weekdayStyle, monthStyle)
         }
     }
 }
@@ -240,6 +255,8 @@ private fun DayNumeral(
 private fun DateBlock(
     date: HeaderDate,
     heroStyle: TextStyle,
+    weekdayStyle: TextStyle,
+    monthStyle: TextStyle,
 ) = Column(
     // The weekday + month block shares the day numeral's line-box slot, so it
     // spans the same band as the numerals instead of floating above it
@@ -250,18 +267,13 @@ private fun DateBlock(
 ) {
     FitText(
         text = date.weekday,
-        // One step below the panel's weekday (TextLg), landing on the body
-        // floor: glance metadata beside the numerals, sized so the two-line
-        // block fits the digit band.
-        style = MaterialTheme.typography.calendarWeekday(FemtoDimens.MinBodyTextSize),
+        style = weekdayStyle,
         color = MaterialTheme.colorScheme.onSurface,
         minFontSize = WeekdayFloorSize,
     )
     FitText(
         text = date.month.uppercase(),
-        // Tight leading, so the month packs directly under the weekday inside
-        // the digit band instead of adding a padded line box below it.
-        style = MaterialTheme.typography.eyebrowTight(),
+        style = monthStyle,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         minFontSize = MonthFloorSize,
     )
@@ -270,6 +282,7 @@ private fun DateBlock(
 // The 5:3 head unit's card column inner width (853 x 512 dp) — the header's
 // binding width; the floor geometry (800 x 480 dp) is 21 dp narrower.
 @PreviewLightDark
+@PreviewTextStress
 @Preview(name = "Dashboard header", widthDp = 329, heightDp = 80)
 @Composable
 private fun DashboardHeaderPreview() {
@@ -277,7 +290,6 @@ private fun DashboardHeaderPreview() {
         DashboardHeader(
             modifier = Modifier.fillMaxWidth(),
             clock = Clock.fixed(Instant.parse("2026-05-01T10:08:00Z"), ZoneOffset.UTC),
-            locale = Locale.US,
         )
     }
 }

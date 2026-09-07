@@ -9,7 +9,6 @@ import android.database.MatrixCursor
 import android.database.sqlite.SQLiteException
 import android.net.Uri
 import android.provider.CalendarContract
-import android.text.format.DateFormat
 import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.data.clock.ClockTick
 import kotlinx.coroutines.flow.first
@@ -25,8 +24,6 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -497,57 +494,6 @@ class CalendarRepositoryTest {
             hiddenCalendarIds = flowOf(emptySet()),
             zoneProvider = { zone },
         )
-
-    @Test
-    fun `month label follows the locale field order`() =
-        runTest {
-            // The label is produced from getBestDateTimePattern(locale, "yMMMM").
-            // en places the month first; ja / ko place the year first. Asserting
-            // against the same pattern-derived expectation (rather than a
-            // hardcoded English string) proves the formatter is locale-aware
-            // without baking a brittle literal per locale.
-            val today = LocalDate.of(2026, 3, 30)
-            listOf(Locale.ENGLISH, Locale.JAPANESE, Locale.KOREAN).forEach { locale ->
-                val repository =
-                    CalendarRepository(
-                        application,
-                        clockFlow = flowOf(ClockTick(LocalTime.NOON, today)),
-                        hiddenCalendarIds = flowOf(emptySet()),
-                        localeProvider = { locale },
-                    )
-
-                val snapshot = repository.snapshotFlow().first()
-                assertNotNull(snapshot)
-
-                val expected =
-                    today.format(
-                        DateTimeFormatter.ofPattern(
-                            DateFormat.getBestDateTimePattern(locale, "yMMMM"),
-                            locale,
-                        ),
-                    )
-                assertEquals(expected, snapshot.monthLabel)
-            }
-
-            // The English and Japanese labels must differ: ja leads with the
-            // year, en leads with the month name. This guards against a
-            // regression to the old hand-joined "Month Year" ordering.
-            val enLabel =
-                CalendarRepository(
-                    application,
-                    clockFlow = flowOf(ClockTick(LocalTime.NOON, today)),
-                    hiddenCalendarIds = flowOf(emptySet()),
-                    localeProvider = { Locale.ENGLISH },
-                ).snapshotFlow().first()!!.monthLabel
-            val jaLabel =
-                CalendarRepository(
-                    application,
-                    clockFlow = flowOf(ClockTick(LocalTime.NOON, today)),
-                    hiddenCalendarIds = flowOf(emptySet()),
-                    localeProvider = { Locale.JAPANESE },
-                ).snapshotFlow().first()!!.monthLabel
-            assertTrue(enLabel != jaLabel)
-        }
 
     /**
      * Stand-in calendar provider returning a single all-day Instances row whose

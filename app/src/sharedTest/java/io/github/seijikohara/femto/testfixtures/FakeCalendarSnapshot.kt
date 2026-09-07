@@ -8,8 +8,6 @@ import java.time.LocalTime
 
 internal fun fakeCalendarSnapshot(
     today: LocalDate = LocalDate.of(2026, 5, 1),
-    weekday: String = "Friday",
-    monthLabel: String = "May 2026",
     days: List<DayCell> =
         listOf(
             DayCell(
@@ -35,8 +33,6 @@ internal fun fakeCalendarSnapshot(
 ): CalendarSnapshot =
     CalendarSnapshot(
         today = today,
-        weekday = weekday,
-        monthLabel = monthLabel,
         days = days,
         hasCalendarAccess = hasCalendarAccess,
         queryFailed = queryFailed,

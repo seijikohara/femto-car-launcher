@@ -7,7 +7,6 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -47,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
+import io.github.seijikohara.femto.data.clock.SystemZoneClock
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.DockWidth
 import io.github.seijikohara.femto.data.display.DriverSide
@@ -186,7 +186,7 @@ internal fun DashboardScaffold(
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
     motionTier: MotionTier = MotionTier.STANDARD,
-    clock: Clock = Clock.systemDefaultZone(),
+    clock: Clock = SystemZoneClock,
     // Forwarded to MapPanel; null means the real WebView map. Screenshot tests
     // pass a still capture (see MapPanel.mapSurface).
     mapSurface: (@Composable (Location) -> Unit)? = null,
@@ -240,7 +240,7 @@ private fun DashboardContent(
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
     motionTier: MotionTier = MotionTier.STANDARD,
-    clock: Clock = Clock.systemDefaultZone(),
+    clock: Clock = SystemZoneClock,
     // Forwarded to MapPanel; null means the real WebView map. Screenshot tests
     // pass a still capture (see MapPanel.mapSurface).
     mapSurface: (@Composable (Location) -> Unit)? = null,
@@ -590,7 +590,7 @@ private fun DashboardOverlays(
     spectrum: StateFlow<FloatArray?>? = null,
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
-    clock: Clock = Clock.systemDefaultZone(),
+    clock: Clock = SystemZoneClock,
 ) {
     // Render-caches for the exit animations, derived from uiState (the expanded
     // booleans themselves live in DashboardContent). Hold the last live value so
