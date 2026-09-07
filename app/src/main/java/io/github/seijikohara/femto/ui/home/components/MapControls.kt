@@ -61,7 +61,7 @@ internal fun MapCompass(
     Box(
         modifier =
             modifier
-                .size(COMPASS_SIZE)
+                .size(MapCompassSize)
                 .glassChrome(CircleShape, hazeState, glassConfig)
                 .clickable(onClick = onTap)
                 .semantics { contentDescription = description },
@@ -212,7 +212,8 @@ private fun ControlIcon(
 // pill's width / per-segment height, the shared glyph size, and the horizontal
 // inset that keeps the segment dividers off the pill edges. The pill's corner is
 // MaterialTheme.shapes.large, shared with the other glass panels.
-private val COMPASS_SIZE = 48.dp
+// Shared with the dashboard, which keeps the portrait clock strip clear of it.
+internal val MapCompassSize = 48.dp
 
 // Width of the control pill — shared with ExposedMapRegion (MapPanel), whose
 // centred content insets past this strip so text never slides under the

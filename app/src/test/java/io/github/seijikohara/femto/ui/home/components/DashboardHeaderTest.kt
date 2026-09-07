@@ -1,14 +1,18 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -20,6 +24,7 @@ import java.util.Locale
  * both come from the injected clock alone.
  */
 @RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [33], qualifiers = "w853dp-h512dp-mdpi")
 class DashboardHeaderTest {
     @get:Rule
@@ -48,6 +53,29 @@ class DashboardHeaderTest {
         }
 
         rule.onNodeWithText("10:08:00").assertIsDisplayed()
+    }
+
+    @Test
+    fun `folds the whole date away rather than ellipsizing it on a narrow band`() {
+        // 250 dp holds the seconds-bearing time (~150 dp of ink) but not the date
+        // beside it even at the weekday / month floor sizes: the date folds away
+        // whole — no "..." beside a "...", and no lone day numeral either.
+        rule.setContent {
+            FemtoTheme {
+                DashboardHeader(
+                    modifier = Modifier.width(250.dp),
+                    is24Hour = true,
+                    showSeconds = true,
+                    clock = FixedClock,
+                    locale = Locale.US,
+                )
+            }
+        }
+
+        rule.onNodeWithText("10:08:00").assertIsDisplayed()
+        rule.onNodeWithText("1").assertDoesNotExist()
+        rule.onNodeWithText("Friday").assertDoesNotExist()
+        rule.onNodeWithText("MAY 2026").assertDoesNotExist()
     }
 
     private companion object {

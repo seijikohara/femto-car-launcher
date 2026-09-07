@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,11 +35,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
@@ -131,22 +135,24 @@ internal fun mapCreditClearsDock(
  * ```
  * Landscape (wide)                    Portrait (tall)
  * +-------------------------------+   +-----------------------+
- * |           [clock  ·   date ]  |   |                       |
+ * |           [clock  ·   date ]  |   | (o)   [clock ·  date] |
  * | [marker]  [calend][weather]   |   | [marker]   map        |
  * |  map      [music   ]          |   |  speed                |
- * |  speed [== dock ========== ]  |   | [clock  ·   date    ] |
- * +-------------------------------+   | [calend][weather]     |
- *  (the dock is glass, over the map)  | [music            ]   |
- *                                     | [== dock ======== ]   |
+ * |  speed [== dock ========== ]  |   | [calend][weather]     |
+ * +-------------------------------+   | [music            ]   |
+ *  (the dock is glass, over the map)  | [== dock ======== ]   |
  *                                     +-----------------------+
  * ```
  *
  * Landscape floats the cards in a right-hand column headed by the clock + date
  * band ([DashboardHeader]) — the calendar and weather share the row below it
- * side by side and grow to fill the column, the music card sits at the bottom at
- * its content height; portrait lays the same arrangement along the bottom. With
- * every card hidden the header alone keeps the column's slot (landscape) or runs
- * along the top edge (portrait), so the clock never disappears with the cards.
+ * side by side and grow to fill the column, the music card sits at the bottom
+ * (in its compact form when the column is too short to afford the full card
+ * beside a usable row; see the card cluster in [FloatingCardColumn]). Portrait
+ * lays the cards along the bottom and runs the header as a band along the top
+ * edge instead, beside the compass and no wider than the landscape column. With
+ * every card hidden the header alone keeps the column's slot (landscape) or the
+ * top band (portrait), so the clock never disappears with the cards.
  * The self-marker is offset to stay in the exposed map region — left of
  * the right cards
  * ([MapConfig.rightSafeFraction]) and above the bottom cards / speed overlay /
@@ -698,6 +704,9 @@ private fun DashboardOverlays(
                 speedUnit = speedUnit,
                 panels = panels,
                 cardGap = cardGap,
+                // The landscape column hosts the clock + date header as its first
+                // child; portrait runs it as a top strip instead (below).
+                showHeader = landscapeCards,
                 is24Hour = is24Hour,
                 showClockSeconds = showClockSeconds,
                 clock = clock,
@@ -737,12 +746,19 @@ private fun DashboardOverlays(
                             )
                     },
             )
-        } else {
-            // Every card hidden: the clock + date header keeps the cluster's slot on
-            // its own — the column's width and corner in landscape, a full-width
-            // strip along the top edge in portrait — so the clock never disappears
-            // with the cards. Inside the cluster it is the column's first child
-            // (see FloatingCardColumn).
+        }
+        if (!landscapeCards) {
+            // The header outside the cluster. Portrait, always: a band along the
+            // top edge on the card side, clear of the compass in the opposite
+            // corner, so the clock stays up top where the eye expects it instead of
+            // sinking into the bottom band beneath the speed overlay — and the band
+            // keeps its height for the cards. It fills a phone's width and caps at
+            // the landscape column's width on a tablet, so the time and the date
+            // stay a readable pair rather than drifting to opposite screen edges.
+            // Landscape, only with every card hidden: the header keeps the column's
+            // slot, so the clock never disappears with the cards. Otherwise it is
+            // the column's first child (FloatingCardColumn).
+            val compassReserve = outerPad + MapCompassSize + cardGap
             DashboardHeader(
                 is24Hour = is24Hour,
                 showSeconds = showClockSeconds,
@@ -753,9 +769,13 @@ private fun DashboardOverlays(
                 modifier =
                     if (portrait) {
                         Modifier
-                            .align(Alignment.TopCenter)
+                            .align(if (mirror) Alignment.TopStart else Alignment.TopEnd)
+                            .padding(
+                                start = if (mirror) outerPad else compassReserve,
+                                end = if (mirror) compassReserve else outerPad,
+                                top = outerPad,
+                            ).widthIn(max = FloatingCardWidthMax)
                             .fillMaxWidth()
-                            .padding(horizontal = outerPad, vertical = outerPad)
                     } else {
                         Modifier
                             .align(if (mirror) Alignment.TopStart else Alignment.TopEnd)
@@ -956,9 +976,10 @@ private fun dockAlignment(position: DockPosition): Alignment =
         DockPosition.RIGHT -> Alignment.CenterEnd
     }
 
-// The floating info cluster: the clock + date header over the calendar+weather
-// row over the music card, hosted in the landscape right column or the portrait
-// bottom band. Each piece gets the shared glass treatment so the map shows through.
+// The floating info cluster: the clock + date header (landscape) over the
+// calendar+weather row over the music card, hosted in the landscape right column
+// or the portrait bottom band. Each piece gets the shared glass treatment so the
+// map shows through; CardCluster arbitrates the height between them.
 @Composable
 private fun FloatingCardColumn(
     uiState: HomeUiState,
@@ -966,6 +987,7 @@ private fun FloatingCardColumn(
     speedUnit: SpeedUnit,
     panels: PanelVisibility,
     cardGap: Dp,
+    showHeader: Boolean,
     is24Hour: Boolean,
     showClockSeconds: Boolean,
     clock: Clock,
@@ -1004,7 +1026,7 @@ private fun FloatingCardColumn(
             modifier = cardModifier,
         )
     }
-    val music: @Composable (Modifier) -> Unit = { cardModifier ->
+    val music: @Composable (Modifier, Boolean) -> Unit = { cardModifier, compact ->
         MusicCard(
             state = uiState.musicState,
             onCommand = { command -> onAction(HomeAction.Music(command)) },
@@ -1023,9 +1045,10 @@ private fun FloatingCardColumn(
             // length; moving, they stay a static ellipsis to keep the ambient
             // card glanceable while driving.
             stationary = uiState.tripState.stationary,
+            compact = compact,
         )
     }
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(cardGap)) {
+    val header: @Composable () -> Unit = {
         // The clock + date header tops the cluster at the column's full width. It
         // belongs to the column, not to a card, so hiding any card keeps it; the
         // full width is what lets the time (seconds included) and the date share
@@ -1039,29 +1062,97 @@ private fun FloatingCardColumn(
             clock = clock,
             modifier = Modifier.fillMaxWidth(),
         )
+    }
+    val row: @Composable () -> Unit = {
         // Calendar + weather pair in a row so each keeps its designed height instead
         // of stacking three full cards into a column too short for them; a single
-        // visible card takes the whole row. The row is the only weighted child, so it
-        // grows to fill whatever height the header above and the content-height
-        // music card below leave. Calendar-first on both driver sides: with the
-        // clock in the header there is no clock-facing edge for it to ride.
-        if (panels.calendar || panels.weather) {
-            Row(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(cardGap),
-            ) {
-                listOfNotNull(
-                    calendar.takeIf { panels.calendar },
-                    weather.takeIf { panels.weather },
-                ).forEach { card -> card(Modifier.weight(1f).fillMaxHeight()) }
-            }
+        // visible card takes the whole row. Calendar-first on both driver sides:
+        // with the clock in the header there is no clock-facing edge for it to ride.
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(cardGap),
+        ) {
+            listOfNotNull(
+                calendar.takeIf { panels.calendar },
+                weather.takeIf { panels.weather },
+            ).forEach { card -> card(Modifier.weight(1f).fillMaxHeight()) }
         }
-        // The music card sizes to its own content height (no weight): the row above
-        // takes all the remaining column height, so no space is left as an empty band
-        // and the card never stretches past its content on a tall display.
-        if (panels.music) music(Modifier.fillMaxWidth())
+    }
+    val musicCard: @Composable (Boolean) -> Unit = { compact -> music(Modifier.fillMaxWidth(), compact) }
+    CardCluster(
+        header = header.takeIf { showHeader },
+        row = row.takeIf { panels.calendar || panels.weather },
+        music = musicCard.takeIf { panels.music },
+        musicSample = { MusicCardPlayingHeightSample(showAlbum = musicShowAlbum, showProgress = true) },
+        cardGap = cardGap,
+        modifier = modifier,
+    )
+}
+
+// The cluster's vertical arbitration. A plain Column let the calendar / weather
+// row — its only weighted child — absorb every shortfall while the header and
+// the content-height music card kept their natural heights, so a short column
+// (the LARGE display scale on a 512 dp head unit, a phone in landscape) squeezed
+// the row into a sliver. Here the row has a floor: the full music card's height
+// is measured from its unplaced sample first, and when the row would fall below
+// CardRowMinHeight beside that full card, the card is composed in its compact
+// form instead (MusicCard.compact). The decision comes before the card is
+// composed — the subcompose pattern BoxWithConstraints is built on — so exactly
+// one form of the card exists: no second set of transport buttons for TalkBack
+// or a test to find. The row takes whatever height the header and the card
+// leave; without a row the card follows the header at its own height.
+@Composable
+private fun CardCluster(
+    header: (@Composable () -> Unit)?,
+    row: (@Composable () -> Unit)?,
+    music: (@Composable (compact: Boolean) -> Unit)?,
+    musicSample: @Composable () -> Unit,
+    cardGap: Dp,
+    modifier: Modifier = Modifier,
+) = SubcomposeLayout(modifier = modifier) { constraints ->
+    val width = constraints.maxWidth
+    val gapPx = cardGap.roundToPx()
+    // Every piece spans the column; heights are the pieces' own.
+    val spanning = Constraints(minWidth = width, maxWidth = width)
+    val headerPlaceable = header?.let { subcompose(ClusterSlot.HEADER, it).single().measure(spanning) }
+    val headerSpan = headerPlaceable?.let { it.height + gapPx } ?: 0
+    val bounded = constraints.hasBoundedHeight
+    val compact =
+        music != null &&
+            row != null &&
+            bounded &&
+            run {
+                val fullMusic = subcompose(ClusterSlot.MUSIC_SAMPLE, musicSample).single().measure(spanning).height
+                constraints.maxHeight - headerSpan - fullMusic - gapPx < CardRowMinHeight.roundToPx()
+            }
+    val musicPlaceable = music?.let { subcompose(ClusterSlot.MUSIC) { it(compact) }.single().measure(spanning) }
+    val musicSpan = musicPlaceable?.let { it.height + gapPx } ?: 0
+    val rowPlaceable =
+        row?.let {
+            val rowConstraints =
+                if (bounded) {
+                    Constraints.fixed(width, (constraints.maxHeight - headerSpan - musicSpan).coerceAtLeast(0))
+                } else {
+                    spanning
+                }
+            subcompose(ClusterSlot.ROW, it).single().measure(rowConstraints)
+        }
+    val rowSpan = rowPlaceable?.let { it.height + gapPx } ?: 0
+    // Spans carry a trailing gap each; the last piece's gap is not laid out.
+    val natural = (headerSpan + rowSpan + musicSpan - gapPx).coerceAtLeast(0)
+    layout(width, constraints.constrainHeight(natural)) {
+        headerPlaceable?.placeRelative(0, 0)
+        rowPlaceable?.placeRelative(0, headerSpan)
+        musicPlaceable?.placeRelative(0, headerSpan + rowSpan)
     }
 }
+
+private enum class ClusterSlot { HEADER, MUSIC_SAMPLE, MUSIC, ROW }
+
+// The floor under the calendar / weather row: two agenda entries, or the weather
+// head with one forecast row — the least that still answers "what is next" at a
+// glance. Below it the music card yields its compact form (see CardCluster).
+private val CardRowMinHeight: Dp = 120.dp
 
 // Below either breakpoint the dashboard switches to its compact spacing. The
 // thresholds are deliberately coarse: they separate small / short head units from

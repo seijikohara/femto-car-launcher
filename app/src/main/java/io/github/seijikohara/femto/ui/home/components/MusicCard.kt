@@ -62,6 +62,10 @@ internal const val MUSIC_META_TAG = "music-card-meta"
  *     short for all of them ([MusicMetaAndProgress]).
  *  3. Transport row — 64 dp prev / next + 72 dp primary play / pause
  *
+ * The [compact] form keeps the same structure minus the album line and the
+ * progress row, for a card column too short to afford the full card beside a
+ * usable calendar / weather row (see the dashboard's card cluster).
+ *
  * Empty variants render in the same outer dimensions, reserved by measuring
  * an unplaced sample of the Playing layout (see `PlayingHeightReserve` in
  * `MusicCardStates.kt`): `NeedsPermission` is
@@ -91,19 +95,26 @@ internal fun MusicCard(
     // Scroll long title / artist / album to full length while the vehicle is
     // stationary; static ellipsis while moving (see MusicCardMeta.MetaLine).
     stationary: Boolean = false,
+    // The short form the card cluster asks for when the calendar / weather row
+    // above would otherwise fall below its floor: the album line and the
+    // progress row go (the full-screen player keeps both), leaving the eyebrow,
+    // title, artist, and the whole transport row — every tap target intact.
+    compact: Boolean = false,
 ) = Surface(
     modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
     shape = MaterialTheme.shapes.large,
     color = Color.Transparent,
     contentColor = MaterialTheme.colorScheme.onSurface,
 ) {
+    val albumLine = showAlbum && !compact
+    val progressRow = !compact
     when (state) {
         MusicCardState.NeedsPermission -> {
-            MusicConnectState(onConnect = onConnect, showAlbum = showAlbum)
+            MusicConnectState(onConnect = onConnect, showAlbum = albumLine, showProgress = progressRow)
         }
 
         MusicCardState.NoActiveSession -> {
-            MusicEmptyState(onPlay = onPlay, showAlbum = showAlbum)
+            MusicEmptyState(onPlay = onPlay, showAlbum = albumLine, showProgress = progressRow)
         }
 
         is MusicCardState.Playing -> {
@@ -113,7 +124,8 @@ internal fun MusicCard(
                 onLaunchSource,
                 onExpand,
                 spectrum,
-                showAlbum,
+                albumLine,
+                progressRow,
                 showArt,
                 motionTier,
                 stationary,
@@ -130,6 +142,7 @@ private fun PlayingState(
     onExpand: () -> Unit,
     spectrum: StateFlow<FloatArray?>?,
     showAlbum: Boolean,
+    showProgress: Boolean,
     showArt: Boolean,
     motionTier: MotionTier,
     stationary: Boolean,
@@ -221,6 +234,7 @@ private fun PlayingState(
                     isPlaying = nowPlaying.isPlaying,
                     playbackSpeed = nowPlaying.playbackSpeed,
                     showAlbum = showAlbum,
+                    showProgress = showProgress,
                     onExpand = onExpand,
                     motionTier = motionTier,
                     stationary = stationary,

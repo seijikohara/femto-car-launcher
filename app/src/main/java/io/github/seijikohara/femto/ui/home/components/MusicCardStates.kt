@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,9 +35,10 @@ import io.github.seijikohara.femto.ui.theme.cardCtaHint
 @Composable
 internal fun MusicConnectState(
     onConnect: () -> Unit,
-    // Forwarded to the height sample: the album-line toggle changes the Playing
-    // card's height, and the idle card must match it either way.
+    // Forwarded to the height sample: the album-line toggle and the compact form
+    // change the Playing card's height, and the idle card must match it either way.
     showAlbum: Boolean,
+    showProgress: Boolean,
 ) = Surface(
     onClick = onConnect,
     modifier = Modifier.fillMaxWidth(),
@@ -45,7 +47,7 @@ internal fun MusicConnectState(
     // opaque colour here would paint over the blurred map behind the card.
     color = Color.Transparent,
 ) {
-    PlayingHeightReserve(showAlbum = showAlbum) {
+    PlayingHeightReserve(showAlbum = showAlbum, showProgress = showProgress) {
         Column(
             // The reserve above holds the Playing card's content height, and the
             // Column centres the cluster within it, so the card keeps the same
@@ -101,9 +103,10 @@ internal fun MusicConnectState(
 @Composable
 internal fun MusicEmptyState(
     onPlay: () -> Unit,
-    // Forwarded to the height sample: the album-line toggle changes the Playing
-    // card's height, and the idle card must match it either way.
+    // Forwarded to the height sample: the album-line toggle and the compact form
+    // change the Playing card's height, and the idle card must match it either way.
     showAlbum: Boolean,
+    showProgress: Boolean,
 ) = Surface(
     onClick = onPlay,
     modifier = Modifier.fillMaxWidth(),
@@ -112,7 +115,7 @@ internal fun MusicEmptyState(
     // an opaque colour regressed it to a solid box over the map.
     color = Color.Transparent,
 ) {
-    PlayingHeightReserve(showAlbum = showAlbum) {
+    PlayingHeightReserve(showAlbum = showAlbum, showProgress = showProgress) {
         Column(
             // The reserve above holds the Playing card's content height, and the
             // Column centres the icon / title / hint cluster within it, so the
@@ -163,7 +166,7 @@ internal fun MusicEmptyState(
 /**
  * Size [content] to at least the Playing card's content height, measured from
  * a live sample of the Playing state's height-defining structure
- * ([PlayingHeightSample]) rather than a static dp token: the meta block's
+ * ([MusicCardPlayingHeightSample]) rather than a static dp token: the meta block's
  * height moves with the user's font size / weight / spacing settings and the
  * album-line toggle, so no constant can track it (the retired
  * `FemtoDimens.MusicCardMinHeight` drifted the moment the art started
@@ -178,10 +181,11 @@ internal fun MusicEmptyState(
 @Composable
 private fun PlayingHeightReserve(
     showAlbum: Boolean,
+    showProgress: Boolean,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) = Layout(
-    contents = listOf(content, { PlayingHeightSample(showAlbum = showAlbum) }),
+    contents = listOf(content, { MusicCardPlayingHeightSample(showAlbum = showAlbum, showProgress = showProgress) }),
     modifier = modifier,
 ) { (contentMeasurables, sampleMeasurables), constraints ->
     val sampleHeight =
@@ -196,30 +200,44 @@ private fun PlayingHeightReserve(
     layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
 }
 
-// Measured-only mirror of the Playing card's content: the meta block over the
-// transport row inside the shared compact inset — the exact structure
-// PlayingState lays out (the album art never exceeds the meta column's height,
-// so it plays no part in the total). The line contents are irrelevant: every
-// meta line is clamped to its style's lineHeight (see MetaLine's
-// singleLineBox), so empty strings measure the same as real metadata.
+/**
+ * Measured-only mirror of the Playing card's content: the meta block over the
+ * transport row inside the shared compact inset — the exact structure
+ * PlayingState lays out (the album art never exceeds the meta column's height,
+ * so it plays no part in the total). The line contents are irrelevant: every
+ * meta line is clamped to its style's lineHeight (see MetaLine's
+ * singleLineBox), so empty strings measure the same as real metadata. Shared
+ * with the dashboard's card cluster, which measures the full card's height to
+ * decide whether the column can afford it. Its semantics are cleared: the
+ * sample is never placed, but an unplaced node still reaches the semantics
+ * tree, and a second set of transport buttons there would double every
+ * TalkBack announcement and node lookup.
+ */
 @Composable
-private fun PlayingHeightSample(showAlbum: Boolean) =
-    Column(
-        modifier = Modifier.padding(FemtoDimens.CardPaddingCompact),
-        verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
-    ) {
-        MusicMetaAndProgress(
-            source = "",
-            sourceIcon = null,
-            title = "",
-            artist = null,
-            album = null,
-            positionMs = 0L,
-            durationMs = 0L,
-            positionUpdateTimeMs = 0L,
-            isPlaying = false,
-            playbackSpeed = 1f,
-            showAlbum = showAlbum,
-        )
-        TransportRow(isPlaying = false, onCommand = {})
-    }
+internal fun MusicCardPlayingHeightSample(
+    showAlbum: Boolean,
+    showProgress: Boolean,
+    modifier: Modifier = Modifier,
+) = Column(
+    modifier =
+        modifier
+            .clearAndSetSemantics {}
+            .padding(FemtoDimens.CardPaddingCompact),
+    verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
+) {
+    MusicMetaAndProgress(
+        source = "",
+        sourceIcon = null,
+        title = "",
+        artist = null,
+        album = null,
+        positionMs = 0L,
+        durationMs = 0L,
+        positionUpdateTimeMs = 0L,
+        isPlaying = false,
+        playbackSpeed = 1f,
+        showAlbum = showAlbum,
+        showProgress = showProgress,
+    )
+    TransportRow(isPlaying = false, onCommand = {})
+}

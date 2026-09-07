@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,7 +14,9 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
@@ -26,6 +29,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.FitText
 import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.atFitFloor
 import io.github.seijikohara.femto.ui.theme.bigNumber
 import io.github.seijikohara.femto.ui.theme.calendarWeekday
 import io.github.seijikohara.femto.ui.theme.eyebrowTight
@@ -54,6 +58,13 @@ private val DateGroupGap = 16.dp
 // Minimum gap between the time and the date group.
 private val HeaderGap = 16.dp
 
+// The floor sizes the weekday / month lines shrink to before the block folds
+// (see DateGroup). The weekday may relax to the glance size for a long
+// localized name (AGENTS.md#automotive-overrides); the month, an eyebrow, may
+// go one step further.
+private val WeekdayFloorSize = FemtoDimens.GlanceTextSize
+private val MonthFloorSize = FemtoDimens.TextXs
+
 /**
  * Glass header of the info-card cluster: the time at the start and today's date
  * at the end, on one hero band.
@@ -63,7 +74,9 @@ private val HeaderGap = 16.dp
  * and it spans the column's full width, where the seconds-bearing time and the
  * day numeral with its weekday / month block fit side by side even on the 800 dp
  * floor geometry (a card-width slot could not hold the time alone once seconds
- * are on). With every card hidden it holds the cluster's slot by itself. Moving
+ * are on). Where even that width runs short — a LARGE display scale on a short
+ * head unit — the date folds away whole (see DateGroup) and the time always
+ * keeps the band. With every card hidden it holds the cluster's slot by itself. Moving
  * the clock off the map pane frees the map's whole top edge, and moving the date
  * out of the calendar card frees that card for the agenda alone, so hiding the
  * card is the "date and day only" view with no further setting.
@@ -153,8 +166,7 @@ internal fun DashboardHeader(
         // on a locale change), never on a time tick. The date yields to the time:
         // it takes whatever width the time leaves (weight, unfilled, so it still
         // hugs its content and SpaceBetween keeps it at the end) behind a fixed
-        // gap, and its weekday / month shrink to fit when a seconds-bearing time
-        // on the head-unit column leaves them short.
+        // gap, and folds away whole when that width runs short (see DateGroup).
         Motion.ContentCrossfade(
             targetState = headerDate,
             tier = motionTier,
@@ -175,50 +187,84 @@ private data class HeaderDate(
     val month: String,
 )
 
+// The day numeral beside its weekday / month block. As the slot narrows the
+// block's two lines shrink to their floor sizes; when even the floor sizes do
+// not fit, the whole date folds away and the time keeps the band. Whole, never
+// an ellipsis — a "..." beside a "..." says nothing at a glance — and never the
+// numeral alone: a lone "1" beside the time reads as part of the time, and the
+// agenda's day gutter already carries the day. The width the date needs comes
+// from the text engine itself (TextMeasurer, the same layout the Texts get), so
+// the fold point follows the real label widths in every locale rather than a dp
+// guess — and the decision is made here, in composition, so a folded date is
+// not merely unplaced but absent: nothing for TalkBack to read, nothing for a
+// test to find.
 @Composable
 private fun DateGroup(
     date: HeaderDate,
     heroStyle: TextStyle,
-) = Row(horizontalArrangement = Arrangement.spacedBy(DateGroupGap)) {
-    // Clamped like the time: platform font padding otherwise inflates the
-    // measured box well past the nominal line box and drops the ink off the band.
-    Text(
-        text = "${date.day}",
-        style = heroStyle,
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-        modifier = Modifier.singleLineBox(heroStyle),
-    )
-    Column(
-        // The weekday + month block shares the day numeral's line-box slot, so it
-        // spans the same band as the numerals instead of floating above it
-        // (top-aligned) or riding the numeral's baseline below its centre. The two
-        // lines are sized (weekday one scale step down, month with tight leading)
-        // to keep their combined ink inside the digit height.
-        modifier = Modifier.singleLineBox(heroStyle),
-    ) {
-        FitText(
-            text = date.weekday,
-            // One step below the panel's weekday (TextLg), landing on the body
-            // floor: glance metadata beside the numerals, sized so the two-line
-            // block fits the digit band. May still relax to GlanceTextSize for a
-            // long localized name at a large font scale
-            // (AGENTS.md#automotive-overrides).
-            style = MaterialTheme.typography.calendarWeekday(FemtoDimens.MinBodyTextSize),
-            color = MaterialTheme.colorScheme.onSurface,
-            minFontSize = FemtoDimens.GlanceTextSize,
+    modifier: Modifier = Modifier,
+) = BoxWithConstraints(modifier = modifier) {
+    val typography = MaterialTheme.typography
+    val measurer = rememberTextMeasurer()
+    val numeralPx = measurer.measure("${date.day}", heroStyle).size.width
+    val floorPx =
+        maxOf(
+            measurer.measure(date.weekday, typography.calendarWeekday(WeekdayFloorSize)).size.width,
+            measurer.measure(date.month.uppercase(), typography.eyebrowTight().atFitFloor(MonthFloorSize)).size.width,
         )
-        FitText(
-            text = date.month.uppercase(),
-            // Tight leading, so the month packs directly under the weekday inside
-            // the digit band instead of adding a padded line box below it. Shrinks
-            // (to the agenda gutter's floor) before it ellipsizes, so "SEPTEMBER
-            // 2026" survives beside a seconds-bearing time on the head unit.
-            style = MaterialTheme.typography.eyebrowTight(),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            minFontSize = FemtoDimens.TextXs,
-        )
+    val gapPx = with(LocalDensity.current) { DateGroupGap.roundToPx() }
+    // Unbounded width (a preview) never folds.
+    if (!constraints.hasBoundedWidth || numeralPx + gapPx + floorPx <= constraints.maxWidth) {
+        Row(horizontalArrangement = Arrangement.spacedBy(DateGroupGap)) {
+            DayNumeral(date, heroStyle)
+            DateBlock(date, heroStyle)
+        }
     }
+}
+
+// Clamped like the time: platform font padding otherwise inflates the measured
+// box well past the nominal line box and drops the ink off the band.
+@Composable
+private fun DayNumeral(
+    date: HeaderDate,
+    heroStyle: TextStyle,
+) = Text(
+    text = "${date.day}",
+    style = heroStyle,
+    color = MaterialTheme.colorScheme.onSurface,
+    maxLines = 1,
+    modifier = Modifier.singleLineBox(heroStyle),
+)
+
+@Composable
+private fun DateBlock(
+    date: HeaderDate,
+    heroStyle: TextStyle,
+) = Column(
+    // The weekday + month block shares the day numeral's line-box slot, so it
+    // spans the same band as the numerals instead of floating above it
+    // (top-aligned) or riding the numeral's baseline below its centre. The two
+    // lines are sized (weekday one scale step down, month with tight leading)
+    // to keep their combined ink inside the digit height.
+    modifier = Modifier.singleLineBox(heroStyle),
+) {
+    FitText(
+        text = date.weekday,
+        // One step below the panel's weekday (TextLg), landing on the body
+        // floor: glance metadata beside the numerals, sized so the two-line
+        // block fits the digit band.
+        style = MaterialTheme.typography.calendarWeekday(FemtoDimens.MinBodyTextSize),
+        color = MaterialTheme.colorScheme.onSurface,
+        minFontSize = WeekdayFloorSize,
+    )
+    FitText(
+        text = date.month.uppercase(),
+        // Tight leading, so the month packs directly under the weekday inside
+        // the digit band instead of adding a padded line box below it.
+        style = MaterialTheme.typography.eyebrowTight(),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        minFontSize = MonthFloorSize,
+    )
 }
 
 // The 5:3 head unit's card column inner width (853 x 512 dp) — the header's

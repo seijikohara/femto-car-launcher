@@ -158,7 +158,8 @@ private val MetaLineGap: Dp = 4.dp
 /**
  * Title, artist, album, source eyebrow, and the playback progress row, laid
  * out to fit whatever height the music card's row allocates. The title and
- * the progress row are mandatory; the artist, source eyebrow, and album lines
+ * the progress row are mandatory (the progress row unless [showProgress] is
+ * off — the card's compact form); the artist, source eyebrow, and album lines
  * are dropped — album first, then the eyebrow, then the artist — once the
  * available height is too tight for all of them. The artist is the most
  * protected of the three; the eyebrow outranks the album because it also
@@ -196,6 +197,11 @@ internal fun MusicMetaAndProgress(
     playbackSpeed: Float,
     modifier: Modifier = Modifier,
     showAlbum: Boolean = true,
+    // Off for the dashboard card's compact form: the progress row is the one
+    // otherwise-mandatory line the card can spare when the column runs short
+    // (the full-screen player keeps it), and dropping it with the album line
+    // takes the card down to its eyebrow / title / artist core.
+    showProgress: Boolean = true,
     // When non-null, the source eyebrow row becomes a tap-to-expand affordance —
     // the card's entry to the full-screen player, kept reachable even when the
     // album art (the other expand affordance) is hidden. The calendar / weather
@@ -252,13 +258,19 @@ internal fun MusicMetaAndProgress(
             } else {
                 Spacer(modifier = Modifier.size(0.dp))
             }
-            Progress(
-                positionMs = positionMs,
-                durationMs = durationMs,
-                positionUpdateTimeMs = positionUpdateTimeMs,
-                isPlaying = isPlaying,
-                playbackSpeed = playbackSpeed,
-            )
+            // Like the album line: composed only when shown, with a zero-size Spacer
+            // keeping PROGRESS_SLOT's index stable for the measurables below.
+            if (showProgress) {
+                Progress(
+                    positionMs = positionMs,
+                    durationMs = durationMs,
+                    positionUpdateTimeMs = positionUpdateTimeMs,
+                    isPlaying = isPlaying,
+                    playbackSpeed = playbackSpeed,
+                )
+            } else {
+                Spacer(modifier = Modifier.size(0.dp))
+            }
         },
     ) { measurables, constraints ->
         val loose = constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity)
@@ -277,7 +289,8 @@ internal fun MusicMetaAndProgress(
         }
 
         val budget = if (constraints.hasBoundedHeight) constraints.maxHeight else Int.MAX_VALUE
-        val included = mutableListOf(TITLE_SLOT, PROGRESS_SLOT)
+        val included = mutableListOf(TITLE_SLOT)
+        if (showProgress) included += PROGRESS_SLOT
         val optionalPriority =
             buildList {
                 add(ARTIST_SLOT)

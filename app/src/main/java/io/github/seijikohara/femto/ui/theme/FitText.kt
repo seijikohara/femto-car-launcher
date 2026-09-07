@@ -112,3 +112,12 @@ private fun autoSizeWithin(
             minFontSize
         },
     )
+
+/**
+ * Return [this] at [FitText]'s floor size [minFontSize] — the size a [FitText]
+ * over this style shrinks to before it ellipsizes. For measuring the width a
+ * label needs at that floor (an invisible sample that decides a fold), never
+ * for rendering: only the font size moves, so the sample's width matches what
+ * the auto-sized text would take at its smallest.
+ */
+internal fun TextStyle.atFitFloor(minFontSize: TextUnit): TextStyle = copy(fontSize = minFontSize)
