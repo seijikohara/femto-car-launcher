@@ -1227,36 +1227,33 @@ private fun CardCluster(
     val plan =
         if (music != null && row != null && constraints.hasBoundedHeight) {
             val sampleHeight = { compact: Boolean ->
-                subcompose(
-                    if (compact) ClusterSlot.MUSIC_SAMPLE_COMPACT else ClusterSlot.MUSIC_SAMPLE,
-                ) { musicSample(compact) }
-                    .single()
-                    .measure(spanning)
-                    .height
+                val slot = if (compact) ClusterSlot.MUSIC_SAMPLE_COMPACT else ClusterSlot.MUSIC_SAMPLE
+                subcompose(slot) { musicSample(compact) }.single().measure(spanning).height
             }
             val rowBeside = { musicHeight: Int -> constraints.maxHeight - headerSpan - musicHeight - gapPx }
+            val rowMinPx = CardRowMinHeight.roundToPx()
+            val rowFloorPx = CardRowFloorHeight.roundToPx()
             val fullMusic = sampleHeight(false)
             when {
-                rowBeside(
-                    fullMusic,
-                ) >= CardRowMinHeight.roundToPx() -> ClusterPlan(compactMusic = false, showRow = true)
+                rowBeside(fullMusic) >= rowMinPx -> ClusterPlan(compactMusic = false, showRow = true)
 
-                rowBeside(
-                    sampleHeight(true),
-                ) >= CardRowFloorHeight.roundToPx() -> ClusterPlan(compactMusic = true, showRow = true)
+                rowBeside(sampleHeight(true)) >= rowFloorPx -> ClusterPlan(compactMusic = true, showRow = true)
 
                 // No form of the card leaves a readable row: the row yields, and the
                 // card takes its full form when the column holds it after the header.
+                // The row rather than the card because the card carries the column's
+                // only tap targets and cannot shrink below its transport row, an
+                // unreadable sliver of agenda and weather is worse than none, and a
+                // user who prefers the row can hide the music card
+                // (PanelVisibility.music). The LARGE scale on the 5:3 head unit is
+                // where this lands.
                 else -> ClusterPlan(compactMusic = headerSpan + fullMusic > constraints.maxHeight, showRow = false)
             }
         } else {
             ClusterPlan(compactMusic = false, showRow = row != null)
         }
-    val musicPlaceable = music?.let {
-        subcompose(
-            ClusterSlot.MUSIC,
-        ) { it(plan.compactMusic) }.single().measure(spanning)
-    }
+    val musicPlaceable =
+        music?.let { subcompose(ClusterSlot.MUSIC) { it(plan.compactMusic) }.single().measure(spanning) }
     val musicSpan = musicPlaceable?.let { it.height + gapPx } ?: 0
     val rowPlaceable =
         row?.takeIf { plan.showRow }?.let {

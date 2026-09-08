@@ -4,9 +4,6 @@ import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.AlignmentLine
-import androidx.compose.ui.layout.FirstBaseline
-import androidx.compose.ui.layout.LastBaseline
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.PlatformTextStyle
@@ -198,9 +195,10 @@ internal val TabularFigures = "tnum"
  * user's weight setting. That airy hero weight is what premium automotive
  * dashboards run their large numerals at (Rivian / Polestar / CarPlay), the
  * lightest of the three weight tiers; AAOS guidance likewise advises against Bold
- * at this size. The maximize panel keeps this default; the compact dashboard cards
- * (calendar day, weather temperature) pass the normal tier ([normalWeight]) at
- * [FemtoDimens.Text4Xl] for a heavier, more legible glance. [size] defaults to the
+ * at this size. The maximize panel keeps this default; the dashboard's ambient
+ * heroes — the header's clock ([clockHero]) and the cards' numerals ([cardHero])
+ * — pass the normal tier ([normalWeight]) for a heavier, more legible glance.
+ * [size] defaults to the
  * [FemtoDimens.BigNumberFontSize] anchor (the Text6Xl scale step, 56sp) and drives
  * the same 0.92 leading ratio.
  */
@@ -214,6 +212,33 @@ internal fun Typography.bigNumber(
         lineHeight = (size.value * 0.92f).sp,
         fontFeatureSettings = TabularFigures,
     )
+
+/**
+ * Return the dashboard header's clock style: [bigNumber] at [FemtoDimens.Text4Xl]
+ * in the normal tier. The clock is ambient (not the safety glance), so it takes
+ * the cards' hero treatment rather than the speed value's heavier strong-tier
+ * [heroNumeral], and it holds the dashboard's top numeral tier beside the speed.
+ */
+internal fun Typography.clockHero(): TextStyle = bigNumber(size = FemtoDimens.Text4Xl, weight = normalWeight)
+
+/**
+ * Return the dashboard cards' hero numeral style — the weather temperature, the
+ * calendar's next event time: [bigNumber] in the normal tier at
+ * [FemtoDimens.Text3Xl], one scale step under the clock ([clockHero]) and the
+ * speed overlay's hero. Four equal 40 sp numerals on one screen left no lead
+ * figure; a step down lets the clock and the safety-critical speed carry the top
+ * tier, and shortens each card head by 7 dp, which the 5:3 head unit's row
+ * spends on the calendar's next entry. One style for both cards keeps their
+ * heroes on one digit band across the row.
+ */
+internal fun Typography.cardHero(): TextStyle = bigNumber(size = FemtoDimens.Text3Xl, weight = normalWeight)
+
+/**
+ * Return the dashboard header's date line style: [calendarWeekday] one step
+ * below the panel's weekday, landing on the body floor
+ * ([FemtoDimens.MinBodyTextSize]) — glance metadata beside the clock.
+ */
+internal fun Typography.dateLine(): TextStyle = calendarWeekday(FemtoDimens.MinBodyTextSize)
 
 /**
  * Return the glass-overlay hero numeral style (the speed value).
@@ -342,19 +367,15 @@ internal fun Typography.monoReference(): TextStyle =
 internal fun Typography.sectionLabel(
     sizeSp: Int,
     fontWeight: FontWeight = strongWeight,
-    // Defaults to the inherited labelSmall leading; a caller packing a label into a
-    // fixed band passes the font size to drop the extra leading (see [eyebrowTight]).
-    lineHeight: TextUnit = labelSmall.lineHeight,
 ): TextStyle =
     labelSmall.copy(
         fontSize = sizeSp.sp,
         fontWeight = fontWeight,
         fontFeatureSettings = TabularFigures,
-        lineHeight = lineHeight,
     )
 
-// Uppercase section eyebrow (e.g. the music source, the calendar month) at one
-// shared size, so every eyebrow reads identically. Built on [sectionLabel] so
+// Uppercase section eyebrow (e.g. the music source, the cards' head eyebrows) at
+// one shared size, so every eyebrow reads identically. Built on [sectionLabel] so
 // it inherits the labelSmall + tabular base.
 internal fun Typography.eyebrow(): TextStyle = sectionLabel(EYEBROW_SIZE_SP)
 
@@ -365,19 +386,18 @@ internal fun Typography.eyebrow(): TextStyle = sectionLabel(EYEBROW_SIZE_SP)
  * beside [eyebrow] so the size / leading equality lives in one place rather
  * than being reassembled from two tokens at the call site.
  */
-internal fun Typography.eyebrowTight(): TextStyle = sectionLabel(EYEBROW_SIZE_SP, lineHeight = EYEBROW_SIZE_SP.sp)
+internal fun Typography.eyebrowTight(): TextStyle = eyebrow().copy(lineHeight = EYEBROW_SIZE_SP.sp)
 
 // The one eyebrow size, snapped to the FemtoDimens.TextSm scale step.
 private const val EYEBROW_SIZE_SP = 12
 
-// The weekday name (the calendar panel's head, the dashboard header's date):
-// titleLarge tightened a notch for the head unit. Rendered through [FitText] so
-// a long localized weekday ("Wednesday", "Mittwoch") shrinks to fit its slot
-// instead of truncating. [size] defaults to the panel's [FemtoDimens.TextLg];
-// the dashboard header passes a smaller step so the weekday + month block fits
-// the hero digit band (the height of the day numeral) rather than overshooting
-// it. lineHeight
-// tracks the size so the box carries no extra leading.
+// The weekday name (the calendar panel's head) and the dashboard header's date
+// line ([dateLine]): titleLarge tightened a notch for the head unit. Rendered
+// through [FitText] so a long localized weekday ("Wednesday", "Mittwoch")
+// shrinks to fit its slot instead of truncating. [size] defaults to the panel's
+// [FemtoDimens.TextLg]; the header's one-line date beside the clock takes the
+// body floor, a step below. lineHeight tracks the size so the box carries no
+// extra leading.
 internal fun Typography.calendarWeekday(size: TextUnit = FemtoDimens.TextLg): TextStyle =
     titleLarge.copy(
         fontSize = size,
@@ -503,10 +523,9 @@ internal fun Typography.attributionCredit(): TextStyle =
 
 /**
  * Constrain content to exactly [style]'s `lineHeight`, regardless of which font
- * face renders it. Used for a single-line
- * [androidx.compose.material3.Text] (the header's time and day numeral, the
- * weather temperature) and for a small block that must occupy the same band as
- * one of those hero numerals (the header's weekday + month block).
+ * face renders it. Used for the dashboard's single-line hero numerals — the
+ * header's clock, the weather temperature with its scale, the calendar's next
+ * event time — so the two card heroes share one digit band across the row.
  *
  * Why a layout clamp and not a text style: Android applies *fallback line
  * spacing* after the line-height machinery, so a line whose glyphs resolve
@@ -529,17 +548,8 @@ internal fun Modifier.singleLineBox(style: TextStyle): Modifier {
     return layout { measurable, constraints ->
         val boxPx = box.roundToPx()
         val placeable = measurable.measure(constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity))
-        val top = Alignment.CenterVertically.align(placeable.height, boxPx)
-        // The baselines are declared explicitly at the content's offset, so a
-        // baseline-aligned sibling (a UnitSuffix) meets the numeral where the
-        // ink actually sits, not where the raw text node would have put it.
-        val baselines =
-            listOf<AlignmentLine>(FirstBaseline, LastBaseline)
-                .mapNotNull { line ->
-                    placeable[line].takeIf { it != AlignmentLine.Unspecified }?.let { line to it + top }
-                }.toMap()
-        layout(constraints.constrainWidth(placeable.width), constraints.constrainHeight(boxPx), baselines) {
-            placeable.placeRelative(0, top)
+        layout(constraints.constrainWidth(placeable.width), constraints.constrainHeight(boxPx)) {
+            placeable.placeRelative(0, Alignment.CenterVertically.align(placeable.height, boxPx))
         }
     }
 }

@@ -39,12 +39,11 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.FitText
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
-import io.github.seijikohara.femto.ui.theme.bigNumber
+import io.github.seijikohara.femto.ui.theme.cardHero
 import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.glanceBody
 import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.glanceMetric
-import io.github.seijikohara.femto.ui.theme.normalWeight
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import io.github.seijikohara.femto.ui.theme.singleLineBox
 import java.time.LocalDate
@@ -63,9 +62,9 @@ import java.time.LocalTime
  * "Today" eyebrow, the first event's time as the hero numeral, its title
  * beneath. That head is the same shape as the weather card's beside it —
  * eyebrow, hero numeral on one digit band, detail below — so the two cards of
- * the row read as one line. Today's date (day numeral, weekday, month) is not
- * the card's: it lives in the [DashboardHeader] above the cluster, beside the
- * clock, so it shows without calendar permission and stays when this card is
+ * the row read as one line. Today's date is not the card's: it is the
+ * [DashboardHeader]'s one date line above the cluster, beside the clock, so it
+ * shows without calendar permission and stays when this card is
  * hidden — hiding the card is the "date and day only" dashboard. The coming
  * days keep their date gutter ([DayRow]) below the head.
  *
@@ -184,10 +183,8 @@ private fun TodayHead(
             HeroEvent(event = first, is24Hour = is24Hour, showColorBar = showColorBars)
         }
     }
-    if (first != null) {
-        day.events.drop(1).forEach { event ->
-            EventRow(event = event, is24Hour = is24Hour, showColorBar = showColorBars)
-        }
+    day.events.drop(1).forEach { event ->
+        EventRow(event = event, is24Hour = is24Hour, showColorBar = showColorBars)
     }
 }
 
@@ -196,22 +193,16 @@ private fun TodayHead(
 // packs one more row.
 private val AgendaRowGap = 8.dp
 
-// The first event of today: its time in the cards' hero treatment (bigNumber at
-// Text4Xl, Normal — the weather temperature's style, on the same clamped line
-// box), its title on one line under it.
+// The first event of today: its time in the cards' hero style (cardHero — the
+// weather temperature's, on the same clamped line box), its title on one line
+// under it.
 @Composable
 private fun HeroEvent(
     event: EventItem,
     is24Hour: Boolean,
     showColorBar: Boolean,
 ) {
-    // Text3Xl, the card tier (the weather temperature's step; see its Head): a
-    // step under the header's clock and the speed overlay's hero.
-    val heroStyle =
-        MaterialTheme.typography.bigNumber(
-            size = FemtoDimens.Text3Xl,
-            weight = MaterialTheme.typography.normalWeight,
-        )
+    val heroStyle = MaterialTheme.typography.cardHero()
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(1.dp),

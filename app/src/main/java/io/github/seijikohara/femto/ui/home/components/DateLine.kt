@@ -1,4 +1,4 @@
-package io.github.seijikohara.femto.data.calendar
+package io.github.seijikohara.femto.ui.home.components
 
 import android.text.format.DateFormat
 import java.time.LocalDate
@@ -6,8 +6,10 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
-// Today's date as the dashboard header words it, produced from the clock alone
-// (no calendar permission involved) in the locale's own field order.
+// Today's date as the dashboard header (DashboardHeader) words it, produced from
+// the clock alone (no calendar permission involved) in the locale's own field
+// order. It lives beside the header, its only consumer: it left data/calendar
+// when the calendar snapshot stopped carrying the date labels.
 
 /**
  * The forms the header's date line can take, longest first. The header walks

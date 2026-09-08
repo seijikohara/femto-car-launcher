@@ -1,4 +1,4 @@
-package io.github.seijikohara.femto.data.calendar
+package io.github.seijikohara.femto.ui.home.components
 
 import android.text.format.DateFormat
 import org.junit.Test
@@ -18,7 +18,7 @@ import kotlin.test.assertNotEquals
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
-class DateLabelsTest {
+class DateLineTest {
     private val friday = LocalDate.of(2026, 5, 1)
 
     @Test
