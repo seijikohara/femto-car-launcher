@@ -6,6 +6,7 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
 
 /**
@@ -27,15 +28,18 @@ import androidx.compose.ui.unit.dp
  * The first [mandatoryCount] children are always placed even if they
  * overflow (e.g. the weather card's head + metrics, or the calendar's today
  * row) so the card never renders completely empty; every child after that is
- * dropped once it no longer fits. Reports the full incoming height when it
- * is bounded (so the caller's `weight` / `fillMaxHeight` sizing holds), or
- * the content's natural height when unbounded.
+ * dropped once it no longer fits. With [fillHeight] (the default) it reports
+ * the full incoming height when that is bounded, so the caller's `weight` /
+ * `fillMaxHeight` sizing holds; without it — a glass pill that must wrap the
+ * segments it kept, like the map control rail — it reports the height the
+ * placed children use. Unbounded, it reports the content's natural height.
  */
 @Composable
 internal fun FitWholeRows(
     modifier: Modifier = Modifier,
     verticalGap: Dp = 0.dp,
     mandatoryCount: Int = 0,
+    fillHeight: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     Layout(content = content, modifier = modifier) { measurables, constraints ->
@@ -53,7 +57,14 @@ internal fun FitWholeRows(
             usedHeight = projectedHeight
         }
         val width = if (constraints.hasBoundedWidth) constraints.maxWidth else accepted.maxOfOrNull { it.width } ?: 0
-        val height = if (constraints.hasBoundedHeight) constraints.maxHeight else usedHeight
+        val height =
+            if (fillHeight &&
+                constraints.hasBoundedHeight
+            ) {
+                constraints.maxHeight
+            } else {
+                constraints.constrainHeight(usedHeight)
+            }
         layout(width, height) {
             var y = 0
             accepted.forEach { placeable ->

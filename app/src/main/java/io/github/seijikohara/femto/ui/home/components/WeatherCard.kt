@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -79,9 +77,11 @@ import kotlin.math.roundToInt
  *  1. Head — big temperature + a hero per-condition glyph. Fixed at the top.
  *  2. Metrics — Feels / Wind / Humid row. Fixed below the head.
  *  3. Forecast — hourly chips in a 3-column grid, one [ForecastRow] per grid
- *     row, in a vertically scrollable region beneath the fixed head and metrics.
- *     Every hour renders; overflow scrolls rather than being dropped, so a taller
- *     card simply shows more hours before the region needs to scroll.
+ *     row, beneath the fixed head and metrics. Rows are placed whole and only
+ *     up to [FORECAST_CARD_ROWS] of them ([FitWholeRows]): a row that would not
+ *     fit is left out rather than cut, and the card's natural height stops at
+ *     the cap so a tall column returns the rest to the map — the maximize panel
+ *     carries the full day.
  *
  * Typography and spacing originated in the `.weather-card` rules of the
  * retired dashboard-v2 design mockup — the same intentional relaxation of
@@ -127,9 +127,6 @@ internal fun WeatherCard(
         // panel; the forecast below has no other clickable children, so Compose routes
         // a tap to this maximize click and a vertical drag to the forecast scroll.
         val weatherExpandLabel = stringResource(R.string.weather_expand)
-        // Remembered at the card level (not keyed on the snapshot) so a data refresh
-        // keeps the user's forecast scroll position rather than resetting it.
-        val forecastScroll = rememberScrollState()
         Column(
             modifier =
                 Modifier
@@ -153,19 +150,17 @@ internal fun WeatherCard(
             Motion.ContentCrossfade(targetState = snapshot, tier = motionTier, label = "weatherMetrics") { current ->
                 Metrics(current, temperatureUnit, speedUnit)
             }
-            // The hourly forecast scrolls beneath the fixed hero: weight(1f) bounds
-            // this Column to the card's leftover height so verticalScroll has a real
-            // viewport, and every hour renders — overflow scrolls rather than being
-            // dropped whole (contrast FitWholeRows, still used by the maximize panels).
-            Column(
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .verticalScroll(forecastScroll),
-                verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
+            // The hourly forecast beneath the fixed hero, whole rows only: a row
+            // sliced at the card's edge — a line of bare hours with their icons cut
+            // off — read as breakage on the short geometries, and a drag inside the
+            // card competed with the tap that maximizes. weight(1f, fill = false)
+            // bounds the grid to the leftover height without stretching it, so the
+            // card's natural height ends with its last whole row.
+            FitWholeRows(
+                modifier = Modifier.weight(1f, fill = false).fillMaxWidth(),
+                verticalGap = FemtoDimens.CardSectionGapCompact,
             ) {
-                snapshot.hourly.chunked(FORECAST_COLUMNS).forEach { rowHours ->
+                snapshot.hourly.chunked(FORECAST_COLUMNS).take(FORECAST_CARD_ROWS).forEach { rowHours ->
                     ForecastRow(rowHours, snapshot.sunrise, snapshot.sunset, temperatureUnit, is24Hour)
                 }
             }
@@ -421,10 +416,10 @@ private fun Metric(
 
 // The forecast lays its hours out three to a row (left-to-right, then
 // top-to-bottom). Three keeps the chips legible even on the narrow head-unit
-// card; the WeatherCard body's scrollable forecast region renders every row, so
-// the source hourly list is never pre-truncated here — a taller card simply
-// shows more rows before the region needs to scroll.
+// card. The card shows at most FORECAST_CARD_ROWS of them (nine hours — the
+// glance horizon); the maximize panel renders the whole day.
 private const val FORECAST_COLUMNS = 3
+private const val FORECAST_CARD_ROWS = 3
 
 // One forecast row: up to [FORECAST_COLUMNS] hour chips, padded with spacers on
 // a short final row so the columns stay aligned. One child of the WeatherCard

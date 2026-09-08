@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -54,11 +52,12 @@ import java.time.LocalTime
 
 /**
  * Calendar card: the agenda — today as the card's head, then the coming days,
- * each row showing that day's full set of events, in a vertically scrollable
- * region. Every visible day renders; overflow scrolls rather than being
- * dropped, so the agenda never hides an entry behind the card's capped height.
- * Days with no events are omitted so the agenda spends every row on real
- * entries; only today stays when free, carrying an explicit no-events line.
+ * each row showing that day's full set of events. Rows are placed whole: a
+ * row that would not fit under the card's height is left out entirely rather
+ * than cut mid-glyph ([FitWholeRows]), and the maximize panel carries the
+ * rest — the card is the glance, the panel the list. Days with no events are
+ * omitted so the agenda spends every row on real entries; only today stays
+ * when free, carrying an explicit no-events line.
  *
  * Today opens the card as a head rather than as a gutter row ([TodayHead]): a
  * "Today" eyebrow, the first event's time as the hero numeral, its title
@@ -117,36 +116,30 @@ private fun CalendarContent(
     // MusicCardMeta): onClickLabel alone sets only the OnClick action label, not
     // the node's content description, so the maximize entry stays discoverable.
     // Hoisted out of the semantics lambda, which is not @Composable. Applied to
-    // the whole card so tapping anywhere opens the full-screen panel; the
-    // scrollable agenda has no other clickable children, so Compose routes a tap
-    // to this maximize click and a vertical drag to the agenda's scroll without a
-    // nested-gesture conflict.
+    // the whole card so tapping anywhere opens the full-screen panel.
     val calendarExpandLabel = stringResource(R.string.calendar_expand)
-    // Remembered at the content level (not keyed on the snapshot) so a data refresh
-    // re-emitting the agenda keeps the user's scroll position rather than snapping
-    // back to today.
-    val agendaScroll = rememberScrollState()
     // Free days are dropped rather than rendered as placeholder rows: the glance
     // question is "what is coming up". Today is the one exception — it stays
     // visible even when free.
     val visibleDays = remember(snapshot) { snapshot.visibleDays }
-    // The whole card is the agenda's viewport: every visible day renders — overflow
-    // scrolls instead of being dropped whole (contrast FitWholeRows, still used by
-    // the maximize panels). A plain scrollable Column, not a LazyColumn: the day
-    // list is short, and a plain Column coexists cleanly with the parent maximize
-    // click. Deliberately not wrapped in a Crossfade — one would reset the user's
-    // scroll on every refresh.
-    Column(
+    // Whole rows, never a cut one: the card's height is a glance budget, and a row
+    // sliced at the card's edge read as breakage on every recorded geometry. The
+    // scrollable agenda this replaces kept every entry reachable by a drag, but
+    // a drag inside a 130 dp card while driving is no glance, and it competed
+    // with the tap that maximizes; the panel carries the rest. Today's head is
+    // mandatory (the card never renders empty); each further event of today and
+    // each coming day is its own row, dropped from the end as room runs out.
+    FitWholeRows(
         modifier =
             Modifier
                 .fillMaxSize()
                 .clickable { onExpand() }
                 .semantics { contentDescription = calendarExpandLabel }
                 // Tighter than the shared card padding/gap: the head-unit info-pane
-                // card is short, so pack the list to avoid a clip.
-                .padding(FemtoDimens.CardPaddingCompact)
-                .verticalScroll(agendaScroll),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+                // card is short, so pack the list.
+                .padding(FemtoDimens.CardPaddingCompact),
+        verticalGap = AgendaRowGap,
+        mandatoryCount = 1,
     ) {
         visibleDays.forEach { day ->
             if (day.date == snapshot.today) {
@@ -164,14 +157,13 @@ private fun CalendarContent(
 // weather card's temperature beside it, and its title beneath; today's further
 // events follow flush-left in the agenda's own row form. Free today keeps the
 // eyebrow over the explicit no-events line, so the head never renders empty.
+// Emitted as sibling rows of the agenda's FitWholeRows (not one Column), so the
+// head is the one mandatory row and each further event can be dropped whole.
 @Composable
 private fun TodayHead(
     day: DayCell,
     is24Hour: Boolean,
     showColorBars: Boolean,
-) = Column(
-    modifier = Modifier.fillMaxWidth(),
-    verticalArrangement = Arrangement.spacedBy(3.dp),
 ) {
     val first = day.events.firstOrNull()
     // The eyebrow sits directly on the hero (no gap), exactly as the weather
@@ -198,6 +190,11 @@ private fun TodayHead(
         }
     }
 }
+
+// The gap between agenda rows (the head, today's further events, the coming
+// days) — tighter than the shared card section gap so the short head-unit card
+// packs one more row.
+private val AgendaRowGap = 8.dp
 
 // The first event of today: its time in the cards' hero treatment (bigNumber at
 // Text4Xl, Normal — the weather temperature's style, on the same clamped line

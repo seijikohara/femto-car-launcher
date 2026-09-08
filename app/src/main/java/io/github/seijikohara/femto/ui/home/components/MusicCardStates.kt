@@ -2,7 +2,10 @@ package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -218,26 +221,46 @@ internal fun MusicCardPlayingHeightSample(
     showAlbum: Boolean,
     showProgress: Boolean,
     modifier: Modifier = Modifier,
-) = Column(
+) = BoxWithConstraints(
     modifier =
         modifier
             .clearAndSetSemantics {}
             .padding(FemtoDimens.CardPaddingCompact),
-    verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
 ) {
-    MusicMetaAndProgress(
-        source = "",
-        sourceIcon = null,
-        title = "",
-        artist = null,
-        album = null,
-        positionMs = 0L,
-        durationMs = 0L,
-        positionUpdateTimeMs = 0L,
-        isPlaying = false,
-        playbackSpeed = 1f,
-        showAlbum = showAlbum,
-        showProgress = showProgress,
-    )
-    TransportRow(isPlaying = false, onCommand = {})
+    val meta: @Composable (Modifier) -> Unit = { metaModifier ->
+        MusicMetaAndProgress(
+            source = "",
+            sourceIcon = null,
+            title = "",
+            artist = null,
+            album = null,
+            positionMs = 0L,
+            durationMs = 0L,
+            positionUpdateTimeMs = 0L,
+            isPlaying = false,
+            playbackSpeed = 1f,
+            showAlbum = showAlbum,
+            showProgress = showProgress,
+            modifier = metaModifier,
+        )
+    }
+    // The same fork PlayingState takes at this width (MusicCardWideWidth): the
+    // transport beside the metadata on a wide card, under it otherwise.
+    if (maxWidth >= MusicCardWideWidth) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            meta(Modifier.weight(1f))
+            TransportRow(isPlaying = false, onCommand = {})
+        }
+    } else {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
+        ) {
+            meta(Modifier)
+            TransportRow(isPlaying = false, onCommand = {})
+        }
+    }
 }

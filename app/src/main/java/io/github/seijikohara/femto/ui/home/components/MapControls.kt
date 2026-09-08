@@ -93,6 +93,9 @@ internal fun MapControlRail(
     // KDoc). Each later segment carries its own leading divider so a dropped
     // segment takes its divider with it and the capsule never ends on a line.
     mandatoryCount = ZOOM_SEGMENTS,
+    // The capsule wraps the segments it kept; the host's height budget only
+    // bounds it, it must not stretch the glass down to the speed overlay.
+    fillHeight = false,
 ) {
     GroupSegment(
         onClick = onZoomIn,

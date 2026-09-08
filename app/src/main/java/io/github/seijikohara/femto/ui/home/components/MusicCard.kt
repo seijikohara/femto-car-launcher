@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Music
 import dev.chrisbanes.haze.HazeState
@@ -41,6 +42,19 @@ import kotlinx.coroutines.flow.StateFlow
 
 // Gap between the album art and the meta column in the playing-state row.
 private val RowContentGap = 16.dp
+
+// The transport strip's own width: the three buttons on the card's gap.
+private val MusicCardTransportWidth: Dp =
+    FemtoDimens.MusicTransportButton * 2 + FemtoDimens.MusicPlayButton + FemtoDimens.MusicTransportGap * 2
+
+// The content width from which the card lays the transport strip beside the
+// metadata (see PlayingState): the art at its full size, the text column at its
+// floor, and the strip, on the row's gaps. Derived from the parts, never tuned —
+// the head-unit columns (<= 350 dp) and a portrait phone's band stay under it,
+// a portrait tablet's band clears it. Shared with the idle states' height sample
+// (MusicCardPlayingHeightSample), which mirrors the form.
+internal val MusicCardWideWidth: Dp =
+    FemtoDimens.MusicArtSize + RowContentGap + FemtoDimens.MusicMetaMinWidth + RowContentGap + MusicCardTransportWidth
 
 // Test tags for the art / meta pair. The card's contract is that the square art
 // matches the meta column's height, so the padding reads evenly on all four
@@ -174,6 +188,27 @@ private fun PlayingState(
             } else {
                 0.dp
             }
+        // The transport strip's home: beside the metadata on a card wide enough
+        // for art, text, and the three controls in one row (a portrait tablet's
+        // band), under them otherwise (see MusicCardWideWidth). The wide form
+        // keeps the card one row tall and its controls at the trailing edge,
+        // where a centred strip under a left-packed pair read as unbalanced.
+        val wide = maxWidth >= MusicCardWideWidth
+        val transport: @Composable (Modifier) -> Unit = { transportModifier ->
+            // The spectrum paints behind the transport strip only: matchParentSize
+            // keeps the Box sized by the controls, and the buttons (drawn on top)
+            // keep their own tap handling — the canvas never consumes input.
+            Box(modifier = transportModifier) {
+                spectrum?.let {
+                    SpectrumBackground(spectrum = it, modifier = Modifier.matchParentSize())
+                }
+                TransportRow(
+                    isPlaying = nowPlaying.isPlaying,
+                    onCommand = onCommand,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
         Column(
             // Fill the width but wrap the height: the card is a content-height child
             // of the floating column, so it reports its natural height and the
@@ -185,9 +220,10 @@ private fun PlayingState(
             verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
         ) {
             // Album art + track info share the top region; the transport row spans the
-            // full card width below. On a narrow info-pane card a square album beside the
-            // three >= 64 dp controls leaves no room for them, so the controls drop to a
-            // full-width strip where they always fit.
+            // full card width below unless the card is wide (above). On a narrow
+            // info-pane card a square album beside the three >= 64 dp controls leaves
+            // no room for them, so the controls drop to a full-width strip where they
+            // always fit.
             Row(
                 // Pinned to the row's min intrinsic height, which the art sits out
                 // (see ZeroIntrinsicHeight): the meta column's natural height alone
@@ -243,19 +279,12 @@ private fun PlayingState(
                     // height for the row to wrap to.
                     modifier = Modifier.weight(1f).testTag(MUSIC_META_TAG),
                 )
-            }
-            // The spectrum paints behind the transport strip only: matchParentSize
-            // keeps the Box sized by the controls, and the buttons (drawn on top)
-            // keep their own tap handling — the canvas never consumes input.
-            Box(modifier = Modifier.fillMaxWidth()) {
-                spectrum?.let {
-                    SpectrumBackground(spectrum = it, modifier = Modifier.matchParentSize())
+                if (wide) {
+                    transport(Modifier.width(MusicCardTransportWidth))
                 }
-                TransportRow(
-                    isPlaying = nowPlaying.isPlaying,
-                    onCommand = onCommand,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+            }
+            if (!wide) {
+                transport(Modifier.fillMaxWidth())
             }
         }
     }

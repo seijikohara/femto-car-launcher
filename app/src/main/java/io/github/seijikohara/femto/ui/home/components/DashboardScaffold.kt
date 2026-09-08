@@ -7,6 +7,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -405,11 +406,10 @@ private fun DashboardContent(
         } else {
             0f
         }
-    // The band height as the cards actually get it: a fraction of the overlay box
-    // (the viewport already inset by the dock), so the speed/marker reserve matches
-    // the rendered band instead of over-reserving by the dock's extent.
-    // Capped so the band keeps its designed height on tall portrait panels rather
-    // than stretching the cards into sparse glass; the extra height goes to the map.
+    // The band's height cap: a fraction of the overlay box (the viewport already
+    // inset by the dock), bounded by CardClusterMaxHeight. The band itself is its
+    // content's height up to this cap (see DashboardOverlays), so the marker and
+    // rail reserves built on it are conservative — they assume the cap.
     val bottomCardBand =
         if (bottomCards) {
             ((maxHeight - dockExtent) * PORTRAIT_CARD_HEIGHT_FRACTION).coerceAtMost(CardClusterMaxHeight)
@@ -716,46 +716,7 @@ private fun DashboardOverlays(
             )
         }
 
-        // Speed overlay centred in the exposed map area above the dock, held clear of
-        // the card column (landscape, on the driver's side) or the bottom card band
-        // (portrait) by reserving their footprint so it centres in the visible map
-        // strip. The horizontal reserve flips to the start edge on a LEFT driver side.
-        Box(
-            modifier =
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(
-                        if (bottomCards) {
-                            // Portrait: the card band is a full-width bottom row inset
-                            // by outerPad on every side, so its own top inset is the gap
-                            // to the overlay — no cardGap on top of it, or the overlay
-                            // would sit two gaps above the cards while the cards sit one
-                            // apart. Match the band's side inset and start-align the
-                            // speed/address (below) so their left edge lines up with the
-                            // cards instead of floating centred above a full-width band.
-                            PaddingValues(
-                                start = outerPad,
-                                end = outerPad,
-                                bottom = bottomCardBand,
-                            )
-                        } else {
-                            cardSideInset(
-                                mirror = mirror,
-                                // The card column's outer margin lives inside
-                                // floatingCardWidth (its width is fixed before the padding
-                                // applies), so the column's on-screen footprint is
-                                // floatingCardWidth alone — adding outerPad on top would
-                                // double-count the margin.
-                                horizontal = if (landscapeCards) floatingCardWidth + cardGap else 0.dp,
-                                bottom = cardGap,
-                            )
-                        },
-                    ),
-            // Portrait aligns to the band's start edge; landscape centres in the
-            // exposed map strip.
-            contentAlignment = if (bottomCards) Alignment.BottomStart else Alignment.BottomCenter,
-        ) {
+        val speedOverlay: @Composable (Modifier) -> Unit = { overlayModifier ->
             SpeedOverlay(
                 location = uiState.location,
                 address = uiState.address,
@@ -767,19 +728,87 @@ private fun DashboardOverlays(
                 glassConfig = glassConfig,
                 motionTier = motionTier,
                 onExpand = onExpandTrip,
-                modifier =
-                    Modifier
-                        .onSizeChanged { onOverlaySizeChange(it) }
-                        // A phone's band is narrower than the overlay's width cap, so
-                        // the overlay spans it and both edges line up with the cards
-                        // below; on a tablet the cap holds and the card stays
-                        // start-aligned (SpeedOverlay's own widthIn cap would lose to
-                        // an outer fillMaxWidth, so the choice is made here).
-                        .then(if (speedSpansBand) Modifier.fillMaxWidth() else Modifier),
+                modifier = overlayModifier.onSizeChanged { onOverlaySizeChange(it) },
             )
         }
+        if (!bottomCards) {
+            // Landscape (and a card-less portrait): the speed overlay centres in the
+            // exposed map area above the dock, held clear of the card column on the
+            // driver's side by reserving its footprint. The horizontal reserve flips
+            // to the start edge on a LEFT driver side.
+            Box(
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(
+                            cardSideInset(
+                                mirror = mirror,
+                                // The card column's outer margin lives inside
+                                // floatingCardWidth (its width is fixed before the padding
+                                // applies), so the column's on-screen footprint is
+                                // floatingCardWidth alone — adding outerPad on top would
+                                // double-count the margin.
+                                horizontal = if (landscapeCards) floatingCardWidth + cardGap else 0.dp,
+                                bottom = cardGap,
+                            ),
+                        ),
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                speedOverlay(Modifier)
+            }
+        }
 
-        if (hasCards) {
+        if (bottomCards) {
+            // Portrait: the speed overlay and the card band stack in one bottom
+            // Column, so the band takes its content's height (bottom-anchored,
+            // capped at the band share) and the overlay sits exactly one card gap
+            // above it — a fixed-height band had stretched the cards into sparse
+            // glass on a tall panel and put the overlay two gaps above them. The
+            // overlay start-aligns so its left edge lines up with the cards; on a
+            // phone, whose band is narrower than the overlay's width cap, it spans
+            // the band so both edges do (SpeedOverlay's own widthIn cap would lose
+            // to an outer fillMaxWidth, so the choice is made here).
+            Column(
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(start = outerPad, end = outerPad, bottom = outerPad),
+                verticalArrangement = Arrangement.spacedBy(cardGap),
+            ) {
+                speedOverlay(
+                    Modifier.align(Alignment.Start).then(if (speedSpansBand) Modifier.fillMaxWidth() else Modifier),
+                )
+                FloatingCardColumn(
+                    uiState = uiState,
+                    temperatureUnit = temperatureUnit,
+                    speedUnit = speedUnit,
+                    panels = panels,
+                    cardGap = cardGap,
+                    // Portrait runs the header as a top strip instead (below).
+                    showHeader = false,
+                    is24Hour = is24Hour,
+                    showClockSeconds = showClockSeconds,
+                    clock = clock,
+                    hazeState = hazeState,
+                    glassConfig = glassConfig,
+                    onAction = onAction,
+                    onExpandNowPlaying = onExpandNowPlaying,
+                    onExpandCalendar = onExpandCalendar,
+                    onExpandWeather = onExpandWeather,
+                    spectrum = spectrum,
+                    musicShowAlbum = musicShowAlbum,
+                    musicShowArt = musicShowArt,
+                    motionTier = motionTier,
+                    // The band's cap, less the Column's own bottom inset and the
+                    // overlay's gap it used to carry inside a fixed height.
+                    modifier = Modifier.fillMaxWidth().heightIn(max = bottomCardBand - outerPad * 2),
+                )
+            }
+        }
+
+        if (landscapeCards) {
             FloatingCardColumn(
                 uiState = uiState,
                 temperatureUnit = temperatureUnit,
@@ -802,31 +831,23 @@ private fun DashboardOverlays(
                 musicShowAlbum = musicShowAlbum,
                 musicShowArt = musicShowArt,
                 motionTier = motionTier,
+                // Cards in a column on the driver's side, top-anchored and
+                // height-capped so they never stretch; the map keeps the opposite
+                // side. Mirrors to the start edge on a LEFT driver side.
                 modifier =
-                    if (bottomCards) {
-                        Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .height(bottomCardBand)
-                            .padding(horizontal = outerPad, vertical = outerPad)
-                    } else {
-                        // Cards in a column on the driver's side, top-anchored and
-                        // height-capped so they never stretch; the map keeps the
-                        // opposite side. Mirrors to the start edge on a LEFT driver side.
-                        Modifier
-                            .align(if (mirror) Alignment.TopStart else Alignment.TopEnd)
-                            .width(floatingCardWidth)
-                            .heightIn(max = CardClusterMaxHeight)
-                            .fillMaxHeight()
-                            .padding(
-                                cardSideInset(
-                                    mirror = mirror,
-                                    horizontal = outerPad,
-                                    top = outerPad,
-                                    bottom = outerPad,
-                                ),
-                            )
-                    },
+                    Modifier
+                        .align(if (mirror) Alignment.TopStart else Alignment.TopEnd)
+                        .width(floatingCardWidth)
+                        .heightIn(max = CardClusterMaxHeight)
+                        .fillMaxHeight()
+                        .padding(
+                            cardSideInset(
+                                mirror = mirror,
+                                horizontal = outerPad,
+                                top = outerPad,
+                                bottom = outerPad,
+                            ),
+                        ),
             )
         }
         if (!landscapeCards) {
@@ -1239,13 +1260,21 @@ private fun CardCluster(
     val musicSpan = musicPlaceable?.let { it.height + gapPx } ?: 0
     val rowPlaceable =
         row?.takeIf { plan.showRow }?.let {
+            val measurable = subcompose(ClusterSlot.ROW, it).single()
             val rowConstraints =
                 if (constraints.hasBoundedHeight) {
-                    Constraints.fixed(width, (constraints.maxHeight - headerSpan - musicSpan).coerceAtLeast(0))
+                    // The row's height is its content's — the taller of the two
+                    // cards' natural heights, both of which end with their last
+                    // whole row — capped by what the header and the music card
+                    // leave, never stretched to it: a stretched row was a
+                    // two-thirds-empty calendar on the tall geometries, and every
+                    // dp the row does not need goes back to the map.
+                    val leftover = (constraints.maxHeight - headerSpan - musicSpan).coerceAtLeast(0)
+                    Constraints.fixed(width, measurable.maxIntrinsicHeight(width).coerceIn(0, leftover))
                 } else {
                     spanning
                 }
-            subcompose(ClusterSlot.ROW, it).single().measure(rowConstraints)
+            measurable.measure(rowConstraints)
         }
     val rowSpan = rowPlaceable?.let { it.height + gapPx } ?: 0
     // Spans carry a trailing gap each; the last piece's gap is not laid out.
@@ -1309,9 +1338,11 @@ private val FloatingCardWidthMax: Dp = 350.dp
 // to the full-bleed map. Sits above the 720 dp head-unit column, which still fills.
 private val CardClusterMaxHeight: Dp = 680.dp
 
-// The share of the height the portrait bottom card band takes (capped by
-// CardClusterMaxHeight on tall panels).
-private const val PORTRAIT_CARD_HEIGHT_FRACTION = 0.52f
+// The most of the height the portrait bottom card band may take (also capped by
+// CardClusterMaxHeight on tall panels). A cap, not a size: the band is its
+// content's height, so this only binds where the cards want more — a phone,
+// where the previous 0.52 share left the map a quarter of the screen.
+private const val PORTRAIT_CARD_HEIGHT_FRACTION = 0.45f
 
 // Responsive previews. HomeUiState.Initial renders the empty/loading states (no
 // network/GL in a preview), which is enough to lock the responsive arrangement
