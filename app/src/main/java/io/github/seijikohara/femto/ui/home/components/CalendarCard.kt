@@ -361,7 +361,9 @@ private fun EventTitle(
 @Composable
 private fun CenteredHint(text: String) =
     Column(
-        modifier = Modifier.fillMaxSize(),
+        // The card inset, so the hint's natural height (the row's, when this card
+        // is the taller) matches the populated card's edges.
+        modifier = Modifier.fillMaxSize().padding(FemtoDimens.CardPaddingCompact),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

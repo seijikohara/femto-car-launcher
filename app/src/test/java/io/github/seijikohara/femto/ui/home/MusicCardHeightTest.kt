@@ -52,13 +52,14 @@ class MusicCardHeightTest {
     private fun setCard(
         showAlbum: Boolean,
         stressFontSettings: Boolean = false,
+        width: Dp = CardWidth,
     ) {
         composeTestRule.setContent {
             FemtoTheme(
                 fontBaseSizeSp = if (stressFontSettings) STRESS_BASE_SIZE_SP else DEFAULT_BASE_SIZE_SP,
                 fontWeightStep = if (stressFontSettings) STRESS_WEIGHT_STEP else 0,
             ) {
-                Box(modifier = Modifier.testTag(CARD_TAG).width(CardWidth)) {
+                Box(modifier = Modifier.testTag(CARD_TAG).width(width)) {
                     MusicCard(
                         state = cardState,
                         onCommand = {},
@@ -114,6 +115,12 @@ class MusicCardHeightTest {
         assertIdleStatesKeepPlayingHeight()
     }
 
+    @Test
+    fun `idle states keep the playing card height in the wide form`() {
+        setCard(showAlbum = true, width = WideCardWidth)
+        assertIdleStatesKeepPlayingHeight()
+    }
+
     private companion object {
         const val CARD_TAG = "musicCard"
 
@@ -121,6 +128,11 @@ class MusicCardHeightTest {
         // column keeps every line, the regime where the reserve must track the
         // meta block rather than any width-capped art.
         val CardWidth = 340.dp
+
+        // A portrait tablet's band: past MusicCardWideWidth (plus the card inset),
+        // where the transport sits beside the metadata and the height sample
+        // takes its Row branch.
+        val WideCardWidth = 640.dp
 
         // A user font setting that grows the meta block without moving any dp
         // value — the de-calibration class a static dp reserve cannot track.

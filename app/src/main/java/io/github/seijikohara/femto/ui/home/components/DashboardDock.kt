@@ -178,6 +178,47 @@ internal fun horizontalDockBarMinWidth(
         (if (statusCount > 0) DockStatusSideReserve else 0.dp) +
         FallbackBarInnerPadding * 2
 
+/**
+ * Where a horizontal dock sits beside a landscape card column: the pill centred
+ * in the map strip when it fits there ([PILL_IN_STRIP]), else the weight-shared
+ * bar filling the strip when the strip holds it at the tap-target floor
+ * ([BAR_IN_STRIP]), else the bar across the full width ([FULL_WIDTH]) — never a
+ * pill straddling the column's edge. The first two share the speed overlay's
+ * centre; the third lines up with the column's edge. A bar that fits the strip
+ * also keeps the status cluster the full width shows: [horizontalDockBarMinWidth]
+ * carries the status reserve, which puts the bar's minimum above the cluster's
+ * yield threshold ([compactDockExtent]) for every nav count.
+ */
+internal enum class HorizontalDockPlacement { PILL_IN_STRIP, BAR_IN_STRIP, FULL_WIDTH }
+
+/**
+ * Decide the [HorizontalDockPlacement] for a dock of [dockWidth] preference when
+ * the bar would be [fullBarWidth] across the viewport and [stripBarWidth] inside
+ * the map strip. The fit tests are the ones HorizontalDock itself runs.
+ */
+internal fun horizontalDockPlacement(
+    dockWidth: DockWidth,
+    fullBarWidth: Dp,
+    stripBarWidth: Dp,
+    navCount: Int,
+    statusCount: Int,
+): HorizontalDockPlacement =
+    when {
+        horizontalDockUsesPill(dockWidth, stripBarWidth, navCount, statusCount) -> {
+            HorizontalDockPlacement.PILL_IN_STRIP
+        }
+
+        stripBarWidth >= horizontalDockBarMinWidth(navCount, statusCount) &&
+            dockShowsStatus(stripBarWidth, navCount, statusCount) ==
+            dockShowsStatus(fullBarWidth, navCount, statusCount) -> {
+            HorizontalDockPlacement.BAR_IN_STRIP
+        }
+
+        else -> {
+            HorizontalDockPlacement.FULL_WIDTH
+        }
+    }
+
 // Whether the fixed-margin (pill) horizontal dock fits [availableWidth]: each nav
 // button is MinTouchTarget + two DockButtonMargins wide, plus DockStatusSideReserve
 // when the status cluster shows.
@@ -253,8 +294,8 @@ internal fun navSpecFor(id: DockNavId): NavSpec =
  *  - A 1 dp divider separates the actionable nav from a read-only status
  *    cluster — [DockConfig.visibleStatus] (today's factory order: cellular,
  *    hidden on telephony-less units; Wi-Fi; Bluetooth; GPS reception; and a
- *    battery indicator with icon over percent, charging read from the bolt
- *    glyph and accent tint).
+ *    battery indicator with its percent beside the icon, charging read from
+ *    the bolt glyph and accent tint).
  *
  * Iconography is the Lucide set; its stroke is lightened app-wide via FemtoIcon.
  */

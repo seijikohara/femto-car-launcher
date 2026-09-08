@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -51,47 +52,14 @@ internal fun MusicConnectState(
     color = Color.Transparent,
 ) {
     PlayingHeightReserve(showAlbum = showAlbum, showProgress = showProgress) {
-        Column(
-            // The reserve above holds the Playing card's content height, and the
-            // Column centres the cluster within it, so the card keeps the same
-            // size whether or not music is playing — the idle card neither
-            // shrinks nor grows and the calendar / weather row above stays put.
-            // Compact padding matches the Playing state's inset.
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(FemtoDimens.CardPaddingCompact),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            FemtoIcon(
-                imageVector = Lucide.Music,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(FemtoDimens.HeroIconSize),
-            )
-            Box(modifier = Modifier.height(12.dp))
-            Text(
-                text = stringResource(R.string.music_connect_cta),
-                style = MaterialTheme.typography.cardCta(),
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Box(modifier = Modifier.height(4.dp))
-            Text(
-                // Actionable copy the user must read to unlock the card: clear
-                // the head-unit glance floor (AGENTS.md#automotive-overrides),
-                // matching the equally actionable NoActiveSession Play hint below.
-                text = stringResource(R.string.music_connect_hint),
-                style = MaterialTheme.typography.cardCtaHint(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = 280.dp),
-            )
-        }
+        IdleCluster(
+            icon = Lucide.Music,
+            title = stringResource(R.string.music_connect_cta),
+            // Actionable copy the user must read to unlock the card: clear the
+            // head-unit glance floor (AGENTS.md#automotive-overrides), matching the
+            // equally actionable NoActiveSession Play hint.
+            hint = stringResource(R.string.music_connect_hint),
+        )
     }
 }
 
@@ -119,52 +87,87 @@ internal fun MusicEmptyState(
     color = Color.Transparent,
 ) {
     PlayingHeightReserve(showAlbum = showAlbum, showProgress = showProgress) {
-        Column(
-            // The reserve above holds the Playing card's content height, and the
-            // Column centres the icon / title / hint cluster within it, so the
-            // card keeps the same size whether or not music is playing — the
-            // idle card neither shrinks nor grows and the calendar / weather row
-            // above stays put. Compact padding matches the Playing state's inset.
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(FemtoDimens.CardPaddingCompact),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+        IdleCluster(
+            // The Play glyph in the primary tint, not a muted Music glyph: the
+            // state is clickable, so the glyph itself reads as the affordance.
+            icon = Lucide.Play,
+            title = stringResource(R.string.music_nothing_playing),
+            // Actionable copy the user must read to unlock the affordance: clear
+            // the head-unit glance floor (AGENTS.md#automotive-overrides), matching
+            // MusicConnectState's hint.
+            hint = stringResource(R.string.music_nothing_hint),
+        )
+    }
+}
+
+// The idle states' one cluster — a primary-tinted glyph, a one-line title and a
+// two-line hint — centred in the Playing card's reserved height (see
+// PlayingHeightReserve) so the card keeps the same size whether or not music is
+// playing and the calendar / weather row above stays put. Stacked on a narrow
+// card; on a wide one (MusicCardWideWidth, where the Playing card is a single
+// row and only as tall as its text column) the glyph sits beside the texts, so
+// the cluster stays inside that height instead of pushing the idle card past
+// it. Compact padding matches the Playing state's inset.
+@Composable
+private fun IdleCluster(
+    icon: ImageVector,
+    title: String,
+    hint: String,
+) = BoxWithConstraints(
+    modifier = Modifier.fillMaxWidth().padding(FemtoDimens.CardPaddingCompact),
+    contentAlignment = Alignment.Center,
+) {
+    val glyph: @Composable () -> Unit = {
+        FemtoIcon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(FemtoDimens.HeroIconSize),
+        )
+    }
+    val texts: @Composable (TextAlign) -> Unit = { align ->
+        Text(
+            text = title,
+            style = MaterialTheme.typography.cardCta(),
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = align,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Box(modifier = Modifier.height(IdleTextGap))
+        Text(
+            text = hint,
+            style = MaterialTheme.typography.cardCtaHint(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = align,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = IdleHintMaxWidth),
+        )
+    }
+    if (maxWidth >= MusicCardWideWidth) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(IdleWideGap),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            FemtoIcon(
-                imageVector = Lucide.Play,
-                contentDescription = null,
-                // Primary tint (mirroring MusicConnectState's icon), not the old
-                // muted 60%-alpha Music glyph: the state is now clickable, so the
-                // glyph itself should read as the actionable Play affordance.
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(FemtoDimens.HeroIconSize),
-            )
-            Box(modifier = Modifier.height(4.dp))
-            Text(
-                text = stringResource(R.string.music_nothing_playing),
-                style = MaterialTheme.typography.cardCta(),
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Box(modifier = Modifier.height(4.dp))
-            Text(
-                // Actionable copy the user must read to unlock the affordance:
-                // clear the head-unit glance floor (AGENTS.md#automotive-overrides),
-                // matching MusicConnectState's hint now that this state is tappable.
-                text = stringResource(R.string.music_nothing_hint),
-                style = MaterialTheme.typography.cardCtaHint(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = 280.dp),
-            )
+            glyph()
+            Column { texts(TextAlign.Start) }
+        }
+    } else {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            glyph()
+            Box(modifier = Modifier.height(IdleGlyphGap))
+            texts(TextAlign.Center)
         }
     }
 }
+
+// The idle cluster's spacing: glyph to title (stacked), title to hint, and glyph
+// to texts (side by side); the hint's readable line length.
+private val IdleGlyphGap = 8.dp
+private val IdleTextGap = 4.dp
+private val IdleWideGap = 16.dp
+private val IdleHintMaxWidth = 280.dp
 
 /**
  * Size [content] to at least the Playing card's content height, measured from

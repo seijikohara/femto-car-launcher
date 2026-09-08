@@ -78,7 +78,11 @@ internal const val MUSIC_META_TAG = "music-card-meta"
  *
  * The [compact] form keeps the same structure minus the album line and the
  * progress row, for a card column too short to afford the full card beside a
- * usable calendar / weather row (see the dashboard's card cluster).
+ * usable calendar / weather row (see the dashboard's card cluster). On a card
+ * wide enough for the art, the text column at its floor and the three controls
+ * in one row ([MusicCardWideWidth] — a portrait tablet's band) the transport
+ * sits beside the metadata instead of under it; the idle states' height sample
+ * mirrors both forms.
  *
  * Empty variants render in the same outer dimensions, reserved by measuring
  * an unplaced sample of the Playing layout (see `PlayingHeightReserve` in

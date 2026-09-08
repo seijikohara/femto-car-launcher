@@ -352,25 +352,31 @@ private fun DashboardContent(
     // there; else the weight-shared bar filling the strip, when the strip holds
     // it at the tap-target floor with the same status cluster the full width
     // would show; else the bar across the full width, whose end lines up with
-    // the column's edge. The first two share the speed overlay's centre. The
-    // fit tests are the ones HorizontalDock runs, so the two agree on the
-    // layout; forcing the bar goes through the same DockWidth preference the
-    // user's setting does, so HorizontalDock needs no second switch.
-    val navCount = dockConfig.visibleNav.size
-    val statusCount = dockConfig.visibleStatus.size
-    val horizontalDockBesideColumn =
-        landscapeCards && (dockPosition == DockPosition.BOTTOM || dockPosition == DockPosition.TOP)
-    val stripBarWidth = maxWidth - floatingCardWidth - cardGap - outerPad * 2
-    val pillFitsStrip =
-        horizontalDockBesideColumn && horizontalDockUsesPill(dockWidth, stripBarWidth, navCount, statusCount)
-    val barFitsStrip =
-        horizontalDockBesideColumn &&
-            !pillFitsStrip &&
-            stripBarWidth >= horizontalDockBarMinWidth(navCount, statusCount) &&
-            dockShowsStatus(stripBarWidth, navCount, statusCount) ==
-            dockShowsStatus(horizontalDockWidth(maxWidth, outerPad), navCount, statusCount)
-    val dockCentresInStrip = pillFitsStrip || barFitsStrip
-    val effectiveDockWidth = if (horizontalDockBesideColumn && !pillFitsStrip) DockWidth.EXTENDED else dockWidth
+    // the column's edge. The first two share the speed overlay's centre (see
+    // horizontalDockPlacement, which HorizontalDockPlacementTest pins on the
+    // recorded geometries). Forcing the bar goes through the same DockWidth
+    // preference the user's setting does, so HorizontalDock needs no second switch.
+    val dockPlacement =
+        if (landscapeCards && (dockPosition == DockPosition.BOTTOM || dockPosition == DockPosition.TOP)) {
+            horizontalDockPlacement(
+                dockWidth = dockWidth,
+                fullBarWidth = horizontalDockWidth(maxWidth, outerPad),
+                stripBarWidth = maxWidth - floatingCardWidth - cardGap - outerPad * 2,
+                navCount = dockConfig.visibleNav.size,
+                statusCount = dockConfig.visibleStatus.size,
+            )
+        } else {
+            null
+        }
+    val dockCentresInStrip = dockPlacement != null && dockPlacement != HorizontalDockPlacement.FULL_WIDTH
+    val effectiveDockWidth =
+        if (dockPlacement != null &&
+            dockPlacement != HorizontalDockPlacement.PILL_IN_STRIP
+        ) {
+            DockWidth.EXTENDED
+        } else {
+            dockWidth
+        }
 
     val attributionBottomInset =
         if (mapCreditClearsDock(
@@ -424,7 +430,12 @@ private fun DashboardContent(
     // the band over the rail's column, so it always does. Zero means the rail
     // has the whole overlay box (see MapControlRail for what it yields).
     val overlaySize = with(density) { DpSize(overlaySizePx.width.toDp(), overlaySizePx.height.toDp()) }
-    val overlayStrip = if (landscapeCards) maxWidth - floatingCardWidth - cardGap else maxWidth
+    // Measured in the overlay box, which the dock's edge already insets: a
+    // vertical (LEFT / RIGHT) rail narrows it by the dock's extent, as
+    // bottomSafeFraction accounts for the bottom dock.
+    val overlayDockInset =
+        if (dockPosition == DockPosition.LEFT || dockPosition == DockPosition.RIGHT) dockExtent else 0.dp
+    val overlayStrip = (if (landscapeCards) maxWidth - floatingCardWidth - cardGap else maxWidth) - overlayDockInset
     val overlayReachesRail = (overlayStrip - overlaySize.width) / 2 < outerPad + MapControlsStripWidth + cardGap
     val railBottomReserve =
         when {
@@ -803,7 +814,7 @@ private fun DashboardOverlays(
                     motionTier = motionTier,
                     // The band's cap, less the Column's own bottom inset and the
                     // overlay's gap it used to carry inside a fixed height.
-                    modifier = Modifier.fillMaxWidth().heightIn(max = bottomCardBand - outerPad * 2),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = bottomCardBand - (outerPad + cardGap)),
                 )
             }
         }
@@ -1265,9 +1276,16 @@ private fun CardCluster(
                     // whole row — capped by what the header and the music card
                     // leave, never stretched to it: a stretched row was a
                     // two-thirds-empty calendar on the tall geometries, and every
-                    // dp the row does not need goes back to the map.
+                    // dp the row does not need goes back to the map. It never drops
+                    // under the row's minimum either (or under the leftover, where
+                    // the compact card left less): the cards' empty states — a
+                    // snapshot still loading, a permission hint, the weather's lone
+                    // cloud — have almost no natural height, and without the floor
+                    // a cold start would open on a 48 dp sliver that then jumps as
+                    // each card's data lands.
                     val leftover = (constraints.maxHeight - headerSpan - musicSpan).coerceAtLeast(0)
-                    Constraints.fixed(width, measurable.maxIntrinsicHeight(width).coerceIn(0, leftover))
+                    val floor = minOf(CardRowMinHeight.roundToPx(), leftover)
+                    Constraints.fixed(width, measurable.maxIntrinsicHeight(width).coerceIn(floor, leftover))
                 } else {
                     spanning
                 }

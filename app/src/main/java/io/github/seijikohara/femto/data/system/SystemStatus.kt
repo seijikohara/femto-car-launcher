@@ -40,7 +40,9 @@ internal data class SystemStatus(
     // Satellites currently used in the GPS fix (0 while searching / no GNSS read).
     // No longer drawn on the dashboard — the dock's GPS icon carries the fix state
     // by tint alone, a bare count under it read as "no GPS" rather than
-    // "searching" — but kept as a reception-quality fact for diagnostics.
+    // "searching" — and read by no production code yet: kept, with its GNSS
+    // source and SystemStatusRepositoryTest, as the reception-quality fact a
+    // diagnostics entry can pick up.
     val gpsSatelliteCount: Int,
 ) {
     companion object {

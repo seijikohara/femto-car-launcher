@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -124,8 +123,8 @@ internal fun WeatherCard(
         // the node's content description, so the maximize entry stays discoverable.
         // Hoisted out of the semantics lambda, which is not @Composable. Applied to
         // the whole card (not just the head) so tapping anywhere opens the full-screen
-        // panel; the forecast below has no other clickable children, so Compose routes
-        // a tap to this maximize click and a vertical drag to the forecast scroll.
+        // panel; the forecast below has no other clickable children, so a tap
+        // anywhere reaches this maximize click.
         val weatherExpandLabel = stringResource(R.string.weather_expand)
         Column(
             modifier =
@@ -143,7 +142,8 @@ internal fun WeatherCard(
             // (keyed on the whole snapshot, so a genuinely new fetch — not a
             // per-frame value — drives the fade); kept as two separate Crossfade
             // nodes rather than one wrapping both. They are the fixed hero, so the
-            // refresh dissolve stays here while the forecast below scrolls instead.
+            // refresh dissolve stays here; the forecast below re-lays out its whole
+            // rows instead.
             Motion.ContentCrossfade(targetState = snapshot, tier = motionTier, label = "weatherHead") { current ->
                 Head(current, temperatureUnit, asOf)
             }
@@ -154,11 +154,13 @@ internal fun WeatherCard(
             // sliced at the card's edge — a line of bare hours with their icons cut
             // off — read as breakage on the short geometries, and a drag inside the
             // card competed with the tap that maximizes. weight(1f, fill = false)
-            // bounds the grid to the leftover height without stretching it, so the
-            // card's natural height ends with its last whole row.
+            // bounds the grid to the leftover height, and fillHeight = false lets it
+            // wrap the rows it kept rather than report that bound, so the card's
+            // natural height ends with its last whole row.
             FitWholeRows(
                 modifier = Modifier.weight(1f, fill = false).fillMaxWidth(),
                 verticalGap = FemtoDimens.CardSectionGapCompact,
+                fillHeight = false,
             ) {
                 snapshot.hourly.chunked(FORECAST_COLUMNS).take(FORECAST_CARD_ROWS).forEachIndexed { index, rowHours ->
                     // The metrics above and the hours below share the 3-column
@@ -168,9 +170,7 @@ internal fun WeatherCard(
                     // when that row does — never a lone line under the metrics.
                     if (index == 0) {
                         Column(verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact)) {
-                            HorizontalDivider(
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha),
-                            )
+                            FemtoHorizontalDivider()
                             ForecastRow(rowHours, snapshot.sunrise, snapshot.sunset, temperatureUnit, is24Hour)
                         }
                     } else {
@@ -296,8 +296,8 @@ private fun Head(
             // The earlier Row of two baseline-aligned texts grew by the scale's
             // descender and, centred against the glyph beside it, lifted the
             // numeral 2 dp off the digit band the calendar's today head shares.
-            // Keeping the head compact also leaves the forecast below a taller
-            // viewport, so more hours show before it needs to scroll.
+            // Keeping the head compact also leaves the forecast below more room,
+            // so one more whole row fits.
             Text(
                 text = heroWithUnit(tempLabel, temperatureUnit.label()),
                 style = tempStyle,
@@ -433,8 +433,8 @@ private const val FORECAST_COLUMNS = 3
 private const val FORECAST_CARD_ROWS = 3
 
 // One forecast row: up to [FORECAST_COLUMNS] hour chips, padded with spacers on
-// a short final row so the columns stay aligned. One child of the WeatherCard
-// body's scrollable forecast Column.
+// a short final row so the columns stay aligned. One whole-row child of the
+// WeatherCard body's forecast grid (FitWholeRows).
 @Composable
 private fun ForecastRow(
     rowHours: List<HourlyForecast>,
@@ -517,7 +517,9 @@ private fun ForecastChip(
 @Composable
 private fun EmptyState() =
     Box(
-        modifier = Modifier.fillMaxSize(),
+        // The card inset, so the state's natural height (the row's, when this
+        // card is the taller) matches the populated card's edges.
+        modifier = Modifier.fillMaxSize().padding(FemtoDimens.CardPaddingCompact),
         contentAlignment = Alignment.Center,
     ) {
         // The cold-start window reads as an error when shown as text. Per the
