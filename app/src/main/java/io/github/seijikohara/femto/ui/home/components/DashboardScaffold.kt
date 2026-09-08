@@ -148,7 +148,8 @@ internal fun mapCreditClearsDock(
  * band ([DashboardHeader]) — the calendar and weather share the row below it
  * side by side and grow to fill the column, the music card sits at the bottom
  * (in its compact form when the column is too short to afford the full card
- * beside a usable row; see the card cluster in [FloatingCardColumn]). Portrait
+ * beside a usable row, and alone — the row yielding whole — when no form of
+ * it leaves a readable row; see the card cluster in [FloatingCardColumn]). Portrait
  * lays the cards along the bottom and runs the header as a band along the top
  * edge instead, beside the compass and no wider than the landscape column. With
  * every card hidden the header alone keeps the column's slot (landscape) or the
@@ -1083,7 +1084,9 @@ private fun FloatingCardColumn(
         header = header.takeIf { showHeader },
         row = row.takeIf { panels.calendar || panels.weather },
         music = musicCard.takeIf { panels.music },
-        musicSample = { MusicCardPlayingHeightSample(showAlbum = musicShowAlbum, showProgress = true) },
+        musicSample = { compact ->
+            MusicCardPlayingHeightSample(showAlbum = musicShowAlbum && !compact, showProgress = !compact)
+        },
         cardGap = cardGap,
         modifier = modifier,
     )
@@ -1093,12 +1096,15 @@ private fun FloatingCardColumn(
 // row — its only weighted child — absorb every shortfall while the header and
 // the content-height music card kept their natural heights, so a short column
 // (the LARGE display scale on a 512 dp head unit, a phone in landscape) squeezed
-// the row into a sliver. Here the row has a floor: the full music card's height
-// is measured from its unplaced sample first, and when the row would fall below
-// CardRowMinHeight beside that full card, the card is composed in its compact
-// form instead (MusicCard.compact). The decision comes before the card is
-// composed — the subcompose pattern BoxWithConstraints is built on — so exactly
-// one form of the card exists: no second set of transport buttons for TalkBack
+// the row into a sliver. Here the row has two floors, measured against unplaced
+// samples of the music card (MusicCardPlayingHeightSample) before anything is
+// composed for real: beside the full card the row must clear CardRowMinHeight,
+// else the card is composed in its compact form (MusicCard.compact); beside the
+// compact card it must still clear CardRowFloorHeight, else the row yields whole
+// and the card takes the fullest form the column affords. Deciding before
+// composing — the subcompose pattern BoxWithConstraints is built on — means
+// exactly one form of the card exists and a yielded row is absent, not merely
+// unplaced: no second set of transport buttons, no hidden agenda, for TalkBack
 // or a test to find. The row takes whatever height the header and the card
 // leave; without a row the card follows the header at its own height.
 @Composable
@@ -1106,7 +1112,7 @@ private fun CardCluster(
     header: (@Composable () -> Unit)?,
     row: (@Composable () -> Unit)?,
     music: (@Composable (compact: Boolean) -> Unit)?,
-    musicSample: @Composable () -> Unit,
+    musicSample: @Composable (compact: Boolean) -> Unit,
     cardGap: Dp,
     modifier: Modifier = Modifier,
 ) = SubcomposeLayout(modifier = modifier) { constraints ->
@@ -1116,21 +1122,44 @@ private fun CardCluster(
     val spanning = Constraints(minWidth = width, maxWidth = width)
     val headerPlaceable = header?.let { subcompose(ClusterSlot.HEADER, it).single().measure(spanning) }
     val headerSpan = headerPlaceable?.let { it.height + gapPx } ?: 0
-    val bounded = constraints.hasBoundedHeight
-    val compact =
-        music != null &&
-            row != null &&
-            bounded &&
-            run {
-                val fullMusic = subcompose(ClusterSlot.MUSIC_SAMPLE, musicSample).single().measure(spanning).height
-                constraints.maxHeight - headerSpan - fullMusic - gapPx < CardRowMinHeight.roundToPx()
+    val plan =
+        if (music != null && row != null && constraints.hasBoundedHeight) {
+            val sampleHeight = { compact: Boolean ->
+                subcompose(
+                    if (compact) ClusterSlot.MUSIC_SAMPLE_COMPACT else ClusterSlot.MUSIC_SAMPLE,
+                ) { musicSample(compact) }
+                    .single()
+                    .measure(spanning)
+                    .height
             }
-    val musicPlaceable = music?.let { subcompose(ClusterSlot.MUSIC) { it(compact) }.single().measure(spanning) }
+            val rowBeside = { musicHeight: Int -> constraints.maxHeight - headerSpan - musicHeight - gapPx }
+            val fullMusic = sampleHeight(false)
+            when {
+                rowBeside(
+                    fullMusic,
+                ) >= CardRowMinHeight.roundToPx() -> ClusterPlan(compactMusic = false, showRow = true)
+
+                rowBeside(
+                    sampleHeight(true),
+                ) >= CardRowFloorHeight.roundToPx() -> ClusterPlan(compactMusic = true, showRow = true)
+
+                // No form of the card leaves a readable row: the row yields, and the
+                // card takes its full form when the column holds it after the header.
+                else -> ClusterPlan(compactMusic = headerSpan + fullMusic > constraints.maxHeight, showRow = false)
+            }
+        } else {
+            ClusterPlan(compactMusic = false, showRow = row != null)
+        }
+    val musicPlaceable = music?.let {
+        subcompose(
+            ClusterSlot.MUSIC,
+        ) { it(plan.compactMusic) }.single().measure(spanning)
+    }
     val musicSpan = musicPlaceable?.let { it.height + gapPx } ?: 0
     val rowPlaceable =
-        row?.let {
+        row?.takeIf { plan.showRow }?.let {
             val rowConstraints =
-                if (bounded) {
+                if (constraints.hasBoundedHeight) {
                     Constraints.fixed(width, (constraints.maxHeight - headerSpan - musicSpan).coerceAtLeast(0))
                 } else {
                     spanning
@@ -1147,12 +1176,24 @@ private fun CardCluster(
     }
 }
 
-private enum class ClusterSlot { HEADER, MUSIC_SAMPLE, MUSIC, ROW }
+// The cluster's decision for one measure pass (see CardCluster).
+private data class ClusterPlan(
+    val compactMusic: Boolean,
+    val showRow: Boolean,
+)
 
-// The floor under the calendar / weather row: two agenda entries, or the weather
-// head with one forecast row — the least that still answers "what is next" at a
-// glance. Below it the music card yields its compact form (see CardCluster).
+private enum class ClusterSlot { HEADER, MUSIC_SAMPLE, MUSIC_SAMPLE_COMPACT, MUSIC, ROW }
+
+// The two floors under the calendar / weather row (see CardCluster). Above
+// CardRowMinHeight — the calendar head with its next entry, or the weather head
+// with one forecast row: the least that still answers "what is next" at a
+// glance — the row sits beside the full music card. Down to CardRowFloorHeight
+// the music card yields its compact form and the row still shows both card
+// heads whole (the eyebrow and the hero numeral under the card padding). Below
+// it no form of the card leaves a readable row, so the row yields whole and its
+// height returns to the map.
 private val CardRowMinHeight: Dp = 120.dp
+private val CardRowFloorHeight: Dp = 72.dp
 
 // Below either breakpoint the dashboard switches to its compact spacing. The
 // thresholds are deliberately coarse: they separate small / short head units from

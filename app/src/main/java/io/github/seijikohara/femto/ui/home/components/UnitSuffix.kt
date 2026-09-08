@@ -42,6 +42,35 @@ internal fun UnitSuffix(
 )
 
 /**
+ * The [UnitSuffix] treatment as one string for a hero numeral: `value` in the
+ * caller's hero style, then a space and the [unit] at the [unitLabel] size and
+ * weight, dimmed — the standalone suffix's exact look, but as a span, so the
+ * unit shares the numeral's baseline by construction and the pair measures as
+ * one line. For a numeral held to its line box (`singleLineBox`) this is the
+ * form to use: a `Row` of two baseline-aligned texts grows by the unit's
+ * descender, and a taller row centred beside a sibling lifts the numeral off
+ * its band (the weather head against its condition glyph).
+ */
+@Composable
+internal fun heroWithUnit(
+    value: String,
+    unit: String,
+): AnnotatedString {
+    val unitStyle = MaterialTheme.typography.unitLabel()
+    val unitSpan =
+        SpanStyle(
+            fontSize = unitStyle.fontSize,
+            fontWeight = unitStyle.fontWeight,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = UNIT_SUFFIX_ALPHA),
+        )
+    return buildAnnotatedString {
+        append(value)
+        append(" ")
+        withStyle(unitSpan) { append(unit) }
+    }
+}
+
+/**
  * The [UnitSuffix] treatment as one string: `value` followed by a space and the
  * dimmed [unit], or the bare value when [unit] is null (a percentage or a word
  * annotates itself). Rendered through

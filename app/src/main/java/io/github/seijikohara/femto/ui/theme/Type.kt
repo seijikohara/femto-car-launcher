@@ -1,19 +1,24 @@
 package io.github.seijikohara.femto.ui.theme
 
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.AlignmentLine
+import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.layout.LastBaseline
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.constrainHeight
+import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
@@ -508,14 +513,36 @@ internal fun Typography.attributionCredit(): TextStyle =
  * through a fallback face (e.g. CJK over a Latin primary) grows to the
  * fallback's taller metrics even under [LineHeightStyle.Mode.Fixed] —
  * measured on-device. The fixed-height slot pins the row's measured height;
- * `wrapContentHeight(unbounded)` lets the taller content measure freely and
- * centres it in the slot, and since CJK ink stays within the em box the
- * overflow is metric air, not visible clipping.
+ * the content measures freely (unbounded height) and is centred on the slot,
+ * and since CJK ink stays within the em box the overflow is metric air, not
+ * visible clipping.
+ *
+ * The slot is centred on the NOMINAL line box, never on whatever height an
+ * ancestor actually affords. When a card row sits at its floor and crushes the
+ * slot below the line box, the ink then keeps its top and clips at the bottom
+ * — the plain `height` + `wrapContentHeight(unbounded)` pair instead centred
+ * the numeral in the sliver, spilling it upward over the eyebrow above it.
  */
 @Composable
-internal fun Modifier.singleLineBox(style: TextStyle): Modifier =
-    height(lineBoxHeight(style))
-        .wrapContentHeight(align = Alignment.CenterVertically, unbounded = true)
+internal fun Modifier.singleLineBox(style: TextStyle): Modifier {
+    val box = lineBoxHeight(style)
+    return layout { measurable, constraints ->
+        val boxPx = box.roundToPx()
+        val placeable = measurable.measure(constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity))
+        val top = Alignment.CenterVertically.align(placeable.height, boxPx)
+        // The baselines are declared explicitly at the content's offset, so a
+        // baseline-aligned sibling (a UnitSuffix) meets the numeral where the
+        // ink actually sits, not where the raw text node would have put it.
+        val baselines =
+            listOf<AlignmentLine>(FirstBaseline, LastBaseline)
+                .mapNotNull { line ->
+                    placeable[line].takeIf { it != AlignmentLine.Unspecified }?.let { line to it + top }
+                }.toMap()
+        layout(constraints.constrainWidth(placeable.width), constraints.constrainHeight(boxPx), baselines) {
+            placeable.placeRelative(0, top)
+        }
+    }
+}
 
 /**
  * Return [style]'s nominal single-line box height in dp — the conversion behind

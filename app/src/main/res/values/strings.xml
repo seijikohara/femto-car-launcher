@@ -78,6 +78,9 @@
     <string name="calendar_all_day">All day</string>
     <string name="calendar_open_app">Open calendar</string>
     <string name="calendar_no_events">No events</string>
+    <!-- Eyebrow over today's events on the compact card; the date itself sits in the
+         dashboard header above the cards. -->
+    <string name="calendar_today">Today</string>
 
     <!-- Weather card -->
     <string name="weather_title">Weather</string>

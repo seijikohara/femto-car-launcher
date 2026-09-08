@@ -263,49 +263,48 @@ private fun Head(
         weight = MaterialTheme.typography.normalWeight,
     )
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Stale-data eyebrow: only present once the snapshot ages past the
-        // staleness threshold, so fresh readings carry no extra chrome.
-        if (asOfLabel != null) {
-            Text(
-                text = asOfLabel,
-                style = MaterialTheme.typography.sectionLabel(12, fontWeight = FontWeight.Normal),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-            )
-        }
+        // The eyebrow is permanent: the condition in words while the reading is
+        // fresh, the fetch time ("AS OF 05:32") once it has aged past the
+        // staleness threshold. A permanent line keeps the head one height — the
+        // hero numeral stays on the digit band it shares with the calendar card's
+        // today head beside it, and a refresh never shifts it — and the word gives
+        // the glyph its reading at a glance.
+        val conditionLabel = stringResource(labelResFor(snapshot.code))
+        CardEyebrow(text = asOfLabel ?: conditionLabel)
         // Big temperature on the left, the hero condition glyph beside it on the
         // right; SpaceBetween balances the two across the card width. The glyph is a
         // sibling of the temperature (not of the whole head column), so it centres on
-        // the temperature's clamped slot whether or not the stale eyebrow is present —
-        // the temperature is the card's own hero numeral (the clock and the date sit
-        // on their own band in the DashboardHeader above the cluster), and the glyph
-        // centres on its line.
+        // the temperature's clamped slot — the temperature is the card's own hero
+        // numeral (the clock and the date sit on their own band in the
+        // DashboardHeader above the cluster), and the glyph centres on its line.
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Temperature value + the dimmed scale (°C / °F) trailing it on the
-            // value's baseline — the shared dashboard value/unit treatment; the 4dp
-            // gap replaces the old top/start superscript padding.
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                // Clamped to its own lineHeight (singleLineBox): without this, the
-                // platform's default font padding inflates the hero numeral's measured
-                // height well past its nominal line box (55px vs. 42px at this size).
-                // Keeping the head compact leaves the scrollable forecast below a
-                // taller viewport, so more hours show before it needs to scroll.
-                Text(
-                    text = tempLabel,
-                    style = tempStyle,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    modifier = Modifier.singleLineBox(tempStyle).alignByBaseline(),
-                )
-                UnitSuffix(temperatureUnit.label(), modifier = Modifier.alignByBaseline())
-            }
+            // Temperature value + the dimmed scale (°C / °F) as ONE text on the
+            // numeral's clamped line box (singleLineBox): without the clamp the
+            // platform's default font padding inflates the hero's measured height
+            // well past its nominal line box (55px vs. 42px at this size), and the
+            // scale set as a span shares the numeral's baseline by construction.
+            // The earlier Row of two baseline-aligned texts grew by the scale's
+            // descender and, centred against the glyph beside it, lifted the
+            // numeral 2 dp off the digit band the calendar's today head shares.
+            // Keeping the head compact also leaves the forecast below a taller
+            // viewport, so more hours show before it needs to scroll.
+            Text(
+                text = heroWithUnit(tempLabel, temperatureUnit.label()),
+                style = tempStyle,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                modifier = Modifier.singleLineBox(tempStyle),
+            )
             FemtoIcon(
                 imageVector = glyphIconFor(snapshot.code, snapshot.isDay),
-                contentDescription = stringResource(labelResFor(snapshot.code)),
+                // The eyebrow already reads the condition while the data is fresh;
+                // describing the glyph too would announce it twice. Once the eyebrow
+                // turns into the fetch time the glyph is the only carrier again.
+                contentDescription = conditionLabel.takeIf { asOfLabel != null },
                 tint = glyphTintFor(snapshot.code, snapshot.isDay, glyphs),
                 // Sized to the temperature's line box (not a fixed dp), so it tracks
                 // the digits under the user's font-size setting. Smaller than the

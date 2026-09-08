@@ -6,29 +6,44 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
-// The dashboard's two date labels, shared by the calendar snapshot and the
-// dashboard header so the header can show today's date from the clock alone
-// (no calendar permission involved) with exactly the calendar's wording.
-
-/** Return the locale's full weekday name for [date] ("Friday", "金曜日"). */
-internal fun weekdayLabelOf(
-    date: LocalDate,
-    locale: Locale,
-): String = date.dayOfWeek.getDisplayName(TextStyle.FULL, locale)
+// Today's date as the dashboard header words it, produced from the clock alone
+// (no calendar permission involved) in the locale's own field order.
 
 /**
- * Format the "month year" label using the locale's preferred field order.
- * `getBestDateTimePattern` resolves the skeleton "yMMMM" to e.g. "MMMM y" for
- * en (March 2026) but a year-first pattern for ja / ko (2026年3月). A
- * hand-joined "Month Year" string would force English ordering on every locale.
+ * The forms the header's date line can take, longest first. The header walks
+ * them in this order and renders the first that fits its slot (see
+ * `DashboardHeader`), so a narrow band degrades from "Friday, May 1" through
+ * "Fri, May 1" to the bare weekday before the date folds away.
  */
-internal fun monthLabelOf(
+internal enum class DateLineForm(
+    // ICU skeleton for getBestDateTimePattern; null for the weekday-only form,
+    // a plain display name rather than a pattern.
+    internal val skeleton: String?,
+) {
+    // Weekday, month name, day of month: "Friday, May 1" / "5月1日金曜日".
+    FULL("EEEEMMMMd"),
+
+    // Abbreviated weekday and month: "Fri, May 1" / "5月1日(金)".
+    SHORT("EEEMMMd"),
+
+    // The full weekday name alone: "Friday" / "金曜日".
+    WEEKDAY(null),
+}
+
+/**
+ * Format [date] in [form] for [locale]. The pattern-bearing forms go through
+ * `getBestDateTimePattern`, which resolves the skeleton to the locale's field
+ * order — "EEEE, MMMM d" for en (Friday, May 1) but a day-first, suffixed
+ * pattern for ja (5月1日金曜日). A hand-joined "Weekday, Month day" string
+ * would force English ordering on every locale.
+ */
+internal fun dateLineOf(
     date: LocalDate,
     locale: Locale,
+    form: DateLineForm,
 ): String =
-    date.format(
-        DateTimeFormatter.ofPattern(
-            DateFormat.getBestDateTimePattern(locale, "yMMMM"),
-            locale,
-        ),
-    )
+    form.skeleton
+        ?.let { skeleton ->
+            date.format(DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, skeleton), locale))
+        }
+        ?: date.dayOfWeek.getDisplayName(TextStyle.FULL, locale)

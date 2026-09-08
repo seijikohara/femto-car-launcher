@@ -12,40 +12,47 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 
 /**
- * The dashboard's two date labels, shared by the calendar agenda and the
- * dashboard header. Robolectric because the month label resolves its field
- * order through the platform's DateFormat skeleton API.
+ * The dashboard header's date line. Robolectric because the pattern-bearing
+ * forms resolve their field order through the platform's DateFormat skeleton
+ * API.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class DateLabelsTest {
+    private val friday = LocalDate.of(2026, 5, 1)
+
     @Test
-    fun `month label follows the locale field order`() {
-        // The label is produced from getBestDateTimePattern(locale, "yMMMM").
-        // en places the month first; ja / ko place the year first. Asserting
-        // against the same pattern-derived expectation (rather than a hardcoded
-        // English string) proves the formatter is locale-aware without baking a
-        // brittle literal per locale.
-        val today = LocalDate.of(2026, 3, 30)
-        listOf(Locale.ENGLISH, Locale.JAPANESE, Locale.KOREAN).forEach { locale ->
-            val expected =
-                today.format(
-                    DateTimeFormatter.ofPattern(
-                        DateFormat.getBestDateTimePattern(locale, "yMMMM"),
-                        locale,
-                    ),
-                )
-            assertEquals(expected, monthLabelOf(today, locale))
+    fun `full and short forms follow the locale field order`() {
+        // Asserting against the same skeleton-derived expectation (rather than a
+        // hardcoded string per locale) proves the formatter is locale-aware
+        // without baking a brittle literal for every locale.
+        listOf(DateLineForm.FULL, DateLineForm.SHORT).forEach { form ->
+            listOf(Locale.ENGLISH, Locale.JAPANESE, Locale.GERMAN).forEach { locale ->
+                val expected =
+                    friday.format(
+                        DateTimeFormatter.ofPattern(
+                            DateFormat.getBestDateTimePattern(locale, form.skeleton!!),
+                            locale,
+                        ),
+                    )
+                assertEquals(expected, dateLineOf(friday, locale, form))
+            }
+            // A guard against a hand-joined "Weekday, Month day": ja leads with the
+            // month and day and trails the weekday, en does the opposite.
+            assertNotEquals(dateLineOf(friday, Locale.ENGLISH, form), dateLineOf(friday, Locale.JAPANESE, form))
         }
-        // The English and Japanese labels must differ: ja leads with the year, en
-        // with the month name — a guard against the old hand-joined "Month Year".
-        assertNotEquals(monthLabelOf(today, Locale.ENGLISH), monthLabelOf(today, Locale.JAPANESE))
     }
 
     @Test
-    fun `weekday label is the locale's full weekday name`() {
-        val friday = LocalDate.of(2026, 5, 1)
-        assertEquals("Friday", weekdayLabelOf(friday, Locale.ENGLISH))
-        assertEquals("金曜日", weekdayLabelOf(friday, Locale.JAPANESE))
+    fun `english forms read as the header shows them`() {
+        // The literal the header tests and the goldens rely on.
+        assertEquals("Friday, May 1", dateLineOf(friday, Locale.US, DateLineForm.FULL))
+        assertEquals("Fri, May 1", dateLineOf(friday, Locale.US, DateLineForm.SHORT))
+    }
+
+    @Test
+    fun `weekday form is the locale's full weekday name`() {
+        assertEquals("Friday", dateLineOf(friday, Locale.ENGLISH, DateLineForm.WEEKDAY))
+        assertEquals("金曜日", dateLineOf(friday, Locale.JAPANESE, DateLineForm.WEEKDAY))
     }
 }

@@ -1,6 +1,5 @@
 package io.github.seijikohara.femto.ui.home.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,11 +21,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -42,25 +41,34 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.FitText
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
+import io.github.seijikohara.femto.ui.theme.bigNumber
+import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.glanceBody
 import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.glanceMetric
+import io.github.seijikohara.femto.ui.theme.normalWeight
 import io.github.seijikohara.femto.ui.theme.sectionLabel
+import io.github.seijikohara.femto.ui.theme.singleLineBox
 import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * Calendar card: the agenda — the coming days (today first), each row showing
- * that day's full set of events, in a vertically scrollable region. Every
- * visible day renders; overflow scrolls rather than being dropped, so the agenda
- * never hides an entry behind the card's capped height. Days with no events are
- * omitted so the agenda spends every row on real entries; only today stays when
- * free, carrying an explicit no-events line.
+ * Calendar card: the agenda — today as the card's head, then the coming days,
+ * each row showing that day's full set of events, in a vertically scrollable
+ * region. Every visible day renders; overflow scrolls rather than being
+ * dropped, so the agenda never hides an entry behind the card's capped height.
+ * Days with no events are omitted so the agenda spends every row on real
+ * entries; only today stays when free, carrying an explicit no-events line.
  *
- * Today's date (day numeral, weekday, month) is not the card's: it lives in the
- * [DashboardHeader] above the cluster, beside the clock, so it shows without
- * calendar permission and stays when this card is hidden — hiding the card is
- * the "date and day only" dashboard.
+ * Today opens the card as a head rather than as a gutter row ([TodayHead]): a
+ * "Today" eyebrow, the first event's time as the hero numeral, its title
+ * beneath. That head is the same shape as the weather card's beside it —
+ * eyebrow, hero numeral on one digit band, detail below — so the two cards of
+ * the row read as one line. Today's date (day numeral, weekday, month) is not
+ * the card's: it lives in the [DashboardHeader] above the cluster, beside the
+ * clock, so it shows without calendar permission and stays when this card is
+ * hidden — hiding the card is the "date and day only" dashboard. The coming
+ * days keep their date gutter ([DayRow]) below the head.
  *
  * Typography and spacing originated in the retired dashboard-v2 design mockup;
  * the dashboard's body-size floor ([FemtoDimens.MinBodyTextSize]) is intentionally
@@ -141,23 +149,101 @@ private fun CalendarContent(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         visibleDays.forEach { day ->
-            DayRow(
-                day = day,
-                isToday = day.date == snapshot.today,
-                is24Hour = is24Hour,
-                showColorBars = snapshot.multipleCalendarsVisible,
-            )
+            if (day.date == snapshot.today) {
+                TodayHead(day = day, is24Hour = is24Hour, showColorBars = snapshot.multipleCalendarsVisible)
+            } else {
+                DayRow(day = day, is24Hour = is24Hour, showColorBars = snapshot.multipleCalendarsVisible)
+            }
         }
     }
 }
 
-// One agenda row: a fixed-width date gutter on the left (today tinted primary) and
-// the day's events on the right — every event for the day, or a muted dash when the
-// day is free.
+// Today as the card's head: the "Today" eyebrow (the date itself is in the
+// header above the cluster — a "FRI 1" gutter here would say it a third time),
+// the first event's time as the hero numeral on the same digit band as the
+// weather card's temperature beside it, and its title beneath; today's further
+// events follow flush-left in the agenda's own row form. Free today keeps the
+// eyebrow over the explicit no-events line, so the head never renders empty.
+@Composable
+private fun TodayHead(
+    day: DayCell,
+    is24Hour: Boolean,
+    showColorBars: Boolean,
+) = Column(
+    modifier = Modifier.fillMaxWidth(),
+    verticalArrangement = Arrangement.spacedBy(3.dp),
+) {
+    val first = day.events.firstOrNull()
+    // The eyebrow sits directly on the hero (no gap), exactly as the weather
+    // card's head stacks its eyebrow on the temperature, so the two heroes land
+    // on the same digit band across the row.
+    Column(modifier = Modifier.fillMaxWidth()) {
+        CardEyebrow(text = stringResource(R.string.calendar_today))
+        if (first == null) {
+            // Only today can be free here (free days are filtered out upstream); an
+            // explicit line beats a bare dash for the one row that stays.
+            Text(
+                text = stringResource(R.string.calendar_no_events),
+                style = MaterialTheme.typography.glanceBody(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                maxLines = 1,
+            )
+        } else {
+            HeroEvent(event = first, is24Hour = is24Hour, showColorBar = showColorBars)
+        }
+    }
+    if (first != null) {
+        day.events.drop(1).forEach { event ->
+            EventRow(event = event, is24Hour = is24Hour, showColorBar = showColorBars)
+        }
+    }
+}
+
+// The first event of today: its time in the cards' hero treatment (bigNumber at
+// Text4Xl, Normal — the weather temperature's style, on the same clamped line
+// box), its title on one line under it.
+@Composable
+private fun HeroEvent(
+    event: EventItem,
+    is24Hour: Boolean,
+    showColorBar: Boolean,
+) {
+    val heroStyle =
+        MaterialTheme.typography.bigNumber(
+            size = FemtoDimens.Text4Xl,
+            weight = MaterialTheme.typography.normalWeight,
+        )
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(1.dp),
+    ) {
+        FitText(
+            text = eventTimeLabel(event, is24Hour),
+            style = heroStyle,
+            color = MaterialTheme.colorScheme.onSurface,
+            // A 12-hour "10:30 AM" or an "All day" label outruns the numeral's slot
+            // on the head-unit card; it shrinks a step rather than ellipsizes.
+            minFontSize = FemtoDimens.Text2Xl,
+            modifier = Modifier.singleLineBox(heroStyle),
+        )
+        EventTitle(
+            title = event.title,
+            color = event.color,
+            showColorBar = showColorBar,
+            style = MaterialTheme.typography.cardMeta(),
+            textColor = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+        )
+    }
+}
+
+// One agenda row for a coming day: a fixed-width date gutter on the left and the
+// day's events on the right — every event for the day. Today never reaches here
+// (it is the card's head), so the row is never free: free days are filtered out
+// upstream.
 @Composable
 private fun DayRow(
     day: DayCell,
-    isToday: Boolean,
     is24Hour: Boolean,
     showColorBars: Boolean,
 ) = Row(
@@ -165,22 +251,8 @@ private fun DayRow(
     horizontalArrangement = Arrangement.spacedBy(10.dp),
     verticalAlignment = Alignment.Top,
 ) {
-    val accent = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
     Column(
-        modifier =
-            Modifier
-                .width(28.dp)
-                .then(
-                    // A faint pill behind today's gutter lifts it out of the agenda
-                    // at a glance, beyond the primary text tint alone.
-                    if (isToday) {
-                        Modifier
-                            .clip(MaterialTheme.shapes.small)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                    } else {
-                        Modifier
-                    },
-                ).padding(vertical = 2.dp),
+        modifier = Modifier.width(28.dp).padding(vertical = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(1.dp),
     ) {
@@ -190,13 +262,13 @@ private fun DayRow(
             // into the narrow gutter instead.
             text = day.weekdayLetter.uppercase(),
             style = MaterialTheme.typography.sectionLabel(12),
-            color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             minFontSize = FemtoDimens.TextXs,
         )
         Text(
             text = "${day.date.dayOfMonth}",
             style = MaterialTheme.typography.glanceMetric().copy(lineHeight = 18.sp),
-            color = accent,
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             softWrap = false,
         )
@@ -205,32 +277,20 @@ private fun DayRow(
         modifier = Modifier.weight(1f),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        if (day.events.isEmpty()) {
-            // Only today can reach here (free days are filtered out upstream);
-            // an explicit line beats a bare dash for the one row that stays.
-            Text(
-                text = stringResource(R.string.calendar_no_events),
-                style = MaterialTheme.typography.glanceBody(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                maxLines = 1,
-            )
-        } else {
-            day.events.forEach { event ->
-                EventRow(
-                    // Event times honour the user's 12/24-hour clock setting, matching
-                    // the dashboard clock rather than always printing 24-hour; "All
-                    // day" in the same slot marks the untimed events.
-                    time =
-                        event.time?.format(clockTimeFormatter(is24Hour))
-                            ?: stringResource(R.string.calendar_all_day),
-                    title = event.title,
-                    color = event.color,
-                    showColorBar = showColorBars,
-                )
-            }
+        day.events.forEach { event ->
+            EventRow(event = event, is24Hour = is24Hour, showColorBar = showColorBars)
         }
     }
 }
+
+// Event times honour the user's 12/24-hour clock setting, matching the dashboard
+// clock rather than always printing 24-hour; "All day" in the same slot marks the
+// untimed events.
+@Composable
+private fun eventTimeLabel(
+    event: EventItem,
+    is24Hour: Boolean,
+): String = event.time?.format(clockTimeFormatter(is24Hour)) ?: stringResource(R.string.calendar_all_day)
 
 // The time slot ("14:00" / "All day") states the event kind, so no kind glyph
 // leads the row. A calendar color bar may still lead it, but only when the
@@ -239,9 +299,8 @@ private fun DayRow(
 // head-unit card.
 @Composable
 private fun EventRow(
-    time: String,
-    title: String,
-    color: Int,
+    event: EventItem,
+    is24Hour: Boolean,
     showColorBar: Boolean,
 ) = Column(
     // Time above, title below: the side-by-side row made a wrapping title
@@ -251,7 +310,7 @@ private fun EventRow(
     verticalArrangement = Arrangement.spacedBy(1.dp),
 ) {
     Text(
-        text = time,
+        text = eventTimeLabel(event, is24Hour),
         // Indent past the bar gutter so the time shares the title's left edge;
         // the bar leads the title row below, spanning its rendered lines.
         modifier =
@@ -265,26 +324,46 @@ private fun EventRow(
         maxLines = 1,
         softWrap = false,
     )
-    Row(
-        // IntrinsicSize.Min sizes this row to the title text, so the bar's
-        // fillMaxHeight spans exactly the rendered line(s) — one line for a
-        // short title, both when it wraps — instead of floating as a
-        // fixed-height stub beside wrapped text.
-        modifier = Modifier.height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarBarGap),
-    ) {
-        if (showColorBar) {
-            CalendarColorBar(color = color, modifier = Modifier.fillMaxHeight())
-        }
-        Text(
-            text = title,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.glanceBody(),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
+    EventTitle(
+        title = event.title,
+        color = event.color,
+        showColorBar = showColorBar,
+        style = MaterialTheme.typography.glanceBody(),
+        textColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 2,
+    )
+}
+
+// An event's title line(s), led by the calendar color bar when the window spans
+// more than one calendar. Shared by the head's hero event and the agenda rows,
+// which differ only in the title's style, colour, and line budget.
+@Composable
+private fun EventTitle(
+    title: String,
+    color: Int,
+    showColorBar: Boolean,
+    style: TextStyle,
+    textColor: Color,
+    maxLines: Int,
+) = Row(
+    // IntrinsicSize.Min sizes this row to the title text, so the bar's
+    // fillMaxHeight spans exactly the rendered line(s) — one line for a
+    // short title, both when it wraps — instead of floating as a
+    // fixed-height stub beside wrapped text.
+    modifier = Modifier.height(IntrinsicSize.Min),
+    horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarBarGap),
+) {
+    if (showColorBar) {
+        CalendarColorBar(color = color, modifier = Modifier.fillMaxHeight())
     }
+    Text(
+        text = title,
+        modifier = Modifier.weight(1f),
+        style = style,
+        color = textColor,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 // Shared centred hint for the no-data states (permission denied / provider
