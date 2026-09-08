@@ -1299,11 +1299,11 @@ private enum class ClusterSlot { HEADER, MUSIC_SAMPLE, MUSIC_SAMPLE_COMPACT, MUS
 // with one forecast row: the least that still answers "what is next" at a
 // glance — the row sits beside the full music card. Down to CardRowFloorHeight
 // the music card yields its compact form and the row still shows both card
-// heads whole (the eyebrow and the hero numeral under the card padding). Below
-// it no form of the card leaves a readable row, so the row yields whole and its
-// height returns to the map.
+// heads whole (the card's top padding, the eyebrow line and the Text3Xl hero's
+// line box, ~60 dp, with slack). Below it no form of the card leaves a readable
+// row, so the row yields whole and its height returns to the map.
 private val CardRowMinHeight: Dp = 120.dp
-private val CardRowFloorHeight: Dp = 72.dp
+private val CardRowFloorHeight: Dp = 64.dp
 
 // Below either breakpoint the dashboard switches to its compact spacing. The
 // thresholds are deliberately coarse: they separate small / short head units from

@@ -121,11 +121,16 @@ internal fun AlbumArt(
                     modifier =
                         Modifier
                             .fillMaxSize()
+                            // Container tones, not the accent pair: the saturated
+                            // primary -> tertiary gradient was the brightest surface on
+                            // a dark dashboard (and the loudest on a light one) for a
+                            // square that only says "no art". The containers tint the
+                            // same hues a step into the surface in either theme.
                             .background(
                                 Brush.linearGradient(
                                     listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.tertiary,
+                                        MaterialTheme.colorScheme.primaryContainer,
+                                        MaterialTheme.colorScheme.tertiaryContainer,
                                     ),
                                 ),
                             ),
@@ -134,7 +139,7 @@ internal fun AlbumArt(
                     FemtoIcon(
                         imageVector = Lucide.Music,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(48.dp),
                     )
                 }

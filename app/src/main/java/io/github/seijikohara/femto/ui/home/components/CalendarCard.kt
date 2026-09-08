@@ -205,9 +205,11 @@ private fun HeroEvent(
     is24Hour: Boolean,
     showColorBar: Boolean,
 ) {
+    // Text3Xl, the card tier (the weather temperature's step; see its Head): a
+    // step under the header's clock and the speed overlay's hero.
     val heroStyle =
         MaterialTheme.typography.bigNumber(
-            size = FemtoDimens.Text4Xl,
+            size = FemtoDimens.Text3Xl,
             weight = MaterialTheme.typography.normalWeight,
         )
     Column(

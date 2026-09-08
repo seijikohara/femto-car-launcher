@@ -53,7 +53,7 @@
     <string name="trip_viz_duration_s">%1$ds</string>
     <string name="speed_altitude">ALT %1$d</string>
     <string name="speed_metric_distance">DISTANCE</string>
-    <string name="speed_metric_avg">AVG.</string>
+    <string name="speed_metric_avg">AVG</string>
 
     <!-- Weather curve axis label for the first (current) hour. -->
     <string name="weather_curve_now">Now</string>
@@ -172,8 +172,6 @@
     <string name="status_bluetooth_off">Bluetooth off</string>
     <string name="status_gps_fixed">GPS fixed</string>
     <string name="status_gps_searching">GPS searching</string>
-    <!-- Count of satellites used in the current GPS fix, shown under the footer's satellite icon. -->
-    <string name="status_gps_satellites">%1$d</string>
     <string name="status_battery">Battery</string>
     <string name="battery_percent">%1$d%%</string>
 

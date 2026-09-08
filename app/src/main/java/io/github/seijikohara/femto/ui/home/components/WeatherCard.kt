@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -160,8 +161,22 @@ internal fun WeatherCard(
                 modifier = Modifier.weight(1f, fill = false).fillMaxWidth(),
                 verticalGap = FemtoDimens.CardSectionGapCompact,
             ) {
-                snapshot.hourly.chunked(FORECAST_COLUMNS).take(FORECAST_CARD_ROWS).forEach { rowHours ->
-                    ForecastRow(rowHours, snapshot.sunrise, snapshot.sunset, temperatureUnit, is24Hour)
+                snapshot.hourly.chunked(FORECAST_COLUMNS).take(FORECAST_CARD_ROWS).forEachIndexed { index, rowHours ->
+                    // The metrics above and the hours below share the 3-column
+                    // grammar, so without a rule the "now" readings read as the
+                    // first hour row and its two percentages as forecast values.
+                    // The rule rides the first hour row as one child, so it goes
+                    // when that row does — never a lone line under the metrics.
+                    if (index == 0) {
+                        Column(verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact)) {
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha),
+                            )
+                            ForecastRow(rowHours, snapshot.sunrise, snapshot.sunset, temperatureUnit, is24Hour)
+                        }
+                    } else {
+                        ForecastRow(rowHours, snapshot.sunrise, snapshot.sunset, temperatureUnit, is24Hour)
+                    }
                 }
             }
         }
@@ -253,8 +268,13 @@ private fun Head(
 ) {
     val tempLabel = "${temperatureUnit.fromCelsius(snapshot.tempC).roundToInt()}"
     val glyphs = weatherGlyphs()
+    // One scale step under the header's clock and the speed overlay's hero
+    // (Text4Xl): the temperature is a card's hero, not the dashboard's. Four
+    // equal 40 sp numerals on one screen left no lead figure; at Text3Xl the
+    // clock and the safety-critical speed carry the top tier, and the card's
+    // head is 7 dp shorter, which the head-unit row spends on one more entry.
     val tempStyle = MaterialTheme.typography.bigNumber(
-        size = FemtoDimens.Text4Xl,
+        size = FemtoDimens.Text3Xl,
         weight = MaterialTheme.typography.normalWeight,
     )
     Column(modifier = Modifier.fillMaxWidth()) {

@@ -360,10 +360,10 @@ internal fun Typography.eyebrow(): TextStyle = sectionLabel(EYEBROW_SIZE_SP)
 
 /**
  * Return the [eyebrow] with its leading tightened to its own font size, for a
- * label packed into a fixed band — the dashboard header's month, which sits
- * under the day numeral and must stay inside the digit band. Defined beside
- * [eyebrow] so the size / leading equality lives in one place rather than being
- * reassembled from two tokens at the call site.
+ * label packed against the line below it — the dashboard cards' head eyebrow
+ * (`CardEyebrow`), which sits directly on the card's hero numeral. Defined
+ * beside [eyebrow] so the size / leading equality lives in one place rather
+ * than being reassembled from two tokens at the call site.
  */
 internal fun Typography.eyebrowTight(): TextStyle = sectionLabel(EYEBROW_SIZE_SP, lineHeight = EYEBROW_SIZE_SP.sp)
 

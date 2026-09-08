@@ -122,14 +122,14 @@ private fun compactDockExtent(visibleNavCount: Int): Dp =
 
 // Width the horizontal bar's fixed-margin (pill) fit test reserves for the status
 // side when the status cluster shows: the nav/status divider plus the read-only
-// [StatusCluster]. The cluster is five 20 dp indicator icons — two of them (GPS,
-// battery) captioned a touch wider than the icon — joined by 18 dp gaps (~180 dp),
+// [StatusCluster]. The cluster is five 20 dp indicator icons — the battery's
+// percent beside its icon adds ~30 dp — joined by 18 dp gaps (~200 dp),
 // plus the cluster's own DockButtonMargin padding and the divider (~40 dp). The
 // rendered cluster still measures itself; this figure only decides whether the
 // pill fits, and is rounded up so an underestimate can never let the pill overflow
 // — the bias is always toward the weight-shared fallback, which shrinks to fit and
 // never clips (see HorizontalDock).
-private val DockStatusSideReserve: Dp = 240.dp
+private val DockStatusSideReserve: Dp = 260.dp
 
 /**
  * Width past which [DockWidth.EXTENDED]'s glass stops growing and centres.

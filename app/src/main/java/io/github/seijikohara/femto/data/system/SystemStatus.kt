@@ -38,7 +38,9 @@ internal data class SystemStatus(
     // when GPS reception drops (e.g. a tunnel or a parked cold start).
     val gpsFixed: Boolean,
     // Satellites currently used in the GPS fix (0 while searching / no GNSS read).
-    // Shown under the dock's GPS icon as a coarse reception quality readout.
+    // No longer drawn on the dashboard — the dock's GPS icon carries the fix state
+    // by tint alone, a bare count under it read as "no GPS" rather than
+    // "searching" — but kept as a reception-quality fact for diagnostics.
     val gpsSatelliteCount: Int,
 ) {
     companion object {

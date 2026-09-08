@@ -231,7 +231,7 @@ private fun StatusIndicator(
         }
 
         DockStatusId.GPS -> {
-            GpsIndicator(fixed = status.gpsFixed, satelliteCount = status.gpsSatelliteCount, tier = tier)
+            GpsIndicator(fixed = status.gpsFixed, tier = tier)
         }
 
         DockStatusId.BATTERY -> {
@@ -318,48 +318,39 @@ private fun StatusIcon(
     )
 }
 
-// Satellite icon stacked over the count of satellites used in the current fix,
-// mirroring BatteryIndicator. The icon and count dim together while searching
-// (no fresh GPS fix) so a parked / tunnelled cold start reads as "0 locked".
+// Satellite icon, lit with a fix and dimmed while searching (no fresh GPS fix),
+// so a parked / tunnelled cold start reads as "searching". The count of
+// satellites in the fix used to hang under it as a bare numeral — a "0" with no
+// unit or context, which read as "no GPS" rather than "searching" — and put
+// this icon on a different line from the caption-less ones beside it; the fix
+// state is the glance, the count is a diagnostic.
 @Composable
 private fun GpsIndicator(
     fixed: Boolean,
-    satelliteCount: Int,
     tier: MotionTier,
     modifier: Modifier = Modifier,
 ) = Motion.ContentCrossfade(
-    // The whole indicator (satellite glyph + count) dissolves together on a
-    // fix/lost flip or a satellite-count change, keyed on that discrete pair.
-    targetState = Pair(fixed, satelliteCount),
+    // Dissolves on a fix/lost flip.
+    targetState = fixed,
     tier = tier,
     label = "gps",
     modifier = modifier,
-) { (isFixed, count) ->
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(1.dp),
-    ) {
-        val tint = if (isFixed) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
-        FemtoIcon(
-            imageVector = Lucide.Satellite,
-            contentDescription =
-                stringResource(
-                    if (isFixed) R.string.status_gps_fixed else R.string.status_gps_searching,
-                ),
-            tint = tint,
-            modifier = Modifier.size(20.dp),
-        )
-        Text(
-            text = stringResource(R.string.status_gps_satellites, count),
-            style = MaterialTheme.typography.glanceCaption(),
-            color = tint,
-            maxLines = 1,
-        )
-    }
+) { isFixed ->
+    FemtoIcon(
+        imageVector = Lucide.Satellite,
+        contentDescription =
+            stringResource(
+                if (isFixed) R.string.status_gps_fixed else R.string.status_gps_searching,
+            ),
+        tint = if (isFixed) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+        modifier = Modifier.size(20.dp),
+    )
 }
 
-// Battery icon stacked over its percent. Charging is conveyed by the bolt glyph
-// and the accent tint alone — no caption.
+// Battery icon with its percent beside it (not under it): every indicator's
+// icon then sits on the cluster's one line, where a stacked caption had lifted
+// this icon 10 dp above the caption-less ones. Charging is conveyed by the bolt
+// glyph and the accent tint alone.
 @Composable
 private fun BatteryIndicator(
     percent: Int?,
@@ -374,9 +365,9 @@ private fun BatteryIndicator(
     label = "battery",
     modifier = modifier,
 ) { (pct, isCharging) ->
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(1.dp),
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         FemtoIcon(
             imageVector = batteryIconForLevel(percent = pct, charging = isCharging),
