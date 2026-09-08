@@ -160,6 +160,24 @@ internal fun dockShowsStatus(
     statusCount: Int,
 ): Boolean = statusCount > 0 && extent >= compactDockExtent(navCount)
 
+// The weight-shared fallback bar's inner padding, keeping the end buttons off
+// the glass's rounded corners. Shared with horizontalDockBarMinWidth.
+private val FallbackBarInnerPadding: Dp = 24.dp
+
+/**
+ * The least width the weight-shared fallback bar needs to keep every nav button
+ * at the FemtoDimens.MinTouchTarget floor beside the status side it reserves —
+ * the width below which confining the bar (DashboardScaffold centres it in the
+ * map strip beside a card column) would shrink the buttons under the floor.
+ */
+internal fun horizontalDockBarMinWidth(
+    navCount: Int,
+    statusCount: Int,
+): Dp =
+    FemtoDimens.MinTouchTarget * navCount +
+        (if (statusCount > 0) DockStatusSideReserve else 0.dp) +
+        FallbackBarInnerPadding * 2
+
 // Whether the fixed-margin (pill) horizontal dock fits [availableWidth]: each nav
 // button is MinTouchTarget + two DockButtonMargins wide, plus DockStatusSideReserve
 // when the status cluster shows.
@@ -386,7 +404,7 @@ private fun HorizontalDock(
                 // clipping. The inner 24 dp padding keeps the end buttons off the
                 // glass's rounded corners.
                 Row(
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
+                    modifier = Modifier.fillMaxSize().padding(horizontal = FallbackBarInnerPadding),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // The slot competing with the status cluster for width; centred so

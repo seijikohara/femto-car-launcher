@@ -40,6 +40,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
@@ -274,7 +276,7 @@ private fun DashboardContent(
     var following by remember { mutableStateOf(true) }
     var bearingDeg by remember { mutableFloatStateOf(0f) }
     var recenterNonce by remember { mutableIntStateOf(0) }
-    var overlayHeightPx by remember { mutableIntStateOf(0) }
+    var overlaySizePx by remember { mutableStateOf(IntSize.Zero) }
 
     // Every maximize panel's expanded state lives HERE, one level above the
     // overlay tree, so one dismiss definition can drive catchers on both sides
@@ -341,10 +343,38 @@ private fun DashboardContent(
     // margin + the thickness) so none sit under it.
     val dockExtent = FemtoDimens.DockThickness + outerPad
 
+    // A horizontal dock beside a landscape card column takes one of three
+    // placements, so it never ends as a pill straddling the column's edge (a
+    // centred pill did, 55 dp short of the edge at 1024x600, and off the speed
+    // overlay's axis on every 16:9 panel): the pill centred in the MAP STRIP
+    // (the width left of the column, less the bar's float margins) when it fits
+    // there; else the weight-shared bar filling the strip, when the strip holds
+    // it at the tap-target floor with the same status cluster the full width
+    // would show; else the bar across the full width, whose end lines up with
+    // the column's edge. The first two share the speed overlay's centre. The
+    // fit tests are the ones HorizontalDock runs, so the two agree on the
+    // layout; forcing the bar goes through the same DockWidth preference the
+    // user's setting does, so HorizontalDock needs no second switch.
+    val navCount = dockConfig.visibleNav.size
+    val statusCount = dockConfig.visibleStatus.size
+    val horizontalDockBesideColumn =
+        landscapeCards && (dockPosition == DockPosition.BOTTOM || dockPosition == DockPosition.TOP)
+    val stripBarWidth = maxWidth - floatingCardWidth - cardGap - outerPad * 2
+    val pillFitsStrip =
+        horizontalDockBesideColumn && horizontalDockUsesPill(dockWidth, stripBarWidth, navCount, statusCount)
+    val barFitsStrip =
+        horizontalDockBesideColumn &&
+            !pillFitsStrip &&
+            stripBarWidth >= horizontalDockBarMinWidth(navCount, statusCount) &&
+            dockShowsStatus(stripBarWidth, navCount, statusCount) ==
+            dockShowsStatus(horizontalDockWidth(maxWidth, outerPad), navCount, statusCount)
+    val dockCentresInStrip = pillFitsStrip || barFitsStrip
+    val effectiveDockWidth = if (horizontalDockBesideColumn && !pillFitsStrip) DockWidth.EXTENDED else dockWidth
+
     val attributionBottomInset =
         if (mapCreditClearsDock(
                 dockPosition = dockPosition,
-                dockWidth = dockWidth,
+                dockWidth = effectiveDockWidth,
                 viewportWidth = maxWidth,
                 dockMargin = outerPad,
                 navCount = dockConfig.visibleNav.size,
@@ -386,12 +416,28 @@ private fun DashboardContent(
         } else {
             0.dp
         }
+    // The map control rail's height budget: the room above the speed overlay
+    // where the two share a column. The overlay is the width it measured (it
+    // hugs its metrics up to a cap), centred in the map strip beside a
+    // landscape card column or on the full width otherwise — it meets the rail
+    // only when that centred card reaches the rail's edge; in portrait it spans
+    // the band over the rail's column, so it always does. Zero means the rail
+    // has the whole overlay box (see MapControlRail for what it yields).
+    val overlaySize = with(density) { DpSize(overlaySizePx.width.toDp(), overlaySizePx.height.toDp()) }
+    val overlayStrip = if (landscapeCards) maxWidth - floatingCardWidth - cardGap else maxWidth
+    val overlayReachesRail = (overlayStrip - overlaySize.width) / 2 < outerPad + MapControlsStripWidth + cardGap
+    val railBottomReserve =
+        when {
+            bottomCards -> bottomCardBand + overlaySize.height + cardGap
+            overlayReachesRail -> overlaySize.height + cardGap * 2
+            else -> 0.dp
+        }
     val bottomSafeFraction =
         with(density) {
             val heightPx = maxHeight.roundToPx()
             if (heightPx > 0) {
                 val dockBottom = if (dockPosition == DockPosition.BOTTOM) dockExtent else 0.dp
-                val overlay = overlayHeightPx + (cardGap + MarkerOverlayClearance + dockBottom).toPx()
+                val overlay = overlaySizePx.height + (cardGap + MarkerOverlayClearance + dockBottom).toPx()
                 val cards = bottomCardBand.toPx()
                 ((overlay + cards) / heightPx).coerceIn(0f, 0.5f)
             } else {
@@ -461,18 +507,22 @@ private fun DashboardContent(
         bottomCardBand = bottomCardBand,
         floatingCardWidth = floatingCardWidth,
         hasCards = hasCards,
+        // A phone's portrait band is narrower than the speed overlay's width cap, so
+        // the overlay spans it edge to edge; a tablet's is wider and the cap holds.
+        speedSpansBand = bottomCards && maxWidth - outerPad * 2 <= FemtoDimens.SpeedOverlayMaxWidth,
+        railBottomReserve = railBottomReserve,
         hazeState = hazeState,
         following = following,
         // Bearing flows down as a deferred read (a lambda), not a Float: it updates
         // at up to ~6.7 Hz while turning in heading-up mode, and reading it here
         // would recompose this whole overlay body and re-run the layout math on
-        // every event. MapCompass invokes it inside its graphicsLayer instead,
+        // every event. MapControlRail invokes it inside its graphicsLayer instead,
         // confining the churn to the layer phase.
         bearingDeg = { bearingDeg },
         motionTier = motionTier,
         driverSide = driverSide,
         onRecenter = { recenterNonce++ },
-        onOverlayHeightChange = { overlayHeightPx = it },
+        onOverlaySizeChange = { overlaySizePx = it },
         onAction = overlayAction,
         nowPlayingExpanded = nowPlayingExpanded,
         onExpandNowPlaying = { nowPlayingExpanded = true },
@@ -501,7 +551,7 @@ private fun DashboardContent(
         systemStatus = uiState.systemStatus,
         onAction = overlayAction,
         position = dockPosition,
-        dockWidth = dockWidth,
+        dockWidth = effectiveDockWidth,
         hazeState = hazeState,
         glassConfig = glassConfig,
         dockConfig = dockConfig,
@@ -514,9 +564,23 @@ private fun DashboardContent(
                     // wrap-content centred pill when the fixed-margin layout fits, else a
                     // width-filling weight-shared bar that shrinks the nav to fit. Centre
                     // alignment centres the pill; the fallback fills the inset band.
+                    // Beside a landscape card column the pill centres in the MAP STRIP
+                    // instead — the same centre the speed overlay uses — so the two
+                    // share one axis and the pill's end never lands inside the column's
+                    // span; only when the pill fits the strip, so a bar that needs the
+                    // full width (the 853 dp head unit) keeps it and its status cluster.
                     Modifier
                         .align(dockAlignment(dockPosition))
                         .padding(dockFloatPadding(dockPosition, outerPad))
+                        .then(
+                            if (dockCentresInStrip) {
+                                Modifier.padding(
+                                    cardSideInset(mirror = mirror, horizontal = floatingCardWidth + cardGap),
+                                )
+                            } else {
+                                Modifier
+                            },
+                        )
                 }
 
                 DockPosition.LEFT, DockPosition.RIGHT -> {
@@ -554,9 +618,16 @@ private fun DashboardOverlays(
     bottomCardBand: Dp,
     floatingCardWidth: Dp,
     hasCards: Boolean,
+    // Portrait only: the speed overlay fills the band's width (both of its edges
+    // line up with the cards) when the band is no wider than the overlay's cap.
+    speedSpansBand: Boolean,
+    // Bottom inset that bounds the map control rail's height to the room above
+    // the speed overlay where the two would meet (see the parent), so the rail
+    // yields its lowest segments instead of running under the overlay.
+    railBottomReserve: Dp,
     hazeState: HazeState,
     following: Boolean,
-    // Deferred read forwarded straight to MapCompass (see the call site in the
+    // Deferred read forwarded straight to MapControlRail (see the call site in the
     // parent for why it is a lambda, not a Float).
     bearingDeg: () -> Float,
     motionTier: MotionTier,
@@ -565,7 +636,7 @@ private fun DashboardOverlays(
     // clock, map controls, and speed reserve all flip to the driver's side.
     driverSide: DriverSide,
     onRecenter: () -> Unit,
-    onOverlayHeightChange: (Int) -> Unit,
+    onOverlaySizeChange: (IntSize) -> Unit,
     onAction: (HomeAction) -> Unit,
     // Every panel's expanded state is owned by the parent (see DashboardContent:
     // the hoist lets one dismiss definition drive catchers on both sides of the
@@ -620,18 +691,16 @@ private fun DashboardOverlays(
     val mirror = driverSide == DriverSide.LEFT
 
     Box(modifier = modifier) {
-        // Map controls render only when the map does (a fix exists). The compass pins
-        // to the top corner opposite the cards; the control column to the mid edge
-        // opposite the cards — both flip with the driver side.
+        // Map controls render only when the map does (a fix exists): one rail —
+        // compass, zoom, locate — pinned to the top corner opposite the cards,
+        // flipping with the driver side. Top-anchored, it clears the speed overlay
+        // (bottom-anchored) and the portrait card band on every recorded geometry;
+        // the mid-edge column it replaces sat under both on short and portrait
+        // screens, its zoom buttons unreachable (see MapControlRail).
         if (uiState.location != null) {
-            MapCompass(
+            MapControlRail(
                 bearingDeg = bearingDeg,
-                onTap = { onAction(HomeAction.ToggleMapNorthUp) },
-                hazeState = hazeState,
-                glassConfig = glassConfig,
-                modifier = Modifier.align(if (mirror) Alignment.TopEnd else Alignment.TopStart).padding(outerPad),
-            )
-            MapControlColumn(
+                onCompassTap = { onAction(HomeAction.ToggleMapNorthUp) },
                 showLocate = true,
                 following = following,
                 onLocate = onRecenter,
@@ -641,8 +710,9 @@ private fun DashboardOverlays(
                 glassConfig = glassConfig,
                 modifier =
                     Modifier
-                        .align(if (mirror) Alignment.CenterEnd else Alignment.CenterStart)
-                        .padding(if (mirror) PaddingValues(end = outerPad) else PaddingValues(start = outerPad)),
+                        .align(if (mirror) Alignment.TopEnd else Alignment.TopStart)
+                        .padding(outerPad)
+                        .padding(bottom = railBottomReserve),
             )
         }
 
@@ -658,13 +728,16 @@ private fun DashboardOverlays(
                     .padding(
                         if (bottomCards) {
                             // Portrait: the card band is a full-width bottom row inset
-                            // by outerPad. Match that inset and start-align the
+                            // by outerPad on every side, so its own top inset is the gap
+                            // to the overlay — no cardGap on top of it, or the overlay
+                            // would sit two gaps above the cards while the cards sit one
+                            // apart. Match the band's side inset and start-align the
                             // speed/address (below) so their left edge lines up with the
                             // cards instead of floating centred above a full-width band.
                             PaddingValues(
                                 start = outerPad,
                                 end = outerPad,
-                                bottom = cardGap + bottomCardBand,
+                                bottom = bottomCardBand,
                             )
                         } else {
                             cardSideInset(
@@ -694,7 +767,15 @@ private fun DashboardOverlays(
                 glassConfig = glassConfig,
                 motionTier = motionTier,
                 onExpand = onExpandTrip,
-                modifier = Modifier.onSizeChanged { onOverlayHeightChange(it.height) },
+                modifier =
+                    Modifier
+                        .onSizeChanged { onOverlaySizeChange(it) }
+                        // A phone's band is narrower than the overlay's width cap, so
+                        // the overlay spans it and both edges line up with the cards
+                        // below; on a tablet the cap holds and the card stays
+                        // start-aligned (SpeedOverlay's own widthIn cap would lose to
+                        // an outer fillMaxWidth, so the choice is made here).
+                        .then(if (speedSpansBand) Modifier.fillMaxWidth() else Modifier),
             )
         }
 
@@ -750,7 +831,7 @@ private fun DashboardOverlays(
         }
         if (!landscapeCards) {
             // The header outside the cluster. Portrait, always: a band along the
-            // top edge on the card side, clear of the compass in the opposite
+            // top edge on the card side, clear of the control rail in the opposite
             // corner, so the clock stays up top where the eye expects it instead of
             // sinking into the bottom band beneath the speed overlay — and the band
             // keeps its height for the cards. It fills a phone's width and caps at
@@ -759,7 +840,7 @@ private fun DashboardOverlays(
             // Landscape, only with every card hidden: the header keeps the column's
             // slot, so the clock never disappears with the cards. Otherwise it is
             // the column's first child (FloatingCardColumn).
-            val compassReserve = outerPad + MapCompassSize + cardGap
+            val railReserve = outerPad + MapControlsStripWidth + cardGap
             DashboardHeader(
                 is24Hour = is24Hour,
                 showSeconds = showClockSeconds,
@@ -772,8 +853,8 @@ private fun DashboardOverlays(
                         Modifier
                             .align(if (mirror) Alignment.TopStart else Alignment.TopEnd)
                             .padding(
-                                start = if (mirror) outerPad else compassReserve,
-                                end = if (mirror) compassReserve else outerPad,
+                                start = if (mirror) outerPad else railReserve,
+                                end = if (mirror) railReserve else outerPad,
                                 top = outerPad,
                             ).widthIn(max = FloatingCardWidthMax)
                             .fillMaxWidth()

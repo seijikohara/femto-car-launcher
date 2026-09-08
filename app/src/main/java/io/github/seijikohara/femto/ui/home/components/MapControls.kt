@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -37,85 +36,46 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
 /**
- * Glass compass for the map pane's top-left corner: the needle tracks the live
- * camera bearing (north on screen sits at `-bearing`), so it spins with a
- * heading-up camera and rests upright under north-up. Tapping flips the
- * persisted north-up ⇄ heading-up orientation — the rotation itself is the mode
- * feedback, so the button carries no separate state badge.
- */
-@Composable
-internal fun MapCompass(
-    // Deferred read: the bearing updates at up to ~6.7 Hz while turning. Taking it
-    // as a lambda and reading it inside the graphicsLayer block below keeps those
-    // updates in the layer phase, so only the layer re-records — the compass never
-    // recomposes and the dashboard above it never re-lays-out per event.
-    bearingDeg: () -> Float,
-    onTap: () -> Unit,
-    hazeState: HazeState,
-    glassConfig: GlassConfig,
-    modifier: Modifier = Modifier,
-) {
-    val north = MaterialTheme.colorScheme.primary
-    val south = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = SOUTH_NEEDLE_ALPHA)
-    val description = stringResource(R.string.map_compass_desc)
-    Box(
-        modifier =
-            modifier
-                .size(MapCompassSize)
-                .glassChrome(CircleShape, hazeState, glassConfig)
-                .clickable(onClick = onTap)
-                .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center,
-    ) {
-        Canvas(
-            modifier =
-                Modifier
-                    .size(CONTROL_ICON_SIZE)
-                    .graphicsLayer { rotationZ = -bearingDeg() },
-        ) {
-            // A two-tone diamond needle: the accent half points at geographic
-            // north, the muted half at south — the universal compass glyph, no
-            // lettering to localise.
-            val w = size.width
-            val h = size.height
-            val waist = w * NEEDLE_WAIST_FRACTION
-            drawPath(
-                Path().apply {
-                    moveTo(w / 2f, 0f)
-                    lineTo(w / 2f + waist, h / 2f)
-                    lineTo(w / 2f - waist, h / 2f)
-                    close()
-                },
-                color = north,
-            )
-            drawPath(
-                Path().apply {
-                    moveTo(w / 2f, h)
-                    lineTo(w / 2f + waist, h / 2f)
-                    lineTo(w / 2f - waist, h / 2f)
-                    close()
-                },
-                color = south,
-            )
-        }
-    }
-}
-
-/**
- * Grouped glass control pill for the map pane's left-centre edge: an optional
- * locate (return-to-position) segment above the zoom +/- pair, separated by
- * hairline dividers inside one continuous frosted capsule. Zoom steps write
- * through the host into the persisted setting, so they work on both render
- * backends; locate only exists where a camera can detach ([showLocate] =
- * LIVE). The head unit has no multitouch, so the buttons are the only zoom
- * affordance there — never gate them on gesture support.
+ * The map pane's one control rail, a glass capsule in the top corner opposite
+ * the cards: the zoom +/- pair, the optional locate (return-to-position)
+ * segment, then the compass, separated by hairline dividers inside one
+ * continuous frosted pill.
+ *
+ * One rail, not a compass disc in the corner and a control pill at the mid
+ * edge: the two islands sat 85–160 dp apart on the wider geometries, and a
+ * mid-edge pill collided with the speed overlay and the portrait card band —
+ * on a portrait phone the whole pill sat under the cards, unreachable.
+ * Anchored to the top corner the rail clears the bottom-anchored speed overlay
+ * on every recorded geometry but the shortest, and there it yields instead of
+ * colliding: the host bounds the rail's height to the room above the overlay
+ * (see DashboardScaffold's rail reserve), and the segments are placed whole
+ * from the top until that room runs out ([FitWholeRows]) — the compass first
+ * to go, then locate, while the zoom pair always stays. That order is the
+ * driving priority: the head unit has no multitouch, so the zoom buttons are
+ * its only zoom affordance; locate is the way back once a drag has detached
+ * the camera; the compass toggles a persisted orientation that Settings also
+ * carries.
+ *
+ * The compass needle tracks the live camera bearing (north on screen sits at
+ * `-bearing`), so it spins with a heading-up camera and rests upright under
+ * north-up; tapping it flips the persisted north-up ⇄ heading-up orientation —
+ * the rotation itself is the mode feedback, so the segment carries no separate
+ * state badge. Zoom steps write through the host into the persisted setting, so
+ * they work on both render backends; locate only exists where a camera can
+ * detach ([showLocate] = LIVE).
  *
  * Deliberately compact: the segments sit below the FemtoDimens.MinTouchTarget
- * automotive floor as an explicit owner decision (the full-size discs
- * crowded the map pane).
+ * automotive floor as an explicit owner decision (the full-size discs crowded
+ * the map pane).
  */
 @Composable
-internal fun MapControlColumn(
+internal fun MapControlRail(
+    // Deferred read: the bearing updates at up to ~6.7 Hz while turning. Taking it
+    // as a lambda and reading it inside the graphicsLayer block below keeps those
+    // updates in the layer phase, so only the layer re-records — the rail never
+    // recomposes and the dashboard above it never re-lays-out per event.
+    bearingDeg: () -> Float,
+    onCompassTap: () -> Unit,
     showLocate: Boolean,
     following: Boolean,
     onLocate: () -> Unit,
@@ -124,14 +84,30 @@ internal fun MapControlColumn(
     hazeState: HazeState,
     glassConfig: GlassConfig,
     modifier: Modifier = Modifier,
-) = Column(
+) = FitWholeRows(
     modifier =
         modifier
             .width(MapControlsStripWidth)
             .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
+    // The zoom pair is never dropped; every segment after it may be (see the
+    // KDoc). Each later segment carries its own leading divider so a dropped
+    // segment takes its divider with it and the capsule never ends on a line.
+    mandatoryCount = ZOOM_SEGMENTS,
 ) {
+    GroupSegment(
+        onClick = onZoomIn,
+        contentDescription = stringResource(R.string.map_zoom_in_desc),
+    ) {
+        ControlIcon(imageVector = Lucide.Plus)
+    }
+    DividedSegment(
+        onClick = onZoomOut,
+        contentDescription = stringResource(R.string.map_zoom_out_desc),
+    ) {
+        ControlIcon(imageVector = Lucide.Minus)
+    }
     if (showLocate) {
-        GroupSegment(
+        DividedSegment(
             onClick = onLocate,
             contentDescription = stringResource(R.string.map_recenter_desc),
         ) {
@@ -147,20 +123,64 @@ internal fun MapControlColumn(
                     },
             )
         }
-        GroupDivider()
     }
-    GroupSegment(
-        onClick = onZoomIn,
-        contentDescription = stringResource(R.string.map_zoom_in_desc),
+    DividedSegment(
+        onClick = onCompassTap,
+        contentDescription = stringResource(R.string.map_compass_desc),
     ) {
-        ControlIcon(imageVector = Lucide.Plus)
+        CompassNeedle(bearingDeg = bearingDeg)
     }
+}
+
+// A segment led by its divider, as one child of the rail's FitWholeRows.
+@Composable
+private fun DividedSegment(
+    onClick: () -> Unit,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) = Column(modifier = modifier) {
     GroupDivider()
-    GroupSegment(
-        onClick = onZoomOut,
-        contentDescription = stringResource(R.string.map_zoom_out_desc),
+    GroupSegment(onClick = onClick, contentDescription = contentDescription, content = content)
+}
+
+// The compass glyph: a two-tone diamond needle — the accent half points at
+// geographic north, the muted half at south — the universal compass glyph, no
+// lettering to localise.
+@Composable
+private fun CompassNeedle(
+    bearingDeg: () -> Float,
+    modifier: Modifier = Modifier,
+) {
+    val north = MaterialTheme.colorScheme.primary
+    val south = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = SOUTH_NEEDLE_ALPHA)
+    Canvas(
+        modifier =
+            modifier
+                .size(CONTROL_ICON_SIZE)
+                .graphicsLayer { rotationZ = -bearingDeg() },
     ) {
-        ControlIcon(imageVector = Lucide.Minus)
+        val w = size.width
+        val h = size.height
+        val waist = w * NEEDLE_WAIST_FRACTION
+        drawPath(
+            Path().apply {
+                moveTo(w / 2f, 0f)
+                lineTo(w / 2f + waist, h / 2f)
+                lineTo(w / 2f - waist, h / 2f)
+                close()
+            },
+            color = north,
+        )
+        drawPath(
+            Path().apply {
+                moveTo(w / 2f, h)
+                lineTo(w / 2f + waist, h / 2f)
+                lineTo(w / 2f - waist, h / 2f)
+                close()
+            },
+            color = south,
+        )
     }
 }
 
@@ -208,20 +228,22 @@ private fun ControlIcon(
 )
 
 // Compact control geometry (an explicit owner decision below the automotive
-// touch floor — see the MapControlColumn KDoc): the compass disc, the grouped
-// pill's width / per-segment height, the shared glyph size, and the horizontal
-// inset that keeps the segment dividers off the pill edges. The pill's corner is
-// MaterialTheme.shapes.large, shared with the other glass panels.
-// Shared with the dashboard, which keeps the portrait header band clear of it.
-internal val MapCompassSize = 48.dp
-
-// Width of the control pill — shared with ExposedMapRegion (MapPanel), whose
-// centred content insets past this strip so text never slides under the
-// locate / zoom controls riding the exposed region's driver-side edge.
+// touch floor — see the MapControlRail KDoc): the rail's width / per-segment
+// height, the shared glyph size, and the horizontal inset that keeps the segment
+// dividers off the pill edges. The rail's corner is MaterialTheme.shapes.large,
+// shared with the other glass panels.
+//
+// Width of the rail — shared with ExposedMapRegion (MapPanel), whose centred
+// content insets past this strip so text never slides under the controls
+// riding the exposed region's driver-side edge, and with the dashboard, which
+// keeps the portrait header band clear of it.
 internal val MapControlsStripWidth = 48.dp
 private val SEGMENT_HEIGHT = 48.dp
 private val CONTROL_ICON_SIZE = 22.dp
 private val GROUP_DIVIDER_INSET = 12.dp
+
+// The leading segments the rail always keeps: zoom in and zoom out.
+private const val ZOOM_SEGMENTS = 2
 
 // Compass needle: half-width of the waist as a fraction of the glyph width,
 // and the muted alpha of the south half.
@@ -229,27 +251,20 @@ private const val NEEDLE_WAIST_FRACTION = 0.22f
 private const val SOUTH_NEEDLE_ALPHA = 0.45f
 
 @PreviewLightDark
-@Preview(name = "Map controls", widthDp = 100, heightDp = 280)
+@Preview(name = "Map control rail", widthDp = 100, heightDp = 240)
 @Composable
-private fun MapControlsPreview() {
+private fun MapControlRailPreview() {
     FemtoTheme {
-        Column {
-            MapCompass(
-                bearingDeg = { 35f },
-                onTap = {},
-                hazeState = rememberHazeState(),
-                glassConfig = GlassConfig(),
-            )
-            Box(modifier = Modifier.height(12.dp))
-            MapControlColumn(
-                showLocate = true,
-                following = false,
-                onLocate = {},
-                onZoomIn = {},
-                onZoomOut = {},
-                hazeState = rememberHazeState(),
-                glassConfig = GlassConfig(),
-            )
-        }
+        MapControlRail(
+            bearingDeg = { 35f },
+            onCompassTap = {},
+            showLocate = true,
+            following = false,
+            onLocate = {},
+            onZoomIn = {},
+            onZoomOut = {},
+            hazeState = rememberHazeState(),
+            glassConfig = GlassConfig(),
+        )
     }
 }
