@@ -53,7 +53,8 @@ with automotive overrides on top.
   overriding the M3 per-role tracking); the named extensions carry none
   either. `ui/theme/Type.kt` is the SSOT. Use
   `MaterialTheme.typography.*` styles or the named `Typography`
-  extensions in `Type.kt` (`bigNumber`, `heroNumeral`, `sectionLabel`,
+  extensions in `Type.kt` (`bigNumber`, `heroNumeral`, `clockHero`, `cardHero`,
+  `dateLine`, `sectionLabel`,
   `eyebrow`, `calendarWeekday`, `glanceMetric`, `glanceBody`,
   `glanceCaption`, `progressCaption`, `monoReference`, `cardTitle`,
   `cardMeta`, `cardCta`, `cardCtaHint`, `tileLabel`, `drawerBody`,

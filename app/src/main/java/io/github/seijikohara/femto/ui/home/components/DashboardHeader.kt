@@ -20,8 +20,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
-import io.github.seijikohara.femto.data.calendar.DateLineForm
-import io.github.seijikohara.femto.data.calendar.dateLineOf
 import io.github.seijikohara.femto.data.clock.SystemZoneClock
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -31,9 +29,8 @@ import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import io.github.seijikohara.femto.ui.theme.atFitFloor
-import io.github.seijikohara.femto.ui.theme.bigNumber
-import io.github.seijikohara.femto.ui.theme.calendarWeekday
-import io.github.seijikohara.femto.ui.theme.normalWeight
+import io.github.seijikohara.femto.ui.theme.clockHero
+import io.github.seijikohara.femto.ui.theme.dateLine
 import io.github.seijikohara.femto.ui.theme.singleLineBox
 import kotlinx.coroutines.delay
 import java.time.Clock
@@ -132,14 +129,7 @@ internal fun DashboardHeader(
     // Every wording the date line can take, longest first; recomputed only when
     // the day or the locale changes.
     val dateLines = remember(date, locale) { DateLineForm.entries.map { form -> dateLineOf(date, locale, form) } }
-    // The clock is ambient (not the safety glance), so it shares the info cards'
-    // hero treatment — bigNumber at Text4Xl, Normal weight — rather than the speed
-    // value's heavier strong-tier heroNumeral.
-    val heroStyle =
-        MaterialTheme.typography.bigNumber(
-            size = FemtoDimens.Text4Xl,
-            weight = MaterialTheme.typography.normalWeight,
-        )
+    val heroStyle = MaterialTheme.typography.clockHero()
     Row(
         modifier =
             modifier
@@ -199,9 +189,7 @@ private fun DateLine(
     lines: List<String>,
     modifier: Modifier = Modifier,
 ) = BoxWithConstraints(modifier = modifier) {
-    // One step below the panel's weekday (TextLg), landing on the body floor:
-    // glance metadata beside the hero numeral.
-    val style = MaterialTheme.typography.calendarWeekday(FemtoDimens.MinBodyTextSize)
+    val style = MaterialTheme.typography.dateLine()
     val measurer = rememberTextMeasurer()
     val floorStyle = style.atFitFloor(DateLineFloorSize)
     // Unbounded width (a preview) never folds.

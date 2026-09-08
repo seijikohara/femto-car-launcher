@@ -12,9 +12,8 @@ import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.testfixtures.FixedDashboardClock
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
-import io.github.seijikohara.femto.ui.theme.bigNumber
-import io.github.seijikohara.femto.ui.theme.calendarWeekday
-import io.github.seijikohara.femto.ui.theme.normalWeight
+import io.github.seijikohara.femto.ui.theme.clockHero
+import io.github.seijikohara.femto.ui.theme.dateLine
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -71,8 +70,8 @@ class DashboardHeaderTest {
         rule.setContent {
             FemtoTheme {
                 val typography = MaterialTheme.typography
-                val timeStyle = typography.bigNumber(size = FemtoDimens.Text4Xl, weight = typography.normalWeight)
-                val dateStyle = typography.calendarWeekday(FemtoDimens.MinBodyTextSize)
+                val timeStyle = typography.clockHero()
+                val dateStyle = typography.dateLine()
                 val measurer = rememberTextMeasurer()
                 val timePx = measurer.measure("10:08:00", timeStyle).size.width
                 val fullPx = measurer.measure("Friday, May 1", dateStyle).size.width

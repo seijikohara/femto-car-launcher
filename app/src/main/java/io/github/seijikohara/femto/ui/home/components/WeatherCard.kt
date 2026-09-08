@@ -57,11 +57,10 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.FitText
 import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
-import io.github.seijikohara.femto.ui.theme.bigNumber
+import io.github.seijikohara.femto.ui.theme.cardHero
 import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.lineBoxHeight
-import io.github.seijikohara.femto.ui.theme.normalWeight
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import io.github.seijikohara.femto.ui.theme.singleLineBox
 import io.github.seijikohara.femto.ui.theme.weatherGlyphs
@@ -258,10 +257,7 @@ private fun Head(
 ) {
     val tempLabel = "${temperatureUnit.fromCelsius(snapshot.tempC).roundToInt()}"
     val glyphs = weatherGlyphs()
-    val tempStyle = MaterialTheme.typography.bigNumber(
-        size = FemtoDimens.Text4Xl,
-        weight = MaterialTheme.typography.normalWeight,
-    )
+    val tempStyle = MaterialTheme.typography.cardHero()
     Column(modifier = Modifier.fillMaxWidth()) {
         // The eyebrow is permanent: the condition in words while the reading is
         // fresh, the fetch time ("AS OF 05:32") once it has aged past the

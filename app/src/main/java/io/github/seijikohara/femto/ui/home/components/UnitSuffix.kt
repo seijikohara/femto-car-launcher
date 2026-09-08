@@ -8,12 +8,23 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.TextUnit
 import io.github.seijikohara.femto.ui.theme.strongWeight
 import io.github.seijikohara.femto.ui.theme.unitLabel
 
-// How far the unit sits below its value. One constant behind both the standalone
-// suffix and the inline span, so the two treatments cannot drift apart.
+// How far the unit sits below its value. One constant behind the standalone
+// suffix and the inline spans, so the treatments cannot drift apart.
 private const val UNIT_SUFFIX_ALPHA = 0.7f
+
+// The inline unit span behind [heroWithUnit] and [valueWithUnit]: the unit's
+// weight and dimmed colour at [size], where Unspecified inherits the value's size.
+@Composable
+private fun unitSpan(size: TextUnit): SpanStyle =
+    SpanStyle(
+        fontSize = size,
+        fontWeight = MaterialTheme.typography.strongWeight,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = UNIT_SUFFIX_ALPHA),
+    )
 
 /**
  * Dimmed, small, trailing unit glyph shared by the dashboard's measured values
@@ -56,17 +67,11 @@ internal fun heroWithUnit(
     value: String,
     unit: String,
 ): AnnotatedString {
-    val unitStyle = MaterialTheme.typography.unitLabel()
-    val unitSpan =
-        SpanStyle(
-            fontSize = unitStyle.fontSize,
-            fontWeight = unitStyle.fontWeight,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = UNIT_SUFFIX_ALPHA),
-        )
+    val span = unitSpan(MaterialTheme.typography.unitLabel().fontSize)
     return buildAnnotatedString {
         append(value)
         append(" ")
-        withStyle(unitSpan) { append(unit) }
+        withStyle(span) { append(unit) }
     }
 }
 
@@ -88,16 +93,12 @@ internal fun valueWithUnit(
     value: String,
     unit: String?,
 ): AnnotatedString {
-    val unitSpan =
-        SpanStyle(
-            fontWeight = MaterialTheme.typography.strongWeight,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = UNIT_SUFFIX_ALPHA),
-        )
+    val span = unitSpan(TextUnit.Unspecified)
     return buildAnnotatedString {
         append(value)
         if (unit != null) {
             append(" ")
-            withStyle(unitSpan) { append(unit) }
+            withStyle(span) { append(unit) }
         }
     }
 }
