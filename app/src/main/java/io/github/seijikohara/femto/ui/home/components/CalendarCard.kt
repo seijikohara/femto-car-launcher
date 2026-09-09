@@ -62,10 +62,11 @@ import java.time.LocalTime
  * the hero numeral, its title beneath — led, when the window spans several
  * calendars, by that calendar's colour bar down both lines. That head is the
  * same shape as the weather card's beside it — eyebrow, hero numeral on one
- * digit band, detail below — so the two cards of the row read as one line. Today's date is not the card's: it is the
- * [DashboardHeader]'s one date line above the cluster, beside the clock, so it
- * shows without calendar permission and stays when this card is
- * hidden — hiding the card is the "date and day only" dashboard. The coming
+ * digit band, detail below — so the two cards of the row read as one line.
+ * Today's date is not the card's: it is the [DashboardHeader]'s one date line
+ * above the cluster, beside the clock, so it shows without calendar permission
+ * and stays when this card is hidden — hiding the card is the "date and day
+ * only" dashboard. The coming
  * days keep their date gutter ([DayRow]) below the head.
  *
  * Typography and spacing originated in the retired dashboard-v2 design mockup;
@@ -209,15 +210,7 @@ private fun HeroEvent(
     showColorBar: Boolean,
 ) {
     val heroStyle = MaterialTheme.typography.cardHero()
-    Row(
-        // IntrinsicSize.Min sizes the row to the time + title stack, so the bar's
-        // fillMaxHeight spans exactly those two lines.
-        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarBarGap),
-    ) {
-        if (showColorBar) {
-            CalendarColorBar(color = event.color, modifier = Modifier.fillMaxHeight())
-        }
+    CalendarColorBarRow(showColorBar = showColorBar, color = event.color, modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(1.dp),
@@ -330,17 +323,7 @@ private fun EventRow(
         maxLines = 1,
         softWrap = false,
     )
-    Row(
-        // IntrinsicSize.Min sizes this row to the title text, so the bar's
-        // fillMaxHeight spans exactly the rendered line(s) — one line for a
-        // short title, both when it wraps — instead of floating as a
-        // fixed-height stub beside wrapped text.
-        modifier = Modifier.height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarBarGap),
-    ) {
-        if (showColorBar) {
-            CalendarColorBar(color = event.color, modifier = Modifier.fillMaxHeight())
-        }
+    CalendarColorBarRow(showColorBar = showColorBar, color = event.color) {
         Text(
             text = event.title,
             modifier = Modifier.weight(1f),

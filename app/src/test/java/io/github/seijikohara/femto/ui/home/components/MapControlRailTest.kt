@@ -6,6 +6,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.rememberHazeState
@@ -27,6 +29,9 @@ import kotlin.test.assertEquals
 class MapControlRailTest {
     @get:Rule
     val rule = createComposeRule()
+
+    // mdpi, as the qualifiers above put the composition: one dp is one px.
+    private val density = Density(1f)
 
     private fun setRail(
         budget: Dp,
@@ -96,15 +101,27 @@ class MapControlRailTest {
     }
 
     @Test
-    fun `the segment count fits the budget whole and never drops the zoom pair`() {
-        // Exactly the four segments' height (with the three dividers) holds all
-        // four; one dp less drops to three; a budget too short for the zoom pair
-        // still keeps it; an unbounded budget holds every wanted segment.
-        assertEquals(4, railSegmentCount(budget = railHeight(4), wanted = 4))
-        assertEquals(3, railSegmentCount(budget = railHeight(4) - 1.dp, wanted = 4))
-        assertEquals(2, railSegmentCount(budget = 0.dp, wanted = 4))
-        assertEquals(3, railSegmentCount(budget = Dp.Infinity, wanted = 3))
+    fun `exactly four segments' height, dividers included, holds all four`() {
+        assertEquals(4, with(density) { railSegmentCount(budgetPx = railHeightPx(4), wanted = 4) })
     }
+
+    @Test
+    fun `one px short of four segments holds three`() {
+        assertEquals(3, with(density) { railSegmentCount(budgetPx = railHeightPx(4) - 1, wanted = 4) })
+    }
+
+    @Test
+    fun `a budget too short for the zoom pair still keeps it`() {
+        assertEquals(2, with(density) { railSegmentCount(budgetPx = 0, wanted = 4) })
+    }
+
+    @Test
+    fun `an unbounded budget holds every wanted segment`() {
+        assertEquals(3, with(density) { railSegmentCount(budgetPx = Constraints.Infinity, wanted = 3) })
+    }
+
+    // The rail's laid-out height for [segments] segments at the test's mdpi density.
+    private fun railHeight(segments: Int): Dp = with(density) { railHeightPx(segments).toDp() }
 
     private companion object {
         const val COMPASS = "Toggle north-up orientation"

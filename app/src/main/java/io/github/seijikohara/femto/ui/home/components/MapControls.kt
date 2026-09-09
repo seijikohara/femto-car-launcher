@@ -14,17 +14,19 @@ import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.LocateFixed
 import com.composables.icons.lucide.Lucide
@@ -61,9 +63,12 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
  * the map's orientation readout — the needle is read before anything is
  * pressed — so it sits where a map's compass rose is expected, up top, and the
  * zoom pair, pressed most, sits lowest and nearest the hand. Dropping from the
- * top is why the budget is resolved here rather than by placing rows from the
- * top until the room runs out ([FitWholeRows]): that primitive keeps the first
- * rows, and here the first row is the first to go.
+ * top is why the budget is resolved here, in composition, rather than by
+ * placing rows from the top until the room runs out ([FitWholeRows]): that
+ * primitive keeps the first rows, and here the first row is the first to go —
+ * and a row it leaves unplaced still reaches the semantics tree, where a
+ * segment the rail never composes does not, so TalkBack meets only the
+ * segments on screen.
  *
  * The compass needle tracks the live camera bearing (north on screen sits at
  * `-bearing`), so it spins with a heading-up camera and rests upright under
@@ -94,84 +99,98 @@ internal fun MapControlRail(
     glassConfig: GlassConfig,
     modifier: Modifier = Modifier,
 ) = BoxWithConstraints(modifier = modifier.width(MapControlsStripWidth)) {
-    val compass: @Composable () -> Unit = {
-        GroupSegment(
-            onClick = onCompassTap,
-            contentDescription = stringResource(R.string.map_compass_desc),
-        ) {
-            CompassNeedle(bearingDeg = bearingDeg)
-        }
-    }
-    val locate: @Composable () -> Unit = {
-        GroupSegment(
-            onClick = onLocate,
-            contentDescription = stringResource(R.string.map_recenter_desc),
-        ) {
-            // Accent while detached — the tap has an effect (the camera is off
-            // wandering); muted while already following.
-            ControlIcon(
-                imageVector = Lucide.LocateFixed,
-                tint =
-                    if (following) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        MaterialTheme.colorScheme.primary
-                    },
-            )
-        }
-    }
-    val zoomIn: @Composable () -> Unit = {
-        GroupSegment(
-            onClick = onZoomIn,
-            contentDescription = stringResource(R.string.map_zoom_in_desc),
-        ) {
-            ControlIcon(imageVector = Lucide.Plus)
-        }
-    }
-    val zoomOut: @Composable () -> Unit = {
-        GroupSegment(
-            onClick = onZoomOut,
-            contentDescription = stringResource(R.string.map_zoom_out_desc),
-        ) {
-            ControlIcon(imageVector = Lucide.Minus)
-        }
-    }
-    // The segments the host's height budget holds whole, out of the wanted set
-    // (the zoom pair and the compass, plus locate where the camera can detach),
-    // dropped in the priority order the KDoc gives: compass, then locate.
-    val wanted = ZOOM_SEGMENTS + 1 + (if (showLocate) 1 else 0)
-    val kept = railSegmentCount(budget = maxHeight, wanted = wanted)
-    val segments =
+    // The segments wanted, in reading order, and the ones the host's height
+    // budget holds whole — dropped from the top, so the KDoc's priority is a
+    // takeLast: the compass first, then locate, never the zoom pair. Resolved in
+    // px against the incoming constraints, as the segments and dividers are laid
+    // out, so a fractional density never rounds the rail one px past its budget.
+    val wanted =
         listOfNotNull(
-            compass.takeIf { kept == wanted },
-            locate.takeIf { showLocate && kept > ZOOM_SEGMENTS },
-            zoomIn,
-            zoomOut,
+            RailSegment.COMPASS,
+            RailSegment.LOCATE.takeIf { showLocate },
+            RailSegment.ZOOM_IN,
+            RailSegment.ZOOM_OUT,
         )
+    val kept = wanted.takeLast(with(LocalDensity.current) { railSegmentCount(constraints.maxHeight, wanted.size) })
     // The capsule wraps the segments it kept — the budget only bounds it, it
     // must not stretch the glass down to the speed overlay. Each segment after
     // the first carries a leading divider, so the capsule never opens or ends on
-    // a line whichever segments the budget kept.
+    // a line whichever segments the budget kept; keyed by segment, so a dropped
+    // compass does not hand its slot (and its pressed state) to the locate below.
     Column(modifier = Modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)) {
-        segments.forEachIndexed { index, segment ->
-            if (index > 0) GroupDivider()
-            segment()
+        kept.forEachIndexed { index, segment ->
+            key(segment) {
+                if (index > 0) GroupDivider()
+                when (segment) {
+                    RailSegment.COMPASS -> {
+                        GroupSegment(
+                            onClick = onCompassTap,
+                            contentDescription = stringResource(R.string.map_compass_desc),
+                        ) {
+                            CompassNeedle(bearingDeg = bearingDeg)
+                        }
+                    }
+
+                    RailSegment.LOCATE -> {
+                        GroupSegment(
+                            onClick = onLocate,
+                            contentDescription = stringResource(R.string.map_recenter_desc),
+                        ) {
+                            // Accent while detached — the tap has an effect (the camera
+                            // is off wandering); muted while already following.
+                            ControlIcon(
+                                imageVector = Lucide.LocateFixed,
+                                tint =
+                                    if (following) {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    } else {
+                                        MaterialTheme.colorScheme.primary
+                                    },
+                            )
+                        }
+                    }
+
+                    RailSegment.ZOOM_IN -> {
+                        GroupSegment(
+                            onClick = onZoomIn,
+                            contentDescription = stringResource(R.string.map_zoom_in_desc),
+                        ) {
+                            ControlIcon(imageVector = Lucide.Plus)
+                        }
+                    }
+
+                    RailSegment.ZOOM_OUT -> {
+                        GroupSegment(
+                            onClick = onZoomOut,
+                            contentDescription = stringResource(R.string.map_zoom_out_desc),
+                        ) {
+                            ControlIcon(imageVector = Lucide.Minus)
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
-/**
- * Return how many of the [wanted] rail segments a height [budget] holds whole —
- * never fewer than the mandatory zoom pair ([ZOOM_SEGMENTS]), which the host is
- * expected to leave room for; an unbounded budget holds them all.
- */
-internal fun railSegmentCount(
-    budget: Dp,
-    wanted: Int,
-): Int = (wanted downTo ZOOM_SEGMENTS).first { it == ZOOM_SEGMENTS || railHeight(it) <= budget }
+// The rail's segments in reading order; the zoom pair is the mandatory tail.
+private enum class RailSegment { COMPASS, LOCATE, ZOOM_IN, ZOOM_OUT }
 
-/** Return the height of a rail of [segments] segments: their heights plus the hairline dividers between them. */
-internal fun railHeight(segments: Int): Dp = SEGMENT_HEIGHT * segments + DividerDefaults.Thickness * (segments - 1)
+/**
+ * Return how many of the [wanted] rail segments a height budget of [budgetPx]
+ * holds whole — never fewer than the mandatory zoom pair ([ZOOM_SEGMENTS]),
+ * which the host is expected to leave room for; an unbounded budget
+ * (`Constraints.Infinity`) holds them all. Measured in px, the way the segments
+ * and dividers are laid out ([railHeightPx]).
+ */
+internal fun Density.railSegmentCount(
+    budgetPx: Int,
+    wanted: Int,
+): Int = (wanted downTo ZOOM_SEGMENTS).first { it == ZOOM_SEGMENTS || railHeightPx(it) <= budgetPx }
+
+/** Return the laid-out height of a rail of [segments] segments: their heights plus the hairline dividers between them. */
+internal fun Density.railHeightPx(segments: Int): Int =
+    SEGMENT_HEIGHT.roundToPx() * segments + DividerDefaults.Thickness.roundToPx() * (segments - 1)
 
 // The compass glyph: a two-tone diamond needle — the accent half points at
 // geographic north, the muted half at south — the universal compass glyph, no

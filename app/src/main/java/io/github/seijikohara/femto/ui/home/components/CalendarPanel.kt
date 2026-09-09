@@ -290,16 +290,7 @@ private fun AgendaEvent(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
     )
-    Row(
-        // Match the card: IntrinsicSize.Min sizes this row to the title text,
-        // so the bar's fillMaxHeight spans exactly the rendered line(s) rather
-        // than floating as a fixed-height stub beside a wrapped title.
-        modifier = Modifier.height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarBarGap),
-    ) {
-        if (showColorBars) {
-            CalendarColorBar(color = event.color, modifier = Modifier.fillMaxHeight())
-        }
+    CalendarColorBarRow(showColorBar = showColorBars, color = event.color) {
         Text(
             text = event.title,
             modifier = Modifier.weight(1f),
