@@ -1137,6 +1137,7 @@ private fun FloatingCardColumn(
             hazeState = hazeState,
             glassConfig = glassConfig,
             motionTier = motionTier,
+            clock = clock,
             modifier = cardModifier,
         )
     }

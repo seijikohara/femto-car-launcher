@@ -12,9 +12,11 @@ import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
+import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalTime
-import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import kotlin.test.assertTrue
 
@@ -135,14 +137,10 @@ class WeatherCardTest {
 
     @Test
     fun shows_as_of_caption_when_data_is_stale() {
-        // The fixture's default fetchedAt is weeks old, so the snapshot reads as
-        // stale against the wall clock and the card surfaces the "as of" eyebrow.
+        // Aged against the card's own clock, not the wall clock: two hours past
+        // the fetch is over the staleness threshold, so the eyebrow turns into
+        // the fetch time, printed in that clock's zone.
         val fetchedAt = Instant.parse("2026-05-01T05:32:00Z")
-        val expectedTime =
-            fetchedAt
-                .atZone(ZoneId.systemDefault())
-                .toLocalTime()
-                .format(DateTimeFormatter.ofPattern("HH:mm"))
         rule.setContent {
             FemtoTheme {
                 WeatherCard(
@@ -151,26 +149,29 @@ class WeatherCardTest {
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     is24Hour = true,
                     onExpand = {},
+                    clock = Clock.fixed(fetchedAt.plus(Duration.ofHours(2)), ZoneOffset.UTC),
                 )
             }
         }
-        rule.onNodeWithText("as of $expectedTime").assertIsDisplayed()
+        rule.onNodeWithText("as of 05:32", ignoreCase = true).assertIsDisplayed()
     }
 
     @Test
     fun hides_as_of_caption_when_data_is_fresh() {
+        val fetchedAt = Instant.parse("2026-05-01T05:32:00Z")
         rule.setContent {
             FemtoTheme {
                 WeatherCard(
-                    snapshot = fakeWeatherSnapshot(fetchedAt = Instant.now()),
+                    snapshot = fakeWeatherSnapshot(fetchedAt = fetchedAt),
                     temperatureUnit = TemperatureUnit.CELSIUS,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                     is24Hour = true,
                     onExpand = {},
+                    clock = Clock.fixed(fetchedAt, ZoneOffset.UTC),
                 )
             }
         }
-        rule.onNodeWithText("as of ", substring = true).assertDoesNotExist()
+        rule.onNodeWithText("as of ", substring = true, ignoreCase = true).assertDoesNotExist()
     }
 
     @Test

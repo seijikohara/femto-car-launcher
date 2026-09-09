@@ -35,6 +35,7 @@ import com.composables.icons.lucide.Wind
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.clock.SystemZoneClock
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.weather.HourlyForecast
 import io.github.seijikohara.femto.data.weather.WeatherCode
@@ -63,6 +64,7 @@ import io.github.seijikohara.femto.ui.theme.sectionLabel
 import io.github.seijikohara.femto.ui.theme.singleLineBox
 import io.github.seijikohara.femto.ui.theme.weatherGlyphs
 import kotlinx.coroutines.delay
+import java.time.Clock
 import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
@@ -98,6 +100,10 @@ internal fun WeatherCard(
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
     motionTier: MotionTier = MotionTier.STANDARD,
+    // The dashboard's clock (the header's), so the reading's age and the fetch
+    // time's zone follow the same source as the time beside it — and a fixed
+    // clock in a capture ages the data against its instant, not the wall clock.
+    clock: Clock = SystemZoneClock,
 ) = Surface(
     // glassChrome clips to the rounded shape (keeping the ripple inside) and
     // paints the frosted-glass backdrop over the map; the maximize tap lives on
@@ -110,13 +116,13 @@ internal fun WeatherCard(
     if (snapshot != null) {
         // During a refresh outage the repository serves the same cached snapshot
         // (identical fetchedAt, conflated by the StateFlow), so the card ages it
-        // locally: past WEATHER_STALE_THRESHOLD it surfaces an "as of HH:mm"
-        // caption rather than presenting hours-old data as current.
+        // locally against the clock: past WEATHER_STALE_THRESHOLD it surfaces an
+        // "as of HH:mm" caption rather than presenting hours-old data as current.
         val asOf =
-            if (rememberWeatherFresh(snapshot)) {
+            if (rememberWeatherFresh(snapshot, clock)) {
                 null
             } else {
-                stringResource(R.string.weather_as_of, asOfTimeLabel(snapshot.fetchedAt, is24Hour))
+                stringResource(R.string.weather_as_of, asOfTimeLabel(snapshot.fetchedAt, clock.zone, is24Hour))
             }
         // clickable + an explicit contentDescription (the AlbumArt idiom in
         // MusicCardMeta): onClickLabel alone sets only the OnClick action label, not
@@ -185,19 +191,23 @@ internal fun WeatherCard(
 }
 
 /**
- * Re-evaluate [snapshot] freshness on a tick so the card surfaces an "as of"
- * caption once the data ages past [WEATHER_STALE_THRESHOLD] during an outage.
- * The cached snapshot's `fetchedAt` does not change while the repository keeps
- * serving it (and the StateFlow conflates the identical value), so without this
- * local tick the card would show hours-old data as current. Mirrors
- * [rememberLocationFresh]; once stale, the loop stops until a new snapshot.
+ * Re-evaluate [snapshot] freshness against [clock] on a tick so the card
+ * surfaces an "as of" caption once the data ages past [WEATHER_STALE_THRESHOLD]
+ * during an outage. The cached snapshot's `fetchedAt` does not change while the
+ * repository keeps serving it (and the StateFlow conflates the identical value),
+ * so without this local tick the card would show hours-old data as current.
+ * Mirrors [rememberLocationFresh]; once stale, the loop stops until a new
+ * snapshot.
  */
 @Composable
-private fun rememberWeatherFresh(snapshot: WeatherSnapshot): Boolean =
-    produceState(initialValue = !snapshot.isStale(Instant.now()), snapshot) {
+private fun rememberWeatherFresh(
+    snapshot: WeatherSnapshot,
+    clock: Clock,
+): Boolean =
+    produceState(initialValue = !snapshot.isStale(clock.instant()), snapshot, clock) {
         while (value) {
             delay(STALE_RECHECK_INTERVAL_MS)
-            value = !snapshot.isStale(Instant.now())
+            value = !snapshot.isStale(clock.instant())
         }
     }.value
 
@@ -249,13 +259,16 @@ internal fun precipReading(
 private val AsOfFormatter12: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
 
 // "as of" needs minute precision, so it cannot reuse the forecast's hour-only
-// 12h formatter; the 24h "HH:mm" formatter already carries minutes.
+// 12h formatter; the 24h "HH:mm" formatter already carries minutes. The fetch
+// instant is read in the dashboard clock's [zone], the zone the header's time
+// beside it is shown in.
 private fun asOfTimeLabel(
     fetchedAt: Instant,
+    zone: ZoneId,
     is24Hour: Boolean,
 ): String =
     fetchedAt
-        .atZone(ZoneId.systemDefault())
+        .atZone(zone)
         .toLocalTime()
         .format(if (is24Hour) ForecastHourFormatter24 else AsOfFormatter12)
 

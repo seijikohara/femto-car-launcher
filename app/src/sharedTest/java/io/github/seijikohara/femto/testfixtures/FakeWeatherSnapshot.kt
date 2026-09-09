@@ -98,7 +98,11 @@ internal fun fakeWeatherSnapshot(
             ),
             DailyForecast(LocalDate.of(2026, 5, 7), 21.0, 13.0, WeatherCode.PARTLY_CLOUDY),
         ),
-    fetchedAt: Instant = Instant.parse("2026-05-01T05:32:00Z"),
+    // Minutes before the dashboard captures' fixed clock (FixedDashboardClock,
+    // 10:08Z the same day), so a card aged against that clock reads the data as
+    // fresh and shows the condition word, not the "AS OF" caption; the staleness
+    // tests pass their own instants.
+    fetchedAt: Instant = Instant.parse("2026-05-01T10:02:00Z"),
 ): WeatherSnapshot =
     WeatherSnapshot(
         tempC = tempC,
