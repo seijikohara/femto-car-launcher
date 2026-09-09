@@ -20,7 +20,8 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
  * the call site — the event rows size themselves with
  * `Modifier.height(IntrinsicSize.Min)` and pass `fillMaxHeight()`, so the
  * capsule spans exactly the title's rendered lines (both lines when a long
- * title wraps) instead of floating as a fixed-height stub beside them.
+ * title wraps) instead of floating as a fixed-height stub beside them; the
+ * card's today head spans its hero time and title the same way.
  *
  * The bar deliberately uses the raw provider color rather than a
  * `MaterialTheme` role: the whole point is to match the exact colors the user

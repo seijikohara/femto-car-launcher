@@ -23,7 +23,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -59,10 +58,11 @@ import java.time.LocalTime
  * when free, carrying an explicit no-events line.
  *
  * Today opens the card as a head rather than as a gutter row ([TodayHead]): a
- * "Today" eyebrow, the first event's time as the hero numeral, its title
- * beneath. That head is the same shape as the weather card's beside it —
- * eyebrow, hero numeral on one digit band, detail below — so the two cards of
- * the row read as one line. Today's date is not the card's: it is the
+ * "Today" eyebrow set as the card's one accent pill, the first event's time as
+ * the hero numeral, its title beneath — led, when the window spans several
+ * calendars, by that calendar's colour bar down both lines. That head is the
+ * same shape as the weather card's beside it — eyebrow, hero numeral on one
+ * digit band, detail below — so the two cards of the row read as one line. Today's date is not the card's: it is the
  * [DashboardHeader]'s one date line above the cluster, beside the clock, so it
  * shows without calendar permission and stays when this card is
  * hidden — hiding the card is the "date and day only" dashboard. The coming
@@ -150,14 +150,15 @@ private fun CalendarContent(
     }
 }
 
-// Today as the card's head: the "Today" eyebrow (the date itself is in the
-// header above the cluster — a "FRI 1" gutter here would say it a third time),
-// the first event's time as the hero numeral on the same digit band as the
-// weather card's temperature beside it, and its title beneath; today's further
-// events follow flush-left in the agenda's own row form. Free today keeps the
-// eyebrow over the explicit no-events line, so the head never renders empty.
-// Emitted as sibling rows of the agenda's FitWholeRows (not one Column), so the
-// head is the one mandatory row and each further event can be dropped whole.
+// Today as the card's head: the "Today" eyebrow as the card's accent pill (the
+// date itself is in the header above the cluster — a "FRI 1" gutter here would
+// say it a third time), the first event's time as the hero numeral on the same
+// digit band as the weather card's temperature beside it, and its title
+// beneath; today's further events follow flush-left in the agenda's own row
+// form. Free today keeps the eyebrow over the explicit no-events line, so the
+// head never renders empty. Emitted as sibling rows of the agenda's
+// FitWholeRows (not one Column), so the head is the one mandatory row and each
+// further event can be dropped whole.
 @Composable
 private fun TodayHead(
     day: DayCell,
@@ -167,9 +168,11 @@ private fun TodayHead(
     val first = day.events.firstOrNull()
     // The eyebrow sits directly on the hero (no gap), exactly as the weather
     // card's head stacks its eyebrow on the temperature, so the two heroes land
-    // on the same digit band across the row.
+    // on the same digit band across the row; the pill's wash is drawn past the
+    // eyebrow's box, not laid out, so the head is no taller than the weather's
+    // (see CardEyebrow).
     Column(modifier = Modifier.fillMaxWidth()) {
-        CardEyebrow(text = stringResource(R.string.calendar_today))
+        CardEyebrow(text = stringResource(R.string.calendar_today), pill = true)
         if (first == null) {
             // Only today can be free here (free days are filtered out upstream); an
             // explicit line beats a bare dash for the one row that stays.
@@ -195,7 +198,10 @@ private val AgendaRowGap = 8.dp
 
 // The first event of today: its time in the cards' hero style (cardHero — the
 // weather temperature's, on the same clamped line box), its title on one line
-// under it.
+// under it. When the window spans several calendars, the event's calendar
+// colour bar leads BOTH lines: beside the one-line title alone it was a
+// 3 x 16 dp fleck, too small to read as a colour at a glance, and the head is
+// where the eye lands first — so the head's bar is the tallest in the card.
 @Composable
 private fun HeroEvent(
     event: EventItem,
@@ -203,27 +209,37 @@ private fun HeroEvent(
     showColorBar: Boolean,
 ) {
     val heroStyle = MaterialTheme.typography.cardHero()
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(1.dp),
+    Row(
+        // IntrinsicSize.Min sizes the row to the time + title stack, so the bar's
+        // fillMaxHeight spans exactly those two lines.
+        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarBarGap),
     ) {
-        FitText(
-            text = eventTimeLabel(event, is24Hour),
-            style = heroStyle,
-            color = MaterialTheme.colorScheme.onSurface,
-            // A 12-hour "10:30 AM" or an "All day" label outruns the numeral's slot
-            // on the head-unit card; it shrinks a step rather than ellipsizes.
-            minFontSize = FemtoDimens.Text2Xl,
-            modifier = Modifier.singleLineBox(heroStyle),
-        )
-        EventTitle(
-            title = event.title,
-            color = event.color,
-            showColorBar = showColorBar,
-            style = MaterialTheme.typography.cardMeta(),
-            textColor = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-        )
+        if (showColorBar) {
+            CalendarColorBar(color = event.color, modifier = Modifier.fillMaxHeight())
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(1.dp),
+        ) {
+            FitText(
+                text = eventTimeLabel(event, is24Hour),
+                style = heroStyle,
+                color = MaterialTheme.colorScheme.onSurface,
+                // A 12-hour "10:30 AM" or an "All day" label outruns the numeral's
+                // slot on the head-unit card; it shrinks a step rather than
+                // ellipsizes.
+                minFontSize = FemtoDimens.Text2Xl,
+                modifier = Modifier.singleLineBox(heroStyle),
+            )
+            Text(
+                text = event.title,
+                style = MaterialTheme.typography.cardMeta(),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -314,46 +330,26 @@ private fun EventRow(
         maxLines = 1,
         softWrap = false,
     )
-    EventTitle(
-        title = event.title,
-        color = event.color,
-        showColorBar = showColorBar,
-        style = MaterialTheme.typography.glanceBody(),
-        textColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 2,
-    )
-}
-
-// An event's title line(s), led by the calendar color bar when the window spans
-// more than one calendar. Shared by the head's hero event and the agenda rows,
-// which differ only in the title's style, colour, and line budget.
-@Composable
-private fun EventTitle(
-    title: String,
-    color: Int,
-    showColorBar: Boolean,
-    style: TextStyle,
-    textColor: Color,
-    maxLines: Int,
-) = Row(
-    // IntrinsicSize.Min sizes this row to the title text, so the bar's
-    // fillMaxHeight spans exactly the rendered line(s) — one line for a
-    // short title, both when it wraps — instead of floating as a
-    // fixed-height stub beside wrapped text.
-    modifier = Modifier.height(IntrinsicSize.Min),
-    horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarBarGap),
-) {
-    if (showColorBar) {
-        CalendarColorBar(color = color, modifier = Modifier.fillMaxHeight())
+    Row(
+        // IntrinsicSize.Min sizes this row to the title text, so the bar's
+        // fillMaxHeight spans exactly the rendered line(s) — one line for a
+        // short title, both when it wraps — instead of floating as a
+        // fixed-height stub beside wrapped text.
+        modifier = Modifier.height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CalendarBarGap),
+    ) {
+        if (showColorBar) {
+            CalendarColorBar(color = event.color, modifier = Modifier.fillMaxHeight())
+        }
+        Text(
+            text = event.title,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.glanceBody(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
-    Text(
-        text = title,
-        modifier = Modifier.weight(1f),
-        style = style,
-        color = textColor,
-        maxLines = maxLines,
-        overflow = TextOverflow.Ellipsis,
-    )
 }
 
 // Shared centred hint for the no-data states (permission denied / provider
