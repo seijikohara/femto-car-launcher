@@ -3,12 +3,14 @@ package io.github.seijikohara.femto.ui.home.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -22,6 +24,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.LocateFixed
 import com.composables.icons.lucide.Lucide
@@ -37,8 +40,8 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
 /**
  * The map pane's one control rail, a glass capsule in the top corner opposite
- * the cards: the zoom +/- pair, the optional locate (return-to-position)
- * segment, then the compass, separated by hairline dividers inside one
+ * the cards: the compass on top, the optional locate (return-to-position)
+ * segment, then the zoom +/- pair, separated by hairline dividers inside one
  * continuous frosted pill.
  *
  * One rail, not a compass disc in the corner and a control pill at the mid
@@ -48,13 +51,19 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
  * Anchored to the top corner the rail clears the bottom-anchored speed overlay
  * on every recorded geometry but the shortest, and there it yields instead of
  * colliding: the host bounds the rail's height to the room above the overlay
- * (see DashboardScaffold's rail reserve), and the segments are placed whole
- * from the top until that room runs out ([FitWholeRows]) — the compass first
- * to go, then locate, while the zoom pair always stays. That order is the
- * driving priority: the head unit has no multitouch, so the zoom buttons are
- * its only zoom affordance; locate is the way back once a drag has detached
- * the camera; the compass toggles a persisted orientation that Settings also
- * carries.
+ * (see DashboardScaffold's rail reserve), and the rail keeps only the segments
+ * that room holds whole ([railSegmentCount]) — the compass is the first to go,
+ * then locate, while the zoom pair always stays. That is the driving priority:
+ * the head unit has no multitouch, so the zoom buttons are its only zoom
+ * affordance; locate is the way back once a drag has detached the camera; the
+ * compass toggles a persisted orientation that Settings also carries. The
+ * reading order is its reverse: the compass leads the rail because it is also
+ * the map's orientation readout — the needle is read before anything is
+ * pressed — so it sits where a map's compass rose is expected, up top, and the
+ * zoom pair, pressed most, sits lowest and nearest the hand. Dropping from the
+ * top is why the budget is resolved here rather than by placing rows from the
+ * top until the room runs out ([FitWholeRows]): that primitive keeps the first
+ * rows, and here the first row is the first to go.
  *
  * The compass needle tracks the live camera bearing (north on screen sits at
  * `-bearing`), so it spins with a heading-up camera and rests upright under
@@ -84,33 +93,17 @@ internal fun MapControlRail(
     hazeState: HazeState,
     glassConfig: GlassConfig,
     modifier: Modifier = Modifier,
-) = FitWholeRows(
-    modifier =
-        modifier
-            .width(MapControlsStripWidth)
-            .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
-    // The zoom pair is never dropped; every segment after it may be (see the
-    // KDoc). Each later segment carries its own leading divider so a dropped
-    // segment takes its divider with it and the capsule never ends on a line.
-    mandatoryCount = ZOOM_SEGMENTS,
-    // The capsule wraps the segments it kept; the host's height budget only
-    // bounds it, it must not stretch the glass down to the speed overlay.
-    fillHeight = false,
-) {
-    GroupSegment(
-        onClick = onZoomIn,
-        contentDescription = stringResource(R.string.map_zoom_in_desc),
-    ) {
-        ControlIcon(imageVector = Lucide.Plus)
+) = BoxWithConstraints(modifier = modifier.width(MapControlsStripWidth)) {
+    val compass: @Composable () -> Unit = {
+        GroupSegment(
+            onClick = onCompassTap,
+            contentDescription = stringResource(R.string.map_compass_desc),
+        ) {
+            CompassNeedle(bearingDeg = bearingDeg)
+        }
     }
-    DividedSegment(
-        onClick = onZoomOut,
-        contentDescription = stringResource(R.string.map_zoom_out_desc),
-    ) {
-        ControlIcon(imageVector = Lucide.Minus)
-    }
-    if (showLocate) {
-        DividedSegment(
+    val locate: @Composable () -> Unit = {
+        GroupSegment(
             onClick = onLocate,
             contentDescription = stringResource(R.string.map_recenter_desc),
         ) {
@@ -127,25 +120,58 @@ internal fun MapControlRail(
             )
         }
     }
-    DividedSegment(
-        onClick = onCompassTap,
-        contentDescription = stringResource(R.string.map_compass_desc),
-    ) {
-        CompassNeedle(bearingDeg = bearingDeg)
+    val zoomIn: @Composable () -> Unit = {
+        GroupSegment(
+            onClick = onZoomIn,
+            contentDescription = stringResource(R.string.map_zoom_in_desc),
+        ) {
+            ControlIcon(imageVector = Lucide.Plus)
+        }
+    }
+    val zoomOut: @Composable () -> Unit = {
+        GroupSegment(
+            onClick = onZoomOut,
+            contentDescription = stringResource(R.string.map_zoom_out_desc),
+        ) {
+            ControlIcon(imageVector = Lucide.Minus)
+        }
+    }
+    // The segments the host's height budget holds whole, out of the wanted set
+    // (the zoom pair and the compass, plus locate where the camera can detach),
+    // dropped in the priority order the KDoc gives: compass, then locate.
+    val wanted = ZOOM_SEGMENTS + 1 + (if (showLocate) 1 else 0)
+    val kept = railSegmentCount(budget = maxHeight, wanted = wanted)
+    val segments =
+        listOfNotNull(
+            compass.takeIf { kept == wanted },
+            locate.takeIf { showLocate && kept > ZOOM_SEGMENTS },
+            zoomIn,
+            zoomOut,
+        )
+    // The capsule wraps the segments it kept — the budget only bounds it, it
+    // must not stretch the glass down to the speed overlay. Each segment after
+    // the first carries a leading divider, so the capsule never opens or ends on
+    // a line whichever segments the budget kept.
+    Column(modifier = Modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)) {
+        segments.forEachIndexed { index, segment ->
+            if (index > 0) GroupDivider()
+            segment()
+        }
     }
 }
 
-// A segment led by its divider, as one child of the rail's FitWholeRows.
-@Composable
-private fun DividedSegment(
-    onClick: () -> Unit,
-    contentDescription: String,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
-) = Column(modifier = modifier) {
-    GroupDivider()
-    GroupSegment(onClick = onClick, contentDescription = contentDescription, content = content)
-}
+/**
+ * Return how many of the [wanted] rail segments a height [budget] holds whole —
+ * never fewer than the mandatory zoom pair ([ZOOM_SEGMENTS]), which the host is
+ * expected to leave room for; an unbounded budget holds them all.
+ */
+internal fun railSegmentCount(
+    budget: Dp,
+    wanted: Int,
+): Int = (wanted downTo ZOOM_SEGMENTS).first { it == ZOOM_SEGMENTS || railHeight(it) <= budget }
+
+/** Return the height of a rail of [segments] segments: their heights plus the hairline dividers between them. */
+internal fun railHeight(segments: Int): Dp = SEGMENT_HEIGHT * segments + DividerDefaults.Thickness * (segments - 1)
 
 // The compass glyph: a two-tone diamond needle — the accent half points at
 // geographic north, the muted half at south — the universal compass glyph, no
@@ -245,7 +271,7 @@ private val SEGMENT_HEIGHT = 48.dp
 private val CONTROL_ICON_SIZE = 22.dp
 private val GROUP_DIVIDER_INSET = 12.dp
 
-// The leading segments the rail always keeps: zoom in and zoom out.
+// The segments the rail always keeps: zoom in and zoom out.
 private const val ZOOM_SEGMENTS = 2
 
 // Compass needle: half-width of the waist as a fraction of the glyph width,
@@ -255,6 +281,8 @@ private const val SOUTH_NEEDLE_ALPHA = 0.45f
 
 @PreviewLightDark
 @Preview(name = "Map control rail", widthDp = 100, heightDp = 240)
+// A host too short for the compass: the rail keeps locate and the zoom pair.
+@Preview(name = "Map control rail, short host", widthDp = 100, heightDp = 160)
 @Composable
 private fun MapControlRailPreview() {
     FemtoTheme {

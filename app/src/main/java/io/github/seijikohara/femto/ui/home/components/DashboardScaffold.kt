@@ -703,7 +703,7 @@ private fun DashboardOverlays(
 
     Box(modifier = modifier) {
         // Map controls render only when the map does (a fix exists): one rail —
-        // compass, zoom, locate — pinned to the top corner opposite the cards,
+        // compass, locate, zoom — pinned to the top corner opposite the cards,
         // flipping with the driver side. Top-anchored, it clears the speed overlay
         // (bottom-anchored) and the portrait card band on every recorded geometry;
         // the mid-edge column it replaces sat under both on short and portrait

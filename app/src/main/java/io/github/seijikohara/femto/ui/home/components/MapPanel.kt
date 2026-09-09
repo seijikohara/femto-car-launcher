@@ -115,7 +115,7 @@ internal fun BoxScope.ExposedMapRegion(
             .fillMaxWidth(1f - mapConfig.rightSafeFraction - mapConfig.leftSafeFraction)
             .fillMaxHeight(1f - mapConfig.bottomSafeFraction)
             // The safe fractions cover the floating cards and bottom overlays,
-            // but the map controls (locate / zoom pill, compass) ride the
+            // but the map control rail (compass / locate / zoom) rides the
             // exposed region's driver-side edge, over the map. Inset the
             // content past that strip on BOTH sides — symmetric, so the layout
             // holds for left- and right-hand drive alike — and cap its width
