@@ -9,8 +9,12 @@
     <cloud-backup>
         <!-- display_preferences (incl. the user's BYO Mapbox token / Google Maps key) deliberately stays in backup: both are client-side keys designed to live in distributed apps, and restoring them avoids re-entry on a new head unit. location_preferences stays excluded (position history is not portable state). -->
         <exclude domain="file" path="datastore/location_preferences.preferences_pb" />
+        <!-- The recorded trip track (1 Hz position, speed, bearing, altitude; recording is on by default and the history is kept for 90 days) is the most sensitive data the app holds, and the database domain is backed up by default — so without this the history would be copied to the user's Google account, contradicting what Settings and the privacy policy both promise. -->
+        <exclude domain="database" path="track_log.db" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="datastore/location_preferences.preferences_pb" />
+        <!-- Excluded from device transfer as well: the track is tied to the vehicle it was recorded in, and a transfer is not a reason to move a position history onto different hardware. -->
+        <exclude domain="database" path="track_log.db" />
     </device-transfer>
 </data-extraction-rules>
