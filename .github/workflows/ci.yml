@@ -137,7 +137,7 @@ jobs:
           # Write outside the checked-out tree; $RUNNER_TEMP is auto-cleaned.
           echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
 
-      - name: Build signed release APK and AAB
+      - name: Build the signed release APK
         env:
           RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
@@ -145,14 +145,15 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: nightly-${{ github.run_number }}-${{ github.sha }}
-        # AAB is the Play upload format (required for new apps); APK stays for
-        # direct sideload onto AI boxes / head units off the GitHub release.
-        run: ./gradlew assembleRelease bundleRelease --stacktrace
+        # An APK, and only an APK: sideloading onto AI boxes / head units off
+        # the GitHub release is the distribution channel, and an .aab defers
+        # APK generation and signing to Google Play, so no on-device installer
+        # can open one.
+        run: ./gradlew assembleRelease --stacktrace
 
-      - name: Stage artifacts with meaningful asset names
+      - name: Stage the artifact with a meaningful asset name
         run: |
           cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/femto-car-launcher-nightly.apk"
-          cp app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/femto-car-launcher-nightly.aab"
 
       - name: Publish rolling nightly prerelease
         env:
@@ -202,7 +203,6 @@ jobs:
           } > "$RUNNER_TEMP/nightly-notes.md"
           gh release create nightly \
             "$RUNNER_TEMP/femto-car-launcher-nightly.apk" \
-            "$RUNNER_TEMP/femto-car-launcher-nightly.aab" \
             --target "$GITHUB_SHA" \
             --title "Nightly ${{ github.run_number }}" \
             --notes-file "$RUNNER_TEMP/nightly-notes.md" \

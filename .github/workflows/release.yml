@@ -1,9 +1,8 @@
 name: Release
 
 # Cut a production build from a version tag (e.g. v1.0.0): build the signed
-# Android App Bundle (the Play upload format) plus an APK (direct sideload) and
-# attach both to a GitHub release. The .aab is uploaded to the Play Console
-# manually — see .github/RELEASING.md.
+# APK and attach it to a GitHub release, which is how the app is distributed
+# (see .github/RELEASING.md).
 on:
   push:
     tags: ["v*"]
@@ -95,7 +94,7 @@ jobs:
           # Write outside the checked-out tree; $RUNNER_TEMP is auto-cleaned.
           echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
 
-      - name: Build signed release AAB and APK
+      - name: Build the signed release APK
         env:
           RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
@@ -103,13 +102,12 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
           VERSION_CODE: ${{ steps.version.outputs.code }}
           VERSION_NAME: ${{ steps.version.outputs.name }}
-        run: ./gradlew bundleRelease assembleRelease --stacktrace
+        run: ./gradlew assembleRelease --stacktrace
 
-      - name: Stage artifacts with version-stamped names
+      - name: Stage the artifact with a version-stamped name
         env:
           V: ${{ steps.version.outputs.name }}
         run: |
-          cp app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/femto-car-launcher-$V.aab"
           cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/femto-car-launcher-$V.apk"
 
       - name: Publish GitHub release
@@ -120,11 +118,9 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           # On a tag push the tag already exists; on workflow_dispatch this creates
-          # it against the current commit. The .aab is the artifact to upload to
-          # the Play Console (.github/RELEASING.md).
+          # it against the current commit.
           gh release create "$TAG" \
-            "$RUNNER_TEMP/femto-car-launcher-$V.aab" \
             "$RUNNER_TEMP/femto-car-launcher-$V.apk" \
             --title "v$V" \
-            --notes "Production build $V (versionCode $CODE). Upload the .aab to the Play Console; see .github/RELEASING.md." \
+            --notes "Production build $V (versionCode $CODE). Sideload the APK; see .github/RELEASING.md." \
             --latest

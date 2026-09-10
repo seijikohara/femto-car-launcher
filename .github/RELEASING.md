@@ -1,15 +1,15 @@
 # Release signing
 
-The nightly job in [`ci.yml`](workflows/ci.yml) signs the release
-artifacts with an upload keystore supplied through repository secrets.
-It builds both an **APK** (`assembleRelease`, attached to the GitHub
-nightly release for direct sideload onto AI boxes / head units) and an
-**App Bundle** (`bundleRelease`, `femto-car-launcher-nightly.aab`) — the
-**AAB is the format Google Play requires** for new apps; upload it under
-Play Console -> Testing/Production -> Create release. Local
-`./gradlew assembleRelease` / `bundleRelease` builds stay unsigned: the
-signing config is registered only when `RELEASE_KEYSTORE_PATH` is set, so
-contributor builds keep working with no keystore.
+The nightly job in [`ci.yml`](workflows/ci.yml) signs the release APK
+with an upload keystore supplied through repository secrets
+(`assembleRelease`, attached to the GitHub nightly release for direct
+sideload onto AI boxes / head units). Sideloading is the app's only
+distribution channel, so an APK is the only artifact built: an Android
+App Bundle defers APK generation and signing to Google Play, and no
+on-device installer can open one. Local `./gradlew assembleRelease`
+builds stay unsigned: the signing config is registered only when
+`RELEASE_KEYSTORE_PATH` is set, so contributor builds keep working with
+no keystore.
 
 ## Production release (tag-driven)
 
@@ -24,11 +24,10 @@ git push origin v1.0.0
 The workflow derives the version from the tag — `versionName` is the tag
 without the `v` (e.g. `1.0.0`), and `versionCode` is packed as
 `major*1000000 + minor*1000 + patch` (so `v1.0.0` → `1000000`, monotonic
-with semver; minor and patch must each be `< 1000`). It builds the **signed AAB
-and APK**, then attaches both to a GitHub release for that tag. Download
-the `.aab` and upload it under **Play Console → Testing/Production →
-Create release**. (`workflow_dispatch` with a `version` input is the
-manual fallback when you'd rather not push a tag.)
+with semver; minor and patch must each be `< 1000`). It builds the **signed
+APK** and attaches it to a GitHub release for that tag.
+(`workflow_dispatch` with a `version` input is the manual fallback when
+you'd rather not push a tag.)
 
 The nightly job uses the same signing secrets but stamps a
 `nightly-<run>-<sha>` version; only tagged builds carry a clean
