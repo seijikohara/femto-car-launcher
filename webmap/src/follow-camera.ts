@@ -1,10 +1,9 @@
-// The camera-follow state machine shared by the MapLibre (OSM) and Mapbox
-// backends — their GL libraries expose the same camera surface, so the whole
+// The camera-follow state machine of the MapLibre (OSM) backend: the whole
 // follow/detach/refollow machine, the smooth per-fix camera easing, and the
-// screen-pinned chevron choreography are one implementation parameterised
-// over a minimal structural map interface. The Google Maps backend has no
-// easing camera (moveCamera is immediate) and no mapId-free geo marker, so it
-// keeps its own machine — see backends/googlemaps.ts.
+// screen-pinned chevron choreography, parameterised over a minimal structural
+// map interface rather than the maplibre-gl types directly. The Google Maps
+// backend has no easing camera (moveCamera is immediate) and no mapId-free geo
+// marker, so it keeps its own machine — see backends/googlemaps.ts.
 import {
     AUTO_REFOLLOW_MS,
     appliedBearing,
@@ -28,7 +27,7 @@ import { createMarkerTransition } from "./marker-motion";
 import { markerDrop, markerPadLeft, markerPadRight, markerPadTop, markerXFraction } from "./style";
 
 // The camera-option shape this engine passes to easeTo/jumpTo — a structural
-// subset both maplibre-gl and mapbox-gl accept.
+// subset of maplibre-gl's camera options.
 export interface FollowCameraOpts {
     center?: [number, number];
     bearing?: number;
@@ -40,8 +39,7 @@ export interface FollowCameraOpts {
     essential?: boolean;
 }
 
-// The map surface the engine drives. maplibregl.Map and mapbox-gl's Map both
-// satisfy this structurally.
+// The map surface the engine drives; maplibregl.Map satisfies it structurally.
 export interface GlFollowMap {
     easeTo(opts: FollowCameraOpts): unknown;
     jumpTo(opts: FollowCameraOpts): unknown;
@@ -52,8 +50,8 @@ export interface GlFollowMap {
     triggerRepaint(): unknown;
 }
 
-// The geo-anchored marker surface (the detached-mode clone). maplibre and
-// mapbox Marker instances both satisfy this structurally.
+// The geo-anchored marker surface (the detached-mode clone); a maplibre Marker
+// satisfies it structurally.
 export interface GeoMarkerLike {
     setLngLat(lngLat: [number, number]): unknown;
     setRotation(deg: number): unknown;

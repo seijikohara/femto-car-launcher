@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.data.display
 
 import android.content.Context
+import androidx.datastore.preferences.core.edit
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -68,40 +69,33 @@ class DisplayPreferencesTest {
         }
 
     @Test
-    fun mapboxAccessToken_roundTrips() =
-        runTest {
-            val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
-            store.resetToDefaults()
-            assertEquals("", store.settings.first().mapboxAccessToken)
-            store.setMapboxAccessToken("pk.test_token_123")
-            assertEquals("pk.test_token_123", store.settings.first().mapboxAccessToken)
-        }
-
-    @Test
-    fun `mapBackend mapboxStyle mapboxTraffic read their defaults and round-trip`() =
+    fun `mapBackend reads its default and round-trips`() =
         runTest {
             val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
             // Clear any state left by a test that ran earlier in the same process.
             store.resetToDefaults()
 
-            // Defaults: with no backend keys written the read path falls back to
-            // OSM / STANDARD / traffic-off. There is no legacy-key migration to
-            // exercise here — the read path never reads the retired map_render_mode
-            // key, so a pre-rename store resolves to OSM purely because map_backend
-            // is absent (asserted once, above; a second identical assertion would
-            // prove nothing further).
-            assertFalse(store.settings.first().mapboxTraffic)
+            // With no backend key written the read path falls back to OSM; a
+            // pre-rename store resolves to OSM purely because map_backend is absent.
             assertEquals(MapBackend.OSM, store.settings.first().mapBackend)
-            assertEquals(MapboxStyle.STANDARD, store.settings.first().mapboxStyle)
 
-            // Round-trip: write MAPBOX / SATELLITE / traffic-on, then read back.
-            store.setMapBackend(MapBackend.MAPBOX)
-            store.setMapboxStyle(MapboxStyle.SATELLITE)
-            store.setMapboxTraffic(true)
-            val s = store.settings.first()
-            assertEquals(MapBackend.MAPBOX, s.mapBackend)
-            assertEquals(MapboxStyle.SATELLITE, s.mapboxStyle)
-            assertTrue(s.mapboxTraffic)
+            store.setMapBackend(MapBackend.GOOGLEMAPS)
+            assertEquals(MapBackend.GOOGLEMAPS, store.settings.first().mapBackend)
+        }
+
+    // A store written before the Mapbox backend was removed may still carry
+    // map_backend=MAPBOX. The read path decodes an unknown name as the default,
+    // so such a store comes up on OSM regardless of the one-shot rewrite
+    // (RetiredMapboxKeysMigrationTest covers that migration on its own).
+    @Test
+    fun `a persisted MAPBOX backend reads back as OSM`() =
+        runTest {
+            val context = ApplicationProvider.getApplicationContext<Context>()
+            val store = DisplayPreferences(context)
+            store.resetToDefaults()
+
+            context.displayDataStore.edit { it[DisplayPreferences.MAP_BACKEND_KEY] = "MAPBOX" }
+            assertEquals(MapBackend.OSM, store.settings.first().mapBackend)
         }
 
     @Test
@@ -253,9 +247,6 @@ class DisplayPreferencesTest {
             val expected =
                 mutated.copy(
                     mapBackend = DisplaySettings.Default.mapBackend,
-                    mapboxStyle = DisplaySettings.Default.mapboxStyle,
-                    mapboxTraffic = DisplaySettings.Default.mapboxTraffic,
-                    mapboxAccessToken = DisplaySettings.Default.mapboxAccessToken,
                     googleMapsApiKey = DisplaySettings.Default.googleMapsApiKey,
                     googleMapsMapId = DisplaySettings.Default.googleMapsMapId,
                     googleMapsRendering = DisplaySettings.Default.googleMapsRendering,
@@ -366,10 +357,7 @@ class DisplayPreferencesTest {
         setMusicSpectrum(true)
         setMusicShowAlbum(false)
         setMusicShowArt(false)
-        setMapBackend(MapBackend.MAPBOX)
-        setMapboxStyle(MapboxStyle.SATELLITE)
-        setMapboxTraffic(true)
-        setMapboxAccessToken("pk.mutated")
+        setMapBackend(MapBackend.GOOGLEMAPS)
         setGoogleMapsApiKey("mutated-key")
         setGoogleMapsMapId("mutated-id")
         setGoogleMapsRendering(GoogleMapsRendering.VECTOR)

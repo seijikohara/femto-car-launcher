@@ -145,7 +145,7 @@ export function isPaddingOnlyReflow(previous: ReflowFix | null, next: ReflowFix)
 }
 
 // Fixed lockstep duration for a padding-only reflow, used by the shared
-// follow-camera engine (OSM/Mapbox): the marker's CSS transition and the
+// follow-camera engine (OSM): the marker's CSS transition and the
 // camera's easeTo both run this long, so they land together. (The Google Maps
 // backend needs no such constant —
 // its camera has no native easing to lock the marker against; see the note in

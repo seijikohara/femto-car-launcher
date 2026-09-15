@@ -11,7 +11,6 @@ import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.GoogleMapType
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
-import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.SettingsSectionId
@@ -332,7 +331,7 @@ class SettingsViewModelTest {
     fun `ResetSection(MAP) resets its fields, leaves other sections alone`() =
         runTest(dispatcher) {
             val vm = viewModel()
-            vm.onAction(SettingsAction.SetMapBackend(MapBackend.MAPBOX))
+            vm.onAction(SettingsAction.SetMapBackend(MapBackend.GOOGLEMAPS))
             vm.onAction(SettingsAction.SetMapZoom(11))
             vm.onAction(SettingsAction.SetShowMusic(false))
             advanceUntilIdle()
@@ -496,45 +495,9 @@ class SettingsViewModelTest {
     fun `SetMapBackend persists and reflects in state`() =
         runTest(dispatcher) {
             val vm = viewModel()
-            vm.onAction(SettingsAction.SetMapBackend(MapBackend.MAPBOX))
+            vm.onAction(SettingsAction.SetMapBackend(MapBackend.GOOGLEMAPS))
             advanceUntilIdle()
-            assertEquals(MapBackend.MAPBOX, store.settings.first().mapBackend)
-        }
-
-    @Test
-    fun `SetMapboxStyle persists and reflects in state`() =
-        runTest(dispatcher) {
-            val vm = viewModel()
-            vm.onAction(SettingsAction.SetMapboxStyle(MapboxStyle.SATELLITE))
-            advanceUntilIdle()
-            assertEquals(MapboxStyle.SATELLITE, store.settings.first().mapboxStyle)
-        }
-
-    @Test
-    fun `SetMapboxTraffic persists and reflects in state`() =
-        runTest(dispatcher) {
-            val vm = viewModel()
-            vm.onAction(SettingsAction.SetMapboxTraffic(true))
-            advanceUntilIdle()
-            assertEquals(true, store.settings.first().mapboxTraffic)
-        }
-
-    @Test
-    fun `SaveMapboxToken persists token and selects the Mapbox backend atomically`() =
-        runTest(dispatcher) {
-            val vm = viewModel()
-            // Subscribe so WhileUiSubscribed keeps the upstream combine alive across both phases.
-            backgroundScope.launch { vm.uiState.collect { } }
-            advanceUntilIdle()
-
-            vm.onAction(SettingsAction.SaveMapboxToken("pk.abc"))
-            advanceUntilIdle()
-            assertEquals("pk.abc", vm.uiState.value.mapboxAccessToken)
-            assertEquals(MapBackend.MAPBOX, vm.uiState.value.mapBackend)
-
-            vm.onAction(SettingsAction.ClearMapboxToken)
-            advanceUntilIdle()
-            assertEquals("", vm.uiState.value.mapboxAccessToken)
+            assertEquals(MapBackend.GOOGLEMAPS, store.settings.first().mapBackend)
         }
 
     @Test

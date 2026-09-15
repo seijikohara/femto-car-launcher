@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Effective date: 2026-09-10**
+**Effective date: 2026-09-15**
 
 Femto Car Launcher ("the app") is an Android home launcher. This policy explains
 what data the app accesses, why, and who it is shared with. The app does **not**
@@ -40,12 +40,6 @@ coordinates to the following services, governed by their own privacy policies:
 
 - **Weather** — MET Norway (the Norwegian Meteorological Institute, `api.met.no`).
 - **Map tiles (default / OSM backend)** — OpenFreeMap and Mapterhorn (OpenStreetMap-based map data).
-- **Map tiles (optional Mapbox backend)** — if you enter your own Mapbox access token in
-  Settings to enable the Mapbox map backend, location coordinates are sent to Mapbox
-  (`api.mapbox.com`) to render map tiles, styles, satellite imagery, and traffic. Your
-  Mapbox access token is stored on-device only and is not transmitted by the launcher;
-  Mapbox GL JS in the WebView uses it to fetch tiles directly from Mapbox. This data is
-  governed by the [Mapbox privacy policy](https://www.mapbox.com/legal/privacy).
 - **Map tiles (optional Google Maps backend)** — if you enter your own Google Maps
   Platform API key in Settings to enable the Google Maps map backend, location
   coordinates are sent to Google (`maps.googleapis.com`) to render the map, satellite
@@ -71,15 +65,11 @@ control.
 ## What the app does NOT do
 
 - No advertising, no analytics, no crash-reporting SDKs — except the optional
-  Mapbox and Google Maps map backends' usage data collection, disclosed below.
+  Google Maps map backend's usage data collection, disclosed below.
 - No sale or sharing of personal data for advertising.
 - No collection of device or advertising identifiers — **except** when you enable
-  the optional Mapbox map backend by entering your own access token: Mapbox GL JS
-  sends usage telemetry to Mapbox as part of its standard operation, and the app
-  cannot fully disable this. The telemetry is governed by the
-  [Mapbox privacy policy](https://www.mapbox.com/legal/privacy). Likewise, the
-  optional Google Maps backend, when enabled with your own API key, sends usage
-  data to Google as part of the Google Maps JavaScript API's standard operation,
+  the optional Google Maps backend with your own API key: the Google Maps
+  JavaScript API sends usage data to Google as part of its standard operation,
   governed by the [Google privacy policy](https://policies.google.com/privacy).
   The default OSM backend does not send any analytics or telemetry.
 - No background location collection. The optional trip-tracking foreground

@@ -19,7 +19,10 @@ private const val TAG = "DisplayPreferences"
 // Internal (not private): DisplayPreferencesTest reads the raw persisted key
 // set off this same DataStore instance to validate ALL_KEYS against reality,
 // rather than against another hand-typed set.
-internal val Context.displayDataStore: DataStore<Preferences> by preferencesDataStore(name = "display_preferences")
+internal val Context.displayDataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "display_preferences",
+    produceMigrations = { listOf(RetiredMapboxKeysMigration) },
+)
 
 /**
  * Read/write surface for [DisplaySettings]. [DisplayPreferences] is the
@@ -121,12 +124,6 @@ internal interface DisplaySettingsStore {
 
     suspend fun setMapBackend(value: MapBackend)
 
-    suspend fun setMapboxStyle(value: MapboxStyle)
-
-    suspend fun setMapboxTraffic(value: Boolean)
-
-    suspend fun setMapboxAccessToken(value: String)
-
     suspend fun setGoogleMapsApiKey(value: String)
 
     suspend fun setGoogleMapsMapId(value: String)
@@ -204,9 +201,6 @@ internal class DisplayPreferences(
                     musicShowAlbum = prefs[MUSIC_SHOW_ALBUM_KEY] ?: true,
                     musicShowArt = prefs[MUSIC_SHOW_ART_KEY] ?: true,
                     mapBackend = prefs[MAP_BACKEND_KEY].toEnumOr(MapBackend.OSM),
-                    mapboxStyle = prefs[MAPBOX_STYLE_KEY].toEnumOr(MapboxStyle.STANDARD),
-                    mapboxTraffic = prefs[MAPBOX_TRAFFIC_KEY] ?: false,
-                    mapboxAccessToken = prefs[MAPBOX_ACCESS_TOKEN_KEY].orEmpty(),
                     googleMapsApiKey = prefs[GOOGLE_MAPS_API_KEY_KEY].orEmpty(),
                     googleMapsMapId = prefs[GOOGLE_MAPS_MAP_ID_KEY].orEmpty(),
                     googleMapsRendering =
@@ -386,18 +380,6 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[MAP_BACKEND_KEY] = value.name }
     }
 
-    override suspend fun setMapboxStyle(value: MapboxStyle) {
-        context.displayDataStore.editOrLog(TAG) { it[MAPBOX_STYLE_KEY] = value.name }
-    }
-
-    override suspend fun setMapboxTraffic(value: Boolean) {
-        context.displayDataStore.editOrLog(TAG) { it[MAPBOX_TRAFFIC_KEY] = value }
-    }
-
-    override suspend fun setMapboxAccessToken(value: String) {
-        context.displayDataStore.editOrLog(TAG) { it[MAPBOX_ACCESS_TOKEN_KEY] = value }
-    }
-
     override suspend fun setGoogleMapsApiKey(value: String) {
         context.displayDataStore.editOrLog(TAG) { it[GOOGLE_MAPS_API_KEY_KEY] = value }
     }
@@ -476,9 +458,6 @@ internal class DisplayPreferences(
         val MUSIC_SHOW_ALBUM_KEY = booleanPreferencesKey("music_show_album")
         val MUSIC_SHOW_ART_KEY = booleanPreferencesKey("music_show_art")
         val MAP_BACKEND_KEY = stringPreferencesKey("map_backend")
-        val MAPBOX_STYLE_KEY = stringPreferencesKey("mapbox_style")
-        val MAPBOX_TRAFFIC_KEY = booleanPreferencesKey("mapbox_traffic")
-        val MAPBOX_ACCESS_TOKEN_KEY = stringPreferencesKey("mapbox_access_token")
         val GOOGLE_MAPS_API_KEY_KEY = stringPreferencesKey("google_maps_api_key")
         val GOOGLE_MAPS_MAP_ID_KEY = stringPreferencesKey("google_maps_map_id")
         val GOOGLE_MAPS_RENDERING_KEY = stringPreferencesKey("google_maps_rendering")
@@ -538,9 +517,6 @@ internal class DisplayPreferences(
                 MUSIC_SHOW_ALBUM_KEY,
                 MUSIC_SHOW_ART_KEY,
                 MAP_BACKEND_KEY,
-                MAPBOX_STYLE_KEY,
-                MAPBOX_TRAFFIC_KEY,
-                MAPBOX_ACCESS_TOKEN_KEY,
                 GOOGLE_MAPS_API_KEY_KEY,
                 GOOGLE_MAPS_MAP_ID_KEY,
                 GOOGLE_MAPS_RENDERING_KEY,

@@ -38,7 +38,7 @@ import kotlinx.coroutines.delay
 
 /**
  * Map tile surface + permission fallback. Renders via [WebMapView], a
- * hardware-accelerated WebView hosting whichever of the three backends
+ * hardware-accelerated WebView hosting whichever of the two backends
  * [MapConfig.backend] selects (see `MapBackend` for what each one means).
  * Clock and speed overlays are placed by the parent on top of this surface.
  */
@@ -152,8 +152,8 @@ internal fun Attribution(
 ) {
     // The OSM tile credit (OpenStreetMap / OpenMapTiles / OpenFreeMap). The host
     // renders this overlay only for the OSM backend, whose web page hides its own
-    // attribution control (see showsNativeAttribution in WebMapView.kt); Mapbox and
-    // Google Maps carry their own in-WebView attribution instead. Append the terrain
+    // attribution control (see showsNativeAttribution in WebMapView.kt); Google
+    // Maps carries its own in-WebView attribution instead. Append the terrain
     // provider's required credit when that LIVE layer is active (its licence mandates
     // attribution).
     val base = stringResource(R.string.map_attribution)

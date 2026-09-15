@@ -20,9 +20,6 @@ importers:
       '@googlemaps/js-api-loader':
         specifier: ^2.1.1
         version: 2.1.1
-      mapbox-gl:
-        specifier: ^3.25.0
-        version: 3.30.0
       maplibre-gl:
         specifier: ^6.0.0
         version: 6.9.0
@@ -973,9 +970,6 @@ packages:
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
-  mapbox-gl@3.30.0:
-    resolution: {integrity: sha512-26m0CSBszLkvbdVWf2oIZ3SjqCuResxJKEbupwwSyNwbwJAcgnMhDy2Yl5cSgtUxeamUJ1UeXRqpBmGEUVaAeQ==}
-
   maplibre-gl@6.9.0:
     resolution: {integrity: sha512-vFMwMK0Zs+NM/rOMSdtu8bO30DIexhBEVi5KC6f70/XtI+L/K2wC3LsDCAXFZ4s8ik5gAuDugfCNbpllpdJ9bA==}
     engines: {node: '>=16.14.0', npm: '>=8.1.0'}
@@ -1790,8 +1784,6 @@ snapshots:
   magic-string@0.30.21:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
-
-  mapbox-gl@3.30.0: {}
 
   maplibre-gl@6.9.0:
     dependencies:

@@ -29,7 +29,6 @@ import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MapBackend
-import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -40,80 +39,39 @@ private const val MIN_MAP_MARKER_POS = 0
 private const val MAX_MAP_MARKER_POS = 100
 
 // The Map category's rows; see AppearanceSection's header comment on why
-// there is no title / reset wiring here. The token / key / Map ID entry
-// dialogs sit as siblings of the row Column (below), not nested inside it —
-// they are plain AlertDialogs and render in their own window regardless of
-// where they are declared.
+// there is no title / reset wiring here. The key / Map ID entry dialogs sit
+// as siblings of the row Column (below), not nested inside it — they are
+// plain AlertDialogs and render in their own window regardless of where they
+// are declared.
 @Composable
 internal fun MapSection(
     uiState: SettingsUiState,
     onAction: (SettingsAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var showTokenDialog by remember { mutableStateOf(false) }
     var showGoogleKeyDialog by remember { mutableStateOf(false) }
     var showGoogleMapIdDialog by remember { mutableStateOf(false) }
     Column(modifier = modifier) {
-        // Selecting Mapbox or Google Maps persists the backend switch immediately
-        // (sticky selection; a missing credential does not revert to OSM). When the
-        // matching credential is still blank, selecting also opens its entry dialog
-        // so the user can supply one right away — MapSection owns this interception
-        // because the dialogs live here.
+        // Selecting Google Maps persists the backend switch immediately (sticky
+        // selection; a missing key does not revert to OSM). When the key is still
+        // blank, selecting also opens its entry dialog so the user can supply one
+        // right away — MapSection owns this interception because the dialog lives
+        // here.
         ChoiceRow(
             title = stringResource(R.string.settings_map_backend),
             options =
                 listOf(
                     MapBackend.OSM to stringResource(R.string.settings_map_backend_osm),
-                    MapBackend.MAPBOX to stringResource(R.string.settings_map_backend_mapbox),
                     MapBackend.GOOGLEMAPS to stringResource(R.string.settings_map_backend_googlemaps),
                 ),
             selected = uiState.mapBackend,
             onSelect = { backend ->
                 onAction(SettingsAction.SetMapBackend(backend))
-                when {
-                    backend == MapBackend.MAPBOX && uiState.mapboxAccessToken.isBlank() -> {
-                        showTokenDialog = true
-                    }
-
-                    backend == MapBackend.GOOGLEMAPS && uiState.googleMapsApiKey.isBlank() -> {
-                        showGoogleKeyDialog = true
-                    }
+                if (backend == MapBackend.GOOGLEMAPS && uiState.googleMapsApiKey.isBlank()) {
+                    showGoogleKeyDialog = true
                 }
             },
         )
-        AnimatedVisibility(visible = uiState.mapBackend == MapBackend.MAPBOX) {
-            Column {
-                ChoiceRow(
-                    title = stringResource(R.string.settings_mapbox_style),
-                    options =
-                        listOf(
-                            MapboxStyle.STANDARD to stringResource(R.string.settings_mapbox_style_standard),
-                            MapboxStyle.SATELLITE to stringResource(R.string.settings_mapbox_style_satellite),
-                            MapboxStyle.STREETS to stringResource(R.string.settings_mapbox_style_streets),
-                        ),
-                    selected = uiState.mapboxStyle,
-                    onSelect = { onAction(SettingsAction.SetMapboxStyle(it)) },
-                )
-                SwitchRow(
-                    title = stringResource(R.string.settings_mapbox_traffic),
-                    checked = uiState.mapboxTraffic,
-                    onCheckedChange = { onAction(SettingsAction.SetMapboxTraffic(it)) },
-                )
-                SettingRow(
-                    title = stringResource(R.string.settings_mapbox_token),
-                    summary = mapboxTokenSummary(uiState.mapboxAccessToken),
-                    modifier = Modifier.clickable { showTokenDialog = true },
-                ) {
-                    TrailingIcon(Lucide.ChevronRight)
-                }
-                Text(
-                    text = stringResource(R.string.settings_map_accent_osm_only_note),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-                )
-            }
-        }
         AnimatedVisibility(visible = uiState.mapBackend == MapBackend.GOOGLEMAPS) {
             Column {
                 ChoiceRow(
@@ -220,40 +178,6 @@ internal fun MapSection(
             onValueChange = { onAction(SettingsAction.SetMapMarkerPos(it)) },
         )
     }
-    if (showTokenDialog) {
-        var draft by remember { mutableStateOf(uiState.mapboxAccessToken) }
-        AlertDialog(
-            onDismissRequest = { showTokenDialog = false },
-            title = { Text(stringResource(R.string.settings_mapbox_token)) },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = draft,
-                        onValueChange = { draft = it },
-                        singleLine = true,
-                        label = { Text(stringResource(R.string.settings_mapbox_token_hint)) },
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = draft.isNotBlank(),
-                    onClick = {
-                        onAction(SettingsAction.SaveMapboxToken(draft))
-                        showTokenDialog = false
-                    },
-                ) { Text(stringResource(R.string.settings_mapbox_token_save)) }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        onAction(SettingsAction.ClearMapboxToken)
-                        showTokenDialog = false
-                    },
-                ) { Text(stringResource(R.string.settings_mapbox_token_clear)) }
-            },
-        )
-    }
     if (showGoogleKeyDialog) {
         var draft by remember { mutableStateOf(uiState.googleMapsApiKey) }
         AlertDialog(
@@ -344,17 +268,8 @@ internal fun MapSection(
     }
 }
 
-// Masks all but the last four characters of the token so it is not fully visible
+// Masks all but the last four characters of the key so it is not fully visible
 // on a shared in-car screen, while still letting the user confirm which key is set.
-@Composable
-private fun mapboxTokenSummary(token: String): String =
-    if (token.isBlank()) {
-        stringResource(R.string.settings_mapbox_token_unset)
-    } else {
-        "••••" + token.takeLast(4)
-    }
-
-// Same masking pattern as mapboxTokenSummary, applied to the Google Maps API key.
 @Composable
 private fun googleMapsKeySummary(key: String): String =
     if (key.isBlank()) {

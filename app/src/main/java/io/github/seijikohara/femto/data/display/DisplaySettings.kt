@@ -216,8 +216,8 @@ internal data class DisplaySettings(
     // OSM-map (WebGL) feature toggles. 3D buildings extrude the OpenMapTiles building
     // layer (default on); terrain adds raster-DEM relief and defaults OFF — it fetches
     // a separate elevation-tile source and is the heavier of the two on the weakest
-    // head-unit GPUs, so a fresh install stays light and the user opts in. Ignored when
-    // backend == MAPBOX (Mapbox GL JS manages its own layer stack).
+    // head-unit GPUs, so a fresh install stays light and the user opts in. Ignored by
+    // the Google Maps backend (the Maps JS API manages its own layer stack).
     val map3dBuildings: Boolean,
     val mapTerrain: Boolean,
     // Map-overlay glass: the backdrop blur radius (dp) and the tint opacity as an
@@ -257,14 +257,9 @@ internal data class DisplaySettings(
     // Whether the music card and the full-screen player show the album artwork.
     // Defaults true; hiding it yields a metadata-only, minimal player.
     val musicShowArt: Boolean,
-    // Map backend: OSM (MapLibre + OpenFreeMap, free) or MAPBOX (requires a user-supplied token).
+    // Map backend: OSM (MapLibre + OpenFreeMap, free) or GOOGLEMAPS (requires a
+    // user-supplied API key).
     val mapBackend: MapBackend = MapBackend.OSM,
-    // Mapbox base style, only meaningful when mapBackend == MAPBOX.
-    val mapboxStyle: MapboxStyle = MapboxStyle.STANDARD,
-    // Whether to overlay live traffic on the Mapbox map.
-    val mapboxTraffic: Boolean = false,
-    /** User-supplied Mapbox public access token (pk.…); blank disables the Mapbox backend. */
-    val mapboxAccessToken: String = "",
     /** User-supplied Google Maps API key; blank disables the Google Maps backend. */
     val googleMapsApiKey: String = "",
     /**
@@ -325,9 +320,6 @@ internal data class DisplaySettings(
                 musicShowAlbum = true,
                 musicShowArt = true,
                 mapBackend = MapBackend.OSM,
-                mapboxStyle = MapboxStyle.STANDARD,
-                mapboxTraffic = false,
-                mapboxAccessToken = "",
                 googleMapsApiKey = "",
                 googleMapsMapId = "",
                 googleMapsRendering = GoogleMapsRendering.AUTO,

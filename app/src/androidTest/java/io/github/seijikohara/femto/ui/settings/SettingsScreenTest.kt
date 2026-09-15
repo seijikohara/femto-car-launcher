@@ -44,12 +44,6 @@ class SettingsScreenTest {
     private val matchAppThemeLabel = context.getString(R.string.settings_map_match_theme)
     private val mapStyleLabel = context.getString(R.string.settings_group_map_style)
     private val mapBackendLabel = context.getString(R.string.settings_map_backend)
-    private val mapboxLabel = context.getString(R.string.settings_map_backend_mapbox)
-    private val tokenLabel = context.getString(R.string.settings_mapbox_token)
-    private val tokenUnsetLabel = context.getString(R.string.settings_mapbox_token_unset)
-    private val tokenHintLabel = context.getString(R.string.settings_mapbox_token_hint)
-    private val tokenSaveLabel = context.getString(R.string.settings_mapbox_token_save)
-    private val tokenClearLabel = context.getString(R.string.settings_mapbox_token_clear)
     private val glassBlurLabel = context.getString(R.string.settings_group_glass_blur)
     private val locationIntervalLabel = context.getString(R.string.settings_group_location_interval)
     private val visibleCalendarsLabel = context.getString(R.string.settings_visible_calendars)
@@ -257,90 +251,6 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun mapbox_token_row_shows_masked_summary_when_token_is_set() {
-        // A set token shows only the last four characters prefixed with bullets,
-        // keeping the credential off a shared in-car display.
-        setScreen(
-            uiState =
-                SettingsUiState.Initial.copy(
-                    mapBackend = MapBackend.MAPBOX,
-                    mapboxAccessToken = "pk.abc123",
-                ),
-            category = R.string.settings_section_map,
-        )
-        // "pk.abc123".takeLast(4) == "c123"
-        rule.onNodeWithText("••••c123").performScrollTo().assertIsDisplayed()
-    }
-
-    @Test
-    fun mapbox_token_row_shows_unset_label_when_no_token() {
-        setScreen(
-            uiState =
-                SettingsUiState.Initial.copy(
-                    mapBackend = MapBackend.MAPBOX,
-                    mapboxAccessToken = "",
-                ),
-            category = R.string.settings_section_map,
-        )
-        rule.onNodeWithText(tokenUnsetLabel).performScrollTo().assertIsDisplayed()
-    }
-
-    @Test
-    fun selecting_mapbox_with_no_token_switches_backend_and_opens_token_dialog() {
-        // Selecting Mapbox when no token is stored must switch the backend immediately
-        // (so the map area shows the missing-token notice) AND open the entry dialog.
-        val actions = mutableListOf<SettingsAction>()
-        setScreen(
-            uiState = SettingsUiState.Initial.copy(mapboxAccessToken = ""),
-            onAction = { actions += it },
-            category = R.string.settings_section_map,
-        )
-        rule.onNodeWithText(mapBackendLabel).performScrollTo().performClick()
-        rule.onNodeWithText(mapboxLabel).performClick()
-        rule.onNodeWithText(tokenLabel).assertIsDisplayed()
-        assertEquals(listOf(SettingsAction.SetMapBackend(MapBackend.MAPBOX)), actions)
-    }
-
-    @Test
-    fun saving_token_in_dialog_dispatches_set_backend_then_save_token() {
-        // Selecting Mapbox with no token dispatches SetMapBackend(MAPBOX) immediately,
-        // then entering a token and tapping Save dispatches SaveMapboxToken (which also
-        // atomically persists the backend in the ViewModel — keeping both in sync).
-        val actions = mutableListOf<SettingsAction>()
-        setScreen(
-            uiState = SettingsUiState.Initial.copy(mapboxAccessToken = ""),
-            onAction = { actions += it },
-            category = R.string.settings_section_map,
-        )
-        rule.onNodeWithText(mapBackendLabel).performScrollTo().performClick()
-        rule.onNodeWithText(mapboxLabel).performClick()
-        // The OutlinedTextField shows its label text when the field is empty; type into it.
-        rule.onNodeWithText(tokenHintLabel).performTextInput("pk.test")
-        rule.onNodeWithText(tokenSaveLabel).performClick()
-        assertEquals(
-            listOf(SettingsAction.SetMapBackend(MapBackend.MAPBOX), SettingsAction.SaveMapboxToken("pk.test")),
-            actions,
-        )
-    }
-
-    @Test
-    fun clear_in_token_dialog_dispatches_clear_mapbox_token() {
-        val actions = mutableListOf<SettingsAction>()
-        setScreen(
-            uiState =
-                SettingsUiState.Initial.copy(
-                    mapBackend = MapBackend.MAPBOX,
-                    mapboxAccessToken = "pk.old",
-                ),
-            onAction = { actions += it },
-            category = R.string.settings_section_map,
-        )
-        rule.onNodeWithText(tokenLabel).performScrollTo().performClick()
-        rule.onNodeWithText(tokenClearLabel).performClick()
-        assertEquals(listOf(SettingsAction.ClearMapboxToken), actions)
-    }
-
-    @Test
     fun googlemaps_type_and_traffic_rows_shown_when_backend_googlemaps_with_key() {
         // The map-type and traffic rows are only visible when the Google Maps backend is
         // active; a non-blank key means the backend can be selected.
@@ -357,23 +267,9 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun accent_osm_only_note_shown_for_mapbox_backend() {
-        setScreen(
-            uiState =
-                SettingsUiState.Initial.copy(
-                    mapBackend = MapBackend.MAPBOX,
-                    mapboxAccessToken = "pk.test",
-                ),
-            category = R.string.settings_section_map,
-        )
-        rule.onNodeWithText(accentOsmOnlyNoteLabel).performScrollTo().assertIsDisplayed()
-    }
-
-    @Test
     fun accent_osm_only_note_shown_for_google_maps_backend() {
-        // The note already shows for Mapbox (see the test above); Google Maps is
-        // equally non-recolorable and must show the same explanation, not leave
-        // the gap unexplained.
+        // Google Maps is not recolorable, so the note must explain the gap rather
+        // than leave it unexplained.
         setScreen(
             uiState =
                 SettingsUiState.Initial.copy(
@@ -388,13 +284,13 @@ class SettingsScreenTest {
     @Test
     fun map_rendering_subheader_hidden_for_non_osm_backend() {
         // The Rendering subheader (3D Buildings / Terrain) only applies to the OSM
-        // backend; Mapbox renders those effects natively, so neither the header nor
-        // its switches should appear once a non-OSM backend is selected.
+        // backend; Google Maps manages its own layer stack, so neither the header
+        // nor its switches should appear once a non-OSM backend is selected.
         setScreen(
             uiState =
                 SettingsUiState.Initial.copy(
-                    mapBackend = MapBackend.MAPBOX,
-                    mapboxAccessToken = "pk.test",
+                    mapBackend = MapBackend.GOOGLEMAPS,
+                    googleMapsApiKey = "AIzaTestKey",
                 ),
             category = R.string.settings_section_map,
         )

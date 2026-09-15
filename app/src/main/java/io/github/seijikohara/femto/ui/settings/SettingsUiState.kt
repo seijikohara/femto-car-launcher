@@ -15,7 +15,6 @@ import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapStyleSetting
-import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.SettingsSectionId
@@ -94,9 +93,6 @@ internal data class SettingsUiState(
     val trackRetention: TrackRetentionSetting,
     val trackExport: TrackExportState = TrackExportState.Idle,
     val mapBackend: MapBackend = DisplaySettings.Default.mapBackend,
-    val mapboxStyle: MapboxStyle = DisplaySettings.Default.mapboxStyle,
-    val mapboxTraffic: Boolean = DisplaySettings.Default.mapboxTraffic,
-    val mapboxAccessToken: String = "",
     val googleMapsApiKey: String = "",
     val googleMapsMapId: String = "",
     val googleMapsRendering: GoogleMapsRendering = DisplaySettings.Default.googleMapsRendering,
@@ -163,9 +159,6 @@ internal data class SettingsUiState(
                 trackRecordingEnabled = LocationSettings.Default.trackRecordingEnabled,
                 trackRetention = LocationSettings.Default.trackRetention,
                 mapBackend = DisplaySettings.Default.mapBackend,
-                mapboxStyle = DisplaySettings.Default.mapboxStyle,
-                mapboxTraffic = DisplaySettings.Default.mapboxTraffic,
-                mapboxAccessToken = DisplaySettings.Default.mapboxAccessToken,
                 googleMapsApiKey = DisplaySettings.Default.googleMapsApiKey,
                 googleMapsMapId = DisplaySettings.Default.googleMapsMapId,
                 googleMapsRendering = DisplaySettings.Default.googleMapsRendering,
@@ -380,22 +373,6 @@ internal sealed interface SettingsAction {
     data class SetMapBackend(
         val value: MapBackend,
     ) : SettingsAction
-
-    data class SetMapboxStyle(
-        val value: MapboxStyle,
-    ) : SettingsAction
-
-    data class SetMapboxTraffic(
-        val value: Boolean,
-    ) : SettingsAction
-
-    // Persist the token AND select the Mapbox backend atomically (one coroutine)
-    // so the gate never briefly sees backend=MAPBOX with a blank token.
-    data class SaveMapboxToken(
-        val value: String,
-    ) : SettingsAction
-
-    data object ClearMapboxToken : SettingsAction
 
     // Persist the key AND select the Google Maps backend atomically (one coroutine)
     // so the gate never briefly sees backend=GOOGLEMAPS with a blank key.

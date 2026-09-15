@@ -41,7 +41,7 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
 
     // MapLibre 6 dropped the WebGL 1 fallback and only ever acquires a webgl2
     // context, so a missing one is a definitive never-going-to-render fact —
-    // report it and stop, matching the mapbox backend's gate. Constructing the
+    // report it and stop. Constructing the
     // map anyway would only throw a second, noisier fatal (a
     // GPUInitializationError) from a page the host is about to tear down.
     if (!webglSupport().webgl2) {

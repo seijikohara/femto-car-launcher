@@ -52,7 +52,6 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapStyleSetting
-import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.map.MapRuntimeSignals
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -63,7 +62,7 @@ import kotlinx.coroutines.delay
 /**
  * Live map in a WebView — the only path that renders a smooth, animated map
  * *inside Compose*. The backend chosen in the Settings Map section (OSM / MapLibre,
- * or the BYO-credential Mapbox and Google Maps backends) selects the
+ * or the BYO-key Google Maps backend) selects the
  * `index.html?backend=` query parameter; the page's entry module
  * dynamic-imports the matching backend module (`webmap/src/backends/`), and
  * every backend honours the same host-bridge contract, so this one composable
@@ -148,9 +147,8 @@ internal fun WebMapView(
         }
 
     // Only the active backend's credential can affect the loaded page, so an edit
-    // to the inactive backend's stored token/key must not rebuild the WebView — and
-    // editing a stored Mapbox token while OSM is active must not reload the OSM page.
-    val effectiveMapboxToken = if (mapConfig.backend == MapBackend.MAPBOX) mapConfig.mapboxToken else ""
+    // to the inactive backend's stored key must not rebuild the WebView — editing a
+    // stored Google Maps key while OSM is active must not reload the OSM page.
     val effectiveGoogleKey = if (mapConfig.backend == MapBackend.GOOGLEMAPS) mapConfig.googleMapsApiKey else ""
     val effectiveGoogleMapId = if (mapConfig.backend == MapBackend.GOOGLEMAPS) mapConfig.googleMapsMapId else ""
     // The Maps JS API fixes raster/vector at construction, so a change has to
@@ -172,8 +170,8 @@ internal fun WebMapView(
     // Connectivity-recovery reload. The map's style, sprite, glyphs, and tiles are all
     // fetched from the network with nothing bundled offline, so a page opened offline
     // cannot render and cannot recover on its own: the OSM page stays blank-but-live
-    // (fetch failures are logged `error` events) while the credentialed backends
-    // (Mapbox / Google Maps) report a `fatal`. Bumping this generation on the
+    // (fetch failures are logged `error` events) while the credentialed Google Maps
+    // backend reports a `fatal`. Bumping this generation on the
     // offline->online edge tears down and reloads the WebView — a key of the WebView,
     // pageReady, AND liveInitFailed remembers below, exactly like rendererGeneration —
     // so the resources re-fetch against the now-live network and a fatal gets a fresh
@@ -193,7 +191,6 @@ internal fun WebMapView(
     val retryAttempts =
         remember(
             mapConfig.backend,
-            effectiveMapboxToken,
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
@@ -225,7 +222,6 @@ internal fun WebMapView(
             rendererGeneration,
             reloadGeneration,
             mapConfig.backend,
-            effectiveMapboxToken,
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
@@ -236,14 +232,13 @@ internal fun WebMapView(
     // renderer-death notice, this only informs — the persisted backend is untouched.
     // Keyed on backend AND the active backend's BYO credentials so a fatal from one
     // backend does not suppress the other's page, and re-entering a corrected
-    // token / key / Map ID clears a prior failure. reloadGeneration is a key too, so a
-    // connectivity-recovery reload clears an offline-triggered fatal (Mapbox / Google
-    // Maps report one when opened offline) and the rebuilt page gets a fresh online init.
+    // key / Map ID clears a prior failure. reloadGeneration is a key too, so a
+    // connectivity-recovery reload clears an offline-triggered fatal (Google Maps
+    // reports one when opened offline) and the rebuilt page gets a fresh online init.
     var liveInitFailed by
         remember(
             reloadGeneration,
             mapConfig.backend,
-            effectiveMapboxToken,
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
@@ -254,7 +249,6 @@ internal fun WebMapView(
         remember(
             reloadGeneration,
             mapConfig.backend,
-            effectiveMapboxToken,
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
@@ -265,12 +259,9 @@ internal fun WebMapView(
     // state writes must land on the main thread.
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
 
-    // A blank token/key with the Mapbox or Google Maps backend is a configuration
-    // error that will never self-heal at runtime — show the notice immediately so
-    // the map area is not a permanently blank white box.
-    val mapboxBackend = mapConfig.backend == MapBackend.MAPBOX
-    val mapboxTokenMissing = mapboxBackend && mapConfig.mapboxToken.isBlank()
-
+    // A blank key with the Google Maps backend is a configuration error that will
+    // never self-heal at runtime — show the notice immediately so the map area is
+    // not a permanently blank white box.
     val googleMapsBackend = mapConfig.backend == MapBackend.GOOGLEMAPS
     val googleMapsKeyMissing = googleMapsBackend && mapConfig.googleMapsApiKey.isBlank()
 
@@ -284,7 +275,7 @@ internal fun WebMapView(
     // non-self-healing notices (missing credential, renderer give-up) never
     // retry, and the effect idles while offline: reconnection reloads via the
     // edge above, which also refunds the budget.
-    val retryEligible = liveInitFailed && online && !rendererGaveUp && !mapboxTokenMissing && !googleMapsKeyMissing
+    val retryEligible = liveInitFailed && online && !rendererGaveUp && !googleMapsKeyMissing
     LaunchedEffect(retryEligible, retryAttempts.intValue) {
         if (!retryEligible || retryAttempts.intValue >= MAX_LIVE_RELOAD_RETRIES) return@LaunchedEffect
         delay(liveReloadRetryDelayMs(retryAttempts.intValue))
@@ -292,7 +283,7 @@ internal fun WebMapView(
         reloadGeneration++
     }
 
-    if (rendererGaveUp || liveInitFailed || mapboxTokenMissing || googleMapsKeyMissing) {
+    if (rendererGaveUp || liveInitFailed || googleMapsKeyMissing) {
         Box(modifier = modifier) {
             ExposedMapRegion(mapConfig = mapConfig) {
                 LiveMapNotice(
@@ -300,12 +291,8 @@ internal fun WebMapView(
                         when {
                             rendererGaveUp -> R.string.map_live_renderer_gone
 
-                            // Check missing credential before liveInitFailed: a blank credential
-                            // also triggers a fatal from the page, so both can be true at once.
-                            mapboxTokenMissing -> R.string.map_mapbox_no_token
-
-                            mapboxBackend && liveInitFailed -> R.string.map_mapbox_failed
-
+                            // Check the missing key before liveInitFailed: a blank key also
+                            // triggers a fatal from the page, so both can be true at once.
                             googleMapsKeyMissing -> R.string.map_googlemaps_no_key
 
                             googleMapsBackend && liveInitFailed -> R.string.map_googlemaps_failed
@@ -315,8 +302,6 @@ internal fun WebMapView(
                     hintRes =
                         when {
                             rendererGaveUp -> R.string.map_live_renderer_gone_hint
-                            mapboxTokenMissing -> R.string.map_mapbox_no_token_hint
-                            mapboxBackend && liveInitFailed -> R.string.map_mapbox_failed_hint
                             googleMapsKeyMissing -> R.string.map_googlemaps_no_key_hint
                             googleMapsBackend && liveInitFailed -> R.string.map_googlemaps_failed_hint
                             else -> R.string.map_live_init_failed_hint
@@ -331,17 +316,16 @@ internal fun WebMapView(
 
     val webView =
         // Keyed on the active backend and its BYO credentials so a backend switch or
-        // a corrected token / key / Map ID tears down the old WebView and loads a
+        // a corrected key / Map ID tears down the old WebView and loads a
         // fresh page — without these keys the old page keeps running while the new
         // bridge effects fire against the wrong DOM. The credentials are backend-
-        // scoped (see above) so editing the inactive backend's token does not rebuild.
+        // scoped (see above) so editing the inactive backend's key does not rebuild.
         // rendererGeneration remains a key so renderer-death rebuilds still work;
         // reloadGeneration reloads the page when connectivity returns.
         remember(
             rendererGeneration,
             reloadGeneration,
             mapConfig.backend,
-            effectiveMapboxToken,
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
@@ -411,14 +395,9 @@ internal fun WebMapView(
                         // Block body: a @JavascriptInterface method must not leak
                         // a non-primitive return type to the JS side.
 
-                        // Read synchronously by the mapbox backend module before map initialisation
-                        // to authenticate the Mapbox GL JS instance. The token comes
-                        // from MapConfig (user-supplied at runtime via DisplaySettings).
-                        @JavascriptInterface
-                        fun mapboxToken(): String = mapConfig.mapboxToken
-
                         // Read synchronously by the googlemaps backend module before map initialisation
-                        // to authenticate the Maps JavaScript API instance.
+                        // to authenticate the Maps JavaScript API instance. The key comes
+                        // from MapConfig (user-supplied at runtime via DisplaySettings).
                         @JavascriptInterface
                         fun googleMapsApiKey(): String = mapConfig.googleMapsApiKey
 
@@ -533,8 +512,8 @@ internal fun WebMapView(
         )
     }
     // OSM backend: push the MapLibre style URL + optional accent recolor palette.
-    // The MAPBOX backend has its own style bridge (setMapboxStyle below) and does
-    // not use setStyleUrl or the OSM accent colors.
+    // The Google Maps backend picks its style through setGoogleMapsOptions below
+    // and does not use setStyleUrl or the OSM accent colors.
     if (mapConfig.backend == MapBackend.OSM) {
         LaunchedEffect(webView, pageReady.value, styleRef, accentColors) {
             if (!pageReady.value) return@LaunchedEffect
@@ -557,22 +536,6 @@ internal fun WebMapView(
                     "'${accent?.background ?: ""}', '${accent?.water ?: ""}', '${accent?.land ?: ""}', " +
                     "'${accent?.roadMajor ?: ""}', '${accent?.roadMinor ?: ""}', '${accent?.roadCasing ?: ""}', " +
                     "'${accent?.building ?: ""}', '${accent?.label ?: ""}')",
-                null,
-            )
-        }
-    }
-    // Mapbox backend: push style ID, light preset, and traffic toggle via the
-    // setMapboxStyle bridge. Light preset is derived from the same isDark resolution
-    // the OSM path uses so light/dark tracking is consistent across backends.
-    if (mapConfig.backend == MapBackend.MAPBOX) {
-        LaunchedEffect(webView, pageReady.value, mapConfig.mapboxStyle, isDark, mapConfig.mapboxTraffic) {
-            if (!pageReady.value) return@LaunchedEffect
-            // Same debounce as the OSM style push: settle after theme cross-fade.
-            delay(STYLE_PUSH_DEBOUNCE_MS)
-            val styleId = mapboxStyleId(mapConfig.mapboxStyle)
-            val lightPreset = lightPresetFor(isDark)
-            webView.evaluateJavascript(
-                "window.setMapboxStyle && setMapboxStyle('$styleId', '$lightPreset', ${mapConfig.mapboxTraffic})",
                 null,
             )
         }
@@ -606,8 +569,8 @@ internal fun WebMapView(
         }
     }
     // OSM-only feature toggles (3D buildings / terrain) plus the theme-tracked
-    // extrusion colour. The Mapbox page exposes buildings3d/terrain via its own
-    // style (STANDARD) and does not implement the setFeatures bridge.
+    // extrusion colour. The Google Maps page does not implement the setFeatures
+    // bridge.
     if (mapConfig.backend == MapBackend.OSM) {
         LaunchedEffect(
             webView,
@@ -670,8 +633,8 @@ internal fun WebMapView(
                 factory = { webView },
             )
         }
-        // Native tile credit only for OSM; Mapbox and Google Maps render their own
-        // ToS-mandated attribution inside the WebView (see showsNativeAttribution).
+        // Native tile credit only for OSM; Google Maps renders its own ToS-mandated
+        // attribution inside the WebView (see showsNativeAttribution).
         if (showsNativeAttribution(mapConfig.backend)) {
             Attribution(
                 modifier =
@@ -747,7 +710,6 @@ private fun appAssetsUrl(asset: String): String = "$APPASSETS_ORIGIN/assets/$ass
 // full page load.
 internal fun mapPageUrl(backend: MapBackend) =
     WEB_BASE + "index.html?backend=" + when (backend) {
-        MapBackend.MAPBOX -> "mapbox"
         MapBackend.GOOGLEMAPS -> "googlemaps"
         MapBackend.OSM -> "osm"
     }
@@ -755,22 +717,12 @@ internal fun mapPageUrl(backend: MapBackend) =
 // Whether the host draws the native tile-credit overlay ([Attribution]) for this
 // backend. Only the OSM backend hides its web-side attribution (index.html's CSS +
 // the OSM module's `attributionControl: false`) and leans on the host for the
-// OpenStreetMap / OpenMapTiles / OpenFreeMap credit. Mapbox and Google Maps render
-// their own ToS-mandated attribution INSIDE the WebView (backends/mapbox.ts keeps
-// the Mapbox AttributionControl + logo; backends/googlemaps.ts keeps Google's logo
-// + credit), so a native overlay there would both duplicate that credit and — by
-// naming OpenMapTiles / OpenFreeMap — misattribute tiles those backends never serve.
+// OpenStreetMap / OpenMapTiles / OpenFreeMap credit. Google Maps renders its own
+// ToS-mandated attribution INSIDE the WebView (backends/googlemaps.ts keeps
+// Google's logo + credit), so a native overlay there would both duplicate that
+// credit and — by naming OpenMapTiles / OpenFreeMap — misattribute tiles that
+// backend never serves.
 internal fun showsNativeAttribution(backend: MapBackend) = backend == MapBackend.OSM
-
-// Mapbox GL JS style identifier for the user-chosen style preset.
-internal fun mapboxStyleId(style: MapboxStyle) =
-    when (style) {
-        MapboxStyle.STANDARD -> "standard"
-        MapboxStyle.SATELLITE -> "satellite-streets-v12"
-        MapboxStyle.STREETS -> "streets-v12"
-    }
-
-internal fun lightPresetFor(dark: Boolean) = if (dark) "night" else "day"
 
 @PreviewLightDark
 @Composable
