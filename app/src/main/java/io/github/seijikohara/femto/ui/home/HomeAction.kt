@@ -54,6 +54,9 @@ internal sealed interface HomeAction {
 
     data object OpenSettings : HomeAction
 
+    /** Open the licences and credits screen (a tap on the map or weather credit). */
+    data object OpenLicenses : HomeAction
+
     data object OpenAssistant : HomeAction
 
     data object ResetTrip : HomeAction

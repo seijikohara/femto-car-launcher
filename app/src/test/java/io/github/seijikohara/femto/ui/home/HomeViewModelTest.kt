@@ -318,6 +318,15 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun `onAction OpenLicenses emits OpenLicenses`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.OpenLicenses,
+                expected = HomeEvent.OpenLicenses,
+            )
+        }
+
+    @Test
     fun `onAction OpenAssistant emits OpenAssistant`() =
         runTest {
             stubViewModel().assertEvent(

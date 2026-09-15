@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vp dev",
-    "build": "pnpm run check && vp build",
+    "build": "pnpm run check && vp build && node scripts/third-party-notices.mjs",
     "check": "vp check && tsc --noEmit && vp test run",
     "test": "vp test run",
     "lint": "vp lint",

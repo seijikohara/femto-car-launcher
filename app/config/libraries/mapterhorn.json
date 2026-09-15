@@ -1,0 +1,17 @@
+{
+  "uniqueId": "com.mapterhorn:dem",
+  "name": "Mapterhorn terrain",
+  "description": "Optional 3D terrain relief for the OSM backend: raster-DEM tiles from tiles.mapterhorn.com, fetched only while the Terrain switch is on.",
+  "website": "https://mapterhorn.com/attribution",
+  "developers": [
+    {
+      "name": "Mapterhorn"
+    }
+  ],
+  "scm": {
+    "url": "https://github.com/mapterhorn/mapterhorn"
+  },
+  "licenses": [
+    "mapterhorn_attribution"
+  ]
+}

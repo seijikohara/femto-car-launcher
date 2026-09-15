@@ -1,0 +1,17 @@
+{
+  "uniqueId": "org.openstreetmap:data",
+  "name": "OpenStreetMap",
+  "description": "Map data rendered by the OSM backend, as OpenMapTiles-schema vector tiles served by OpenFreeMap. © OpenStreetMap contributors.",
+  "website": "https://www.openstreetmap.org/copyright",
+  "developers": [
+    {
+      "name": "OpenStreetMap contributors"
+    }
+  ],
+  "scm": {
+    "url": "https://www.openstreetmap.org/copyright"
+  },
+  "licenses": [
+    "odbl_1_0"
+  ]
+}

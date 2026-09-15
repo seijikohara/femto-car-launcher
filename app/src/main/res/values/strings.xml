@@ -17,6 +17,8 @@
     <string name="font_download_failed">Download failed — tap to retry</string>
     <string name="map_attribution">© OpenStreetMap · OpenMapTiles · OpenFreeMap</string>
     <string name="map_attribution_terrain">Terrain © Mapterhorn</string>
+    <!-- Accessibility label of the map and weather credits' tap target. -->
+    <string name="attribution_open_licenses">Open licenses and credits</string>
     <string name="map_compass_desc">Toggle north-up orientation</string>
     <string name="map_recenter_desc">Return to current position</string>
     <string name="map_zoom_in_desc">Zoom in</string>
@@ -108,8 +110,10 @@
          decorative and defers to this text), so an empty value leaves a blank
          gap on screen and an unnamed node for a screen reader. -->
     <string name="weather_cond_unknown">Conditions unknown</string>
-    <!-- CC BY 4.0 attribution required by the MET Norway terms of service. -->
-    <string name="weather_attribution">Weather data from MET Norway (CC BY 4.0)</string>
+    <!-- CC BY 4.0 attribution required by the MET Norway terms of service; the
+         licence asks that adaptations be indicated, and the charts are derived
+         renderings of the feed. -->
+    <string name="weather_attribution">Weather data from MET Norway (CC BY 4.0), charted by the app</string>
 
     <!-- Maximize panels (calendar / weather) -->
     <string name="panel_collapse">Collapse</string>
@@ -482,7 +486,8 @@
     <string name="licenses_section_libraries">Libraries</string>
     <string name="licenses_section_map_data">Map &amp; data</string>
     <string name="licenses_section_fonts">Fonts</string>
-    <string name="licenses_map_data_note">Map data and tiles are provided under the Open Database License (ODbL) and CC BY 4.0. See each project for full terms.</string>
+    <string name="licenses_map_data_note">Map data © OpenStreetMap contributors (ODbL 1.0); tiles served by OpenFreeMap; the bundled map styles derive from the OpenMapTiles Positron and Dark Matter designs (BSD-3-Clause code, CC BY 4.0 design), recoloured by the app; terrain © Mapterhorn. Each source is listed above with its license text and links.</string>
+    <string name="licenses_webmap_notices">Web map bundle — third-party notices</string>
     <string name="licenses_fonts_note">Typography is provided on demand by Google Fonts, each family under its own SIL Open Font License (OFL) or Apache License 2.0. Fonts are downloaded and cached on the device; none are bundled in the app.</string>
 
     <!-- Background-ranging foreground-service notification -->
