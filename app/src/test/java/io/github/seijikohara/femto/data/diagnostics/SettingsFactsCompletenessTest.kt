@@ -59,6 +59,7 @@ class SettingsFactsCompletenessTest {
             "mapMarkerPos" to "Map marker position",
             "map3dBuildings" to "3D buildings / terrain",
             "mapTerrain" to "3D buildings / terrain",
+            "mapTileHost" to "Map tile host",
             "glassBlurRadius" to "Glass blur / tint",
             "glassTintScale" to "Glass blur / tint",
             "glassShowBorder" to "Glass border / shadow",

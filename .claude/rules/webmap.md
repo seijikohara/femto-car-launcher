@@ -35,6 +35,20 @@ Mapbox backend was removed in 2026-09 because Mapbox's Product Terms
 require a purchased licence for any vehicle-related application,
 which no bring-your-own-token arrangement satisfies.
 
+## Tile hosts
+
+The OSM page never hard-codes a live endpoint. It reads the tile
+host, the terrain TileJSON and the initial style from the host's
+synchronous bridge getters (`tileHost()`, `terrainTileJsonUrl()`,
+`initialStyleUrl()` in `WebMapView.kt`) before constructing the map,
+and MapLibre's `transformRequest` re-points every request under the
+upstream origin (`UPSTREAM_TILE_HOST` in `src/style.ts`) at the
+configured host — so the bundled styles and the hosted style URLs
+stay written against the upstream layout and a mirror needs no style
+rewriting. The Kotlin side owns the host list and its fallback order
+(`.claude/rules/dependencies.md`). Outside the launcher (`vp dev`)
+the getters are absent and the upstream defaults apply.
+
 ## Credit placement
 
 Every backend supplies its own authoritative credit (never overlay

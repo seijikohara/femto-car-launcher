@@ -3,15 +3,17 @@ import { describe, expect, it } from "vite-plus/test";
 import {
     BUILDING_EXTRUSION_OPACITY,
     clampMarkerPos,
+    DEFAULT_TERRAIN_TILEJSON_URL,
     injectFeatures,
-    MAPTERHORN_DEM_URL,
     MAX_MARKER_DROP,
     markerDrop,
     markerPadLeft,
     markerPadRight,
     markerPadTop,
     markerXFraction,
+    rewriteHost,
     roadClassOrNull,
+    UPSTREAM_TILE_HOST,
     vectorSourceId,
 } from "./style";
 
@@ -172,11 +174,23 @@ describe("injectFeatures: terrain", () => {
         const style = injectFeatures(baseStyle(), { ...OFF, terrain: true });
         expect(style.sources.terrainSource).toEqual({
             type: "raster-dem",
-            url: MAPTERHORN_DEM_URL,
+            url: DEFAULT_TERRAIN_TILEJSON_URL,
         });
         expect(style.terrain).toEqual({
             source: "terrainSource",
             exaggeration: 1.0,
+        });
+    });
+
+    it("injects the host-supplied DEM endpoint when one is given", () => {
+        const style = injectFeatures(baseStyle(), {
+            ...OFF,
+            terrain: true,
+            terrainUrl: "https://dem.example.test/tilejson.json",
+        });
+        expect(style.sources.terrainSource).toEqual({
+            type: "raster-dem",
+            url: "https://dem.example.test/tilejson.json",
         });
     });
 
@@ -186,6 +200,30 @@ describe("injectFeatures: terrain", () => {
         expect(off.sources.terrainSource).toBeUndefined();
         expect(off.terrain).toBeUndefined();
         expect(off.sources.rasterdem).toBeDefined();
+    });
+});
+
+describe("rewriteHost", () => {
+    it("re-points a URL under the upstream origin at the configured host", () => {
+        expect(
+            rewriteHost(
+                `${UPSTREAM_TILE_HOST}/planet/12/3/4.pbf`,
+                UPSTREAM_TILE_HOST,
+                "https://tiles.example.test",
+            ),
+        ).toBe("https://tiles.example.test/planet/12/3/4.pbf");
+    });
+
+    it("passes other origins through untouched", () => {
+        const appasset = "https://appassets.androidplatform.net/assets/map/light.json";
+        expect(rewriteHost(appasset, UPSTREAM_TILE_HOST, "https://tiles.example.test")).toBe(
+            appasset,
+        );
+    });
+
+    it("is the identity when the configured host is the upstream one", () => {
+        const url = `${UPSTREAM_TILE_HOST}/styles/positron`;
+        expect(rewriteHost(url, UPSTREAM_TILE_HOST, UPSTREAM_TILE_HOST)).toBe(url);
     });
 });
 

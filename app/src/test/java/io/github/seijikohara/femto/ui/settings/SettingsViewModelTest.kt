@@ -501,6 +501,19 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `SetMapTileHost persists the trimmed host and ClearMapTileHost blanks it`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.SetMapTileHost("  https://tiles.example.test  "))
+            advanceUntilIdle()
+            assertEquals("https://tiles.example.test", store.settings.first().mapTileHost)
+
+            vm.onAction(SettingsAction.ClearMapTileHost)
+            advanceUntilIdle()
+            assertEquals("", store.settings.first().mapTileHost)
+        }
+
+    @Test
     fun `available calendars and hidden set surface and SetCalendarHidden toggles`() =
         runTest(dispatcher) {
             val calendarPrefs = FakeCalendarPreferencesStore()

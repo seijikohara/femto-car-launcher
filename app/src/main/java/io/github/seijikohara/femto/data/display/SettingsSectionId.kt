@@ -71,6 +71,7 @@ internal enum class SettingsSectionId(
             DisplayPreferences.GOOGLE_MAPS_TRAFFIC_KEY,
             DisplayPreferences.MAP_3D_BUILDINGS_KEY,
             DisplayPreferences.MAP_TERRAIN_KEY,
+            DisplayPreferences.MAP_TILE_HOST_KEY,
             DisplayPreferences.MAP_TILT_KEY,
             DisplayPreferences.MAP_ZOOM_KEY,
             DisplayPreferences.MAP_NORTH_UP_KEY,

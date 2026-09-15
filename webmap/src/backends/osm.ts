@@ -20,11 +20,32 @@ import type { PageReporter, PendingBridgeCalls } from "../bridge";
 import { webglSupport } from "../bridge";
 import { chevronHandles } from "../chevron";
 import { createFollowEngine } from "../follow-camera";
-import { type AccentColors, injectFeatures } from "../style";
+import { type AccentColors, injectFeatures, rewriteHost, UPSTREAM_TILE_HOST } from "../style";
 
 setWorkerUrl(maplibreWorkerUrl);
 
-const INITIAL_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
+// The OSM bridge extends the base femtoBridge with the host-supplied endpoints,
+// read synchronously before the map is constructed (the same shape as the
+// Google backend's key getters). Absent outside the launcher (`vp dev`), where
+// the upstream defaults apply.
+interface OsmFemtoBridge {
+    onMapEvent(kind: string, detail: string): void;
+    // The origin that serves tiles, styles, sprites and glyphs in the upstream
+    // layout; every request under UPSTREAM_TILE_HOST is re-pointed at it.
+    tileHost(): string;
+    // The raster-DEM TileJSON injected while terrain is on.
+    terrainTileJsonUrl(): string;
+    // The style to construct the map with — the bundled base for the scheme the
+    // host will push, so a cold start fetches no hosted style it is about to
+    // replace.
+    initialStyleUrl(): string;
+}
+
+function osmBridge(): OsmFemtoBridge | undefined {
+    return window.femtoBridge as OsmFemtoBridge | undefined;
+}
+
+const DEFAULT_STYLE_URL = `${UPSTREAM_TILE_HOST}/styles/positron`;
 
 // Cross-fade timing for a style swap — see applyStyleWithFade.
 const STYLE_FADE_MS = 500;
@@ -50,6 +71,14 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
         return;
     }
 
+    // Host-supplied endpoints, read once: they are fixed for the page's life
+    // (a change on the Kotlin side rebuilds the WebView).
+    const bridge = osmBridge();
+    const tileHost = bridge?.tileHost() || UPSTREAM_TILE_HOST;
+    const terrainUrl = bridge?.terrainTileJsonUrl() || "";
+    const initialStyleUrl = bridge?.initialStyleUrl() || DEFAULT_STYLE_URL;
+    if (tileHost !== UPSTREAM_TILE_HOST) log(`tile host: ${tileHost}`);
+
     // Mutable style state in one const holder (let/var are banned — see the
     // lint block in vite.config.ts and no-let.js). The follow camera's state
     // lives inside the shared engine.
@@ -60,7 +89,7 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
         styleLoaded: false,
         // One armed grace timer per page load — see armStyleLoadFatal.
         fatalArmed: false,
-        currentStyleUrl: INITIAL_STYLE_URL,
+        currentStyleUrl: initialStyleUrl,
         // Set by setStyleUrl for the ACCENT scheme, or null for a plain style.
         accentColors: null as AccentColors | null,
         buildings: false,
@@ -74,10 +103,14 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
     try {
         const liveMap = new MapLibreMap({
             container: "map",
-            style: INITIAL_STYLE_URL,
+            style: initialStyleUrl,
             center: [0, 0],
             zoom: 1,
             attributionControl: false,
+            // Every request the upstream origin would receive — tiles, sprites,
+            // glyphs, hosted styles, the bundled styles' sources — goes to the
+            // configured host instead, so a mirror needs no style rewriting.
+            transformRequest: (url) => ({ url: rewriteHost(url, UPSTREAM_TILE_HOST, tileHost) }),
         });
         // Log the first rendered frame once, then detach: "render" fires on
         // every painted frame, so a persistent listener spews ~60 lines/sec
@@ -145,6 +178,7 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
                             terrain: state.terrain,
                             accent: state.accentColors,
                             buildingColor: state.buildingColor,
+                            terrainUrl: terrainUrl,
                         }),
                 });
             }

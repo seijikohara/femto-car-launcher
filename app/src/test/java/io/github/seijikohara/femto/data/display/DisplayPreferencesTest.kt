@@ -254,6 +254,7 @@ class DisplayPreferencesTest {
                     googleMapsTraffic = DisplaySettings.Default.googleMapsTraffic,
                     map3dBuildings = DisplaySettings.Default.map3dBuildings,
                     mapTerrain = DisplaySettings.Default.mapTerrain,
+                    mapTileHost = DisplaySettings.Default.mapTileHost,
                     mapTiltDeg = DisplaySettings.Default.mapTiltDeg,
                     mapZoom = DisplaySettings.Default.mapZoom,
                     mapNorthUp = DisplaySettings.Default.mapNorthUp,
@@ -363,6 +364,7 @@ class DisplayPreferencesTest {
         setGoogleMapsRendering(GoogleMapsRendering.VECTOR)
         setGoogleMapsMapType(GoogleMapType.HYBRID)
         setGoogleMapsTraffic(true)
+        setMapTileHost("https://tiles.example.test")
         return settings.first()
     }
 }

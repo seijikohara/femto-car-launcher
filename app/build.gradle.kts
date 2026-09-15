@@ -66,7 +66,12 @@ tasks.named("preBuild") {
 // key, only the identifying User-Agent the client sets. FONTS_METADATA_BASE_URL
 // overrides the Google Fonts catalog host (e.g. a caching proxy); the TTF bytes
 // still come from the URLs the per-family manifest supplies, so no download host
-// field exists.
+// field exists. MAP_TILE_HOST is the origin the OSM map page loads tiles, styles,
+// sprites and glyphs from (the OpenFreeMap layout; every request to the upstream
+// origin is re-pointed at it) and MAP_TERRAIN_TILEJSON_URL the raster-DEM TileJSON
+// behind the Terrain switch — both keyless volunteer services with no availability
+// commitment, so a self-hosted mirror must be a build-time (or, for the tile host,
+// a Settings) swap rather than a code change.
 val localProperties =
     Properties().apply {
         rootProject
@@ -79,6 +84,9 @@ val geocoderBaseUrl = localProperties.getProperty("GEOCODER_BASE_URL", "")
 val geocoderApiKey = localProperties.getProperty("GEOCODER_API_KEY", "")
 val weatherBaseUrl = localProperties.getProperty("WEATHER_BASE_URL", "https://api.met.no/")
 val fontsMetadataBaseUrl = localProperties.getProperty("FONTS_METADATA_BASE_URL", "https://fonts.google.com/")
+val mapTileHost = localProperties.getProperty("MAP_TILE_HOST", "https://tiles.openfreemap.org")
+val mapTerrainTileJsonUrl =
+    localProperties.getProperty("MAP_TERRAIN_TILEJSON_URL", "https://tiles.mapterhorn.com/tilejson.json")
 // Release signing is driven entirely by environment variables so CI can sign the
 // nightly APK without committing a keystore, while local `assembleRelease` stays
 // unsigned (no signing config attached) when the variables are absent.
@@ -127,6 +135,8 @@ android {
         buildConfigField("String", "GEOCODER_API_KEY", "\"${geocoderApiKey}\"")
         buildConfigField("String", "WEATHER_BASE_URL", "\"${weatherBaseUrl}\"")
         buildConfigField("String", "FONTS_METADATA_BASE_URL", "\"${fontsMetadataBaseUrl}\"")
+        buildConfigField("String", "MAP_TILE_HOST", "\"${mapTileHost}\"")
+        buildConfigField("String", "MAP_TERRAIN_TILEJSON_URL", "\"${mapTerrainTileJsonUrl}\"")
 
         // The native renderer ships only where a Vulkan driver realistically
         // exists: 64-bit ARM devices and the x86_64 emulator. Any other ABI

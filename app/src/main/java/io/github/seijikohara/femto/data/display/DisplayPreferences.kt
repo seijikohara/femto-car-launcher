@@ -134,6 +134,8 @@ internal interface DisplaySettingsStore {
 
     suspend fun setGoogleMapsTraffic(value: Boolean)
 
+    suspend fun setMapTileHost(value: String)
+
     /**
      * Remove exactly [keys] so their read falls back to [DisplaySettings.Default]
      * for those fields only, leaving every other persisted field untouched.
@@ -207,6 +209,7 @@ internal class DisplayPreferences(
                         prefs[GOOGLE_MAPS_RENDERING_KEY].toEnumOr(GoogleMapsRendering.AUTO),
                     googleMapsMapType = prefs[GOOGLE_MAPS_MAP_TYPE_KEY].toEnumOr(GoogleMapType.ROADMAP),
                     googleMapsTraffic = prefs[GOOGLE_MAPS_TRAFFIC_KEY] ?: false,
+                    mapTileHost = prefs[MAP_TILE_HOST_KEY].orEmpty(),
                 )
             }
 
@@ -400,6 +403,10 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[GOOGLE_MAPS_TRAFFIC_KEY] = value }
     }
 
+    override suspend fun setMapTileHost(value: String) {
+        context.displayDataStore.editOrLog(TAG) { it[MAP_TILE_HOST_KEY] = value }
+    }
+
     // Removing only the given keys makes the read path above fall back to its
     // per-field defaults for exactly those fields; every other key is left as-is.
     override suspend fun resetKeys(keys: Set<Preferences.Key<*>>) {
@@ -463,6 +470,7 @@ internal class DisplayPreferences(
         val GOOGLE_MAPS_RENDERING_KEY = stringPreferencesKey("google_maps_rendering")
         val GOOGLE_MAPS_MAP_TYPE_KEY = stringPreferencesKey("google_maps_map_type")
         val GOOGLE_MAPS_TRAFFIC_KEY = booleanPreferencesKey("google_maps_traffic")
+        val MAP_TILE_HOST_KEY = stringPreferencesKey("map_tile_host")
 
         /**
          * Every key persisted above, declared once right beside them.
@@ -522,6 +530,7 @@ internal class DisplayPreferences(
                 GOOGLE_MAPS_RENDERING_KEY,
                 GOOGLE_MAPS_MAP_TYPE_KEY,
                 GOOGLE_MAPS_TRAFFIC_KEY,
+                MAP_TILE_HOST_KEY,
             )
     }
 }
