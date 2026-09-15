@@ -347,7 +347,7 @@
     <string name="settings_map_terrain_desc">3D elevation relief (Mapterhorn). Adds tile downloads; heavier on low-end GPUs.</string>
     <string name="settings_map_tile_host">Tile host (advanced)</string>
     <string name="settings_map_tile_host_unset">Default (%1$s) — tap to use your own server</string>
-    <string name="settings_map_tile_host_hint">Optional. The origin that serves the map\'s tiles, styles, sprites and glyphs in the OpenFreeMap layout, for example https://tiles.example.org. Every request the default host would receive goes to this one instead; if it cannot be reached, the map returns to the default host on its next retry.</string>
+    <string name="settings_map_tile_host_hint">Optional. The origin that serves the map\'s tiles, styles, sprites and glyphs in the OpenFreeMap layout, for example https://tiles.example.org — the https:// scheme is required. Every request the default host would receive goes to this one instead; if it cannot be reached, the map returns to the default host on its next retry.</string>
     <string name="settings_map_tile_host_save">Save</string>
     <string name="settings_map_tile_host_clear">Use default</string>
     <string name="settings_map_backend">Map provider</string>

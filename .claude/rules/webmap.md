@@ -49,6 +49,23 @@ rewriting. The Kotlin side owns the host list and its fallback order
 (`.claude/rules/dependencies.md`). Outside the launcher (`vp dev`)
 the getters are absent and the upstream defaults apply.
 
+An unreachable tile host does not fail the style load — the bundled
+styles come from `appassets` and only their sources fail — so the
+page escalates a run of source errors with nothing loading to a
+`fatal`, which is what makes the host rotate. That escalation is
+gated on `tileHostFallback()`: with a single host the old rule
+stands and post-load errors stay log-only, never UI.
+
+Two caveats follow from the rewrite. The origin the styles are
+written against is a cross-language fact — `UPSTREAM_TILE_HOST`,
+`MapScheme.kt`'s `OFM_STYLE_BASE`, and the bundled `map/*.json`
+assets must name the same host, or the rewrite silently matches
+nothing and a configured mirror is ignored with no error;
+`TileHostContractTest` is the guard. And the native credit overlay
+names the default providers: a host swap that serves data from
+somewhere else makes that credit wrong, so a mirror is for the same
+data under a different origin, not for different data.
+
 ## Credit placement
 
 Every backend supplies its own authoritative credit (never overlay

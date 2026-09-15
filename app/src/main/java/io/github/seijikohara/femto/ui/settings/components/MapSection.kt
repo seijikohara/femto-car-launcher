@@ -30,6 +30,7 @@ import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MapBackend
+import io.github.seijikohara.femto.ui.home.components.isTileHostUrl
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -297,13 +298,14 @@ internal fun MapSection(
                         value = draft,
                         onValueChange = { draft = it },
                         singleLine = true,
+                        isError = draft.isNotBlank() && !isTileHostUrl(draft),
                         label = { Text(stringResource(R.string.settings_map_tile_host)) },
                     )
                 }
             },
             confirmButton = {
                 TextButton(
-                    enabled = draft.isNotBlank(),
+                    enabled = isTileHostUrl(draft),
                     onClick = {
                         onAction(SettingsAction.SetMapTileHost(draft))
                         showTileHostDialog = false

@@ -225,6 +225,22 @@ describe("rewriteHost", () => {
         const url = `${UPSTREAM_TILE_HOST}/styles/positron`;
         expect(rewriteHost(url, UPSTREAM_TILE_HOST, UPSTREAM_TILE_HOST)).toBe(url);
     });
+
+    it("leaves a lookalike origin alone", () => {
+        const lookalike = `${UPSTREAM_TILE_HOST}.example.test/planet/12/3/4.pbf`;
+        expect(rewriteHost(lookalike, UPSTREAM_TILE_HOST, "https://tiles.example.test")).toBe(
+            lookalike,
+        );
+    });
+
+    it("re-points the bare origin and a query-only URL", () => {
+        expect(rewriteHost(UPSTREAM_TILE_HOST, UPSTREAM_TILE_HOST, "https://mirror.test")).toBe(
+            "https://mirror.test",
+        );
+        expect(
+            rewriteHost(`${UPSTREAM_TILE_HOST}?v=2`, UPSTREAM_TILE_HOST, "https://mirror.test"),
+        ).toBe("https://mirror.test?v=2");
+    });
 });
 
 describe("injectFeatures: accent recolour", () => {

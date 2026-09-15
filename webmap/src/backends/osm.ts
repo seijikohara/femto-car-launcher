@@ -33,6 +33,9 @@ interface OsmFemtoBridge {
     // The origin that serves tiles, styles, sprites and glyphs in the upstream
     // layout; every request under UPSTREAM_TILE_HOST is re-pointed at it.
     tileHost(): string;
+    // Whether the host list has a host left to rotate to; gates the
+    // source-error escalation below.
+    tileHostFallback(): boolean;
     // The raster-DEM TileJSON injected while terrain is on.
     terrainTileJsonUrl(): string;
     // The style to construct the map with — the bundled base for the scheme the
@@ -51,11 +54,11 @@ const DEFAULT_STYLE_URL = `${UPSTREAM_TILE_HOST}/styles/positron`;
 const STYLE_FADE_MS = 500;
 const STYLE_FADE_MAX_WAIT_MS = 4000;
 
-// Outcome-gated pre-load fatal (see armStyleLoadFatal): long enough that a
-// slow-but-healthy first load with an early flaky-tile error still beats the
-// timer, short enough that a dead style load surfaces as a notice instead of
-// an indefinite blank page.
-const STYLE_LOAD_FATAL_GRACE_MS = 10_000;
+// Grace period for both outcome-gated fatals (armStyleLoadFatal and
+// armTileHostFatal): long enough that a slow-but-healthy first load with an
+// early flaky-tile error still beats the timer, short enough that a dead style
+// or a dead tile host surfaces as a notice instead of an indefinite blank page.
+const LOAD_FATAL_GRACE_MS = 10_000;
 
 export function init(reporter: PageReporter, pending: PendingBridgeCalls): void {
     const { log, report, reportErrorThrottled } = reporter;
@@ -75,6 +78,7 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
     // (a change on the Kotlin side rebuilds the WebView).
     const bridge = osmBridge();
     const tileHost = bridge?.tileHost() || UPSTREAM_TILE_HOST;
+    const hostFallback = bridge?.tileHostFallback() ?? false;
     const terrainUrl = bridge?.terrainTileJsonUrl() || "";
     const initialStyleUrl = bridge?.initialStyleUrl() || DEFAULT_STYLE_URL;
     if (tileHost !== UPSTREAM_TILE_HOST) log(`tile host: ${tileHost}`);
@@ -89,6 +93,10 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
         styleLoaded: false,
         // One armed grace timer per page load — see armStyleLoadFatal.
         fatalArmed: false,
+        // Set once a tile actually arrives; the outcome armTileHostFatal gates
+        // on, with its own one-shot arm flag.
+        tileArrived: false,
+        hostFatalArmed: false,
         currentStyleUrl: initialStyleUrl,
         // Set by setStyleUrl for the ACCENT scheme, or null for a plain style.
         accentColors: null as AccentColors | null,
@@ -156,17 +164,51 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
                 if (state.styleLoaded) return;
                 log(`style never loaded after error: ${detail}`);
                 report("fatal", `style-load-failed: ${detail}`.slice(0, 200));
-            }, STYLE_LOAD_FATAL_GRACE_MS);
+            }, LOAD_FATAL_GRACE_MS);
         }
 
-        // Tile / style / DEM fetch failures surface here; after the style has
-        // loaded the host only logs them (transient by definition — never UI,
-        // never a backend switch). Before it, see armStyleLoadFatal.
+        // The one positive signal that the tile host is answering. NOT
+        // `isSourceLoaded`: a raster source declared with an inline tiles array
+        // (the bundled light style's relief layer) reports itself loaded the
+        // moment it is added, without a single request leaving the device.
+        liveMap.on("sourcedata", (e) => {
+            if (e.tile) state.tileArrived = true;
+        });
+
+        // An unreachable tile host does NOT fail the style load: the bundled
+        // styles come from appassets and only their sources fail, so the style
+        // loads, armStyleLoadFatal stays a no-op, and the map sits blank
+        // forever after a single transient error (the dead source's TileJSON is
+        // fetched once and never retried). Same shape as armStyleLoadFatal, on
+        // the other outcome: arm one grace timer on the first error naming the
+        // host and report fatal only if NO tile has arrived when it fires, so
+        // the page reloads on the next tile host. Gated on there being a next
+        // one — with a
+        // single host the old rule stands and post-load errors stay log-only,
+        // which is what keeps an ambiguous flaky-tile signal out of the UI.
+        function armTileHostFatal(detail: string): void {
+            if (!hostFallback || state.tileArrived || state.hostFatalArmed) return;
+            // Only the configured host's own failures: a DEM or a hosted style
+            // served from somewhere else must not rotate the tile host.
+            if (!detail.includes(tileHost)) return;
+            state.hostFatalArmed = true;
+            setTimeout(() => {
+                // A style that never loaded is armStyleLoadFatal's to report.
+                if (state.tileArrived || !state.styleLoaded) return;
+                log(`tile host unreachable: ${detail}`);
+                report("fatal", `tile-host-unreachable: ${detail}`.slice(0, 200));
+            }, LOAD_FATAL_GRACE_MS);
+        }
+
+        // Tile / style / DEM fetch failures surface here; the host only logs
+        // them (transient by definition — never UI, never a backend switch)
+        // unless one of the two outcome-gated fatals above concludes otherwise.
         liveMap.on("error", (e) => {
             const detail = e?.error?.message || "unknown map error";
             log(`error: ${detail}`);
             reportErrorThrottled(String(detail));
             if (!state.styleLoaded) armStyleLoadFatal(String(detail));
+            armTileHostFatal(String(detail));
         });
 
         function applyStyle(): void {

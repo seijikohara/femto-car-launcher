@@ -52,9 +52,14 @@ export const UPSTREAM_TILE_HOST = "https://tiles.openfreemap.org";
 
 // Re-point a request URL at the configured tile host: a URL under [from] is
 // rewritten to [to]; anything else passes through. Identity when the two hosts
-// agree, so the default configuration adds no work per request.
+// agree, so the default configuration adds no work per request. The match stops
+// at an origin boundary — a bare prefix test would also rewrite a lookalike
+// origin (tiles.openfreemap.org.example.test), and once a user mirror serves its
+// own style JSON the request URLs are no longer ones we authored.
 export function rewriteHost(url: string, from: string, to: string): string {
-    return from === to || !url.startsWith(from) ? url : to + url.slice(from.length);
+    if (from === to || !url.startsWith(from)) return url;
+    const rest = url.slice(from.length);
+    return rest === "" || rest.startsWith("/") || rest.startsWith("?") ? to + rest : url;
 }
 
 const ACCENT_LAND = recolorData.accentLandLayers;

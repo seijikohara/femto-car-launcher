@@ -170,7 +170,11 @@ internal fun WebMapView(
     // The tile host is OSM-only state by the same logic: an override typed while
     // Google Maps is active must not reload the Google page.
     val effectiveTileHostOverride = if (mapConfig.backend == MapBackend.OSM) mapConfig.tileHostOverride else ""
-    val tileHosts = mapTileHosts(effectiveTileHostOverride, BuildConfig.MAP_TILE_HOST)
+    // Keyed on the override alone: the build default cannot change at runtime, and
+    // the bridge getter reads the list from a background thread, so it must not be
+    // re-allocated on every recomposition (one per location fix).
+    val tileHosts =
+        remember(effectiveTileHostOverride) { mapTileHosts(effectiveTileHostOverride, BuildConfig.MAP_TILE_HOST) }
 
     // Renderer-death containment state (see the KDoc): bumping the generation
     // rebuilds the WebView after the renderer process dies; once deaths repeat
@@ -204,6 +208,12 @@ internal fun WebMapView(
     // failure remembers). Deliberately NOT keyed on reloadGeneration — each
     // retry bumps that — so the budget survives its own reloads; a
     // backend/credential change or a connectivity edge refunds it.
+    //
+    // The count also selects the OSM tile host the rebuilt page reads
+    // (`tileHost()` walks [tileHosts] by attempt), so every write here must be
+    // paired with a reloadGeneration bump in the same non-suspending block —
+    // otherwise the page keeps the host it loaded with and the rotation never
+    // reaches the next one.
     val retryAttempts =
         remember(
             mapConfig.backend,
@@ -430,6 +440,16 @@ internal fun WebMapView(
                         // to the next on the following reload (tileHostForAttempt).
                         @JavascriptInterface
                         fun tileHost(): String = tileHostForAttempt(tileHosts, retryAttempts.intValue)
+
+                        // Whether the host list has somewhere to rotate to. A dead
+                        // tile host does not fail the style load — the bundled
+                        // styles come from appassets and only their sources fail —
+                        // so the page reports a `fatal` (and thus a retry on the
+                        // next host) when no source loads, but only when this is
+                        // true. With a single host those errors stay transient, as
+                        // they were before the host became configurable.
+                        @JavascriptInterface
+                        fun tileHostFallback(): Boolean = tileHosts.size > 1
 
                         // The raster-DEM TileJSON the page injects while the Terrain
                         // switch is on; a build-time endpoint (MAP_TERRAIN_TILEJSON_URL).
@@ -765,6 +785,14 @@ internal fun mapTileHosts(
     listOf(override.trim().trimEnd('/'), default.trimEnd('/'))
         .filter { it.isNotBlank() }
         .distinct()
+
+// Whether a typed override is an origin the page can actually load from. A bare
+// hostname would resolve against the page's own appassets origin and an http one
+// is blocked by the WebView's mixed-content policy; both surface as a blank map
+// long after the dialog is gone, so the dialog refuses them up front.
+internal fun isTileHostUrl(value: String): Boolean = TILE_HOST_PATTERN.matches(value.trim())
+
+private val TILE_HOST_PATTERN = Regex("""^https://[^\s/]+(/\S*)?$""")
 
 // The host the page loads with on a given auto-retry attempt: the list is walked
 // round-robin, so an unreachable override gives way to the default on the next
