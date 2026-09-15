@@ -37,6 +37,9 @@ val buildWebMap =
         dependsOn(tasks.named("pnpmInstall"))
         pnpmCommand.set(listOf("run", "build"))
         inputs.dir("../webmap/src")
+        // The build script also runs scripts/third-party-notices.mjs, whose output
+        // lands in dist/; an edit to it must invalidate the task like a source edit.
+        inputs.dir("../webmap/scripts")
         inputs.files(
             "../webmap/index.html",
             "../webmap/no-let.js",

@@ -170,13 +170,19 @@ internal fun Attribution(
     // tap target grows to the automotive floor: a transparent hit area extends
     // upward from the chip, so reaching the licences screen — where each
     // source's licence and link live, the in-app route the OSMF attribution
-    // guidelines sanction — never needs a precise tap on sub-floor text.
+    // guidelines sanction — never needs a precise tap on sub-floor text. That
+    // band sits in front of the map's own tap (open the maps app) for the chip's
+    // width in the bottom corner, a deliberate trade: the corner is the credit's
+    // home, and a mis-tap there opens an in-app sheet, not a foreign app. No
+    // ripple — an indication would paint a rectangle over the map.
     Box(
         modifier =
             modifier
                 .heightIn(min = FemtoDimens.MinTouchTarget)
                 .clickable(
-                    onClickLabel = stringResource(R.string.map_attribution_open_licenses),
+                    interactionSource = null,
+                    indication = null,
+                    onClickLabel = stringResource(R.string.attribution_open_licenses),
                     role = Role.Button,
                     onClick = onClick,
                 ),

@@ -3,12 +3,18 @@
 // notice to travel with the code, and the MapLibre distribution inlines its
 // dependencies without theirs. Runs after `vp build` (see package.json) and
 // writes into the built web assets; the Kotlin licences screen reads the file
-// from assets/web/. Type-only packages never reach the bundle and are skipped.
+// from assets/web/. Type-only packages never reach the bundle and are skipped,
+// and so are the direct dependencies: each of those has its own manual
+// AboutLibraries entry under app/config, the single home for that credit.
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-const outFile = join(import.meta.dirname, "..", "dist", "web", "THIRD-PARTY-NOTICES.txt");
+const webmapDir = join(import.meta.dirname, "..");
+const outFile = join(webmapDir, "dist", "web", "THIRD-PARTY-NOTICES.txt");
+const directDependencies = new Set(
+    Object.keys(JSON.parse(readFileSync(join(webmapDir, "package.json"), "utf8")).dependencies),
+);
 const separator = "=".repeat(72);
 const args = ["licenses", "list", "--prod", "--json"];
 
@@ -23,7 +29,7 @@ const listingJson =
 // package, keyed on the group's id.
 const packages = Object.entries(JSON.parse(listingJson))
     .flatMap(([license, entries]) => entries.map((entry) => ({ ...entry, license })))
-    .filter((entry) => !entry.name.startsWith("@types/"))
+    .filter((entry) => !entry.name.startsWith("@types/") && !directDependencies.has(entry.name))
     .toSorted((a, b) => a.name.localeCompare(b.name));
 
 const noticeOf = (dir) => {
@@ -56,7 +62,8 @@ writeFileSync(
     [
         "Third-party notices for the map page bundle",
         "",
-        "Generated at build time from the production npm dependency tree of webmap/.",
+        "Generated at build time from the production npm dependency tree of webmap/;",
+        "the direct dependencies are credited on the licences screen in their own right.",
         "",
         separator,
         "",

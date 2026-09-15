@@ -1,5 +1,6 @@
 {
   "name": "Mapterhorn attribution (per-source terms)",
   "url": "https://mapterhorn.com/attribution",
-  "content": "Terrain © Mapterhorn.\n\nMapterhorn assembles its elevation tiles from public-domain, CC0, CC BY and national open-government datasets, each carrying its own attribution requirement. The current list of sources, and the credit each one requires, is published at:\nhttps://mapterhorn.com/attribution\n\nThe app links to that page rather than copying it: some source approvals (for example the survey-results approval issued for Japanese elevation data) carry approval numbers that rotate, and the live page is the authoritative text."
+  "content": "Terrain © Mapterhorn.\n\nMapterhorn assembles its elevation tiles from public-domain, CC0, CC BY and national open-government datasets, each carrying its own attribution requirement. The current list of sources, and the credit each one requires, is published at:\nhttps://mapterhorn.com/attribution\n\nThe app links to that page rather than copying it: some national sources issue approvals whose numbers rotate, and the live page is the authoritative text.",
+  "hash": "mapterhorn_attribution"
 }

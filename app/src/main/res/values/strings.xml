@@ -18,7 +18,7 @@
     <string name="map_attribution">© OpenStreetMap · OpenMapTiles · OpenFreeMap</string>
     <string name="map_attribution_terrain">Terrain © Mapterhorn</string>
     <!-- Accessibility label of the map and weather credits' tap target. -->
-    <string name="map_attribution_open_licenses">Open licenses and credits</string>
+    <string name="attribution_open_licenses">Open licenses and credits</string>
     <string name="map_compass_desc">Toggle north-up orientation</string>
     <string name="map_recenter_desc">Return to current position</string>
     <string name="map_zoom_in_desc">Zoom in</string>

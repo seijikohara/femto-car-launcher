@@ -148,14 +148,16 @@ internal fun WeatherPanel(
         // The text names the adaptation; the tap opens the licences screen,
         // which carries the licence link. Static legal text, not glance content,
         // so attributionCredit's sub-floor size applies (see Type.kt) — the tap
-        // target, not the text, grows to the automotive floor.
+        // target, not the text, grows to the automotive floor, sized to the text
+        // and without a ripple, the same treatment as the map credit.
         Box(
             modifier =
                 Modifier
-                    .fillMaxWidth()
                     .heightIn(min = FemtoDimens.MinTouchTarget)
                     .clickable(
-                        onClickLabel = stringResource(R.string.map_attribution_open_licenses),
+                        interactionSource = null,
+                        indication = null,
+                        onClickLabel = stringResource(R.string.attribution_open_licenses),
                         role = Role.Button,
                         onClick = onOpenLicenses,
                     ),
