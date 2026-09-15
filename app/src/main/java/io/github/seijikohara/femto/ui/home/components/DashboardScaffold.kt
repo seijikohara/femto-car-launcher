@@ -412,6 +412,7 @@ private fun DashboardContent(
         online = uiState.online,
         onFollowChange = { following = it },
         onBearingChange = { bearingDeg = it },
+        onOpenLicenses = { onAction(HomeAction.OpenLicenses) },
         mapSurface = mapSurface,
         attributionBottomInset = attributionBottomInset,
     )
@@ -847,6 +848,7 @@ private fun DashboardOverlays(
                     is24Hour = is24Hour,
                     onOpenExternal = { onAction(HomeAction.OpenWeather) },
                     onClose = onCloseWeather,
+                    onOpenLicenses = { onAction(HomeAction.OpenLicenses) },
                     hazeState = hazeState,
                     glassConfig = glassConfig,
                     motionTier = motionTier,

@@ -1,0 +1,17 @@
+{
+  "uniqueId": "org.openfreemap:tiles",
+  "name": "OpenFreeMap",
+  "description": "Keyless hosting of the OSM backend's vector tiles, sprites and glyphs (tiles.openfreemap.org). The tiles are built from OpenStreetMap data in the OpenMapTiles schema.",
+  "website": "https://openfreemap.org",
+  "developers": [
+    {
+      "name": "OpenFreeMap"
+    }
+  ],
+  "scm": {
+    "url": "https://github.com/hyperknot/openfreemap"
+  },
+  "licenses": [
+    "odbl_1_0"
+  ]
+}

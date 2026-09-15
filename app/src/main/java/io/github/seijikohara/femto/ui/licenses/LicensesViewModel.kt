@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mikepenz.aboutlibraries.Libs
 import com.mikepenz.aboutlibraries.entity.Library
 import com.mikepenz.aboutlibraries.util.withContext
+import io.github.seijikohara.femto.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,8 +78,34 @@ private suspend fun loadAboutLibraries(context: Context): List<LicenseItem> =
             .withContext(context)
             .build()
             .libraries
-            .map { library -> library.toLicenseItem() }
+            .map { library -> library.toLicenseItem() } + listOfNotNull(webMapNoticesOrNull(context))
     }
+
+// The map page's transitive npm notices, generated at build time by
+// webmap/scripts/third-party-notices.mjs into the web assets: the MapLibre
+// distribution inlines its dependencies without their notices, so no manual
+// AboutLibraries entry could cover them. A missing file only means an older
+// build — the screen degrades to the collected list rather than failing.
+private fun webMapNoticesOrNull(context: Context): LicenseItem? =
+    runCatching {
+        context.assets
+            .open(WEBMAP_NOTICES_ASSET)
+            .bufferedReader()
+            .use { it.readText() }
+    }.onFailure { Log.w(TAG, "web map third-party notices unavailable", it) }
+        .getOrNull()
+        ?.let { notices ->
+            LicenseItem(
+                id = WEBMAP_NOTICES_ID,
+                name = context.getString(R.string.licenses_webmap_notices),
+                licenseName = null,
+                licenseText = notices,
+                url = null,
+            )
+        }
+
+private const val WEBMAP_NOTICES_ASSET = "web/THIRD-PARTY-NOTICES.txt"
+private const val WEBMAP_NOTICES_ID = "femto.webmap.third-party-notices"
 
 private fun Library.toLicenseItem(): LicenseItem {
     val license = licenses.firstOrNull()
@@ -88,5 +115,6 @@ private fun Library.toLicenseItem(): LicenseItem {
         licenseName = license?.spdxId ?: license?.name,
         licenseText = license?.licenseContent,
         url = website ?: scm?.url,
+        licenseUrl = license?.url,
     )
 }

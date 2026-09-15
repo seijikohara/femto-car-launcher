@@ -283,6 +283,7 @@ class MainActivity : ComponentActivity() {
                             display = settings,
                             setShowAssistant = { showAssistant = it },
                             setShowSettings = { showSettings = it },
+                            setShowLicenses = { showLicenses = it },
                         )
                     },
                 )
@@ -407,6 +408,7 @@ class MainActivity : ComponentActivity() {
         display: DisplaySettings,
         setShowAssistant: (Boolean) -> Unit,
         setShowSettings: (Boolean) -> Unit,
+        setShowLicenses: (Boolean) -> Unit,
     ) {
         when (event) {
             is HomeEvent.LaunchComponent -> {
@@ -437,6 +439,10 @@ class MainActivity : ComponentActivity() {
 
             HomeEvent.OpenInAppSettings -> {
                 setShowSettings(true)
+            }
+
+            HomeEvent.OpenLicenses -> {
+                setShowLicenses(true)
             }
 
             HomeEvent.OpenAssistant -> {

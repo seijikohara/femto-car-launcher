@@ -232,8 +232,10 @@ room {
 
 // AboutLibraries collects each Gradle dependency's license at build time into
 // res/raw/aboutlibraries.json (bundled, so the licenses screen works offline on
-// the head unit). Non-Gradle components shipped in the app (the webmap
-// maplibre-gl JS bundle) are declared as manual entries under app/config.
+// the head unit). Non-Gradle components the app ships or draws on — the webmap
+// JS bundle, the map data / style / tile / terrain providers, the weather data —
+// are declared as manual entries under app/config, the single home for those
+// credits (see .claude/rules/webmap.md).
 aboutLibraries {
     collect {
         configPath = file("config")

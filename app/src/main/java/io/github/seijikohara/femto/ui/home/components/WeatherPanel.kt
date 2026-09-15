@@ -1,13 +1,16 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,6 +27,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,6 +80,8 @@ internal fun WeatherPanel(
     onOpenExternal: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    // A tap on the data credit; opens the licences and credits screen.
+    onOpenLicenses: () -> Unit = {},
     motionTier: MotionTier = MotionTier.STANDARD,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
@@ -137,14 +143,30 @@ internal fun WeatherPanel(
             }
         }
         // CC BY 4.0 credit for the forecast data — MET's terms require visible
-        // attribution wherever the data is presented; the licenses screen
-        // carries the full license entry. Static legal text, not glance
-        // content, so attributionCredit's sub-floor size applies (see Type.kt).
-        Text(
-            text = stringResource(R.string.weather_attribution),
-            style = MaterialTheme.typography.attributionCredit(),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        // attribution, a link to the licence, and an indication that the data
+        // was adapted (the curve, nowcast and range bars are derived renderings).
+        // The text names the adaptation; the tap opens the licences screen,
+        // which carries the licence link. Static legal text, not glance content,
+        // so attributionCredit's sub-floor size applies (see Type.kt) — the tap
+        // target, not the text, grows to the automotive floor.
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = FemtoDimens.MinTouchTarget)
+                    .clickable(
+                        onClickLabel = stringResource(R.string.map_attribution_open_licenses),
+                        role = Role.Button,
+                        onClick = onOpenLicenses,
+                    ),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Text(
+                text = stringResource(R.string.weather_attribution),
+                style = MaterialTheme.typography.attributionCredit(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

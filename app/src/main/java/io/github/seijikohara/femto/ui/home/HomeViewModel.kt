@@ -214,6 +214,10 @@ internal class HomeViewModel(
                 mutableEvents.tryEmit(HomeEvent.OpenInAppSettings)
             }
 
+            HomeAction.OpenLicenses -> {
+                mutableEvents.tryEmit(HomeEvent.OpenLicenses)
+            }
+
             HomeAction.OpenAssistant -> {
                 mutableEvents.tryEmit(HomeEvent.OpenAssistant)
             }

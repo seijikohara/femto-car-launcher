@@ -131,6 +131,7 @@ internal fun WebMapView(
     online: Boolean = true,
     onFollowChange: (Boolean) -> Unit = {},
     onBearingChange: (Float) -> Unit = {},
+    onOpenLicenses: () -> Unit = {},
     attributionBottomInset: Dp = 0.dp,
 ) {
     val context = LocalContext.current
@@ -642,6 +643,7 @@ internal fun WebMapView(
                         .align(Alignment.BottomStart)
                         .padding(bottom = attributionBottomInset),
                 showTerrainCredit = mapConfig.terrain,
+                onClick = onOpenLicenses,
             )
         }
     }

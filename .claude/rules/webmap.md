@@ -17,14 +17,20 @@ implementation across backends.
 Dependency versions live in `webmap/package.json` +
 `pnpm-lock.yaml` + `pnpm-workspace.yaml` (the Vite+ catalog; together
 the SSOT) — never restate version numbers here.
-`app/src/main/assets/licenses/` holds the license texts for the
-bundled OSS map styles (Positron / Dark Matter), MapLibre GL JS
-(BSD-3-Clause), and the Google Maps JS API loader package
-(Apache-2.0) — keep it in step with what the page bundles under an
-OSS license (AboutLibraries manual entries under `app/config/`
-mirror the same set). A CDN-loaded library (the Google Maps
-JavaScript API itself, fetched at runtime by the bundled loader)
-needs none. Nothing under a proprietary licence is bundled: the
+`app/config/` (the AboutLibraries manual entries: `libraries/` plus
+the licence bodies in `licenses/`) is the single home for the credit
+and licence text of every non-Gradle component the page bundles or
+the map draws on — MapLibre GL JS (BSD-3-Clause), the Google Maps JS
+API loader (Apache-2.0), the OpenMapTiles Positron / Dark Matter
+design the bundled styles derive from (BSD-3-Clause code, CC BY 4.0
+design), OpenStreetMap data (ODbL 1.0), OpenFreeMap and Mapterhorn.
+The bundle's transitive npm notices are generated at build time by
+`scripts/third-party-notices.mjs` into `dist/web/` and read from the
+web assets by the licences screen, which also lets the map and
+weather credits open it in-app rather than a browser. A CDN-loaded
+library (the Google Maps JavaScript API itself, fetched at runtime
+by the bundled loader) needs none. Nothing under a proprietary
+licence is bundled: the
 Mapbox backend was removed in 2026-09 because Mapbox's Product Terms
 require a purchased licence for any vehicle-related application,
 which no bring-your-own-token arrangement satisfies.

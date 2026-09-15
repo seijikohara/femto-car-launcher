@@ -58,6 +58,13 @@ internal sealed interface HomeEvent {
     data object OpenInAppSettings : HomeEvent
 
     /**
+     * Open the in-app licences and credits screen. The map and weather credits
+     * route here rather than to a browser: it keeps a driving surface inside the
+     * app, and the screen carries every data source's licence and link.
+     */
+    data object OpenLicenses : HomeEvent
+
+    /**
      * Open the assistant. The host resolves the user's assistant-launch setting:
      * the system assistant overlay, or the in-launcher voice sheet.
      */

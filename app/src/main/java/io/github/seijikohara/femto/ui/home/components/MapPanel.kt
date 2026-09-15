@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.ui.home.components
 import android.location.Location
 import android.os.SystemClock
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -24,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -54,6 +57,8 @@ internal fun MapPanel(
     online: Boolean = true,
     onFollowChange: (Boolean) -> Unit = {},
     onBearingChange: (Float) -> Unit = {},
+    // A tap on the tile credit; opens the licences and credits screen.
+    onOpenLicenses: () -> Unit = {},
     // Extra bottom padding for the bottom-start attribution credit, so it clears a
     // bottom-hosted dock instead of sitting under its nav buttons. 0 when the dock
     // hosts another edge (see DashboardScaffold's attributionBottomInset).
@@ -84,6 +89,7 @@ internal fun MapPanel(
                 online = online,
                 onFollowChange = onFollowChange,
                 onBearingChange = onBearingChange,
+                onOpenLicenses = onOpenLicenses,
                 attributionBottomInset = attributionBottomInset,
             )
         } else {
@@ -149,6 +155,7 @@ internal fun Location.carriedBearing(holder: FloatArray): Float =
 internal fun Attribution(
     modifier: Modifier = Modifier,
     showTerrainCredit: Boolean = false,
+    onClick: () -> Unit = {},
 ) {
     // The OSM tile credit (OpenStreetMap / OpenMapTiles / OpenFreeMap). The host
     // renders this overlay only for the OSM backend, whose web page hides its own
@@ -159,20 +166,37 @@ internal fun Attribution(
     val base = stringResource(R.string.map_attribution)
     val terrain = stringResource(R.string.map_attribution_terrain)
     val text = base + (if (showTerrainCredit) " · $terrain" else "")
-    Text(
-        text = text,
-        // See Typography.attributionCredit for the sub-floor rationale; this
-        // Text additionally carries full-strength onSurfaceVariant over a
-        // faint scrim below for contrast at that size.
-        style = MaterialTheme.typography.attributionCredit(),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    // The credit stays a small chip (see Typography.attributionCredit), but its
+    // tap target grows to the automotive floor: a transparent hit area extends
+    // upward from the chip, so reaching the licences screen — where each
+    // source's licence and link live, the in-app route the OSMF attribution
+    // guidelines sanction — never needs a precise tap on sub-floor text.
+    Box(
         modifier =
             modifier
-                .padding(4.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f))
-                .padding(horizontal = 5.dp, vertical = 2.dp),
-    )
+                .heightIn(min = FemtoDimens.MinTouchTarget)
+                .clickable(
+                    onClickLabel = stringResource(R.string.map_attribution_open_licenses),
+                    role = Role.Button,
+                    onClick = onClick,
+                ),
+        contentAlignment = Alignment.BottomStart,
+    ) {
+        Text(
+            text = text,
+            // See Typography.attributionCredit for the sub-floor rationale; this
+            // Text additionally carries full-strength onSurfaceVariant over a
+            // faint scrim below for contrast at that size.
+            style = MaterialTheme.typography.attributionCredit(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier =
+                Modifier
+                    .padding(4.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f))
+                    .padding(horizontal = 5.dp, vertical = 2.dp),
+        )
+    }
 }
 
 /**

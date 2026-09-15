@@ -1,0 +1,6 @@
+{
+  "name": "Open Data Commons Open Database License v1.0",
+  "spdxId": "ODbL-1.0",
+  "url": "https://opendatacommons.org/licenses/odbl/1-0/",
+  "content": "Map data © OpenStreetMap contributors.\n\nThe OpenStreetMap data the map renders is made available under the Open Data Commons Open Database License (ODbL) v1.0:\nhttps://opendatacommons.org/licenses/odbl/1-0/\n\nAny rights in individual contents of the database are licensed under the Database Contents License:\nhttps://opendatacommons.org/licenses/dbcl/1-0/\n\nThe attribution and licence terms OpenStreetMap asks of downstream uses are published at:\nhttps://www.openstreetmap.org/copyright\n\nThe app displays this data as rendered map tiles (a Produced Work under ODbL section 4.5) and does not redistribute the database itself."
+}

@@ -1,0 +1,20 @@
+{
+  "uniqueId": "org.openmaptiles:styles",
+  "name": "OpenMapTiles Positron & Dark Matter styles",
+  "description": "The bundled map styles (assets/map/light.json and dark.json) derive from the OpenMapTiles Positron and Dark Matter GL styles, recoloured by the app for the accent scheme; the vector tile schema the map reads is OpenMapTiles.",
+  "website": "https://openmaptiles.org/",
+  "developers": [
+    {
+      "name": "MapTiler AG & OpenMapTiles contributors"
+    },
+    {
+      "name": "CartoDB Inc."
+    }
+  ],
+  "scm": {
+    "url": "https://github.com/openmaptiles/positron-gl-style"
+  },
+  "licenses": [
+    "openmaptiles_style"
+  ]
+}

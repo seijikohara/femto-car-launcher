@@ -99,7 +99,8 @@ private fun LicensesList(
     item {
         Section(title = stringResource(R.string.licenses_section_map_data)) {
             // Reuse the on-map attribution strings (their SSOT) and add only the
-            // license-name note here, rather than restating the provider list.
+            // licence summary here; each source's own entry, licence text and
+            // links sit in the list above (app/config manual entries).
             BodyText(stringResource(R.string.map_attribution))
             BodyText(stringResource(R.string.map_attribution_terrain))
             BodyText(stringResource(R.string.licenses_map_data_note))
@@ -133,7 +134,16 @@ private fun LicenseDetail(
             color = MaterialTheme.colorScheme.primary,
         )
     }
+    // Plain-text URIs, not links: a driving surface must not hand off to a
+    // browser, and every licence here (ODbL, CC BY, BSD, Apache) accepts a URI.
     item.url?.let { url ->
+        Text(
+            text = url,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    item.licenseUrl?.let { url ->
         Text(
             text = url,
             style = MaterialTheme.typography.bodyMedium,

@@ -2,9 +2,11 @@ package io.github.seijikohara.femto.ui.licenses
 
 /**
  * One credited component on the licenses screen: a Gradle or web dependency
- * collected by AboutLibraries, reduced to what the screen renders. [licenseText]
- * is the full embedded license body shown in the detail view; it is null when the
- * build could not resolve a body for the component.
+ * collected by AboutLibraries, or a data source declared as a manual entry,
+ * reduced to what the screen renders. [licenseText] is the full embedded license
+ * body shown in the detail view; it is null when the build could not resolve a
+ * body for the component. [licenseUrl] is the licence's own address — a CC BY
+ * credit must carry a link to the licence, and a plain-text URI satisfies it.
  */
 internal data class LicenseItem(
     val id: String,
@@ -12,6 +14,7 @@ internal data class LicenseItem(
     val licenseName: String?,
     val licenseText: String?,
     val url: String?,
+    val licenseUrl: String? = null,
 )
 
 internal data class LicensesUiState(
