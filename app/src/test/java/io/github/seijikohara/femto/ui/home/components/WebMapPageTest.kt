@@ -29,6 +29,38 @@ class WebMapPageTest {
         assertFalse(showsNativeAttribution(MapBackend.GOOGLEMAPS))
     }
 
+    @Test fun `tile hosts put the override first and the build default behind it`() {
+        assertEquals(
+            listOf("https://tiles.example.test", "https://tiles.openfreemap.org"),
+            mapTileHosts(override = " https://tiles.example.test/ ", default = "https://tiles.openfreemap.org"),
+        )
+    }
+
+    @Test fun `a blank override leaves only the default host`() {
+        assertEquals(
+            listOf("https://tiles.openfreemap.org"),
+            mapTileHosts(override = "", default = "https://tiles.openfreemap.org"),
+        )
+        // An override that merely repeats the default must not double the list,
+        // or half the retry budget would reload the same dead host.
+        assertEquals(
+            listOf("https://tiles.openfreemap.org"),
+            mapTileHosts(override = "https://tiles.openfreemap.org/", default = "https://tiles.openfreemap.org"),
+        )
+    }
+
+    @Test fun `retries walk the host list round-robin`() {
+        val hosts = listOf("a", "b")
+        assertEquals("a", tileHostForAttempt(hosts, 0))
+        assertEquals("b", tileHostForAttempt(hosts, 1))
+        assertEquals("a", tileHostForAttempt(hosts, 2))
+        assertEquals("only", tileHostForAttempt(listOf("only"), 5))
+        // A build that blanked MAP_TILE_HOST with no override leaves no host to
+        // walk; the page falls back to the upstream origin rather than crashing
+        // the modulo.
+        assertEquals("", tileHostForAttempt(emptyList(), 0))
+    }
+
     @Test fun `live reload retry backoff doubles then caps`() {
         assertEquals(5_000L, liveReloadRetryDelayMs(0))
         assertEquals(10_000L, liveReloadRetryDelayMs(1))

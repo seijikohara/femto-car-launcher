@@ -16,6 +16,7 @@ import io.github.seijikohara.femto.data.calendar.CalendarRepository
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.clock.ClockRepository
 import io.github.seijikohara.femto.data.common.WhileUiSubscribed
+import io.github.seijikohara.femto.data.common.femtoUserAgent
 import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.geocoding.NominatimApi
 import io.github.seijikohara.femto.data.geocoding.NominatimReverseGeocoder
@@ -310,11 +311,6 @@ internal class HomeViewModelFactory(
                 .Builder()
                 .cache(Cache(File(application.cacheDir, "http_cache"), HTTP_CACHE_BYTES))
                 .build()
-        // Both api.met.no and Nominatim reject stock/generic User-Agents and
-        // require an identifying app name plus a contact URL in the header.
-        val userAgent =
-            "FemtoCarLauncher/" + BuildConfig.VERSION_NAME +
-                " (+https://github.com/seijikohara/femto-car-launcher)"
         // Default to the on-device platform geocoder: free, no ToS surface, and
         // degrades gracefully where no backend exists. A self-hosted
         // Nominatim-compatible host is opt-in via GEOCODER_BASE_URL (empty by
@@ -327,7 +323,7 @@ internal class HomeViewModelFactory(
                         NominatimApi(
                             client = httpClient,
                             baseUrl = baseUrl,
-                            userAgent = userAgent,
+                            userAgent = femtoUserAgent,
                             // languageProvider defaults to the device locale, read per request.
                             apiKey = BuildConfig.GEOCODER_API_KEY.takeIf { it.isNotBlank() },
                         ),
@@ -338,7 +334,7 @@ internal class HomeViewModelFactory(
             MetNorwayApi(
                 client = httpClient,
                 baseUrl = BuildConfig.WEATHER_BASE_URL,
-                userAgent = userAgent,
+                userAgent = femtoUserAgent,
             )
         val weather = WeatherRepository(weatherApi, locationFlow, clockFlow)
         val music = MusicSessionRepository(application)

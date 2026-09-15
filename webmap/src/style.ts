@@ -28,6 +28,10 @@ export interface MapFeatures {
     terrain: boolean;
     accent: AccentColors | null;
     buildingColor: string;
+    // The raster-DEM TileJSON to inject for terrain; the host supplies its
+    // build-time endpoint, and the default below stands in for tests and a
+    // page loaded outside the launcher.
+    terrainUrl?: string;
 }
 
 // Subdued, see-through buildings: the extrusion must never outshout the roads
@@ -35,8 +39,28 @@ export interface MapFeatures {
 export const BUILDING_EXTRUSION_OPACITY = 0.5;
 
 // DEM = Mapterhorn (free, no key); the provider's required credit is shown by
-// the host's Compose attribution overlay when terrain is active.
-export const MAPTERHORN_DEM_URL = "https://tiles.mapterhorn.com/tilejson.json";
+// the host's Compose attribution overlay when terrain is active. The host's
+// MAP_TERRAIN_TILEJSON_URL build field is the shipped value; this mirrors its
+// default.
+export const DEFAULT_TERRAIN_TILEJSON_URL = "https://tiles.mapterhorn.com/tilejson.json";
+
+// The origin the bundled styles and the hosted style URLs are written against.
+// The launcher may serve the same layout from another host (a self-hosted
+// mirror, or the fallback rotation after a failed load); rewriteHost re-points
+// every request under this origin at the configured one.
+export const UPSTREAM_TILE_HOST = "https://tiles.openfreemap.org";
+
+// Re-point a request URL at the configured tile host: a URL under [from] is
+// rewritten to [to]; anything else passes through. Identity when the two hosts
+// agree, so the default configuration adds no work per request. The match stops
+// at an origin boundary — a bare prefix test would also rewrite a lookalike
+// origin (tiles.openfreemap.org.example.test), and once a user mirror serves its
+// own style JSON the request URLs are no longer ones we authored.
+export function rewriteHost(url: string, from: string, to: string): string {
+    if (from === to || !url.startsWith(from)) return url;
+    const rest = url.slice(from.length);
+    return rest === "" || rest.startsWith("/") || rest.startsWith("?") ? to + rest : url;
+}
 
 const ACCENT_LAND = recolorData.accentLandLayers;
 
@@ -226,7 +250,7 @@ export function injectFeatures(
     if (features.terrain) {
         nextStyle.sources.terrainSource = {
             type: "raster-dem",
-            url: MAPTERHORN_DEM_URL,
+            url: features.terrainUrl || DEFAULT_TERRAIN_TILEJSON_URL,
         };
         nextStyle.terrain = { source: "terrainSource", exaggeration: 1.0 };
     }

@@ -98,6 +98,7 @@ internal data class SettingsUiState(
     val googleMapsRendering: GoogleMapsRendering = DisplaySettings.Default.googleMapsRendering,
     val googleMapsMapType: GoogleMapType = DisplaySettings.Default.googleMapsMapType,
     val googleMapsTraffic: Boolean = DisplaySettings.Default.googleMapsTraffic,
+    val mapTileHost: String = DisplaySettings.Default.mapTileHost,
     val availableCalendars: List<CalendarInfo> = emptyList(),
     val hiddenCalendarIds: Set<Long> = emptySet(),
     // Defaults false so a not-yet-loaded selector never falsely claims "no
@@ -164,6 +165,7 @@ internal data class SettingsUiState(
                 googleMapsRendering = DisplaySettings.Default.googleMapsRendering,
                 googleMapsMapType = DisplaySettings.Default.googleMapsMapType,
                 googleMapsTraffic = DisplaySettings.Default.googleMapsTraffic,
+                mapTileHost = DisplaySettings.Default.mapTileHost,
             )
     }
 }
@@ -390,6 +392,14 @@ internal sealed interface SettingsAction {
     ) : SettingsAction
 
     data object ClearGoogleMapsMapId : SettingsAction
+
+    // The OSM tile-host override (Settings → Map → Tile host); blank restores the
+    // build default. A plain set, like the Map ID — it switches no backend.
+    data class SetMapTileHost(
+        val value: String,
+    ) : SettingsAction
+
+    data object ClearMapTileHost : SettingsAction
 
     data class SetGoogleMapsRendering(
         val value: GoogleMapsRendering,

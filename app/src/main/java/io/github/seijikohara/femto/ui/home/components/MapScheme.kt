@@ -12,6 +12,11 @@ internal fun Color.toCssHex(): String = "#%06X".format(0xFFFFFF and toArgb())
 // Hosted OpenFreeMap style base URL and the two bundled base styles. The bundled
 // styles are the accent base (recoloured) and DARK_MATTER; everything else is a
 // hosted OpenFreeMap style.
+//
+// The origin here must stay the one the page rewrites from
+// (`UPSTREAM_TILE_HOST` in webmap/src/style.ts) and the one the bundled
+// map/*.json assets use, or a configured tile host is silently ignored — a
+// compatibility contract, guarded by TileHostContractTest.
 internal const val OFM_STYLE_BASE = "https://tiles.openfreemap.org/styles/"
 internal const val POSITRON_STYLE_URL = OFM_STYLE_BASE + "positron"
 internal const val LIGHT_STYLE_ASSET = "map/light.json"

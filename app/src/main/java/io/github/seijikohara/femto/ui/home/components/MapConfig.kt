@@ -30,6 +30,10 @@ internal data class MapConfig(
     val googleMapsRendering: GoogleMapsRendering = GoogleMapsRendering.AUTO,
     val googleMapsMapType: GoogleMapType = GoogleMapType.ROADMAP,
     val googleMapsTraffic: Boolean = false,
+    // OSM-only: the user's tile-host override (blank = the build default). The
+    // host resolves it into the ordered host list the page rotates through on
+    // retries — see WebMapView.mapTileHosts.
+    val tileHostOverride: String = "",
     val markerPos: Int = 70,
     // Fraction (0..0.5) of the map height the bottom speed overlay occupies,
     // measured at layout time (not a persisted setting). The marker drop is

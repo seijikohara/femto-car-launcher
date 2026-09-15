@@ -258,6 +258,7 @@ class MainActivity : ComponentActivity() {
                             googleMapsRendering = settings.googleMapsRendering,
                             googleMapsMapType = settings.googleMapsMapType,
                             googleMapsTraffic = settings.googleMapsTraffic,
+                            tileHostOverride = settings.mapTileHost,
                         ),
                     panels =
                         PanelVisibility(

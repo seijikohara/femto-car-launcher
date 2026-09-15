@@ -23,12 +23,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Lucide
+import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.GoogleMapType
 import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MapBackend
+import io.github.seijikohara.femto.ui.home.components.isTileHostUrl
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -51,6 +53,7 @@ internal fun MapSection(
 ) {
     var showGoogleKeyDialog by remember { mutableStateOf(false) }
     var showGoogleMapIdDialog by remember { mutableStateOf(false) }
+    var showTileHostDialog by remember { mutableStateOf(false) }
     Column(modifier = modifier) {
         // Selecting Google Maps persists the backend switch immediately (sticky
         // selection; a missing key does not revert to OSM). When the key is still
@@ -147,6 +150,16 @@ internal fun MapSection(
                     onCheckedChange = { onAction(SettingsAction.SetMapTerrain(it)) },
                     summary = stringResource(R.string.settings_map_terrain_desc),
                 )
+                // The keyless default is a volunteer service with no availability
+                // commitment; a self-hosted mirror must be reachable without a new
+                // build, so the host is a setting rather than only a build field.
+                SettingRow(
+                    title = stringResource(R.string.settings_map_tile_host),
+                    summary = mapTileHostSummary(uiState.mapTileHost),
+                    modifier = Modifier.clickable { showTileHostDialog = true },
+                ) {
+                    TrailingIcon(Lucide.ChevronRight)
+                }
             }
         }
         SettingsSubheader(stringResource(R.string.settings_subheader_map_camera))
@@ -266,7 +279,58 @@ internal fun MapSection(
             },
         )
     }
+    if (showTileHostDialog) {
+        var draft by remember { mutableStateOf(uiState.mapTileHost) }
+        AlertDialog(
+            onDismissRequest = { showTileHostDialog = false },
+            title = { Text(stringResource(R.string.settings_map_tile_host)) },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_map_tile_host_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it },
+                        singleLine = true,
+                        isError = draft.isNotBlank() && !isTileHostUrl(draft),
+                        label = { Text(stringResource(R.string.settings_map_tile_host)) },
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = isTileHostUrl(draft),
+                    onClick = {
+                        onAction(SettingsAction.SetMapTileHost(draft))
+                        showTileHostDialog = false
+                    },
+                    modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
+                ) { Text(stringResource(R.string.settings_map_tile_host_save)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        onAction(SettingsAction.ClearMapTileHost)
+                        showTileHostDialog = false
+                    },
+                    modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
+                ) { Text(stringResource(R.string.settings_map_tile_host_clear)) }
+            },
+        )
+    }
 }
+
+// The override is shown verbatim; blank names the build's default host so the
+// user can see what "default" resolves to.
+@Composable
+private fun mapTileHostSummary(host: String): String =
+    host.ifBlank { stringResource(R.string.settings_map_tile_host_unset, BuildConfig.MAP_TILE_HOST) }
 
 // Masks all but the last four characters of the key so it is not fully visible
 // on a shared in-car screen, while still letting the user confirm which key is set.

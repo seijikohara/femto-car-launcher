@@ -49,6 +49,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPinOff
 import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.common.femtoUserAgent
 import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapStyleSetting
@@ -147,6 +148,16 @@ internal fun WebMapView(
             MapStyleSetting.DARK -> true
         }
 
+    // Resolve the colour scheme for the active light/dark context. ACCENT recolours
+    // the bundled base with these Material colours (the OSM module's transformStyle);
+    // the others are plain hosted / bundled styles.
+    val styleRef = mapStyleRefFor(if (isDark) mapConfig.schemeDark else mapConfig.schemeLight, isDark)
+    // The page reads its initial style URL from the bridge at load time, and a
+    // scheme change pushes into the live page instead of rebuilding the WebView —
+    // so the getter must see the current scheme, not the one captured when the
+    // bridge object was created.
+    val currentStyleUrl by rememberUpdatedState(styleUrl(styleRef))
+
     // Only the active backend's credential can affect the loaded page, so an edit
     // to the inactive backend's stored key must not rebuild the WebView — editing a
     // stored Google Maps key while OSM is active must not reload the OSM page.
@@ -156,6 +167,14 @@ internal fun WebMapView(
     // rebuild the WebView rather than push into the live page.
     val effectiveGoogleRendering =
         if (mapConfig.backend == MapBackend.GOOGLEMAPS) mapConfig.googleMapsRendering else GoogleMapsRendering.AUTO
+    // The tile host is OSM-only state by the same logic: an override typed while
+    // Google Maps is active must not reload the Google page.
+    val effectiveTileHostOverride = if (mapConfig.backend == MapBackend.OSM) mapConfig.tileHostOverride else ""
+    // Keyed on the override alone: the build default cannot change at runtime, and
+    // the bridge getter reads the list from a background thread, so it must not be
+    // re-allocated on every recomposition (one per location fix).
+    val tileHosts =
+        remember(effectiveTileHostOverride) { mapTileHosts(effectiveTileHostOverride, BuildConfig.MAP_TILE_HOST) }
 
     // Renderer-death containment state (see the KDoc): bumping the generation
     // rebuilds the WebView after the renderer process dies; once deaths repeat
@@ -189,12 +208,19 @@ internal fun WebMapView(
     // failure remembers). Deliberately NOT keyed on reloadGeneration — each
     // retry bumps that — so the budget survives its own reloads; a
     // backend/credential change or a connectivity edge refunds it.
+    //
+    // The count also selects the OSM tile host the rebuilt page reads
+    // (`tileHost()` walks [tileHosts] by attempt), so every write here must be
+    // paired with a reloadGeneration bump in the same non-suspending block —
+    // otherwise the page keeps the host it loaded with and the rotation never
+    // reaches the next one.
     val retryAttempts =
         remember(
             mapConfig.backend,
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
+            effectiveTileHostOverride,
         ) {
             mutableIntStateOf(0)
         }
@@ -226,6 +252,7 @@ internal fun WebMapView(
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
+            effectiveTileHostOverride,
         ) { mutableStateOf(false) }
 
     // Set by a `fatal` bridge event (see the KDoc): the page itself determined it
@@ -243,6 +270,7 @@ internal fun WebMapView(
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
+            effectiveTileHostOverride,
         ) {
             mutableStateOf(false)
         }
@@ -253,6 +281,7 @@ internal fun WebMapView(
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
+            effectiveTileHostOverride,
         ) {
             mutableStateOf<String?>(null)
         }
@@ -275,7 +304,10 @@ internal fun WebMapView(
     // rate-limit — repeated reloads have tripped gm_authFailure before). The
     // non-self-healing notices (missing credential, renderer give-up) never
     // retry, and the effect idles while offline: reconnection reloads via the
-    // edge above, which also refunds the budget.
+    // edge above, which also refunds the budget. Each retry also advances the
+    // OSM tile host the rebuilt page reads (tileHost() below walks the list by
+    // attempt), so an unreachable override falls back to the default host on
+    // the next attempt instead of being reloaded forever.
     val retryEligible = liveInitFailed && online && !rendererGaveUp && !googleMapsKeyMissing
     LaunchedEffect(retryEligible, retryAttempts.intValue) {
         if (!retryEligible || retryAttempts.intValue >= MAX_LIVE_RELOAD_RETRIES) return@LaunchedEffect
@@ -330,6 +362,7 @@ internal fun WebMapView(
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
+            effectiveTileHostOverride,
         ) {
             val assetLoader =
                 WebViewAssetLoader
@@ -344,6 +377,10 @@ internal fun WebMapView(
                 // surface eviction dropped the WebGL context a few seconds in on the
                 // head unit. Costs some memory; fine for the single foreground map.
                 settings.offscreenPreRaster = true
+                // Identify the launcher to the tile hosts the way the weather and
+                // geocoding clients already do — appended to the stock WebView
+                // agent, so hosts that sniff for Chrome keep serving.
+                settings.userAgentString = settings.userAgentString + " " + femtoUserAgent
                 webViewClient =
                     object : WebViewClientCompat() {
                         override fun shouldInterceptRequest(
@@ -395,6 +432,35 @@ internal fun WebMapView(
                     object {
                         // Block body: a @JavascriptInterface method must not leak
                         // a non-primitive return type to the JS side.
+
+                        // Read synchronously by the osm backend module before map
+                        // initialisation: the origin that serves tiles, styles, sprites
+                        // and glyphs — the user's override when set, else the build
+                        // default — walked by retry attempt so a dead host gives way
+                        // to the next on the following reload (tileHostForAttempt).
+                        @JavascriptInterface
+                        fun tileHost(): String = tileHostForAttempt(tileHosts, retryAttempts.intValue)
+
+                        // Whether the host list has somewhere to rotate to. A dead
+                        // tile host does not fail the style load — the bundled
+                        // styles come from appassets and only their sources fail —
+                        // so the page reports a `fatal` (and thus a retry on the
+                        // next host) when no source loads, but only when this is
+                        // true. With a single host those errors stay transient, as
+                        // they were before the host became configurable.
+                        @JavascriptInterface
+                        fun tileHostFallback(): Boolean = tileHosts.size > 1
+
+                        // The raster-DEM TileJSON the page injects while the Terrain
+                        // switch is on; a build-time endpoint (MAP_TERRAIN_TILEJSON_URL).
+                        @JavascriptInterface
+                        fun terrainTileJsonUrl(): String = BuildConfig.MAP_TERRAIN_TILEJSON_URL
+
+                        // The style the page constructs the map with. Without it the
+                        // page would fetch a hosted style on every cold start only to
+                        // replace it with the bundled one the pushed scheme selects.
+                        @JavascriptInterface
+                        fun initialStyleUrl(): String = currentStyleUrl
 
                         // Read synchronously by the googlemaps backend module before map initialisation
                         // to authenticate the Maps JavaScript API instance. The key comes
@@ -480,10 +546,6 @@ internal fun WebMapView(
     // the user's accent.
     val markerColor = MaterialTheme.colorScheme.primary.toCssHex()
 
-    // Resolve the colour scheme for the active light/dark context. ACCENT recolours
-    // the bundled base with these Material colours (the OSM module's transformStyle);
-    // the others are plain hosted / bundled styles.
-    val styleRef = mapStyleRefFor(if (isDark) mapConfig.schemeDark else mapConfig.schemeLight, isDark)
     val accentColors = accentMapColors(isDark)
 
     // Each effect keys on [pageReady] (so it fires once the page is ready) and on
@@ -523,14 +585,9 @@ internal fun WebMapView(
             // push restarts the page's style swap, so debounce: every churn cancels
             // this effect and only the settled palette reaches the page.
             delay(STYLE_PUSH_DEBOUNCE_MS)
-            // Resolve the scheme to a URL the WebView can load (hosted, or the bundled
-            // base served over appassets) plus the accent palette (empty = no recolor).
-            val url =
-                when (styleRef) {
-                    is MapStyleRef.Hosted -> styleRef.url
-                    is MapStyleRef.Bundled -> appAssetsUrl(styleRef.asset)
-                    is MapStyleRef.Accent -> appAssetsUrl(styleRef.baseAsset)
-                }
+            // Resolve the scheme to a URL the WebView can load plus the accent
+            // palette (empty = no recolor).
+            val url = styleUrl(styleRef)
             val accent = (styleRef as? MapStyleRef.Accent)?.let { accentColors }
             webView.evaluateJavascript(
                 "window.setStyleUrl && setStyleUrl('$url', " +
@@ -705,6 +762,47 @@ private const val WEB_BASE = "$APPASSETS_ORIGIN/assets/web/"
 // A bundled asset served to the WebView over the WebViewAssetLoader https origin so
 // MapLibre's tile Worker can fetch it (and the asset's OpenFreeMap sources) cross-origin.
 private fun appAssetsUrl(asset: String): String = "$APPASSETS_ORIGIN/assets/$asset"
+
+// A scheme's style ref as a URL the page can load: hosted directly, or the
+// bundled base served over appassets. The page re-points the upstream tile
+// origin inside either at the configured host (see tileHost()).
+private fun styleUrl(styleRef: MapStyleRef): String =
+    when (styleRef) {
+        is MapStyleRef.Hosted -> styleRef.url
+        is MapStyleRef.Bundled -> appAssetsUrl(styleRef.asset)
+        is MapStyleRef.Accent -> appAssetsUrl(styleRef.baseAsset)
+    }
+
+// The tile hosts the OSM page may load from, in preference order: the user's
+// override (Settings → Map → Tile host) when set, then the build-time default.
+// Trailing slashes are dropped so the page's prefix rewrite lines up, and an
+// override that merely repeats the default collapses to one entry — otherwise
+// half the retry budget would reload the same dead host.
+internal fun mapTileHosts(
+    override: String,
+    default: String,
+): List<String> =
+    listOf(override.trim().trimEnd('/'), default.trimEnd('/'))
+        .filter { it.isNotBlank() }
+        .distinct()
+
+// Whether a typed override is an origin the page can actually load from. A bare
+// hostname would resolve against the page's own appassets origin and an http one
+// is blocked by the WebView's mixed-content policy; both surface as a blank map
+// long after the dialog is gone, so the dialog refuses them up front.
+internal fun isTileHostUrl(value: String): Boolean = TILE_HOST_PATTERN.matches(value.trim())
+
+private val TILE_HOST_PATTERN = Regex("""^https://[^\s/]+(/\S*)?$""")
+
+// The host the page loads with on a given auto-retry attempt: the list is walked
+// round-robin, so an unreachable override gives way to the default on the next
+// reload and a refunded budget starts over at the override. Empty (a build that
+// blanked MAP_TILE_HOST with no override set) yields no host, and the page falls
+// back to the upstream origin its styles are written against.
+internal fun tileHostForAttempt(
+    hosts: List<String>,
+    attempt: Int,
+): String = if (hosts.isEmpty()) "" else hosts[attempt % hosts.size]
 
 // Page URL for the active map backend: one entry page, selected by the
 // ?backend= query parameter (the value set mirrors webmap/src/backend-name.ts,

@@ -50,6 +50,7 @@ internal fun displaySettingsFacts(display: DisplaySettings): List<DiagnosticFact
         entry("Map north-up", "${display.mapNorthUp}"),
         entry("Map marker position", "${display.mapMarkerPos}"),
         entry("3D buildings / terrain", "${display.map3dBuildings} / ${display.mapTerrain}"),
+        entry("Map tile host", display.mapTileHost.ifBlank { "default" }),
         entry("Glass blur / tint", "${display.glassBlurRadius} dp / ${display.glassTintScale}%"),
         entry(
             "Glass border / shadow",

@@ -276,6 +276,13 @@ internal data class DisplaySettings(
     val googleMapsMapType: GoogleMapType = GoogleMapType.ROADMAP,
     // Whether to overlay live traffic on the Google Maps map.
     val googleMapsTraffic: Boolean = false,
+    /**
+     * User-supplied OSM tile host (an origin such as `https://tiles.example.org`)
+     * that replaces the build's default for every tile, style, sprite and glyph
+     * request; blank means the default. The host rotates back to the default on
+     * a failed load — see WebMapView.mapTileHosts.
+     */
+    val mapTileHost: String = "",
 ) {
     companion object {
         val Default =
@@ -325,6 +332,7 @@ internal data class DisplaySettings(
                 googleMapsRendering = GoogleMapsRendering.AUTO,
                 googleMapsMapType = GoogleMapType.ROADMAP,
                 googleMapsTraffic = false,
+                mapTileHost = "",
             )
     }
 }
