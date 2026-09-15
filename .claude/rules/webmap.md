@@ -7,7 +7,7 @@ paths:
 
 Rules for `webmap/`, the TypeScript source of the map WebView page:
 one entry point (`index.html`), whose `?backend=` query parameter
-(`osm` / `mapbox` / `googlemaps`, resolved in `src/backend-name.ts`)
+(`osm` / `googlemaps`, resolved in `src/backend-name.ts`)
 selects the dynamically imported backend module under
 `src/backends/` — Vite code-splits each backend into its own chunk,
 so a page only fetches the library it renders with. The shared
@@ -22,12 +22,12 @@ bundled OSS map styles (Positron / Dark Matter), MapLibre GL JS
 (BSD-3-Clause), and the Google Maps JS API loader package
 (Apache-2.0) — keep it in step with what the page bundles under an
 OSS license (AboutLibraries manual entries under `app/config/`
-mirror the same set). Mapbox GL JS ships under Mapbox's own proprietary
-Terms of Service rather than a redistributable OSS license (the end
-user's own Mapbox account and token govern its use), so it has no
-bundled license file here; a CDN-loaded library (the Google Maps
+mirror the same set). A CDN-loaded library (the Google Maps
 JavaScript API itself, fetched at runtime by the bundled loader)
-likewise needs none.
+needs none. Nothing under a proprietary licence is bundled: the
+Mapbox backend was removed in 2026-09 because Mapbox's Product Terms
+require a purchased licence for any vehicle-related application,
+which no bring-your-own-token arrangement satisfies.
 
 ## Credit placement
 
@@ -39,10 +39,6 @@ corner wherever the backend's own ToS permits:
   a native Compose `Attribution()` overlay draws the credit at
   `Alignment.BottomStart` (gated to OSM only via
   `showsNativeAttribution`).
-- **Mapbox**: the wordmark (`logoPosition`) and the
-  `AttributionControl` are both pinned `"bottom-left"` in
-  `src/backends/mapbox.ts`; ToS forbid hiding either, only moving
-  them.
 - **Google Maps**: the **one exception**. The Maps JS API fixes the
   Google logo bottom-left but the copyright / ToS text bottom-right
   and exposes no supported way to relocate either; the split stays

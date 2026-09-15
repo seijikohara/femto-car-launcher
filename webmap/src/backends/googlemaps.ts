@@ -11,17 +11,17 @@
 // Two render modes, chosen by whether the user supplied a Cloud Map ID
 // (femtoBridge.googleMapsMapId()):
 //   - VECTOR (Map ID present): full heading-up rotation, tilt, and 3D —
-//     parity with the Mapbox backend. The map rotates in heading-up; the
+//     parity with the OSM backend. The map rotates in heading-up; the
 //     chevron rotates in north-up.
 //   - RASTER (no Map ID): north-up only. A raster map cannot rotate or tilt,
 //     and passing heading/tilt to moveCamera stops the camera from
 //     positioning, so the map stays north-up and the chevron always rotates
 //     to the travel bearing to convey heading.
 //
-// Like the OSM/Mapbox backends, the screen-pinned chevron sits left-of-centre
+// Like the OSM backend, the screen-pinned chevron sits left-of-centre
 // (and drops with markerPos) to clear the side cards / bottom overlay, and
 // the camera targets an off-centre point so the GPS location renders under
-// the chevron. Google Maps has no camera `padding` (unlike MapLibre/Mapbox),
+// the chevron. Google Maps has no camera `padding` (unlike MapLibre),
 // so that off-centre target is computed from the flat-Mercator projection,
 // un-rotated by the map heading — see offsetCenterFor. Tilt is not modelled,
 // so a tilted vector camera offsets approximately; a raster (north-up,
@@ -46,7 +46,7 @@ import {
     smoothedBearing,
 } from "../camera";
 import { chevronHandles, setChevronColor, setChevronTransform, startStaleTicker } from "../chevron";
-// Shared self-marker offset model with the OSM/Mapbox backends (style.ts is
+// Shared self-marker offset model with the OSM backend (style.ts is
 // the SSOT): how far left of centre the chevron sits to clear the side cards,
 // and how far it drops with markerPos to clear the bottom overlay.
 import { markerDrop, markerXFraction } from "../style";
@@ -409,7 +409,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
 
     // Pin the chevron left-of-centre (and dropped per markerPos) and target
     // the camera at the matching off-centre point so the GPS location renders
-    // under it — the OSM/Mapbox `markerEl.left/top` + camera `padding`
+    // under it — the OSM `markerEl.left/top` + camera `padding`
     // parity, done without a native padding API. headingDeg is the applied
     // map heading (0 for a raster map). When the projection is not yet ready
     // the camera cannot offset, so the chevron stays centred over the
@@ -479,7 +479,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             // arbitrary map, so hide it until the camera re-attaches to the
             // location.
             //
-            // DIVERGENCE from the OSM/Mapbox backends: those swap to a
+            // DIVERGENCE from the OSM backend: it swaps to a
             // geo-anchored clone (the shared engine's syncGeoMarker) so the
             // user still sees their GPS position on the panned map. Google
             // Maps has no mapId-free, non-deprecated geo-marker —
@@ -657,7 +657,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // VECTOR drives heading-up rotation (chevron points up) + tilt/3D;
         // RASTER is north-up (headingDeg 0, no tilt). placeFollowCamera
         // offsets both the chevron and the camera target so the location sits
-        // clear of the side cards — the OSM/Mapbox parity.
+        // clear of the side cards — the OSM parity.
         placeFollowCamera(
             { lat, lng: lon },
             z,

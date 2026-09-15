@@ -9,10 +9,6 @@
     <string name="map_live_renderer_gone_hint">The map renderer keeps crashing on this device. Switch the map provider to OpenStreetMap in Settings.</string>
     <string name="map_live_init_failed">Live map can\'t start</string>
     <string name="map_live_init_failed_hint">This device can\'t render the live map. Switch the map provider to OpenStreetMap in Settings.</string>
-    <string name="map_mapbox_no_token">Mapbox needs an access token</string>
-    <string name="map_mapbox_no_token_hint">Enter your Mapbox access token in Settings → Map to show the map.</string>
-    <string name="map_mapbox_failed">Mapbox map can\'t load</string>
-    <string name="map_mapbox_failed_hint">Check that your access token is valid and not expired, and that you are online. You can change the map provider in Settings → Map.</string>
     <string name="map_googlemaps_no_key">Google Maps needs an API key</string>
     <string name="map_googlemaps_no_key_hint">Enter your Google Maps API key in Settings → Map to show the map.</string>
     <string name="map_googlemaps_failed">Google Maps can\'t load</string>
@@ -227,11 +223,6 @@
     <string name="settings_section_panels">Panels</string>
     <string name="settings_category_select">Select %1$s</string>
     <string name="settings_category_back">Back to categories</string>
-    <string name="settings_mapbox_token">Mapbox access token</string>
-    <string name="settings_mapbox_token_unset">Not set — tap to enter your token</string>
-    <string name="settings_mapbox_token_hint">Paste your Mapbox public token (pk.…)</string>
-    <string name="settings_mapbox_token_save">Save</string>
-    <string name="settings_mapbox_token_clear">Clear</string>
     <string name="settings_section_screen">Screen</string>
     <string name="settings_subheader_glass">Glass</string>
     <string name="settings_group_glass_blur">Blur radius</string>
@@ -352,12 +343,6 @@
     <string name="settings_map_terrain_desc">3D elevation relief (Mapterhorn). Adds tile downloads; heavier on low-end GPUs.</string>
     <string name="settings_map_backend">Map provider</string>
     <string name="settings_map_backend_osm">OpenStreetMap</string>
-    <string name="settings_map_backend_mapbox">Mapbox (requires access token)</string>
-    <string name="settings_mapbox_style">Mapbox style</string>
-    <string name="settings_mapbox_style_standard">Standard</string>
-    <string name="settings_mapbox_style_satellite">Satellite</string>
-    <string name="settings_mapbox_style_streets">Streets</string>
-    <string name="settings_mapbox_traffic">Traffic overlay</string>
     <string name="settings_map_accent_osm_only_note">Accent recolor applies to OpenStreetMap only</string>
     <string name="settings_map_backend_googlemaps">Google Maps (requires API key)</string>
     <string name="settings_google_maps_key">Google Maps API key</string>

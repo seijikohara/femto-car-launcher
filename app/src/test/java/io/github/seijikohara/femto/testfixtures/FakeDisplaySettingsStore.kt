@@ -18,7 +18,6 @@ import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapStyleSetting
-import io.github.seijikohara.femto.data.display.MapboxStyle
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.display.OrientationSetting
 import io.github.seijikohara.femto.data.display.SpeedUnitSetting
@@ -133,12 +132,6 @@ internal class FakeDisplaySettingsStore(
     override suspend fun setMusicShowArt(value: Boolean) = state.update { it.copy(musicShowArt = value) }
 
     override suspend fun setMapBackend(value: MapBackend) = state.update { it.copy(mapBackend = value) }
-
-    override suspend fun setMapboxStyle(value: MapboxStyle) = state.update { it.copy(mapboxStyle = value) }
-
-    override suspend fun setMapboxTraffic(value: Boolean) = state.update { it.copy(mapboxTraffic = value) }
-
-    override suspend fun setMapboxAccessToken(value: String) = state.update { it.copy(mapboxAccessToken = value) }
 
     override suspend fun setGoogleMapsApiKey(value: String) = state.update { it.copy(googleMapsApiKey = value) }
 
@@ -327,18 +320,6 @@ internal class FakeDisplaySettingsStore(
 
             DisplayPreferences.MAP_BACKEND_KEY -> {
                 copy(mapBackend = default.mapBackend)
-            }
-
-            DisplayPreferences.MAPBOX_STYLE_KEY -> {
-                copy(mapboxStyle = default.mapboxStyle)
-            }
-
-            DisplayPreferences.MAPBOX_TRAFFIC_KEY -> {
-                copy(mapboxTraffic = default.mapboxTraffic)
-            }
-
-            DisplayPreferences.MAPBOX_ACCESS_TOKEN_KEY -> {
-                copy(mapboxAccessToken = default.mapboxAccessToken)
             }
 
             DisplayPreferences.GOOGLE_MAPS_API_KEY_KEY -> {

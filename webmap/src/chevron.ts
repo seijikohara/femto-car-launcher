@@ -3,7 +3,7 @@
 // brings the location to the chevron's spot, so the chevron stays put and the
 // map slides / rotates beneath it (car-nav style) instead of a geo-anchored
 // marker sliding to catch the eased camera. While the camera is detached
-// (free pan) the OSM/Mapbox backends swap to a geo-anchored clone built from
+// (free pan) the OSM backend swaps to a geo-anchored clone built from
 // the same element, so colour, ripple, and stale-greying stay identical.
 import { LOCATION_STALE_THRESHOLD_MS } from "./camera";
 
@@ -63,7 +63,7 @@ export function geoMarkerElement(chevron: ChevronHandles): HTMLElement {
 // in a tunnel): the host pushes a fix per update and goes quiet on loss, so
 // the page itself ages the last push. The .stale CSS class greyscales the
 // chevron and hides the ripple; the next fix clears it. [lastFixMs] reads the
-// backend's fix clock; [staleAlso] lets the OSM/Mapbox backends mirror the
+// backend's fix clock; [staleAlso] lets the OSM backend mirror the
 // state onto the geo-anchored clone shown while detached.
 export function startStaleTicker(
     chevron: ChevronHandles,

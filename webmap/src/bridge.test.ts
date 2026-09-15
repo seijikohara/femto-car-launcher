@@ -2,13 +2,13 @@ import { describe, expect, it } from "vite-plus/test";
 import { redactSecrets } from "./bridge";
 
 describe("redactSecrets", () => {
-    it("redacts a Mapbox access_token query value", () => {
+    it("redacts an access_token query value", () => {
         expect(
             redactSecrets(
-                "Failed to fetch https://api.mapbox.com/styles/v1/mapbox/standard?sdk=js-3.25.0&access_token=pk.abc.DEF-123",
+                "Failed to fetch https://tiles.example.com/styles/v1/standard?sdk=js-3.25.0&access_token=pk.abc.DEF-123",
             ),
         ).toBe(
-            "Failed to fetch https://api.mapbox.com/styles/v1/mapbox/standard?sdk=js-3.25.0&access_token=<redacted>",
+            "Failed to fetch https://tiles.example.com/styles/v1/standard?sdk=js-3.25.0&access_token=<redacted>",
         );
     });
 

@@ -5,7 +5,6 @@ import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapStyleSetting
-import io.github.seijikohara.femto.data.display.MapboxStyle
 
 // User-tunable map rendering config (derived from DisplaySettings): light/dark
 // style, oblique tilt, zoom, the user-picked backend, and the OSM-only feature
@@ -23,11 +22,6 @@ internal data class MapConfig(
     // a MapConfig field so the WebView host can branch page URL and bridge calls
     // without reaching into DisplaySettings.
     val backend: MapBackend = MapBackend.OSM,
-    // Mapbox-specific fields; ignored when backend != MAPBOX.
-    val mapboxStyle: MapboxStyle = MapboxStyle.STANDARD,
-    val mapboxTraffic: Boolean = false,
-    /** User-supplied Mapbox access token; empty when the user has not entered one. */
-    val mapboxToken: String = "",
     // Google Maps-specific fields; ignored when backend != GOOGLEMAPS.
     val googleMapsApiKey: String = "",
     val googleMapsMapId: String = "",

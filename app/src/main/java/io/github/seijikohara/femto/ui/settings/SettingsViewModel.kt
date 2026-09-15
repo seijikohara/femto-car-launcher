@@ -108,9 +108,6 @@ internal class SettingsViewModel(
                 musicShowAlbum = display.musicShowAlbum,
                 musicShowArt = display.musicShowArt,
                 mapBackend = display.mapBackend,
-                mapboxStyle = display.mapboxStyle,
-                mapboxTraffic = display.mapboxTraffic,
-                mapboxAccessToken = display.mapboxAccessToken,
                 googleMapsApiKey = display.googleMapsApiKey,
                 googleMapsMapId = display.googleMapsMapId,
                 googleMapsRendering = display.googleMapsRendering,
@@ -357,25 +354,6 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetMapBackend -> {
                     displayPreferences.setMapBackend(action.value)
-                }
-
-                is SettingsAction.SetMapboxStyle -> {
-                    displayPreferences.setMapboxStyle(action.value)
-                }
-
-                is SettingsAction.SetMapboxTraffic -> {
-                    displayPreferences.setMapboxTraffic(action.value)
-                }
-
-                is SettingsAction.SaveMapboxToken -> {
-                    // Token first, then backend, in this one coroutine: the gate
-                    // never observes backend=MAPBOX with a blank token (no flicker).
-                    displayPreferences.setMapboxAccessToken(action.value.trim())
-                    displayPreferences.setMapBackend(MapBackend.MAPBOX)
-                }
-
-                SettingsAction.ClearMapboxToken -> {
-                    displayPreferences.setMapboxAccessToken("")
                 }
 
                 is SettingsAction.SaveGoogleMapsKey -> {

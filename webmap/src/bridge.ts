@@ -38,8 +38,6 @@ declare global {
             label: string,
         ) => void;
         setFeatures: (buildings: boolean, terrain: boolean, buildingColor: string) => void;
-        // Mapbox only.
-        setMapboxStyle: (styleId: string, lightPreset: "day" | "night", traffic: boolean) => void;
         // Google Maps only.
         setGoogleMapsOptions: (mapType: string, traffic: boolean) => void;
         // Callback the Google Maps JS API invokes when authentication fails;
@@ -76,11 +74,11 @@ export interface PageReporter {
 const ERROR_REPORT_INTERVAL_MS = 10_000;
 
 // Credential query parameters ride the provider URLs inside error strings
-// (Mapbox appends the BYO access_token to style/tile URLs; Google appends
-// key). Redact them before a detail leaves the page: the host logs details
-// to logcat in EVERY build, and the debug notice prints them on screen. A
-// pk. public token is client-embedded by design, but a screenshot or a log
-// capture must not hand it out verbatim.
+// (Google appends the BYO key to its script and tile URLs; the pattern is
+// deliberately provider-agnostic). Redact them before a detail leaves the
+// page: the host logs details to logcat in EVERY build, and the debug notice
+// prints them on screen. A client-side key is embedded by design, but a
+// screenshot or a log capture must not hand it out verbatim.
 const SECRET_QUERY_PARAM = /([?&](?:access_token|api_?key|key|token)=)[^&#\s"']+/gi;
 
 export function redactSecrets(detail: string): string {
@@ -140,15 +138,14 @@ export function installGlobalErrorHooks(reporter: PageReporter): void {
 // Pending bridge calls recorded by the boot stubs so host pushes arriving
 // before the backend module has loaded are not silently dropped:
 // `onPageFinished` (which gates host pushes) fires when the entry module has
-// run, but the backend chunk behind the dynamic import — and the Mapbox UMD /
-// Google CDN loads inside it — resolve later. The stubs record the LATEST
+// run, but the backend chunk behind the dynamic import — and the Google CDN
+// load inside it — resolve later. The stubs record the LATEST
 // call per function; the backend module replays them after installing the
 // real implementations (each in its own push order).
 export interface PendingBridgeCalls {
     updateCamera: Parameters<Window["updateCamera"]> | null;
     setStyleUrl: Parameters<Window["setStyleUrl"]> | null;
     setFeatures: Parameters<Window["setFeatures"]> | null;
-    setMapboxStyle: Parameters<Window["setMapboxStyle"]> | null;
     setGoogleMapsOptions: Parameters<Window["setGoogleMapsOptions"]> | null;
     setFollow: boolean | null;
     setNorthUp: boolean | null;
@@ -160,7 +157,6 @@ export function installPendingStubs(): PendingBridgeCalls {
         updateCamera: null,
         setStyleUrl: null,
         setFeatures: null,
-        setMapboxStyle: null,
         setGoogleMapsOptions: null,
         setFollow: null,
         setNorthUp: null,
@@ -174,9 +170,6 @@ export function installPendingStubs(): PendingBridgeCalls {
     };
     window.setFeatures = (...a) => {
         pending.setFeatures = a;
-    };
-    window.setMapboxStyle = (...a) => {
-        pending.setMapboxStyle = a;
     };
     window.setGoogleMapsOptions = (...a) => {
         pending.setGoogleMapsOptions = a;
@@ -194,9 +187,8 @@ export function installPendingStubs(): PendingBridgeCalls {
 }
 
 // WebGL availability probe. Each backend applies its own policy: maplibre-gl 6
-// and mapbox-gl 3 both hard-require webgl2 and render nothing without it
-// (MapLibre dropped its WebGL 1 fallback in 6; mapbox-gl made webgl2 mandatory
-// in 3.0). A Google raster map needs no WebGL at all — its tiles are rendered
+// hard-requires webgl2 and renders nothing without it (MapLibre dropped its
+// WebGL 1 fallback in 6). A Google raster map needs no WebGL at all — its tiles are rendered
 // server-side — while a Google VECTOR map treats webgl2 as its bar too, but
 // degrades to raster instead of failing. One canvas per probe: a canvas locks to
 // its first context mode, so asking one canvas for webgl2 then webgl would

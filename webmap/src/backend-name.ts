@@ -2,7 +2,7 @@
 // index.html?backend=<name> (see mapPageUrl in WebMapView.kt — the value set
 // is a compatibility contract with the MapBackend enum). Pure and
 // DOM-independent so it is unit-testable.
-export const MAP_BACKENDS = ["osm", "mapbox", "googlemaps"] as const;
+export const MAP_BACKENDS = ["osm", "googlemaps"] as const;
 
 export type MapBackendName = (typeof MAP_BACKENDS)[number];
 

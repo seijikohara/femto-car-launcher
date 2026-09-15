@@ -48,15 +48,13 @@ WebView, which the screenshot harness cannot run (see
 The dashboard background is a full-bleed live map that follows the
 vehicle.
 
-- **Three map providers.** OpenStreetMap data rendered through the
+- **Two map providers.** OpenStreetMap data rendered through the
   keyless OpenFreeMap service works out of the box with no account and
-  no API key. A Mapbox provider (satellite imagery, real-time traffic,
-  Mapbox 3D styles) activates when the user enters a personal Mapbox
-  public access token in Settings → Map. A Google Maps provider
-  (roadmap, satellite, hybrid, and terrain map types with a traffic
-  overlay) activates the same way with a personal Google Maps Platform
-  API key. Usage of a paid provider bills the key owner's own account;
-  Femto Car Launcher adds no fees.
+  no API key. A Google Maps provider (roadmap, satellite, hybrid, and
+  terrain map types with a traffic overlay) activates when the user
+  enters a personal Google Maps Platform API key in Settings → Map.
+  Usage of the paid provider bills the key owner's own account; Femto
+  Car Launcher adds no fees.
 - **A car-navigation camera.** The camera follows the Global
   Positioning System (GPS) position with smooth easing, keeps the
   travel direction pointing up (heading-up), and offers a north-up
@@ -171,8 +169,8 @@ instruments.
   the chosen map provider, weather from MET Norway, and — only when the
   user configures a self-hosted geocoding host — reverse-geocoding
   queries; the default reverse geocoder runs on-device.
-- Mapbox tokens and Google Maps keys are entered by the user, stored
-  only on the device, and sent only to the matching provider.
+- Google Maps keys are entered by the user, stored only on the device,
+  and sent only to Google.
 - Notification access, when granted, is used solely to read and control
   the active media session for the now-playing card.
 - An in-app diagnostics report (Settings → System) summarises device
@@ -189,10 +187,8 @@ Install the APK by sideloading on the head unit or with
 is not planned at present; sideloading is the supported installation
 path. Android 13 or later is required.
 
-To enable the optional paid map providers in Settings → Map:
+To enable the optional paid map provider in Settings → Map:
 
-- **Mapbox** — enter a personal public access token (`pk.…`). The
-  token stores on-device; no build-time configuration exists.
 - **Google Maps** — enter a personal Google Maps Platform API key with
   the Maps JavaScript API enabled and an HTTP-referrer restriction
   allowing `https://appassets.androidplatform.net/*`. An optional Map

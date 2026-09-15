@@ -4,7 +4,6 @@ import { resolveBackend } from "./backend-name";
 describe("resolveBackend", () => {
     it("resolves each backend the host can request", () => {
         expect(resolveBackend("?backend=osm")).toBe("osm");
-        expect(resolveBackend("?backend=mapbox")).toBe("mapbox");
         expect(resolveBackend("?backend=googlemaps")).toBe("googlemaps");
     });
 
@@ -18,7 +17,14 @@ describe("resolveBackend", () => {
         expect(resolveBackend("?backend=")).toBe("osm");
     });
 
+    it("falls back to osm for the retired mapbox backend", () => {
+        // A host built before the Mapbox backend was removed never reaches this
+        // page, but the value is a retired name rather than an unknown one, so
+        // the fallback is pinned explicitly.
+        expect(resolveBackend("?backend=mapbox")).toBe("osm");
+    });
+
     it("ignores unrelated parameters around the backend", () => {
-        expect(resolveBackend("?a=1&backend=mapbox&b=2")).toBe("mapbox");
+        expect(resolveBackend("?a=1&backend=googlemaps&b=2")).toBe("googlemaps");
     });
 });

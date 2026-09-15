@@ -22,8 +22,7 @@ private const val WEBGL2_GL_ES_FLOOR = 0x30000
  * What the active map configuration loses without WebGL 2. Verified against each
  * vendor's own documentation rather than inferred:
  *
- *  - maplibre-gl 6 removed the WebGL 1 fallback, and mapbox-gl 3 made WebGL 2
- *    mandatory in its 3.0.0 breaking changes — neither renders without it.
+ *  - maplibre-gl 6 removed the WebGL 1 fallback — it renders nothing without it.
  *  - A Google VECTOR map (a Cloud Map ID) treats WebGL 2 as its bar too, but
  *    silently falls back to raster instead of failing: the map still draws, and
  *    only the vector opt-in (heading-up, tilt, 3D) is lost.
@@ -37,7 +36,7 @@ private fun webGl2Need(
     hasGoogleMapId: Boolean,
 ): WebGl2Need =
     when (backend) {
-        MapBackend.OSM, MapBackend.MAPBOX -> {
+        MapBackend.OSM -> {
             WebGl2Need.TO_RENDER
         }
 

@@ -28,7 +28,7 @@ class MapFactsTest {
     @Test
     fun `a WebGL 2 backend below the OpenGL ES floor warns that it cannot render`() {
         // The Android 13 CDD mandates only ES 2.0, so this device is compliant and
-        // still cannot host the WebGL 2 maplibre 6 and mapbox-gl 3 both require.
+        // still cannot host the WebGL 2 maplibre 6 requires.
         assertEquals(
             DiagnosticFact(
                 "WebGL 2",
@@ -39,11 +39,6 @@ class MapFactsTest {
             ),
             facts(glEsVersion = "2.0", backend = MapBackend.OSM).first(),
         )
-    }
-
-    @Test
-    fun `mapbox is judged the same as OSM`() {
-        assertEquals(FactHealth.WARNING, facts(glEsVersion = "2.0", backend = MapBackend.MAPBOX).first().health)
     }
 
     @Test

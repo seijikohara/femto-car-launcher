@@ -120,7 +120,7 @@ need the per-bump justification rule from
   automated signal.** There is no automated tile-rendering test —
   `pnpm run check` (type-check + the `webmap/` unit tests) only
   covers pure logic (camera math, style JSON), not what actually
-  paints. After any `maplibre-gl` (or `mapbox-gl`) major bump,
+  paints. After any `maplibre-gl` major bump,
   manually verify the map still renders real tiles, ideally on a
   physical device — the `verify-on-emulator` skill's own "Known
   limitation" section explains why the emulator's GLES translator

@@ -1,6 +1,6 @@
 // Entry module of the single map page (index.html) hosted in the launcher's
 // WebView — see WebMapView.kt for the host side of every contract here. The
-// host selects the backend with index.html?backend=<osm|mapbox|googlemaps>;
+// host selects the backend with index.html?backend=<osm|googlemaps>;
 // this module resolves it, installs the bridge stubs and global error hooks
 // synchronously (so `onPageFinished` on the Kotlin side can push state
 // immediately — the stubs buffer the latest call per function), then
@@ -17,11 +17,6 @@ const pending = installPendingStubs();
 
 const loadBackend = async (): Promise<void> => {
     switch (backend) {
-        case "mapbox": {
-            const mod = await import("./backends/mapbox");
-            mod.init(reporter, pending);
-            return;
-        }
         case "googlemaps": {
             const mod = await import("./backends/googlemaps");
             await mod.init(reporter, pending);
