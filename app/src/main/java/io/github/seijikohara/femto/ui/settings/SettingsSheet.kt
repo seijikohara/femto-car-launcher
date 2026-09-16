@@ -36,7 +36,7 @@ internal fun SettingsSheet(
     onOpenFontPicker: (FontSlot) -> Unit,
     onOpenDiagnostics: () -> Unit,
     onOpenLicenses: () -> Unit,
-    onOpenPrivacyPolicy: () -> Unit,
+    onOpenDocument: (SettingsDocument) -> Unit,
     onDismiss: () -> Unit,
     fullscreen: Boolean,
     modifier: Modifier = Modifier,
@@ -65,7 +65,7 @@ internal fun SettingsSheet(
                 onOpenFontPicker = onOpenFontPicker,
                 onOpenDiagnostics = onOpenDiagnostics,
                 onOpenLicenses = onOpenLicenses,
-                onOpenPrivacyPolicy = onOpenPrivacyPolicy,
+                onOpenDocument = onOpenDocument,
             )
         }
     }

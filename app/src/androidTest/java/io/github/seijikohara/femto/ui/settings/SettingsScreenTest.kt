@@ -35,6 +35,8 @@ class SettingsScreenTest {
     private val darkLabel = context.getString(R.string.settings_theme_dark)
     private val showSecondsLabel = context.getString(R.string.settings_group_clock_seconds)
     private val tealAccentLabel = context.getString(R.string.settings_accent_teal)
+    private val privacyPolicyLabel = context.getString(R.string.settings_open_privacy)
+    private val termsLabel = context.getString(R.string.settings_open_terms)
     private val resetLabel = context.getString(R.string.settings_reset_to_defaults)
     private val resetConfirmLabel = context.getString(R.string.settings_reset_confirm)
     private val resetDockLabel = context.getString(R.string.settings_reset_dock)
@@ -61,7 +63,8 @@ class SettingsScreenTest {
     private val googleMapsMapIdSaveLabel = context.getString(R.string.settings_google_maps_map_id_save)
     private val googleMapsMapIdClearLabel = context.getString(R.string.settings_google_maps_map_id_clear)
     private val accentOsmOnlyNoteLabel = context.getString(R.string.settings_map_accent_osm_only_note)
-    private val mapRenderingSubheaderLabel = context.getString(R.string.settings_subheader_map_rendering)
+    private val mapBuildings3dLabel = context.getString(R.string.settings_group_map_3d)
+    private val mapTerrainLabel = context.getString(R.string.settings_group_map_terrain)
 
     @Test
     fun renders_fullscreen_row() {
@@ -122,6 +125,15 @@ class SettingsScreenTest {
         rule.onNodeWithText(themeLabel).performClick()
         rule.onNodeWithText(darkLabel).performClick()
         assertEquals(listOf(SettingsAction.SetThemeMode(ThemeMode.DARK)), actions)
+    }
+
+    @Test
+    fun system_rows_open_the_privacy_policy_and_the_terms() {
+        val documents = mutableListOf<SettingsDocument>()
+        setScreen(onOpenDocument = { documents += it }, category = R.string.settings_group_system)
+        rule.onNodeWithText(privacyPolicyLabel).performScrollTo().performClick()
+        rule.onNodeWithText(termsLabel).performScrollTo().performClick()
+        assertEquals(listOf(SettingsDocument.PRIVACY_POLICY, SettingsDocument.TERMS), documents)
     }
 
     @Test
@@ -282,10 +294,12 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun map_rendering_subheader_hidden_for_non_osm_backend() {
-        // The Rendering subheader (3D Buildings / Terrain) only applies to the OSM
-        // backend; Google Maps manages its own layer stack, so neither the header
-        // nor its switches should appear once a non-OSM backend is selected.
+    fun map_rendering_switches_hidden_for_non_osm_backend() {
+        // The OSM Rendering group (3D buildings / Terrain) only applies to the OSM
+        // backend; Google Maps manages its own layer stack, so those switches must
+        // not appear once a non-OSM backend is selected. Asserted on the switch
+        // titles, not the "Rendering" subheader: the Google block has a Rendering
+        // row of its own, so the header text alone is ambiguous.
         setScreen(
             uiState =
                 SettingsUiState.Initial.copy(
@@ -294,7 +308,8 @@ class SettingsScreenTest {
                 ),
             category = R.string.settings_section_map,
         )
-        rule.onNodeWithText(mapRenderingSubheaderLabel).assertDoesNotExist()
+        rule.onNodeWithText(mapBuildings3dLabel).assertDoesNotExist()
+        rule.onNodeWithText(mapTerrainLabel).assertDoesNotExist()
     }
 
     @Test
@@ -526,6 +541,7 @@ class SettingsScreenTest {
     private fun setScreen(
         uiState: SettingsUiState = SettingsUiState.Initial,
         onAction: (SettingsAction) -> Unit = {},
+        onOpenDocument: (SettingsDocument) -> Unit = {},
         darkTheme: Boolean = false,
         // The category to navigate to right after composing, or null to leave the
         // screen on its initial state (the wide rail's default selection / the
@@ -543,7 +559,7 @@ class SettingsScreenTest {
                     onOpenFontPicker = {},
                     onOpenDiagnostics = {},
                     onOpenLicenses = {},
-                    onOpenPrivacyPolicy = {},
+                    onOpenDocument = { onOpenDocument(it) },
                 )
             }
         }

@@ -32,6 +32,7 @@ import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.ui.home.components.isTileHostUrl
 import io.github.seijikohara.femto.ui.settings.SettingsAction
+import io.github.seijikohara.femto.ui.settings.SettingsDocument
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 
@@ -49,6 +50,7 @@ private const val MAX_MAP_MARKER_POS = 100
 internal fun MapSection(
     uiState: SettingsUiState,
     onAction: (SettingsAction) -> Unit,
+    onOpenDocument: (SettingsDocument) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showGoogleKeyDialog by remember { mutableStateOf(false) }
@@ -128,6 +130,14 @@ internal fun MapSection(
                 ) {
                     TrailingIcon(Lucide.ChevronRight)
                 }
+                // The key hint says in-vehicle use is subject to these terms; the
+                // row makes them readable before a billing account is attached,
+                // rather than leaving the reader to search for them.
+                ActionRow(
+                    title = stringResource(R.string.settings_google_maps_terms),
+                    summary = stringResource(R.string.settings_google_maps_terms_summary),
+                    onClick = { onOpenDocument(SettingsDocument.GOOGLE_MAPS_PLATFORM_TERMS) },
+                )
                 Text(
                     text = stringResource(R.string.settings_map_accent_osm_only_note),
                     style = MaterialTheme.typography.bodyMedium,

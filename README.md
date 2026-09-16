@@ -54,7 +54,11 @@ vehicle.
   terrain map types with a traffic overlay) activates when the user
   enters a personal Google Maps Platform API key in Settings → Map.
   Usage of the paid provider bills the key owner's own account; Femto
-  Car Launcher adds no fees.
+  Car Launcher adds no fees. The Google Maps provider is not offered in
+  the territories on Google's
+  [Prohibited Territories](https://cloud.google.com/maps-platform/terms/maps-prohibited-territories)
+  list; see [TERMS.md](TERMS.md). The default OpenStreetMap provider is
+  unaffected.
 - **A car-navigation camera.** The camera follows the Global
   Positioning System (GPS) position with smooth easing, keeps the
   travel direction pointing up (heading-up), and offers a north-up
@@ -169,13 +173,16 @@ instruments.
   the chosen map provider, weather from MET Norway, and — only when the
   user configures a self-hosted geocoding host — reverse-geocoding
   queries; the default reverse geocoder runs on-device.
-- Google Maps keys are entered by the user, stored only on the device,
-  and sent only to Google.
+- Google Maps keys are entered by the user, are sent only to Google, and
+  stay on the device apart from the user's own Android settings backup and
+  device transfer — see [PRIVACY.md](PRIVACY.md).
 - Notification access, when granted, is used solely to read and control
   the active media session for the now-playing card.
 - An in-app diagnostics report (Settings → System) summarises device
   and runtime facts for troubleshooting, and the open-source licenses
   screen lists every bundled third-party component.
+- The app's own terms are in [TERMS.md](TERMS.md), reachable in-app from
+  Settings → System → Terms.
 
 ## Installation
 
