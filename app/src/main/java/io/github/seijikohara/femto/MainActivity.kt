@@ -66,6 +66,7 @@ import io.github.seijikohara.femto.ui.home.components.MapConfig
 import io.github.seijikohara.femto.ui.home.components.PanelVisibility
 import io.github.seijikohara.femto.ui.licenses.LicensesSheet
 import io.github.seijikohara.femto.ui.locale.resolved
+import io.github.seijikohara.femto.ui.settings.SettingsDocument
 import io.github.seijikohara.femto.ui.settings.SettingsSheet
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.buildFontFamily
@@ -319,7 +320,7 @@ class MainActivity : ComponentActivity() {
                             onOpenFontPicker = { fontPickerSlot = it },
                             onOpenDiagnostics = { showDiagnostics = true },
                             onOpenLicenses = { showLicenses = true },
-                            onOpenPrivacyPolicy = ::openPrivacyPolicy,
+                            onOpenDocument = ::openSettingsDocument,
                             onDismiss = { showSettings = false },
                             fullscreen = fullscreen,
                         )
@@ -537,9 +538,15 @@ class MainActivity : ComponentActivity() {
         tryStartActivity(intent)
     }
 
-    private fun openPrivacyPolicy() {
+    private fun openSettingsDocument(document: SettingsDocument) {
+        val url =
+            when (document) {
+                SettingsDocument.PRIVACY_POLICY -> PRIVACY_POLICY_URL
+                SettingsDocument.TERMS -> TERMS_URL
+                SettingsDocument.GOOGLE_MAPS_PLATFORM_TERMS -> GOOGLE_MAPS_PLATFORM_TERMS_URL
+            }
         val intent =
-            Intent(Intent.ACTION_VIEW, PRIVACY_POLICY_URL.toUri())
+            Intent(Intent.ACTION_VIEW, url.toUri())
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         tryStartActivity(intent)
     }
@@ -710,6 +717,14 @@ private const val QEMU_PROPERTY = "ro.kernel.qemu"
 // without dropping below neighbourhood context.
 private const val MAPS_ZOOM_LEVEL = 15
 
-// Hosted privacy policy (PRIVACY.md rendered on GitHub); also set as the Play
-// listing privacy-policy URL. Opened from Settings -> System -> Privacy policy.
+// The project's own documents, rendered on GitHub: the privacy policy
+// (Settings -> System -> Privacy policy) and the application's terms of service
+// (Settings -> System -> Terms), which carry the notices Google Maps Platform
+// requires of a Customer Application's terms.
 private const val PRIVACY_POLICY_URL = "https://github.com/seijikohara/femto-car-launcher/blob/main/PRIVACY.md"
+private const val TERMS_URL = "https://github.com/seijikohara/femto-car-launcher/blob/main/TERMS.md"
+
+// Google's own Maps Platform terms, linked from the API-key row so the person
+// who attaches a billing account can read the restrictions that bind their use
+// of the key before entering it.
+private const val GOOGLE_MAPS_PLATFORM_TERMS_URL = "https://cloud.google.com/maps-platform/terms"

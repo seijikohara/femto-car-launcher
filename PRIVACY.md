@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Effective date: 2026-09-15**
+**Effective date: 2026-09-16**
 
 Femto Car Launcher ("the app") is an Android home launcher. This policy explains
 what data the app accesses, why, and who it is shared with. The app does **not**
@@ -44,8 +44,10 @@ coordinates to the following services, governed by their own privacy policies:
   Platform API key in Settings to enable the Google Maps map backend, location
   coordinates are sent to Google (`maps.googleapis.com`) to render the map, satellite
   imagery, and traffic via the Google Maps JavaScript API. Your API key is stored
-  on-device only; the Google Maps JS API loaded in the WebView uses it to fetch map
-  data directly from Google. This data is governed by the
+  in the app's settings on the device and, like the rest of those settings, is
+  included in Android's backup and device transfer for your own account (see
+  "Backup"); it is sent to no one but Google. The Google Maps JS API loaded in the WebView uses it to fetch
+  map data directly from Google. This data is governed by the
   [Google privacy policy](https://policies.google.com/privacy), and your use of your
   own key is subject to the
   [Google Maps Platform Terms of Service](https://cloud.google.com/maps-platform/terms).
@@ -82,6 +84,14 @@ Android Auto Backup may copy app settings to your Google account. Location-relat
 settings and the recorded trip track are **excluded** from backup and device
 transfer, so neither your position history nor your location settings is copied
 off the device.
+
+Your Google Maps Platform API key, if you enter one, lives in the app settings and
+is therefore **included** in both that backup and a device-to-device transfer.
+This is deliberate: it is a client-side key designed to live in distributed
+applications, it is your key in your own account's backup, and keeping it there
+means a replacement head unit restores the map without re-entry. If you would
+rather it were not copied, clear it in **Settings → Map** before a backup or a
+transfer runs, or turn off backup for the app in Android's settings.
 
 ## Children
 

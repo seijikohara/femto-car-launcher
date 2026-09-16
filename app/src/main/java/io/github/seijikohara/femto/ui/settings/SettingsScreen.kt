@@ -64,7 +64,7 @@ internal fun SettingsScreen(
     onOpenFontPicker: (FontSlot) -> Unit,
     onOpenDiagnostics: () -> Unit,
     onOpenLicenses: () -> Unit,
-    onOpenPrivacyPolicy: () -> Unit,
+    onOpenDocument: (SettingsDocument) -> Unit,
     modifier: Modifier = Modifier,
 ) = Surface(
     modifier = modifier.fillMaxSize(),
@@ -90,7 +90,7 @@ internal fun SettingsScreen(
                 onOpenNotificationAccess = onOpenNotificationAccess,
                 onOpenDiagnostics = onOpenDiagnostics,
                 onOpenLicenses = onOpenLicenses,
-                onOpenPrivacyPolicy = onOpenPrivacyPolicy,
+                onOpenDocument = onOpenDocument,
             )
         // Hoisted here (not the ViewModel): which category is showing is pure
         // navigation state, not a persisted setting. rememberSaveable keeps it
@@ -207,7 +207,7 @@ private fun settingsCategoryEntries(
     onOpenNotificationAccess: () -> Unit,
     onOpenDiagnostics: () -> Unit,
     onOpenLicenses: () -> Unit,
-    onOpenPrivacyPolicy: () -> Unit,
+    onOpenDocument: (SettingsDocument) -> Unit,
 ): List<SettingsCategoryEntry> =
     listOf(
         SettingsCategoryEntry(SettingsCategoryId.APPEARANCE) {
@@ -220,7 +220,7 @@ private fun settingsCategoryEntries(
             UnitsSection(uiState = uiState, onAction = onAction)
         },
         SettingsCategoryEntry(SettingsCategoryId.MAP) {
-            MapSection(uiState = uiState, onAction = onAction)
+            MapSection(uiState = uiState, onAction = onAction, onOpenDocument = onOpenDocument)
         },
         SettingsCategoryEntry(SettingsCategoryId.LOCATION) {
             LocationSection(uiState = uiState, onAction = onAction)
@@ -235,7 +235,7 @@ private fun settingsCategoryEntries(
                 onOpenSystemSettings = onOpenSystemSettings,
                 onOpenDiagnostics = onOpenDiagnostics,
                 onOpenLicenses = onOpenLicenses,
-                onOpenPrivacyPolicy = onOpenPrivacyPolicy,
+                onOpenDocument = onOpenDocument,
             )
         },
     )
@@ -253,7 +253,7 @@ private fun SettingsScreenPreview() {
             onOpenFontPicker = {},
             onOpenDiagnostics = {},
             onOpenLicenses = {},
-            onOpenPrivacyPolicy = {},
+            onOpenDocument = {},
         )
     }
 }

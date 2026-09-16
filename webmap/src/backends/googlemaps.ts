@@ -227,10 +227,13 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // heading-up rotation + tilt, RASTER is flat and north-up. Seeded from
         // the request and corrected from getRenderingType() once tiles land.
         isVector: wantsVector,
-        // Set to true on the first tilesloaded event; gates fatal error
-        // reporting (errors after first render are transient, not key/auth
-        // failures).
+        // Set to true on the first tilesloaded event; de-dupes that handler,
+        // which fires on every tile batch.
         rendered: false,
+        // One-shot latch for the auth fatal: gm_authFailure fires per rejected
+        // request, and the host counts every fatal it is told about, so a single
+        // dead key must not inflate the diagnostics failure count.
+        authFailed: false,
         following: true,
         refollowTimer: 0 as ReturnType<typeof setTimeout> | 0,
         // North-up vs heading-up; only meaningful on a VECTOR map (a raster
@@ -276,12 +279,22 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
 
     // gm_authFailure is Google's global hook for invalid/revoked API keys.
     // Install it before the loader fetches the API so it is in place before
-    // any authentication attempt. Only report fatal before the first
-    // successful render — errors after that are transient, not a permanent
-    // key failure.
+    // any authentication attempt. Reported fatal whether or not the map has
+    // already rendered: unlike a dropped tile, this hook fires only when
+    // Google rejects the key, and a key suspended or unfunded mid-drive
+    // otherwise leaves a frozen map with nothing on screen to explain it.
+    //
+    // The host's notice names the key as the thing to check and its retry
+    // budget bounds the reloads that follow — but the budget is refunded on
+    // every offline->online edge, so a flapping link can restart the ladder.
+    // That is the accepted cost of reporting it: a rate-limited key (which is
+    // one way to reach this hook) can now tear down a map that was rendering.
+    // The latch keeps one dead key from being counted as many failures.
     window.gm_authFailure = () => {
         log("gm_authFailure");
-        if (!state.rendered) report("fatal", "google-maps-auth");
+        if (state.authFailed) return;
+        state.authFailed = true;
+        report("fatal", "google-maps-auth");
     };
 
     // Load the Maps JS API from Google's CDN through the official loader
@@ -550,9 +563,8 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         });
     }
 
-    // First tilesloaded marks the map as rendered. The flag also closes the
-    // gm_authFailure fatal path (an auth failure can only arrive before the
-    // first render). Log to console for diagnostics; the host detects
+    // First tilesloaded marks the map as rendered. Log to console for
+    // diagnostics; the host detects
     // readiness via onPageFinished, not a bridge event. Detach immediately;
     // the event fires repeatedly. google.maps.Map emits no general "error"
     // event, so the only fatal paths are the missing-key check,

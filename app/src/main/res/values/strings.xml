@@ -364,6 +364,8 @@
     <string name="settings_google_maps_map_id_hint">Optional. Enter a Map ID created in your Google Cloud console (Map Management) for cloud styling and advanced markers. It does not control raster vs vector — the Rendering setting above does, except on Automatic, where the map ID\'s cloud configuration decides.</string>
     <string name="settings_google_maps_map_id_save">Save</string>
     <string name="settings_google_maps_map_id_clear">Clear</string>
+    <string name="settings_google_maps_terms">Google Maps Platform terms</string>
+    <string name="settings_google_maps_terms_summary">Read the terms your own key is used under, including the restrictions on in-vehicle use</string>
     <string name="settings_google_maps_rendering">Rendering</string>
     <string name="settings_google_maps_rendering_auto">Automatic</string>
     <string name="settings_google_maps_rendering_raster">Raster</string>
@@ -432,6 +434,7 @@
     <string name="settings_open_diagnostics">Diagnostics</string>
     <string name="settings_open_licenses">Open source licenses</string>
     <string name="settings_open_privacy">Privacy policy</string>
+    <string name="settings_open_terms">Terms</string>
 
     <!-- Diagnostics sheet. Section titles and UI chrome are localized; fact
          labels and values render the model's raw English tokens (the report's

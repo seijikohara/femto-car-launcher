@@ -6,6 +6,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.ui.settings.SettingsAction
+import io.github.seijikohara.femto.ui.settings.SettingsDocument
 
 // The System category's rows: action links plus the global reset. Unlike the
 // other categories, System has no SettingsSectionId of its own (see
@@ -18,7 +19,7 @@ internal fun SystemSection(
     onOpenSystemSettings: () -> Unit,
     onOpenDiagnostics: () -> Unit,
     onOpenLicenses: () -> Unit,
-    onOpenPrivacyPolicy: () -> Unit,
+    onOpenDocument: (SettingsDocument) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier) {
     ActionRow(
@@ -39,7 +40,11 @@ internal fun SystemSection(
     )
     ActionRow(
         title = stringResource(R.string.settings_open_privacy),
-        onClick = onOpenPrivacyPolicy,
+        onClick = { onOpenDocument(SettingsDocument.PRIVACY_POLICY) },
+    )
+    ActionRow(
+        title = stringResource(R.string.settings_open_terms),
+        onClick = { onOpenDocument(SettingsDocument.TERMS) },
     )
     ResetRow(onConfirm = { onAction(SettingsAction.ResetToDefaults) })
 }
