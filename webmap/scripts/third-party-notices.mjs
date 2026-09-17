@@ -20,10 +20,19 @@ const args = ["licenses", "list", "--prod", "--json"];
 
 // Under `pnpm run` the running package manager is reachable through
 // npm_execpath; a bare invocation falls back to whatever pnpm is on PATH.
-const listingJson =
-    process.env.npm_execpath === undefined
-        ? execFileSync("pnpm", args, { encoding: "utf8" })
-        : execFileSync(process.execPath, [process.env.npm_execpath, ...args], { encoding: "utf8" });
+// pnpm 12+ is a native executable and reports itself there, while earlier
+// releases (and Corepack shims) report a JavaScript entry point that only
+// Node can run, so the extension decides how to launch it.
+const runPnpm = () => {
+    const execPath = process.env.npm_execpath;
+    if (execPath === undefined) {
+        return execFileSync("pnpm", args, { encoding: "utf8" });
+    }
+    return /\.[cm]?js$/u.test(execPath)
+        ? execFileSync(process.execPath, [execPath, ...args], { encoding: "utf8" })
+        : execFileSync(execPath, args, { encoding: "utf8" });
+};
+const listingJson = runPnpm();
 
 // `pnpm licenses list` groups packages by licence id; flatten to one row per
 // package, keyed on the group's id.
