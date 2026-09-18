@@ -260,6 +260,7 @@ class MainActivity : ComponentActivity() {
                             googleMapsMapType = settings.googleMapsMapType,
                             googleMapsTraffic = settings.googleMapsTraffic,
                             tileHostOverride = settings.mapTileHost,
+                            customStyleUrl = settings.mapCustomStyleUrl,
                         ),
                     panels =
                         PanelVisibility(

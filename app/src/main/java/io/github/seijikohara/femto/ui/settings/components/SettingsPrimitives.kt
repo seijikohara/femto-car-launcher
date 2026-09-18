@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -508,3 +509,67 @@ private fun Modifier.clipClickable(onClick: () -> Unit): Modifier =
     this
         .clip(RoundedCornerShape(percent = 50))
         .clickable(onClick = onClick)
+
+// Whether a typed value is a URL the map WebView can actually load. A bare
+// hostname would resolve against the page's own appassets origin and an http one
+// is blocked by the WebView's mixed-content policy; both surface as a blank map
+// long after the dialog is gone, so the dialogs refuse them up front.
+internal fun isHttpsUrl(value: String): Boolean = HTTPS_URL_PATTERN.matches(value.trim())
+
+private val HTTPS_URL_PATTERN = Regex("""^https://[^\s/]+(/\S*)?$""")
+
+// The entry dialog for a single https URL setting (the tile host, the custom
+// style URL): a hint, one field that flags anything but an https URL, Save
+// enabled only for a valid one, and a clear action that restores the default.
+// The field is not a password field on purpose — a URL is checked by reading
+// it — so a key it carries is visible while the dialog is open; the row summary
+// behind it is what stays masked.
+@Composable
+internal fun HttpsUrlDialog(
+    title: String,
+    hint: String,
+    initialValue: String,
+    saveLabel: String,
+    clearLabel: String,
+    onSave: (String) -> Unit,
+    onClear: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var draft by remember { mutableStateOf(initialValue) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = hint,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    singleLine = true,
+                    isError = draft.isNotBlank() && !isHttpsUrl(draft),
+                    label = { Text(title) },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = isHttpsUrl(draft),
+                onClick = { onSave(draft) },
+                modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
+            ) { Text(saveLabel) }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onClear,
+                modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
+            ) { Text(clearLabel) }
+        },
+    )
+}

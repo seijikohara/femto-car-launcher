@@ -72,10 +72,20 @@ Every backend supplies its own authoritative credit (never overlay
 one backend's onto another), and it sits in the **bottom-left**
 corner wherever the backend's own ToS permits:
 
-- **OSM/MapLibre**: the page renders no library attribution/logo;
-  a native Compose `Attribution()` overlay draws the credit at
-  `Alignment.BottomStart` (gated to OSM only via
+- **OSM/MapLibre, default provider**: the page renders no library
+  attribution/logo; a native Compose `Attribution()` overlay draws
+  the credit at `Alignment.BottomStart` (gated via
   `showsNativeAttribution`).
+- **OSM/MapLibre, custom style URL**: the host cannot know what a
+  user-supplied style draws on, so the native overlay is hidden and
+  the page adds MapLibre's `AttributionControl` (bottom-left,
+  non-compact — the credit must be readable, not folded behind an
+  info button), which renders the `attribution` each source
+  declares. `setStyleUrl`'s trailing flag carries the decision from
+  `showsNativeAttribution`; the `page-attribution` class on `<body>`
+  lifts the CSS that hides the control otherwise. Attribution links
+  open in the system browser (`shouldOverrideUrlLoading`), never in
+  the map WebView.
 - **Google Maps**: the **one exception**. The Maps JS API fixes the
   Google logo bottom-left but the copyright / ToS text bottom-right
   and exposes no supported way to relocate either; the split stays

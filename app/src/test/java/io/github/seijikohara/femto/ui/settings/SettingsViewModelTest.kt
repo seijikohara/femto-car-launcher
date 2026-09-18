@@ -514,6 +514,19 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `SetMapCustomStyleUrl persists the trimmed url and ClearMapCustomStyleUrl blanks it`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.SetMapCustomStyleUrl("  https://example.test/style.json?key=k  "))
+            advanceUntilIdle()
+            assertEquals("https://example.test/style.json?key=k", store.settings.first().mapCustomStyleUrl)
+
+            vm.onAction(SettingsAction.ClearMapCustomStyleUrl)
+            advanceUntilIdle()
+            assertEquals("", store.settings.first().mapCustomStyleUrl)
+        }
+
+    @Test
     fun `available calendars and hidden set surface and SetCalendarHidden toggles`() =
         runTest(dispatcher) {
             val calendarPrefs = FakeCalendarPreferencesStore()

@@ -30,7 +30,6 @@ import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MapBackend
-import io.github.seijikohara.femto.ui.home.components.isTileHostUrl
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsDocument
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
@@ -290,48 +289,21 @@ internal fun MapSection(
         )
     }
     if (showTileHostDialog) {
-        var draft by remember { mutableStateOf(uiState.mapTileHost) }
-        AlertDialog(
-            onDismissRequest = { showTileHostDialog = false },
-            title = { Text(stringResource(R.string.settings_map_tile_host)) },
-            text = {
-                Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_map_tile_host_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    OutlinedTextField(
-                        value = draft,
-                        onValueChange = { draft = it },
-                        singleLine = true,
-                        isError = draft.isNotBlank() && !isTileHostUrl(draft),
-                        label = { Text(stringResource(R.string.settings_map_tile_host)) },
-                    )
-                }
+        HttpsUrlDialog(
+            title = stringResource(R.string.settings_map_tile_host),
+            hint = stringResource(R.string.settings_map_tile_host_hint),
+            initialValue = uiState.mapTileHost,
+            saveLabel = stringResource(R.string.settings_map_tile_host_save),
+            clearLabel = stringResource(R.string.settings_map_tile_host_clear),
+            onSave = {
+                onAction(SettingsAction.SetMapTileHost(it))
+                showTileHostDialog = false
             },
-            confirmButton = {
-                TextButton(
-                    enabled = isTileHostUrl(draft),
-                    onClick = {
-                        onAction(SettingsAction.SetMapTileHost(draft))
-                        showTileHostDialog = false
-                    },
-                    modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
-                ) { Text(stringResource(R.string.settings_map_tile_host_save)) }
+            onClear = {
+                onAction(SettingsAction.ClearMapTileHost)
+                showTileHostDialog = false
             },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        onAction(SettingsAction.ClearMapTileHost)
-                        showTileHostDialog = false
-                    },
-                    modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
-                ) { Text(stringResource(R.string.settings_map_tile_host_clear)) }
-            },
+            onDismiss = { showTileHostDialog = false },
         )
     }
 }

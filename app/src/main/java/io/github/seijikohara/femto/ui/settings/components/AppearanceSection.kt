@@ -17,6 +17,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,6 +29,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
+import com.composables.icons.lucide.ChevronRight
+import com.composables.icons.lucide.Lucide
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.MapBackend
@@ -107,6 +114,7 @@ internal fun AppearanceSection(
                         MapColorScheme.POSITRON to stringResource(R.string.settings_map_scheme_positron),
                         MapColorScheme.BRIGHT to stringResource(R.string.settings_map_scheme_bright),
                         MapColorScheme.LIBERTY to stringResource(R.string.settings_map_scheme_liberty),
+                        MapColorScheme.CUSTOM to stringResource(R.string.settings_map_scheme_custom),
                     ),
                 selected = uiState.mapSchemeLight,
                 onSelect = { onAction(SettingsAction.SetMapSchemeLight(it)) },
@@ -122,9 +130,46 @@ internal fun AppearanceSection(
                             stringResource(R.string.settings_map_scheme_dark_matter),
                         MapColorScheme.DARK to stringResource(R.string.settings_map_scheme_dark),
                         MapColorScheme.FIORD to stringResource(R.string.settings_map_scheme_fiord),
+                        MapColorScheme.CUSTOM to stringResource(R.string.settings_map_scheme_custom),
                     ),
                 selected = uiState.mapSchemeDark,
                 onSelect = { onAction(SettingsAction.SetMapSchemeDark(it)) },
+            )
+        }
+        // The one URL both CUSTOM choices load. Shown while a VISIBLE scheme
+        // row is on CUSTOM so the field sits right under the choice that needs
+        // it — a stale CUSTOM on the side the Match setting hides must not
+        // leave a Style URL row with no choice above it. The dialog is a
+        // sibling of the rows, as in MapSection.
+        var showStyleUrlDialog by remember { mutableStateOf(false) }
+        val customSelected =
+            (uiState.mapStyle != MapStyleSetting.DARK && uiState.mapSchemeLight == MapColorScheme.CUSTOM) ||
+                (uiState.mapStyle != MapStyleSetting.LIGHT && uiState.mapSchemeDark == MapColorScheme.CUSTOM)
+        AnimatedVisibility(visible = customSelected) {
+            SettingRow(
+                title = stringResource(R.string.settings_map_custom_style_url),
+                summary = mapCustomStyleUrlSummary(uiState.mapCustomStyleUrl),
+                modifier = Modifier.clickable { showStyleUrlDialog = true },
+            ) {
+                TrailingIcon(Lucide.ChevronRight)
+            }
+        }
+        if (showStyleUrlDialog) {
+            HttpsUrlDialog(
+                title = stringResource(R.string.settings_map_custom_style_url),
+                hint = stringResource(R.string.settings_map_custom_style_url_hint),
+                initialValue = uiState.mapCustomStyleUrl,
+                saveLabel = stringResource(R.string.settings_map_custom_style_url_save),
+                clearLabel = stringResource(R.string.settings_map_custom_style_url_clear),
+                onSave = {
+                    onAction(SettingsAction.SetMapCustomStyleUrl(it))
+                    showStyleUrlDialog = false
+                },
+                onClear = {
+                    onAction(SettingsAction.ClearMapCustomStyleUrl)
+                    showStyleUrlDialog = false
+                },
+                onDismiss = { showStyleUrlDialog = false },
             )
         }
     }
@@ -355,3 +400,15 @@ private fun AccentColor.labelRes(): Int =
         AccentColor.VIOLET -> R.string.settings_accent_violet
         AccentColor.PINK -> R.string.settings_accent_pink
     }
+
+// The row summary never shows the URL itself: a provider key may ride in its
+// query, and the row is on screen whenever Appearance is open. Scheme and
+// host are enough to tell which style is in use; the dialog shows the rest.
+@Composable
+private fun mapCustomStyleUrlSummary(url: String): String =
+    url
+        .trim()
+        .takeIf { it.isNotBlank() }
+        ?.let { it.toUri().host ?: it.substringBefore('?') }
+        ?.let { stringResource(R.string.settings_map_custom_style_url_set, it) }
+        ?: stringResource(R.string.settings_map_custom_style_url_unset)

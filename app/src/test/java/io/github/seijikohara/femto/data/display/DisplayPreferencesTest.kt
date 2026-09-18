@@ -188,6 +188,7 @@ class DisplayPreferencesTest {
                     mapStyle = DisplaySettings.Default.mapStyle,
                     mapSchemeLight = DisplaySettings.Default.mapSchemeLight,
                     mapSchemeDark = DisplaySettings.Default.mapSchemeDark,
+                    mapCustomStyleUrl = DisplaySettings.Default.mapCustomStyleUrl,
                     glassBlurRadius = DisplaySettings.Default.glassBlurRadius,
                     glassTintScale = DisplaySettings.Default.glassTintScale,
                     glassShowBorder = DisplaySettings.Default.glassShowBorder,
@@ -337,6 +338,7 @@ class DisplayPreferencesTest {
         setMapStyle(MapStyleSetting.DARK)
         setMapSchemeLight(MapColorScheme.BRIGHT)
         setMapSchemeDark(MapColorScheme.FIORD)
+        setMapCustomStyleUrl("https://example.test/style.json")
         setMapTilt(40)
         setMapZoom(MAX_MAP_ZOOM)
         setMapNorthUp(true)

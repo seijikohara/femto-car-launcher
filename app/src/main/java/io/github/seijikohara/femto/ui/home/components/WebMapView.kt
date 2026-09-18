@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.location.Location
 import android.os.Handler
 import android.os.Looper
@@ -151,7 +152,12 @@ internal fun WebMapView(
     // Resolve the colour scheme for the active light/dark context. ACCENT recolours
     // the bundled base with these Material colours (the OSM module's transformStyle);
     // the others are plain hosted / bundled styles.
-    val styleRef = mapStyleRefFor(if (isDark) mapConfig.schemeDark else mapConfig.schemeLight, isDark)
+    val styleRef =
+        mapStyleRefFor(
+            if (isDark) mapConfig.schemeDark else mapConfig.schemeLight,
+            isDark,
+            mapConfig.customStyleUrl,
+        )
     // The page reads its initial style URL from the bridge at load time, and a
     // scheme change pushes into the live page instead of rebuilding the WebView —
     // so the getter must see the current scheme, not the one captured when the
@@ -170,6 +176,12 @@ internal fun WebMapView(
     // The tile host is OSM-only state by the same logic: an override typed while
     // Google Maps is active must not reload the Google page.
     val effectiveTileHostOverride = if (mapConfig.backend == MapBackend.OSM) mapConfig.tileHostOverride else ""
+    // A dead custom style is corrected in Settings (a new URL, or leaving CUSTOM),
+    // so the failure state below keys on the URL the CUSTOM scheme is actually
+    // loading, exactly like the tile-host override: the correction gets a fresh
+    // page at once instead of waiting out the retry ladder. Blank whenever no
+    // custom style is active, so nothing else is disturbed.
+    val effectiveCustomStyleUrl = (styleRef as? MapStyleRef.Hosted)?.takeIf { it.custom }?.url.orEmpty()
     // Keyed on the override alone: the build default cannot change at runtime, and
     // the bridge getter reads the list from a background thread, so it must not be
     // re-allocated on every recomposition (one per location fix).
@@ -221,6 +233,7 @@ internal fun WebMapView(
             effectiveGoogleMapId,
             effectiveGoogleRendering,
             effectiveTileHostOverride,
+            effectiveCustomStyleUrl,
         ) {
             mutableIntStateOf(0)
         }
@@ -271,6 +284,7 @@ internal fun WebMapView(
             effectiveGoogleMapId,
             effectiveGoogleRendering,
             effectiveTileHostOverride,
+            effectiveCustomStyleUrl,
         ) {
             mutableStateOf(false)
         }
@@ -282,6 +296,7 @@ internal fun WebMapView(
             effectiveGoogleMapId,
             effectiveGoogleRendering,
             effectiveTileHostOverride,
+            effectiveCustomStyleUrl,
         ) {
             mutableStateOf<String?>(null)
         }
@@ -316,6 +331,9 @@ internal fun WebMapView(
         reloadGeneration++
     }
 
+    // A custom style that never loaded is a Settings problem under Appearance,
+    // not a provider problem; it gets its own notice.
+    val customStyleFailed = effectiveCustomStyleUrl.isNotBlank() && liveInitFailed
     if (rendererGaveUp || liveInitFailed || googleMapsKeyMissing) {
         Box(modifier = modifier) {
             ExposedMapRegion(mapConfig = mapConfig) {
@@ -330,6 +348,8 @@ internal fun WebMapView(
 
                             googleMapsBackend && liveInitFailed -> R.string.map_googlemaps_failed
 
+                            customStyleFailed -> R.string.map_custom_style_failed
+
                             else -> R.string.map_live_init_failed
                         },
                     hintRes =
@@ -337,6 +357,7 @@ internal fun WebMapView(
                             rendererGaveUp -> R.string.map_live_renderer_gone_hint
                             googleMapsKeyMissing -> R.string.map_googlemaps_no_key_hint
                             googleMapsBackend && liveInitFailed -> R.string.map_googlemaps_failed_hint
+                            customStyleFailed -> R.string.map_custom_style_failed_hint
                             else -> R.string.map_live_init_failed_hint
                         },
                     // Why it failed is debugging detail, not driver-facing content.
@@ -383,6 +404,32 @@ internal fun WebMapView(
                 settings.userAgentString = settings.userAgentString + " " + femtoUserAgent
                 webViewClient =
                     object : WebViewClientCompat() {
+                        // A tap on an attribution link (MapLibre's control under a
+                        // custom style, or Google's in-page credits) must not
+                        // navigate this WebView off the map page — it would sit on
+                        // a web page until the next reload. Anything that is not
+                        // the page's own appassets origin goes to the system
+                        // browser; a device without one simply ignores the tap.
+                        override fun shouldOverrideUrlLoading(
+                            view: WebView,
+                            request: WebResourceRequest,
+                        ): Boolean {
+                            if (request.url.host == APPASSETS_HOST) return false
+                            // Only a person's tap on a web link in the main frame
+                            // reaches the browser; a navigation a page script starts
+                            // on its own, a subframe, or any other scheme is dropped.
+                            if (request.isForMainFrame && request.hasGesture() &&
+                                request.url.scheme in BROWSER_SCHEMES
+                            ) {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, request.url).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                    )
+                                }.onFailure { Log.w(TAG, "No activity for ${request.url.scheme}: link") }
+                            }
+                            return true
+                        }
+
                         override fun shouldInterceptRequest(
                             view: WebView,
                             request: WebResourceRequest,
@@ -585,15 +632,14 @@ internal fun WebMapView(
             // push restarts the page's style swap, so debounce: every churn cancels
             // this effect and only the settled palette reaches the page.
             delay(STYLE_PUSH_DEBOUNCE_MS)
-            // Resolve the scheme to a URL the WebView can load plus the accent
-            // palette (empty = no recolor).
-            val url = styleUrl(styleRef)
-            val accent = (styleRef as? MapStyleRef.Accent)?.let { accentColors }
             webView.evaluateJavascript(
-                "window.setStyleUrl && setStyleUrl('$url', " +
-                    "'${accent?.background ?: ""}', '${accent?.water ?: ""}', '${accent?.land ?: ""}', " +
-                    "'${accent?.roadMajor ?: ""}', '${accent?.roadMinor ?: ""}', '${accent?.roadCasing ?: ""}', " +
-                    "'${accent?.building ?: ""}', '${accent?.label ?: ""}')",
+                setStyleUrlScript(
+                    url = styleUrl(styleRef),
+                    accent = (styleRef as? MapStyleRef.Accent)?.let { accentColors },
+                    // The page shows MapLibre's own credits exactly when the host
+                    // hides its overlay — one decision, made once here.
+                    pageAttribution = !showsNativeAttribution(mapConfig.backend, styleRef),
+                ),
                 null,
             )
         }
@@ -691,9 +737,10 @@ internal fun WebMapView(
                 factory = { webView },
             )
         }
-        // Native tile credit only for OSM; Google Maps renders its own ToS-mandated
-        // attribution inside the WebView (see showsNativeAttribution).
-        if (showsNativeAttribution(mapConfig.backend)) {
+        // Native tile credit only for OSM on the default provider; Google Maps and
+        // a custom style render their own credits inside the WebView (see
+        // showsNativeAttribution).
+        if (showsNativeAttribution(mapConfig.backend, styleRef)) {
             Attribution(
                 modifier =
                     Modifier
@@ -756,12 +803,44 @@ private fun LiveMapNotice(
 // Single origin literal for the WebViewAssetLoader https scheme. Both the map
 // page base URL and all asset references derive from this constant so the
 // origin string appears in exactly one place.
-private const val APPASSETS_ORIGIN = "https://appassets.androidplatform.net"
+private const val APPASSETS_HOST = "appassets.androidplatform.net"
+private val BROWSER_SCHEMES = setOf("http", "https")
+private const val APPASSETS_ORIGIN = "https://$APPASSETS_HOST"
 private const val WEB_BASE = "$APPASSETS_ORIGIN/assets/web/"
 
 // A bundled asset served to the WebView over the WebViewAssetLoader https origin so
 // MapLibre's tile Worker can fetch it (and the asset's OpenFreeMap sources) cross-origin.
 private fun appAssetsUrl(asset: String): String = "$APPASSETS_ORIGIN/assets/$asset"
+
+// The setStyleUrl bridge call for a resolved style: the URL the page loads
+// plus the accent palette (empty = no recolour) and the attribution flag. The
+// URL is quoted as a JS string literal: a custom style URL is user input, and
+// a stray quote in it must not become code.
+internal fun setStyleUrlScript(
+    url: String,
+    accent: AccentMapColors?,
+    pageAttribution: Boolean,
+): String =
+    "window.setStyleUrl && setStyleUrl(${url.toJsStringLiteral()}, " +
+        "'${accent?.background ?: ""}', '${accent?.water ?: ""}', '${accent?.land ?: ""}', " +
+        "'${accent?.roadMajor ?: ""}', '${accent?.roadMinor ?: ""}', '${accent?.roadCasing ?: ""}', " +
+        "'${accent?.building ?: ""}', '${accent?.label ?: ""}', $pageAttribution)"
+
+// [this] as a double-quoted JS string literal. Only the URL needs it (the
+// palette values are the theme's own hex), so this covers exactly what a URL
+// can carry: the backslash, the quote, control characters, and the two Unicode
+// line terminators a JS source may not contain unescaped on the WebView floor.
+// Hand-rolled rather than org.json: the JVM unit tests run against the Android
+// stubs, where JSONObject.quote is a no-op returning null.
+internal fun String.toJsStringLiteral(): String =
+    map { ch ->
+        when {
+            ch == '\\' -> "\\\\"
+            ch == '"' -> "\\\""
+            ch < ' ' || ch == '\u2028' || ch == '\u2029' -> "\\u%04x".format(ch.code)
+            else -> ch.toString()
+        }
+    }.joinToString(separator = "", prefix = "\"", postfix = "\"")
 
 // A scheme's style ref as a URL the page can load: hosted directly, or the
 // bundled base served over appassets. The page re-points the upstream tile
@@ -786,14 +865,6 @@ internal fun mapTileHosts(
         .filter { it.isNotBlank() }
         .distinct()
 
-// Whether a typed override is an origin the page can actually load from. A bare
-// hostname would resolve against the page's own appassets origin and an http one
-// is blocked by the WebView's mixed-content policy; both surface as a blank map
-// long after the dialog is gone, so the dialog refuses them up front.
-internal fun isTileHostUrl(value: String): Boolean = TILE_HOST_PATTERN.matches(value.trim())
-
-private val TILE_HOST_PATTERN = Regex("""^https://[^\s/]+(/\S*)?$""")
-
 // The host the page loads with on a given auto-retry attempt: the list is walked
 // round-robin, so an unreachable override gives way to the default on the next
 // reload and a refunded budget starts over at the override. Empty (a build that
@@ -815,14 +886,20 @@ internal fun mapPageUrl(backend: MapBackend) =
     }
 
 // Whether the host draws the native tile-credit overlay ([Attribution]) for this
-// backend. Only the OSM backend hides its web-side attribution (index.html's CSS +
-// the OSM module's `attributionControl: false`) and leans on the host for the
-// OpenStreetMap / OpenMapTiles / OpenFreeMap credit. Google Maps renders its own
-// ToS-mandated attribution INSIDE the WebView (backends/googlemaps.ts keeps
-// Google's logo + credit), so a native overlay there would both duplicate that
-// credit and — by naming OpenMapTiles / OpenFreeMap — misattribute tiles that
-// backend never serves.
-internal fun showsNativeAttribution(backend: MapBackend) = backend == MapBackend.OSM
+// backend and style. Only the OSM backend on the default provider's styles hides
+// its web-side attribution (index.html's CSS + the OSM module's
+// `attributionControl: false`) and leans on the host for the OpenStreetMap /
+// OpenMapTiles / OpenFreeMap credit. Google Maps renders its own ToS-mandated
+// attribution INSIDE the WebView (backends/googlemaps.ts keeps Google's logo +
+// credit), so a native overlay there would both duplicate that credit and — by
+// naming OpenMapTiles / OpenFreeMap — misattribute tiles that backend never
+// serves. A user-supplied custom style is the same case in the OSM backend: the
+// host cannot know what it draws on, so the page shows MapLibre's attribution
+// control, which reads the credits the style's sources declare.
+internal fun showsNativeAttribution(
+    backend: MapBackend,
+    styleRef: MapStyleRef,
+) = backend == MapBackend.OSM && !(styleRef is MapStyleRef.Hosted && styleRef.custom)
 
 @PreviewLightDark
 @Composable

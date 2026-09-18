@@ -1,6 +1,6 @@
 # Terms of Service
 
-**Effective date: 2026-09-16**
+**Effective date: 2026-09-18**
 
 These terms apply to Femto Car Launcher ("the app"), an Android home launcher
 distributed as a signed APK from this repository's releases. Installing or using
@@ -34,6 +34,11 @@ The app renders maps from a provider you select in **Settings → Map**.
   Tiles and the style derive from OpenMapTiles and are served by OpenFreeMap;
   terrain elevation comes from Mapterhorn. The full credits and licence texts
   are in the app under **Settings → System → Open source licenses**.
+- **Custom style URL.** If you point the OpenStreetMap provider at a hosted
+  map style of your own choosing (Settings → Appearance → Map color), the map
+  loads that style as its publisher serves it and shows the credits the style
+  declares in place of the app's own. Your use of that style and its tiles is
+  between you and its publisher, under their terms.
 - **Weather.** Forecast data from MET Norway, the Norwegian Meteorological
   Institute, under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 

@@ -21,12 +21,39 @@ class WebMapPageTest {
         )
     }
 
-    @Test fun `native attribution overlay shows only for osm backend`() {
+    @Test fun `native attribution overlay shows only for osm backend on the default provider's styles`() {
         // OSM hides its web-side attribution and relies on the native overlay; the
         // Google Maps backend carries its own ToS-mandated in-WebView attribution,
         // so the host must not overlay the OSM/OpenMapTiles/OpenFreeMap credit on it.
-        assertTrue(showsNativeAttribution(MapBackend.OSM))
-        assertFalse(showsNativeAttribution(MapBackend.GOOGLEMAPS))
+        val accent = MapStyleRef.Accent(LIGHT_STYLE_ASSET)
+        assertTrue(showsNativeAttribution(MapBackend.OSM, accent))
+        assertTrue(showsNativeAttribution(MapBackend.OSM, MapStyleRef.Hosted(POSITRON_STYLE_URL)))
+        assertFalse(showsNativeAttribution(MapBackend.GOOGLEMAPS, accent))
+    }
+
+    @Test fun `a custom style hands attribution to the page`() {
+        // The host cannot know what a user-supplied style draws on, so its fixed
+        // credit would be wrong; the page's MapLibre control reads the style's own.
+        val custom = MapStyleRef.Hosted("https://example.test/style.json", custom = true)
+        assertFalse(showsNativeAttribution(MapBackend.OSM, custom))
+        // The bundled dark base is the default provider's data like the rest.
+        assertTrue(showsNativeAttribution(MapBackend.OSM, MapStyleRef.Bundled(DARK_STYLE_ASSET)))
+    }
+
+    @Test fun `the style push quotes the url as a JS string and carries the attribution flag`() {
+        // A custom URL is user input landing inside a script; a quote or a
+        // backslash in it must become an escaped character, never code.
+        val script =
+            setStyleUrlScript(
+                url = "https://example.test/s.json?key=a'b\\c\"d",
+                accent = null,
+                pageAttribution = true,
+            )
+        assertEquals(
+            "window.setStyleUrl && setStyleUrl(\"https://example.test/s.json?key=a'b\\\\c\\\"d\", " +
+                "'', '', '', '', '', '', '', '', true)",
+            script,
+        )
     }
 
     @Test fun `tile hosts put the override first and the build default behind it`() {

@@ -51,6 +51,8 @@ internal fun displaySettingsFacts(display: DisplaySettings): List<DiagnosticFact
         entry("Map marker position", "${display.mapMarkerPos}"),
         entry("3D buildings / terrain", "${display.map3dBuildings} / ${display.mapTerrain}"),
         entry("Map tile host", display.mapTileHost.ifBlank { "default" }),
+        // Set / not set only: the URL may carry a provider key, and the report is made to be shared.
+        entry("Map custom style URL", display.mapCustomStyleUrl.secretLabel()),
         entry("Glass blur / tint", "${display.glassBlurRadius} dp / ${display.glassTintScale}%"),
         entry(
             "Glass border / shadow",

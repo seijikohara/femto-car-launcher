@@ -31,8 +31,12 @@ internal const val DARK_STYLE_ASSET = "map/dark.json"
  * assets over appassets.
  */
 internal sealed interface MapStyleRef {
+    // [custom] marks a user-supplied URL: its credits come from the style
+    // itself, so the host hides its own credit overlay and the page shows
+    // MapLibre's attribution control instead (see showsNativeAttribution).
     data class Hosted(
         val url: String,
+        val custom: Boolean = false,
     ) : MapStyleRef
 
     data class Bundled(
@@ -48,15 +52,47 @@ internal sealed interface MapStyleRef {
 internal fun mapStyleRefFor(
     scheme: MapColorScheme,
     isDark: Boolean,
+    customStyleUrl: String = "",
 ): MapStyleRef =
     when (scheme) {
-        MapColorScheme.ACCENT -> MapStyleRef.Accent(if (isDark) DARK_STYLE_ASSET else LIGHT_STYLE_ASSET)
-        MapColorScheme.POSITRON -> MapStyleRef.Hosted(POSITRON_STYLE_URL)
-        MapColorScheme.BRIGHT -> MapStyleRef.Hosted(OFM_STYLE_BASE + "bright")
-        MapColorScheme.LIBERTY -> MapStyleRef.Hosted(OFM_STYLE_BASE + "liberty")
-        MapColorScheme.DARK -> MapStyleRef.Hosted(OFM_STYLE_BASE + "dark")
-        MapColorScheme.FIORD -> MapStyleRef.Hosted(OFM_STYLE_BASE + "fiord")
-        MapColorScheme.DARK_MATTER -> MapStyleRef.Bundled(DARK_STYLE_ASSET)
+        MapColorScheme.ACCENT -> {
+            MapStyleRef.Accent(if (isDark) DARK_STYLE_ASSET else LIGHT_STYLE_ASSET)
+        }
+
+        MapColorScheme.POSITRON -> {
+            MapStyleRef.Hosted(POSITRON_STYLE_URL)
+        }
+
+        MapColorScheme.BRIGHT -> {
+            MapStyleRef.Hosted(OFM_STYLE_BASE + "bright")
+        }
+
+        MapColorScheme.LIBERTY -> {
+            MapStyleRef.Hosted(OFM_STYLE_BASE + "liberty")
+        }
+
+        MapColorScheme.DARK -> {
+            MapStyleRef.Hosted(OFM_STYLE_BASE + "dark")
+        }
+
+        MapColorScheme.FIORD -> {
+            MapStyleRef.Hosted(OFM_STYLE_BASE + "fiord")
+        }
+
+        MapColorScheme.DARK_MATTER -> {
+            MapStyleRef.Bundled(DARK_STYLE_ASSET)
+        }
+
+        // The user's own hosted style, loaded as published — its document names
+        // its tile, sprite and glyph hosts, so nothing is rewritten. Until a URL
+        // is entered the scheme renders as ACCENT rather than as a blank map.
+        MapColorScheme.CUSTOM -> {
+            customStyleUrl
+                .trim()
+                .takeIf { it.isNotBlank() }
+                ?.let { MapStyleRef.Hosted(it, custom = true) }
+                ?: mapStyleRefFor(MapColorScheme.ACCENT, isDark)
+        }
     }
 
 /**

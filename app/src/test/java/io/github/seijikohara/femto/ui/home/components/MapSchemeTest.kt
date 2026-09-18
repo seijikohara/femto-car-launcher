@@ -40,4 +40,25 @@ class MapSchemeTest {
             assertEquals(MapStyleRef.Hosted(url), mapStyleRefFor(scheme, isDark = false))
         }
     }
+
+    @Test
+    fun `custom resolves to the user's url, marked custom, with surrounding whitespace dropped`() {
+        val ref =
+            mapStyleRefFor(
+                MapColorScheme.CUSTOM,
+                isDark = false,
+                customStyleUrl = " https://example.test/style.json?key=k ",
+            )
+        assertEquals(MapStyleRef.Hosted("https://example.test/style.json?key=k", custom = true), ref)
+    }
+
+    @Test
+    fun `custom with no url renders as accent for the active context`() {
+        // Never a blank map: until a URL is entered the choice falls back to the
+        // adaptive default, matching what the Style URL row's summary promises.
+        assertEquals(
+            mapStyleRefFor(MapColorScheme.ACCENT, isDark = true),
+            mapStyleRefFor(MapColorScheme.CUSTOM, isDark = true, customStyleUrl = "  "),
+        )
+    }
 }

@@ -34,6 +34,9 @@ internal data class MapConfig(
     // host resolves it into the ordered host list the page rotates through on
     // retries — see WebMapView.mapTileHosts.
     val tileHostOverride: String = "",
+    // OSM-only: the hosted style the CUSTOM scheme loads (blank = CUSTOM renders
+    // as ACCENT). May carry a provider key — see MapScheme.mapStyleRefFor.
+    val customStyleUrl: String = "",
     val markerPos: Int = 70,
     // Fraction (0..0.5) of the map height the bottom speed overlay occupies,
     // measured at layout time (not a persisted setting). The marker drop is

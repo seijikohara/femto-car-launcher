@@ -13,6 +13,8 @@
     <string name="map_googlemaps_no_key_hint">Enter your Google Maps API key in Settings → Map to show the map.</string>
     <string name="map_googlemaps_failed">Google Maps can\'t load</string>
     <string name="map_googlemaps_failed_hint">Check that your API key is valid and not expired, the Maps JavaScript API is enabled, the key allows this app, and you are online. You can change the map provider in Settings → Map.</string>
+    <string name="map_custom_style_failed">Custom map style can\'t load</string>
+    <string name="map_custom_style_failed_hint">Check the Style URL under Settings → Appearance → Map color, or clear it to return to the Accent scheme.</string>
     <string name="calendar_query_failed">Calendar couldn\'t be read</string>
     <string name="font_download_failed">Download failed — tap to retry</string>
     <string name="map_attribution">© OpenStreetMap · OpenMapTiles · OpenFreeMap</string>
@@ -334,6 +336,14 @@
     <string name="settings_map_scheme_dark_matter">Dark Matter</string>
     <string name="settings_map_scheme_dark">Dark</string>
     <string name="settings_map_scheme_fiord">Fiord</string>
+    <string name="settings_map_scheme_custom">Custom style URL</string>
+    <string name="settings_map_custom_style_url">Style URL</string>
+    <string name="settings_map_custom_style_url_unset">Not set — the Accent scheme shows until you enter one</string>
+    <!-- %1$s is the host of the configured style URL; the URL itself is never shown here because it may carry a provider key. -->
+    <string name="settings_map_custom_style_url_set">Custom style from %1$s</string>
+    <string name="settings_map_custom_style_url_hint">The address of a hosted MapLibre style, for example https://example.org/styles/basic/style.json — the https:// scheme is required, and a provider key may be part of the address. The map loads the style as published: its own tiles, sprites and glyphs, and its own credits in place of the app\'s. If the style cannot be loaded, the map shows a notice; use Clear to return to the Accent scheme.</string>
+    <string name="settings_map_custom_style_url_save">Save</string>
+    <string name="settings_map_custom_style_url_clear">Clear</string>
     <string name="settings_group_map_tilt">Map tilt</string>
     <string name="settings_group_map_zoom">Map zoom</string>
     <string name="settings_map_tilt_value">%1$d°</string>

@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Effective date: 2026-09-16**
+**Effective date: 2026-09-18**
 
 Femto Car Launcher ("the app") is an Android home launcher. This policy explains
 what data the app accesses, why, and who it is shared with. The app does **not**
@@ -40,6 +40,13 @@ coordinates to the following services, governed by their own privacy policies:
 
 - **Weather** — MET Norway (the Norwegian Meteorological Institute, `api.met.no`).
 - **Map tiles (default / OSM backend)** — OpenFreeMap and Mapterhorn (OpenStreetMap-based map data).
+- **Map tiles (custom style URL)** — if you enter your own style URL in Settings
+  (Appearance → Map color → Custom style URL), the map fetches that style and
+  then its tiles, sprites and glyphs from whichever hosts the style names, and
+  your location determines which tiles are requested. Those hosts are your
+  choice and governed by their own policies; the URL, which may carry a key you
+  hold with that provider, is stored with the app settings and included in your
+  own account's backup and device transfer like the Google Maps key below.
 - **Map tiles (optional Google Maps backend)** — if you enter your own Google Maps
   Platform API key in Settings to enable the Google Maps map backend, location
   coordinates are sent to Google (`maps.googleapis.com`) to render the map, satellite
@@ -92,6 +99,10 @@ applications, it is your key in your own account's backup, and keeping it there
 means a replacement head unit restores the map without re-entry. If you would
 rather it were not copied, clear it in **Settings → Map** before a backup or a
 transfer runs, or turn off backup for the app in Android's settings.
+
+The same applies to a custom map style URL (**Settings → Appearance → Map
+color**), including any provider key it carries: clear it there before a backup
+or transfer if it must not be copied.
 
 ## Children
 

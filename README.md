@@ -59,6 +59,11 @@ vehicle.
   [Prohibited Territories](https://cloud.google.com/maps-platform/terms/maps-prohibited-territories)
   list; see [TERMS.md](TERMS.md). The default OpenStreetMap provider is
   unaffected.
+- **Bring your own style.** The OpenStreetMap provider can load any hosted
+  MapLibre style you name (Settings → Appearance → Map color → Custom style
+  URL), including one from a provider whose key rides in the URL. The map
+  then shows that style's own credits. For a mirror of the default provider's
+  layout there is separately a tile-host override under Settings → Map.
 - **A car-navigation camera.** The camera follows the Global
   Positioning System (GPS) position with smooth easing, keeps the
   travel direction pointing up (heading-up), and offers a north-up

@@ -99,6 +99,7 @@ internal data class SettingsUiState(
     val googleMapsMapType: GoogleMapType = DisplaySettings.Default.googleMapsMapType,
     val googleMapsTraffic: Boolean = DisplaySettings.Default.googleMapsTraffic,
     val mapTileHost: String = DisplaySettings.Default.mapTileHost,
+    val mapCustomStyleUrl: String = DisplaySettings.Default.mapCustomStyleUrl,
     val availableCalendars: List<CalendarInfo> = emptyList(),
     val hiddenCalendarIds: Set<Long> = emptySet(),
     // Defaults false so a not-yet-loaded selector never falsely claims "no
@@ -166,6 +167,7 @@ internal data class SettingsUiState(
                 googleMapsMapType = DisplaySettings.Default.googleMapsMapType,
                 googleMapsTraffic = DisplaySettings.Default.googleMapsTraffic,
                 mapTileHost = DisplaySettings.Default.mapTileHost,
+                mapCustomStyleUrl = DisplaySettings.Default.mapCustomStyleUrl,
             )
     }
 }
@@ -400,6 +402,14 @@ internal sealed interface SettingsAction {
     ) : SettingsAction
 
     data object ClearMapTileHost : SettingsAction
+
+    // The hosted style the CUSTOM colour scheme loads (Settings → Appearance →
+    // Map color → Style URL); blank leaves CUSTOM rendering as ACCENT.
+    data class SetMapCustomStyleUrl(
+        val value: String,
+    ) : SettingsAction
+
+    data object ClearMapCustomStyleUrl : SettingsAction
 
     data class SetGoogleMapsRendering(
         val value: GoogleMapsRendering,
