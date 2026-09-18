@@ -8,16 +8,16 @@ class WebViewFactsTest {
     fun `webViewFactsFrom flags a chromium major below the webmap floor as a warning`() {
         val facts =
             webViewFactsFrom(
-                packageLabel = "com.google.android.webview 108.0.5359.128",
-                versionName = "108.0.5359.128",
+                packageLabel = "com.android.webview 100.0.4896.127",
+                versionName = "100.0.4896.127",
                 userAgent = "Mozilla/5.0",
             )
 
         assertEquals(
             listOf(
-                DiagnosticFact("Package", FactValue.Text("com.google.android.webview 108.0.5359.128")),
+                DiagnosticFact("Package", FactValue.Text("com.android.webview 100.0.4896.127")),
                 DiagnosticFact("User agent", FactValue.Text("Mozilla/5.0")),
-                DiagnosticFact("Chromium major", FactValue.Status("108 (webmap floor 109)", FactHealth.WARNING)),
+                DiagnosticFact("Chromium major", FactValue.Status("100 (webmap floor 101)", FactHealth.WARNING)),
             ),
             facts,
         )
@@ -33,7 +33,7 @@ class WebViewFactsTest {
             )
 
         assertEquals(
-            DiagnosticFact("Chromium major", FactValue.Status("122 (webmap floor 109)", FactHealth.OK)),
+            DiagnosticFact("Chromium major", FactValue.Status("122 (webmap floor 101)", FactHealth.OK)),
             facts.last(),
         )
     }

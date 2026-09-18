@@ -10,9 +10,13 @@ export default defineConfig({
     // "/assets/..." URLs would escape the web/ asset subtree.
     base: "./",
     build: {
-        // Android 13's factory WebView is Chromium 109; aftermarket AI boxes
-        // without Play Services may never update it, so never emit newer syntax.
-        target: "chrome109",
+        // The lowest WebView an Android 13 device ships with: AOSP's prebuilt
+        // for the initial Android 13 release is Chromium 101 (later 13 point
+        // releases carry 109), and aftermarket AI boxes build their firmware
+        // from that AOSP branch with the AOSP WebView package, which the Play
+        // Store does not update — so never emit newer syntax. Mirrored by
+        // WEBMAP_CHROMIUM_FLOOR in the diagnostics (WebViewFactsCollector.kt).
+        target: "chrome101",
         // dist/web/ mirrors the assets/web/ layout the Kotlin host expects; the
         // whole dist/ directory is wired into the Android assets source set.
         outDir: "dist/web",
