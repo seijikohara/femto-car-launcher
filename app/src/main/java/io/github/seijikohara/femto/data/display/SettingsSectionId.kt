@@ -29,6 +29,7 @@ internal enum class SettingsSectionId(
             DisplayPreferences.MAP_STYLE_KEY,
             DisplayPreferences.MAP_SCHEME_LIGHT_KEY,
             DisplayPreferences.MAP_SCHEME_DARK_KEY,
+            DisplayPreferences.MAP_CUSTOM_STYLE_URL_KEY,
             DisplayPreferences.GLASS_BLUR_KEY,
             DisplayPreferences.GLASS_TINT_KEY,
             DisplayPreferences.GLASS_SHOW_BORDER_KEY,

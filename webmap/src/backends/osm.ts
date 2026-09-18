@@ -6,7 +6,7 @@
 // MapLibre 6 is ESM-only and publishes no default export, so the classes come in
 // by name. `MapLibreMap` is the library's own alias for its `Map` export, which
 // would otherwise shadow the global `Map`.
-import { MapLibreMap, Marker, setWorkerUrl } from "maplibre-gl";
+import { AttributionControl, MapLibreMap, Marker, setWorkerUrl } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 // MapLibre 6 resolves its worker through `import.meta.url`, which a bundler
 // cannot honour, so every bundled consumer must hand it the URL. `?worker&url`
@@ -137,6 +137,13 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
         liveMap.on("load", () => {
             state.styleLoaded = true;
             log("load");
+        });
+        // `load` fires once per map; every later style swap reports through
+        // `style.load`. Tracking both keeps styleLoaded honest across swaps, so
+        // a swap to a style that never arrives (a mistyped custom URL) is judged
+        // the way a cold start is — see setStyleUrl.
+        liveMap.on("style.load", () => {
+            state.styleLoaded = true;
         });
 
         // WebGL context loss is usually TRANSIENT on mobile / WebView GPUs,
@@ -323,6 +330,25 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
         window.onHostResume = engine.onHostResume;
         // Android -> JS: switch the base style and (for the ACCENT scheme)
         // its recolour palette; an empty bg means a plain, non-accent style.
+        // MapLibre's attribution control, present only while a style whose
+        // credits the host cannot know (a user-supplied one) is active. It
+        // reads the `attribution` each source declares — the default provider's
+        // and the terrain TileJSON both carry one — so it is right for whatever
+        // the style draws on. Non-compact: on a car display the credit must be
+        // readable, not folded behind an info button. Bottom-left, where the
+        // host's own overlay sits for the default styles (rules/webmap.md).
+        const attribution = { control: null as AttributionControl | null };
+        function setPageAttribution(visible: boolean): void {
+            document.body.classList.toggle("page-attribution", visible);
+            if (visible && !attribution.control) {
+                attribution.control = new AttributionControl({ compact: false });
+                liveMap.addControl(attribution.control, "bottom-left");
+            } else if (!visible && attribution.control) {
+                liveMap.removeControl(attribution.control);
+                attribution.control = null;
+            }
+        }
+
         window.setStyleUrl = (
             url,
             bg,
@@ -333,9 +359,19 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
             roadCasing,
             building,
             label,
+            pageAttribution,
         ) => {
             if (!url) return;
+            // A swap to another style is a fresh load for the outcome-gated
+            // fatal: MapLibre never retries a style that failed to fetch, and
+            // without this the old style would stay on screen with the failure
+            // logged as transient — no notice, nothing pointing at the URL.
+            if (url !== state.currentStyleUrl) {
+                state.styleLoaded = false;
+                state.fatalArmed = false;
+            }
             state.currentStyleUrl = url;
+            setPageAttribution(!!pageAttribution);
             state.accentColors = bg
                 ? {
                       background: bg,

@@ -36,6 +36,10 @@ declare global {
             roadCasing: string,
             building: string,
             label: string,
+            // Whether the page draws MapLibre's attribution control for this
+            // style: true for a user-supplied style whose credits the host
+            // cannot know, false when the host's own overlay shows them.
+            pageAttribution: boolean,
         ) => void;
         setFeatures: (buildings: boolean, terrain: boolean, buildingColor: string) => void;
         // Google Maps only.
@@ -79,7 +83,9 @@ const ERROR_REPORT_INTERVAL_MS = 10_000;
 // page: the host logs details to logcat in EVERY build, and the debug notice
 // prints them on screen. A client-side key is embedded by design, but a
 // screenshot or a log capture must not hand it out verbatim.
-const SECRET_QUERY_PARAM = /([?&](?:access_token|api_?key|key|token)=)[^&#\s"']+/gi;
+// Hyphen and underscore spellings both occur across tile providers.
+const SECRET_QUERY_PARAM =
+    /([?&](?:access[-_]?token|api[-_]?key|subscription[-_]?key|key|token)=)[^&#\s"']+/gi;
 
 export function redactSecrets(detail: string): string {
     return detail.replace(SECRET_QUERY_PARAM, "$1<redacted>");

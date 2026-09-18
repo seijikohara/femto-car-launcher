@@ -145,6 +145,8 @@ internal class FakeDisplaySettingsStore(
 
     override suspend fun setMapTileHost(value: String) = state.update { it.copy(mapTileHost = value) }
 
+    override suspend fun setMapCustomStyleUrl(value: String) = state.update { it.copy(mapCustomStyleUrl = value) }
+
     override suspend fun setGoogleMapsTraffic(value: Boolean) = state.update { it.copy(googleMapsTraffic = value) }
 
     // Mirrors DisplayPreferences.resetKeys field-by-field: the real store simply
@@ -342,6 +344,10 @@ internal class FakeDisplaySettingsStore(
 
             DisplayPreferences.MAP_TILE_HOST_KEY -> {
                 copy(mapTileHost = default.mapTileHost)
+            }
+
+            DisplayPreferences.MAP_CUSTOM_STYLE_URL_KEY -> {
+                copy(mapCustomStyleUrl = default.mapCustomStyleUrl)
             }
 
             else -> {

@@ -114,6 +114,7 @@ internal class SettingsViewModel(
                 googleMapsMapType = display.googleMapsMapType,
                 googleMapsTraffic = display.googleMapsTraffic,
                 mapTileHost = display.mapTileHost,
+                mapCustomStyleUrl = display.mapCustomStyleUrl,
                 latinFont = font.latin.displayNameOrNull,
                 cjkFont = font.cjk.displayNameOrNull,
                 locationQuality = location.quality,
@@ -380,6 +381,14 @@ internal class SettingsViewModel(
 
                 SettingsAction.ClearMapTileHost -> {
                     displayPreferences.setMapTileHost("")
+                }
+
+                is SettingsAction.SetMapCustomStyleUrl -> {
+                    displayPreferences.setMapCustomStyleUrl(action.value.trim())
+                }
+
+                SettingsAction.ClearMapCustomStyleUrl -> {
+                    displayPreferences.setMapCustomStyleUrl("")
                 }
 
                 is SettingsAction.SetGoogleMapsRendering -> {

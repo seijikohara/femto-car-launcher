@@ -26,12 +26,24 @@
             }
             /* OSM backend only: the page hides MapLibre's own attribution and
          logo; the OSM tile credit is drawn natively by the host
-         (showsNativeAttribution in WebMapView.kt). The Google backend keeps
-         its ToS-mandated in-page attribution — its classes never match these
-         selectors. */
-            .maplibregl-ctrl-attrib,
-            .maplibregl-ctrl-logo {
+         (showsNativeAttribution in WebMapView.kt). The exception is a
+         user-supplied style, whose credits only the style knows: the OSM
+         module then sets `page-attribution` on <body> and adds MapLibre's
+         attribution control, which this rule lets through (the logo stays
+         hidden — MapLibre's licence does not require it). The Google backend
+         keeps its ToS-mandated in-page attribution — its classes never match
+         these selectors. */
+            .maplibregl-ctrl-logo,
+            body:not(.page-attribution) .maplibregl-ctrl-attrib {
                 display: none;
+            }
+            /* The in-page credit replaces a native overlay sized for a car
+         display; MapLibre's default is desktop-sized, so give it the same
+         reading size and a taller tap band. */
+            .page-attribution .maplibregl-ctrl-attrib {
+                font-size: 14px;
+                line-height: 20px;
+                padding: 8px 12px;
             }
             /* Self-location chevron pinned at a fixed screen spot (centre X,
          markerPos height). The camera brings the location to it, so the

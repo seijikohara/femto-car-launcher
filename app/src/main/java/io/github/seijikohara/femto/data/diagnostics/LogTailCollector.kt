@@ -36,10 +36,22 @@ internal class LogTailCollector {
                         .fold(ArrayDeque<String>(MAX_LOG_LINES)) { tail, line ->
                             tail.also {
                                 if (it.size == MAX_LOG_LINES) it.removeFirst()
-                                it.addLast(line)
+                                it.addLast(line.redactSecretQueryParams())
                             }
                         }.toList()
                 }
         }.onFailure { Log.w(TAG, "self logcat read failed; diagnostics omit the log tail", it) }
             .getOrDefault(emptyList())
 }
+
+// The report is made to be shared, and the WebView logs every failed resource
+// load with its full URL — which, for the user's own Google Maps key or a
+// custom style URL, carries the credential in the query. Mask those values;
+// the same parameter names the map page redacts (bridge.ts redactSecrets).
+internal fun String.redactSecretQueryParams(): String = SECRET_QUERY_PARAM.replace(this, "$1<redacted>")
+
+private val SECRET_QUERY_PARAM =
+    Regex(
+        """([?&](?:access[-_]?token|api[-_]?key|subscription[-_]?key|key|token)=)[^&#\s"']+""",
+        RegexOption.IGNORE_CASE,
+    )

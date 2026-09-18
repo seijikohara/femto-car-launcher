@@ -120,10 +120,12 @@ internal enum class MapStyleSetting { AUTO, LIGHT, DARK }
  * active light/dark context (bundled positron / dark-matter) recoloured with the
  * app's Material accent. The rest are fixed OpenFreeMap styles — [POSITRON],
  * [BRIGHT], [LIBERTY] read as light; [DARK_MATTER] (bundled), [DARK], [FIORD] read
- * as dark. The light and dark schemes are chosen independently (see
+ * as dark — except [CUSTOM], which loads whatever hosted style
+ * [DisplaySettings.mapCustomStyleUrl] names and renders as [ACCENT] while that is
+ * blank. The light and dark schemes are chosen independently (see
  * [DisplaySettings.mapSchemeLight] / [DisplaySettings.mapSchemeDark]).
  */
-internal enum class MapColorScheme { ACCENT, POSITRON, BRIGHT, LIBERTY, DARK_MATTER, DARK, FIORD }
+internal enum class MapColorScheme { ACCENT, POSITRON, BRIGHT, LIBERTY, DARK_MATTER, DARK, FIORD, CUSTOM }
 
 /** Default oblique-camera tilt (degrees) and zoom level for the map. */
 internal const val DEFAULT_MAP_TILT_DEG = 55
@@ -283,6 +285,14 @@ internal data class DisplaySettings(
      * a failed load — see WebMapView.mapTileHosts.
      */
     val mapTileHost: String = "",
+    /**
+     * The hosted MapLibre style the CUSTOM scheme loads, as an `https://` URL
+     * (which may carry a provider key in its query — treat it as a secret).
+     * Blank means no custom style: a CUSTOM scheme renders as ACCENT until one
+     * is set. The style document names its own tile, sprite and glyph hosts, so
+     * nothing about it is rewritten — see MapScheme.mapStyleRefFor.
+     */
+    val mapCustomStyleUrl: String = "",
 ) {
     companion object {
         val Default =
@@ -333,6 +343,7 @@ internal data class DisplaySettings(
                 googleMapsMapType = GoogleMapType.ROADMAP,
                 googleMapsTraffic = false,
                 mapTileHost = "",
+                mapCustomStyleUrl = "",
             )
     }
 }
