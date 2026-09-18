@@ -74,10 +74,12 @@ internal fun mapFactsFrom(
     failureCount: Int,
     nowElapsedRealtimeMs: Long,
     webGlRenderer: String? = null,
+    pageFrames: MapRuntimeSignals.PageFrames? = null,
 ): List<DiagnosticFact> =
     buildList {
         add(webGl2Fact(glEsVersion, webGl2Need(backend, googleRendering, hasGoogleMapId)))
         add(webGlRendererFact(webGlRenderer))
+        add(pageFramesFact(pageFrames, nowElapsedRealtimeMs))
         add(lastFailureFact(lastFailure, nowElapsedRealtimeMs))
         if (failureCount > 1) {
             add(DiagnosticFact("Failures this session", FactValue.Text("$failureCount")))
@@ -155,6 +157,33 @@ private fun webGlRendererFact(renderer: String?): DiagnosticFact =
 
 private val SOFTWARE_RENDERERS = listOf("SwiftShader", "llvmpipe", "softpipe", "Software")
 
+// The map page's own frame cadence, from its most recent sampling burst. The
+// PERFORMANCE section's UI-frame statistics measure the launcher's Compose
+// frames, which stay on time while the WebView's renderer is saturated by a
+// heavy map, so this is the row that shows a map that has fallen to one frame
+// a second. The threshold names the point where a following map visibly
+// steps rather than glides.
+private fun pageFramesFact(
+    frames: MapRuntimeSignals.PageFrames?,
+    nowElapsedRealtimeMs: Long,
+): DiagnosticFact {
+    if (frames == null) return DiagnosticFact("Page frames", FactValue.Text("no sample yet"))
+    val ageS = ((nowElapsedRealtimeMs - frames.elapsedRealtimeMs) / 1_000L).coerceAtLeast(0)
+    // Kept short: the fact row gives the value priority over the label, and a
+    // long value on the head unit's width ellipsises the label away.
+    val value = "median ${frames.medianMs} ms, worst ${frames.worstMs} ms, ${ageS}s ago"
+    return DiagnosticFact(
+        "Page frames (${frames.sampledFrames})",
+        if (frames.medianMs >= PAGE_FRAME_WARNING_MS) {
+            FactValue.Status("$value (< 10 fps)", FactHealth.WARNING)
+        } else {
+            FactValue.Text(value)
+        },
+    )
+}
+
+private const val PAGE_FRAME_WARNING_MS = 100
+
 // deviceConfigurationInfo reports the version as "major.minor"; compare on the
 // same packed 0xMMMMmmmm encoding the platform uses for reqGlEsVersion.
 private fun glEsVersionCode(glEsVersion: String?): Int? {
@@ -192,6 +221,7 @@ internal class MapFactsCollector(
                     failureCount = MapRuntimeSignals.failureCount(),
                     nowElapsedRealtimeMs = SystemClock.elapsedRealtime(),
                     webGlRenderer = MapRuntimeSignals.webGlRendererOrNull(),
+                    pageFrames = MapRuntimeSignals.pageFramesOrNull(),
                 ),
             )
         }

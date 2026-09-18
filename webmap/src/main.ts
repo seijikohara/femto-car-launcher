@@ -8,7 +8,12 @@
 // replays the buffered pushes. Vite code-splits each backend into its own
 // chunk, so a page only ever fetches the library it renders with.
 import { resolveBackend } from "./backend-name";
-import { createReporter, installGlobalErrorHooks, installPendingStubs } from "./bridge";
+import {
+    createReporter,
+    installGlobalErrorHooks,
+    installPendingStubs,
+    startFrameSampler,
+} from "./bridge";
 
 const backend = resolveBackend(window.location.search);
 const reporter = createReporter(backend);
@@ -30,11 +35,15 @@ const loadBackend = async (): Promise<void> => {
     }
 };
 
-loadBackend().catch((e) => {
-    // A failed chunk fetch or an exception escaping the backend's async init:
-    // the page will stay blank forever, so tell the host (which may retry by
-    // reloading the page).
-    const msg = e instanceof Error ? e.message : String(e);
-    reporter.log(`backend-load-failed: ${msg}`);
-    reporter.report("fatal", `backend-load-failed: ${msg}`.slice(0, 200));
-});
+// Started after the backend module is in and has begun rendering, so the
+// first burst measures the map, not the chunk fetch.
+loadBackend()
+    .then(() => startFrameSampler(reporter.report))
+    .catch((e) => {
+        // A failed chunk fetch or an exception escaping the backend's async init:
+        // the page will stay blank forever, so tell the host (which may retry by
+        // reloading the page).
+        const msg = e instanceof Error ? e.message : String(e);
+        reporter.log(`backend-load-failed: ${msg}`);
+        reporter.report("fatal", `backend-load-failed: ${msg}`.slice(0, 200));
+    });
