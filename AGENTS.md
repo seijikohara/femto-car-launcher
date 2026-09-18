@@ -38,10 +38,13 @@ applicable rule wins when markets diverge.
 - Web map page (`webmap/`): TypeScript (native TS 7 compiler) +
   Vite+ (the `vp` CLI: build / test / oxlint / oxfmt) + `maplibre-gl`,
   managed with pnpm (pinned via `packageManager`). The
-  Vite `build.target` is `chrome109` — the Android 13 factory WebView;
-  aftermarket AI boxes may never update it, so never raise it
-  without revisiting that floor (phone WebViews stay current, but
-  the strictest device class governs). Rules: `.claude/rules/webmap.md`.
+  Vite `build.target` is `chrome101` — the AOSP WebView the initial
+  Android 13 release shipped (later 13 point releases carry 109, and
+  a head unit in the field runs 101); aftermarket AI boxes build on
+  that branch with the AOSP `com.android.webview` package, which the
+  Play Store does not update, so never raise it without revisiting
+  that floor (phone WebViews stay current, but the strictest device
+  class governs). Rules: `.claude/rules/webmap.md`.
 
 ## Source layout
 

@@ -7,10 +7,10 @@ import io.github.seijikohara.femto.data.common.femtoUserAgent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-// vite.config's build.target floor (chrome109) documented in
-// .claude/rules/webmap.md; a WebView below this Chromium major can't
-// reliably render the live map page.
-private const val WEBMAP_CHROMIUM_FLOOR = 109
+// vite.config's build.target floor (chrome101 — the AOSP WebView the initial
+// Android 13 release shipped), documented in AGENTS.md#tech-stack; a WebView
+// below this Chromium major can't reliably render the live map page.
+private const val WEBMAP_CHROMIUM_FLOOR = 101
 
 /**
  * Builds the WEBVIEW section facts from already-resolved platform values.
