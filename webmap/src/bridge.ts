@@ -63,7 +63,7 @@ declare global {
 // section, which otherwise cannot tell a working map from one that failed
 // silently. No kind triggers a backend switch — the host keeps the chosen
 // backend (no auto-fallback).
-export type MapEventKind = "ready" | "fatal" | "error" | "follow" | "bearing";
+export type MapEventKind = "ready" | "fatal" | "error" | "follow" | "bearing" | "frames";
 
 export interface PageReporter {
     // Diagnostic logging only (visible via chrome://inspect or the debug
@@ -227,4 +227,55 @@ export function webglRenderer(): string {
     } catch {
         return "";
     }
+}
+
+// How often the page samples its own frame cadence, and how many consecutive
+// animation frames one sample spans. A burst rather than a permanent rAF
+// loop: a frame request every frame would keep the compositor awake (and
+// cost CPU) on a page that has nothing to animate, whereas a burst of thirty
+// every ten seconds is a ~10% duty cycle that still catches a renderer that
+// has fallen to one frame per second.
+export const FRAME_SAMPLE_PERIOD_MS = 10_000;
+export const FRAME_SAMPLE_FRAMES = 30;
+
+// The median and worst of a run of frame intervals, as the `frames` event
+// detail the host parses: "median=<ms>,worst=<ms>,samples=<n>".
+export function frameSampleDetail(intervalsMs: number[]): string {
+    if (intervalsMs.length === 0) return "median=0,worst=0,samples=0";
+    // Rank selection rather than a sort: Array#toSorted is past the WebView
+    // floor (Chrome 110) and the lint bans the mutating Array#sort. Thirty
+    // samples make the quadratic pass free. The median is the value holding
+    // rank floor(n / 2) — the one with that many samples strictly below it,
+    // ties included at its own rank.
+    const target = Math.floor(intervalsMs.length / 2);
+    const median = intervalsMs.reduce((best, x) => {
+        const below = intervalsMs.filter((y) => y < x).length;
+        const equal = intervalsMs.filter((y) => y === x).length;
+        return below <= target && target < below + equal ? x : best;
+    }, intervalsMs[0]);
+    const worst = Math.max(...intervalsMs);
+    return `median=${Math.round(median)},worst=${Math.round(worst)},samples=${intervalsMs.length}`;
+}
+
+// Sample the page's achieved frame interval on its own renderer thread and
+// report it to the host for the diagnostics report. The host's UI-frame
+// statistics measure the launcher's Compose frames, which stay on time while
+// the WebView's renderer is saturated by a heavy map — this is the number
+// that shows that. requestAnimationFrame only fires while the page is
+// visible, so a hidden page simply pauses mid-burst and resumes with it.
+export function startFrameSampler(report: (kind: MapEventKind, detail: string) => void): void {
+    const burst = { last: 0, intervals: [] as number[] };
+    const onFrame = (now: number): void => {
+        if (burst.last > 0) burst.intervals.push(now - burst.last);
+        burst.last = now;
+        if (burst.intervals.length < FRAME_SAMPLE_FRAMES) {
+            requestAnimationFrame(onFrame);
+            return;
+        }
+        report("frames", frameSampleDetail(burst.intervals));
+        burst.intervals = [];
+        burst.last = 0;
+        setTimeout(() => requestAnimationFrame(onFrame), FRAME_SAMPLE_PERIOD_MS);
+    };
+    requestAnimationFrame(onFrame);
 }

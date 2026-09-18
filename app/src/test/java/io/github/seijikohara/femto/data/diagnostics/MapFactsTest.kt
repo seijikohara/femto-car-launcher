@@ -17,6 +17,7 @@ class MapFactsTest {
         failureCount: Int = 0,
         nowElapsedRealtimeMs: Long = 0L,
         webGlRenderer: String? = null,
+        pageFrames: MapRuntimeSignals.PageFrames? = null,
     ) = mapFactsFrom(
         glEsVersion,
         backend,
@@ -26,7 +27,50 @@ class MapFactsTest {
         failureCount,
         nowElapsedRealtimeMs,
         webGlRenderer,
+        pageFrames,
     )
+
+    @Test
+    fun `page frames read no sample until the page has reported one`() {
+        assertEquals(
+            DiagnosticFact("Page frames", FactValue.Text("no sample yet")),
+            facts().single { it.label == "Page frames" },
+        )
+    }
+
+    @Test
+    fun `a page keeping pace reports its cadence and the sample age as plain text`() {
+        val fact =
+            facts(
+                pageFrames = MapRuntimeSignals.PageFrames(
+                    medianMs = 33,
+                    worstMs = 66,
+                    sampledFrames = 30,
+                    elapsedRealtimeMs = 5_000L,
+                ),
+                nowElapsedRealtimeMs = 17_000L,
+            ).single { it.label == "Page frames (30)" }
+        assertEquals(FactValue.Text("median 33 ms, worst 66 ms, 12s ago"), fact.value)
+    }
+
+    @Test
+    fun `a page below ten frames a second warns`() {
+        // The launcher's own UI frames can be on time while the WebView's renderer
+        // has fallen to a frame a second; this row is what shows it.
+        val fact =
+            facts(
+                pageFrames = MapRuntimeSignals.PageFrames(
+                    medianMs = 980,
+                    worstMs = 1400,
+                    sampledFrames = 30,
+                    elapsedRealtimeMs = 0L,
+                ),
+            ).single { it.label == "Page frames (30)" }
+        assertEquals(
+            FactValue.Status("median 980 ms, worst 1400 ms, 0s ago (< 10 fps)", FactHealth.WARNING),
+            fact.value,
+        )
+    }
 
     @Test
     fun `the WebGL renderer reads unreported until a page has rendered`() {

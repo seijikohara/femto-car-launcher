@@ -25,6 +25,19 @@ internal object MapRuntimeSignals {
     private val lastFailure = AtomicReference<MapFailure?>(null)
     private val failureCount = AtomicInteger(0)
     private val webGlRenderer = AtomicReference<String?>(null)
+    private val pageFrames = AtomicReference<PageFrames?>(null)
+
+    /**
+     * One burst of the map page's own frame intervals (bridge.ts
+     * startFrameSampler): the page's renderer cadence, which the launcher's
+     * Compose frame statistics cannot see.
+     */
+    data class PageFrames(
+        val medianMs: Int,
+        val worstMs: Int,
+        val sampledFrames: Int,
+        val elapsedRealtimeMs: Long,
+    )
 
     /** A `fatal` the page reported: [detail] is its reason string. */
     data class MapFailure(
@@ -57,6 +70,38 @@ internal object MapRuntimeSignals {
      * unmasked it on its first render; null until a page has rendered.
      */
     fun webGlRendererOrNull(): String? = webGlRenderer.get()
+
+    /**
+     * Record a `frames` event. [detail] is the page's compact
+     * "median=<ms>,worst=<ms>,samples=<n>"; anything else is ignored, since a
+     * malformed sample must not replace a good one.
+     */
+    fun recordPageFrames(
+        detail: String,
+        elapsedRealtimeMs: Long,
+    ) {
+        pageFramesFrom(detail, elapsedRealtimeMs)?.let(pageFrames::set)
+    }
+
+    fun pageFramesOrNull(): PageFrames? = pageFrames.get()
+
+    internal fun pageFramesFrom(
+        detail: String,
+        elapsedRealtimeMs: Long,
+    ): PageFrames? {
+        val fields =
+            detail
+                .split(',')
+                .mapNotNull { field ->
+                    field.substringBefore('=', "").takeIf { it.isNotEmpty() }?.let { key ->
+                        field.substringAfter('=').toIntOrNull()?.let { key to it }
+                    }
+                }.toMap()
+        val median = fields["median"] ?: return null
+        val worst = fields["worst"] ?: return null
+        val samples = fields["samples"]?.takeIf { it > 0 } ?: return null
+        return PageFrames(median, worst, samples, elapsedRealtimeMs)
+    }
 
     fun lastFailureOrNull(): MapFailure? = lastFailure.get()
 

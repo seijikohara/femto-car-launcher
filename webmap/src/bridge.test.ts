@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { redactSecrets } from "./bridge";
+import { frameSampleDetail, redactSecrets } from "./bridge";
 
 describe("redactSecrets", () => {
     it("redacts an access_token query value", () => {
@@ -28,5 +28,17 @@ describe("redactSecrets", () => {
         const plain =
             "style-load-failed: Failed to fetch https://tiles.openfreemap.org/styles/positron";
         expect(redactSecrets(plain)).toBe(plain);
+    });
+});
+
+describe("frameSampleDetail", () => {
+    it("reports the median and worst interval, rounded, with the sample count", () => {
+        expect(frameSampleDetail([16.7, 33.4, 16.6, 100.2, 16.7])).toBe(
+            "median=17,worst=100,samples=5",
+        );
+    });
+
+    it("is defined for an empty run", () => {
+        expect(frameSampleDetail([])).toBe("median=0,worst=0,samples=0");
     });
 });

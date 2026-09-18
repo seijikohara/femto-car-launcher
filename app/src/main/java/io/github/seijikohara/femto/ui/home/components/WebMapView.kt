@@ -587,6 +587,13 @@ internal fun WebMapView(
                                     mainHandler.post { currentOnFollowChange(detail.toBoolean()) }
                                 }
 
+                                // A burst of the page's own frame intervals, for the
+                                // MAP diagnostics section (see bridge.ts
+                                // startFrameSampler).
+                                "frames" -> {
+                                    MapRuntimeSignals.recordPageFrames(detail, SystemClock.elapsedRealtime())
+                                }
+
                                 // Throttled camera bearing for the compass overlay.
                                 "bearing" -> {
                                     detail.toFloatOrNull()?.let { bearing ->
