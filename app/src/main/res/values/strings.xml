@@ -371,7 +371,7 @@
     <string name="settings_google_maps_key_clear">Clear</string>
     <string name="settings_google_maps_map_id">Map ID (optional)</string>
     <string name="settings_google_maps_map_id_unset">Not set — tap to add one for cloud styling and advanced markers</string>
-    <string name="settings_google_maps_map_id_hint">Optional. Enter a Map ID created in your Google Cloud console (Map Management) for cloud styling and advanced markers. It does not control raster vs vector — the Rendering setting above does, except on Automatic, where the map ID\'s cloud configuration decides.</string>
+    <string name="settings_google_maps_map_id_hint">Optional. Enter a Map ID created in your Google Cloud console (Map Management) for cloud styling and advanced markers. It does not control raster vs vector — the Rendering setting above does, except on Automatic, where the map ID\'s cloud configuration decides. For the map to darken with the dark theme, associate a dark-mode style with the map ID in the Cloud console; without a map ID the default dark scheme applies.</string>
     <string name="settings_google_maps_map_id_save">Save</string>
     <string name="settings_google_maps_map_id_clear">Clear</string>
     <string name="settings_google_maps_terms">Google Maps Platform terms</string>

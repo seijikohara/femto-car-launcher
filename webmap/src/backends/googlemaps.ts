@@ -67,6 +67,11 @@ interface GoogleMapsFemtoBridge {
     // Synchronous getter injected by the host; the user's rendering choice as
     // the Kotlin enum name: "AUTO" | "RASTER" | "VECTOR".
     googleMapsRendering(): string;
+    // Synchronous getter injected by the host; the map's light/dark context
+    // resolved by the host from the Map style setting and the app theme, as
+    // a google.maps.ColorScheme name: "LIGHT" | "DARK". Construction-time
+    // only, so a change rebuilds the page (see WebMapView's effectiveGoogleDark).
+    googleMapsColorScheme(): string;
 }
 
 // Minimal type stubs for the Google Maps JS API (CDN-loaded at runtime,
@@ -178,6 +183,11 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // to raster on a device that cannot host it, which the tilesloaded handler
     // below detects. Requesting vector no longer needs a Map ID.
     const rendering = gmBridge()?.googleMapsRendering?.() ?? "AUTO";
+    // The OSM backend recolours its style per theme; Google's equivalent is
+    // the colorScheme option, which the API only honours at construction. A
+    // Map ID's cloud style takes over from it only if the user has associated
+    // a dark-mode style with that Map ID in the Cloud console.
+    const colorScheme = gmBridge()?.googleMapsColorScheme?.() ?? "LIGHT";
     // Only an EXPLICIT vector choice is a vector request. AUTO's outcome lives in
     // the Map ID's cloud configuration, which the page cannot read, so guessing
     // "Map ID means vector" would drive a raster-configured Map ID as vector —
@@ -380,6 +390,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         disableDefaultUI: true,
         gestureHandling: "greedy",
         keyboardShortcuts: false,
+        colorScheme,
         ...(mapId !== "" ? { mapId } : {}),
         ...(rendering === "AUTO" ? {} : { renderingType: rendering }),
         ...(state.isVector ? { heading: 0, tilt: 0, headingInteractionEnabled: false } : {}),

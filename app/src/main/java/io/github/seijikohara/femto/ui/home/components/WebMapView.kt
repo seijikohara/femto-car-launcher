@@ -173,6 +173,11 @@ internal fun WebMapView(
     // rebuild the WebView rather than push into the live page.
     val effectiveGoogleRendering =
         if (mapConfig.backend == MapBackend.GOOGLEMAPS) mapConfig.googleMapsRendering else GoogleMapsRendering.AUTO
+    // Google's colour scheme is likewise fixed at construction (MapOptions
+    // .colorScheme), so the map follows the light/dark context the way the OSM
+    // backend's style push does only by rebuilding the WebView on a flip. OSM
+    // is excluded here so a theme change never reloads the OSM page.
+    val effectiveGoogleDark = mapConfig.backend == MapBackend.GOOGLEMAPS && isDark
     // The tile host is OSM-only state by the same logic: an override typed while
     // Google Maps is active must not reload the Google page.
     val effectiveTileHostOverride = if (mapConfig.backend == MapBackend.OSM) mapConfig.tileHostOverride else ""
@@ -232,6 +237,7 @@ internal fun WebMapView(
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
+            effectiveGoogleDark,
             effectiveTileHostOverride,
             effectiveCustomStyleUrl,
         ) {
@@ -265,6 +271,7 @@ internal fun WebMapView(
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
+            effectiveGoogleDark,
             effectiveTileHostOverride,
         ) { mutableStateOf(false) }
 
@@ -283,6 +290,7 @@ internal fun WebMapView(
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
+            effectiveGoogleDark,
             effectiveTileHostOverride,
             effectiveCustomStyleUrl,
         ) {
@@ -295,6 +303,7 @@ internal fun WebMapView(
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
+            effectiveGoogleDark,
             effectiveTileHostOverride,
             effectiveCustomStyleUrl,
         ) {
@@ -383,6 +392,7 @@ internal fun WebMapView(
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
+            effectiveGoogleDark,
             effectiveTileHostOverride,
         ) {
             val assetLoader =
@@ -526,6 +536,13 @@ internal fun WebMapView(
                         // nothing and leaves that configuration in charge.
                         @JavascriptInterface
                         fun googleMapsRendering(): String = mapConfig.googleMapsRendering.name
+
+                        // Read synchronously by the googlemaps backend module before map
+                        // initialisation: the light/dark context as a ColorScheme name.
+                        // Construction-time only, hence effectiveGoogleDark among the
+                        // WebView keys.
+                        @JavascriptInterface
+                        fun googleMapsColorScheme(): String = if (isDark) "DARK" else "LIGHT"
 
                         @JavascriptInterface
                         fun onMapEvent(
