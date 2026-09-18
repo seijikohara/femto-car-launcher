@@ -538,7 +538,7 @@ internal fun WebMapView(
                                 // tell a working map from one that failed silently —
                                 // onPageFinished only proves the script ran.
                                 "ready" -> {
-                                    MapRuntimeSignals.recordRendered()
+                                    MapRuntimeSignals.recordRendered(detail)
                                 }
 
                                 // Transient by definition (tile / style / DEM

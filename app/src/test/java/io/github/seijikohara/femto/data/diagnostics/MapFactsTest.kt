@@ -5,6 +5,7 @@ import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.map.MapRuntimeSignals
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class MapFactsTest {
     private fun facts(
@@ -15,6 +16,7 @@ class MapFactsTest {
         lastFailure: MapRuntimeSignals.MapFailure? = null,
         failureCount: Int = 0,
         nowElapsedRealtimeMs: Long = 0L,
+        webGlRenderer: String? = null,
     ) = mapFactsFrom(
         glEsVersion,
         backend,
@@ -23,7 +25,32 @@ class MapFactsTest {
         lastFailure,
         failureCount,
         nowElapsedRealtimeMs,
+        webGlRenderer,
     )
+
+    @Test
+    fun `the WebGL renderer reads unreported until a page has rendered`() {
+        val fact = facts().single { it.label == "WebGL renderer" }
+        assertEquals(FactValue.Text("unreported (no map page has rendered yet)"), fact.value)
+    }
+
+    @Test
+    fun `a hardware WebGL renderer reports OK`() {
+        val fact = facts(webGlRenderer = "Mali-G52 MC2").single { it.label == "WebGL renderer" }
+        assertEquals(FactValue.Status("Mali-G52 MC2", FactHealth.OK), fact.value)
+    }
+
+    @Test
+    fun `a software WebGL renderer warns, since a vector map then renders on the CPU`() {
+        // The version fact above it can still read "expected": the platform's
+        // OpenGL ES is fine, it is the WebView's blocklist that hands WebGL to
+        // SwiftShader. Only the unmasked renderer string shows that.
+        val fact = facts(webGlRenderer = "Google SwiftShader").single { it.label == "WebGL renderer" }
+        assertEquals(
+            FactValue.Status("Google SwiftShader — software; vector maps render on the CPU", FactHealth.WARNING),
+            fact.value,
+        )
+    }
 
     @Test
     fun `a WebGL 2 backend below the OpenGL ES floor warns that it cannot render`() {
@@ -132,7 +159,10 @@ class MapFactsTest {
 
     @Test
     fun `a clean session reports no failure`() {
-        assertEquals(DiagnosticFact("Last failure", FactValue.Status("none this session", FactHealth.OK)), facts()[1])
+        assertEquals(
+            DiagnosticFact("Last failure", FactValue.Status("none this session", FactHealth.OK)),
+            facts().single { it.label == "Last failure" },
+        )
     }
 
     @Test
@@ -143,18 +173,17 @@ class MapFactsTest {
                 lastFailure = MapRuntimeSignals.MapFailure("no-webgl-context", elapsedRealtimeMs = 1_000L),
                 failureCount = 1,
                 nowElapsedRealtimeMs = 91_000L,
-            )[1],
+            ).single { it.label == "Last failure" },
         )
     }
 
     @Test
     fun `a single failure adds no count row`() {
-        assertEquals(
-            2,
+        assertTrue(
             facts(
                 lastFailure = MapRuntimeSignals.MapFailure("no-webgl-context", elapsedRealtimeMs = 0L),
                 failureCount = 1,
-            ).size,
+            ).none { it.label == "Failures this session" },
         )
     }
 
@@ -165,7 +194,7 @@ class MapFactsTest {
             facts(
                 lastFailure = MapRuntimeSignals.MapFailure("style-load-failed", elapsedRealtimeMs = 0L),
                 failureCount = 4,
-            )[2],
+            ).single { it.label == "Failures this session" },
         )
     }
 }

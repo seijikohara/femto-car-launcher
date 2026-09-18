@@ -12,6 +12,7 @@ import {
     MIN_EASE_MS,
     type ReflowFix,
     shortestBearingDelta,
+    settledHeading,
     smoothedBearing,
 } from "./camera";
 
@@ -153,5 +154,30 @@ describe("isRealPosition", () => {
     it("rejects a coordinate off the globe", () => {
         expect(isRealPosition(MAX_LATITUDE_DEG + 1, 0)).toBe(false);
         expect(isRealPosition(0, -MAX_LONGITUDE_DEG - 1)).toBe(false);
+    });
+});
+
+describe("settledHeading", () => {
+    it("adopts the target when nothing is applied yet", () => {
+        expect(settledHeading(null, 350)).toBe(350);
+        expect(settledHeading(null, -10)).toBe(350);
+    });
+
+    it("holds the applied heading while the drift stays inside the dead band", () => {
+        // Jitter on a straight road: the map must not rotate.
+        expect(settledHeading(90, 92)).toBe(90);
+        expect(settledHeading(90, 87)).toBe(90);
+        expect(settledHeading(359, 2)).toBe(359);
+    });
+
+    it("follows the target once the drift leaves the dead band", () => {
+        expect(settledHeading(90, 94)).toBe(94);
+        expect(settledHeading(90, 85)).toBe(85);
+        expect(settledHeading(359, 5)).toBe(5);
+    });
+
+    it("honours a caller-supplied band", () => {
+        expect(settledHeading(90, 99, 10)).toBe(90);
+        expect(settledHeading(90, 100, 10)).toBe(100);
     });
 });

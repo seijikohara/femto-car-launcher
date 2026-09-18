@@ -37,12 +37,12 @@
 // and the camera.ts / style.ts pure math.
 import { importLibrary, setOptions } from "@googlemaps/js-api-loader";
 import type { PageReporter, PendingBridgeCalls } from "../bridge";
-import { webglSupport } from "../bridge";
+import { webglRenderer, webglSupport } from "../bridge";
 import {
     AUTO_REFOLLOW_MS,
-    appliedBearing,
     isRealPosition,
     LOCATION_STALE_THRESHOLD_MS,
+    settledHeading,
     smoothedBearing,
 } from "../camera";
 import { chevronHandles, setChevronColor, setChevronTransform, startStaleTicker } from "../chevron";
@@ -241,6 +241,11 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // this.
         northUp: false,
         lastBearing: null as number | null,
+        // The heading the vector map is currently rotated to: the smoothed
+        // bearing passed through the dead band (settledHeading), so the map
+        // only rotates on a real turn. Null whenever the next fix should adopt
+        // the bearing outright (first fix, signal gap, re-follow).
+        appliedHeading: null as number | null,
         lastFixMs: 0,
         lastPushedZoom: 0,
         // See GESTURE_SUPPRESS_MS.
@@ -265,16 +270,33 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     const chevron = chevronHandles();
     const markerEl = chevron.el;
 
-    // VECTOR: heading-up rotates the MAP and the chevron points up; north-up
-    // rotates the chevron; the perspective lays it onto the tilted ground
-    // plane. RASTER: the map is permanently north-up, so the chevron always
-    // rotates to the travel bearing and there is no tilt plane.
-    function syncChevron(tilt: number, heading: number): void {
+    // VECTOR: heading-up rotates the MAP to [mapHeading] and the chevron turns
+    // by whatever the dead band left unrotated, so the arrow still points along
+    // the true travel [heading]; north-up rotates the chevron by the heading
+    // alone. The perspective lays it onto the tilted ground plane. RASTER: the
+    // map is permanently north-up, so the chevron always rotates to the travel
+    // bearing and there is no tilt plane.
+    function syncChevron(tilt: number, heading: number, mapHeading: number): void {
         if (state.isVector) {
-            setChevronTransform(markerEl, tilt, state.northUp ? heading : 0, true);
+            setChevronTransform(
+                markerEl,
+                tilt,
+                state.northUp ? heading : heading - mapHeading,
+                true,
+            );
             return;
         }
         setChevronTransform(markerEl, 0, heading, false);
+    }
+
+    // The heading the vector map is rotated to for a fix: north-up pins it at
+    // 0; heading-up passes the smoothed bearing through the dead band and
+    // records what was applied, so the next fix can hold it.
+    function mapHeadingFor(heading: number): number {
+        if (state.northUp) return 0;
+        const applied = settledHeading(state.appliedHeading, heading);
+        state.appliedHeading = applied;
+        return applied;
     }
 
     // gm_authFailure is Google's global hook for invalid/revoked API keys.
@@ -465,12 +487,16 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // arrives; a vector map re-syncs the chevron from the next
         // updateCamera push (the map rotates). placeFollowCamera restores the
         // off-centre target + chevron spot.
-        if (!state.isVector) syncChevron(0, fix.heading);
+        // A re-follow adopts the fix heading outright rather than holding
+        // whatever the map was rotated to before the user panned it.
+        state.appliedHeading = null;
+        const mapHeading = state.isVector ? mapHeadingFor(fix.heading) : 0;
+        syncChevron(state.isVector ? fix.tilt : 0, fix.heading, mapHeading);
         placeFollowCamera(
             { lat: fix.lat, lng: fix.lng },
             fix.zoom,
             fix.tilt,
-            state.isVector ? appliedBearing(state.northUp, fix.heading) : 0,
+            mapHeading,
             fix.markerPos,
             fix.bottomSafe,
             fix.rightSafe,
@@ -573,7 +599,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     const tilesListener = liveMap.addListener("tilesloaded", () => {
         if (state.rendered) return;
         state.rendered = true;
-        report("ready", "");
+        report("ready", webglRenderer());
         // getRenderingType() is the only authoritative answer, and it resolves
         // only once tiles are in, so reconcile in BOTH directions here.
         //
@@ -630,7 +656,10 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         const now = Date.now();
         const sinceLastFixMs = state.lastFixMs > 0 ? now - state.lastFixMs : 0;
         const signalGap = sinceLastFixMs > LOCATION_STALE_THRESHOLD_MS;
-        if (signalGap) state.lastBearing = null;
+        if (signalGap) {
+            state.lastBearing = null;
+            state.appliedHeading = null;
+        }
 
         setChevronColor(chevron, markerColor);
         state.lastFixMs = now;
@@ -664,17 +693,19 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             return;
         }
 
-        syncChevron(tilt || 0, heading);
+        // VECTOR drives heading-up rotation (through the dead band, so a
+        // straight road translates without re-laying-out every label) + tilt/3D;
+        // RASTER is north-up (headingDeg 0, no tilt). placeFollowCamera offsets
+        // both the chevron and the camera target so the location sits clear of
+        // the side cards — the OSM parity.
+        const mapHeading = state.isVector ? mapHeadingFor(heading) : 0;
+        syncChevron(tilt || 0, heading, mapHeading);
         markerEl.style.display = "block";
-        // VECTOR drives heading-up rotation (chevron points up) + tilt/3D;
-        // RASTER is north-up (headingDeg 0, no tilt). placeFollowCamera
-        // offsets both the chevron and the camera target so the location sits
-        // clear of the side cards — the OSM parity.
         placeFollowCamera(
             { lat, lng: lon },
             z,
             tilt || 0,
-            state.isVector ? appliedBearing(state.northUp, heading) : 0,
+            mapHeading,
             markerPos,
             bottomSafe,
             rightSafe,
@@ -701,8 +732,10 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // detached camera keeps the user's rotation until re-attach.
         const fix = state.lastFix;
         if (state.following && fix) {
-            moveCam({ heading: appliedBearing(state.northUp, fix.heading) });
-            syncChevron(fix.tilt, fix.heading);
+            state.appliedHeading = null;
+            const mapHeading = mapHeadingFor(fix.heading);
+            moveCam({ heading: mapHeading });
+            syncChevron(fix.tilt, fix.heading, mapHeading);
         }
     };
 

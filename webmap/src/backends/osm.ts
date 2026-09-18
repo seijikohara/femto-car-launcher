@@ -17,7 +17,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 // stays blank. Neither tsc nor the lint/test pass can catch it.
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import type { PageReporter, PendingBridgeCalls } from "../bridge";
-import { webglSupport } from "../bridge";
+import { webglRenderer, webglSupport } from "../bridge";
 import { chevronHandles } from "../chevron";
 import { createFollowEngine } from "../follow-camera";
 import { type AccentColors, injectFeatures, rewriteHost, UPSTREAM_TILE_HOST } from "../style";
@@ -130,7 +130,7 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
             if (!liveMap.isStyleLoaded()) return;
             state.styleLoaded = true;
             log("rendered");
-            report("ready", "");
+            report("ready", webglRenderer());
             liveMap.off("render", onFirstRender);
         };
         liveMap.on("render", onFirstRender);
