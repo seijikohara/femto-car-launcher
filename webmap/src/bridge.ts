@@ -205,3 +205,26 @@ export function webglSupport(): { webgl2: boolean; webgl1: boolean } {
         webgl1: document.createElement("canvas").getContext("webgl") != null,
     };
 }
+
+// The GPU (or software rasteriser) behind the page's WebGL, as the WebView
+// unmasks it — "SwiftShader" means Chromium blocklisted the device's driver
+// and every WebGL map renders on the CPU, which no camera tuning can make
+// smooth. Reported to the host as the `ready` detail for the diagnostics
+// report; empty when no context can be created at all.
+export function webglRenderer(): string {
+    const gl =
+        document.createElement("canvas").getContext("webgl2") ??
+        document.createElement("canvas").getContext("webgl");
+    if (!gl) return "";
+    try {
+        // Chrome unmasks RENDERER itself since 101; older WebViews still hide
+        // it behind the debug extension.
+        const info = gl.getExtension("WEBGL_debug_renderer_info");
+        const value = info
+            ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL)
+            : gl.getParameter(gl.RENDERER);
+        return String(value ?? "");
+    } catch {
+        return "";
+    }
+}

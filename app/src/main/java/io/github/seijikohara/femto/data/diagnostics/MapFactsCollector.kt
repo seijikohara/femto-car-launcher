@@ -73,9 +73,11 @@ internal fun mapFactsFrom(
     lastFailure: MapRuntimeSignals.MapFailure?,
     failureCount: Int,
     nowElapsedRealtimeMs: Long,
+    webGlRenderer: String? = null,
 ): List<DiagnosticFact> =
     buildList {
         add(webGl2Fact(glEsVersion, webGl2Need(backend, googleRendering, hasGoogleMapId)))
+        add(webGlRendererFact(webGlRenderer))
         add(lastFailureFact(lastFailure, nowElapsedRealtimeMs))
         if (failureCount > 1) {
             add(DiagnosticFact("Failures this session", FactValue.Text("$failureCount")))
@@ -127,6 +129,32 @@ private fun webGl2Fact(
     }
 }
 
+// The renderer the page's WebGL actually runs on, unmasked by the WebView on
+// the first render. This is the authoritative counterpart of the version fact
+// above: a GPU the WebView blocklists still reports a fine OpenGL ES version
+// yet hands WebGL to SwiftShader, Chromium's software rasteriser — and then a
+// vector map crawls on the CPU no matter how the camera is driven, while a
+// server-rendered raster map is unaffected.
+private fun webGlRendererFact(renderer: String?): DiagnosticFact =
+    when {
+        renderer == null -> {
+            DiagnosticFact("WebGL renderer", FactValue.Text("unreported (no map page has rendered yet)"))
+        }
+
+        SOFTWARE_RENDERERS.any { renderer.contains(it, ignoreCase = true) } -> {
+            DiagnosticFact(
+                "WebGL renderer",
+                FactValue.Status("$renderer — software; vector maps render on the CPU", FactHealth.WARNING),
+            )
+        }
+
+        else -> {
+            DiagnosticFact("WebGL renderer", FactValue.Status(renderer, FactHealth.OK))
+        }
+    }
+
+private val SOFTWARE_RENDERERS = listOf("SwiftShader", "llvmpipe", "softpipe", "Software")
+
 // deviceConfigurationInfo reports the version as "major.minor"; compare on the
 // same packed 0xMMMMmmmm encoding the platform uses for reqGlEsVersion.
 private fun glEsVersionCode(glEsVersion: String?): Int? {
@@ -163,6 +191,7 @@ internal class MapFactsCollector(
                     lastFailure = MapRuntimeSignals.lastFailureOrNull(),
                     failureCount = MapRuntimeSignals.failureCount(),
                     nowElapsedRealtimeMs = SystemClock.elapsedRealtime(),
+                    webGlRenderer = MapRuntimeSignals.webGlRendererOrNull(),
                 ),
             )
         }

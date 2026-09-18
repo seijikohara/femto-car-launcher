@@ -82,6 +82,30 @@ function normalizeBearing(bearing: number): number {
     return ((bearing % 360) + 360) % 360;
 }
 
+// How far the smoothed bearing may drift from the heading the map is rotated
+// to before the map rotates again. A rotation is the most expensive camera
+// change a vector renderer makes — every label is re-laid-out and re-tested
+// for collisions — and the GNSS bearing wanders a degree or two on every fix
+// even on a straight road, so without a dead band every fix is a rotation.
+// Inside the band the map only translates and the chevron carries the
+// residual, so the arrow still shows the true travel direction.
+export const HEADING_HYSTERESIS_DEG = 4;
+
+// The heading the map should be rotated to for [target], given the heading it
+// is currently rotated to: [applied] while the drift stays inside the dead
+// band, [target] once it leaves it or when nothing is applied yet (first fix,
+// re-follow, signal gap).
+export function settledHeading(
+    applied: number | null,
+    target: number,
+    thresholdDeg: number = HEADING_HYSTERESIS_DEG,
+): number {
+    if (applied === null) return normalizeBearing(target);
+    return Math.abs(shortestBearingDelta(applied, target)) < thresholdDeg
+        ? applied
+        : normalizeBearing(target);
+}
+
 // How long after the user's last gesture the camera re-attaches to the
 // location follow on its own. Long enough to read the map after a scroll,
 // short enough that a driver who forgets the map is detached gets the

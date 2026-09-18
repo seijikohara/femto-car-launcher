@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference
 internal object MapRuntimeSignals {
     private val lastFailure = AtomicReference<MapFailure?>(null)
     private val failureCount = AtomicInteger(0)
+    private val webGlRenderer = AtomicReference<String?>(null)
 
     /** A `fatal` the page reported: [detail] is its reason string. */
     data class MapFailure(
@@ -46,9 +47,16 @@ internal object MapRuntimeSignals {
      * a map that fails and recovers repeatedly still reads as flapping, which a
      * cleared counter would hide.
      */
-    fun recordRendered() {
+    fun recordRendered(webGlRenderer: String) {
         lastFailure.set(null)
+        this.webGlRenderer.set(webGlRenderer.takeIf { it.isNotBlank() })
     }
+
+    /**
+     * The GPU (or software rasteriser) behind the page's WebGL, as the page
+     * unmasked it on its first render; null until a page has rendered.
+     */
+    fun webGlRendererOrNull(): String? = webGlRenderer.get()
 
     fun lastFailureOrNull(): MapFailure? = lastFailure.get()
 
