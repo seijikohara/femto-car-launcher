@@ -92,6 +92,18 @@ corner wherever the backend's own ToS permits:
   as Google places it (any CSS against `.gm-style-cc` would violate
   the brand-feature terms).
 
+## Light / dark
+
+Both backends follow the host's resolved light/dark context (the Map
+style setting, or the app theme on Auto), by different mechanisms:
+the OSM page swaps or recolours its style through `setStyleUrl`
+while the page lives, whereas Google's `colorScheme` is a
+construction-time `MapOptions` value, so `WebMapView` keys the
+WebView on `effectiveGoogleDark` and a flip rebuilds the Google page.
+A Map ID's cloud style overrides the scheme only if a dark-mode style
+is associated with it in the Cloud console (a 2025 addition); the
+Map ID hint in Settings says so.
+
 ## Toolchain split
 
 The toolchain is Vite+ (`vite-plus`, the `vp` CLI): `vp build` owns
