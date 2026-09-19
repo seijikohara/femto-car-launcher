@@ -1,0 +1,69 @@
+name: Bug report
+description: Report a defect in the launcher.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Before you file it, install the latest
+        `nightly` build and confirm that the bug still occurs; every merge
+        to `main` ships as a new nightly. Do not report a security
+        vulnerability here — follow [SECURITY.md](https://github.com/seijikohara/femto-car-launcher/blob/main/SECURITY.md).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Describe the defect and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Settings → Map
+        2. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: device-class
+    attributes:
+      label: Device class
+      options:
+        - Aftermarket CarPlay / Android Auto AI box
+        - Built-in Android head unit
+        - Smartphone or tablet on a car mount
+        - Emulator
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: Build identifier
+      description: >-
+        Shown in Settings → System → Diagnostics, App section, and in the
+        diagnostics report.
+      placeholder: nightly-1269-d4fb3d0b
+    validations:
+      required: true
+  - type: input
+    id: android
+    attributes:
+      label: Android version and device model
+      placeholder: Android 13, 800×480 head unit
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics report
+      description: >-
+        In the app, open Settings → System → Diagnostics and tap
+        **Copy report**, then paste the result here. The report masks API
+        keys; review it before you post it.
+      render: text
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or additional context
+      description: Attach screenshots or a screen recording if the defect is visual.
