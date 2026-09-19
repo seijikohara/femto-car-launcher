@@ -288,8 +288,10 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // The heading the vector map is rotated to, with the dead band's
         // state: the smoothed bearing passes through heldHeading, so the map
         // only rotates on a real turn (and, once, to settle a residual that
-        // persists on a straight road). Reset whenever the next fix should
-        // adopt the bearing outright (first fix, signal gap, re-follow).
+        // persists on a straight road). Reset to NO_HEADING_HOLD whenever
+        // the next fix should adopt the bearing outright: a signal gap
+        // (updateCamera), and every easeHome — a re-follow, a north-up flip,
+        // a rendering-mode resolve. The one list of reset points.
         headingHold: NO_HEADING_HOLD,
         lastFixMs: 0,
         lastPushedZoom: 0,

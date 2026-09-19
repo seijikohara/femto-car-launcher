@@ -201,36 +201,37 @@ describe("isRealPosition", () => {
 });
 
 describe("heldHeading", () => {
-    const held90 = { applied: 90, residualSinceMs: null };
+    const held90 = { ...NO_HEADING_HOLD, applied: 90 };
 
     it("adopts the target when nothing is applied", () => {
-        expect(heldHeading(NO_HEADING_HOLD, 350, 0)).toEqual({
-            applied: 350,
-            residualSinceMs: null,
-        });
+        expect(heldHeading(NO_HEADING_HOLD, 350, 0)).toEqual({ ...NO_HEADING_HOLD, applied: 350 });
     });
 
     it("holds inside the band and starts the residual clock", () => {
-        expect(heldHeading(held90, 92, 1_000)).toEqual({ applied: 90, residualSinceMs: 1_000 });
+        expect(heldHeading(held90, 92, 1_000)).toEqual({
+            applied: 90,
+            residualSide: 1,
+            residualSinceMs: 1_000,
+        });
     });
 
     it("rotates at once when the target leaves the band", () => {
-        expect(heldHeading(held90, 94, 1_000)).toEqual({ applied: 94, residualSinceMs: null });
+        expect(heldHeading(held90, 94, 1_000)).toEqual({ ...NO_HEADING_HOLD, applied: 94 });
     });
 
     it("settles a residual that has persisted for the settle time", () => {
         const holding = heldHeading(held90, 92, 1_000);
         expect(heldHeading(holding, 92, 1_000 + HEADING_SETTLE_MS - 1).applied).toBe(90);
         expect(heldHeading(holding, 92, 1_000 + HEADING_SETTLE_MS)).toEqual({
+            ...NO_HEADING_HOLD,
             applied: 92,
-            residualSinceMs: null,
         });
     });
 
     it("leaves a residual below the settle minimum alone", () => {
         const target = 90 + HEADING_SETTLE_MIN_DEG / 2;
         const holding = heldHeading(held90, target, 1_000);
-        expect(holding).toEqual({ applied: 90, residualSinceMs: null });
+        expect(holding).toEqual({ ...NO_HEADING_HOLD, applied: 90 });
         expect(heldHeading(holding, target, 1_000 + 2 * HEADING_SETTLE_MS).applied).toBe(90);
     });
 
@@ -245,9 +246,22 @@ describe("heldHeading", () => {
     });
 
     it("measures the residual across the north seam", () => {
-        const holding = heldHeading({ applied: 359, residualSinceMs: null }, 1, 0);
-        expect(holding).toEqual({ applied: 359, residualSinceMs: 0 });
+        const holding = heldHeading({ ...NO_HEADING_HOLD, applied: 359 }, 1, 0);
+        expect(holding.applied).toBe(359);
+        expect(holding.residualSinceMs).toBe(0);
         expect(heldHeading(holding, 1, HEADING_SETTLE_MS).applied).toBe(1);
+    });
+
+    it("restarts the residual clock when the residual changes side", () => {
+        // Bearing jitter that swings across the applied heading (a slow
+        // crawl with a poor fix) never dips under the minimum, yet it is not
+        // a residual that stays: settling onto one side would put the other
+        // side outside the band and turn every fix into a rotation.
+        const hold = [92, 88, 92, 88, 92, 88, 92, 88, 92, 88, 92, 88, 92, 88].reduce(
+            (h, target, i) => heldHeading(h, target, i * 500),
+            held90 as ReturnType<typeof heldHeading>,
+        );
+        expect(hold.applied).toBe(90);
     });
 });
 

@@ -123,21 +123,31 @@ export const HEADING_HYSTERESIS_DEG = 4;
 // of straight driving. Residuals under HEADING_SETTLE_MIN_DEG are left
 // alone: they are not visible, and the smoothed bearing's own wander would
 // otherwise trigger a settle every few seconds on a straight road. The clock
-// restarts whenever the residual dips under the minimum, so only a residual
-// that stays counts.
+// restarts whenever the residual dips under the minimum or swings to the
+// other side of the applied heading, so only a residual that stays on one
+// side counts: bearing jitter swinging across the applied heading (a slow
+// crawl with a poor fix) is not a lean to close, and settling onto one side
+// of it would put the other side outside the band and turn every fix into a
+// rotation — the very thing the band exists to avoid.
 export const HEADING_SETTLE_MS = 3_000;
 export const HEADING_SETTLE_MIN_DEG = 1.5;
 
 // The heading dead band's state: the heading the map is rotated to (null
-// until the first fix, and reset when the next fix should adopt the bearing
-// outright — a signal gap, a re-follow, a north-up flip), and when the
-// current residual first reached the settle minimum (null while under it).
+// until a fix adopts the bearing outright — the backend decides when, see
+// its reset sites), plus the side of it the current residual lies on and
+// when that residual first reached the settle minimum (both null while it
+// is under the minimum).
 export interface HeadingHold {
     applied: number | null;
+    residualSide: 1 | -1 | null;
     residualSinceMs: number | null;
 }
 
-export const NO_HEADING_HOLD: HeadingHold = { applied: null, residualSinceMs: null };
+export const NO_HEADING_HOLD: HeadingHold = {
+    applied: null,
+    residualSide: null,
+    residualSinceMs: null,
+};
 
 // The hold after one fix with the smoothed bearing [target] at [nowMs]: its
 // `applied` is the heading to rotate the map to — held while the drift stays
@@ -150,14 +160,15 @@ export function heldHeading(
     nowMs: number,
 ): HeadingHold & { applied: number } {
     const settled = settledHeading(hold.applied, target);
-    if (settled !== hold.applied) return { applied: settled, residualSinceMs: null };
-    const residual = Math.abs(shortestBearingDelta(settled, target));
-    if (residual < HEADING_SETTLE_MIN_DEG) return { applied: settled, residualSinceMs: null };
-    const since = hold.residualSinceMs ?? nowMs;
+    if (settled !== hold.applied) return { ...NO_HEADING_HOLD, applied: settled };
+    const delta = shortestBearingDelta(settled, target);
+    if (Math.abs(delta) < HEADING_SETTLE_MIN_DEG) return { ...NO_HEADING_HOLD, applied: settled };
+    const side = delta < 0 ? -1 : 1;
+    const since = side === hold.residualSide ? (hold.residualSinceMs ?? nowMs) : nowMs;
     if (nowMs - since >= HEADING_SETTLE_MS) {
-        return { applied: normalizeBearing(target), residualSinceMs: null };
+        return { ...NO_HEADING_HOLD, applied: normalizeBearing(target) };
     }
-    return { applied: settled, residualSinceMs: since };
+    return { applied: settled, residualSide: side, residualSinceMs: since };
 }
 
 // The heading the map should be rotated to for [target], given the heading it

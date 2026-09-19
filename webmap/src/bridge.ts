@@ -162,7 +162,8 @@ export function createBearingReporter(
     // it — a timer can run late, after such a report, and must not then
     // send a value held since, inside the new interval.
     const state = {
-        lastMs: 0,
+        // null until the first report, which goes out at once.
+        lastMs: null as number | null,
         lastSent: "",
         held: null as string | null,
         armed: false,
@@ -176,7 +177,7 @@ export function createBearingReporter(
     return (bearingDeg: number): void => {
         const bearing = bearingDeg.toFixed(1);
         const atMs = now();
-        const elapsed = atMs - state.lastMs;
+        const elapsed = state.lastMs === null ? Infinity : atMs - state.lastMs;
         if (elapsed >= BEARING_REPORT_INTERVAL_MS) {
             // A held value is stale next to this one, and so is the timer
             // waiting to send it; the next held value arms a fresh one.
