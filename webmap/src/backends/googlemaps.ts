@@ -42,20 +42,21 @@
 // pure math.
 import { importLibrary, setOptions } from "@googlemaps/js-api-loader";
 import type { PageReporter, PendingBridgeCalls } from "../bridge";
-import { webglRenderer, webglSupport } from "../bridge";
+import { createBearingReporter, webglRenderer, webglSupport } from "../bridge";
 import {
     AUTO_REFOLLOW_MS,
     type CameraMotion,
     DETACHED_ZOOM_STEP_MOTION,
     followMotion,
+    heldHeading,
     isPaddingOnlyReflow,
     isRealPosition,
     LAYOUT_REFLOW_MS,
     LOCATION_STALE_THRESHOLD_MS,
+    NO_HEADING_HOLD,
     ORIENTATION_FLIP_MOTION,
     REFLOW_MOTION,
     REFOLLOW_MOTION,
-    settledHeading,
     smoothedBearing,
 } from "../camera";
 import { type CameraPose, createCameraGlide } from "../camera-glide";
@@ -284,11 +285,14 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // this.
         northUp: false,
         lastBearing: null as number | null,
-        // The heading the vector map is currently rotated to: the smoothed
-        // bearing passed through the dead band (settledHeading), so the map
-        // only rotates on a real turn. Null whenever the next fix should adopt
-        // the bearing outright (first fix, signal gap, re-follow).
-        appliedHeading: null as number | null,
+        // The heading the vector map is rotated to, with the dead band's
+        // state: the smoothed bearing passes through heldHeading, so the map
+        // only rotates on a real turn (and, once, to settle a residual that
+        // persists on a straight road). Reset to NO_HEADING_HOLD whenever
+        // the next fix should adopt the bearing outright: a signal gap
+        // (updateCamera), and every easeHome — a re-follow, a north-up flip,
+        // a rendering-mode resolve. The one list of reset points.
+        headingHold: NO_HEADING_HOLD,
         lastFixMs: 0,
         lastPushedZoom: 0,
         // The first camera placement snaps into position (no fly-in from the
@@ -356,9 +360,9 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // records what was applied, so the next fix can hold it.
     function mapHeadingFor(heading: number): number {
         if (state.northUp) return 0;
-        const applied = settledHeading(state.appliedHeading, heading);
-        state.appliedHeading = applied;
-        return applied;
+        const hold = heldHeading(state.headingHold, heading, Date.now());
+        state.headingHold = hold;
+        return hold.applied;
     }
 
     // gm_authFailure is Google's global hook for invalid/revoked API keys.
@@ -630,7 +634,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // off-centre target + chevron spot.
         // A re-follow adopts the fix heading outright rather than holding
         // whatever the map was rotated to before the user panned it.
-        state.appliedHeading = null;
+        state.headingHold = NO_HEADING_HOLD;
         const mapHeading = state.isVector ? mapHeadingFor(fix.heading) : 0;
         syncChevron(state.isVector ? fix.tilt : 0, fix.heading, mapHeading);
         placeFollowCamera(fix, mapHeading, motion);
@@ -712,29 +716,22 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         });
     }
 
-    // VECTOR only: heading_changed reports the bearing (throttled) for the
-    // host compass overlay and detaches follow on a user rotation. (A raster
-    // map is north-up and never rotates, so the event cannot fire — skip the
-    // listener.)
-    if (state.isVector) {
-        const BEARING_REPORT_INTERVAL_MS = 150;
-        const bearingReport = { lastMs: 0, lastSent: "" };
-        liveMap.addListener("heading_changed", () => {
-            const now = Date.now();
-            if (now - bearingReport.lastMs >= BEARING_REPORT_INTERVAL_MS) {
-                const bearing = (liveMap.getHeading() ?? 0).toFixed(1);
-                if (bearing !== bearingReport.lastSent) {
-                    bearingReport.lastMs = now;
-                    bearingReport.lastSent = bearing;
-                    report("bearing", bearing);
-                }
-            }
-            if (now > state.programmaticUntil.heading) {
-                userTookCamera();
-                armRefollow();
-            }
-        });
-    }
+    // heading_changed reports the bearing for the host compass overlay
+    // (throttled — see createBearingReporter) and detaches follow on a user
+    // rotation. Registered in every mode: a raster map is north-up and never
+    // rotates, so the event simply never fires there, while a map that
+    // starts raster and resolves to vector at its first tilesloaded (the AUTO
+    // rendering choice with a vector-configured Map ID) needs the listener
+    // in place by then — registering it only for a vector start left that
+    // map's compass frozen at north.
+    const reportBearing = createBearingReporter(report);
+    liveMap.addListener("heading_changed", () => {
+        reportBearing(liveMap.getHeading() ?? 0);
+        if (Date.now() > state.programmaticUntil.heading) {
+            userTookCamera();
+            armRefollow();
+        }
+    });
 
     // First tilesloaded marks the map as rendered. Log to console for
     // diagnostics; the host detects
@@ -814,7 +811,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         const signalGap = sinceLastFixMs > LOCATION_STALE_THRESHOLD_MS;
         if (signalGap) {
             state.lastBearing = null;
-            state.appliedHeading = null;
+            state.headingHold = NO_HEADING_HOLD;
         }
 
         setChevronColor(chevron, markerColor);

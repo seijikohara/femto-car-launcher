@@ -126,6 +126,81 @@ export function createReporter(prefix: string): PageReporter {
     };
 }
 
+// The camera-bearing report for the host's compass overlay: one implementation
+// for both backends, fed the current bearing from each camera-change event
+// (MapLibre's "move", Google's "heading_changed").
+//
+// Throttled to this interval so a rotating camera does not hand the host a
+// bridge call per frame — but with the LAST value always delivered: an event
+// arriving inside the interval is held and sent when the interval ends, if
+// nothing newer has been sent by then. A plain leading-edge throttle drops
+// the final frame of a rotation, and a source that fires only on change
+// (Google's heading_changed) never sends another event to repair it, so the
+// compass would rest a few degrees off wherever the last dropped frame left
+// the map — after a north-up flip, visibly off north. Deduped on the rounded
+// payload, not the raw float: getters rarely return bit-identical values, so
+// a float compare would re-send visually identical bearings.
+export const BEARING_REPORT_INTERVAL_MS = 150;
+
+export function createBearingReporter(
+    report: (kind: MapEventKind, detail: unknown) => void,
+    deps: {
+        now?: () => number;
+        schedule?: (callback: () => void, delayMs: number) => void;
+    } = {},
+): (bearingDeg: number) => void {
+    const now = deps.now ?? (() => Date.now());
+    const schedule =
+        deps.schedule ??
+        ((callback: () => void, delayMs: number) => {
+            setTimeout(callback, delayMs);
+        });
+    // Mutable throttle state in a const holder (let/var are banned — see the
+    // lint block in vite.config.ts and no-let.js). held is the bearing
+    // waiting for the interval to end; armed, whether a timer is pending for
+    // it; generation retires that timer when an immediate report supersedes
+    // it — a timer can run late, after such a report, and must not then
+    // send a value held since, inside the new interval.
+    const state = {
+        // null until the first report, which goes out at once.
+        lastMs: null as number | null,
+        lastSent: "",
+        held: null as string | null,
+        armed: false,
+        generation: 0,
+    };
+    function send(bearing: string, atMs: number): void {
+        state.lastMs = atMs;
+        state.lastSent = bearing;
+        report("bearing", bearing);
+    }
+    return (bearingDeg: number): void => {
+        const bearing = bearingDeg.toFixed(1);
+        const atMs = now();
+        const elapsed = state.lastMs === null ? Infinity : atMs - state.lastMs;
+        if (elapsed >= BEARING_REPORT_INTERVAL_MS) {
+            // A held value is stale next to this one, and so is the timer
+            // waiting to send it; the next held value arms a fresh one.
+            state.held = null;
+            state.generation += 1;
+            state.armed = false;
+            if (bearing !== state.lastSent) send(bearing, atMs);
+            return;
+        }
+        state.held = bearing;
+        if (state.armed) return;
+        state.armed = true;
+        const generation = state.generation;
+        schedule(() => {
+            if (generation !== state.generation) return;
+            state.armed = false;
+            const held = state.held;
+            state.held = null;
+            if (held !== null && held !== state.lastSent) send(held, now());
+        }, BEARING_REPORT_INTERVAL_MS - elapsed);
+    };
+}
+
 // Route uncaught exceptions and unhandled rejections through the throttled
 // channel: a post-init exception inside a bridge call would otherwise reach
 // only the JS console, invisible on an adb-unreachable head unit.
