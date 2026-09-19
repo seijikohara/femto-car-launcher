@@ -16,7 +16,9 @@
 //   - RASTER (no Map ID): north-up only. A raster map cannot rotate or tilt,
 //     and passing heading/tilt to moveCamera stops the camera from
 //     positioning, so the map stays north-up and the chevron always rotates
-//     to the travel bearing to convey heading.
+//     to the travel bearing to convey heading. (The raster map's own 45°
+//     aerial-imagery mode, which would tilt and turn it on its own, is
+//     switched off at construction.)
 //
 // Like the OSM backend, the screen-pinned chevron sits left-of-centre
 // (and drops with markerPos) to clear the side cards / bottom overlay, and
@@ -28,24 +30,37 @@
 // no tilt) camera offsets exactly.
 //
 // This backend does NOT use the shared follow-camera engine: Google's camera
-// has no easing (moveCamera is immediate; smooth motion at GPS cadence relies
-// on frequent small jumps), camera-change events carry no user-vs-programmatic
-// flag (a suppression window stands in for originalEvent gating), and there
-// is no mapId-free, non-deprecated geo marker for the detached mode — the
-// chevron simply hides while detached (a geo-anchored OverlayView is the
-// documented follow-up). It shares the chevron helpers, the bridge plumbing,
-// and the camera.ts / style.ts pure math.
+// API is immediate (moveCamera has no easing, and there is no easeTo), so the
+// page interpolates the camera itself frame by frame (camera-glide.ts, the
+// loop Google's own vector-map guidance animates the camera with) under the
+// same duration policy as the MapLibre engine; camera-change events carry no
+// user-vs-programmatic flag (suppression windows stand in for originalEvent
+// gating); and there is no mapId-free, non-deprecated geo marker for the
+// detached mode — the chevron simply hides while detached (a geo-anchored
+// OverlayView is the documented follow-up). It shares the chevron helpers,
+// the bridge plumbing, the reflow lockstep, and the camera.ts / style.ts
+// pure math.
 import { importLibrary, setOptions } from "@googlemaps/js-api-loader";
 import type { PageReporter, PendingBridgeCalls } from "../bridge";
 import { webglRenderer, webglSupport } from "../bridge";
 import {
     AUTO_REFOLLOW_MS,
+    type CameraMotion,
+    DETACHED_ZOOM_STEP_MOTION,
+    followMotion,
+    isPaddingOnlyReflow,
     isRealPosition,
+    LAYOUT_REFLOW_MS,
     LOCATION_STALE_THRESHOLD_MS,
+    ORIENTATION_FLIP_MOTION,
+    REFLOW_MOTION,
+    REFOLLOW_MOTION,
     settledHeading,
     smoothedBearing,
 } from "../camera";
+import { type CameraPose, createCameraGlide } from "../camera-glide";
 import { chevronHandles, setChevronColor, setChevronTransform, startStaleTicker } from "../chevron";
+import { createMarkerTransition } from "../marker-motion";
 // Shared self-marker offset model with the OSM backend (style.ts is
 // the SSOT): how far left of centre the chevron sits to clear the side cards,
 // and how far it drops with markerPos to clear the bottom overlay.
@@ -115,7 +130,11 @@ interface GMProjection {
 interface GMMap {
     moveCamera(opts: GMCameraOptions): void;
     setMapTypeId(id: string): void;
+    // The camera the map shows now — where every glide starts from.
+    getCenter(): GMLatLngObj | undefined;
+    getZoom(): number | undefined;
     getHeading(): number | undefined;
+    getTilt(): number | undefined;
     // Null until the projection is ready (first idle); offsetCenterFor falls
     // back to the un-offset centre until then.
     getProjection(): GMProjection | null;
@@ -155,14 +174,28 @@ const MAP_TYPE_IDS: Record<string, string> = {
     TERRAIN: "terrain",
 };
 
-// Suppression window after each programmatic moveCamera: Google Maps fires
+// Suppression window after a programmatic camera change: Google Maps fires
 // camera-change events for BOTH programmatic moves and user gestures, with no
-// originalEvent flag to tell them apart. Each programmatic move opens this
-// window; change events inside it are treated as programmatic (no follow
-// detach), and events after it as user gestures. moveCamera is immediate (no
-// animation), so its events fire well within the window while user input
-// between fixes does not.
-const GESTURE_SUPPRESS_MS = 60;
+// originalEvent flag to tell them apart. Change events inside the window are
+// treated as programmatic (no follow detach), and events after it as user
+// gestures. moveCamera is immediate (no animation), so its events fire well
+// within the window while user input between them does not.
+//
+// One window PER PROPERTY (zoom / heading / tilt), opened only by a frame
+// that changes that property: the glide calls moveCamera every frame while
+// following, so a single window opened by every call would never close on
+// the move and a pinch-zoom would go undetected for as long as the car is
+// moving. A pure translation (a straight road) opens nothing, and a turn
+// opens only the heading window, so a user zoom stays detectable through
+// both. The blind spot that remains is a pinch during the second or two a
+// zoom step itself glides — head units have no multitouch, so it is accepted.
+//
+// The window outlasts a late frame by a wide margin: should the API defer a
+// change event to its next render, a frame that stalls on a head unit (the
+// diagnostics' worst frame interval) must still land inside it, or a turn
+// would detach the follow mid-corner. The per-property split is what keeps a
+// window this wide from hiding a user zoom.
+const GESTURE_SUPPRESS_MS = 200;
 
 export async function init(reporter: PageReporter, pending: PendingBridgeCalls): Promise<void> {
     const { log, report } = reporter;
@@ -258,8 +291,24 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         appliedHeading: null as number | null,
         lastFixMs: 0,
         lastPushedZoom: 0,
-        // See GESTURE_SUPPRESS_MS.
-        programmaticUntil: 0,
+        // The first camera placement snaps into position (no fly-in from the
+        // [0,0] construction centre); the rest glide.
+        firstCamera: true,
+        // See GESTURE_SUPPRESS_MS: the wall-clock ms each property's window
+        // is open until.
+        programmaticUntil: { zoom: 0, heading: 0, tilt: 0 },
+        // The zoom / heading / tilt last passed to moveCamera, so a frame
+        // can tell which properties it actually changes; null until the
+        // first move.
+        lastSet: { zoom: null, heading: null, tilt: null } as Record<
+            "zoom" | "heading" | "tilt",
+            number | null
+        >,
+        // Whether the last camera placement could offset the target for the
+        // chevron's spot (the projection was ready). A change moves the
+        // chevron without a new fix, so it glides in lockstep with the
+        // camera like a layout reflow does.
+        offsetApplied: false,
         // tilt is used only on a VECTOR map; a raster map ignores it.
         // markerPos / bottomSafe / rightSafe / leftSafe are the host's
         // safe-zone fractions, kept so a re-follow (easeHome) reproduces the
@@ -279,6 +328,9 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
 
     const chevron = chevronHandles();
     const markerEl = chevron.el;
+    // Lockstep control for a layout reflow — see isPaddingOnlyReflow and
+    // marker-motion.ts; the same arrangement as the shared follow engine.
+    const markerTransition = createMarkerTransition(markerEl, LAYOUT_REFLOW_MS);
 
     // VECTOR: heading-up rotates the MAP to [mapHeading] and the chevron turns
     // by whatever the dead band left unrotated, so the arrow still points along
@@ -383,6 +435,20 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // entirely. headingInteractionEnabled stays false because heading is driven
     // solely by the host (north-up vs heading-up), never by user rotation
     // gestures.
+    //
+    // isFractionalZoomEnabled defaults to false on a raster map, which would
+    // round the glide's in-between zoom values and turn a zoom step into a
+    // mid-way jump; the host's zoom setting is an integer, so at rest the
+    // raster map renders exactly as before.
+    //
+    // tilt: 0 is passed in both modes. On a vector map it is the flat start
+    // the first push tilts from. On a raster map the option means something
+    // else — it switches off the automatic 45° aerial imagery that the
+    // satellite and hybrid map types otherwise flip on wherever it exists at
+    // the zoom (the default) — which keeps the raster map the flat,
+    // north-up surface the chevron and the off-centre target assume, and
+    // keeps tilt_changed from ever firing there (the gesture detacher below
+    // would read a flip as a user gesture).
     const liveMap = new mapsLib.Map(mapEl as HTMLElement, {
         center: { lat: 0, lng: 0 },
         zoom: 1,
@@ -390,33 +456,74 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         disableDefaultUI: true,
         gestureHandling: "greedy",
         keyboardShortcuts: false,
+        isFractionalZoomEnabled: true,
+        tilt: 0,
         colorScheme,
         ...(mapId !== "" ? { mapId } : {}),
         ...(rendering === "AUTO" ? {} : { renderingType: rendering }),
-        ...(state.isVector ? { heading: 0, tilt: 0, headingInteractionEnabled: false } : {}),
+        ...(state.isVector ? { heading: 0, headingInteractionEnabled: false } : {}),
     });
     state.map = liveMap;
     // Traffic layer is created once and toggled on/off via setMap (memoized).
     state.trafficLayer = new mapsLib.TrafficLayer();
 
-    // A programmatic move opens the gesture-suppression window, then issues
-    // the immediate (un-animated) camera move. Camera-change events fired by
-    // this call land inside the window and are ignored by the gesture
-    // detacher.
-    //
-    // This is also why this backend needs no layout-reflow lockstep timing
-    // (the mechanism the shared follow-camera engine adds — see camera.ts
-    // isPaddingOnlyReflow and marker-motion.ts): moveCamera is documented as
-    // setting the camera "immediately... without animation", so this call and
-    // the marker's left/top write in placeFollowCamera below already land in
-    // the same synchronous tick on EVERY push, a genuine fix or a layout
-    // reflow alike: there is no separate "camera glide" phase for the marker
-    // to fall behind, so both already move in lockstep (a synchronized snap)
-    // by construction.
-    function moveCam(opts: GMCameraOptions): void {
-        state.programmaticUntil = Date.now() + GESTURE_SUPPRESS_MS;
+    // One immediate camera move — the glide's per-frame step, and the jump.
+    // Opens the gesture-suppression window of each property the move changes
+    // (see GESTURE_SUPPRESS_MS), so the camera-change events this call fires
+    // are ignored by the gesture detacher. The tilt window also opens on a
+    // zoom change: a vector map clamps tilt by zoom, so a zoom step can move
+    // the tilt without this page having asked for a new one. heading/tilt
+    // are vector-only (a raster map reinterprets them and stops positioning).
+    function moveCam(pose: Partial<CameraPose>): void {
+        const now = Date.now();
+        const opts: GMCameraOptions = {};
+        if (pose.lat !== undefined && pose.lng !== undefined) {
+            opts.center = { lat: pose.lat, lng: pose.lng };
+        }
+        // lastSet records only what is SENT: a heading/tilt the raster phase
+        // never passed on must count as a change once the map turns vector,
+        // or its first rotation would look like a user gesture.
+        const zoomChanged = pose.zoom !== undefined && pose.zoom !== state.lastSet.zoom;
+        if (pose.zoom !== undefined) {
+            opts.zoom = pose.zoom;
+            state.lastSet.zoom = pose.zoom;
+        }
+        if (zoomChanged) state.programmaticUntil.zoom = now + GESTURE_SUPPRESS_MS;
+        if (state.isVector) {
+            if (pose.heading !== undefined) {
+                opts.heading = pose.heading;
+                if (pose.heading !== state.lastSet.heading) {
+                    state.programmaticUntil.heading = now + GESTURE_SUPPRESS_MS;
+                }
+                state.lastSet.heading = pose.heading;
+            }
+            if (zoomChanged || (pose.tilt !== undefined && pose.tilt !== state.lastSet.tilt)) {
+                state.programmaticUntil.tilt = now + GESTURE_SUPPRESS_MS;
+            }
+            if (pose.tilt !== undefined) {
+                opts.tilt = pose.tilt;
+                state.lastSet.tilt = pose.tilt;
+            }
+        }
         liveMap.moveCamera(opts);
     }
+
+    // The camera easing this API lacks: a glide re-applies an interpolated
+    // pose per frame, from the pose last applied (or, for a field not applied
+    // since the user last took the camera, from what the map shows now).
+    const glide = createCameraGlide({
+        current: () => {
+            const center = liveMap.getCenter();
+            return {
+                lat: center?.lat() ?? 0,
+                lng: center?.lng() ?? 0,
+                zoom: liveMap.getZoom() ?? 0,
+                heading: liveMap.getHeading() ?? 0,
+                tilt: liveMap.getTilt() ?? 0,
+            };
+        },
+        apply: moveCam,
+    });
 
     // Compute the camera centre that renders `target` at screen offset (dxPx
     // right, dyPx down) from centre, via the flat-Mercator world projection.
@@ -456,41 +563,64 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // Pin the chevron left-of-centre (and dropped per markerPos) and target
     // the camera at the matching off-centre point so the GPS location renders
     // under it — the OSM `markerEl.left/top` + camera `padding`
-    // parity, done without a native padding API. headingDeg is the applied
+    // parity, done without a native padding API. mapHeading is the applied
     // map heading (0 for a raster map). When the projection is not yet ready
     // the camera cannot offset, so the chevron stays centred over the
     // un-offset location.
+    //
+    // The camera snaps (null) or glides per [motion]. The offset becoming
+    // available is the same kind of move as a layout reflow — the chevron's
+    // screen spot changes without a new fix — so it takes the reflow motion
+    // too; on either, the marker's CSS transition runs in lockstep with the
+    // camera glide so they land together, while on a fix the marker's
+    // left/top write snaps and the camera eases the ground underneath it.
     function placeFollowCamera(
-        target: GMLatLng,
-        zoom: number,
-        tilt: number,
-        headingDeg: number,
-        markerPos: number,
-        bottomSafe: number,
-        rightSafe: number,
-        leftSafe: number,
+        fix: NonNullable<typeof state.lastFix>,
+        mapHeading: number,
+        pushMotion: CameraMotion | null,
     ): void {
         // Net horizontal shift: a right-card reserve shifts the marker left,
         // a left-card reserve shifts it right. Only one is ever non-zero.
-        const mx = markerXFraction(rightSafe) - markerXFraction(leftSafe);
-        const drop = markerDrop(markerPos, bottomSafe);
+        const mx = markerXFraction(fix.rightSafe) - markerXFraction(fix.leftSafe);
+        const drop = markerDrop(fix.markerPos, fix.bottomSafe);
+        const target: GMLatLng = { lat: fix.lat, lng: fix.lng };
         const center =
             offsetCenterFor(
                 target,
                 -mx * window.innerWidth,
                 drop * window.innerHeight,
-                zoom,
-                headingDeg,
+                fix.zoom,
+                mapHeading,
             ) ?? target;
         const offsetApplied = center !== target;
+        const motion =
+            pushMotion !== null && offsetApplied !== state.offsetApplied
+                ? REFLOW_MOTION
+                : pushMotion;
+        state.offsetApplied = offsetApplied;
+        markerTransition.setActive(motion === REFLOW_MOTION);
         markerEl.style.left = offsetApplied ? `${(0.5 - mx) * 100}%` : "50%";
         markerEl.style.top = offsetApplied ? `${(0.5 + drop) * 100}%` : "50%";
-        moveCam(state.isVector ? { center, zoom, heading: headingDeg, tilt } : { center, zoom });
+        const pose: CameraPose = {
+            lat: center.lat,
+            lng: center.lng,
+            zoom: fix.zoom,
+            heading: mapHeading,
+            tilt: fix.tilt,
+        };
+        if (motion === null) {
+            glide.jump(pose);
+        } else {
+            glide.to(pose, motion);
+        }
     }
 
     // --- Camera-follow state machine -----------------------------------------
 
-    function easeHome(): void {
+    // Place the camera back onto the last fix (a re-follow, a north-up flip,
+    // a rendering-mode switch), re-syncing the chevron for the current mode;
+    // a null [motion] snaps.
+    function easeHome(motion: CameraMotion | null): void {
         const fix = state.lastFix;
         if (!fix) return;
         // Raster map re-shows the chevron at the last travel bearing so it
@@ -503,16 +633,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         state.appliedHeading = null;
         const mapHeading = state.isVector ? mapHeadingFor(fix.heading) : 0;
         syncChevron(state.isVector ? fix.tilt : 0, fix.heading, mapHeading);
-        placeFollowCamera(
-            { lat: fix.lat, lng: fix.lng },
-            fix.zoom,
-            fix.tilt,
-            mapHeading,
-            fix.markerPos,
-            fix.bottomSafe,
-            fix.rightSafe,
-            fix.leftSafe,
-        );
+        placeFollowCamera(fix, mapHeading, motion);
     }
 
     function setFollowing(follow: boolean): void {
@@ -523,7 +644,9 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             if (state.refollowTimer) clearTimeout(state.refollowTimer);
             state.refollowTimer = 0;
             markerEl.style.display = "block";
-            easeHome();
+            // Ease home in one continuous transition; the per-fix cadence
+            // easing resumes from the next push.
+            easeHome(REFOLLOW_MOTION);
         } else {
             // Detached (free pan): the screen-fixed chevron points at
             // arbitrary map, so hide it until the camera re-attaches to the
@@ -548,11 +671,21 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         state.refollowTimer = setTimeout(() => setFollowing(true), AUTO_REFOLLOW_MS);
     }
 
+    // Every user gesture hands the camera to the user: a glide still in
+    // flight would keep dragging it back under their finger, and the next
+    // glide must start from wherever they leave it (see CameraGlide.release
+    // — called on every gesture, not only the detaching one, since a pinch
+    // while already detached moves the camera too).
+    function userTookCamera(): void {
+        glide.release();
+        setFollowing(false);
+    }
+
     // dragstart fires only for user pans (not programmatic moveCamera).
     // Detach follow so the user can free-pan; re-attach AUTO_REFOLLOW_MS
     // after the last gesture or on an explicit host setFollow(true).
     liveMap.addListener("dragstart", () => {
-        setFollowing(false);
+        userTookCamera();
         if (state.refollowTimer) {
             clearTimeout(state.refollowTimer);
             state.refollowTimer = 0;
@@ -566,12 +699,15 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // user-vs-programmatic flag, so gate on the suppression window: a change
     // outside it is a user gesture. They have no "end" event, so re-arm the
     // refollow timer immediately. zoom_changed fires in both modes;
-    // tilt_changed only on a vector map (a raster map cannot tilt — there it
-    // never fires).
-    for (const ev of ["zoom_changed", "tilt_changed"] as const) {
+    // tilt_changed only on a vector map (a raster map is constructed with
+    // its 45° imagery switched off, so it never tilts — see the map options).
+    for (const [ev, prop] of [
+        ["zoom_changed", "zoom"],
+        ["tilt_changed", "tilt"],
+    ] as const) {
         liveMap.addListener(ev, () => {
-            if (Date.now() <= state.programmaticUntil) return;
-            setFollowing(false);
+            if (Date.now() <= state.programmaticUntil[prop]) return;
+            userTookCamera();
             armRefollow();
         });
     }
@@ -593,8 +729,8 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
                     report("bearing", bearing);
                 }
             }
-            if (now > state.programmaticUntil) {
-                setFollowing(false);
+            if (now > state.programmaticUntil.heading) {
+                userTookCamera();
                 armRefollow();
             }
         });
@@ -625,14 +761,17 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // updateCamera push, and headingInteractionEnabled already defaults to
         // false on a vector map, which is what the launcher wants anyway.
         //
-        // easeHome re-issues a camera move + chevron sync for the resolved mode.
+        // easeHome re-issues a camera move + chevron sync for the resolved
+        // mode — as a snap: on the downgrade the raster map has ignored every
+        // placement so far (they carried heading/tilt) and still sits at the
+        // construction centre, which an ease would fly in from.
         const resolved = liveMap.getRenderingType();
         log(`renderingType=${resolved}`);
         const resolvedVector = resolved === "VECTOR";
         if (state.isVector !== resolvedVector) {
             log(resolvedVector ? "resolved-to-vector" : "vector-fallback-to-raster");
             state.isVector = resolvedVector;
-            easeHome();
+            easeHome(null);
         }
         log("rendered");
         tilesListener.remove();
@@ -643,12 +782,12 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
 
     // --- Bridge functions ----------------------------------------------------
 
-    // Android -> JS: smooth camera follow. moveCamera is immediate; at the
-    // host's GPS cadence the frame-by-frame instant positioning reads as
-    // continuous motion. The chevron is pinned on screen and tinted per fix;
-    // markerColor self-heals if the first push raced page load. VECTOR drives
-    // heading + tilt (heading-up rotates the map); RASTER sends center + zoom
-    // only.
+    // Android -> JS: smooth camera follow. The glide interpolates between the
+    // sparse GPS fixes under the same rules as the MapLibre engine's easeTo
+    // (followMotion). The chevron is pinned on screen and tinted per fix;
+    // markerColor self-heals if the first push raced page load. VECTOR
+    // drives heading + tilt (heading-up rotates the map); RASTER sends
+    // center + zoom only.
     window.updateCamera = (
         lat,
         lon,
@@ -664,6 +803,12 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // Same gate as the shared follow camera: never make an unreal
         // coordinate the camera target (see isRealPosition).
         if (!isRealPosition(lat, lon)) return;
+        // The same measurements the shared engine feeds followMotion: the
+        // previous push (to tell a reflow from a fix), the interval since it
+        // (measured BEFORE lastFixMs is refreshed), and whether that interval
+        // is a signal gap (which also restarts bearing smoothing and the
+        // heading dead band from the raw value).
+        const previousFix = state.lastFix;
         const now = Date.now();
         const sinceLastFixMs = state.lastFixMs > 0 ? now - state.lastFixMs : 0;
         const signalGap = sinceLastFixMs > LOCATION_STALE_THRESHOLD_MS;
@@ -681,17 +826,18 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         const previousZoom = state.lastPushedZoom;
         const z = Number.isFinite(zoom) ? zoom : 16;
         state.lastPushedZoom = z;
-        state.lastFix = {
+        const fix = {
             lat,
             lng: lon,
             heading,
             zoom: z,
             tilt: tilt || 0,
-            markerPos,
-            bottomSafe,
-            rightSafe,
-            leftSafe,
+            markerPos: markerPos || 0,
+            bottomSafe: bottomSafe || 0,
+            rightSafe: rightSafe || 0,
+            leftSafe: leftSafe || 0,
         };
+        state.lastFix = fix;
 
         if (!state.following) {
             // Detached (free pan): leave the camera centre where the user
@@ -699,29 +845,33 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             // units have no multitouch, so the zoom buttons are mandatory) —
             // apply it around the free camera's own centre.
             if (previousZoom > 0 && state.lastPushedZoom !== previousZoom) {
-                moveCam({ zoom: state.lastPushedZoom });
+                glide.to({ zoom: state.lastPushedZoom }, DETACHED_ZOOM_STEP_MOTION);
             }
             return;
         }
 
+        const motion = followMotion({
+            firstCamera: state.firstCamera,
+            signalGap,
+            // This page's lat/lng fix onto isPaddingOnlyReflow's lon/lat shape.
+            reflow: isPaddingOnlyReflow(previousFix && { ...previousFix, lon: previousFix.lng }, {
+                ...fix,
+                lon: fix.lng,
+            }),
+            sinceLastFixMs,
+        });
+        state.firstCamera = false;
+
         // VECTOR drives heading-up rotation (through the dead band, so a
-        // straight road translates without re-laying-out every label) + tilt/3D;
-        // RASTER is north-up (headingDeg 0, no tilt). placeFollowCamera offsets
-        // both the chevron and the camera target so the location sits clear of
+        // straight road translates without re-laying-out every label; a real
+        // turn then glides round over the segment) + tilt/3D; RASTER is
+        // north-up (mapHeading 0, no tilt). placeFollowCamera offsets both
+        // the chevron and the camera target so the location sits clear of
         // the side cards — the OSM parity.
         const mapHeading = state.isVector ? mapHeadingFor(heading) : 0;
         syncChevron(tilt || 0, heading, mapHeading);
         markerEl.style.display = "block";
-        placeFollowCamera(
-            { lat, lng: lon },
-            z,
-            tilt || 0,
-            mapHeading,
-            markerPos,
-            bottomSafe,
-            rightSafe,
-            leftSafe,
-        );
+        placeFollowCamera(fix, mapHeading, motion);
     };
 
     // Android -> JS: switch the map type and toggle the traffic overlay.
@@ -732,21 +882,23 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         state.trafficLayer?.setMap(traffic ? liveMap : null);
     };
 
-    window.setFollow = (follow) => setFollowing(!!follow);
+    // A host-driven detach hands the camera over like a gesture would (the
+    // host only ever pushes true today — the locate button — but the bridge
+    // contract allows both).
+    window.setFollow = (follow) => (follow ? setFollowing(true) : userTookCamera());
 
     window.setNorthUp = (enabled) => {
         state.northUp = !!enabled;
         // Raster maps are north-up only and cannot rotate, so this is a no-op
         // for the map there; the chevron always shows the bearing regardless.
         if (!state.isVector) return;
-        // Vector map: re-orient the camera immediately while following; a
-        // detached camera keeps the user's rotation until re-attach.
-        const fix = state.lastFix;
-        if (state.following && fix) {
-            state.appliedHeading = null;
-            const mapHeading = mapHeadingFor(fix.heading);
-            moveCam({ heading: mapHeading });
-            syncChevron(fix.tilt, fix.heading, mapHeading);
+        // Vector map: re-orient while following (the off-centre target turns
+        // with the map, so the whole placement is redone); a detached camera
+        // keeps the user's rotation until re-attach. The chevron flips with
+        // the camera — waiting for the next fix would leave it pointing wrong
+        // for up to one GPS interval.
+        if (state.following) {
+            easeHome(ORIENTATION_FLIP_MOTION);
         }
     };
 
