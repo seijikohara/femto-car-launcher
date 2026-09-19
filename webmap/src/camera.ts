@@ -33,6 +33,29 @@ export function linearEase(t: number): number {
     return t;
 }
 
+// Ease-in-out (cubic) for the one-shot camera moves below, which start and
+// end at rest, unlike the chained per-fix segments. MapLibre's easeTo applies
+// a comparable curve by default and takes only the duration; the Google Maps
+// page interpolates its own camera (camera-glide.ts) and takes both.
+export function smoothEase(t: number): number {
+    return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+}
+
+// How a camera move plays out: an ease of this length and shape.
+export interface CameraMotion {
+    durationMs: number;
+    easing: (t: number) => number;
+}
+
+// The one-shot camera moves, shared by both backends' follow machines so the
+// two maps move alike. A re-follow eases the camera home in one continuous
+// transition; a north-up flip re-orients while following; a pushed zoom step
+// while detached (the host's +/- button) applies around the free camera's
+// own centre.
+export const REFOLLOW_MOTION: CameraMotion = { durationMs: 600, easing: smoothEase };
+export const ORIENTATION_FLIP_MOTION: CameraMotion = { durationMs: 400, easing: smoothEase };
+export const DETACHED_ZOOM_STEP_MOTION: CameraMotion = { durationMs: 250, easing: smoothEase };
+
 // WGS84 coordinate bounds. A push outside them (or a non-finite one) makes the
 // camera target garbage and throws the marker off the viewport until the next
 // fix lands. Kotlin filters such fixes before they reach the bridge — see
@@ -78,7 +101,8 @@ export function smoothedBearing(
     return normalizeBearing(previous + alpha * delta);
 }
 
-function normalizeBearing(bearing: number): number {
+// [bearing] folded into [0, 360).
+export function normalizeBearing(bearing: number): number {
     return ((bearing % 360) + 360) % 360;
 }
 
@@ -168,14 +192,41 @@ export function isPaddingOnlyReflow(previous: ReflowFix | null, next: ReflowFix)
     );
 }
 
-// Fixed lockstep duration for a padding-only reflow, used by the shared
-// follow-camera engine (OSM): the marker's CSS transition and the
-// camera's easeTo both run this long, so they land together. (The Google Maps
-// backend needs no such constant —
-// its camera has no native easing to lock the marker against; see the note in
-// backends/googlemaps.ts.) A reflow is driven by a dashboard layout transition,
-// not a new GPS fix, so it uses a fixed duration matched to the app-side
-// layout-transition pace (Motion.kt's STANDARD tween is 220 ms, plus margin)
-// rather than easeDurationMs's cadence-matched (and much wider, up to
-// MAX_EASE_MS) range.
+// Fixed lockstep duration for a padding-only reflow, used by both backends'
+// follow machines: the marker's CSS transition and the camera ease both run
+// this long, so they land together. A reflow is driven by a dashboard layout
+// transition, not a new GPS fix, so it uses a fixed duration matched to the
+// app-side layout-transition pace (Motion.kt's STANDARD tween is 220 ms, plus
+// margin) rather than easeDurationMs's cadence-matched (and much wider, up to
+// MAX_EASE_MS) range. Linear, like the marker's transition, so the two stay
+// aligned throughout rather than only at the ends.
 export const LAYOUT_REFLOW_MS = 260;
+export const REFLOW_MOTION: CameraMotion = { durationMs: LAYOUT_REFLOW_MS, easing: linearEase };
+
+// The one push of a follow camera: what the machines measure about it.
+export interface FollowPush {
+    // No camera placed yet: the first fix snaps rather than flying in from
+    // the map's construction centre.
+    firstCamera: boolean;
+    // The fix arrived past LOCATION_STALE_THRESHOLD_MS after the previous
+    // one; easing across a tunnel would glide through geometry, so snap.
+    signalGap: boolean;
+    // A padding-only reflow (isPaddingOnlyReflow) rather than a moved centre.
+    reflow: boolean;
+    // The measured interval since the previous push.
+    sinceLastFixMs: number;
+}
+
+// How the camera moves for one follow push, or null to snap — the one
+// decision both backends' follow machines make. A snap wins over a reflow: a
+// signal gap can arrive with a padding change and must still snap. A reflow
+// takes the marker-lockstep motion (the caller arms the marker's transition
+// on exactly that identity). Everything else is a cadence-matched linear
+// segment: back-to-back segments compose into one continuous glide instead
+// of fixed-duration cubic eases that restart (accelerate-decelerate) on
+// every fix.
+export function followMotion(push: FollowPush): CameraMotion | null {
+    if (push.firstCamera || push.signalGap) return null;
+    if (push.reflow) return REFLOW_MOTION;
+    return { durationMs: easeDurationMs(push.sinceLastFixMs), easing: linearEase };
+}

@@ -1,9 +1,6 @@
-// Screen-pinned self-marker CSS-transition control, used by the follow-camera
-// engine of the OSM backend (which positions the #self-marker element via
-// left/top percentages — see style.ts for the percentage math). The Google Maps backend does not use this: its camera has
-// no native easing to lock the marker step against (see the note in
-// backends/googlemaps.ts), so its marker and camera already update in the
-// same synchronous call.
+// Screen-pinned self-marker CSS-transition control, used by both backends'
+// follow machines (which position the #self-marker element via left/top
+// percentages — see style.ts for the percentage math).
 //
 // A layout reflow (see camera.ts isPaddingOnlyReflow) needs the marker
 // to glide left/top over the SAME fixed duration the camera eases over,

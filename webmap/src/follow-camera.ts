@@ -2,17 +2,24 @@
 // follow/detach/refollow machine, the smooth per-fix camera easing, and the
 // screen-pinned chevron choreography, parameterised over a minimal structural
 // map interface rather than the maplibre-gl types directly. The Google Maps
-// backend has no easing camera (moveCamera is immediate) and no mapId-free geo
-// marker, so it keeps its own machine — see backends/googlemaps.ts.
+// backend keeps its own machine (its camera-change events carry no
+// user-vs-programmatic flag and it has no mapId-free geo marker — see
+// backends/googlemaps.ts) but moves the camera by the same rules: the
+// motion policy (followMotion and the one-shot motions) lives in camera.ts.
+// The one-shot moves here pass only the duration; MapLibre's easeTo applies
+// its own default curve, a comparable ease.
 import {
     AUTO_REFOLLOW_MS,
     appliedBearing,
-    easeDurationMs,
+    DETACHED_ZOOM_STEP_MOTION,
+    followMotion,
     isPaddingOnlyReflow,
     isRealPosition,
     LAYOUT_REFLOW_MS,
     LOCATION_STALE_THRESHOLD_MS,
-    linearEase,
+    ORIENTATION_FLIP_MOTION,
+    REFLOW_MOTION,
+    REFOLLOW_MOTION,
     smoothedBearing,
 } from "./camera";
 import type { PageReporter } from "./bridge";
@@ -203,7 +210,7 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
             markerEl.style.display = "block";
             // Ease home in one continuous transition; the per-fix cadence
             // easing resumes from the next push.
-            easeHome(600);
+            easeHome(REFOLLOW_MOTION.durationMs);
         } else {
             // The screen-fixed chevron points at arbitrary map while
             // detached; the geo-anchored clone tracks the real position
@@ -285,12 +292,11 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
             const previousFix = state.lastFix;
             // Measure the inter-fix interval BEFORE refreshing lastFixMs: the
             // ease duration matches it so each ease finishes as the next fix
-            // lands.
+            // lands (followMotion).
             const now = Date.now();
             const sinceLastFixMs = state.lastFixMs > 0 ? now - state.lastFixMs : 0;
-            // A gap past the stale threshold means the position was lost (a
-            // tunnel); easing across it would glide through geometry, so snap
-            // instead and restart bearing smoothing from the raw value.
+            // A signal gap restarts bearing smoothing from the raw value (and
+            // snaps the camera — followMotion).
             const signalGap = sinceLastFixMs > LOCATION_STALE_THRESHOLD_MS;
             if (signalGap) state.lastBearing = null;
             // A fresh fix: re-colour the chevron, feed the ripple the same
@@ -322,31 +328,34 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
                 if (previousZoom > 0 && state.lastPushedZoom !== previousZoom) {
                     map.easeTo({
                         zoom: state.lastPushedZoom,
-                        duration: 250,
+                        duration: DETACHED_ZOOM_STEP_MOTION.durationMs,
                         essential: true,
                     });
                 }
                 return;
             }
-            // A dashboard layout change (dock position, card visibility,
-            // driver side) re-pushes the SAME fix with only the padding
-            // changed; a signal gap always takes the jumpTo path below
-            // regardless, so it can never qualify as a reflow.
-            const isReflow =
-                !signalGap &&
-                isPaddingOnlyReflow(previousFix, {
+            const motion = followMotion({
+                firstCamera: state.firstCamera,
+                signalGap,
+                // A dashboard layout change (dock position, card visibility,
+                // driver side) re-pushes the SAME fix with only the padding
+                // changed.
+                reflow: isPaddingOnlyReflow(previousFix, {
                     lon,
                     lat,
                     markerPos: markerPos || 0,
                     bottomSafe: bottomSafe || 0,
                     rightSafe: rightSafe || 0,
                     leftSafe: leftSafe || 0,
-                });
+                }),
+                sinceLastFixMs,
+            });
+            state.firstCamera = false;
             // Lockstep: arm the marker's CSS transition on a reflow so its
             // left/top write below glides instead of jumping; clear it
             // otherwise so a real fix keeps snapping the screen-pinned marker
             // while the camera eases the ground underneath it.
-            markerTransition.setActive(isReflow);
+            markerTransition.setActive(motion === REFLOW_MOTION);
             markerEl.style.left = `${(0.5 - markerXFraction(rightSafe) + markerXFraction(leftSafe)) * 100}%`;
             markerEl.style.top = `${50 + markerDrop(markerPos, bottomSafe) * 100}%`;
             syncChevron(tilt || 0, heading);
@@ -363,28 +372,13 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
                     right: markerPadRight(rightSafe, map.getContainer().clientWidth || 0),
                 },
             };
-            if (state.firstCamera || signalGap) {
-                state.firstCamera = false;
+            if (motion === null) {
                 map.jumpTo(opts);
-            } else if (isReflow) {
-                // Fixed lockstep duration (not the cadence-matched one below)
-                // so the camera lands exactly when the marker's CSS
-                // transition finishes.
-                map.easeTo({
-                    ...opts,
-                    duration: LAYOUT_REFLOW_MS,
-                    easing: linearEase,
-                    essential: true,
-                });
             } else {
-                // Cadence-matched duration + linear easing: back-to-back
-                // segments compose into one continuous glide instead of
-                // fixed-duration cubic eases that restart
-                // (accelerate-decelerate) on every fix.
                 map.easeTo({
                     ...opts,
-                    duration: easeDurationMs(sinceLastFixMs),
-                    easing: linearEase,
+                    duration: motion.durationMs,
+                    easing: motion.easing,
                     essential: true,
                 });
             }
@@ -402,7 +396,7 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
             if (state.following && fix) {
                 map.easeTo({
                     bearing: appliedBearing(state.northUp, fix.heading),
-                    duration: 400,
+                    duration: ORIENTATION_FLIP_MOTION.durationMs,
                     essential: true,
                 });
                 syncChevron(fix.tilt, fix.heading);

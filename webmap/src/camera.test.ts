@@ -3,6 +3,7 @@ import {
     appliedBearing,
     BEARING_SNAP_DELTA_DEG,
     easeDurationMs,
+    followMotion,
     isPaddingOnlyReflow,
     isRealPosition,
     linearEase,
@@ -10,9 +11,11 @@ import {
     MAX_LATITUDE_DEG,
     MAX_LONGITUDE_DEG,
     MIN_EASE_MS,
+    REFLOW_MOTION,
     type ReflowFix,
     shortestBearingDelta,
     settledHeading,
+    smoothEase,
     smoothedBearing,
 } from "./camera";
 
@@ -37,6 +40,20 @@ describe("linearEase", () => {
         expect(linearEase(0)).toBe(0);
         expect(linearEase(0.25)).toBe(0.25);
         expect(linearEase(1)).toBe(1);
+    });
+});
+
+describe("smoothEase", () => {
+    it("starts and ends on the endpoints", () => {
+        expect(smoothEase(0)).toBe(0);
+        expect(smoothEase(1)).toBe(1);
+    });
+
+    it("accelerates out of the start and decelerates into the end symmetrically", () => {
+        expect(smoothEase(0.25)).toBeLessThan(0.25);
+        expect(smoothEase(0.75)).toBeGreaterThan(0.75);
+        expect(smoothEase(0.5)).toBe(0.5);
+        expect(smoothEase(0.25) + smoothEase(0.75)).toBeCloseTo(1);
     });
 });
 
@@ -88,6 +105,28 @@ describe("appliedBearing", () => {
 
     it("follows the travel heading when north-up is off", () => {
         expect(appliedBearing(false, 137)).toBe(137);
+    });
+});
+
+describe("followMotion", () => {
+    const steady = { firstCamera: false, signalGap: false, reflow: false, sinceLastFixMs: 1_000 };
+
+    it("snaps the first camera placement", () => {
+        expect(followMotion({ ...steady, firstCamera: true })).toBeNull();
+    });
+
+    it("snaps across a signal gap, even one pushed as a reflow", () => {
+        expect(followMotion({ ...steady, signalGap: true, reflow: true })).toBeNull();
+    });
+
+    it("glides a layout reflow in lockstep with the marker", () => {
+        expect(followMotion({ ...steady, reflow: true })).toBe(REFLOW_MOTION);
+    });
+
+    it("glides a fix linearly over the measured inter-fix interval", () => {
+        const motion = followMotion({ ...steady, sinceLastFixMs: 250 });
+        expect(motion?.durationMs).toBe(easeDurationMs(250));
+        expect(motion?.easing).toBe(linearEase);
     });
 });
 
