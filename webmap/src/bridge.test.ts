@@ -115,6 +115,25 @@ describe("createBearingReporter", () => {
         h.flush();
         expect(h.sent).toEqual(["bearing=10.0", "bearing=30.0"]);
     });
+
+    it("keeps the interval when a late timer meets a newer immediate report", () => {
+        const h = bearingHarness();
+        h.onBearing(10);
+        h.tick(50);
+        h.onBearing(12);
+        // The timer due at +150 runs late: a report at +160 is sent at once,
+        // another at +170 is held, and the late timer runs at +170 — it must
+        // not send the held value 10 ms after the previous report.
+        h.tick(110);
+        h.onBearing(30);
+        h.tick(10);
+        h.onBearing(40);
+        h.flush();
+        expect(h.sent).toEqual(["bearing=10.0", "bearing=30.0"]);
+        h.tick(BEARING_REPORT_INTERVAL_MS);
+        h.flush();
+        expect(h.sent).toEqual(["bearing=10.0", "bearing=30.0", "bearing=40.0"]);
+    });
 });
 
 describe("frameSampleDetail", () => {

@@ -157,8 +157,17 @@ export function createBearingReporter(
         });
     // Mutable throttle state in a const holder (let/var are banned — see the
     // lint block in vite.config.ts and no-let.js). held is the bearing
-    // waiting for the interval to end; armed, whether its timer is pending.
-    const state = { lastMs: 0, lastSent: "", held: null as string | null, armed: false };
+    // waiting for the interval to end; armed, whether a timer is pending for
+    // it; generation retires that timer when an immediate report supersedes
+    // it — a timer can run late, after such a report, and must not then
+    // send a value held since, inside the new interval.
+    const state = {
+        lastMs: 0,
+        lastSent: "",
+        held: null as string | null,
+        armed: false,
+        generation: 0,
+    };
     function send(bearing: string, atMs: number): void {
         state.lastMs = atMs;
         state.lastSent = bearing;
@@ -169,16 +178,20 @@ export function createBearingReporter(
         const atMs = now();
         const elapsed = atMs - state.lastMs;
         if (elapsed >= BEARING_REPORT_INTERVAL_MS) {
-            // A held value is stale next to this one; the pending timer
-            // finds nothing to send.
+            // A held value is stale next to this one, and so is the timer
+            // waiting to send it; the next held value arms a fresh one.
             state.held = null;
+            state.generation += 1;
+            state.armed = false;
             if (bearing !== state.lastSent) send(bearing, atMs);
             return;
         }
         state.held = bearing;
         if (state.armed) return;
         state.armed = true;
+        const generation = state.generation;
         schedule(() => {
+            if (generation !== state.generation) return;
             state.armed = false;
             const held = state.held;
             state.held = null;
