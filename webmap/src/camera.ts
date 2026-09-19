@@ -112,8 +112,53 @@ export function normalizeBearing(bearing: number): number {
 // for collisions — and the GNSS bearing wanders a degree or two on every fix
 // even on a straight road, so without a dead band every fix is a rotation.
 // Inside the band the map only translates and the chevron carries the
-// residual, so the arrow still shows the true travel direction.
+// residual, so the arrow still shows the true travel direction — but the
+// road itself then sits up to the band's width off vertical, which is what
+// the settle below closes.
 export const HEADING_HYSTERESIS_DEG = 4;
+
+// A residual inside the band that persists this long — a straight road
+// entered at a slight angle, a turn that ended just inside the band — is
+// closed with one rotation, so the road ends up vertical after a few seconds
+// of straight driving. Residuals under HEADING_SETTLE_MIN_DEG are left
+// alone: they are not visible, and the smoothed bearing's own wander would
+// otherwise trigger a settle every few seconds on a straight road. The clock
+// restarts whenever the residual dips under the minimum, so only a residual
+// that stays counts.
+export const HEADING_SETTLE_MS = 3_000;
+export const HEADING_SETTLE_MIN_DEG = 1.5;
+
+// The heading dead band's state: the heading the map is rotated to (null
+// until the first fix, and reset when the next fix should adopt the bearing
+// outright — a signal gap, a re-follow, a north-up flip), and when the
+// current residual first reached the settle minimum (null while under it).
+export interface HeadingHold {
+    applied: number | null;
+    residualSinceMs: number | null;
+}
+
+export const NO_HEADING_HOLD: HeadingHold = { applied: null, residualSinceMs: null };
+
+// The hold after one fix with the smoothed bearing [target] at [nowMs]: its
+// `applied` is the heading to rotate the map to — held while the drift stays
+// inside the dead band (see HEADING_HYSTERESIS_DEG) and its residual has not
+// yet persisted for HEADING_SETTLE_MS; [target] once the drift leaves the
+// band, the residual settles, or nothing is applied yet.
+export function heldHeading(
+    hold: HeadingHold,
+    target: number,
+    nowMs: number,
+): HeadingHold & { applied: number } {
+    const settled = settledHeading(hold.applied, target);
+    if (settled !== hold.applied) return { applied: settled, residualSinceMs: null };
+    const residual = Math.abs(shortestBearingDelta(settled, target));
+    if (residual < HEADING_SETTLE_MIN_DEG) return { applied: settled, residualSinceMs: null };
+    const since = hold.residualSinceMs ?? nowMs;
+    if (nowMs - since >= HEADING_SETTLE_MS) {
+        return { applied: normalizeBearing(target), residualSinceMs: null };
+    }
+    return { applied: settled, residualSinceMs: since };
+}
 
 // The heading the map should be rotated to for [target], given the heading it
 // is currently rotated to: [applied] while the drift stays inside the dead

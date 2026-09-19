@@ -22,7 +22,7 @@ import {
     REFOLLOW_MOTION,
     smoothedBearing,
 } from "./camera";
-import type { PageReporter } from "./bridge";
+import { createBearingReporter, type PageReporter } from "./bridge";
 import {
     type ChevronHandles,
     geoMarkerElement,
@@ -85,8 +85,6 @@ export interface FollowEngine {
     // a pause/resume cycle (guards a stale GL surface on Android).
     onHostResume(): void;
 }
-
-const BEARING_REPORT_INTERVAL_MS = 150;
 
 export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
     const { reporter, chevron, map } = deps;
@@ -245,20 +243,10 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
         });
     }
 
-    // Report the camera bearing (throttled) so the host's compass overlay can
-    // track the map orientation in either mode. Dedupe on the rounded
-    // payload, not the raw float — getBearing() rarely returns bit-identical
-    // values, so a float compare would re-send visually identical bearings.
-    const bearingReport = { lastMs: 0, lastSent: "" };
-    map.on("move", () => {
-        const now = Date.now();
-        if (now - bearingReport.lastMs < BEARING_REPORT_INTERVAL_MS) return;
-        const bearing = map.getBearing().toFixed(1);
-        if (bearing === bearingReport.lastSent) return;
-        bearingReport.lastMs = now;
-        bearingReport.lastSent = bearing;
-        reporter.report("bearing", bearing);
-    });
+    // Report the camera bearing so the host's compass overlay can track the
+    // map orientation in either mode (throttled — see createBearingReporter).
+    const reportBearing = createBearingReporter(reporter.report);
+    map.on("move", () => reportBearing(map.getBearing()));
 
     return {
         // Android -> JS: smooth heading-up camera follow (easeTo interpolates
