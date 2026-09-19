@@ -219,5 +219,14 @@ pnpm on demand for the bundled map page.
 ./gradlew test lint       # unit tests and Android Lint
 ```
 
-Contributor documentation, including verification commands and coding
-rules, lives in [`AGENTS.md`](AGENTS.md) and `.claude/rules/`.
+[`CONTRIBUTING.md`](CONTRIBUTING.md) explains how to report bugs,
+propose features, and submit changes; the coding rules and
+verification commands live in [`AGENTS.md`](AGENTS.md) and
+`.claude/rules/`.
+
+## License
+
+Femto Car Launcher is licensed under the Apache License, Version 2.0
+([`LICENSE`](LICENSE)). Bundled third-party components keep their own
+licenses, listed in-app under Settings → System → Open source
+licenses.
