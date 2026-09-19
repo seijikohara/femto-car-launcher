@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose a feature or a behaviour change.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The maintainer decides whether a proposal fits the roadmap and
+        replies with accepted, declined, or deferred. Open the request
+        before you write code; see
+        [CONTRIBUTING.md](https://github.com/seijikohara/femto-car-launcher/blob/main/CONTRIBUTING.md).
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is hard or impossible today, and in which situation?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the behaviour you have in mind.
+    validations:
+      required: true
+  - type: dropdown
+    id: device-class
+    attributes:
+      label: Device class where you meet the problem
+      multiple: true
+      options:
+        - Aftermarket CarPlay / Android Auto AI box
+        - Built-in Android head unit
+        - Smartphone or tablet on a car mount
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches, workarounds, or how comparable apps handle it.
