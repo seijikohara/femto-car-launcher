@@ -92,6 +92,10 @@ val mapTerrainTileJsonUrl =
 // unsigned (no signing config attached) when the variables are absent.
 val releaseKeystorePath: String? = System.getenv("RELEASE_KEYSTORE_PATH")
 
+// JUnit category of the screenshot-catalog generator: excluded from the unit
+// test tasks, included only by generateCatalog (both below).
+val catalogCategory = "io.github.seijikohara.femto.catalog.CatalogGeneration"
+
 spotless {
     val ktlintVersion = libs.versions.ktlint.get()
     val composeRulesVersion = libs.versions.ktlintComposeRules.get()
@@ -227,6 +231,10 @@ android {
             // the failure path; without this the stub throws "not mocked".
             // Returning defaults lets the void Log calls no-op instead.
             isReturnDefaultValues = true
+            // The screenshot-catalog generator (DashboardCatalogTest) renders
+            // 960 images; it belongs to the generateCatalog task below, never to
+            // `test` / verifyRoborazziDebug.
+            all { it.useJUnit { excludeCategories(catalogCategory) } }
         }
     }
     lint {
@@ -302,4 +310,57 @@ dependencies {
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.kotlin.test)
+}
+
+// The dashboard screenshot catalog for the project website (docs/): every
+// geometry × display size × theme × driver side × dock position, rendered by
+// Roborazzi in record mode into build/outputs/catalog (manifest.json + img/).
+// A plain Test task that borrows the debug unit-test classpath: the Roborazzi
+// plugin only wires its own task names, and the library reads the mode from
+// system properties (roborazzi.test.record), so setting that here is all the
+// integration needed. `-Pfemto.catalog.filter=<regex>` limits the entries
+// (CI renders one image as a smoke test).
+tasks.register<Test>("generateCatalog") {
+    group = "documentation"
+    description = "Render the dashboard screenshot catalog into build/outputs/catalog (docs site input)"
+    val unitTest = tasks.named<Test>("testDebugUnitTest").get()
+    testClassesDirs = unitTest.testClassesDirs
+    classpath = unitTest.classpath
+    systemProperties(unitTest.systemProperties)
+    jvmArgs(unitTest.jvmArgs)
+    // 2000×1200 ARGB captures at a fast clip; the default heap trips GC storms.
+    maxHeapSize = "2g"
+    useJUnit { includeCategories(catalogCategory) }
+    systemProperty("roborazzi.test.record", "true")
+    // Both resolved at configuration time on purpose: that registers the Gradle
+    // property, the environment variable and the git output as configuration
+    // cache inputs, so a changed filter or a new commit invalidates the cached
+    // task graph instead of replaying the values it was stored with. As system
+    // properties they are task inputs too, so the render re-runs on a change.
+    systemProperty("femto.catalog.filter", providers.gradleProperty("femto.catalog.filter").getOrElse(""))
+    systemProperty(
+        "femto.catalog.gitSha",
+        providers
+            .environmentVariable("GITHUB_SHA")
+            .orElse(
+                providers
+                    .exec { commandLine("git", "rev-parse", "HEAD") }
+                    .standardOutput.asText
+                    .map(String::trim),
+            ).get(),
+    )
+    val outputDir = layout.buildDirectory.dir("outputs/catalog")
+    outputs.dir(outputDir)
+    // Test tasks are cacheable by default, which here would push ~1 GB of PNGs
+    // into the build cache (CI persists it) for nothing: a repeat run with the
+    // same inputs is UP-TO-DATE anyway, and a hit from another commit would
+    // restore a manifest carrying that commit's gitSha.
+    outputs.doNotCacheIf("the catalog is ~1 GB of PNGs and embeds the commit SHA") { true }
+    doFirst {
+        // A stale image from a previous, differently filtered run must not
+        // survive into the catalog the docs workflow uploads. Plain file I/O,
+        // not Project.delete: the build runs with the configuration cache, which
+        // forbids touching the Project at execution time.
+        outputDir.get().asFile.deleteRecursively()
+    }
 }
