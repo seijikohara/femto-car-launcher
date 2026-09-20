@@ -1,0 +1,130 @@
+/* docs/src/catalog/catalog.css — layout for the catalog island; colours and
+   surfaces come from tokens.css / glass.css. */
+.catalog__meta {
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-lg);
+}
+.catalog__controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-lg);
+    align-items: flex-start;
+    margin-bottom: var(--space-xl);
+}
+.catalog__controls label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    font-size: var(--text-sm);
+}
+.catalog__controls select {
+    font: inherit;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--glass-border);
+    background: var(--color-surface);
+    color: inherit;
+}
+.catalog__filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm) var(--space-md);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-sm) var(--space-md);
+}
+.catalog__filter legend {
+    padding: 0 var(--space-xs);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}
+.catalog__filter label {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-xs);
+}
+.catalog__scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.catalog__matrix {
+    border-collapse: separate;
+    border-spacing: var(--space-sm);
+}
+.catalog__matrix th {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    text-align: left;
+    white-space: nowrap;
+    color: var(--color-text-muted);
+}
+.catalog__matrix td {
+    vertical-align: top;
+}
+.catalog__cell {
+    display: block;
+    padding: 0;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    cursor: zoom-in;
+}
+.catalog__cell img {
+    display: block;
+    width: 240px;
+    max-width: 60vw;
+    height: auto;
+    border-radius: var(--radius-sm);
+}
+.catalog__cell:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+.catalog__empty {
+    display: grid;
+    place-items: center;
+    width: 240px;
+    max-width: 60vw;
+    aspect-ratio: 5 / 3;
+    color: var(--color-text-muted);
+    border: 1px dashed var(--glass-border);
+    border-radius: var(--radius-sm);
+}
+.catalog__lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-overlay);
+    display: grid;
+    place-items: center;
+    padding: var(--space-lg);
+    background: rgba(0, 0, 0, 0.6);
+}
+.catalog__lightbox-body {
+    /* This class now lands on a <dialog> (see CatalogViewer.tsx), whose
+       UA stylesheet sets color: CanvasText — a system color that ignores
+       the site's own light/dark toggle. Pin it back to the theme token. */
+    color: var(--color-text);
+    max-width: min(96vw, 1400px);
+    max-height: 94vh;
+    overflow: auto;
+    padding: var(--space-md);
+    margin: 0;
+}
+.catalog__lightbox-body figure {
+    margin: 0;
+}
+.catalog__lightbox-body img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+}
+.catalog__lightbox-body figcaption {
+    margin-top: var(--space-sm);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}
+.catalog__lightbox-nav {
+    display: flex;
+    gap: var(--space-sm);
+    margin-top: var(--space-sm);
+}

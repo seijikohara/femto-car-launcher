@@ -1,0 +1,50 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import Header from "@/components/common/Header.astro";
+import Footer from "@/components/common/Footer.astro";
+import Container from "@/components/ui/Container.astro";
+import CatalogViewer from "@/catalog/CatalogViewer";
+import { withBase } from "@/lib/url";
+
+const title = "Screenshot catalog";
+const description =
+    "The dashboard rendered for every display geometry, display size, theme, driver side and dock position — pick two axes to compare and filter the rest.";
+---
+
+<BaseLayout title={title} description={description}>
+    <Header />
+    <main id="main" tabindex="-1">
+        <section class="section">
+            <Container size="full">
+                <header class="catalog-intro">
+                    <h1>{title}</h1>
+                    <p>{description}</p>
+                    <p class="catalog-intro__note">
+                        Renders come from the same screenshot harness as the
+                        goldens: the map is a still, the glass blur is not
+                        rasterized, and fonts fall back to the system face.
+                        Every link on this page keeps your selection, so a
+                        combination can be shared as a URL.
+                    </p>
+                </header>
+                <CatalogViewer
+                    client:load
+                    manifestUrl={withBase("/catalog/manifest.json")}
+                    assetBase={withBase("/catalog/")}
+                />
+            </Container>
+        </section>
+    </main>
+    <Footer />
+</BaseLayout>
+
+<style>
+    .catalog-intro {
+        max-width: 60ch;
+        margin-bottom: var(--space-xl);
+    }
+    .catalog-intro__note {
+        color: var(--color-text-muted);
+        font-size: var(--text-sm);
+    }
+</style>
