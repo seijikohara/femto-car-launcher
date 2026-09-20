@@ -3,6 +3,7 @@ import { satteri } from "@astrojs/markdown-satteri";
 import sitemap from "@astrojs/sitemap";
 import { defineConfig } from "astro/config";
 import satteriBaseUrls from "./src/lib/satteri-base-urls";
+import satteriRepoLinks from "./src/lib/satteri-repo-links";
 import siteBase from "./site.base.json" with { type: "json" };
 
 // site + base come from site.base.json, the one home of the GitHub Pages
@@ -31,7 +32,22 @@ export default defineConfig({
     // body (Astro leaves body URLs untouched). Task 3 prepends the plugin that
     // maps repository-file links.
     markdown: {
-        processor: satteri({ hastPlugins: [satteriBaseUrls(siteBase.base)] }),
+        processor: satteri({
+            hastPlugins: [
+                // Order matters: repo links first (they may yield a root-relative
+                // route), then the base prefix.
+                satteriRepoLinks({
+                    repoBlobBase:
+                        "https://github.com/seijikohara/femto-car-launcher/blob/main/",
+                    routes: {
+                        "README.md": "/",
+                        "PRIVACY.md": "/privacy/",
+                        "TERMS.md": "/terms/",
+                    },
+                }),
+                satteriBaseUrls(siteBase.base),
+            ],
+        }),
     },
     vite: {
         // The site imports the repository's logo.svg, the golden PNGs and the
