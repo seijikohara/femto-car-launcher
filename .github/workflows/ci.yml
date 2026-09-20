@@ -33,7 +33,10 @@ jobs:
             # on this runner OS (record-screenshots.yml), so the screenshot diff runs
             # here, not in the local verify-android-build skill — a developer's render
             # would mismatch the Linux-recorded goldens on font antialiasing.
-            tasks: test verifyRoborazziDebug
+            # generateCatalog with a one-entry filter proves the screenshot-catalog
+            # generator still boots Robolectric, without paying for the full
+            # 960-image render on every PR.
+            tasks: test verifyRoborazziDebug generateCatalog -Pfemto.catalog.filter=head-unit-853x512__medium__light__right__bottom
           - name: assemble
             tasks: assembleDebug
     steps:
@@ -59,6 +62,15 @@ jobs:
         env:
           GRADLE_TASKS: ${{ matrix.tasks }}
         run: ./gradlew $GRADLE_TASKS --stacktrace
+
+      - name: Check the catalog smoke render
+        if: matrix.name == 'unit-tests'
+        run: |
+          manifest=app/build/outputs/catalog/manifest.json
+          jq -e --arg sha "$GITHUB_SHA" \
+            '.schemaVersion == 1 and .gitSha == $sha and (.entries | length) == 1' "$manifest"
+          test -s "app/build/outputs/catalog/$(jq -r '.entries[0].file' "$manifest")"
+          test "$(ls app/build/outputs/catalog/img | wc -l)" -eq 1
 
   # The project website (docs/) is not part of the Gradle build, so it gets its
   # own leg: type-check, format, lint, unit tests, and a full static build
