@@ -44,7 +44,13 @@ internal data class CatalogManifest(
     val entries: List<CatalogManifestEntry>,
 )
 
-internal val CatalogJson: Json = Json { prettyPrint = true }
+internal val CatalogJson: Json =
+    Json {
+        prettyPrint = true
+        // schemaVersion has a default value, which kotlinx.serialization drops
+        // from the output unless told otherwise — and the site keys on it.
+        encodeDefaults = true
+    }
 
 /** One cell of the catalog: a geometry rendered under one value of every other axis. */
 internal data class CatalogEntry(

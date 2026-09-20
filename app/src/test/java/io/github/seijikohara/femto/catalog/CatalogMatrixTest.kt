@@ -71,6 +71,22 @@ class CatalogMatrixTest {
         assertEquals(manifest, decoded)
     }
 
+    // The round trip above cannot catch a missing schemaVersion: decoding fills the
+    // default back in. The site reads the text, so the text must carry it.
+    @Test
+    fun manifest_json_carries_the_schema_version() =
+        assertTrue(
+            CatalogJson
+                .encodeToString(
+                    CatalogManifest.serializer(),
+                    CatalogMatrix.manifest(
+                        CatalogMatrix.entries.take(1),
+                        Instant.parse("2026-09-20T12:00:00Z"),
+                        "abc1234",
+                    ),
+                ).contains("\"schemaVersion\": 1"),
+        )
+
     @Test
     fun manifest_describes_axes_values_and_entries() {
         val manifest =
