@@ -72,12 +72,16 @@ export const parseState = (
     const defaults = defaultState(manifest);
     const rowsParam = params.get("rows") ?? "";
     const colsParam = params.get("cols") ?? "";
-    const axesValid =
-        axisById(manifest, rowsParam) !== undefined &&
-        axisById(manifest, colsParam) !== undefined &&
-        rowsParam !== colsParam;
-    const rows = axesValid ? rowsParam : defaults.rows;
-    const cols = axesValid ? colsParam : defaults.cols;
+    // Each field falls back to the default independently; only a resulting
+    // collision (rows === cols) resets both — an unknown cols must not throw
+    // away an otherwise-valid, non-default rows (and vice versa).
+    const rowsResolved =
+        axisById(manifest, rowsParam) !== undefined ? rowsParam : defaults.rows;
+    const colsResolved =
+        axisById(manifest, colsParam) !== undefined ? colsParam : defaults.cols;
+    const collides = rowsResolved === colsResolved;
+    const rows = collides ? defaults.rows : rowsResolved;
+    const cols = collides ? defaults.cols : colsResolved;
     const wanted = Object.fromEntries(
         manifest.axes.map((axis) => [axis.id, params.get(axis.id) ?? ""]),
     );
