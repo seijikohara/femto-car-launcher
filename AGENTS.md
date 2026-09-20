@@ -209,6 +209,7 @@ rule file manually. When in doubt, read them all.
 | `./gradlew spotlessCheck` | Format / lint check (Kotlin via ktlint, Gradle DSL, Markdown EOL) |
 | `./gradlew spotlessApply` | Auto-fix format violations in place |
 | `./gradlew versionCatalogUpdate` | Update `gradle/libs.versions.toml` to the latest stable versions (`nl.littlerobots.version-catalog-update`) |
+| `./gradlew :app:generateCatalog [-Pfemto.catalog.filter=<regex>]` | Render the dashboard screenshot catalog (960 images + `manifest.json`) into `app/build/outputs/catalog/` for the docs site; excluded from `test` |
 | `pnpm --dir docs run check` | Docs site: `astro check`, `tsc`, Prettier, oxlint, Vitest |
 | `pnpm --dir docs run build` | Docs site: static build + dist link check (`docs/dist/`) |
 

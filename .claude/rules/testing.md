@@ -36,3 +36,12 @@ reference: <https://developer.android.com/training/testing>.
   collect with `viewModel.uiState.test { ... }` (Turbine) or call
   `advanceUntilIdle()` and assert directly on the resulting state —
   pick whichever reads more clearly for the assertion at hand.
+- Screenshot goldens live in `*ScreenshotTest` classes with
+  `testfixtures/ScreenshotOptions.kt`; the dashboard's geometries and
+  render inputs are `testfixtures/DashboardGeometries.kt` /
+  `DashboardFixtures.kt`, shared with the screenshot-catalog generator
+  under `catalog/`. That generator carries
+  `@Category(CatalogGeneration::class)`: the unit-test tasks exclude it
+  and only `./gradlew :app:generateCatalog` runs it (output
+  `app/build/outputs/catalog/`, contract in `.claude/rules/docs.md`).
+  New catalog axes go into `CatalogMatrix`, never a second list.
