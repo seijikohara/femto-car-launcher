@@ -1,18 +1,14 @@
 package io.github.seijikohara.femto.ui.home
 
-import android.graphics.BitmapFactory
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.UiScale
+import io.github.seijikohara.femto.testfixtures.DashboardFixtures
+import io.github.seijikohara.femto.testfixtures.DashboardGeometries
+import io.github.seijikohara.femto.testfixtures.MapBackdrop
 import io.github.seijikohara.femto.testfixtures.ScreenshotCompareOptions
-import io.github.seijikohara.femto.testfixtures.fakeHomeUiState
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
@@ -25,9 +21,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import java.time.Clock
-import java.time.Instant
-import java.time.ZoneOffset
 
 /**
  * JVM/Robolectric screenshot regression for the main dashboard across the display
@@ -38,23 +31,8 @@ import java.time.ZoneOffset
  * (DashboardResponsiveTest) cannot. Runs on the JVM, so unlike androidTest it
  * executes in CI (verifyRoborazziDebug).
  *
- * Geometry selection (in dp): in-car displays run at low density (~mdpi, dp ≈ px),
- * so their dp footprints are large — a mainstream 16:9 head unit is ~1280×720 dp,
- * not the phone-sized figures a high-density assumption would give. The set spans
- * the real-world clusters surveyed across worldwide automakers, aftermarket Android
- * head units, CarPlay / Android Auto projection, and dashboard-mounted phones /
- * tablets:
- *  - 5:3 / 17:10 head units: the 800×480 floor (Android Auto minimum, cheapest
- *    units), the 853×512 reference binding, the 1024×600 budget cluster, and the
- *    2000×1200 premium panel.
- *  - 16:9 head units: 1280×720 mainstream and the 1920×1080 flagship / Android Auto
- *    ceiling.
- *  - 8:3 ultrawide bar: 1920×720 (Hyundai-group ccNC, Mazda, OEM-fit widescreens).
- *  - Dashboard phones: 915×412 landscape and 412×915 portrait.
- *  - Tablets / native car portrait: 800×1280, and the tall 1024×1365 / 1200×1920
- *    portrait panels (Polestar / Ram class).
- * All recorded at mdpi: density only scales the captured PNG, not the dp layout, so
- * one density keeps the goldens small and the geometries faithful.
+ * The geometries are [DashboardGeometries] — see its KDoc for the selection
+ * rationale; the catalog generator renders the same list.
  *
  * Pinned to `sdk = 33` like the other Robolectric tests (sidesteps the compileSdk
  * gap). `location = null` keeps the map on its static fallback (no MapLibre GL).
@@ -71,84 +49,84 @@ class DashboardScreenshotTest {
     // --- Landscape head units (right-column layout) ---
 
     @Test
-    @Config(qualifiers = "w800dp-h480dp-mdpi")
+    @Config(qualifiers = DashboardGeometries.FLOOR_800X480)
     fun dashboard_floor_800x480_5x3() = capture("floor-800x480")
 
     @Test
-    @Config(qualifiers = "w853dp-h512dp-mdpi")
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
     fun dashboard_head_unit_853x512_5x3() = capture("head-unit-853x512")
 
     @Test
-    @Config(qualifiers = "w1024dp-h600dp-mdpi")
+    @Config(qualifiers = DashboardGeometries.BUDGET_1024X600)
     fun dashboard_budget_1024x600() = capture("budget-1024x600")
 
     @Test
-    @Config(qualifiers = "w1280dp-h720dp-mdpi")
+    @Config(qualifiers = DashboardGeometries.MAINSTREAM_1280X720)
     fun dashboard_mainstream_1280x720_16x9() = capture("mainstream-1280x720")
 
     @Test
-    @Config(qualifiers = "w1920dp-h720dp-mdpi")
+    @Config(qualifiers = DashboardGeometries.ULTRAWIDE_1920X720)
     fun dashboard_ultrawide_1920x720_8x3() = capture("ultrawide-1920x720")
 
     @Test
-    @Config(qualifiers = "w1920dp-h1080dp-mdpi")
+    @Config(qualifiers = DashboardGeometries.FLAGSHIP_1920X1080)
     fun dashboard_flagship_1920x1080_16x9() = capture("flagship-1920x1080")
 
     @Test
-    @Config(qualifiers = "w2000dp-h1200dp-mdpi")
+    @Config(qualifiers = DashboardGeometries.PREMIUM_2000X1200)
     fun dashboard_premium_2000x1200_5x3() = capture("premium-2000x1200")
 
     // --- Dashboard phone (single bottom card row) ---
 
     @Test
-    @Config(qualifiers = "w915dp-h412dp-mdpi")
+    @Config(qualifiers = DashboardGeometries.PHONE_LANDSCAPE_915X412)
     fun dashboard_phone_landscape_915x412() = capture("phone-landscape-915x412")
 
     // --- Portrait (bottom card band): phone, tablet, native car portrait ---
 
     @Test
-    @Config(qualifiers = "w412dp-h915dp-mdpi")
+    @Config(qualifiers = DashboardGeometries.PHONE_PORTRAIT_412X915)
     fun dashboard_phone_portrait_412x915() = capture("phone-portrait-412x915")
 
     @Test
-    @Config(qualifiers = "w800dp-h1280dp-mdpi")
+    @Config(qualifiers = DashboardGeometries.TABLET_800X1280)
     fun dashboard_tablet_800x1280() = capture("tablet-800x1280")
 
     @Test
-    @Config(qualifiers = "w1024dp-h1365dp-mdpi")
+    @Config(qualifiers = DashboardGeometries.CAR_PORTRAIT_1024X1365)
     fun dashboard_car_portrait_1024x1365() = capture("car-portrait-1024x1365")
 
     @Test
-    @Config(qualifiers = "w1200dp-h1920dp-mdpi")
+    @Config(qualifiers = DashboardGeometries.CAR_PORTRAIT_TALL_1200X1920)
     fun dashboard_car_portrait_tall_1200x1920() = capture("car-portrait-tall-1200x1920")
 
     // --- UI-scale opt-ins: SMALL fits the tight phone-landscape, LARGE enlarges a
     // comfortable head unit. Default MEDIUM is the no-op baseline of every case above. ---
 
     @Test
-    @Config(qualifiers = "w915dp-h412dp-mdpi")
+    @Config(qualifiers = DashboardGeometries.PHONE_LANDSCAPE_915X412)
     fun dashboard_phone_landscape_small_scale() = capture("phone-landscape-915x412-small", UiScale.SMALL)
 
     @Test
-    @Config(qualifiers = "w853dp-h512dp-mdpi")
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
     fun dashboard_head_unit_large_scale() = capture("head-unit-853x512-large", UiScale.LARGE)
 
     // --- Driver-side opt-ins: LEFT mirrors the dashboard column to the driver's
     // left. Default RIGHT is the no-op baseline of every case above. ---
 
     @Test
-    @Config(qualifiers = "w853dp-h512dp-mdpi")
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
     fun dashboard_head_unit_driver_left() = capture("head-unit-853x512-driver-left", driverSide = DriverSide.LEFT)
 
     @Test
-    @Config(qualifiers = "w412dp-h915dp-mdpi")
+    @Config(qualifiers = DashboardGeometries.PHONE_PORTRAIT_412X915)
     fun dashboard_phone_portrait_driver_left() =
         capture("phone-portrait-412x915-driver-left", driverSide = DriverSide.LEFT)
 
     // Dark variant: the glass chrome, the card surfaces and the map style all
     // swap, and none of the light goldens above exercise that pairing.
     @Test
-    @Config(qualifiers = "w853dp-h512dp-mdpi")
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
     fun dashboard_head_unit_dark() = capture("head-unit-853x512-dark", darkTheme = true)
 
     private fun capture(
@@ -163,7 +141,7 @@ class DashboardScreenshotTest {
         ) {
             FemtoTheme(uiScale = uiScale, darkTheme = darkTheme) {
                 DashboardScaffold(
-                    uiState = STATE,
+                    uiState = DashboardFixtures.state,
                     is24Hour = true,
                     showClockSeconds = true,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
@@ -174,64 +152,10 @@ class DashboardScreenshotTest {
                     onAction = {},
                     modifier = Modifier.fillMaxSize(),
                     driverSide = driverSide,
-                    clock = FIXED_CLOCK,
+                    clock = DashboardFixtures.fixedClock,
                     mapSurface = { MapBackdrop(darkTheme) },
                 )
             }
         }
-    }
-
-    /**
-     * Still OSM capture standing in for the live map.
-     *
-     * Robolectric's WebView is a shadow with no Chromium behind it, so the real
-     * [io.github.seijikohara.femto.ui.home.components.WebMapView] can only ever
-     * paint an empty region here — and a golden that fetched live tiles would stop
-     * being deterministic. This keeps every pixel the app itself draws (cards,
-     * dock, overlays, marker, controls) generated from the current code, and pins
-     * only the map imagery, which changes just when the map style does.
-     *
-     * The source is a device capture of this app rendering OpenFreeMap tiles
-     * (OpenStreetMap data, ODbL) — see app/src/test/resources/README.md.
-     */
-    @Composable
-    private fun MapBackdrop(darkTheme: Boolean) {
-        Image(
-            // The app swaps the map style with the theme (Positron / Dark Matter),
-            // so the still has to swap too — a light map under dark glass chrome
-            // would misrepresent the product, not just look odd.
-            bitmap = if (darkTheme) BACKDROP_DARK else BACKDROP,
-            contentDescription = null,
-            // Crop, not Fit: the goldens span landscape and portrait geometries, and
-            // a letterboxed backdrop would show bars the running app never has.
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
-    }
-
-    private companion object {
-        // Decoded once per class. The captures are smaller than the widest golden
-        // (2000x1200), so Crop upscales there — acceptable because the backdrop is
-        // scenery behind the UI, not a subject under test, and the goldens exist to
-        // catch changes in what the app draws over it. Enlarging the asset would
-        // add megabytes to every re-record for pixels nothing asserts on.
-        val BACKDROP: ImageBitmap = backdrop("/map-backdrop-osm.png")
-
-        val BACKDROP_DARK: ImageBitmap = backdrop("/map-backdrop-osm-dark.png")
-
-        private fun backdrop(resource: String): ImageBitmap =
-            checkNotNull(DashboardScreenshotTest::class.java.getResourceAsStream(resource)) {
-                "$resource missing from test resources"
-            }.use { stream ->
-                // decodeStream returns null on a corrupt or unreadable file; without
-                // this the failure surfaces as an NPE inside asImageBitmap with no
-                // clue which resource was at fault.
-                checkNotNull(BitmapFactory.decodeStream(stream)) { "$resource could not be decoded" }
-            }.asImageBitmap()
-
-        // Fixed so the dashboard clock is deterministic across CI record/verify runs.
-        val FIXED_CLOCK: Clock = Clock.fixed(Instant.parse("2026-05-01T10:08:00Z"), ZoneOffset.UTC)
-
-        val STATE = fakeHomeUiState()
     }
 }
