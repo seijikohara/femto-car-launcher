@@ -17,8 +17,7 @@
     "@astrojs/mdx": "^8.0.1",
     "@astrojs/sitemap": "^3.7.4",
     "astro": "^7.3.3",
-    "satteri": "^0.10.5",
-    "zod": "^4.6.1"
+    "satteri": "^0.10.5"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",

@@ -107,15 +107,15 @@ const radiusValue = radiusMap[radius];
     }
 
     /* Dark mode adjustments */
-    [data-theme="dark"] .glass-panel--default {
+    :global([data-theme="dark"]) .glass-panel--default {
         background: rgba(0, 0, 0, 0.2);
     }
 
-    [data-theme="dark"] .glass-panel--solid {
+    :global([data-theme="dark"]) .glass-panel--solid {
         background: rgba(0, 0, 0, 0.7);
     }
 
-    [data-theme="dark"] .glass-panel--minimal {
+    :global([data-theme="dark"]) .glass-panel--minimal {
         background: rgba(0, 0, 0, 0.1);
         border-color: rgba(255, 255, 255, 0.03);
     }

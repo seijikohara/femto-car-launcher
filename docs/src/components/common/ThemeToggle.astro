@@ -107,37 +107,37 @@ const defaultMode = siteConfig.theme.defaultColorMode;
     }
 
     /* System mode */
-    [data-theme-mode="system"] .icon-system {
+    :global([data-theme-mode="system"]) .icon-system {
         opacity: 1;
         transform: scale(1) rotate(0);
     }
 
-    [data-theme-mode="system"] .icon-sun,
-    [data-theme-mode="system"] .icon-moon {
+    :global([data-theme-mode="system"]) .icon-sun,
+    :global([data-theme-mode="system"]) .icon-moon {
         opacity: 0;
         transform: scale(0.8) rotate(180deg);
     }
 
     /* Light mode */
-    [data-theme-mode="light"] .icon-sun {
+    :global([data-theme-mode="light"]) .icon-sun {
         opacity: 1;
         transform: scale(1) rotate(0);
     }
 
-    [data-theme-mode="light"] .icon-moon,
-    [data-theme-mode="light"] .icon-system {
+    :global([data-theme-mode="light"]) .icon-moon,
+    :global([data-theme-mode="light"]) .icon-system {
         opacity: 0;
         transform: scale(0.8) rotate(180deg);
     }
 
     /* Dark mode */
-    [data-theme-mode="dark"] .icon-moon {
+    :global([data-theme-mode="dark"]) .icon-moon {
         opacity: 1;
         transform: scale(1) rotate(0);
     }
 
-    [data-theme-mode="dark"] .icon-sun,
-    [data-theme-mode="dark"] .icon-system {
+    :global([data-theme-mode="dark"]) .icon-sun,
+    :global([data-theme-mode="dark"]) .icon-system {
         opacity: 0;
         transform: scale(0.8) rotate(180deg);
     }

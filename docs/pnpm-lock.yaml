@@ -181,9 +181,6 @@ importers:
       satteri:
         specifier: ^0.10.5
         version: 0.10.5
-      zod:
-        specifier: ^4.6.1
-        version: 4.6.5
     devDependencies:
       '@astrojs/check':
         specifier: ^0.9.10

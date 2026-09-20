@@ -140,7 +140,7 @@ const opacity = opacityMap[intensity];
     }
 
     /* Dark mode adjustments */
-    [data-theme="dark"] .aurora-background {
+    :global([data-theme="dark"]) .aurora-background {
         opacity: calc(var(--opacity) * 0.6);
     }
 
