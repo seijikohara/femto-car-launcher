@@ -51,9 +51,9 @@
       groupName: "gradle",
     },
     {
-      description: "Group the webmap (pnpm) toolchain",
+      description: "Group the pnpm projects (webmap, docs)",
       matchManagers: ["npm"],
-      groupName: "webmap",
+      groupName: "pnpm",
     },
   ],
   customManagers: [
