@@ -27,6 +27,9 @@ minimum supported platform is Android 13 (Application Programming
 Interface — API — level 33). No single market is privileged: language,
 units, and locale-specific behaviour adapt per device.
 
+The [project site](https://seijikohara.github.io/femto-car-launcher/)
+describes every feature in depth and carries the install guide.
+
 <div align="center">
 
 <img src="app/src/test/screenshots/dashboard-head-unit-853x512.png" alt="The dashboard on a head unit in the light theme: a map with the self-marker, clock, calendar and weather cards, media controls, trip readout and the dock" width="820">
