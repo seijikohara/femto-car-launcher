@@ -30,9 +30,9 @@ class NowPlayingPanelTest {
                 )
             }
         }
-        rule.onNodeWithText("Strobe").assertIsDisplayed()
-        rule.onNodeWithText("deadmau5").assertIsDisplayed()
-        rule.onNodeWithText("For Lack of a Better Name").assertIsDisplayed()
+        rule.onNodeWithText("Headlights").assertIsDisplayed()
+        rule.onNodeWithText("The Static Drive").assertIsDisplayed()
+        rule.onNodeWithText("Late Shift").assertIsDisplayed()
     }
 
     @Test
@@ -48,8 +48,8 @@ class NowPlayingPanelTest {
                 )
             }
         }
-        rule.onNodeWithText("Strobe").assertIsDisplayed()
-        rule.onNodeWithText("For Lack of a Better Name").assertDoesNotExist()
+        rule.onNodeWithText("Headlights").assertIsDisplayed()
+        rule.onNodeWithText("Late Shift").assertDoesNotExist()
     }
 
     @Test
@@ -82,8 +82,8 @@ class NowPlayingPanelTest {
                 )
             }
         }
-        rule.onNodeWithContentDescription("Open Spotify").performClick()
-        assertEquals("com.spotify.music", launched)
+        rule.onNodeWithContentDescription("Open Now playing").performClick()
+        assertEquals("com.example.music", launched)
     }
 
     @Test

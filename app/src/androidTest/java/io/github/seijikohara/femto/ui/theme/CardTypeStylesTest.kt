@@ -38,7 +38,7 @@ class CardTypeStylesTest {
                     }
                 Column {
                     Text(
-                        "Strobe",
+                        "Headlights",
                         style = style,
                         maxLines = 1,
                         // onSizeChanged sits FIRST so it reports the slot's

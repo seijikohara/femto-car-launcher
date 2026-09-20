@@ -34,8 +34,8 @@ class MusicCardTest {
                 )
             }
         }
-        rule.onNodeWithText("Strobe").assertIsDisplayed()
-        rule.onNodeWithText("deadmau5", substring = true).assertIsDisplayed()
+        rule.onNodeWithText("Headlights").assertIsDisplayed()
+        rule.onNodeWithText("The Static Drive", substring = true).assertIsDisplayed()
         rule.onNodeWithContentDescription("Play / pause").assertIsDisplayed()
     }
 
@@ -44,7 +44,7 @@ class MusicCardTest {
         rule.setContent {
             FemtoTheme {
                 MusicCard(
-                    state = MusicCardState.Playing(fakeNowPlaying(album = "For Lack of a Better Name")),
+                    state = MusicCardState.Playing(fakeNowPlaying(album = "Late Shift")),
                     onCommand = {},
                     onConnect = {},
                     onLaunchSource = {},
@@ -53,7 +53,7 @@ class MusicCardTest {
                 )
             }
         }
-        rule.onNodeWithText("For Lack of a Better Name").assertIsDisplayed()
+        rule.onNodeWithText("Late Shift").assertIsDisplayed()
     }
 
     @Test
@@ -70,7 +70,7 @@ class MusicCardTest {
                 )
             }
         }
-        rule.onNodeWithText("Strobe").assertIsDisplayed()
+        rule.onNodeWithText("Headlights").assertIsDisplayed()
         rule.onNodeWithContentDescription("Play / pause").assertIsDisplayed()
     }
 
@@ -91,8 +91,8 @@ class MusicCardTest {
         }
         // The whole card (outside the transport controls) opens the source app.
         // Tapping the title — a non-interactive child — reaches the card's clickable.
-        rule.onNodeWithText("Strobe").performClick()
-        assertEquals("com.spotify.music", launched)
+        rule.onNodeWithText("Headlights").performClick()
+        assertEquals("com.example.music", launched)
     }
 
     @Test
@@ -225,7 +225,7 @@ class MusicCardTest {
         rule.setContent {
             FemtoTheme {
                 MusicCard(
-                    state = MusicCardState.Playing(fakeNowPlaying(album = "For Lack of a Better Name")),
+                    state = MusicCardState.Playing(fakeNowPlaying(album = "Late Shift")),
                     onCommand = {},
                     onConnect = {},
                     onLaunchSource = {},
@@ -235,7 +235,7 @@ class MusicCardTest {
                 )
             }
         }
-        rule.onNodeWithText("For Lack of a Better Name").assertDoesNotExist()
+        rule.onNodeWithText("Late Shift").assertDoesNotExist()
     }
 
     @Test

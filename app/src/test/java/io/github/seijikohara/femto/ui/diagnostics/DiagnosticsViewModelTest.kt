@@ -200,7 +200,7 @@ class DiagnosticsViewModelTest {
                 )
                 musicFlow.value = MusicCardState.Playing(fakeNowPlaying())
                 assertEquals(
-                    DiagnosticFact("Session", FactValue.Text("com.spotify.music (playing)")),
+                    DiagnosticFact("Session", FactValue.Text("com.example.music (playing)")),
                     awaitItem().sessionFact(),
                 )
                 cancelAndIgnoreRemainingEvents()

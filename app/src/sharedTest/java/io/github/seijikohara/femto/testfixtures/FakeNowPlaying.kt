@@ -4,14 +4,19 @@ import io.github.seijikohara.femto.data.music.NowPlaying
 import io.github.seijikohara.femto.data.music.QueueEntry
 import io.github.seijikohara.femto.data.music.RepeatMode
 
+/**
+ * Fictional track and a neutral package: the fixture appears in public imagery
+ * (goldens, the docs site, the screenshot catalog), so it names no real artist,
+ * work or vendor.
+ */
 internal fun fakeNowPlaying(
-    title: String = "Strobe",
-    artist: String? = "deadmau5",
-    album: String? = "For Lack of a Better Name",
+    title: String = "Headlights",
+    artist: String? = "The Static Drive",
+    album: String? = "Late Shift",
     isPlaying: Boolean = true,
-    positionMs: Long = 232_000L,
-    durationMs: Long = 632_000L,
-    packageName: String = "com.spotify.music",
+    positionMs: Long = 92_000L,
+    durationMs: Long = 281_000L,
+    packageName: String = "com.example.music",
     canSeek: Boolean = false,
     canShuffle: Boolean = false,
     canRepeat: Boolean = false,

@@ -180,6 +180,6 @@ class MusicSessionRepositoryTest {
         // toNowPlaying degrades a session with no metadata to NoActiveSession,
         // so every session here publishes the same track: these tests are about
         // which session reaches the card, not about what it renders.
-        val TRACK: MediaMetadata = fakeMediaMetadata(title = "Strobe")
+        val TRACK: MediaMetadata = fakeMediaMetadata(title = "Headlights")
     }
 }
