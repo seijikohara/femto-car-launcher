@@ -5,6 +5,9 @@ import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.testfixtures.DashboardGeometries
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -72,20 +75,29 @@ class CatalogMatrixTest {
     }
 
     // The round trip above cannot catch a missing schemaVersion: decoding fills the
-    // default back in. The site reads the text, so the text must carry it.
+    // default back in. The site reads the text, so the text must carry it. Parsing
+    // back into a JsonElement (rather than matching the substring) pins the
+    // contract independent of CatalogJson's prettyPrint spacing.
     @Test
-    fun manifest_json_carries_the_schema_version() =
-        assertTrue(
-            CatalogJson
-                .encodeToString(
-                    CatalogManifest.serializer(),
-                    CatalogMatrix.manifest(
-                        CatalogMatrix.entries.take(1),
-                        Instant.parse("2026-09-20T12:00:00Z"),
-                        "abc1234",
-                    ),
-                ).contains("\"schemaVersion\": 1"),
+    fun manifest_json_carries_the_schema_version() {
+        val text =
+            CatalogJson.encodeToString(
+                CatalogManifest.serializer(),
+                CatalogMatrix.manifest(
+                    CatalogMatrix.entries.take(1),
+                    Instant.parse("2026-09-20T12:00:00Z"),
+                    "abc1234",
+                ),
+            )
+        assertEquals(
+            1,
+            Json
+                .parseToJsonElement(text)
+                .jsonObject["schemaVersion"]
+                ?.jsonPrimitive
+                ?.int,
         )
+    }
 
     @Test
     fun manifest_describes_axes_values_and_entries() {

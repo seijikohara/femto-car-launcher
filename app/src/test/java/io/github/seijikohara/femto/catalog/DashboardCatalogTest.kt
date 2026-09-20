@@ -76,20 +76,28 @@ internal class DashboardCatalogTest(
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
         fun entries(): List<Array<Any>> = CatalogMatrix.entries(CatalogRun.filter).map { arrayOf<Any>(it) }
 
-        // Once per run, before any render: the manifest lists exactly the entries
-        // this run renders (the filter applies to both), so a partial local run
-        // still produces a consistent catalog directory.
+        // The manifest lists exactly the entries this run renders (the filter
+        // applies to both), so a partial local run still produces a consistent
+        // catalog directory. Guarded by existence, not just by @BeforeClass:
+        // ParameterizedRobolectricTestRunner reloads this class in a fresh
+        // sandbox per parameter, so this actually runs once per entry rather
+        // than once per class. The guard is safe because generateCatalog's
+        // doFirst wipes OUTPUT_DIR before the run starts, so a manifest found
+        // here can only be the one an earlier sandbox in this same run wrote.
         @JvmStatic
         @BeforeClass
         fun writeManifest() {
-            val manifest = CatalogMatrix.manifest(
-                CatalogMatrix.entries(CatalogRun.filter),
-                Instant.now(),
-                CatalogRun.gitSha,
-            )
-            File(CatalogRun.OUTPUT_DIR, CatalogRun.MANIFEST_FILE)
-                .apply { parentFile?.mkdirs() }
-                .writeText(CatalogJson.encodeToString(CatalogManifest.serializer(), manifest))
+            val manifestFile = File(CatalogRun.OUTPUT_DIR, CatalogRun.MANIFEST_FILE)
+            if (!manifestFile.exists()) {
+                val manifest = CatalogMatrix.manifest(
+                    CatalogMatrix.entries(CatalogRun.filter),
+                    Instant.now(),
+                    CatalogRun.gitSha,
+                )
+                manifestFile
+                    .apply { parentFile?.mkdirs() }
+                    .writeText(CatalogJson.encodeToString(CatalogManifest.serializer(), manifest))
+            }
         }
     }
 }

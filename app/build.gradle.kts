@@ -332,6 +332,10 @@ tasks.register<Test>("generateCatalog") {
     maxHeapSize = "2g"
     useJUnit { includeCategories(catalogCategory) }
     systemProperty("roborazzi.test.record", "true")
+    // Isolates results from testDebugUnitTest's own declared output dir
+    // (overlap disables its local build cache).
+    val roborazziResultDir = layout.buildDirectory.dir("test-results/generateCatalog/roborazzi")
+    systemProperty("roborazzi.result.dir", roborazziResultDir.get().asFile.path)
     // Both resolved at configuration time on purpose: that registers the Gradle
     // property, the environment variable and the git output as configuration
     // cache inputs, so a changed filter or a new commit invalidates the cached
@@ -362,5 +366,6 @@ tasks.register<Test>("generateCatalog") {
         // not Project.delete: the build runs with the configuration cache, which
         // forbids touching the Project at execution time.
         outputDir.get().asFile.deleteRecursively()
+        roborazziResultDir.get().asFile.deleteRecursively()
     }
 }
