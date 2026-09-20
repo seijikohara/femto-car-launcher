@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "unicorn", "oxc", "import"],
+  "plugins": ["typescript", "unicorn", "oxc", "import", "react", "jsx-a11y"],
   "categories": {
     "correctness": "error",
     "suspicious": "error"
@@ -8,7 +8,10 @@
   "rules": {
     "no-var": "error",
     "prefer-const": "error",
-    "import/no-unassigned-import": ["error", { "allow": ["**/*.css"] }]
+    "import/no-unassigned-import": ["error", { "allow": ["**/*.css"] }],
+    // tsconfig sets the automatic JSX runtime ("jsx": "react-jsx"), which
+    // never needs `React` in scope; this rule only fits the classic runtime.
+    "react/react-in-jsx-scope": "off"
   },
   "ignorePatterns": ["dist/**", ".astro/**", "public/catalog/**"]
 }

@@ -1,5 +1,6 @@
 import mdx from "@astrojs/mdx";
 import { satteri } from "@astrojs/markdown-satteri";
+import react from "@astrojs/react";
 import sitemap from "@astrojs/sitemap";
 import { defineConfig } from "astro/config";
 import satteriBaseUrls from "./src/lib/satteri-base-urls";
@@ -20,7 +21,9 @@ export default defineConfig({
         format: "directory",
         inlineStylesheets: "auto",
     },
-    integrations: [mdx(), sitemap()],
+    // React only for the catalog island (src/catalog); every other page
+    // ships no client framework.
+    integrations: [mdx(), sitemap(), react()],
     // AVIF/WebP output is chosen per image (see ui/Picture.astro's `formats`
     // prop to astro:assets Picture) — Astro's `image` config has no global
     // format key.
