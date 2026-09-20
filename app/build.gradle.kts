@@ -348,8 +348,11 @@ tasks.register<Test>("generateCatalog") {
             .environmentVariable("GITHUB_SHA")
             .orElse(
                 providers
-                    .exec { commandLine("git", "rev-parse", "HEAD") }
-                    .standardOutput.asText
+                    .exec {
+                        commandLine("git", "rev-parse", "HEAD")
+                        // Git may be missing outside a checkout; CatalogRun.gitSha maps empty output to "unknown".
+                        isIgnoreExitValue = true
+                    }.standardOutput.asText
                     .map(String::trim),
             ).get(),
     )

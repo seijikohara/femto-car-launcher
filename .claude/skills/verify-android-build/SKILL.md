@@ -73,6 +73,12 @@ task. Default is `assembleDebug`.
    ./gradlew test
    ```
 
+   If you touched `app/src/test/.../catalog/` or
+   `testfixtures/Dashboard*`, also run
+   `./gradlew :app:generateCatalog -Pfemto.catalog.filter=head-unit-853x512__medium__light__right__bottom`
+   — the generator is category-excluded from `test`, so nothing else
+   exercises it locally.
+
 5. **Check the docs site** if you touched anything under `docs/`:
 
    ```bash
@@ -101,8 +107,10 @@ three parallel jobs (`static-checks`, `unit-tests`, `assemble`) for
 wall-clock speed, plus `verifyRoborazziDebug` alongside `test` in
 CI only (screenshot verification against goldens recorded on the
 CI runner OS), plus the `docs-site` job (`pnpm run check` + `pnpm
-run build` under `docs/`). If this step list changes, change
-`ci.yml` in the same commit.
+run build` under `docs/`), plus a one-entry `generateCatalog
+-Pfemto.catalog.filter=…` smoke render in the `unit-tests` leg
+(CI-only). If this step list changes, change `ci.yml` in the same
+commit.
 
 ## Common failure modes and fixes
 

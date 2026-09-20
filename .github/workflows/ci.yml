@@ -66,8 +66,10 @@ jobs:
       - name: Check the catalog smoke render
         if: matrix.name == 'unit-tests'
         run: |
-          test -s app/build/outputs/catalog/manifest.json
-          test -s app/build/outputs/catalog/img/head-unit-853x512__medium__light__right__bottom.png
+          manifest=app/build/outputs/catalog/manifest.json
+          jq -e --arg sha "$GITHUB_SHA" \
+            '.schemaVersion == 1 and .gitSha == $sha and (.entries | length) == 1' "$manifest"
+          test -s "app/build/outputs/catalog/$(jq -r '.entries[0].file' "$manifest")"
           test "$(ls app/build/outputs/catalog/img | wc -l)" -eq 1
 
   # The project website (docs/) is not part of the Gradle build, so it gets its

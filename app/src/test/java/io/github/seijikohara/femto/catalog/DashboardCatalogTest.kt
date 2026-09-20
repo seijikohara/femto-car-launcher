@@ -22,6 +22,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 /**
  * Renders the dashboard once per [CatalogEntry] — every geometry × display
@@ -46,8 +47,10 @@ internal class DashboardCatalogTest(
     fun renders_the_dashboard_for_the_entry() {
         // Robolectric applies a runtime qualifier change to resources it creates
         // afterwards, so it must precede captureRoboImage, which launches the
-        // host Activity — each parameter runs in a fresh sandbox, so no stale
-        // window carries over.
+        // host Activity. Robolectric 4.17 caches the sandbox per configuration
+        // and shares it across parameters, but ParameterizedRobolectricTestRunner
+        // still runs each parameter through its own RobolectricTestRunner
+        // instance, so no stale window carries over.
         RuntimeEnvironment.setQualifiers(entry.geometry.qualifiers)
         captureRoboImage(filePath = "${CatalogRun.OUTPUT_DIR}/${entry.file}") {
             FemtoTheme(uiScale = entry.scale, darkTheme = entry.darkTheme) {
@@ -79,11 +82,13 @@ internal class DashboardCatalogTest(
         // The manifest lists exactly the entries this run renders (the filter
         // applies to both), so a partial local run still produces a consistent
         // catalog directory. Guarded by existence, not just by @BeforeClass:
-        // ParameterizedRobolectricTestRunner reloads this class in a fresh
-        // sandbox per parameter, so this actually runs once per entry rather
-        // than once per class. The guard is safe because generateCatalog's
-        // doFirst wipes OUTPUT_DIR before the run starts, so a manifest found
-        // here can only be the one an earlier sandbox in this same run wrote.
+        // ParameterizedRobolectricTestRunner (a JUnit Suite) creates one
+        // RobolectricTestRunner per parameter, and each one replays the
+        // sandboxed class-level lifecycle, so @BeforeClass actually runs once
+        // per entry rather than once per class. The guard is safe because
+        // generateCatalog's doFirst wipes OUTPUT_DIR before the run starts, so
+        // a manifest found here can only be the one an earlier parameter in
+        // this same run wrote.
         @JvmStatic
         @BeforeClass
         fun writeManifest() {
@@ -91,7 +96,7 @@ internal class DashboardCatalogTest(
             if (!manifestFile.exists()) {
                 val manifest = CatalogMatrix.manifest(
                     CatalogMatrix.entries(CatalogRun.filter),
-                    Instant.now(),
+                    Instant.now().truncatedTo(ChronoUnit.SECONDS),
                     CatalogRun.gitSha,
                 )
                 manifestFile
