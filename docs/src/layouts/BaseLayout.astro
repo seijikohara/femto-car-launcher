@@ -1,0 +1,120 @@
+---
+import "@/styles/global.css";
+import siteConfig from "@/site.config";
+import { ClientRouter } from "astro:transitions";
+import Seo from "@/components/common/Seo.astro";
+import AuroraBackground from "@/components/common/AuroraBackground.astro";
+import ThemeToggle from "@/components/common/ThemeToggle.astro";
+import logo from "../../../logo.svg";
+
+export interface Props {
+    title?: string;
+    description?: string;
+    ogImage?: string;
+    noIndex?: boolean;
+}
+
+const props = Astro.props;
+---
+
+<!doctype html>
+<html lang={siteConfig.lang}>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="generator" content={Astro.generator} />
+
+        <!-- Client-side routing. Astro falls back to a normal navigation where the
+         View Transitions API is missing, and skips the animation entirely under
+         prefers-reduced-motion, so this costs nothing where it isn't wanted.
+         Component scripts re-initialise on `astro:page-load`; see the note in
+         src/lib/lifecycle.ts. -->
+        <ClientRouter />
+
+        <!-- Favicon & app icons -->
+        <link rel="icon" type="image/svg+xml" href={logo.src} />
+        <meta id="theme-color-meta" name="theme-color" content="#0e1318" />
+
+        <!-- SEO: title, description, canonical, Open Graph, Twitter, JSON-LD -->
+        <Seo
+            title={props.title}
+            description={props.description}
+            ogImage={props.ogImage}
+            noIndex={props.noIndex}
+        />
+
+        <!-- Theme Script (FOUC Prevention) -->
+        <!--
+      Sets two attributes on <html> before first paint:
+        data-theme       — the *resolved* appearance ('light' | 'dark'), drives the tokens
+        data-theme-mode  — the *selected* preference ('system' | 'light' | 'dark'), drives the toggle icon
+      localStorage is wrapped so a throw (Safari "block all cookies", private mode,
+      sandboxed iframe) can't abort the script and leave the page unthemed.
+    -->
+        <script
+            is:inline
+            set:html={`(function(){
+        var d = document.documentElement;
+        function safeGet(k){ try { return localStorage.getItem(k); } catch (e) { return null; } }
+        var stored = safeGet('theme');
+        var fallback = ${JSON.stringify(siteConfig.theme.defaultColorMode)};
+        var mode = (stored === 'light' || stored === 'dark' || stored === 'system') ? stored : fallback;
+        if (mode !== 'light' && mode !== 'dark' && mode !== 'system') mode = 'system';
+        var resolved = mode;
+        if (mode === 'system') {
+          var prefersDark = false;
+          try { prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) {}
+          resolved = prefersDark ? 'dark' : 'light';
+        }
+        d.setAttribute('data-theme', resolved);
+        d.setAttribute('data-theme-mode', mode);
+        var meta = document.getElementById('theme-color-meta');
+        if (meta) meta.setAttribute('content', resolved === 'dark' ? '#0e1318' : '#f5f6f9');
+      })();`}
+        ></script>
+        <!-- The theme ships a system-ui font stack (see tokens.css --font-sans),
+         so there are no web fonts to preconnect or load. -->
+    </head>
+    <body>
+        <!-- Skip to content link -->
+        <a href="#main" class="skip-link">
+            Skip to content
+        </a>
+
+        <!-- Aurora Background -->
+        <AuroraBackground intensity="medium" animated={true} />
+
+        <!-- Main Layout -->
+        <slot />
+
+        <!-- Theme Toggle (can be positioned by parent) -->
+        {siteConfig.theme.showThemeToggle && (
+            <div id="theme-toggle-container">
+                <ThemeToggle />
+            </div>
+        )}
+    </body>
+</html>
+
+<style>
+    #theme-toggle-container {
+        position: fixed;
+        bottom: var(--space-xl);
+        right: var(--space-xl);
+        z-index: var(--z-sticky);
+    }
+
+    @media (max-width: 768px) {
+        #theme-toggle-container {
+            bottom: var(--space-lg);
+            right: var(--space-lg);
+        }
+    }
+
+    /* Smooth color transitions on theme change */
+    html {
+        transition:
+            background-color var(--transition-base),
+            color var(--transition-base);
+    }
+</style>

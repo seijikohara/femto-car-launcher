@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "import"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error"
+  },
+  "rules": {
+    "no-var": "error",
+    "prefer-const": "error",
+    "import/no-unassigned-import": ["error", { "allow": ["**/*.css"] }]
+  },
+  "ignorePatterns": ["dist/**", ".astro/**", "public/catalog/**"]
+}

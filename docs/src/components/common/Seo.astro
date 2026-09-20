@@ -1,0 +1,73 @@
+---
+import siteConfig, { resolvedOgLocale } from "@/site.config";
+import { withBase } from "@/lib/url";
+
+export interface Props {
+    title?: string;
+    description?: string;
+    ogImage?: string;
+    noIndex?: boolean;
+}
+
+// og:image resolution, most specific first: whatever the page passes (the
+// detail routes pass their generated card), then the site-wide default from
+// site.config. A generated card is preferred over the entry's hero image
+// because its URL carries no content hash, so a platform's cached preview
+// survives a rebuild.
+const {
+    title = siteConfig.title,
+    description = siteConfig.description,
+    ogImage = siteConfig.ogImage,
+    noIndex = false,
+} = Astro.props;
+
+const fullTitle =
+    title === siteConfig.title ? title : `${title} - ${siteConfig.name}`;
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+// withBase covers a root-relative default like "/og-image.png"; astro:assets
+// `.src` values are already base-prefixed, and withBase leaves them untouched.
+const ogImageURL = new URL(withBase(ogImage), Astro.site).href;
+
+// JSON-LD structured data — serialized so values are emitted as real JSON,
+// not as un-evaluated source text (a common is:inline pitfall).
+const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: siteConfig.name,
+    description: siteConfig.description,
+    url: new URL(withBase("/"), Astro.site).href,
+};
+---
+
+<!-- Title & Description -->
+<title>{fullTitle}</title>
+<meta name="description" content={description} />
+
+<!-- Canonical URL -->
+<link rel="canonical" href={canonicalURL} />
+
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonicalURL} />
+<meta property="og:site_name" content={siteConfig.name} />
+<meta property="og:image" content={ogImageURL} />
+<meta property="og:locale" content={resolvedOgLocale} />
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={ogImageURL} />
+
+<!-- Robots -->
+{noIndex && <meta name="robots" content="noindex, nofollow" />}
+
+<!-- JSON-LD Structured Data. `<` is escaped so a content string containing
+     "</script>" can't break out of the block (stored-XSS guard). -->
+<script
+    type="application/ld+json"
+    is:inline
+    set:html={JSON.stringify(jsonLd).replace(/</g, "\\u003c")}
+></script>

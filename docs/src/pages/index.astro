@@ -1,0 +1,18 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import Header from "@/components/common/Header.astro";
+import Footer from "@/components/common/Footer.astro";
+import Container from "@/components/ui/Container.astro";
+import siteConfig from "@/site.config";
+---
+
+<BaseLayout title={siteConfig.title} description={siteConfig.description}>
+    <Header />
+    <main id="main" tabindex="-1">
+        <Container size="md">
+            <h1>{siteConfig.name}</h1>
+            <p>{siteConfig.description}</p>
+        </Container>
+    </main>
+    <Footer />
+</BaseLayout>

@@ -1,0 +1,371 @@
+---
+import siteConfig from "@/site.config";
+import { withBase } from "@/lib/url";
+import { getEnabledNavItems } from "@/lib/nav";
+import logo from "../../../../logo.svg";
+
+const currentPath = Astro.url.pathname;
+
+// A nav item is active when the path matches exactly or sits under it
+// (e.g. /blog stays active on /blog/page/2 and /blog/my-post). "/" only
+// matches the home page itself. currentPath includes the base, so compare
+// against the base-prefixed href.
+function isActive(href: string): boolean {
+    const target = withBase(href);
+    const home = withBase("/");
+    if (href === "/") return currentPath === home;
+    // href may itself end in '/' (trailing-slash routes); normalize before
+    // appending the separator so the prefix check doesn't require '//'.
+    const targetBase = target.endsWith("/") ? target.slice(0, -1) : target;
+    return currentPath === target || currentPath.startsWith(targetBase + "/");
+}
+
+const navItems = getEnabledNavItems();
+---
+
+<header class="site-header glass-nav">
+    <div class="container header-container">
+        <!-- Logo/Brand -->
+        <a href={withBase("/")} class="brand" aria-label="Home">
+            <img
+                src={logo.src}
+                alt=""
+                width="28"
+                height="28"
+                class="brand-mark"
+            />
+            <span class="brand-text">{siteConfig.name}</span>
+        </a>
+
+        <!-- Mobile Menu Toggle -->
+        <button
+            class="menu-toggle"
+            id="menu-toggle"
+            aria-label="Toggle navigation menu"
+            aria-expanded="false"
+            aria-controls="navigation"
+        >
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+
+        <!-- Navigation -->
+        <nav id="navigation" class="nav-menu" aria-label="Main navigation">
+            <ul class="nav-list">
+                {navItems.map((item) => (
+                    <li class="nav-item">
+                        <a
+                            href={withBase(item.href)}
+                            class={`nav-link ${isActive(item.href) ? "active" : ""}`}
+                            aria-current={
+                                isActive(item.href) ? "page" : undefined
+                            }
+                        >
+                            {item.name}
+                        </a>
+                    </li>
+                ))}
+            </ul>
+        </nav>
+    </div>
+</header>
+
+<style>
+    .site-header {
+        position: sticky;
+        top: 0;
+        z-index: var(--z-sticky);
+        padding: var(--space-md) 0;
+    }
+
+    .header-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-xl);
+    }
+
+    /* Brand/Logo */
+    .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-sm);
+        font-size: var(--text-xl);
+        font-weight: 700;
+        color: var(--color-text);
+        text-decoration: none;
+        transition: color var(--transition-fast);
+        position: relative;
+    }
+
+    .brand-mark {
+        border-radius: 6px;
+    }
+
+    .brand:hover {
+        color: var(--color-accent);
+    }
+
+    .brand-text {
+        background: linear-gradient(
+            135deg,
+            var(--color-accent),
+            var(--color-accent-light)
+        );
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    @supports not ((-webkit-background-clip: text) or (background-clip: text)) {
+        .brand-text {
+            /* No explicit color: inherit .brand's color so :hover still applies. */
+            background: none;
+            -webkit-text-fill-color: currentColor;
+        }
+    }
+
+    /* Navigation */
+    .nav-menu {
+        flex: 1;
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .nav-list {
+        display: flex;
+        align-items: center;
+        gap: var(--space-xs);
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .nav-item {
+        margin: 0;
+    }
+
+    .nav-link {
+        display: inline-flex;
+        align-items: center;
+        padding: var(--space-sm) var(--space-md);
+        color: var(--color-text-muted);
+        text-decoration: none;
+        font-weight: 500;
+        border-radius: var(--radius-md);
+        transition:
+            color var(--transition-fast),
+            background-color var(--transition-fast);
+        position: relative;
+    }
+
+    @media (hover: hover) {
+        .nav-link:hover {
+            color: var(--color-text);
+            background: var(--glass-bg);
+        }
+    }
+
+    .nav-link.active {
+        color: var(--color-accent);
+        background: var(--color-accent-glass);
+    }
+
+    .nav-link.active::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 24px;
+        height: 2px;
+        background: var(--color-accent);
+        border-radius: var(--radius-full);
+    }
+
+    /* Search trigger */
+    .search-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        color: var(--color-text-muted);
+        background: none;
+        border: none;
+        border-radius: var(--radius-md);
+        cursor: pointer;
+        transition:
+            color var(--transition-fast),
+            background-color var(--transition-fast);
+    }
+
+    @media (hover: hover) {
+        .search-toggle:hover {
+            color: var(--color-text);
+            background: var(--glass-bg);
+        }
+    }
+
+    /* Mobile styles */
+    @media (max-width: 768px) {
+        .nav-menu {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            right: 0;
+            background: var(--glass-bg-solid);
+            -webkit-backdrop-filter: blur(var(--glass-blur-lg))
+                saturate(var(--glass-sat));
+            backdrop-filter: blur(var(--glass-blur-lg))
+                saturate(var(--glass-sat));
+            border-bottom: 1px solid var(--glass-border);
+            padding: var(--space-lg);
+            transform: translateY(-100%);
+            opacity: 0;
+            transition:
+                transform var(--transition-base),
+                opacity var(--transition-base),
+                visibility var(--transition-base);
+            pointer-events: none;
+            /* Remove the off-screen menu from the visual flow; the script also sets `inert` so its links leave the tab order and a11y tree. */
+            visibility: hidden;
+        }
+
+        .nav-menu.active {
+            transform: translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+            visibility: visible;
+        }
+
+        .nav-list {
+            flex-direction: column;
+            align-items: stretch;
+            gap: var(--space-sm);
+        }
+
+        .nav-link {
+            width: 100%;
+            min-height: 44px;
+            justify-content: center;
+        }
+
+        .nav-link.active::after {
+            display: none;
+        }
+
+        /* The nav dropdown is out of flow (position: fixed) on mobile, leaving brand, hamburger and search as the flex items. Group the icons on the right, search before the hamburger. */
+        .search-toggle {
+            order: 1;
+            margin-left: auto;
+        }
+
+        .menu-toggle {
+            order: 2;
+        }
+    }
+
+    /* Fallback for browsers without backdrop-filter: the mobile menu needs an
+       opaque background so it stays readable instead of see-through. */
+    @supports not (backdrop-filter: blur(1px)) {
+        @media (max-width: 768px) {
+            .nav-menu {
+                background: var(--color-bg);
+            }
+        }
+    }
+
+    /* Focus styles */
+    .nav-link:focus-visible,
+    .brand:focus-visible,
+    .search-toggle:focus-visible {
+        outline: 2px solid var(--color-accent);
+        outline-offset: 2px;
+    }
+</style>
+
+<script>
+    import { lockScroll, unlockScroll } from "@/lib/scrollLock";
+    import { onPage, onLeave } from "@/lib/lifecycle";
+
+    // Re-queried on every navigation; the old elements go away with the swap.
+    let toggle: HTMLElement | null = null;
+    let nav: HTMLElement | null = null;
+    const mobile = window.matchMedia("(max-width: 768px)");
+
+    // The menu collapses behind a hamburger only at ≤768px. When it's collapsed
+    // and closed, its links must leave the tab order and accessibility tree —
+    // CSS `visibility` alone doesn't do that reliably, so we toggle `inert` and
+    // `aria-hidden`. On desktop the menu is always visible, so it's never inert.
+    function syncNavState() {
+        if (!nav) return;
+        const hidden = mobile.matches && !nav.classList.contains("active");
+        nav.toggleAttribute("inert", hidden);
+        nav.setAttribute("aria-hidden", String(hidden));
+    }
+
+    function openMenu() {
+        if (nav?.classList.contains("active")) return;
+        nav?.classList.add("active");
+        toggle?.classList.add("active");
+        toggle?.setAttribute("aria-expanded", "true");
+        lockScroll();
+        syncNavState();
+    }
+
+    function closeMenu() {
+        if (!nav?.classList.contains("active")) return;
+        nav?.classList.remove("active");
+        toggle?.classList.remove("active");
+        toggle?.setAttribute("aria-expanded", "false");
+        unlockScroll();
+        syncNavState();
+    }
+
+    onPage(() => {
+        toggle = document.getElementById("menu-toggle");
+        nav = document.getElementById("navigation");
+
+        toggle?.addEventListener("click", () => {
+            if (nav?.classList.contains("active")) {
+                closeMenu();
+            } else {
+                openMenu();
+            }
+        });
+
+        syncNavState();
+    });
+
+    // The scroll lock lives on <html>, which survives the swap: leaving the menu
+    // open through a navigation would lock scrolling on the page you land on.
+    onLeave(closeMenu);
+
+    // Listeners below are on objects that outlive the swap, so they are
+    // registered once and read whichever elements are current.
+
+    // Close menu when clicking outside
+    document.addEventListener("click", (e) => {
+        const target = e.target as HTMLElement;
+        if (!toggle?.contains(target) && !nav?.contains(target)) {
+            closeMenu();
+        }
+    });
+
+    // Close menu on escape key
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && nav?.classList.contains("active")) {
+            closeMenu();
+            toggle?.focus();
+        }
+    });
+
+    // Keep inert/aria-hidden correct across viewport changes.
+    mobile.addEventListener("change", () => {
+        closeMenu();
+        syncNavState();
+    });
+</script>

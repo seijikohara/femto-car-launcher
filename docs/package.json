@@ -1,0 +1,38 @@
+{
+  "name": "femto-docs",
+  "private": true,
+  "type": "module",
+  "description": "Project website for Femto Car Launcher: feature guide, install guide, legal pages and (from PR-3) the dashboard screenshot catalog. Published to GitHub Pages by .github/workflows/docs.yml.",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build && node scripts/check-dist-links.ts",
+    "preview": "astro preview",
+    "check": "astro check && tsc --noEmit && prettier --check . && oxlint && vitest run",
+    "test": "vitest run",
+    "lint": "oxlint",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@astrojs/markdown-satteri": "^0.4.1",
+    "@astrojs/mdx": "^8.0.1",
+    "@astrojs/sitemap": "^3.7.4",
+    "astro": "^7.3.3",
+    "satteri": "^0.10.5",
+    "zod": "^4.6.1"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "@types/hast": "^3.0.4",
+    "@types/node": "^26.6.1",
+    "oxlint": "^1.83.0",
+    "prettier": "^3.9.8",
+    "prettier-plugin-astro": "^1.0.1",
+    "sharp": "^0.35.3",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.1"
+  },
+  "engines": {
+    "node": ">=24.11.0"
+  },
+  "packageManager": "pnpm@12.4.2"
+}

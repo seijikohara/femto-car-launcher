@@ -1,0 +1,29 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "compilerOptions": {
+    "strict": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "allowSyntheticDefaultImports": true,
+    "verbatimModuleSyntax": true,
+    "jsx": "preserve",
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "types": ["astro/client", "node"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "include": [
+    ".astro/types.d.ts",
+    "src/**/*",
+    "scripts/**/*",
+    "astro.config.ts",
+    "vitest.config.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
+}
