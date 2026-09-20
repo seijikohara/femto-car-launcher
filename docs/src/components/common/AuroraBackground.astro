@@ -1,0 +1,184 @@
+---
+export interface Props {
+    intensity?: "low" | "medium" | "high";
+    animated?: boolean;
+}
+
+const { intensity = "medium", animated = true } = Astro.props;
+
+const opacityMap = {
+    low: "0.3",
+    medium: "0.5",
+    high: "0.7",
+};
+
+const opacity = opacityMap[intensity];
+---
+
+<div
+    class={`aurora-background ${animated ? "aurora-animated" : ""}`}
+    data-intensity={intensity}
+    aria-hidden="true"
+>
+    <div class="aurora-layer aurora-1"></div>
+    <div class="aurora-layer aurora-2"></div>
+    <div class="aurora-layer aurora-3"></div>
+</div>
+
+<style define:vars={{ opacity }}>
+    .aurora-background {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+        overflow: hidden;
+        pointer-events: none;
+        opacity: var(--opacity);
+    }
+
+    .aurora-layer {
+        position: absolute;
+        width: 150%;
+        height: 150%;
+        top: -25%;
+        left: -25%;
+    }
+
+    .aurora-1 {
+        background: radial-gradient(
+            ellipse at top left,
+            var(--aurora-1),
+            transparent 40%
+        );
+        filter: blur(60px);
+    }
+
+    .aurora-2 {
+        background: radial-gradient(
+            ellipse at bottom right,
+            var(--aurora-2),
+            transparent 40%
+        );
+        filter: blur(80px);
+    }
+
+    .aurora-3 {
+        background: radial-gradient(
+            ellipse at center,
+            var(--aurora-3),
+            transparent 50%
+        );
+        filter: blur(100px);
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        .aurora-animated .aurora-1 {
+            animation: float 20s ease-in-out infinite;
+            will-change: transform;
+        }
+
+        .aurora-animated .aurora-2 {
+            animation: float 25s ease-in-out infinite reverse;
+            will-change: transform;
+        }
+
+        .aurora-animated .aurora-3 {
+            animation: float 30s ease-in-out infinite;
+            will-change: transform;
+        }
+    }
+
+    @keyframes float {
+        0%,
+        100% {
+            transform: translate(0, 0) rotate(0deg) scale(1);
+        }
+        25% {
+            transform: translate(-5%, 5%) rotate(1deg) scale(1.05);
+        }
+        50% {
+            transform: translate(5%, -5%) rotate(-1deg) scale(0.95);
+        }
+        75% {
+            transform: translate(-3%, -3%) rotate(0.5deg) scale(1.02);
+        }
+    }
+
+    /* Additional gradients for variety */
+    @media (min-width: 768px) {
+        .aurora-background::before,
+        .aurora-background::after {
+            content: "";
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            filter: blur(120px);
+            opacity: 0.3;
+        }
+
+        .aurora-background::before {
+            background: radial-gradient(
+                circle at 20% 80%,
+                var(--aurora-4),
+                transparent 50%
+            );
+            animation: float 35s ease-in-out infinite;
+            will-change: transform;
+        }
+
+        .aurora-background::after {
+            background: radial-gradient(
+                circle at 80% 20%,
+                var(--aurora-1),
+                transparent 50%
+            );
+            animation: float 40s ease-in-out infinite reverse;
+            will-change: transform;
+        }
+    }
+
+    /* Dark mode adjustments */
+    :global([data-theme="dark"]) .aurora-background {
+        opacity: calc(var(--opacity) * 0.6);
+    }
+
+    /* Pause the (heavily-blurred) layer animations while the tab is hidden so we
+       don't burn GPU/battery in the background. Toggled by the script below. */
+    .aurora-background.is-paused .aurora-layer,
+    .aurora-background.is-paused::before,
+    .aurora-background.is-paused::after {
+        animation-play-state: paused;
+    }
+
+    /* High performance mode */
+    @media (prefers-reduced-transparency: reduce) {
+        .aurora-background {
+            display: none;
+        }
+    }
+
+    /* Print styles */
+    @media print {
+        .aurora-background {
+            display: none;
+        }
+    }
+</style>
+
+<script>
+    import { onPage } from "@/lib/lifecycle";
+
+    // Pause aurora animation when the tab is backgrounded. The element is
+    // replaced on navigation, so it is looked up when the state is applied
+    // rather than captured once.
+    function sync() {
+        document
+            .querySelector(".aurora-background")
+            ?.classList.toggle("is-paused", document.hidden);
+    }
+
+    document.addEventListener("visibilitychange", sync);
+    onPage(sync);
+</script>

@@ -1,0 +1,17 @@
+---
+import { getEntry, render } from "astro:content";
+import ArticleLayout from "@/layouts/ArticleLayout.astro";
+
+const entry = await getEntry("legal", "terms");
+if (!entry)
+    throw new Error("TERMS.md was not loaded into the legal collection");
+const { Content } = await render(entry);
+---
+
+<ArticleLayout
+    title="Terms of Service"
+    description="The terms that apply to installing and using Femto Car Launcher."
+    hideTitle
+>
+    <Content />
+</ArticleLayout>

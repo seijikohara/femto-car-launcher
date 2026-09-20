@@ -27,6 +27,9 @@ minimum supported platform is Android 13 (Application Programming
 Interface — API — level 33). No single market is privileged: language,
 units, and locale-specific behaviour adapt per device.
 
+The [project site](https://seijikohara.github.io/femto-car-launcher/)
+describes every feature in depth and carries the install guide.
+
 <div align="center">
 
 <img src="app/src/test/screenshots/dashboard-head-unit-853x512.png" alt="The dashboard on a head unit in the light theme: a map with the self-marker, clock, calendar and weather cards, media controls, trip readout and the dock" width="820">
@@ -142,10 +145,9 @@ right-hand-drive switch. Every default remains a user choice rather
 than a lockout:
 
 - **Layout.** Any orientation and aspect ratio, from wide head units to
-  portrait phone mounts; the dashboard reflows across a matrix of
-  screen sizes. Display size offers small / medium / large scales, and
-  the small scale deliberately trades the automotive floors for
-  density.
+  portrait phone mounts; the dashboard reflows across a matrix of screen
+  sizes. Display size offers five steps from small to large, and the
+  small end deliberately trades the automotive floors for density.
 - **Appearance.** Material You dynamic colour by default, fixed accent
   presets as an alternative, light / dark / automatic theme, and a
   configurable glass look (blur, borders, drop shadows) for the
@@ -173,8 +175,8 @@ instruments.
 
 - Femto Car Launcher requires no account and contains no advertising
   and no analytics.
-- Location, calendar, and media data stay on the device. Network
-  traffic goes only to the services the user selects: map tiles from
+- Calendar and media data stay on the device; location leaves it only
+  inside the requests to the services the user selects: map tiles from
   the chosen map provider, weather from MET Norway, and — only when the
   user configures a self-hosted geocoding host — reverse-geocoding
   queries; the default reverse geocoder runs on-device.

@@ -44,3 +44,10 @@ keystore.properties
 # Gradle wires into assets; only the TypeScript sources are committed
 /webmap/node_modules/
 /webmap/dist/
+
+# Project website (docs/) — installed deps, Astro's cache, the build output,
+# and the screenshot catalog the docs workflow imports at build time
+/docs/node_modules/
+/docs/.astro/
+/docs/dist/
+/docs/public/catalog/

@@ -45,6 +45,9 @@ applicable rule wins when markets diverge.
   Play Store does not update, so never raise it without revisiting
   that floor (phone WebViews stay current, but the strictest device
   class governs). Rules: `.claude/rules/webmap.md`.
+- Project website (`docs/`): Astro 7 (Astro Haze template, MIT) +
+  MDX, published to GitHub Pages by `.github/workflows/docs.yml`;
+  pnpm-managed like the web map. Rules: `.claude/rules/docs.md`.
 
 ## Source layout
 
@@ -73,6 +76,11 @@ node-gradle plugin (`node {}` in `app/build.gradle.kts` is the
 wiring SSOT; nothing under `src/main/assets/web/` is committed).
 `gradle/libs.versions.toml` is the dependency catalog SSOT
 (webmap npm deps: `webmap/package.json` + lockfile).
+
+`docs/` (top level) is the Astro source of the project website
+(feature guide, install guide, legal pages rendered from the root
+`PRIVACY.md` / `TERMS.md`; the dashboard screenshot catalog from
+PR-3). Its build output is never committed.
 
 Trivial stateless screens need only `<Area>Screen.kt` — see
 `.claude/rules/compose.md`.
@@ -135,6 +143,11 @@ read the rule before touching `AndroidManifest.xml`.
 - No AI-attribution trailers or footers in commits, PRs, or issues
   (`Co-Authored-By: Claude`, "Generated with Claude Code", or any
   agent's equivalent).
+- Public-facing content (README, the docs site, release text) stays
+  brand-neutral: no competitor or vendor product names. Platform
+  standards (CarPlay, Android Auto) and the technical stack
+  (MapLibre, OpenStreetMap, OpenFreeMap, MET Norway, Google Maps) may
+  be named.
 - New screens use `@PreviewLightDark` for both light and dark modes.
 
 ### Suppression policy <a id="no-suppress"></a>
@@ -183,6 +196,7 @@ rule file manually. When in doubt, read them all.
 | `.claude/rules/compose.md` | `app/src/main/java/io/github/seijikohara/femto/**/*.kt` | UDF architecture, layering, `WhileUiSubscribed`, Compose performance |
 | `.claude/rules/testing.md` | `app/src/test/**`, `app/src/androidTest/**` | JUnit 4 + `runTest`, Compose UI tests, `testfixtures/` |
 | `.claude/rules/webmap.md` | `webmap/**` | Vite+ toolchain split, `build.target` floor, TS 7 constraints, pnpm pin |
+| `.claude/rules/docs.md` | `docs/**` | Astro site: content SSOT, base-aware links, pnpm / oxlint / Prettier toolchain, catalog import contract |
 
 ## Build & verify
 
@@ -195,6 +209,8 @@ rule file manually. When in doubt, read them all.
 | `./gradlew spotlessCheck` | Format / lint check (Kotlin via ktlint, Gradle DSL, Markdown EOL) |
 | `./gradlew spotlessApply` | Auto-fix format violations in place |
 | `./gradlew versionCatalogUpdate` | Update `gradle/libs.versions.toml` to the latest stable versions (`nl.littlerobots.version-catalog-update`) |
+| `pnpm --dir docs run check` | Docs site: `astro check`, `tsc`, Prettier, oxlint, Vitest |
+| `pnpm --dir docs run build` | Docs site: static build + dist link check (`docs/dist/`) |
 
 Verify before claiming success: run the pipeline in
 [`.claude/skills/verify-android-build/SKILL.md`](.claude/skills/verify-android-build/SKILL.md)

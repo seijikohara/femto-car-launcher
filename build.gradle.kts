@@ -24,6 +24,8 @@ spotless {
             "**/.gradle/**",
             ".idea/**",
             ".kotlin/**",
+            // .superpowers/** is gitignored agent scratch (brainstorm/SDD artefacts) that is never committed.
+            ".superpowers/**",
             "**/node_modules/**",
             "**/.claude/worktrees/**",
         )

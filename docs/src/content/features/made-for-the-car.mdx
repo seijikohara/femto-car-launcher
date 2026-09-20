@@ -1,0 +1,63 @@
+---
+title: Made for the car — and adjustable
+summary: Automotive defaults for legibility and touch accuracy, on any screen shape, with every default left as a user choice rather than a lockout.
+order: 5
+---
+
+Automotive defaults keep the dashboard legible and operable while driving:
+at the default display size, body text stays at or above 16 sp and touch
+targets stay at or above 64 dp, and the layout anchors the cards clear of
+the driver's view with a left- and right-hand-drive switch. Every default
+remains a user choice — this is a general Android app, and the person
+holding the device decides.
+
+## Layout
+
+Any orientation and aspect ratio works, from wide head units to portrait
+phone mounts; the dashboard reflows across a matrix of screen sizes rather
+than targeting one resolution. Display size offers five steps from small to
+large. The default (medium) honours the automotive floors above; the small
+scale deliberately trades those floors for density, mirroring Android's own
+display-size control.
+
+## Three device classes
+
+- **Aftermarket AI boxes** that inject Android into a factory display
+  through the car's CarPlay or Android Auto input. These boxes usually lock
+  the default-launcher slot, so the launcher starts through the box's own
+  boot-up-app hook.
+- **Built-in Android head units** — aftermarket units running Android,
+  landscape or portrait, at low pixel density and large dp footprints.
+- **Smartphones** mounted as a car-navigation display. Here the launcher
+  also runs as a regular app; making it the default home screen stays
+  optional, because a phone is a shared, everyday device.
+
+## Appearance
+
+Material You dynamic colour by default, fixed accent presets as an
+alternative, light / dark / automatic theme, and a configurable glass look
+— blur, borders and drop shadows — for the floating cards.
+
+## Typography
+
+The system font by default, any Google Fonts family per slot (a Latin face
+plus a Chinese-Japanese-Korean fallback face) downloaded on demand, or any
+font already installed on the device — plus user-adjustable text size,
+weight and letter spacing. No fonts ship inside the APK and no Play
+Services are required.
+
+## Motion, panels and units
+
+- A reduced-motion setting calms animations across the dashboard.
+- Calendar, weather and music cards toggle individually; the music card's
+  spectrum, album name and cover art each have a visibility switch.
+- Speed and temperature units and the clock format follow the user,
+  independent of the system locale. No single market is privileged:
+  language, units and locale-specific behaviour adapt per device.
+
+## Motion and distraction
+
+The dashboard renders identically regardless of vehicle motion. There is
+no driving lockout: distraction responsibility stays with the driver and
+the vehicle's own instruments, and the launcher's job is to make the
+essentials readable in one glance so that no one has to hunt for them.

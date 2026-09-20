@@ -1,0 +1,12 @@
+---
+import ArticleLayout from "@/layouts/ArticleLayout.astro";
+import Install, { frontmatter } from "@/content/pages/install.mdx";
+---
+
+<ArticleLayout
+    title={frontmatter.title}
+    description={frontmatter.description}
+    eyebrow="Get started"
+>
+    <Install />
+</ArticleLayout>

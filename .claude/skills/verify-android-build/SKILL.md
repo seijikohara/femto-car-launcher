@@ -15,6 +15,7 @@ paths:
   - gradle/libs.versions.toml
   - app/src/main/res/**
   - webmap/**
+  - docs/**
 ---
 
 # Verifying an Android build
@@ -72,7 +73,17 @@ task. Default is `assembleDebug`.
    ./gradlew test
    ```
 
-5. **Report** explicitly what was run and what passed:
+5. **Check the docs site** if you touched anything under `docs/`:
+
+   ```bash
+   pnpm --dir docs run check && pnpm --dir docs run build
+   ```
+
+   Both must pass; `build` includes the dist link check that fails on
+   a link missing the Pages base. CI runs the same two commands in the
+   `docs-site` job.
+
+6. **Report** explicitly what was run and what passed:
 
    - "Ran `./gradlew spotlessCheck` — passed."
    - "Ran `./gradlew assembleDebug` — BUILD SUCCESSFUL."
@@ -80,7 +91,7 @@ task. Default is `assembleDebug`.
 
    Do not claim success generically; cite the commands.
 
-6. **On red, fix the root cause** per `AGENTS.md#no-suppress`, and
+7. **On red, fix the root cause** per `AGENTS.md#no-suppress`, and
    do not skip hooks. If a Compose API is experimental, opt in at
    file level — never at module level.
 
@@ -89,8 +100,9 @@ CI parity: `.github/workflows/ci.yml` runs the same four tasks
 three parallel jobs (`static-checks`, `unit-tests`, `assemble`) for
 wall-clock speed, plus `verifyRoborazziDebug` alongside `test` in
 CI only (screenshot verification against goldens recorded on the
-CI runner OS). If this step list changes, change `ci.yml` in the
-same commit.
+CI runner OS), plus the `docs-site` job (`pnpm run check` + `pnpm
+run build` under `docs/`). If this step list changes, change
+`ci.yml` in the same commit.
 
 ## Common failure modes and fixes
 

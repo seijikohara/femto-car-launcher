@@ -1,0 +1,70 @@
+---
+title: Install
+description: Get the latest build onto a head unit, an AI box or a phone, and build the app from source.
+---
+
+## Requirements
+
+- Android 13 (API level 33) or later.
+- Permission to install apps from outside an app store on the device
+  ("Install unknown apps"), or `adb` access to it.
+
+## Download the nightly build
+
+Every merge to `main` publishes a release-signed APK as a rolling
+prerelease tagged
+[`nightly`](https://github.com/seijikohara/femto-car-launcher/releases/tag/nightly).
+The nightly is the only distribution channel: there is no app-store
+listing at present, and sideloading is the supported installation path.
+
+1. Download `femto-car-launcher-nightly.apk` from the release page.
+2. Install it by sideloading on the device, or from a computer:
+
+    ```bash
+    adb install -r femto-car-launcher-nightly.apk
+    ```
+
+3. Open **Femto Car Launcher**. The app asks for the permissions its
+   panels need — location for the map and the speed readout, calendar for
+   the agenda, notification access for now playing. A permission you deny
+   renders a reduced card, never an error screen.
+
+The in-app diagnostics report (**Settings → System → Diagnostics**) names
+the installed build as `nightly-<run>-<sha>`, which is what a bug report
+should quote.
+
+## Make it the home screen
+
+- **Built-in Android head units and phones:** open Android's default-apps
+  settings and choose Femto Car Launcher as the home app. On a phone this
+  step is optional — the launcher also runs as a regular app.
+- **Aftermarket AI boxes:** most boxes lock the default-launcher slot. Use
+  the box's own "boot-up app" or auto-start setting to launch Femto Car
+  Launcher when the box starts.
+
+## Optional: Google Maps provider
+
+To enable the optional paid map provider under **Settings → Map**, enter a
+personal Google Maps Platform API key with the Maps JavaScript API enabled
+and an HTTP-referrer restriction allowing
+`https://appassets.androidplatform.net/*`. An optional Map ID (created in
+the Google Cloud console) renders a vector map with heading-up rotation,
+tilt and 3D; a blank Map ID renders a flat north-up raster map. Usage bills
+your own Google Cloud account.
+
+## Build from source
+
+A Java Development Kit (JDK) 21 and an Android 13+ device or emulator are
+the only prerequisites; the Gradle build provisions Node.js and pnpm on
+demand for the bundled map page.
+
+```bash
+git clone https://github.com/seijikohara/femto-car-launcher.git
+cd femto-car-launcher
+./gradlew assembleDebug   # debug APK at app/build/outputs/apk/debug/
+./gradlew test lint       # unit tests and Android Lint
+```
+
+The repository's
+[`CONTRIBUTING.md`](https://github.com/seijikohara/femto-car-launcher/blob/main/CONTRIBUTING.md)
+explains how to report bugs, propose features and submit changes.
