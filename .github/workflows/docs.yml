@@ -1,10 +1,11 @@
 name: Docs site
 
-# Build the project website under docs/ and publish it to GitHub Pages on every
-# push to main. ci.yml only proves the site builds on pull requests; this
-# workflow is the one that deploys. Pages keeps the previous deployment when a
-# run fails, so a red build never takes the site down. The screenshot-catalog
-# step (generateCatalog + import-catalog) arrives with PR-3.
+# Build the project website under docs/ and publish it to GitHub Pages on
+# every push to main. ci.yml's docs-site job only proves the site builds (on
+# pull requests and on main pushes); this workflow is the one that deploys.
+# Pages keeps the previous deployment when a run fails, so a red build never
+# takes the site down. The screenshot-catalog step (generateCatalog +
+# import-catalog) arrives with PR-3.
 on:
   push:
     branches: [main]

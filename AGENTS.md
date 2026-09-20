@@ -143,6 +143,11 @@ read the rule before touching `AndroidManifest.xml`.
 - No AI-attribution trailers or footers in commits, PRs, or issues
   (`Co-Authored-By: Claude`, "Generated with Claude Code", or any
   agent's equivalent).
+- Public-facing content (README, the docs site, release text) stays
+  brand-neutral: no competitor or vendor product names. Platform
+  standards (CarPlay, Android Auto) and the technical stack
+  (MapLibre, OpenStreetMap, OpenFreeMap, MET Norway, Google Maps) may
+  be named.
 - New screens use `@PreviewLightDark` for both light and dark modes.
 
 ### Suppression policy <a id="no-suppress"></a>

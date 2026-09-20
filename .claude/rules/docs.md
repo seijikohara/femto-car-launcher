@@ -8,10 +8,11 @@ paths:
 Rules for `docs/`, the Astro source of the project website published
 to GitHub Pages at `https://seijikohara.github.io/femto-car-launcher/`
 by `.github/workflows/docs.yml` (push to `main`; `ci.yml`'s
-`docs-site` job only proves the build on pull requests). The site
-was scaffolded from the Astro Haze template v1.3.0 (MIT — notice kept
-in `docs/LICENSE-astro-haze`); everything under `docs/src/` is ours
-to edit.
+`docs-site` job proves the build on every CI run — pull requests and
+`main` pushes alike — but never deploys). The site was scaffolded
+from the Astro Haze template v1.3.0 (MIT — notice kept in
+`docs/LICENSE-astro-haze`); everything under `docs/src/` is ours to
+edit.
 
 ## Content SSOT
 
@@ -28,8 +29,8 @@ to edit.
   `scripts/check-dist-links.ts` fails the build on a link that
   misses the base or resolves to nothing.
 - The site origin and base path have one home: `docs/site.base.json`.
-- Content follows AGENTS.md#code-style (English) and the brand-neutral
-  rule: no competitor or vendor product names.
+- Content follows AGENTS.md#code-style (English, brand-neutral: no
+  competitor or vendor product names).
 
 ## Toolchain
 
