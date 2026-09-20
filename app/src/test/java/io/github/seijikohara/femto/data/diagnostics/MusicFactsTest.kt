@@ -55,7 +55,7 @@ class MusicFactsTest {
         assertEquals(
             SectionPayload.Facts(
                 listOf(
-                    DiagnosticFact("Session", FactValue.Text("com.spotify.music (playing)")),
+                    DiagnosticFact("Session", FactValue.Text("com.example.music (playing)")),
                     DiagnosticFact("Volume", FactValue.Text("7/15")),
                 ),
             ),
@@ -72,7 +72,7 @@ class MusicFactsTest {
             ) as SectionPayload.Facts
 
         assertEquals(
-            DiagnosticFact("Session", FactValue.Text("com.spotify.music (paused)")),
+            DiagnosticFact("Session", FactValue.Text("com.example.music (paused)")),
             section.facts.first(),
         )
     }

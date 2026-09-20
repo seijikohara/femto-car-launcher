@@ -212,13 +212,13 @@ class MusicSessionMappingTest {
     fun `nowPlayingOf uses the metadata title when present`() {
         val result =
             nowPlayingOf(
-                metadata = fakeMediaMetadata(title = "Strobe", displayTitle = "Display"),
+                metadata = fakeMediaMetadata(title = "Headlights", displayTitle = "Display"),
                 playbackState = null,
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
             )
 
-        assertEquals("Strobe", result.title)
+        assertEquals("Headlights", result.title)
     }
 
     @Test
@@ -252,7 +252,7 @@ class MusicSessionMappingTest {
         // sourceLabel touches PackageManager in production, so it must stay
         // unevaluated while a usable title exists.
         nowPlayingOf(
-            metadata = fakeMediaMetadata(title = "Strobe"),
+            metadata = fakeMediaMetadata(title = "Headlights"),
             playbackState = null,
             packageName = PACKAGE,
             fallbackTitle = { error("fallback resolved despite a usable title") },
@@ -263,7 +263,7 @@ class MusicSessionMappingTest {
     fun `nowPlayingOf is playing only for STATE_PLAYING`() {
         fun isPlayingFor(state: Int): Boolean =
             nowPlayingOf(
-                metadata = fakeMediaMetadata(title = "Strobe"),
+                metadata = fakeMediaMetadata(title = "Headlights"),
                 playbackState = fakePlaybackState(state),
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
@@ -278,7 +278,7 @@ class MusicSessionMappingTest {
     fun `nowPlayingOf copies position, speed, and update basis from the playback state`() {
         val result =
             nowPlayingOf(
-                metadata = fakeMediaMetadata(title = "Strobe"),
+                metadata = fakeMediaMetadata(title = "Headlights"),
                 playbackState =
                     fakePlaybackState(
                         PlaybackState.STATE_PLAYING,
@@ -299,7 +299,7 @@ class MusicSessionMappingTest {
     fun `nowPlayingOf defaults transport fields when the playback state is null`() {
         val result =
             nowPlayingOf(
-                metadata = fakeMediaMetadata(title = "Strobe"),
+                metadata = fakeMediaMetadata(title = "Headlights"),
                 playbackState = null,
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
@@ -317,19 +317,19 @@ class MusicSessionMappingTest {
             nowPlayingOf(
                 metadata =
                     fakeMediaMetadata(
-                        title = "Strobe",
-                        artist = "deadmau5",
-                        album = "For Lack of a Better Name",
-                        durationMs = 632_000L,
+                        title = "Headlights",
+                        artist = "The Static Drive",
+                        album = "Late Shift",
+                        durationMs = 281_000L,
                     ),
                 playbackState = null,
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
             )
 
-        assertEquals("deadmau5", result.artist)
-        assertEquals("For Lack of a Better Name", result.album)
-        assertEquals(632_000L, result.durationMs)
+        assertEquals("The Static Drive", result.artist)
+        assertEquals("Late Shift", result.album)
+        assertEquals(281_000L, result.durationMs)
         assertEquals(PACKAGE, result.packageName)
     }
 
@@ -339,7 +339,7 @@ class MusicSessionMappingTest {
 
         assertNotNull(
             nowPlayingOf(
-                metadata = fakeMediaMetadata(title = "Strobe", albumArt = art),
+                metadata = fakeMediaMetadata(title = "Headlights", albumArt = art),
                 playbackState = null,
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
@@ -347,7 +347,7 @@ class MusicSessionMappingTest {
         )
         assertNull(
             nowPlayingOf(
-                metadata = fakeMediaMetadata(title = "Strobe"),
+                metadata = fakeMediaMetadata(title = "Headlights"),
                 playbackState = null,
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
@@ -359,7 +359,7 @@ class MusicSessionMappingTest {
     fun `nowPlayingOf derives seek and queue capabilities from the action bits`() {
         val result =
             nowPlayingOf(
-                metadata = fakeMediaMetadata(title = "Strobe"),
+                metadata = fakeMediaMetadata(title = "Headlights"),
                 playbackState =
                     fakePlaybackState(
                         PlaybackState.STATE_PLAYING,
@@ -381,7 +381,7 @@ class MusicSessionMappingTest {
     fun `nowPlayingOf reports no capabilities without matching action bits`() {
         val result =
             nowPlayingOf(
-                metadata = fakeMediaMetadata(title = "Strobe"),
+                metadata = fakeMediaMetadata(title = "Headlights"),
                 playbackState = fakePlaybackState(
                     PlaybackState.STATE_PLAYING,
                     actions = PlaybackState.ACTION_PLAY_PAUSE,
@@ -400,7 +400,7 @@ class MusicSessionMappingTest {
     fun `nowPlayingOf reports no capabilities when the playback state is null`() {
         val result =
             nowPlayingOf(
-                metadata = fakeMediaMetadata(title = "Strobe"),
+                metadata = fakeMediaMetadata(title = "Headlights"),
                 playbackState = null,
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
@@ -419,7 +419,7 @@ class MusicSessionMappingTest {
 
         val result =
             nowPlayingOf(
-                metadata = fakeMediaMetadata(title = "Strobe", albumArt = thumb, art = full),
+                metadata = fakeMediaMetadata(title = "Headlights", albumArt = thumb, art = full),
                 playbackState = null,
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },
@@ -434,7 +434,7 @@ class MusicSessionMappingTest {
 
         val result =
             nowPlayingOf(
-                metadata = fakeMediaMetadata(title = "Strobe"),
+                metadata = fakeMediaMetadata(title = "Headlights"),
                 playbackState = null,
                 packageName = PACKAGE,
                 fallbackTitle = { FALLBACK },

@@ -55,7 +55,7 @@ class DashboardScaffoldTest {
             }
         }
         rule.onNodeWithText("Map unavailable").assertIsDisplayed()
-        rule.onNodeWithText("Strobe").assertIsDisplayed()
+        rule.onNodeWithText("Headlights").assertIsDisplayed()
         rule.onNodeWithContentDescription("Apps").assertIsDisplayed()
     }
 
@@ -84,7 +84,7 @@ class DashboardScaffoldTest {
                 )
             }
         }
-        rule.onNodeWithText("Strobe").assertDoesNotExist()
+        rule.onNodeWithText("Headlights").assertDoesNotExist()
         rule.onNodeWithText("Map unavailable").assertIsDisplayed()
         rule.onNodeWithContentDescription("Apps").assertIsDisplayed()
     }

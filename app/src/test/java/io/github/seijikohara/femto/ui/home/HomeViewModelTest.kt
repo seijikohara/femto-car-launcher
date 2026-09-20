@@ -347,10 +347,10 @@ class HomeViewModelTest {
     @Test
     fun `onAction LaunchMusicSource emits LaunchComponent for the resolved package`() =
         runTest {
-            val component = ComponentName("com.spotify.music", "com.spotify.music.MainActivity")
-            stubViewModel(resolveMusicSourceComponent = { pkg -> component.takeIf { pkg == "com.spotify.music" } })
+            val component = ComponentName("com.example.music", "com.example.music.MainActivity")
+            stubViewModel(resolveMusicSourceComponent = { pkg -> component.takeIf { pkg == "com.example.music" } })
                 .assertEvent(
-                    action = HomeAction.LaunchMusicSource("com.spotify.music"),
+                    action = HomeAction.LaunchMusicSource("com.example.music"),
                     expected = HomeEvent.LaunchComponent(component),
                 )
         }
