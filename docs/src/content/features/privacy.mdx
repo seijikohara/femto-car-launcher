@@ -1,0 +1,51 @@
+---
+title: Privacy and data
+summary: No account, no advertising, no analytics. Location, calendar and media data stay on the device; the network carries only what you asked for.
+order: 6
+---
+
+Femto Car Launcher is a home screen, not a service. It requires no account,
+contains no advertising and no analytics, and has no server of its own.
+
+## What stays on the device
+
+Location, calendar and media data are read on the device and stay there.
+The trip track log is a local database; the only way its contents leave
+the device is a GPX export you trigger through the system file picker, to
+a destination you choose.
+
+## What goes over the network
+
+Network traffic goes only to the services you select:
+
+- **Map tiles and styles** from the chosen map provider — the keyless
+  OpenStreetMap provider by default, or Google Maps once you enter your
+  own key.
+- **Weather** from MET Norway.
+- **Reverse-geocoding queries**, only when you configure a self-hosted
+  geocoding host. The default reverse geocoder runs on-device.
+- **Fonts** from Google Fonts, only for a family you pick under Settings.
+
+## Keys you enter
+
+Google Maps keys are entered by you, are sent only to Google, and stay on
+the device apart from your own Android settings backup and device
+transfer. Google's JavaScript API collects usage data for Google while the
+provider is enabled; the [privacy policy](/privacy/) describes that, and
+everything else the app does with data, in full.
+
+## Permissions
+
+Notification access, when granted, is used solely to read and control the
+active media session for the now-playing card. Location, calendar and
+microphone permissions each unlock one visible feature and nothing else; a
+denied permission renders a reduced card, never a nag.
+
+## Diagnostics and licences
+
+An in-app diagnostics report (**Settings → System → Diagnostics**)
+summarises device and runtime facts for troubleshooting. It masks API keys
+and is copied only when you tap **Copy report**. The open-source licences
+screen lists every bundled third-party component, and the app's own terms
+are reachable from **Settings → System → Terms** and on this site under
+[Terms](/terms/).

@@ -1,0 +1,39 @@
+---
+title: Driving data and trips
+summary: A high-contrast speed overlay, an on-device track log with GPX export, and a 3D flythrough of the trip you just drove.
+order: 2
+---
+
+The speed overlay sits on the map in large, high-contrast numerals sized
+for a glance from the driver's seat. Everything it shows is computed on the
+device from the GPS fixes the launcher already receives for the map.
+
+## Speed overlay
+
+- **Current speed**, in the unit you choose (kilometres or miles per hour),
+  independent of the system locale.
+- **Trip distance**, **average speed** and **altitude** for the current
+  trip.
+- **Address** of the current position, reverse-geocoded on the device by
+  default. A self-hosted geocoding host can replace the on-device geocoder
+  if you run one.
+- A tap on the **reset** button starts a new trip; the readout shows a
+  "Since" timestamp so you always know what the numbers cover. A trip also
+  ends automatically after a configurable parked pause, so the readout
+  starts fresh on the next drive without a tap.
+
+## Trip recording
+
+An on-device track log records the route at one fix per second while the
+vehicle is moving. The retention period is configurable, and recorded trips
+export as GPS Exchange Format (GPX) files through the Android file picker,
+so the data lands wherever you choose — a folder, a cloud drive, another
+app — and nowhere else.
+
+## Trip flythrough
+
+A tap on the speed panel opens a three-dimensional wireframe replay of the
+recorded track: a flythrough with a speed-coloured trail and an altitude
+curtain, rendered natively for smooth motion. Devices without the required
+graphics support get a two-dimensional replay of the same track, so the
+feature never disappears — it only loses depth.

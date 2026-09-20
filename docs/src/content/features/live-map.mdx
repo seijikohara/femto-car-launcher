@@ -1,0 +1,56 @@
+---
+title: Live map
+summary: A full-bleed map that follows the vehicle, with a keyless default provider, an optional Google Maps provider on your own key, and self-healing when the network drops.
+order: 1
+---
+
+The dashboard background is a live map that fills the whole display and
+follows the vehicle. Every card, the clock, the speed readout and the dock
+float above it, so the map is never hidden behind a separate screen.
+
+## Two map providers
+
+- **OpenStreetMap (default).** OpenStreetMap data rendered through the
+  keyless OpenFreeMap service. It works out of the box: no account, no API
+  key, no sign-up.
+- **Google Maps (optional).** Roadmap, satellite, hybrid and terrain map
+  types with a traffic overlay. The provider activates when you enter a
+  personal Google Maps Platform API key under **Settings → Map**. Usage
+  bills the key owner's own Google Cloud account; Femto Car Launcher adds
+  no fees and never sees the key beyond passing it to Google. The Google
+  Maps provider is not offered in the territories on Google's
+  [Prohibited Territories](https://cloud.google.com/maps-platform/terms/maps-prohibited-territories)
+  list; the default provider is unaffected. See the [terms](/terms/)
+  for the details that apply to each provider.
+
+## Bring your own style
+
+The OpenStreetMap provider can load any hosted MapLibre style you name
+(**Settings → Appearance → Map color → Custom style URL**), including a
+style from a provider whose key rides in the URL. The map then shows that
+style's own credits. If you only want a mirror of the default provider's
+layout — a tile server closer to you, or one you run yourself — use the
+separate tile-host override under **Settings → Map**.
+
+## A car-navigation camera
+
+- The camera follows the GPS position with smooth easing and keeps the
+  direction of travel pointing up. A north-up mode is one tap away.
+- A drag detaches the camera for free panning. It re-attaches by itself
+  after a pause, or immediately when you tap the locate button.
+- Zoom buttons and a compass sit at the screen edge, within reach of the
+  driver on either side of the car.
+
+## Depth and style
+
+Optional three-dimensional buildings and terrain relief add depth on the
+OpenStreetMap provider. Map colours can follow the launcher's accent colour
+and the light / dark theme, or use the provider's own styles unchanged.
+
+## Self-healing
+
+A map that fails to load — an unstable link, a provider outage, a missing
+key — shows a clear notice inside the visible map area instead of a blank
+panel, and recovers on its own: reloads retry with a capped backoff while
+the network reports connectivity, and a reconnect after an offline period
+reloads the map without any action from you.

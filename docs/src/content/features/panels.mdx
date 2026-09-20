@@ -1,0 +1,50 @@
+---
+title: Glanceable panels
+summary: Weather, calendar, now playing, the clock and a status cluster — floating cards built for viewing distance, each expanding into a full-screen panel.
+order: 3
+---
+
+The cards float over the map in a column beside the driver (landscape) or a
+band along the bottom (portrait). Each one is designed to be read at arm's
+length in a moving car: large primary figures, secondary details only where
+they help, and a tap on the header to open a full-screen panel with the
+rest.
+
+## Weather
+
+Current conditions, feels-like temperature, wind and humidity from the
+Norwegian Meteorological Institute (MET Norway), with an hourly strip on
+the card. The full-screen panel is built around a 24-hour temperature
+curve, a precipitation nowcast and daily range bars. Forecasts stay
+readable offline through an on-device cache.
+
+## Calendar
+
+A multi-day strip plus upcoming events read from the device calendar, with
+per-calendar visibility selection and a full-screen agenda panel. Event
+colours match the colours of the calendars they come from.
+
+## Now playing
+
+The active media session of any music app: title, artist, album, cover art
+and transport controls, including shuffle and repeat where the source app
+supports them. Cover art opens a full-screen player. Long titles scroll
+only while the vehicle is parked and truncate while moving. A spectrum
+visualisation renders on devices whose audio stack supports capture.
+
+## Clock
+
+A self-updating clock that honours the system 12 / 24-hour preference,
+with optional seconds.
+
+## Status cluster
+
+Wi-Fi and cellular signal, Bluetooth state, GPS reception and battery level
+with charging state, in the dock where the driver expects them.
+
+## Graceful degradation
+
+Every panel degrades instead of failing: a denied permission or an
+unavailable data source renders a reduced state, never an error screen.
+The calendar, weather and music cards can each be switched off entirely
+under Settings, and the map takes the space they leave.
