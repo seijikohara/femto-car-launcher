@@ -1,4 +1,4 @@
-/* Design Tokens - Astro Haze Theme */
+/* Design Tokens - Femto Car Launcher site (tokens derived from logo.svg) */
 
 /* Breakpoint convention: media query px values across this codebase should
    use 640 / 768 / 1024, with 900 as an additional large-breakpoint tier for
@@ -23,11 +23,11 @@
     --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
     --glass-sat: 180%;
 
-    /* Aurora gradient colors */
-    --aurora-1: hsl(280, 100%, 70%);
-    --aurora-2: hsl(200, 100%, 60%);
-    --aurora-3: hsl(340, 100%, 65%);
-    --aurora-4: hsl(150, 70%, 60%);
+    /* Aurora gradient colors — mint / teal / sky around the brand accent */
+    --aurora-1: hsl(162, 80%, 62%);
+    --aurora-2: hsl(200, 90%, 62%);
+    --aurora-3: hsl(140, 70%, 60%);
+    --aurora-4: hsl(190, 80%, 60%);
 
     /* Base colors */
     --color-bg: hsl(220, 20%, 97%);
@@ -36,15 +36,14 @@
     --color-text-muted: hsl(220, 15%, 35%);
     --color-text-inverse: hsl(220, 20%, 95%);
 
-    /* Accent colors */
-    --color-accent: hsl(280, 70%, 60%);
-    --color-accent-light: hsl(280, 70%, 75%);
-    --color-accent-dark: hsl(280, 70%, 45%);
-    --color-accent-glass: hsla(280, 70%, 60%, 0.1);
-    /* Accent tuned for text on the page background — meets WCAG AA (≈5.9:1 in
-     light mode). Use this for links/labels; --color-accent stays for fills,
-     borders and glows where the brighter purple is wanted. */
-    --color-accent-text: hsl(280, 70%, 45%);
+    /* Accent colors — the launcher's mint chevron (#3BE0AE), darkened for
+       fills on the light page */
+    --color-accent: hsl(162, 73%, 45%);
+    --color-accent-light: hsl(162, 73%, 70%);
+    --color-accent-dark: hsl(162, 73%, 30%);
+    --color-accent-glass: hsla(162, 73%, 45%, 0.12);
+    /* Accent tuned for text on the light background — meets WCAG AA. */
+    --color-accent-text: hsl(162, 80%, 24%);
 
     /* Semantic colors */
     --color-success: hsl(142, 71%, 45%);
@@ -119,20 +118,20 @@
     --glass-sat: 150%;
 
     /* Base colors */
-    --color-bg: hsl(220, 20%, 8%);
+    --color-bg: hsl(210, 26%, 7%); /* #0E1318, the brand mark's background */
     --color-surface: rgba(255, 255, 255, 0.05);
     --color-text: hsl(220, 20%, 95%);
     --color-text-muted: hsl(220, 15%, 65%);
     --color-text-inverse: hsl(220, 20%, 10%);
 
     /* Accent colors adjusted for dark mode */
-    --color-accent: hsl(280, 80%, 65%);
-    --color-accent-light: hsl(280, 80%, 75%);
-    --color-accent-dark: hsl(280, 80%, 55%);
-    --color-accent-glass: hsla(280, 80%, 65%, 0.15);
+    --color-accent: hsl(162, 73%, 55%); /* #3BE0AE */
+    --color-accent-light: hsl(162, 73%, 70%);
+    --color-accent-dark: hsl(162, 73%, 42%);
+    --color-accent-glass: hsla(162, 73%, 55%, 0.16);
     /* On dark backgrounds the lighter accent already clears AA, so accent text
      uses the brighter value here. */
-    --color-accent-text: hsl(280, 80%, 75%);
+    --color-accent-text: hsl(162, 73%, 62%);
 }
 
 /* Reduced transparency preference */
