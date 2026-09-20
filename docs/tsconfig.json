@@ -2,7 +2,10 @@
   "extends": "astro/tsconfigs/strict",
   "compilerOptions": {
     "strict": true,
-    "target": "ES2022",
+    // ES2023 (not just ES2022) so `Array#toSorted()` type-checks: the target
+    // is Node (this config only type-checks build-time code, never emitted
+    // for a browser), and Node has supported it since v20.
+    "target": "ES2023",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
