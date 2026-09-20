@@ -1,4 +1,6 @@
 ---
+import { withBase } from "@/lib/url";
+
 export interface Props {
     href?: string;
     as?: keyof HTMLElementTagNameMap;
@@ -48,7 +50,7 @@ const classes = [
 
 <Tag
     class={classes}
-    href={href}
+    href={href ? withBase(href) : undefined}
     rel={external ? "noopener noreferrer" : undefined}
     target={external ? "_blank" : undefined}
     style={`--card-padding: ${paddingMap[padding]}; --card-radius: ${radiusMap[radius]};`}
