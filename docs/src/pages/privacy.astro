@@ -1,0 +1,19 @@
+---
+import { getEntry, render } from "astro:content";
+import ArticleLayout from "@/layouts/ArticleLayout.astro";
+
+// PRIVACY.md carries its own H1 and effective date; the layout supplies only
+// the document title and description.
+const entry = await getEntry("legal", "privacy");
+if (!entry)
+    throw new Error("PRIVACY.md was not loaded into the legal collection");
+const { Content } = await render(entry);
+---
+
+<ArticleLayout
+    title="Privacy Policy"
+    description="What data Femto Car Launcher accesses, why, and who it is shared with."
+    hideTitle
+>
+    <Content />
+</ArticleLayout>
