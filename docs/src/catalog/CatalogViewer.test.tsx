@@ -138,6 +138,24 @@ describe("CatalogViewer", () => {
         await waitFor(() => expect(document.activeElement).toBe(cellButton));
     });
 
+    it("focuses the Close button when the lightbox opens", async () => {
+        stubFetch({ ok: true, status: 200, body: manifest });
+        render(
+            <CatalogViewer
+                manifestUrl="/b/catalog/manifest.json"
+                assetBase="/b/catalog/"
+            />,
+        );
+        await screen.findByRole("table");
+        fireEvent.click(screen.getByRole("button", { name: /Floor · Small/ }));
+        await screen.findByRole("dialog");
+        const closeButton = screen.getByRole("button", { name: "Close" });
+        // Base UI's default initial focus is the first tabbable descendant —
+        // the "open the file" link, where Enter would navigate away from the
+        // page — so initialFocus points at Close explicitly instead.
+        await waitFor(() => expect(document.activeElement).toBe(closeButton));
+    });
+
     it("preserves the router's history state when it rewrites the URL", async () => {
         // Simulates an entry the ClientRouter already touched: it keeps
         // {index, scrollX, scrollY} in history.state and ignores popstate
@@ -286,7 +304,7 @@ describe("CatalogViewer", () => {
         );
         await screen.findByRole("table");
         fireEvent.click(screen.getByRole("button", { name: /Floor · Small/ }));
-        await screen.findByRole("dialog");
+        const dialog = await screen.findByRole("dialog");
         // Floor · Small sits in column 0 of 2 ("Small"/"Medium"): "Next
         // column" is still enabled here, and becomes edge-disabled once the
         // step it triggers lands on the last column.
@@ -306,6 +324,15 @@ describe("CatalogViewer", () => {
         // arrow/Escape keys without the user needing to tab back in.
         expect(nextColumn.hasAttribute("disabled")).toBe(false);
         expect(document.activeElement).toBe(nextColumn);
+        // Proves the point of keeping it focusable: an arrow key still
+        // reaches the dialog's keydown handler right after the click that
+        // disabled this button, with no need to tab back in first.
+        fireEvent.keyDown(dialog, { key: "ArrowLeft" });
+        await waitFor(() =>
+            expect(window.location.search).toContain(
+                "open=floor__small__light",
+            ),
+        );
     });
 
     it("changes the visible cells and the URL when a fixed-axis toggle changes", async () => {

@@ -4,7 +4,10 @@ import {
     useMemo,
     useRef,
     useState,
-    type KeyboardEvent,
+    // Aliased: the bare name would shadow the DOM's own global
+    // `KeyboardEvent` type, which isFormControl's neighbours don't use today
+    // but a future addition easily could by mistake.
+    type KeyboardEvent as ReactKeyboardEvent,
     type RefObject,
 } from "react";
 import { Button } from "@/components/ui/button";
@@ -117,7 +120,10 @@ function AxisSelect({
     // map (or `itemToStringLabel`) — merely rendering SelectItem children
     // feeds the popup's own list and selection, not the trigger's label
     // lookup, so without this the trigger displays the raw axis id.
-    const items = Object.fromEntries(axes.map((axis) => [axis.id, axis.label]));
+    const items = useMemo(
+        () => Object.fromEntries(axes.map((axis) => [axis.id, axis.label])),
+        [axes],
+    );
 
     return (
         <div className="grid gap-1.5">
@@ -243,6 +249,29 @@ function Lightbox({
                   (candidate) => candidate.id === state.open,
               ) ?? null);
 
+    // Base UI keeps the popup mounted for its close animation, but `entry`
+    // already went null the same instant `state.open` did — without this,
+    // the figure unmounts mid-fade and the dialog visibly collapses around
+    // the vanished image instead of just fading out. `shownEntry` retains
+    // the last non-null entry across that window, following React's
+    // documented "adjust state during render" pattern (react.dev, storing
+    // information from previous renders) rather than a ref: a ref may not
+    // be read or written during render (React's own rule — a render can be
+    // discarded or replayed), and this needs to be read here, in render, to
+    // produce this render's output.
+    const [shownEntry, setShownEntry] = useState(entry);
+    if (entry !== null && entry !== shownEntry) setShownEntry(entry);
+
+    // Base UI's default initialFocus is the first tabbable descendant — the
+    // "open the file" link below, where Enter would navigate away from the
+    // page — so Close is pointed to explicitly, the same outcome the
+    // previous native <dialog>'s autofocus-attribute hack produced. Typed to
+    // the concrete element (not HTMLElement, which DialogContent's own
+    // `initialFocus` accepts): the shadcn Button's inferred ref type is
+    // Ref<HTMLButtonElement>, and a HTMLButtonElement ref widens cleanly to
+    // initialFocus's HTMLElement one, but not the other way around.
+    const closeRef = useRef<HTMLButtonElement | null>(null);
+
     const close = () => {
         if (state.open !== null) update(manifest, { ...state, open: null });
     };
@@ -252,7 +281,7 @@ function Lightbox({
         if (next !== null) update(manifest, { ...state, open: next });
     };
 
-    const onKeyDown = (event: KeyboardEvent) => {
+    const onKeyDown = (event: ReactKeyboardEvent) => {
         if (isFormControl(event.target)) return;
         const direction = KEY_DIRECTIONS[event.key];
         if (direction === undefined) return;
@@ -268,28 +297,55 @@ function Lightbox({
             }}
         >
             <DialogContent
-                className="max-h-[94vh] w-auto max-w-[min(96vw,1400px)] overflow-hidden p-4 supports-[height:1dvh]:max-h-[94dvh] sm:p-6"
+                // Two independent width bugs in the generated defaults, both
+                // needing an override:
+                // 1. sm:max-w-sm (24rem) from 640px up: cn()'s conflict
+                //    resolution only drops a class within the same variant
+                //    scope, so the bare max-w-[...] below overrides the base
+                //    max-w-[calc(100%-2rem)] but leaves sm:max-w-sm in the
+                //    cascade, where it wins over an unprefixed rule at
+                //    ≥640px — repeating the same value under sm: is what
+                //    actually replaces it.
+                // 2. left-1/2 + -translate-x-1/2 (the generated centring
+                //    technique) plus width:auto: per CSS2.1 10.3.7, shrink-
+                //    to-fit width for a `position: fixed` box computes
+                //    against only the space to ONE side when just `left` is
+                //    constrained — here, half the viewport — so a wide
+                //    render was clamped to ~half its natural width even
+                //    after fix 1. inset-x-0 + mx-auto anchors both edges
+                //    (giving the correct centred layout via auto margins
+                //    instead of the transform trick) and w-fit (fit-content,
+                //    not auto) sizes correctly within that; translate-x-0
+                //    cancels only the now-unwanted horizontal half of the
+                //    base transform, leaving -translate-y-1/2 to keep doing
+                //    its job. Verified empirically at 1366px: the 853×512
+                //    render now measures 853×512 (was ~326×196 in the sm:
+                //    max-w-sm regression); a height-capped portrait render
+                //    is unaffected either way, since it never reached the
+                //    width cap.
+                className="inset-x-0 mx-auto max-h-[94vh] w-fit max-w-[min(96vw,1400px)] translate-x-0 overflow-hidden p-4 supports-[height:1dvh]:max-h-[94dvh] sm:max-w-[min(96vw,1400px)] sm:p-6"
                 onKeyDown={onKeyDown}
+                initialFocus={closeRef}
                 finalFocus={returnFocusTo}
                 showCloseButton={false}
             >
-                {entry && (
+                {shownEntry && (
                     <figure className="flex min-h-0 flex-col">
                         <img
-                            src={assetBase + entry.full}
-                            alt={caption(manifest, entry)}
-                            width={entry.widthPx}
-                            height={entry.heightPx}
+                            src={assetBase + shownEntry.full}
+                            alt={caption(manifest, shownEntry)}
+                            width={shownEntry.widthPx}
+                            height={shownEntry.heightPx}
                             className="block h-auto max-h-[calc(94vh-9rem)] w-auto max-w-full object-contain supports-[height:1dvh]:max-h-[calc(94dvh-9rem)]"
                         />
                         <figcaption className="text-muted-foreground mt-3 text-sm">
                             <DialogTitle className="inline text-sm font-normal">
-                                {caption(manifest, entry)} · {entry.widthDp}×
-                                {entry.heightDp} dp
+                                {caption(manifest, shownEntry)} ·{" "}
+                                {shownEntry.widthDp}×{shownEntry.heightDp} dp
                             </DialogTitle>
                             {" · "}
                             <a
-                                href={assetBase + entry.full}
+                                href={assetBase + shownEntry.full}
                                 className="text-primary underline-offset-4 hover:underline"
                             >
                                 open the file
@@ -317,12 +373,14 @@ function Lightbox({
                                 // focusableWhenDisabled keeps it in the tab order
                                 // (Base UI reports it via aria-disabled instead of
                                 // the disabled attribute); the aria-disabled:
-                                // utilities below give it the same dimmed look
-                                // buttonVariants' disabled: classes give a truly
-                                // disabled button.
+                                // utility below gives it the same dimmed look
+                                // buttonVariants' disabled: class gives a truly
+                                // disabled button (pointer-events:none already
+                                // covers the cursor, on top of Base UI's own
+                                // click-suppression once disabled is true).
                                 disabled={target === null}
                                 focusableWhenDisabled
-                                className="aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                                className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
                                 onClick={() => step(direction)}
                             >
                                 <span aria-hidden="true">
@@ -331,7 +389,7 @@ function Lightbox({
                             </Button>
                         );
                     })}
-                    <Button variant="secondary" onClick={close}>
+                    <Button variant="secondary" onClick={close} ref={closeRef}>
                         Close
                     </Button>
                 </div>
