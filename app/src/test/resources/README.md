@@ -10,9 +10,12 @@ deterministic, so it could not serve as a regression reference.
 
 `DashboardScreenshotTest` substitutes this still through `MapPanel`'s
 `mapSurface` slot (null in production, where the live `WebMapView` renders).
-Everything else in the golden — cards, dock, overlays, self-marker, map controls
-— is drawn by the current code, so a UI change shows up without touching this
-file.
+Everything else in the golden — cards, dock, overlays, map controls — is drawn
+by the current code, so a UI change shows up without touching this file. The
+self-marker chevron is a special case: the live page draws it into the WebView
+DOM, so the fixture (`MapBackdrop` / `SelfMarker` in `testfixtures/`)
+reproduces it on top of the still from the same placement inputs, mirroring
+`webmap/src/style.ts` (see `SelfMarkerAnchor`).
 
 **Provenance.** Device captures of this app rendering the OSM backend
 (OpenFreeMap vector tiles, OpenStreetMap data under ODbL) over San Francisco,

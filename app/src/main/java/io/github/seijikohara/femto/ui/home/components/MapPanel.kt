@@ -67,8 +67,10 @@ internal fun MapPanel(
     // Screenshot tests pass a still capture, because Robolectric's WebView is a
     // shadow with no Chromium behind it — a golden could otherwise only ever show
     // a blank map region, and one that fetched real tiles would stop being
-    // deterministic. See DashboardScreenshotTest.
-    mapSurface: (@Composable (Location) -> Unit)? = null,
+    // deterministic. The still also needs [mapConfig], the same placement input
+    // the live page gets, so it can draw the self-marker where the WebView would.
+    // See DashboardScreenshotTest.
+    mapSurface: (@Composable (Location, MapConfig) -> Unit)? = null,
 ) = Surface(
     modifier = modifier,
     // Full-bleed: the map fills the dashboard to the screen edges, so it keeps
@@ -80,7 +82,7 @@ internal fun MapPanel(
         // A location fix is the only gate: with it we have permission and a
         // centre point; without it the map has nothing to show, so fall back.
         if (location != null) {
-            mapSurface?.invoke(location) ?: WebMapView(
+            mapSurface?.invoke(location, mapConfig) ?: WebMapView(
                 location = location,
                 mapConfig = mapConfig,
                 onTap = onTap,

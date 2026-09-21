@@ -153,7 +153,7 @@ class DashboardScreenshotTest {
                     modifier = Modifier.fillMaxSize(),
                     driverSide = driverSide,
                     clock = DashboardFixtures.fixedClock,
-                    mapSurface = { MapBackdrop(darkTheme) },
+                    mapSurface = { _, config -> MapBackdrop(darkTheme = darkTheme, mapConfig = config) },
                 )
             }
         }

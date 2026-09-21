@@ -68,7 +68,7 @@ internal class DashboardCatalogTest(
                     dockPosition = entry.dockPosition,
                     driverSide = entry.driverSide,
                     clock = DashboardFixtures.fixedClock,
-                    mapSurface = { MapBackdrop(entry.darkTheme) },
+                    mapSurface = { _, config -> MapBackdrop(darkTheme = entry.darkTheme, mapConfig = config) },
                 )
             }
         }

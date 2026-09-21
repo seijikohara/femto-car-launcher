@@ -178,8 +178,9 @@ internal fun DashboardScaffold(
     motionTier: MotionTier = MotionTier.STANDARD,
     clock: Clock = Clock.systemDefaultZone(),
     // Forwarded to MapPanel; null means the real WebView map. Screenshot tests
-    // pass a still capture (see MapPanel.mapSurface).
-    mapSurface: (@Composable (Location) -> Unit)? = null,
+    // pass a still capture that also needs the MapConfig placement inputs, to
+    // draw the self-marker where the WebView would (see MapPanel.mapSurface).
+    mapSurface: (@Composable (Location, MapConfig) -> Unit)? = null,
 ) = DashboardContent(
     uiState = uiState,
     is24Hour = is24Hour,
@@ -232,8 +233,9 @@ private fun DashboardContent(
     motionTier: MotionTier = MotionTier.STANDARD,
     clock: Clock = Clock.systemDefaultZone(),
     // Forwarded to MapPanel; null means the real WebView map. Screenshot tests
-    // pass a still capture (see MapPanel.mapSurface).
-    mapSurface: (@Composable (Location) -> Unit)? = null,
+    // pass a still capture that also needs the MapConfig placement inputs, to
+    // draw the self-marker where the WebView would (see MapPanel.mapSurface).
+    mapSurface: (@Composable (Location, MapConfig) -> Unit)? = null,
 ) = BoxWithConstraints(modifier = modifier) {
     val compact = maxHeight < CompactHeightBreakpoint || maxWidth < CompactWidthBreakpoint
     val portrait = maxHeight > maxWidth

@@ -1,14 +1,25 @@
 package io.github.seijikohara.femto.testfixtures
 
 import android.graphics.BitmapFactory
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.ui.home.HomeUiState
+import io.github.seijikohara.femto.ui.home.components.MapConfig
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -45,20 +56,28 @@ internal object DashboardFixtures {
 }
 
 /**
- * Still OSM capture standing in for the live map.
+ * Still OSM capture standing in for the live map, with the self-marker drawn
+ * on top.
  *
  * Robolectric's WebView is a shadow with no Chromium behind it, so the real
  * [io.github.seijikohara.femto.ui.home.components.WebMapView] can only ever
  * paint an empty region here — and a render that fetched live tiles would stop
  * being deterministic. This keeps every pixel the app itself draws (cards,
- * dock, overlays, marker, controls) generated from the current code, and pins
- * only the map imagery, which changes just when the map style does.
+ * dock, overlays, controls) generated from the current code. The map imagery
+ * is a pinned capture, and the self-marker chevron — which the live page
+ * draws into the WebView DOM, invisible to Robolectric — is reproduced by
+ * [SelfMarker] from the same [MapConfig] placement inputs (see
+ * [SelfMarkerAnchor]); both change only when the map style or marker design
+ * does.
  *
  * The source is a device capture of this app rendering OpenFreeMap tiles
  * (OpenStreetMap data, ODbL) — see app/src/test/resources/README.md.
  */
 @Composable
-internal fun MapBackdrop(darkTheme: Boolean) {
+internal fun MapBackdrop(
+    darkTheme: Boolean,
+    mapConfig: MapConfig,
+) = Box(modifier = Modifier.fillMaxSize()) {
     Image(
         // The app swaps the map style with the theme (Positron / Dark Matter),
         // so the still has to swap too — a light map under dark glass chrome
@@ -70,4 +89,74 @@ internal fun MapBackdrop(darkTheme: Boolean) {
         contentScale = ContentScale.Crop,
         modifier = Modifier.fillMaxSize(),
     )
+    SelfMarker(mapConfig)
+}
+
+// Ripple disc radius; a frozen mid-animation frame of the live CSS pulse
+// (index.html's .ripple), which this static render cannot animate.
+private val RippleRadius = 24.dp
+
+// Matches the live marker's <svg width="34" height="34" viewBox="0 0 30 30">
+// (webmap/index.html): a square icon box, sized in dp, housing a 30-unit
+// viewBox scaled uniformly to fill it.
+private val ChevronBoxSize = 34.dp
+private val ChevronViewBoxSize = 30f
+private val ChevronStrokeWidth = 1.5.dp
+
+// Foreshortens the chevron vertically to stand in for the live page's
+// perspective(600px) rotateX(...) tilt on the pitched map — an approximation,
+// not a 3D projection (see SelfMarker).
+private val ChevronForeshorten = 0.8f
+
+/**
+ * Approximates `webmap/index.html`'s `#self-marker` — the DOM chevron the
+ * live WebView draws for the vehicle's own position — since Robolectric's
+ * WebView shadow never renders it. Same screen anchor as the live page
+ * ([SelfMarkerAnchor], mirroring `webmap/src/style.ts`), same chevron path
+ * and colors ([io.github.seijikohara.femto.ui.home.components.WebMapView]
+ * pushes [MaterialTheme.colorScheme.primary] as the live fill), heading-up
+ * (no rotation) since that is the follow-mode default.
+ */
+@Composable
+private fun SelfMarker(mapConfig: MapConfig) {
+    val chevronColor = MaterialTheme.colorScheme.primary
+    val rippleColor = chevronColor.copy(alpha = 0.18f)
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val xShift = SelfMarkerAnchor.xShift(mapConfig.leftSafeFraction, mapConfig.rightSafeFraction)
+        val drop = SelfMarkerAnchor.drop(mapConfig.markerPos, mapConfig.bottomSafeFraction)
+        val center = Offset(x = size.width * (0.5f + xShift), y = size.height * (0.5f + drop))
+
+        drawCircle(color = rippleColor, radius = RippleRadius.toPx(), center = center)
+
+        // Map the SVG path's 30-unit viewBox coordinates into the 34dp icon
+        // box centred on the anchor point.
+        val boxPx = ChevronBoxSize.toPx()
+        val viewBoxScale = boxPx / ChevronViewBoxSize
+        val originX = center.x - boxPx / 2f
+        val originY = center.y - boxPx / 2f
+
+        fun viewBoxPoint(
+            x: Float,
+            y: Float,
+        ) = Offset(originX + x * viewBoxScale, originY + y * viewBoxScale)
+
+        // webmap/index.html's chevron path: "M15 0 L30 30 L15 21.6 L0 30 Z".
+        val chevron =
+            Path().apply {
+                moveTo(viewBoxPoint(15f, 0f).x, viewBoxPoint(15f, 0f).y)
+                lineTo(viewBoxPoint(30f, 30f).x, viewBoxPoint(30f, 30f).y)
+                lineTo(viewBoxPoint(15f, 21.6f).x, viewBoxPoint(15f, 21.6f).y)
+                lineTo(viewBoxPoint(0f, 30f).x, viewBoxPoint(0f, 30f).y)
+                close()
+            }
+
+        scale(scaleX = 1f, scaleY = ChevronForeshorten, pivot = center) {
+            drawPath(chevron, color = chevronColor)
+            drawPath(
+                chevron,
+                color = Color.White,
+                style = Stroke(width = ChevronStrokeWidth.toPx(), join = StrokeJoin.Round),
+            )
+        }
+    }
 }
