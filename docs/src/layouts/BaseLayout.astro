@@ -2,9 +2,8 @@
 import "@/styles/global.css";
 import siteConfig from "@/site.config";
 import { ClientRouter } from "astro:transitions";
+import { Font } from "astro:assets";
 import Seo from "@/components/common/Seo.astro";
-import AuroraBackground from "@/components/common/AuroraBackground.astro";
-import ThemeToggle from "@/components/common/ThemeToggle.astro";
 import logo from "../../../logo.svg";
 
 export interface Props {
@@ -72,49 +71,23 @@ const props = Astro.props;
         if (meta) meta.setAttribute('content', resolved === 'dark' ? '#0e1318' : '#f5f6f9');
       })();`}
         ></script>
-        <!-- The theme ships a system-ui font stack (see tokens.css --font-sans),
-         so there are no web fonts to preconnect or load. -->
+        <Font
+            cssVariable="--font-open-sans"
+            preload={[{ weight: "400", style: "normal", subset: "latin" }]}
+        />
     </head>
-    <body>
+    <body class="min-h-dvh bg-background font-sans text-foreground antialiased">
         <!-- Skip to content link -->
         <a href="#main" class="skip-link">
             Skip to content
         </a>
 
-        <!-- Aurora Background -->
-        <AuroraBackground intensity="medium" animated={true} />
-
         <!-- Main Layout -->
         <slot />
 
-        <!-- Theme Toggle (can be positioned by parent) -->
-        {siteConfig.theme.showThemeToggle && (
-            <div id="theme-toggle-container">
-                <ThemeToggle />
-            </div>
-        )}
+        <script>
+            import { installThemeSync } from "@/lib/theme";
+            installThemeSync();
+        </script>
     </body>
 </html>
-
-<style>
-    #theme-toggle-container {
-        position: fixed;
-        bottom: var(--space-xl);
-        right: var(--space-xl);
-        z-index: var(--z-sticky);
-    }
-
-    @media (max-width: 768px) {
-        #theme-toggle-container {
-            bottom: var(--space-lg);
-            right: var(--space-lg);
-        }
-    }
-
-    /* Smooth color transitions on theme change */
-    html {
-        transition:
-            background-color var(--transition-base),
-            color var(--transition-base);
-    }
-</style>

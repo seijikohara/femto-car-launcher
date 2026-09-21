@@ -2,7 +2,8 @@ import mdx from "@astrojs/mdx";
 import { satteri } from "@astrojs/markdown-satteri";
 import react from "@astrojs/react";
 import sitemap from "@astrojs/sitemap";
-import { defineConfig } from "astro/config";
+import tailwindcss from "@tailwindcss/vite";
+import { defineConfig, fontProviders } from "astro/config";
 import satteriBaseUrls from "./src/lib/satteri-base-urls";
 import satteriRepoLinks from "./src/lib/satteri-repo-links";
 import siteBase from "./site.base.json" with { type: "json" };
@@ -53,9 +54,22 @@ export default defineConfig({
         }),
     },
     vite: {
+        plugins: [tailwindcss()],
         // The site imports the repository's logo.svg, the golden PNGs and the
         // legal Markdown from outside docs/; the dev server must be allowed to
         // serve them (the production build bundles them regardless).
         server: { fs: { allow: [".."] } },
     },
+    // Open Sans is downloaded at build time and served from this site (no request
+    // to Google from a visitor's browser); see .claude/rules/docs.md.
+    fonts: [
+        {
+            provider: fontProviders.google(),
+            name: "Open Sans",
+            cssVariable: "--font-open-sans",
+            weights: [400, 500, 600, 700],
+            styles: ["normal", "italic"],
+            subsets: ["latin", "latin-ext"],
+        },
+    ],
 });

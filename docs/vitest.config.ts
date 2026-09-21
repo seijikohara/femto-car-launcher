@@ -8,5 +8,6 @@ export default getViteConfig({
         environment: "node",
         include: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.ts"],
         passWithNoTests: true,
+        setupFiles: ["./vitest.setup.ts"],
     },
 });
