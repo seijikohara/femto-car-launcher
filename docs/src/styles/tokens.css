@@ -51,6 +51,10 @@
     --color-error: hsl(0, 72%, 51%);
     --color-info: hsl(207, 90%, 54%);
 
+    /* Overlay scrim (e.g. a native <dialog>::backdrop) — the same value
+       works for both themes, so there is no dark-mode override below. */
+    --color-scrim: rgba(0, 0, 0, 0.6);
+
     /* Typography */
     --font-sans:
         system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
