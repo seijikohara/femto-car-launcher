@@ -43,6 +43,7 @@ const siteConfig: SiteConfig = {
         main: [
             { name: "Home", href: "/" },
             { name: "Features", href: "/features/live-map/" },
+            { name: "Catalog", href: "/catalog/" },
             { name: "Install", href: "/install/" },
         ],
     },

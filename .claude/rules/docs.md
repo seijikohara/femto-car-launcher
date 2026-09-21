@@ -42,7 +42,8 @@ edit.
   check. Run both before claiming a change is done (the
   [`verify-android-build`](../skills/verify-android-build/SKILL.md)
   skill lists them as its docs stage).
-- Lint is oxlint (it lints `.astro` script blocks). Format is
+- Lint is oxlint (it lints `.astro` script blocks; the `react` and
+  `jsx-a11y` plugins cover the catalog viewer's JSX/TSX). Format is
   Prettier + `prettier-plugin-astro`, the one formatter for the whole
   directory — oxfmt has no Astro support (oxc docs, checked
   2026-09-20); revisit if it lands. Both follow the root
@@ -55,10 +56,37 @@ edit.
   `/femto-car-launcher/`), `pnpm --dir docs run preview` after a
   build.
 
-## Catalog import contract (from PR-3)
+## Screenshot catalog
 
-The docs workflow hands `pnpm run import-catalog -- <dir>` a directory
-containing `manifest.json` plus `img/<id>.png`, produced by
-`./gradlew :app:generateCatalog`. The script converts to WebP under
-`docs/public/catalog/` and is a no-op when the directory is missing,
-so PR builds ship without a catalog.
+- Input (from `./gradlew :app:generateCatalog`, PR-2): a directory
+  with `manifest.json` (schema v1: `schemaVersion`, `generatedAt`,
+  `gitSha`, `axes[{id,label,values[{id,label}]}]`,
+  `entries[{id,file,widthDp,heightDp,values}]`) and `img/<id>.png`.
+- `pnpm run import-catalog -- <dir>` (`scripts/import-catalog.ts`)
+  writes `public/catalog/{manifest.json,full/<id>.webp,thumb/<id>.webp}`
+  (lossy WebP q85 full size; 480 px q75 thumbnails) and adds `full`,
+  `thumb`, `widthPx`, `heightPx` per entry plus `thumbWidth`. It is a
+  no-op without a manifest (PR builds ship the page with its empty
+  state) and fails when a manifest entry has no image (a partial render
+  must not be published).
+- The viewer is `src/catalog/`: `matrix.ts` (pure — state ↔ URL with
+  `rows`, `cols`, one param per remaining axis and `open`; matrix
+  layout; neighbour navigation; entries may be a subset of the axis
+  product) and `CatalogViewer.tsx`, the site's only React island
+  (`client:load`), which fetches `catalog/manifest.json` at runtime.
+  `manifest.ts` re-exports the script's types so the shape has one
+  home; `schema.ts` holds `CATALOG_SCHEMA_VERSION`, the schema-version
+  constant shared by the import script and the island.
+- `docs.yml` renders and imports the catalog before every deploy
+  (~10–20 min); `public/catalog/` is never committed.
+
+### Gotchas
+
+- An island that rewrites the URL must pass `history.state` through
+  to `replaceState` (never `null`) — the ClientRouter keeps its own
+  navigation state there and ignores `popstate` when that state is
+  `null`, which breaks the Back button site-wide, not just on the
+  page that did it.
+- A modal surface must be opaque. A translucent glass panel
+  composited over the native `<dialog>`'s `::backdrop` scrim inverts
+  light-theme contrast — dark-on-light text lands on a dark backdrop.

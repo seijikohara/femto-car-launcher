@@ -2,16 +2,20 @@
   "extends": "astro/tsconfigs/strict",
   "compilerOptions": {
     "strict": true,
-    // ES2023 (not just ES2022) so `Array#toSorted()` type-checks: the target
-    // is Node (this config only type-checks build-time code, never emitted
-    // for a browser), and Node has supported it since v20.
+    // ES2023 (not just ES2022) so `Array#toSorted()` type-checks under
+    // `tsc --noEmit` / `astro check`. This config only selects which lib
+    // types are in scope; nothing here ever emits. What ships to a browser
+    // — including src/catalog/, the site's React island — is transpiled by
+    // Vite to the client build target Astro sets in its own build config,
+    // independently of this file.
     "target": "ES2023",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "allowSyntheticDefaultImports": true,
     "verbatimModuleSyntax": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "isolatedModules": true,

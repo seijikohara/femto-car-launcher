@@ -46,8 +46,9 @@ applicable rule wins when markets diverge.
   that floor (phone WebViews stay current, but the strictest device
   class governs). Rules: `.claude/rules/webmap.md`.
 - Project website (`docs/`): Astro 7 (Astro Haze template, MIT) +
-  MDX, published to GitHub Pages by `.github/workflows/docs.yml`;
-  pnpm-managed like the web map. Rules: `.claude/rules/docs.md`.
+  MDX, with one React island for the screenshot catalog, published
+  to GitHub Pages by `.github/workflows/docs.yml`; pnpm-managed like
+  the web map. Rules: `.claude/rules/docs.md`.
 
 ## Source layout
 
@@ -79,8 +80,9 @@ wiring SSOT; nothing under `src/main/assets/web/` is committed).
 
 `docs/` (top level) is the Astro source of the project website
 (feature guide, install guide, legal pages rendered from the root
-`PRIVACY.md` / `TERMS.md`; the dashboard screenshot catalog from
-PR-3). Its build output is never committed.
+`PRIVACY.md` / `TERMS.md`, and the dashboard screenshot catalog
+viewer (`docs/src/catalog/`, fed by `generateCatalog` through
+`pnpm run import-catalog`)). Its build output is never committed.
 
 Trivial stateless screens need only `<Area>Screen.kt` — see
 `.claude/rules/compose.md`.
