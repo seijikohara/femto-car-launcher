@@ -16,6 +16,7 @@ import {
     type Direction,
     type ViewState,
 } from "./matrix";
+import { CATALOG_SCHEMA_VERSION } from "./schema.ts";
 
 interface Props {
     /** Base-prefixed URL of public/catalog/manifest.json. */
@@ -273,9 +274,16 @@ function Lightbox({ manifest, state, update, assetBase }: LightboxProps) {
                             width={entry.widthPx}
                             height={entry.heightPx}
                         />
-                        <figcaption id={captionId}>
-                            {caption(manifest, entry)} · {entry.widthDp}×
-                            {entry.heightDp} dp ·{" "}
+                        <figcaption>
+                            {/* id lives on this span, not the figcaption: the
+                                dialog's aria-labelledby points at captionId,
+                                and its accessible name must not end in
+                                "open the file" from the link below. */}
+                            <span id={captionId}>
+                                {caption(manifest, entry)} · {entry.widthDp}×
+                                {entry.heightDp} dp
+                            </span>{" "}
+                            ·{" "}
                             <a href={`${assetBase}${entry.full}`}>
                                 open the file
                             </a>
@@ -294,7 +302,16 @@ function Lightbox({ manifest, state, update, assetBase }: LightboxProps) {
                                     type="button"
                                     className="glass-button"
                                     aria-label={DIRECTIONS[direction].label}
-                                    disabled={target === null}
+                                    // Not the native `disabled` attribute: a
+                                    // focused arrow button that disables
+                                    // itself on activation drops focus out of
+                                    // the dialog, so the keydown handler
+                                    // above then misses arrow/Escape keys
+                                    // until the user tabs back in.
+                                    // catalog.css's [aria-disabled="true"]
+                                    // rule makes it inert to clicks while Tab
+                                    // focus still lands on it.
+                                    aria-disabled={target === null}
                                     onClick={() =>
                                         target !== null &&
                                         update(manifest, {
@@ -336,7 +353,7 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
                         message: `HTTP ${response.status}`,
                     };
                 const manifest = (await response.json()) as SiteManifest;
-                if (manifest.schemaVersion !== 1)
+                if (manifest.schemaVersion !== CATALOG_SCHEMA_VERSION)
                     return {
                         kind: "error",
                         message:

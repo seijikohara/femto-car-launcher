@@ -12,6 +12,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import sharp from "sharp";
+import { CATALOG_SCHEMA_VERSION } from "../src/catalog/schema.ts";
 
 export interface AxisValue {
     id: string;
@@ -52,7 +53,7 @@ export interface SiteEntry {
 }
 
 export interface SiteManifest {
-    schemaVersion: 1;
+    schemaVersion: typeof CATALOG_SCHEMA_VERSION;
     generatedAt: string;
     gitSha: string;
     thumbWidth: number;
@@ -154,7 +155,7 @@ export async function importCatalog(
     const manifest = JSON.parse(
         readFileSync(manifestPath, "utf8"),
     ) as GeneratorManifest;
-    if (manifest.schemaVersion !== 1)
+    if (manifest.schemaVersion !== CATALOG_SCHEMA_VERSION)
         throw new Error(
             `import-catalog: unsupported manifest schemaVersion ${manifest.schemaVersion}`,
         );
@@ -174,7 +175,7 @@ export async function importCatalog(
         (entry) => convert(inputDir, outputDir, entry),
     );
     const site: SiteManifest = {
-        schemaVersion: 1,
+        schemaVersion: CATALOG_SCHEMA_VERSION,
         generatedAt: manifest.generatedAt,
         gitSha: manifest.gitSha,
         thumbWidth: THUMB_WIDTH,

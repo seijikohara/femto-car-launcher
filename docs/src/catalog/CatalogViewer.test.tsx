@@ -71,7 +71,11 @@ const stubFetch = (response: { ok: boolean; status: number; body?: unknown }) =>
 // jsdom 30's HTMLDialogElement has no working showModal()/close() (no
 // open-attribute toggling, no `close` event) — stub the minimum
 // CatalogViewer relies on so the tests exercise the real open/close path
-// through React (onClose etc.), not a bypass around it.
+// through React (onClose etc.), not a bypass around it. showModal() also
+// throws on an already-open dialog, matching real browsers, so a test can
+// prove the open/close effect is keyed on the open/closed boolean rather
+// than on the entry id: calling showModal() again on an entry-to-entry step
+// would fail the test instead of silently resetting focus.
 let originalShowModal: typeof HTMLDialogElement.prototype.showModal;
 let originalClose: typeof HTMLDialogElement.prototype.close;
 
@@ -79,6 +83,12 @@ beforeAll(() => {
     originalShowModal = HTMLDialogElement.prototype.showModal;
     originalClose = HTMLDialogElement.prototype.close;
     HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
+        if (this.open) {
+            throw new DOMException(
+                "The dialog is already open.",
+                "InvalidStateError",
+            );
+        }
         this.setAttribute("open", "");
     };
     HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
@@ -204,18 +214,56 @@ describe("CatalogViewer", () => {
         await screen.findByRole("table");
         fireEvent.click(screen.getByRole("button", { name: /Floor · Small/ }));
         const dialog = await screen.findByRole("dialog");
+        // Focus the Close button before stepping, so a focus change caused by
+        // the arrow step (there should be none) is observable below.
+        const closeButton = screen.getByRole("button", { name: "Close" });
+        closeButton.focus();
         fireEvent.keyDown(dialog, { key: "ArrowRight" });
         await waitFor(() =>
             expect(window.location.search).toContain(
                 "open=floor__medium__light",
             ),
         );
-        // Still the same <dialog> node — the boolean-keyed open effect must not
-        // remount it on an entry-to-entry step, only on the closed<->open edge.
-        expect(screen.getByRole("dialog")).toBe(dialog);
+        // Still open — the showModal() stub throws on a second call while
+        // already open, so this also proves the boolean-keyed open effect
+        // did not call it again for this entry-to-entry step.
+        expect(dialog.hasAttribute("open")).toBe(true);
+        // An arrow step only swaps state.open; nothing here moves focus, so
+        // it must stay exactly where the user left it.
+        expect(document.activeElement).toBe(closeButton);
         expect(dialog.querySelector("img")?.getAttribute("src")).toBe(
             "/b/catalog/full/floor__medium__light.webp",
         );
+    });
+
+    it("keeps focus on an arrow button after it becomes edge-disabled by its own activation", async () => {
+        stubFetch({ ok: true, status: 200, body: manifest });
+        render(
+            <CatalogViewer
+                manifestUrl="/b/catalog/manifest.json"
+                assetBase="/b/catalog/"
+            />,
+        );
+        await screen.findByRole("table");
+        fireEvent.click(screen.getByRole("button", { name: /Floor · Small/ }));
+        await screen.findByRole("dialog");
+        // Floor · Small sits in column 0 of 2 ("Small"/"Medium"): "Next
+        // column" is still enabled here, and becomes edge-disabled once the
+        // step it triggers lands on the last column.
+        const nextColumn = screen.getByRole("button", { name: "Next column" });
+        nextColumn.focus();
+        fireEvent.click(nextColumn);
+        await waitFor(() =>
+            expect(window.location.search).toContain(
+                "open=floor__medium__light",
+            ),
+        );
+        expect(nextColumn.getAttribute("aria-disabled")).toBe("true");
+        // The native `disabled` attribute would have dropped this button from
+        // the focus tree in the same render; aria-disabled keeps it
+        // focusable so the dialog's own keydown handler keeps receiving
+        // arrow/Escape keys without the user needing to tab back in.
+        expect(document.activeElement).toBe(nextColumn);
     });
 
     it("changes the visible cells and the URL when a fixed-axis radio changes", async () => {
