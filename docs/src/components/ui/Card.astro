@@ -1,0 +1,26 @@
+---
+import { withBase } from "@/lib/url";
+import { cn } from "cn";
+
+export interface Props {
+    href?: string;
+    as?: "div" | "article" | "li";
+    padding?: "md" | "lg";
+    class?: string;
+}
+
+const { href, as = "div", padding = "lg", class: className = "" } = Astro.props;
+
+const Tag = href ? "a" : as;
+const classes = cn(
+    "border-border bg-card text-card-foreground block rounded-xl border shadow-sm",
+    padding === "lg" ? "p-6 sm:p-8" : "p-4 sm:p-6",
+    href &&
+        "hover:border-primary/60 hover:bg-accent/40 focus-visible:outline-ring transition-colors focus-visible:outline-2",
+    className,
+);
+---
+
+<Tag class={classes} href={href ? withBase(href) : undefined}>
+    <slot />
+</Tag>

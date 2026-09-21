@@ -3,10 +3,9 @@ import { getCollection } from "astro:content";
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import Header from "@/components/common/Header.astro";
 import Footer from "@/components/common/Footer.astro";
-import GlassPanel from "@/components/common/GlassPanel.astro";
 import Button from "@/components/ui/Button.astro";
+import Card from "@/components/ui/Card.astro";
 import Container from "@/components/ui/Container.astro";
-import GlassCard from "@/components/ui/GlassCard.astro";
 import Picture from "@/components/ui/Picture.astro";
 import Section from "@/components/ui/Section.astro";
 import { withBase } from "@/lib/url";
@@ -44,15 +43,17 @@ const deviceClasses = [
     <Header />
 
     <main id="main" tabindex="-1">
-        <section class="hero">
+        <section class="py-16 sm:py-24">
             <Container size="xl">
-                <div class="hero__grid">
-                    <div class="hero__copy">
-                        <p class="hero__eyebrow">
+                <div class="grid items-center gap-12 lg:grid-cols-[5fr_6fr]">
+                    <div>
+                        <p class="text-sm font-medium tracking-wide text-primary uppercase">
                             Android 13+ · open source · no account
                         </p>
-                        <h1>A glanceable home screen for the car.</h1>
-                        <p class="hero__lede">
+                        <h1 class="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
+                            A glanceable home screen for the car.
+                        </h1>
+                        <p class="mt-5 text-lg text-muted-foreground">
                             Femto Car Launcher replaces the Android home screen
                             with one fixed dashboard sized for automotive
                             viewing distances and touch accuracy: a live map,
@@ -60,7 +61,7 @@ const deviceClasses = [
                             single screen, so the essentials are read at a
                             glance instead of found between apps.
                         </p>
-                        <div class="hero__actions">
+                        <div class="mt-8 flex flex-wrap gap-3">
                             <Button
                                 href={siteConfig.nightlyRelease}
                                 variant="solid"
@@ -68,18 +69,17 @@ const deviceClasses = [
                             >
                                 Download the nightly APK
                             </Button>
-                            <Button href="/install/" variant="glass" size="lg">
+                            <Button
+                                href="/install/"
+                                variant="outline"
+                                size="lg"
+                            >
                                 Install guide
                             </Button>
                         </div>
                     </div>
-                    <GlassPanel
-                        variant="minimal"
-                        padding="sm"
-                        radius="xl"
-                        className="hero__shot"
-                    >
-                        <div class="hero__shot--light">
+                    <Card padding="md" class="overflow-hidden">
+                        <div class="dark:hidden">
                             <Picture
                                 src={dashboardLight}
                                 alt="The dashboard on a head-unit display in the light theme: a map with the self-marker, clock, calendar and weather cards, media controls, trip readout and the dock"
@@ -88,7 +88,7 @@ const deviceClasses = [
                                 fetchpriority="high"
                             />
                         </div>
-                        <div class="hero__shot--dark">
+                        <div class="hidden dark:block">
                             <Picture
                                 src={dashboardDark}
                                 alt="The same dashboard in the dark theme, with the map switched to its dark style"
@@ -96,7 +96,7 @@ const deviceClasses = [
                                 loading="eager"
                             />
                         </div>
-                    </GlassPanel>
+                    </Card>
                 </div>
             </Container>
         </section>
@@ -106,12 +106,14 @@ const deviceClasses = [
             title="One launcher, wherever Android reaches the dashboard."
             subtitle="No single market is privileged: language, units and locale-specific behaviour adapt per device."
         >
-            <div class="cards cards--3">
+            <div class="grid gap-6 md:grid-cols-3">
                 {deviceClasses.map((device) => (
-                    <GlassCard padding="lg">
-                        <h3>{device.title}</h3>
-                        <p>{device.description}</p>
-                    </GlassCard>
+                    <Card padding="lg">
+                        <h3 class="text-lg font-semibold">{device.title}</h3>
+                        <p class="mt-2 text-sm text-muted-foreground">
+                            {device.description}
+                        </p>
+                    </Card>
                 ))}
             </div>
         </Section>
@@ -121,18 +123,25 @@ const deviceClasses = [
             title="Everything the driver needs, nothing that competes for attention."
             subtitle="Each area has its own page with the details, the settings behind it, and what happens when a permission or a data source is missing."
         >
-            <div class="cards cards--3">
+            <div class="grid gap-6 md:grid-cols-3">
                 {features.map((feature) => (
-                    <GlassCard
+                    <Card
                         href={withBase(`/features/${feature.id}/`)}
                         padding="lg"
                     >
-                        <h3>{feature.data.title}</h3>
-                        <p>{feature.data.summary}</p>
-                        <span class="card-link" aria-hidden="true">
+                        <h3 class="text-lg font-semibold">
+                            {feature.data.title}
+                        </h3>
+                        <p class="mt-2 text-sm text-muted-foreground">
+                            {feature.data.summary}
+                        </p>
+                        <span
+                            class="mt-4 inline-block text-sm font-medium text-primary"
+                            aria-hidden="true"
+                        >
                             Read more →
                         </span>
-                    </GlassCard>
+                    </Card>
                 ))}
             </div>
         </Section>
@@ -143,7 +152,7 @@ const deviceClasses = [
             subtitle="Every display geometry × display size × light and dark × left- and right-hand drive × dock position, regenerated from the current code on every change."
             container="md"
         >
-            <div class="cta-row">
+            <div class="flex flex-wrap justify-center gap-3">
                 <Button href="/catalog/" variant="solid" size="lg">
                     Browse the catalog
                 </Button>
@@ -156,7 +165,7 @@ const deviceClasses = [
             subtitle="Every merge to main publishes a release-signed APK. Android 13 or later is required."
             container="md"
         >
-            <div class="cta-row">
+            <div class="flex flex-wrap justify-center gap-3">
                 <Button
                     href={siteConfig.nightlyRelease}
                     variant="solid"
@@ -164,7 +173,7 @@ const deviceClasses = [
                 >
                     Download the nightly APK
                 </Button>
-                <Button href="/install/" variant="glass" size="lg">
+                <Button href="/install/" variant="outline" size="lg">
                     Read the install guide
                 </Button>
                 <Button href={siteConfig.repository} variant="ghost" size="lg">
@@ -176,84 +185,3 @@ const deviceClasses = [
 
     <Footer />
 </BaseLayout>
-
-<style>
-    .hero {
-        padding: var(--space-3xl) 0;
-    }
-    .hero__grid {
-        display: grid;
-        gap: var(--space-2xl);
-        align-items: center;
-    }
-    @media (min-width: 1024px) {
-        .hero__grid {
-            grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-        }
-    }
-    .hero__eyebrow {
-        margin: 0 0 var(--space-md);
-        font-size: var(--text-sm);
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--color-accent-text);
-    }
-    .hero h1 {
-        font-size: var(--text-5xl);
-        line-height: 1.05;
-        margin: 0 0 var(--space-lg);
-    }
-    .hero__lede {
-        font-size: var(--text-lg);
-        color: var(--color-text-muted);
-        margin: 0 0 var(--space-xl);
-    }
-    .hero__actions,
-    .cta-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--space-md);
-    }
-    .cta-row {
-        justify-content: center;
-    }
-    /* One screenshot at a time: the golden that matches the page theme. */
-    .hero__shot :global(img) {
-        display: block;
-        width: 100%;
-        height: auto;
-        border-radius: var(--radius-lg);
-    }
-    .hero__shot--dark {
-        display: none;
-    }
-    :global([data-theme="dark"]) .hero__shot--light {
-        display: none;
-    }
-    :global([data-theme="dark"]) .hero__shot--dark {
-        display: block;
-    }
-    .cards {
-        display: grid;
-        gap: var(--space-lg);
-    }
-    @media (min-width: 768px) {
-        .cards--3 {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-        }
-    }
-    .cards h3 {
-        margin: 0 0 var(--space-sm);
-        font-size: var(--text-xl);
-    }
-    .cards p {
-        margin: 0;
-        color: var(--color-text-muted);
-    }
-    .card-link {
-        display: inline-block;
-        margin-top: var(--space-md);
-        color: var(--color-accent-text);
-        font-weight: 600;
-    }
-</style>
