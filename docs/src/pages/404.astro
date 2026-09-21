@@ -2,7 +2,6 @@
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import Header from "@/components/common/Header.astro";
 import Footer from "@/components/common/Footer.astro";
-import GlassPanel from "@/components/common/GlassPanel.astro";
 import Container from "@/components/ui/Container.astro";
 import Button from "@/components/ui/Button.astro";
 import { withBase } from "@/lib/url";
@@ -15,66 +14,30 @@ import { withBase } from "@/lib/url";
 >
     <Header />
 
-    <main id="main" tabindex="-1" class="main-content">
-        <section class="section">
-            <Container size="md">
-                <GlassPanel variant="solid" padding="xl" className="notfound">
-                    <p class="notfound__code" aria-hidden="true">
-                        404
-                    </p>
-                    <h1 class="notfound__title">Page not found</h1>
-                    <p class="notfound__text">
-                        The page you were looking for doesn't exist or may have
-                        moved. Let's get you back on track.
-                    </p>
-                    <div class="notfound__actions">
-                        <Button href={withBase("/")} variant="solid">
-                            Back to home
-                        </Button>
-                    </div>
-                </GlassPanel>
-            </Container>
-        </section>
+    <main id="main" tabindex="-1" class="py-16">
+        <Container size="md">
+            <div class="rounded-xl border border-border bg-card p-8 text-center shadow-sm sm:p-12">
+                <p
+                    class="text-6xl font-semibold tracking-tight text-primary"
+                    aria-hidden="true"
+                >
+                    404
+                </p>
+                <h1 class="mt-4 text-3xl font-semibold tracking-tight">
+                    Page not found
+                </h1>
+                <p class="mt-3 text-muted-foreground">
+                    The page you were looking for doesn't exist or may have
+                    moved. Let's get you back on track.
+                </p>
+                <div class="mt-8">
+                    <Button href={withBase("/")} variant="solid">
+                        Back to home
+                    </Button>
+                </div>
+            </div>
+        </Container>
     </main>
 
     <Footer />
 </BaseLayout>
-
-<style>
-    .main-content {
-        min-height: 60vh; /* fallback */
-        min-height: 60dvh;
-        display: flex;
-        align-items: center;
-    }
-
-    .notfound {
-        text-align: center;
-    }
-
-    .notfound__code {
-        font-size: var(--text-5xl);
-        font-weight: 800;
-        line-height: 1;
-        margin-bottom: var(--space-sm);
-        color: var(--color-accent-text);
-    }
-
-    .notfound__title {
-        font-size: var(--text-3xl);
-        margin-bottom: var(--space-md);
-    }
-
-    .notfound__text {
-        color: var(--color-text-muted);
-        max-width: 42ch;
-        margin: 0 auto var(--space-xl);
-    }
-
-    .notfound__actions {
-        display: flex;
-        gap: var(--space-md);
-        justify-content: center;
-        flex-wrap: wrap;
-    }
-</style>

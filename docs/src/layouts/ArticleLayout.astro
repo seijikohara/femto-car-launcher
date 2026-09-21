@@ -2,15 +2,12 @@
 import BaseLayout from "./BaseLayout.astro";
 import Header from "@/components/common/Header.astro";
 import Footer from "@/components/common/Footer.astro";
-import GlassPanel from "@/components/common/GlassPanel.astro";
 import Container from "@/components/ui/Container.astro";
 
 interface Props {
     title: string;
     description: string;
-    /** Small label above the title, e.g. "Feature" or "Legal". */
     eyebrow?: string;
-    /** For bodies that carry their own H1 (the legal Markdown does). */
     hideTitle?: boolean;
 }
 
@@ -19,50 +16,29 @@ const { title, description, eyebrow, hideTitle = false } = Astro.props;
 
 <BaseLayout title={title} description={description}>
     <Header />
-    <main id="main" tabindex="-1">
-        <section class="section">
-            <Container size="md">
-                <GlassPanel
-                    variant="solid"
-                    padding="xl"
-                    radius="xl"
-                    as="article"
-                >
-                    {!hideTitle && (
-                        <header class="article__header">
-                            {eyebrow && (
-                                <p class="article__eyebrow">{eyebrow}</p>
-                            )}
-                            <h1>{title}</h1>
-                            <p class="article__lede">{description}</p>
-                        </header>
-                    )}
-                    <div class="prose">
-                        <slot />
-                    </div>
-                </GlassPanel>
-            </Container>
-        </section>
+    <main id="main" tabindex="-1" class="py-12 sm:py-16">
+        <Container size="md">
+            <article class="rounded-xl border border-border bg-card p-6 text-card-foreground shadow-sm sm:p-10">
+                {!hideTitle && (
+                    <header class="mb-10">
+                        {eyebrow && (
+                            <p class="text-sm font-medium tracking-wide text-primary uppercase">
+                                {eyebrow}
+                            </p>
+                        )}
+                        <h1 class="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+                            {title}
+                        </h1>
+                        <p class="mt-4 text-lg text-muted-foreground">
+                            {description}
+                        </p>
+                    </header>
+                )}
+                <div class="prose prose-neutral max-w-none dark:prose-invert prose-headings:scroll-mt-24 prose-a:underline-offset-4 prose-img:rounded-lg">
+                    <slot />
+                </div>
+            </article>
+        </Container>
     </main>
     <Footer />
 </BaseLayout>
-
-<style>
-    .article__header {
-        margin-bottom: var(--space-2xl);
-    }
-    .article__eyebrow {
-        margin: 0 0 var(--space-sm);
-        font-size: var(--text-sm);
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--color-accent-text);
-    }
-    .article__lede {
-        font-size: var(--text-lg);
-        color: var(--color-text-muted);
-    }
-    .prose {
-        max-width: none;
-    }
-</style>
