@@ -132,7 +132,7 @@ class WeatherMetricFitTest {
                     // Nothing behind the glass: the card geometry under test is
                     // unaffected by the map, and an empty surface keeps Robolectric
                     // away from the WebView shadow.
-                    mapSurface = {},
+                    mapSurface = { _, _ -> },
                 )
             }
         }
