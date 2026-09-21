@@ -74,6 +74,19 @@ edit.
   layout; neighbour navigation; entries may be a subset of the axis
   product) and `CatalogViewer.tsx`, the site's only React island
   (`client:load`), which fetches `catalog/manifest.json` at runtime.
-  `manifest.ts` re-exports the script's types so the shape has one home.
+  `manifest.ts` re-exports the script's types so the shape has one
+  home; `schema.ts` holds `CATALOG_SCHEMA_VERSION`, the schema-version
+  constant shared by the import script and the island.
 - `docs.yml` renders and imports the catalog before every deploy
   (~10–20 min); `public/catalog/` is never committed.
+
+### Gotchas
+
+- An island that rewrites the URL must pass `history.state` through
+  to `replaceState` (never `null`) — the ClientRouter keeps its own
+  navigation state there and ignores `popstate` when that state is
+  `null`, which breaks the Back button site-wide, not just on the
+  page that did it.
+- A modal surface must be opaque. A translucent glass panel
+  composited over the native `<dialog>`'s `::backdrop` scrim inverts
+  light-theme contrast — dark-on-light text lands on a dark backdrop.

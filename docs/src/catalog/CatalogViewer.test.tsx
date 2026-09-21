@@ -163,9 +163,35 @@ describe("CatalogViewer", () => {
             "/b/catalog/full/floor__medium__light.webp",
         );
         expect(window.location.search).toContain("open=floor__medium__light");
+        // aria-labelledby points at the caption span rather than the whole
+        // figcaption, so the accessible name stops before "open the file".
+        expect(
+            screen.getByRole("dialog", { name: /Floor · Medium · Light/ }),
+        ).toBe(dialog);
         fireEvent.keyDown(dialog, { key: "Escape" });
         await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
         expect(window.location.search).not.toContain("open=");
+    });
+
+    it("preserves the router's history state when it rewrites the URL", async () => {
+        // Simulates an entry the ClientRouter already touched: it keeps
+        // {index, scrollX, scrollY} in history.state and ignores popstate
+        // when that state is null, so a viewer interaction must carry the
+        // existing state forward through replaceState rather than clobber it.
+        window.history.replaceState({ index: 3 }, "", "/");
+        stubFetch({ ok: true, status: 200, body: manifest });
+        render(
+            <CatalogViewer
+                manifestUrl="/b/catalog/manifest.json"
+                assetBase="/b/catalog/"
+            />,
+        );
+        await screen.findByRole("table");
+        fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
+        await waitFor(() =>
+            expect(window.location.search).toContain("theme=dark"),
+        );
+        expect(window.history.state).toEqual({ index: 3 });
     });
 
     it("switches the row axis from the controls", async () => {
@@ -201,6 +227,21 @@ describe("CatalogViewer", () => {
         expect(dialog.querySelector("img")?.getAttribute("src")).toBe(
             "/b/catalog/full/floor__medium__light.webp",
         );
+    });
+
+    it("focuses the Close button when the lightbox opens", async () => {
+        stubFetch({ ok: true, status: 200, body: manifest });
+        render(
+            <CatalogViewer
+                manifestUrl="/b/catalog/manifest.json"
+                assetBase="/b/catalog/"
+            />,
+        );
+        await screen.findByRole("table");
+        fireEvent.click(screen.getByRole("button", { name: /Floor · Small/ }));
+        await screen.findByRole("dialog");
+        const closeButton = screen.getByRole("button", { name: "Close" });
+        expect(closeButton.hasAttribute("autofocus")).toBe(true);
     });
 
     it("moves to the neighbour on ArrowRight and updates the URL, keeping the same dialog element", async () => {

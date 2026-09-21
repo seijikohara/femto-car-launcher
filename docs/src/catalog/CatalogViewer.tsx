@@ -65,6 +65,19 @@ const isFormControl = (target: EventTarget | null): boolean =>
     target instanceof HTMLSelectElement ||
     target instanceof HTMLTextAreaElement;
 
+// React's `autoFocus` prop cannot be used for this: it only ever calls the
+// node's .focus() once, imperatively, during commit — which no-ops here
+// because the dialog is still `display: none` at that point (showModal(),
+// which shows it, runs in a later effect) — and React never writes the
+// underlying `autofocus` *attribute* to the DOM either. Setting that
+// attribute directly instead lets showModal()'s own native focusing steps
+// (which look for it once the dialog actually becomes modal) pick this
+// button over the first focusable descendant, the "open the file" link —
+// Enter there would navigate away from the page.
+const focusOnMount = (node: HTMLButtonElement | null): void => {
+    node?.setAttribute("autofocus", "");
+};
+
 const labelOf = (
     manifest: SiteManifest,
     axisId: string,
@@ -327,6 +340,7 @@ function Lightbox({ manifest, state, update, assetBase }: LightboxProps) {
                         <button
                             type="button"
                             className="glass-button"
+                            ref={focusOnMount}
                             onClick={() => dialogRef.current?.close()}
                         >
                             Close
@@ -392,8 +406,12 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
     // the query in place (no history entries — the back button leaves the page).
     const update = useCallback((manifest: SiteManifest, next: ViewState) => {
         setState(next);
+        // Astro's ClientRouter keeps {index, scrollX, scrollY} in
+        // history.state and ignores popstate when that state is null, so
+        // passing it through here (instead of null) keeps the Back button
+        // working site-wide after any viewer interaction.
         window.history.replaceState(
-            null,
+            window.history.state,
             "",
             `${window.location.pathname}${serializeState(next, manifest)}`,
         );

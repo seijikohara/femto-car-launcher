@@ -82,16 +82,33 @@ export const parseState = (
     const collides = rowsResolved === colsResolved;
     const rows = collides ? defaults.rows : rowsResolved;
     const cols = collides ? defaults.cols : colsResolved;
-    const wanted = Object.fromEntries(
-        manifest.axes.map((axis) => [axis.id, params.get(axis.id) ?? ""]),
-    );
     const openParam = params.get("open");
-    const open =
-        openParam !== null &&
-        manifest.entries.some((entry) => entry.id === openParam)
-            ? openParam
-            : null;
-    return { rows, cols, fixed: fixedFor(manifest, rows, cols, wanted), open };
+    const openEntry =
+        openParam === null
+            ? null
+            : (manifest.entries.find((entry) => entry.id === openParam) ??
+              null);
+    // A valid `open` id pins the fixed axes to the slice that contains it
+    // (fixedFor below keeps only the non-row/col ones), so a hand-written or
+    // partial URL — just `?open=<id>` — shows the entry it names instead of
+    // falling back to per-axis defaults that might not contain it at all.
+    // An unknown `open` (openEntry null) falls through to the URL's own
+    // per-axis params, same as before.
+    const wanted =
+        openEntry !== null
+            ? openEntry.values
+            : Object.fromEntries(
+                  manifest.axes.map((axis) => [
+                      axis.id,
+                      params.get(axis.id) ?? "",
+                  ]),
+              );
+    return {
+        rows,
+        cols,
+        fixed: fixedFor(manifest, rows, cols, wanted),
+        open: openEntry?.id ?? null,
+    };
 };
 
 export const serializeState = (

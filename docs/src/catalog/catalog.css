@@ -85,10 +85,6 @@
     height: auto;
     border-radius: var(--radius-sm);
 }
-.catalog__cell:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 2px;
-}
 .catalog__empty {
     display: grid;
     place-items: center;
@@ -146,6 +142,16 @@ dialog.catalog__lightbox::backdrop {
     max-height: var(--catalog-lightbox-max-height);
     padding: var(--space-md);
     margin: 0;
+}
+/* A translucent glass surface composited over the ::backdrop scrim inverts
+   the light-theme contrast (dark-on-light text lands on a dark backdrop), so
+   the modal surface is opaque here. The descendant selector out-specifies
+   the plain .glass-panel class this element also carries, so the border,
+   radius and shadow it contributes still apply. */
+dialog.catalog__lightbox .catalog__lightbox-body {
+    background: var(--color-bg);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
 }
 .catalog__lightbox-body figure {
     display: flex;

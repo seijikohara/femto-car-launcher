@@ -135,6 +135,39 @@ describe("parseState", () => {
             { scale: "small" },
         );
     });
+
+    it("derives the fixed axes from a valid `open` entry instead of the URL's per-axis params", () => {
+        // floor__small__dark is the fixture's only dark entry, and the URL
+        // carries no theme param at all: without deriving `fixed` from the
+        // entry, theme would fall back to the axis's first value ("light"),
+        // landing the matrix on a slice that doesn't contain this entry.
+        expect(parseState("?open=floor__small__dark", manifest)).toEqual({
+            rows: "geometry",
+            cols: "scale",
+            fixed: { theme: "dark" },
+            open: "floor__small__dark",
+        });
+    });
+
+    it("lets a valid `open` entry override a contradicting fixed-axis param", () => {
+        expect(
+            parseState("?theme=light&open=floor__small__dark", manifest),
+        ).toEqual({
+            rows: "geometry",
+            cols: "scale",
+            fixed: { theme: "dark" },
+            open: "floor__small__dark",
+        });
+    });
+
+    it("falls back to the URL's per-axis params when `open` is unknown", () => {
+        expect(parseState("?theme=dark&open=missing", manifest)).toEqual({
+            rows: "geometry",
+            cols: "scale",
+            fixed: { theme: "dark" },
+            open: null,
+        });
+    });
 });
 
 describe("serializeState", () => {
@@ -310,5 +343,26 @@ describe("neighbourId", () => {
         expect(
             neighbourId(defaultState(manifest), manifest, "right"),
         ).toBeNull();
+    });
+
+    it("skips through an empty cell in the middle of a row to reach a further filled cell", () => {
+        // Unlike the edge-stop cases above, the gap here sits between two
+        // filled cells (medium is missing, small and large are not), so this
+        // only passes if the loop keeps stepping past the null cell instead
+        // of stopping at the first one it meets.
+        const gapManifest: SiteManifest = {
+            ...manifest,
+            entries: [
+                entry("floor", "small", "light"),
+                entry("floor", "large", "light"),
+            ],
+        };
+        expect(
+            neighbourId(
+                { ...defaultState(gapManifest), open: "floor__small__light" },
+                gapManifest,
+                "right",
+            ),
+        ).toBe("floor__large__light");
     });
 });

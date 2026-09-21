@@ -26,7 +26,9 @@ jobs:
   build:
     name: Build site
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Headroom above the ~10-20 min catalog render for a cold Gradle compile
+    # on a 4-vCPU runner (no build-cache hit) before the pnpm steps even start.
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: docs
