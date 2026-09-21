@@ -1,5 +1,6 @@
 ---
 import Container from "./Container.astro";
+import { cn } from "cn";
 
 export interface Props {
     id?: string;
@@ -23,78 +24,75 @@ const {
     class: className = "",
 } = Astro.props;
 
-const spacingMap: Record<string, string> = {
-    sm: "var(--space-2xl)",
-    md: "var(--space-3xl)",
-    lg: "calc(var(--space-3xl) * 1.5)",
-};
-
 const hasHeader = Boolean(eyebrow || title || subtitle);
 ---
 
 <section
     id={id}
-    class={`section section--${align} ${className}`}
-    style={`--section-spacing: ${spacingMap[spacing]};`}
+    class={cn(
+        spacing === "sm"
+            ? "py-12"
+            : spacing === "md"
+              ? "py-16"
+              : "py-20 sm:py-24",
+        className,
+    )}
 >
     {container === "none" ? (
         <Fragment>
             {hasHeader && (
-                <header class="section__header">
-                    {eyebrow && <p class="section__eyebrow">{eyebrow}</p>}
-                    {title && <h2 class="section__title">{title}</h2>}
-                    {subtitle && <p class="section__subtitle">{subtitle}</p>}
-                </header>
+                <div
+                    class={cn(
+                        "mb-10 max-w-2xl",
+                        align === "center" && "mx-auto text-center",
+                    )}
+                >
+                    {eyebrow && (
+                        <p class="text-sm font-medium tracking-wide text-primary uppercase">
+                            {eyebrow}
+                        </p>
+                    )}
+                    {title && (
+                        <h2 class="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+                            {title}
+                        </h2>
+                    )}
+                    {subtitle && (
+                        <p class="mt-4 text-lg text-muted-foreground">
+                            {subtitle}
+                        </p>
+                    )}
+                </div>
             )}
             <slot />
         </Fragment>
     ) : (
         <Container size={container}>
             {hasHeader && (
-                <header class="section__header">
-                    {eyebrow && <p class="section__eyebrow">{eyebrow}</p>}
-                    {title && <h2 class="section__title">{title}</h2>}
-                    {subtitle && <p class="section__subtitle">{subtitle}</p>}
-                </header>
+                <div
+                    class={cn(
+                        "mb-10 max-w-2xl",
+                        align === "center" && "mx-auto text-center",
+                    )}
+                >
+                    {eyebrow && (
+                        <p class="text-sm font-medium tracking-wide text-primary uppercase">
+                            {eyebrow}
+                        </p>
+                    )}
+                    {title && (
+                        <h2 class="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+                            {title}
+                        </h2>
+                    )}
+                    {subtitle && (
+                        <p class="mt-4 text-lg text-muted-foreground">
+                            {subtitle}
+                        </p>
+                    )}
+                </div>
             )}
             <slot />
         </Container>
     )}
 </section>
-
-<style>
-    .section {
-        padding-block: var(--section-spacing);
-    }
-
-    .section__header {
-        margin-bottom: var(--space-2xl);
-        max-width: 48rem;
-    }
-
-    .section--center .section__header {
-        margin-inline: auto;
-        text-align: center;
-    }
-
-    .section__eyebrow {
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        font-size: var(--text-sm);
-        font-weight: 600;
-        color: var(--color-accent);
-        margin-bottom: var(--space-sm);
-    }
-
-    .section__title {
-        font-size: var(--text-3xl);
-        line-height: 1.15;
-        margin-bottom: var(--space-md);
-    }
-
-    .section__subtitle {
-        font-size: var(--text-lg);
-        color: var(--color-text-muted);
-        line-height: 1.6;
-    }
-</style>

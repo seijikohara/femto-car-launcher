@@ -1,4 +1,6 @@
 ---
+import { cn } from "cn";
+
 export interface Props {
     size?: "sm" | "md" | "lg" | "xl" | "full";
     as?: keyof HTMLElementTagNameMap;
@@ -8,32 +10,14 @@ export interface Props {
 const { size = "lg", as: Tag = "div", class: className = "" } = Astro.props;
 
 const sizeMap: Record<string, string> = {
-    sm: "var(--container-3xl)",
-    md: "var(--container-4xl)",
-    lg: "var(--container-6xl)",
-    xl: "var(--container-max)",
-    full: "100%",
+    sm: "max-w-3xl",
+    md: "max-w-4xl",
+    lg: "max-w-6xl",
+    xl: "max-w-7xl",
+    full: "max-w-none",
 };
 ---
 
-<Tag
-    class={`container ${className}`}
-    style={`--container-width: ${sizeMap[size]};`}
->
+<Tag class={cn("mx-auto w-full px-4 sm:px-6", sizeMap[size], className)}>
     <slot />
 </Tag>
-
-<style>
-    .container {
-        width: 100%;
-        max-width: var(--container-width);
-        margin-inline: auto;
-        padding-inline: var(--space-lg);
-    }
-
-    @media (max-width: 640px) {
-        .container {
-            padding-inline: var(--space-md);
-        }
-    }
-</style>

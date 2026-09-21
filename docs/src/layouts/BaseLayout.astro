@@ -2,9 +2,8 @@
 import "@/styles/global.css";
 import siteConfig from "@/site.config";
 import { ClientRouter } from "astro:transitions";
+import { Font } from "astro:assets";
 import Seo from "@/components/common/Seo.astro";
-import AuroraBackground from "@/components/common/AuroraBackground.astro";
-import ThemeToggle from "@/components/common/ThemeToggle.astro";
 import logo from "../../../logo.svg";
 
 export interface Props {
@@ -26,14 +25,12 @@ const props = Astro.props;
 
         <!-- Client-side routing. Astro falls back to a normal navigation where the
          View Transitions API is missing, and skips the animation entirely under
-         prefers-reduced-motion, so this costs nothing where it isn't wanted.
-         Component scripts re-initialise on `astro:page-load`; see the note in
-         src/lib/lifecycle.ts. -->
+         prefers-reduced-motion, so this costs nothing where it isn't wanted. -->
         <ClientRouter />
 
         <!-- Favicon & app icons -->
         <link rel="icon" type="image/svg+xml" href={logo.src} />
-        <meta id="theme-color-meta" name="theme-color" content="#0e1318" />
+        <meta id="theme-color-meta" name="theme-color" content="#0a0a0a" />
 
         <!-- SEO: title, description, canonical, Open Graph, Twitter, JSON-LD -->
         <Seo
@@ -69,52 +66,28 @@ const props = Astro.props;
         d.setAttribute('data-theme', resolved);
         d.setAttribute('data-theme-mode', mode);
         var meta = document.getElementById('theme-color-meta');
-        if (meta) meta.setAttribute('content', resolved === 'dark' ? '#0e1318' : '#f5f6f9');
+        // Mirrors --background in global.css (light #ffffff / dark #0a0a0a);
+        // change them together — this script runs before the stylesheet loads.
+        if (meta) meta.setAttribute('content', resolved === 'dark' ? '#0a0a0a' : '#ffffff');
       })();`}
         ></script>
-        <!-- The theme ships a system-ui font stack (see tokens.css --font-sans),
-         so there are no web fonts to preconnect or load. -->
+        <Font
+            cssVariable="--font-open-sans"
+            preload={[{ weight: "400", style: "normal", subset: "latin" }]}
+        />
     </head>
-    <body>
+    <body class="min-h-dvh bg-background font-sans text-foreground antialiased">
         <!-- Skip to content link -->
         <a href="#main" class="skip-link">
             Skip to content
         </a>
 
-        <!-- Aurora Background -->
-        <AuroraBackground intensity="medium" animated={true} />
-
         <!-- Main Layout -->
         <slot />
 
-        <!-- Theme Toggle (can be positioned by parent) -->
-        {siteConfig.theme.showThemeToggle && (
-            <div id="theme-toggle-container">
-                <ThemeToggle />
-            </div>
-        )}
+        <script>
+            import { installThemeSync } from "@/lib/theme";
+            installThemeSync();
+        </script>
     </body>
 </html>
-
-<style>
-    #theme-toggle-container {
-        position: fixed;
-        bottom: var(--space-xl);
-        right: var(--space-xl);
-        z-index: var(--z-sticky);
-    }
-
-    @media (max-width: 768px) {
-        #theme-toggle-container {
-            bottom: var(--space-lg);
-            right: var(--space-lg);
-        }
-    }
-
-    /* Smooth color transitions on theme change */
-    html {
-        transition:
-            background-color var(--transition-base),
-            color var(--transition-base);
-    }
-</style>

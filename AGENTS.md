@@ -45,8 +45,9 @@ applicable rule wins when markets diverge.
   Play Store does not update, so never raise it without revisiting
   that floor (phone WebViews stay current, but the strictest device
   class governs). Rules: `.claude/rules/webmap.md`.
-- Project website (`docs/`): Astro 7 (Astro Haze template, MIT) +
-  MDX, with one React island for the screenshot catalog, published
+- Project website (`docs/`): Astro 7 + MDX, Tailwind CSS v4 +
+  shadcn/ui (Base UI) with two React islands (site header, screenshot
+  catalog), Open Sans self-hosted via the Astro Fonts API; published
   to GitHub Pages by `.github/workflows/docs.yml`; pnpm-managed like
   the web map. Rules: `.claude/rules/docs.md`.
 

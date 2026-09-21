@@ -1,13 +1,31 @@
 import {
     useCallback,
     useEffect,
-    useId,
     useMemo,
     useRef,
     useState,
+    // Aliased: the bare name would shadow the DOM's own global
+    // `KeyboardEvent` type, which isFormControl's neighbours don't use today
+    // but a future addition easily could by mistake.
+    type KeyboardEvent as ReactKeyboardEvent,
+    type RefObject,
 } from "react";
-import "./catalog.css";
-import type { SiteEntry, SiteManifest } from "./manifest";
+import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import type { Axis, SiteEntry, SiteManifest } from "./manifest";
 import {
     buildMatrix,
     neighbourId,
@@ -65,19 +83,6 @@ const isFormControl = (target: EventTarget | null): boolean =>
     target instanceof HTMLSelectElement ||
     target instanceof HTMLTextAreaElement;
 
-// React's `autoFocus` prop cannot be used for this: it only ever calls the
-// node's .focus() once, imperatively, during commit — which no-ops here
-// because the dialog is still `display: none` at that point (showModal(),
-// which shows it, runs in a later effect) — and React never writes the
-// underlying `autofocus` *attribute* to the DOM either. Setting that
-// attribute directly instead lets showModal()'s own native focusing steps
-// (which look for it once the dialog actually becomes modal) pick this
-// button over the first focusable descendant, the "open the file" link —
-// Enter there would navigate away from the page.
-const focusOnMount = (node: HTMLButtonElement | null): void => {
-    node?.setAttribute("autofocus", "");
-};
-
 const labelOf = (
     manifest: SiteManifest,
     axisId: string,
@@ -98,7 +103,54 @@ interface StateProps {
     update: (manifest: SiteManifest, next: ViewState) => void;
 }
 
-/** The Rows/Columns selects and the fixed-axis radio groups. */
+function AxisSelect({
+    id,
+    label,
+    value,
+    axes,
+    onChange,
+}: {
+    id: string;
+    label: string;
+    value: string;
+    axes: Axis[];
+    onChange: (axisId: string) => void;
+}) {
+    // Select.Value only resolves a value to its label through the `items`
+    // map (or `itemToStringLabel`) — merely rendering SelectItem children
+    // feeds the popup's own list and selection, not the trigger's label
+    // lookup, so without this the trigger displays the raw axis id.
+    const items = useMemo(
+        () => Object.fromEntries(axes.map((axis) => [axis.id, axis.label])),
+        [axes],
+    );
+
+    return (
+        <div className="grid gap-1.5">
+            <label htmlFor={id} className="text-sm font-medium">
+                {label}
+            </label>
+            <Select
+                value={value}
+                onValueChange={(next) => next && onChange(next)}
+                items={items}
+            >
+                <SelectTrigger id={id} className="w-44" aria-label={label}>
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    {axes.map((axis) => (
+                        <SelectItem key={axis.id} value={axis.id}>
+                            {axis.label}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+    );
+}
+
+/** The Rows/Columns selects and the fixed-axis toggle groups. */
 function Controls({ manifest, state, update }: StateProps) {
     const fixedAxes = manifest.axes.filter(
         (axis) => axis.id !== state.rows && axis.id !== state.cols,
@@ -121,63 +173,55 @@ function Controls({ manifest, state, update }: StateProps) {
     };
 
     return (
-        <form
-            className="catalog__controls"
-            onSubmit={(event) => event.preventDefault()}
-        >
-            <label>
-                Rows
-                <select
-                    value={state.rows}
-                    onChange={(event) => setAxis("rows", event.target.value)}
-                >
-                    {manifest.axes.map((axis) => (
-                        <option key={axis.id} value={axis.id}>
-                            {axis.label}
-                        </option>
-                    ))}
-                </select>
-            </label>
-            <label>
-                Columns
-                <select
-                    value={state.cols}
-                    onChange={(event) => setAxis("cols", event.target.value)}
-                >
-                    {manifest.axes.map((axis) => (
-                        <option key={axis.id} value={axis.id}>
-                            {axis.label}
-                        </option>
-                    ))}
-                </select>
-            </label>
+        <div className="mb-8 flex flex-wrap items-end gap-6">
+            <AxisSelect
+                id="catalog-rows"
+                label="Rows"
+                value={state.rows}
+                axes={manifest.axes}
+                onChange={(id) => setAxis("rows", id)}
+            />
+            <AxisSelect
+                id="catalog-cols"
+                label="Columns"
+                value={state.cols}
+                axes={manifest.axes}
+                onChange={(id) => setAxis("cols", id)}
+            />
             {fixedAxes.map((axis) => (
-                <fieldset key={axis.id} className="catalog__filter">
-                    <legend>{axis.label}</legend>
-                    {axis.values.map((value) => (
-                        <label key={value.id}>
-                            <input
-                                type="radio"
-                                name={axis.id}
-                                value={value.id}
-                                checked={state.fixed[axis.id] === value.id}
-                                onChange={() =>
-                                    update(manifest, {
-                                        ...state,
-                                        fixed: {
-                                            ...state.fixed,
-                                            [axis.id]: value.id,
-                                        },
-                                        open: null,
-                                    })
-                                }
-                            />
-                            {value.label}
-                        </label>
-                    ))}
+                <fieldset key={axis.id} className="grid gap-1.5">
+                    <legend className="text-sm font-medium">
+                        {axis.label}
+                    </legend>
+                    <ToggleGroup
+                        variant="outline"
+                        value={[state.fixed[axis.id] ?? axis.values[0].id]}
+                        onValueChange={(next) => {
+                            // A single-select ToggleGroup lets the user un-press
+                            // the active item (`next` becomes `[]`) — ignore that
+                            // so one value stays selected at all times.
+                            const [chosen] = next;
+                            if (chosen)
+                                update(manifest, {
+                                    ...state,
+                                    fixed: {
+                                        ...state.fixed,
+                                        [axis.id]: chosen,
+                                    },
+                                    open: null,
+                                });
+                        }}
+                        aria-label={axis.label}
+                    >
+                        {axis.values.map((value) => (
+                            <ToggleGroupItem key={value.id} value={value.id}>
+                                {value.label}
+                            </ToggleGroupItem>
+                        ))}
+                    </ToggleGroup>
                 </fieldset>
             ))}
-        </form>
+        </div>
     );
 }
 
@@ -186,175 +230,182 @@ interface LightboxProps extends StateProps {
 }
 
 /**
- * A native modal dialog: showModal()/close() give it the top layer, the
- * ::backdrop, an automatic focus trap, and focus restored to the triggering
- * cell button on close — none of which the previous role="presentation" div
- * could provide.
+ * A controlled shadcn Dialog: Base UI supplies the top layer, the portal,
+ * the focus trap, and Escape/outside-press dismissal (reasons `escape-key`
+ * / `outside-press` reported through `onOpenChange`) — this component only
+ * adds arrow-key navigation and the caption-as-title accessible name.
  */
-function Lightbox({ manifest, state, update, assetBase }: LightboxProps) {
-    const dialogRef = useRef<HTMLDialogElement>(null);
-    const captionId = useId();
+function Lightbox({
+    manifest,
+    state,
+    update,
+    assetBase,
+    returnFocusTo,
+}: LightboxProps & { returnFocusTo: RefObject<HTMLElement | null> }) {
     const entry =
         state.open === null
             ? null
             : (manifest.entries.find(
                   (candidate) => candidate.id === state.open,
               ) ?? null);
-    const isOpen = entry !== null;
 
-    // Depends on the open/closed boolean, not on `state.open` (the entry id):
-    // an arrow-key step changes the id while staying open, and re-calling
-    // showModal() on an already-open dialog would both throw and reset
-    // native focus to the dialog's first control on every step.
-    useEffect(() => {
-        const dialog = dialogRef.current;
-        if (dialog === null) return;
-        if (isOpen && !dialog.open) dialog.showModal();
-        return () => {
-            if (dialog.open) dialog.close();
-        };
-    }, [isOpen]);
+    // Base UI keeps the popup mounted for its close animation, but `entry`
+    // already went null the same instant `state.open` did — without this,
+    // the figure unmounts mid-fade and the dialog visibly collapses around
+    // the vanished image instead of just fading out. `shownEntry` retains
+    // the last non-null entry across that window, following React's
+    // documented "adjust state during render" pattern (react.dev, storing
+    // information from previous renders) rather than a ref: a ref may not
+    // be read or written during render (React's own rule — a render can be
+    // discarded or replayed), and this needs to be read here, in render, to
+    // produce this render's output.
+    const [shownEntry, setShownEntry] = useState(entry);
+    if (entry !== null && entry !== shownEntry) setShownEntry(entry);
 
-    const onClose = () => {
-        // The dialog's native `close` event fires for every path that closes
-        // it — Escape, a backdrop click, our own close() calls below — so
-        // this is the one place state catches up; the `state.open` guard
-        // makes it a no-op for a `close` that fires after we already cleared it.
+    // Base UI's default initialFocus is the first tabbable descendant — the
+    // "open the file" link below, where Enter would navigate away from the
+    // page — so Close is pointed to explicitly, the same outcome the
+    // previous native <dialog>'s autofocus-attribute hack produced. Typed to
+    // the concrete element (not HTMLElement, which DialogContent's own
+    // `initialFocus` accepts): the shadcn Button's inferred ref type is
+    // Ref<HTMLButtonElement>, and a HTMLButtonElement ref widens cleanly to
+    // initialFocus's HTMLElement one, but not the other way around.
+    const closeRef = useRef<HTMLButtonElement | null>(null);
+
+    const close = () => {
         if (state.open !== null) update(manifest, { ...state, open: null });
     };
 
-    // Wired imperatively rather than as JSX onClick/onKeyDown props: jsx-a11y's
-    // no-noninteractive-element-interactions rule flags mouse/keyboard
-    // handlers on an element whose role is "dialog" — a real concern for most
-    // non-interactive roles, but a false positive here. A modal <dialog>
-    // already closes on Escape and a backdrop click natively, with zero JS;
-    // wiring the same two gestures here only extends them (arrow-key
-    // navigation) and makes Escape work under jsdom, which has no native
-    // CloseWatcher. addEventListener reaches the same DOM node the JSX props
-    // would have, so the interaction lives in the same place either way —
-    // this only changes which API attaches it, to keep the static JSX-prop
-    // scan from flagging an event that native <dialog> semantics already imply.
-    useEffect(() => {
-        const dialog = dialogRef.current;
-        if (dialog === null) return;
+    const step = (direction: Direction) => {
+        const next = neighbourId(state, manifest, direction);
+        if (next !== null) update(manifest, { ...state, open: next });
+    };
 
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (isFormControl(event.target)) return;
-            if (event.key === "Escape") {
-                // jsdom's <dialog> has no native Escape-to-close behaviour (no
-                // CloseWatcher); close() is harmless if a real browser also
-                // closes it natively first (close() on an already-closed
-                // dialog is a no-op).
-                dialog.close();
-                return;
-            }
-            const direction = KEY_DIRECTIONS[event.key];
-            if (direction === undefined) return;
-            event.preventDefault();
-            const next = neighbourId(state, manifest, direction);
-            if (next !== null) update(manifest, { ...state, open: next });
-        };
-
-        const handleClick = (event: MouseEvent) => {
-            // ::backdrop clicks land on the dialog itself as the target
-            // (there is no separate backdrop node) — the inner wrapper covers
-            // the rest of the box, so this only matches a true outside click.
-            if (event.target === dialog) dialog.close();
-        };
-
-        dialog.addEventListener("keydown", handleKeyDown);
-        dialog.addEventListener("click", handleClick);
-        return () => {
-            dialog.removeEventListener("keydown", handleKeyDown);
-            dialog.removeEventListener("click", handleClick);
-        };
-    }, [manifest, state, update]);
+    const onKeyDown = (event: ReactKeyboardEvent) => {
+        if (isFormControl(event.target)) return;
+        const direction = KEY_DIRECTIONS[event.key];
+        if (direction === undefined) return;
+        event.preventDefault();
+        step(direction);
+    };
 
     return (
-        <dialog
-            ref={dialogRef}
-            className="catalog__lightbox"
-            aria-labelledby={captionId}
-            onClose={onClose}
-            onCancel={onClose}
+        <Dialog
+            open={entry !== null}
+            onOpenChange={(open) => {
+                if (!open) close();
+            }}
         >
-            {entry !== null && (
-                <div className="catalog__lightbox-body glass-panel">
-                    <figure>
+            <DialogContent
+                // Two independent width bugs in the generated defaults, both
+                // needing an override:
+                // 1. sm:max-w-sm (24rem) from 640px up: cn()'s conflict
+                //    resolution only drops a class within the same variant
+                //    scope, so the bare max-w-[...] below overrides the base
+                //    max-w-[calc(100%-2rem)] but leaves sm:max-w-sm in the
+                //    cascade, where it wins over an unprefixed rule at
+                //    ≥640px — repeating the same value under sm: is what
+                //    actually replaces it.
+                // 2. left-1/2 + -translate-x-1/2 (the generated centring
+                //    technique) plus width:auto: per CSS2.1 10.3.7, shrink-
+                //    to-fit width for a `position: fixed` box computes
+                //    against only the space to ONE side when just `left` is
+                //    constrained — here, half the viewport — so a wide
+                //    render was clamped to ~half its natural width even
+                //    after fix 1. inset-x-0 + mx-auto anchors both edges
+                //    (giving the correct centred layout via auto margins
+                //    instead of the transform trick) and w-fit (fit-content,
+                //    not auto) sizes correctly within that; translate-x-0
+                //    cancels only the now-unwanted horizontal half of the
+                //    base transform, leaving -translate-y-1/2 to keep doing
+                //    its job. Verified empirically at 1366px: the 853×512
+                //    render now measures 853×512 (was ~326×196 in the sm:
+                //    max-w-sm regression); a height-capped portrait render
+                //    is unaffected either way, since it never reached the
+                //    width cap.
+                className="inset-x-0 mx-auto max-h-[94vh] w-fit max-w-[min(96vw,1400px)] translate-x-0 overflow-hidden p-4 supports-[height:1dvh]:max-h-[94dvh] sm:max-w-[min(96vw,1400px)] sm:p-6"
+                onKeyDown={onKeyDown}
+                initialFocus={closeRef}
+                finalFocus={returnFocusTo}
+                showCloseButton={false}
+            >
+                {shownEntry && (
+                    <figure className="flex min-h-0 flex-col">
                         <img
-                            src={`${assetBase}${entry.full}`}
-                            alt={caption(manifest, entry)}
-                            width={entry.widthPx}
-                            height={entry.heightPx}
+                            src={assetBase + shownEntry.full}
+                            alt={caption(manifest, shownEntry)}
+                            width={shownEntry.widthPx}
+                            height={shownEntry.heightPx}
+                            className="block h-auto max-h-[calc(94vh-9rem)] w-auto max-w-full object-contain supports-[height:1dvh]:max-h-[calc(94dvh-9rem)]"
                         />
-                        <figcaption>
-                            {/* id lives on this span, not the figcaption: the
-                                dialog's aria-labelledby points at captionId,
-                                and its accessible name must not end in
-                                "open the file" from the link below. */}
-                            <span id={captionId}>
-                                {caption(manifest, entry)} · {entry.widthDp}×
-                                {entry.heightDp} dp
-                            </span>{" "}
-                            ·{" "}
-                            <a href={`${assetBase}${entry.full}`}>
+                        <figcaption className="mt-3 text-sm text-muted-foreground">
+                            <DialogTitle className="inline text-sm font-normal">
+                                {caption(manifest, shownEntry)} ·{" "}
+                                {shownEntry.widthDp}×{shownEntry.heightDp} dp
+                            </DialogTitle>
+                            {" · "}
+                            <a
+                                href={assetBase + shownEntry.full}
+                                className="text-primary underline-offset-4 hover:underline"
+                            >
                                 open the file
                             </a>
                         </figcaption>
+                        <DialogDescription className="sr-only">
+                            Use the arrow keys to move to a neighbouring render.
+                        </DialogDescription>
                     </figure>
-                    <div className="catalog__lightbox-nav">
-                        {DIRECTION_ORDER.map((direction) => {
-                            const target = neighbourId(
-                                state,
-                                manifest,
-                                direction,
-                            );
-                            return (
-                                <button
-                                    key={direction}
-                                    type="button"
-                                    className="glass-button"
-                                    aria-label={DIRECTIONS[direction].label}
-                                    // Not the native `disabled` attribute: a
-                                    // focused arrow button that disables
-                                    // itself on activation drops focus out of
-                                    // the dialog, so the keydown handler
-                                    // above then misses arrow/Escape keys
-                                    // until the user tabs back in.
-                                    // catalog.css's [aria-disabled="true"]
-                                    // rule makes it inert to clicks while Tab
-                                    // focus still lands on it.
-                                    aria-disabled={target === null}
-                                    onClick={() =>
-                                        target !== null &&
-                                        update(manifest, {
-                                            ...state,
-                                            open: target,
-                                        })
-                                    }
-                                >
+                )}
+                <div className="mt-4 flex flex-wrap gap-2">
+                    {DIRECTION_ORDER.map((direction) => {
+                        const target = neighbourId(state, manifest, direction);
+                        return (
+                            <Button
+                                key={direction}
+                                variant="outline"
+                                size="icon"
+                                aria-label={DIRECTIONS[direction].label}
+                                // Not the native `disabled` attribute: a focused
+                                // arrow button that disables itself on activation
+                                // would drop focus out of the dialog, so the
+                                // arrow/Escape keydown handling above then misses
+                                // keys until the user tabs back in.
+                                // focusableWhenDisabled keeps it in the tab order
+                                // (Base UI reports it via aria-disabled instead of
+                                // the disabled attribute); the aria-disabled:
+                                // utility below gives it the same dimmed look
+                                // buttonVariants' disabled: class gives a truly
+                                // disabled button (pointer-events:none already
+                                // covers the cursor, on top of Base UI's own
+                                // click-suppression once disabled is true).
+                                disabled={target === null}
+                                focusableWhenDisabled
+                                className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
+                                onClick={() => step(direction)}
+                            >
+                                <span aria-hidden="true">
                                     {DIRECTIONS[direction].glyph}
-                                </button>
-                            );
-                        })}
-                        <button
-                            type="button"
-                            className="glass-button"
-                            ref={focusOnMount}
-                            onClick={() => dialogRef.current?.close()}
-                        >
-                            Close
-                        </button>
-                    </div>
+                                </span>
+                            </Button>
+                        );
+                    })}
+                    <Button variant="secondary" onClick={close} ref={closeRef}>
+                        Close
+                    </Button>
                 </div>
-            )}
-        </dialog>
+            </DialogContent>
+        </Dialog>
     );
 }
 
 export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
     const [status, setStatus] = useState<Status>({ kind: "loading" });
     const [state, setState] = useState<ViewState | null>(null);
+    // The cell button that opened the lightbox: Lightbox's finalFocus
+    // returns focus here on close, instead of Base UI's own default (the
+    // trigger) — there is no Dialog.Trigger here, the cells open it via
+    // plain state, so this ref is what tells Base UI where "back" is.
+    const lastCell = useRef<HTMLElement | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -427,11 +478,13 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
 
     if (status.kind === "loading")
         return (
-            <output className="catalog__status">Loading the catalog…</output>
+            <output className="block text-muted-foreground">
+                Loading the catalog…
+            </output>
         );
     if (status.kind === "missing")
         return (
-            <output className="catalog__status">
+            <output className="block text-muted-foreground">
                 This build carries no catalog. The published site renders it on
                 every push to main.
             </output>
@@ -447,8 +500,8 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
     const { manifest } = status;
 
     return (
-        <div className="catalog">
-            <p className="catalog__meta">
+        <div>
+            <p className="mb-6 text-muted-foreground">
                 Rendered from commit <code>{manifest.gitSha.slice(0, 7)}</code>{" "}
                 on{" "}
                 <time dateTime={manifest.generatedAt}>
@@ -459,8 +512,8 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
 
             <Controls manifest={manifest} state={state} update={update} />
 
-            <div className="catalog__scroll">
-                <table className="catalog__matrix">
+            <div className="relative overflow-x-auto">
+                <table className="border-separate border-spacing-2">
                     <caption className="sr-only">
                         {matrix.rowAxis.label} by {matrix.colAxis.label}
                     </caption>
@@ -473,7 +526,11 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
                                 </span>
                             </td>
                             {matrix.colAxis.values.map((value) => (
-                                <th key={value.id} scope="col">
+                                <th
+                                    key={value.id}
+                                    scope="col"
+                                    className="text-left text-sm font-semibold whitespace-nowrap text-muted-foreground"
+                                >
                                     {value.label}
                                 </th>
                             ))}
@@ -482,14 +539,22 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
                     <tbody>
                         {matrix.rows.map((row) => (
                             <tr key={row.rowValue.id}>
-                                <th scope="row">{row.rowValue.label}</th>
+                                <th
+                                    scope="row"
+                                    className="text-left text-sm font-semibold whitespace-nowrap text-muted-foreground"
+                                >
+                                    {row.rowValue.label}
+                                </th>
                                 {row.cells.map((cell) => {
                                     // A local binding keeps the null-check visible to the closures below.
                                     const entry = cell.entry;
                                     return (
-                                        <td key={cell.colValue.id}>
+                                        <td
+                                            key={cell.colValue.id}
+                                            className="align-top"
+                                        >
                                             {entry === null ? (
-                                                <span className="catalog__empty">
+                                                <span className="grid aspect-[5/3] w-60 max-w-[60vw] place-items-center rounded-md border border-dashed border-border text-muted-foreground">
                                                     {/* aria-label is name-prohibited on a role-less span; an sr-only text node names it instead. */}
                                                     <span aria-hidden="true">
                                                         —
@@ -501,14 +566,16 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
                                             ) : (
                                                 <button
                                                     type="button"
-                                                    className="catalog__cell"
+                                                    className="block cursor-zoom-in rounded-md border border-border bg-card focus-visible:outline-2 focus-visible:outline-ring"
                                                     aria-label={`Open ${caption(manifest, entry)}`}
-                                                    onClick={() =>
+                                                    onClick={(event) => {
+                                                        lastCell.current =
+                                                            event.currentTarget;
                                                         update(manifest, {
                                                             ...state,
                                                             open: entry.id,
-                                                        })
-                                                    }
+                                                        });
+                                                    }}
                                                 >
                                                     <img
                                                         src={`${assetBase}${entry.thumb}`}
@@ -517,6 +584,7 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
                                                         height={entry.heightPx}
                                                         loading="lazy"
                                                         decoding="async"
+                                                        className="block w-60 max-w-[60vw] rounded-md"
                                                     />
                                                 </button>
                                             )}
@@ -534,6 +602,7 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
                 state={state}
                 update={update}
                 assetBase={assetBase}
+                returnFocusTo={lastCell}
             />
         </div>
     );

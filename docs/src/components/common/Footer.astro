@@ -2,186 +2,58 @@
 import siteConfig from "@/site.config";
 import { withBase } from "@/lib/url";
 import { getEnabledNavItems } from "@/lib/nav";
-import GlassPanel from "./GlassPanel.astro";
 
 const currentYear = new Date().getFullYear();
 const navItems = getEnabledNavItems();
 ---
 
-<footer class="site-footer">
-    <GlassPanel variant="solid" padding="xl" radius="none">
-        <div class="container footer-container">
-            <div class="footer-grid">
-                <div class="footer-section">
-                    <h3 class="footer-title">{siteConfig.name}</h3>
-                    <p class="footer-description">{siteConfig.description}</p>
-                </div>
-
-                <div class="footer-section">
-                    <h4 class="footer-subtitle">Pages</h4>
-                    <ul class="footer-links">
-                        {navItems.map((item) => (
-                            <li>
-                                <a
-                                    href={withBase(item.href)}
-                                    class="footer-link"
-                                >
-                                    {item.name}
-                                </a>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-
-                <div class="footer-section">
-                    <h4 class="footer-subtitle">Project</h4>
-                    <ul class="footer-links">
-                        {siteConfig.footer.links.map((link) => (
-                            <li>
-                                <a
-                                    href={withBase(link.href)}
-                                    class="footer-link"
-                                >
-                                    {link.name}
-                                </a>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            </div>
-
-            <div class="glass-divider"></div>
-
-            <div class="footer-bottom">
-                <p class="copyright">
-                    © {currentYear} {siteConfig.name}. Licensed under the{" "}
-                    <a href={`${siteConfig.repository}/blob/main/LICENSE`}>
-                        Apache License 2.0
-                    </a>
-                    .
-                </p>
-            </div>
+<footer class="border-t border-border bg-muted/40">
+    <div class="mx-auto grid w-full max-w-6xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[2fr_1fr_1fr]">
+        <div>
+            <p class="text-lg font-semibold">{siteConfig.name}</p>
+            <p class="mt-2 max-w-prose text-sm text-muted-foreground">
+                {siteConfig.description}
+            </p>
         </div>
-    </GlassPanel>
+        <div>
+            <h2 class="text-sm font-semibold">Pages</h2>
+            <ul class="mt-3 space-y-2 text-sm">
+                {navItems.map((item) => (
+                    <li>
+                        <a
+                            href={withBase(item.href)}
+                            class="text-muted-foreground hover:text-foreground"
+                        >
+                            {item.name}
+                        </a>
+                    </li>
+                ))}
+            </ul>
+        </div>
+        <div>
+            <h2 class="text-sm font-semibold">Project</h2>
+            <ul class="mt-3 space-y-2 text-sm">
+                {siteConfig.footer.links.map((link) => (
+                    <li>
+                        <a
+                            href={withBase(link.href)}
+                            class="text-muted-foreground hover:text-foreground"
+                        >
+                            {link.name}
+                        </a>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    </div>
+    <div class="mx-auto w-full max-w-6xl border-t border-border px-4 py-6 text-sm text-muted-foreground sm:px-6">
+        © {currentYear} {siteConfig.name}. Licensed under the{" "}
+        <a
+            href={`${siteConfig.repository}/blob/main/LICENSE`}
+            class="underline underline-offset-4 hover:text-foreground"
+        >
+            Apache License 2.0
+        </a>
+        .
+    </div>
 </footer>
-
-<style>
-    .site-footer {
-        margin-top: var(--space-3xl);
-    }
-
-    .footer-container {
-        max-width: var(--container-max);
-        margin: 0 auto;
-        /* The grid inside queries this, not the viewport. */
-        container-type: inline-size;
-    }
-
-    .footer-grid {
-        display: grid;
-        grid-template-columns: 2fr 1fr 1fr;
-        gap: var(--space-2xl);
-        margin-bottom: var(--space-xl);
-    }
-
-    /* Was a viewport query: the footer columns depend on the footer's own width,
-       which is capped well below the window on a wide screen. */
-    @container (max-width: 768px) {
-        .footer-grid {
-            grid-template-columns: 1fr;
-            gap: var(--space-xl);
-        }
-    }
-
-    .footer-section {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-md);
-    }
-
-    .footer-title {
-        font-size: var(--text-2xl);
-        font-weight: 700;
-        margin: 0;
-        background: linear-gradient(
-            135deg,
-            var(--color-accent),
-            var(--color-accent-light)
-        );
-        -webkit-background-clip: text;
-        background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-
-    @supports not ((-webkit-background-clip: text) or (background-clip: text)) {
-        .footer-title {
-            background: none;
-            -webkit-text-fill-color: currentColor;
-            color: var(--color-text);
-        }
-    }
-
-    .footer-subtitle {
-        font-size: var(--text-lg);
-        font-weight: 600;
-        margin: 0;
-        color: var(--color-text);
-    }
-
-    .footer-description {
-        color: var(--color-text-muted);
-        line-height: 1.6;
-        margin: 0;
-    }
-
-    .footer-links {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-sm);
-    }
-
-    .footer-link {
-        color: var(--color-text-muted);
-        text-decoration: none;
-        transition: color var(--transition-fast);
-        display: inline-flex;
-        align-items: center;
-    }
-
-    .footer-link:hover {
-        color: var(--color-accent);
-    }
-
-    /* Bottom Bar */
-    .footer-bottom {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: var(--space-md);
-        padding-top: var(--space-lg);
-    }
-
-    .copyright {
-        margin: 0;
-        color: var(--color-text-muted);
-        font-size: var(--text-sm);
-    }
-
-    /* Mobile Styles */
-    @media (max-width: 768px) {
-        .footer-bottom {
-            flex-direction: column;
-            text-align: center;
-        }
-    }
-
-    /* Focus styles */
-    .footer-link:focus-visible {
-        outline: 2px solid var(--color-accent);
-        outline-offset: 2px;
-    }
-</style>
