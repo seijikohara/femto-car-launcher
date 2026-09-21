@@ -1,26 +1,18 @@
 ---
 import SiteHeader from "@/components/site/SiteHeader";
-import { getEnabledNavItems } from "@/lib/nav";
+import { getEnabledNavItems, isNavItemActive } from "@/lib/nav";
 import { withBase } from "@/lib/url";
 import siteConfig from "@/site.config";
 import logo from "../../../../logo.svg";
 
+// currentPath includes the base, so isNavItemActive compares against
+// base-prefixed hrefs/sections (withBase, passed in below).
 const currentPath = Astro.url.pathname;
-
-// A nav item is active when the path matches exactly or sits under it; "/"
-// only matches the home page. currentPath includes the base, so compare
-// against the base-prefixed href.
-function isActive(href: string): boolean {
-    const target = withBase(href);
-    if (href === "/") return currentPath === withBase("/");
-    const targetBase = target.endsWith("/") ? target.slice(0, -1) : target;
-    return currentPath === target || currentPath.startsWith(targetBase + "/");
-}
 
 const items = getEnabledNavItems().map((item) => ({
     name: item.name,
     href: withBase(item.href),
-    active: isActive(item.href),
+    active: isNavItemActive(currentPath, item, withBase),
 }));
 ---
 

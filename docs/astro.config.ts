@@ -53,6 +53,12 @@ export default defineConfig({
                 satteriBaseUrls(siteBase.base),
             ],
         }),
+        shikiConfig: {
+            // Dual themes: Shiki emits --shiki-light/--shiki-dark variables and no
+            // inline colour (defaultColor false); global.css switches on data-theme.
+            themes: { light: "github-light", dark: "github-dark" },
+            defaultColor: false,
+        },
     },
     vite: {
         plugins: [tailwindcss()],
