@@ -30,7 +30,7 @@ const props = Astro.props;
 
         <!-- Favicon & app icons -->
         <link rel="icon" type="image/svg+xml" href={logo.src} />
-        <meta id="theme-color-meta" name="theme-color" content="#0e1318" />
+        <meta id="theme-color-meta" name="theme-color" content="#0a0a0a" />
 
         <!-- SEO: title, description, canonical, Open Graph, Twitter, JSON-LD -->
         <Seo
@@ -66,7 +66,9 @@ const props = Astro.props;
         d.setAttribute('data-theme', resolved);
         d.setAttribute('data-theme-mode', mode);
         var meta = document.getElementById('theme-color-meta');
-        if (meta) meta.setAttribute('content', resolved === 'dark' ? '#0e1318' : '#f5f6f9');
+        // Mirrors --background in global.css (light #ffffff / dark #0a0a0a);
+        // change them together — this script runs before the stylesheet loads.
+        if (meta) meta.setAttribute('content', resolved === 'dark' ? '#0a0a0a' : '#ffffff');
       })();`}
         ></script>
         <Font

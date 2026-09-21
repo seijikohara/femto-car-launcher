@@ -54,13 +54,16 @@ under `docs/src/` is ours to edit.
   [`verify-android-build`](../skills/verify-android-build/SKILL.md)
   skill lists them as its docs stage).
 - Lint is oxlint (it lints `.astro` script blocks; the `react` and
-  `jsx-a11y` plugins cover the catalog viewer's JSX/TSX). Format is
-  Prettier + `prettier-plugin-astro`, the one formatter for the whole
-  directory — oxfmt has no Astro support (oxc docs, checked
-  2026-09-20); revisit if it lands. Both follow the root
-  `.editorconfig`.
+  `jsx-a11y` plugins cover the two islands' TSX (site header, catalog
+  viewer)). Format is Prettier + `prettier-plugin-astro`, the one
+  formatter for the whole directory — oxfmt has no Astro support (oxc
+  docs, checked 2026-09-20); revisit if it lands. Both follow the
+  root `.editorconfig`.
 - Prettier plugins order: astro then tailwindcss (last);
-  `tailwindFunctions: ["cn", "cva"]`.
+  `tailwindFunctions: ["cn", "cva"]`. `.astro` `class` attributes are
+  NOT sorted by the current plugin pairing (prettier-plugin-tailwindcss
+  0.8.x + prettier-plugin-astro 1.x) — only TSX `className` / `cn()` /
+  `cva()` are.
 - TypeScript stays on 5.x here: `@astrojs/check` requires 5.x/6.x
   (the webmap's TypeScript 7 pin is a separate project).
 - Islands: `SiteHeader` (every page, `transition:persist`) and the
@@ -104,8 +107,11 @@ under `docs/src/` is ours to edit.
   navigation state there and ignores `popstate` when that state is
   `null`, which breaks the Back button site-wide, not just on the
   page that did it.
-- Overlays (Sheet / Dialog / DropdownMenu) portal into `<body>`,
-  which the ClientRouter swaps — close them on `astro:before-swap`.
+- Overlays in the persisted header island (the Sheet and the theme
+  DropdownMenu) portal into `<body>`, which the ClientRouter swaps —
+  both close on `astro:before-swap`; the catalog Dialog needs no
+  handler because its island is not persisted and unmounts with the
+  page.
 - Theme carry-over is `installThemeSync()`'s job: its
   `astro:before-swap` listener writes the resolved theme onto
   `event.newDocument` before the router swaps to it.
@@ -113,3 +119,6 @@ under `docs/src/` is ours to edit.
   the pre-paint inline script in `BaseLayout.astro` falls back to
   `siteConfig.theme.defaultColorMode` (currently `system`) instead —
   keep the two defaults in agreement by hand if that setting changes.
+- `theme-color` meta hex values (`#ffffff` / `#0a0a0a`) mirror
+  `--background` in `global.css`; change them together (three homes:
+  the inline script, `theme.ts`, the `<meta>` default).

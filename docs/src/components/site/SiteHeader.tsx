@@ -88,8 +88,20 @@ function ThemeMenu() {
         applyTheme(next as ThemeMode);
         notifyThemeChange();
     };
+
+    // Controlled so it can be force-closed below. Its popup portals into
+    // <body>, same as the Sheet's, and the view-transition swap replaces
+    // that body — left uncontrolled, Base UI would keep "open" state for a
+    // menu that no longer exists in the incoming document.
+    const [open, setOpen] = useState(false);
+    useEffect(() => {
+        const close = () => setOpen(false);
+        document.addEventListener("astro:before-swap", close);
+        return () => document.removeEventListener("astro:before-swap", close);
+    }, []);
+
     return (
-        <DropdownMenu>
+        <DropdownMenu open={open} onOpenChange={setOpen}>
             <DropdownMenuTrigger
                 render={
                     <Button
@@ -126,10 +138,13 @@ function ThemeMenu() {
 function NavLinks({
     items,
     className,
+    linkClassName,
     onNavigate,
 }: {
     items: NavItem[];
     className?: string;
+    /** Per-instance override: the mobile Sheet wants a taller, full-width tap target than the desktop nav's compact "sm" buttons. */
+    linkClassName?: string;
     onNavigate?: () => void;
 }) {
     return (
@@ -144,6 +159,7 @@ function NavLinks({
                             buttonVariants({ variant: "ghost", size: "sm" }),
                             "text-muted-foreground",
                             item.active && "bg-accent text-foreground",
+                            linkClassName,
                         )}
                     >
                         {item.name}
@@ -171,7 +187,7 @@ export default function SiteHeader({
     }, []);
 
     return (
-        <header className="border-border bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-40 border-b backdrop-blur">
+        <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
             <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-4 px-4 sm:px-6">
                 {/* No aria-label here: the visible brand text below already gives this
                     link an accessible name ("Femto Car Launcher"), and the logo is
@@ -222,6 +238,7 @@ export default function SiteHeader({
                                 <NavLinks
                                     items={items}
                                     className="flex-col"
+                                    linkClassName="h-11 w-full justify-start text-base"
                                     onNavigate={() => setMenuOpen(false)}
                                 />
                             </nav>

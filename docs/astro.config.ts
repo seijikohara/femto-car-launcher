@@ -22,8 +22,9 @@ export default defineConfig({
         format: "directory",
         inlineStylesheets: "auto",
     },
-    // React only for the catalog island (src/catalog); every other page
-    // ships no client framework.
+    // React for two islands: the site header (src/components/site) and the
+    // catalog viewer (src/catalog); every other component ships no client
+    // framework.
     integrations: [mdx(), sitemap(), react()],
     // AVIF/WebP output is chosen per image (see ui/Picture.astro's `formats`
     // prop to astro:assets Picture) — Astro's `image` config has no global

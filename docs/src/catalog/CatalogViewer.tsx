@@ -338,7 +338,7 @@ function Lightbox({
                             height={shownEntry.heightPx}
                             className="block h-auto max-h-[calc(94vh-9rem)] w-auto max-w-full object-contain supports-[height:1dvh]:max-h-[calc(94dvh-9rem)]"
                         />
-                        <figcaption className="text-muted-foreground mt-3 text-sm">
+                        <figcaption className="mt-3 text-sm text-muted-foreground">
                             <DialogTitle className="inline text-sm font-normal">
                                 {caption(manifest, shownEntry)} ·{" "}
                                 {shownEntry.widthDp}×{shownEntry.heightDp} dp
@@ -478,13 +478,13 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
 
     if (status.kind === "loading")
         return (
-            <output className="text-muted-foreground block">
+            <output className="block text-muted-foreground">
                 Loading the catalog…
             </output>
         );
     if (status.kind === "missing")
         return (
-            <output className="text-muted-foreground block">
+            <output className="block text-muted-foreground">
                 This build carries no catalog. The published site renders it on
                 every push to main.
             </output>
@@ -501,7 +501,7 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
 
     return (
         <div>
-            <p className="text-muted-foreground mb-6">
+            <p className="mb-6 text-muted-foreground">
                 Rendered from commit <code>{manifest.gitSha.slice(0, 7)}</code>{" "}
                 on{" "}
                 <time dateTime={manifest.generatedAt}>
@@ -529,7 +529,7 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
                                 <th
                                     key={value.id}
                                     scope="col"
-                                    className="text-muted-foreground text-left text-sm font-semibold whitespace-nowrap"
+                                    className="text-left text-sm font-semibold whitespace-nowrap text-muted-foreground"
                                 >
                                     {value.label}
                                 </th>
@@ -541,7 +541,7 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
                             <tr key={row.rowValue.id}>
                                 <th
                                     scope="row"
-                                    className="text-muted-foreground text-left text-sm font-semibold whitespace-nowrap"
+                                    className="text-left text-sm font-semibold whitespace-nowrap text-muted-foreground"
                                 >
                                     {row.rowValue.label}
                                 </th>
@@ -554,7 +554,7 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
                                             className="align-top"
                                         >
                                             {entry === null ? (
-                                                <span className="border-border text-muted-foreground grid aspect-[5/3] w-60 max-w-[60vw] place-items-center rounded-md border border-dashed">
+                                                <span className="grid aspect-[5/3] w-60 max-w-[60vw] place-items-center rounded-md border border-dashed border-border text-muted-foreground">
                                                     {/* aria-label is name-prohibited on a role-less span; an sr-only text node names it instead. */}
                                                     <span aria-hidden="true">
                                                         —
@@ -566,7 +566,7 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
                                             ) : (
                                                 <button
                                                     type="button"
-                                                    className="border-border bg-card focus-visible:outline-ring block cursor-zoom-in rounded-md border focus-visible:outline-2"
+                                                    className="block cursor-zoom-in rounded-md border border-border bg-card focus-visible:outline-2 focus-visible:outline-ring"
                                                     aria-label={`Open ${caption(manifest, entry)}`}
                                                     onClick={(event) => {
                                                         lastCell.current =

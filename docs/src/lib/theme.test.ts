@@ -53,7 +53,7 @@ describe("applyTheme", () => {
         applyTheme("dark");
         expect(document.documentElement.dataset.theme).toBe("dark");
         expect(document.documentElement.dataset.themeMode).toBe("dark");
-        expect(meta()?.getAttribute("content")).toBe("#0e1318");
+        expect(meta()?.getAttribute("content")).toBe("#0a0a0a");
         expect(localStorage.getItem(STORAGE_KEY)).toBe("dark");
     });
     it("persists system verbatim and resolves it", () => {
@@ -69,7 +69,7 @@ describe("applyTheme", () => {
         applyTheme("system");
         expect(document.documentElement.dataset.theme).toBe("light");
         expect(document.documentElement.dataset.themeMode).toBe("system");
-        expect(meta()?.getAttribute("content")).toBe("#f5f6f9");
+        expect(meta()?.getAttribute("content")).toBe("#ffffff");
         expect(localStorage.getItem(STORAGE_KEY)).toBe("system");
     });
     it("can target another document (the incoming page of a view transition)", () => {
@@ -82,7 +82,7 @@ describe("applyTheme", () => {
             incoming
                 .getElementById("theme-color-meta")
                 ?.getAttribute("content"),
-        ).toBe("#0e1318");
+        ).toBe("#0a0a0a");
         expect(document.documentElement.dataset.theme).toBeUndefined();
     });
 });

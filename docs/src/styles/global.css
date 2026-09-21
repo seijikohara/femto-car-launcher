@@ -58,8 +58,12 @@
     --card-foreground: oklch(0.145 0 0);
     --popover: oklch(1 0 0);
     --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.66 0.15 165);
-    --primary-foreground: oklch(0.145 0 0);
+    /* Darker than the brand mark's #3BE0AE: this token also carries text on
+       white at >= 4.5:1 (the brand green alone reads far below that), so the
+       light theme trades hue purity for legibility. The dark theme below
+       keeps the brand value — a light glyph on a dark card has no such floor. */
+    --primary: oklch(0.48 0.15 165);
+    --primary-foreground: oklch(0.985 0 0);
     --secondary: oklch(0.97 0 0);
     --secondary-foreground: oklch(0.205 0 0);
     --muted: oklch(0.97 0 0);
@@ -73,7 +77,7 @@
     --destructive-foreground: oklch(0.985 0 0);
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
-    --ring: oklch(0.66 0.15 165);
+    --ring: oklch(0.48 0.15 165);
     --chart-1: oklch(0.646 0.222 41.116);
     --chart-2: oklch(0.6 0.118 184.704);
     --chart-3: oklch(0.398 0.07 227.392);
@@ -134,23 +138,38 @@
            (the /install/ page overflowed by 1px at 390px width). */
         overflow-wrap: anywhere;
     }
+    /* Components carry their own focus-visible ring; plain links and other
+       tabbable non-button elements would otherwise fall back to the UA outline
+       at 50 % alpha (below the 3:1 non-text contrast minimum). */
+    a:focus-visible,
+    [tabindex]:focus-visible {
+        @apply outline-2 outline-offset-2 outline-ring;
+    }
 }
 
 @layer base {
     html {
         scroll-behavior: smooth;
     }
-    @media (prefers-reduced-motion: reduce) {
-        html {
-            scroll-behavior: auto;
-        }
+}
+
+/* Base UI / tw-animate enter–exit animations do not consult the OS setting on
+   their own; collapse every animation and transition when motion is reduced. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
     }
 }
 
 /* Skip link: visually hidden until focused (Tailwind's sr-only pair). */
 @layer components {
     .skip-link {
-        @apply focus:bg-primary focus:text-primary-foreground sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:px-4 focus:py-2 focus:shadow;
+        @apply sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:shadow;
     }
 }
 

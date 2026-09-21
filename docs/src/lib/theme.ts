@@ -7,9 +7,12 @@ export type Appearance = "light" | "dark";
 export const THEME_MODES: readonly ThemeMode[] = ["system", "light", "dark"];
 export const STORAGE_KEY = "theme";
 
+// These hex values mirror --background in global.css (light #ffffff / dark
+// #0a0a0a) — change them together; this module runs before the stylesheet
+// is available to read from.
 const THEME_COLOR: Record<Appearance, string> = {
-    dark: "#0e1318",
-    light: "#f5f6f9",
+    dark: "#0a0a0a",
+    light: "#ffffff",
 };
 
 const isMode = (value: string | null): value is ThemeMode =>

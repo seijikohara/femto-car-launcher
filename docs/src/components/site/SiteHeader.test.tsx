@@ -60,7 +60,7 @@ describe("SiteHeader", () => {
             document
                 .getElementById("theme-color-meta")
                 ?.getAttribute("content"),
-        ).toBe("#0e1318");
+        ).toBe("#0a0a0a");
         // The trigger's own label follows the chosen mode, and picking an
         // option is expected to close the menu (not leave it open).
         expect(
@@ -76,5 +76,14 @@ describe("SiteHeader", () => {
         await screen.findByRole("dialog", { name: "Menu" });
         document.dispatchEvent(new Event("astro:before-swap"));
         await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    });
+
+    it("closes an open theme menu before a client-side navigation swap", async () => {
+        const user = userEvent.setup();
+        render(<SiteHeader {...props} />);
+        await user.click(screen.getByRole("button", { name: /Theme/ }));
+        await screen.findByRole("menu");
+        document.dispatchEvent(new Event("astro:before-swap"));
+        await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
     });
 });

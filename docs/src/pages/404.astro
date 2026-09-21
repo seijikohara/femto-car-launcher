@@ -4,7 +4,6 @@ import Header from "@/components/common/Header.astro";
 import Footer from "@/components/common/Footer.astro";
 import Container from "@/components/ui/Container.astro";
 import Button from "@/components/ui/Button.astro";
-import { withBase } from "@/lib/url";
 ---
 
 <BaseLayout
@@ -31,7 +30,7 @@ import { withBase } from "@/lib/url";
                     moved. Let's get you back on track.
                 </p>
                 <div class="mt-8">
-                    <Button href={withBase("/")} variant="solid">
+                    <Button href="/" variant="solid">
                         Back to home
                     </Button>
                 </div>

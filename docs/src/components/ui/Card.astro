@@ -13,10 +13,10 @@ const { href, as = "div", padding = "lg", class: className = "" } = Astro.props;
 
 const Tag = href ? "a" : as;
 const classes = cn(
-    "border-border bg-card text-card-foreground block rounded-xl border shadow-sm",
+    "block rounded-xl border border-border bg-card text-card-foreground shadow-sm",
     padding === "lg" ? "p-6 sm:p-8" : "p-4 sm:p-6",
     href &&
-        "hover:border-primary/60 hover:bg-accent/40 focus-visible:outline-ring transition-colors focus-visible:outline-2",
+        "transition-colors hover:border-primary/60 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring",
     className,
 );
 ---
