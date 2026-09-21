@@ -23,6 +23,7 @@ import io.github.seijikohara.femto.ui.home.components.MapConfig
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import kotlin.math.cos
 
 /**
  * The dashboard render inputs shared by the goldens (`DashboardScreenshotTest`)
@@ -104,13 +105,6 @@ private val ChevronBoxSize = 34.dp
 private val ChevronViewBoxSize = 30f
 private val ChevronStrokeWidth = 1.5.dp
 
-// Foreshortens the chevron vertically to stand in for the live page's
-// perspective(600px) rotateX(...) tilt on the pitched map — an approximation,
-// not a 3D projection (see SelfMarker). Fixed for the default MapConfig tilt
-// and heading-up follow mode, which is all the goldens and catalog render;
-// a tilt or north-up axis would have to derive it from mapConfig instead.
-private val ChevronForeshorten = 0.8f
-
 /**
  * Approximates `webmap/index.html`'s `#self-marker` — the DOM chevron the
  * live WebView draws for the vehicle's own position — since Robolectric's
@@ -128,8 +122,6 @@ private fun SelfMarker(mapConfig: MapConfig) {
         val xShift = SelfMarkerAnchor.xShift(mapConfig.leftSafeFraction, mapConfig.rightSafeFraction)
         val drop = SelfMarkerAnchor.drop(mapConfig.markerPos, mapConfig.bottomSafeFraction)
         val center = Offset(x = size.width * (0.5f + xShift), y = size.height * (0.5f + drop))
-
-        drawCircle(color = rippleColor, radius = RippleRadius.toPx(), center = center)
 
         // Map the SVG path's 30-unit viewBox coordinates into the 34dp icon
         // box centred on the anchor point.
@@ -153,7 +145,14 @@ private fun SelfMarker(mapConfig: MapConfig) {
                 close()
             }
 
-        scale(scaleX = 1f, scaleY = ChevronForeshorten, pivot = center) {
+        // The live page lays the whole #self-marker (ripple included) onto the
+        // pitched ground plane with perspective(600px) rotateX(tiltDeg), where
+        // tiltDeg is the map pitch the same MapConfig drives. A vertical squash
+        // by cos(tilt) is that transform's first-order effect; the perspective
+        // term on a 34dp element is under 3 % and not worth a 3D projection.
+        val foreshorten = cos(Math.toRadians(mapConfig.tiltDeg.toDouble())).toFloat()
+        scale(scaleX = 1f, scaleY = foreshorten, pivot = center) {
+            drawCircle(color = rippleColor, radius = RippleRadius.toPx(), center = center)
             drawPath(chevron, color = chevronColor)
             drawPath(
                 chevron,
