@@ -6,15 +6,8 @@ import {
     screen,
     waitFor,
 } from "@testing-library/react";
-import {
-    afterAll,
-    afterEach,
-    beforeAll,
-    describe,
-    expect,
-    it,
-    vi,
-} from "vitest";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import CatalogViewer from "./CatalogViewer";
 import type { SiteManifest } from "./manifest";
 
@@ -68,40 +61,6 @@ const stubFetch = (response: { ok: boolean; status: number; body?: unknown }) =>
         })),
     );
 
-// jsdom 30's HTMLDialogElement has no working showModal()/close() (no
-// open-attribute toggling, no `close` event) — stub the minimum
-// CatalogViewer relies on so the tests exercise the real open/close path
-// through React (onClose etc.), not a bypass around it. showModal() also
-// throws on an already-open dialog, matching real browsers, so a test can
-// prove the open/close effect is keyed on the open/closed boolean rather
-// than on the entry id: calling showModal() again on an entry-to-entry step
-// would fail the test instead of silently resetting focus.
-let originalShowModal: typeof HTMLDialogElement.prototype.showModal;
-let originalClose: typeof HTMLDialogElement.prototype.close;
-
-beforeAll(() => {
-    originalShowModal = HTMLDialogElement.prototype.showModal;
-    originalClose = HTMLDialogElement.prototype.close;
-    HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
-        if (this.open) {
-            throw new DOMException(
-                "The dialog is already open.",
-                "InvalidStateError",
-            );
-        }
-        this.setAttribute("open", "");
-    };
-    HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
-        this.removeAttribute("open");
-        this.dispatchEvent(new Event("close"));
-    };
-});
-
-afterAll(() => {
-    HTMLDialogElement.prototype.showModal = originalShowModal;
-    HTMLDialogElement.prototype.close = originalClose;
-});
-
 afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
@@ -148,7 +107,8 @@ describe("CatalogViewer", () => {
         expect(screen.getByText(/abc1234/)).toBeTruthy();
     });
 
-    it("opens the lightbox with the full image and mirrors the state into the URL", async () => {
+    it("opens the lightbox with the full image and mirrors the state into the URL, then closes on Escape and returns focus to the originating cell", async () => {
+        const user = userEvent.setup();
         stubFetch({ ok: true, status: 200, body: manifest });
         render(
             <CatalogViewer
@@ -157,23 +117,25 @@ describe("CatalogViewer", () => {
             />,
         );
         await screen.findByRole("table");
-        fireEvent.click(screen.getByRole("button", { name: /Floor · Medium/ }));
-        const dialog = await screen.findByRole("dialog");
+        const cellButton = screen.getByRole("button", {
+            name: /Floor · Medium/,
+        });
+        await user.click(cellButton);
+        // aria-labelledby points at DialogTitle alone, so the accessible name
+        // stops before "open the file" — an exact string (not a regex) is
+        // what proves the link text is out.
+        const dialog = await screen.findByRole("dialog", {
+            name: "Floor · Medium · Light · 800×480 dp",
+        });
         expect(dialog.querySelector("img")?.getAttribute("src")).toBe(
             "/b/catalog/full/floor__medium__light.webp",
         );
         expect(window.location.search).toContain("open=floor__medium__light");
-        // aria-labelledby points at the caption span rather than the whole
-        // figcaption, so the accessible name stops before "open the file";
-        // an exact string (not a regex) is what proves the link text is out.
-        expect(
-            screen.getByRole("dialog", {
-                name: "Floor · Medium · Light · 800×480 dp",
-            }),
-        ).toBe(dialog);
+
         fireEvent.keyDown(dialog, { key: "Escape" });
         await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
         expect(window.location.search).not.toContain("open=");
+        await waitFor(() => expect(document.activeElement).toBe(cellButton));
     });
 
     it("preserves the router's history state when it rewrites the URL", async () => {
@@ -181,6 +143,7 @@ describe("CatalogViewer", () => {
         // {index, scrollX, scrollY} in history.state and ignores popstate
         // when that state is null, so a viewer interaction must carry the
         // existing state forward through replaceState rather than clobber it.
+        const user = userEvent.setup();
         window.history.replaceState({ index: 3 }, "", "/");
         stubFetch({ ok: true, status: 200, body: manifest });
         render(
@@ -190,7 +153,9 @@ describe("CatalogViewer", () => {
             />,
         );
         await screen.findByRole("table");
-        fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
+        await user.click(
+            screen.getByRole("button", { name: "Dark", pressed: false }),
+        );
         await waitFor(() =>
             expect(window.location.search).toContain("theme=dark"),
         );
@@ -198,6 +163,7 @@ describe("CatalogViewer", () => {
     });
 
     it("switches the row axis from the controls", async () => {
+        const user = userEvent.setup();
         stubFetch({ ok: true, status: 200, body: manifest });
         render(
             <CatalogViewer
@@ -206,18 +172,50 @@ describe("CatalogViewer", () => {
             />,
         );
         await screen.findByRole("table");
-        fireEvent.change(screen.getByLabelText("Rows"), {
-            target: { value: "theme" },
-        });
+        const rowsSelect = screen.getByRole("combobox", { name: "Rows" });
+        await user.click(rowsSelect);
+        await user.click(await screen.findByRole("option", { name: "Theme" }));
         await waitFor(() =>
             expect(
                 screen.getByRole("rowheader", { name: "Dark" }),
             ).toBeTruthy(),
         );
         expect(window.location.search).toContain("rows=theme");
+        // Select.Value only resolves a label through the `items` map passed
+        // to Select.Root — without it the trigger falls back to the raw
+        // axis id ("theme") instead of the axis label.
+        expect(rowsSelect.textContent).toContain("Theme");
     });
 
-    it("opens the lightbox for an `open` id already in the URL on load", async () => {
+    it("swaps rows and columns when a select is set to the other axis's current value", async () => {
+        const user = userEvent.setup();
+        stubFetch({ ok: true, status: 200, body: manifest });
+        render(
+            <CatalogViewer
+                manifestUrl="/b/catalog/manifest.json"
+                assetBase="/b/catalog/"
+            />,
+        );
+        await screen.findByRole("table");
+        // Default: rows=geometry ("Floor"/"Head unit"), cols=scale ("Small"/"Medium").
+        expect(screen.getByRole("rowheader", { name: "Floor" })).toBeTruthy();
+        await user.click(screen.getByRole("combobox", { name: "Columns" }));
+        // Picking the current rows axis for columns swaps the two instead of
+        // collapsing the matrix down to a single axis.
+        await user.click(
+            await screen.findByRole("option", { name: "Geometry" }),
+        );
+        await waitFor(() =>
+            expect(window.location.search).toContain("cols=geometry"),
+        );
+        expect(window.location.search).toContain("rows=scale");
+        expect(screen.getByRole("rowheader", { name: "Small" })).toBeTruthy();
+        expect(
+            screen.getByRole("columnheader", { name: "Floor" }),
+        ).toBeTruthy();
+    });
+
+    it("opens the lightbox for an `open` id already in the URL on load, with the fixed axis it implies", async () => {
         window.history.replaceState(null, "", "/?open=floor__medium__light");
         stubFetch({ ok: true, status: 200, body: manifest });
         render(
@@ -230,28 +228,22 @@ describe("CatalogViewer", () => {
         expect(dialog.querySelector("img")?.getAttribute("src")).toBe(
             "/b/catalog/full/floor__medium__light.webp",
         );
+        // geometry/scale resolve to rows/cols for this entry, leaving "theme"
+        // as the sole fixed axis — parseState (matrix.ts, unchanged here)
+        // resolves it from the entry's own values. `hidden: true` is
+        // required here: the open modal dialog marks the rest of the tree
+        // aria-hidden (Base UI's inert background), so the toggle group sits
+        // outside the default accessibility-tree query until the dialog closes.
+        expect(
+            screen.getByRole("button", {
+                name: "Light",
+                pressed: true,
+                hidden: true,
+            }),
+        ).toBeTruthy();
     });
 
-    it("focuses the Close button when the lightbox opens", async () => {
-        stubFetch({ ok: true, status: 200, body: manifest });
-        render(
-            <CatalogViewer
-                manifestUrl="/b/catalog/manifest.json"
-                assetBase="/b/catalog/"
-            />,
-        );
-        await screen.findByRole("table");
-        fireEvent.click(screen.getByRole("button", { name: /Floor · Small/ }));
-        await screen.findByRole("dialog");
-        const closeButton = screen.getByRole("button", { name: "Close" });
-        // The jsdom showModal() stub runs none of the dialog focusing steps,
-        // so the observable here is their input — the `autofocus` attribute
-        // the real steps delegate to — not document.activeElement (the live
-        // focus move is part of the browser pass).
-        expect(closeButton.hasAttribute("autofocus")).toBe(true);
-    });
-
-    it("moves to the neighbour on ArrowRight and updates the URL, keeping the same dialog element", async () => {
+    it("moves to the neighbour on ArrowRight and updates the URL, keeping the same dialog element and focus", async () => {
         stubFetch({ ok: true, status: 200, body: manifest });
         render(
             <CatalogViewer
@@ -272,10 +264,9 @@ describe("CatalogViewer", () => {
                 "open=floor__medium__light",
             ),
         );
-        // Still open — the showModal() stub throws on a second call while
-        // already open, so this also proves the boolean-keyed open effect
-        // did not call it again for this entry-to-entry step.
-        expect(dialog.hasAttribute("open")).toBe(true);
+        // Still the same dialog element — only state.open (the entry id)
+        // changed, so React must not have torn the dialog down and back up.
+        expect(screen.getByRole("dialog")).toBe(dialog);
         // An arrow step only swaps state.open; nothing here moves focus, so
         // it must stay exactly where the user left it.
         expect(document.activeElement).toBe(closeButton);
@@ -285,6 +276,7 @@ describe("CatalogViewer", () => {
     });
 
     it("keeps focus on an arrow button after it becomes edge-disabled by its own activation", async () => {
+        const user = userEvent.setup();
         stubFetch({ ok: true, status: 200, body: manifest });
         render(
             <CatalogViewer
@@ -300,21 +292,24 @@ describe("CatalogViewer", () => {
         // step it triggers lands on the last column.
         const nextColumn = screen.getByRole("button", { name: "Next column" });
         nextColumn.focus();
-        fireEvent.click(nextColumn);
+        await user.click(nextColumn);
         await waitFor(() =>
             expect(window.location.search).toContain(
                 "open=floor__medium__light",
             ),
         );
         expect(nextColumn.getAttribute("aria-disabled")).toBe("true");
-        // The native `disabled` attribute would have dropped this button from
-        // the focus tree in the same render; aria-disabled keeps it
-        // focusable so the dialog's own keydown handler keeps receiving
+        // focusableWhenDisabled reports the disabled state through
+        // aria-disabled instead of the native `disabled` attribute, which
+        // would have dropped this button from the focus tree in the same
+        // render — the dialog's own keydown handler keeps receiving
         // arrow/Escape keys without the user needing to tab back in.
+        expect(nextColumn.hasAttribute("disabled")).toBe(false);
         expect(document.activeElement).toBe(nextColumn);
     });
 
-    it("changes the visible cells and the URL when a fixed-axis radio changes", async () => {
+    it("changes the visible cells and the URL when a fixed-axis toggle changes", async () => {
+        const user = userEvent.setup();
         stubFetch({ ok: true, status: 200, body: manifest });
         render(
             <CatalogViewer
@@ -326,7 +321,9 @@ describe("CatalogViewer", () => {
         expect(
             screen.getAllByRole("button", { name: /^Open / }).length,
         ).toBeGreaterThan(0);
-        fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
+        await user.click(
+            screen.getByRole("button", { name: "Dark", pressed: false }),
+        );
         await waitFor(() =>
             expect(window.location.search).toContain("theme=dark"),
         );
@@ -336,7 +333,8 @@ describe("CatalogViewer", () => {
         ).toHaveLength(0);
     });
 
-    it("closes when the backdrop — the dialog element itself as the click target — is clicked", async () => {
+    it("closes when the overlay is clicked, clearing `open=` from the URL", async () => {
+        const user = userEvent.setup();
         stubFetch({ ok: true, status: 200, body: manifest });
         render(
             <CatalogViewer
@@ -346,8 +344,10 @@ describe("CatalogViewer", () => {
         );
         await screen.findByRole("table");
         fireEvent.click(screen.getByRole("button", { name: /Floor · Small/ }));
-        const dialog = await screen.findByRole("dialog");
-        fireEvent.click(dialog);
+        await screen.findByRole("dialog");
+        const overlay = document.querySelector('[data-slot="dialog-overlay"]');
+        expect(overlay).not.toBeNull();
+        await user.click(overlay as HTMLElement);
         await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
         expect(window.location.search).not.toContain("open=");
     });
