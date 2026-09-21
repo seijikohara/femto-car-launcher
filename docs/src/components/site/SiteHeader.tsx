@@ -104,7 +104,15 @@ function ThemeMenu() {
             <DropdownMenuContent align="end">
                 <DropdownMenuRadioGroup value={mode} onValueChange={choose}>
                     {THEME_MODES.map((option) => (
-                        <DropdownMenuRadioItem key={option} value={option}>
+                        // Base UI's Menu.RadioItem defaults closeOnClick to
+                        // false; a theme choice is a completed action, so
+                        // close the menu the way a mode toggle conventionally
+                        // does.
+                        <DropdownMenuRadioItem
+                            key={option}
+                            value={option}
+                            closeOnClick
+                        >
                             <ModeIcon mode={option} className="size-4" />
                             {MODE_LABEL[option]}
                         </DropdownMenuRadioItem>

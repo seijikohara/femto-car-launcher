@@ -61,6 +61,12 @@ describe("SiteHeader", () => {
                 .getElementById("theme-color-meta")
                 ?.getAttribute("content"),
         ).toBe("#0e1318");
+        // The trigger's own label follows the chosen mode, and picking an
+        // option is expected to close the menu (not leave it open).
+        expect(
+            screen.getByRole("button", { name: "Theme: Dark" }),
+        ).toBeTruthy();
+        await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
     });
 
     it("closes an open sheet before a client-side navigation swap", async () => {
