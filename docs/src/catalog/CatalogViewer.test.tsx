@@ -164,9 +164,12 @@ describe("CatalogViewer", () => {
         );
         expect(window.location.search).toContain("open=floor__medium__light");
         // aria-labelledby points at the caption span rather than the whole
-        // figcaption, so the accessible name stops before "open the file".
+        // figcaption, so the accessible name stops before "open the file";
+        // an exact string (not a regex) is what proves the link text is out.
         expect(
-            screen.getByRole("dialog", { name: /Floor · Medium · Light/ }),
+            screen.getByRole("dialog", {
+                name: "Floor · Medium · Light · 800×480 dp",
+            }),
         ).toBe(dialog);
         fireEvent.keyDown(dialog, { key: "Escape" });
         await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -241,6 +244,10 @@ describe("CatalogViewer", () => {
         fireEvent.click(screen.getByRole("button", { name: /Floor · Small/ }));
         await screen.findByRole("dialog");
         const closeButton = screen.getByRole("button", { name: "Close" });
+        // The jsdom showModal() stub runs none of the dialog focusing steps,
+        // so the observable here is their input — the `autofocus` attribute
+        // the real steps delegate to — not document.activeElement (the live
+        // focus move is part of the browser pass).
         expect(closeButton.hasAttribute("autofocus")).toBe(true);
     });
 

@@ -6,8 +6,8 @@
     // `tsc --noEmit` / `astro check`. This config only selects which lib
     // types are in scope; nothing here ever emits. What ships to a browser
     // — including src/catalog/, the site's React island — is transpiled by
-    // Vite/esbuild to their own default target ("baseline-widely-available"),
-    // set independently of this file.
+    // Vite to the client build target Astro sets in its own build config,
+    // independently of this file.
     "target": "ES2023",
     "module": "ESNext",
     "moduleResolution": "bundler",
