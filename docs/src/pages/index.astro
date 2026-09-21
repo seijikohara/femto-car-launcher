@@ -88,11 +88,20 @@ const deviceClasses = [
                             />
                         </div>
                         <div class="hidden dark:block">
+                            {/* Only one of the two hero images is ever displayed
+                                (dark:hidden / hidden dark:block above): the visible
+                                one is fetched immediately either way, since a lazy
+                                image already inside the viewport loads at once, but
+                                an eager hidden image would cost a full download in
+                                the theme that never shows it. Light stays eager +
+                                high priority as the LCP candidate — light is the
+                                default rendering when the OS preference is unknown,
+                                so it must not be the one that's lazy. */}
                             <Picture
                                 src={dashboardDark}
                                 alt="The same dashboard in the dark theme, with the map switched to its dark style"
                                 widths={[853]}
-                                loading="eager"
+                                loading="lazy"
                             />
                         </div>
                     </Card>

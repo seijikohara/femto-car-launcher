@@ -195,3 +195,27 @@
     --tw-prose-th-borders: var(--border);
     --tw-prose-td-borders: var(--border);
 }
+
+/* Shiki dual-theme output (astro.config.ts markdown.shikiConfig): Astro renames
+   Shiki's own `.shiki` class to `.astro-code`, and with defaultColor: false each
+   token carries only --shiki-light(-bg)/--shiki-dark(-bg) custom properties, no
+   inline colour — so the site's [data-theme] switch picks the active pair here,
+   the same mechanism as the rest of the page, instead of prefers-color-scheme.
+   Deliberately UNLAYERED, like .prose above, so it outranks the typography
+   plugin's --tw-prose-pre-bg on the same element. */
+.astro-code,
+.astro-code span {
+    color: var(--shiki-light);
+    background-color: var(--shiki-light-bg);
+    font-style: var(--shiki-light-font-style);
+    font-weight: var(--shiki-light-font-weight);
+    text-decoration: var(--shiki-light-text-decoration);
+}
+[data-theme="dark"] .astro-code,
+[data-theme="dark"] .astro-code span {
+    color: var(--shiki-dark);
+    background-color: var(--shiki-dark-bg);
+    font-style: var(--shiki-dark-font-style);
+    font-weight: var(--shiki-dark-font-weight);
+    text-decoration: var(--shiki-dark-text-decoration);
+}

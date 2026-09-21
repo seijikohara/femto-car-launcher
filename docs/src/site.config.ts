@@ -18,7 +18,14 @@ export interface SiteConfig {
         defaultColorMode: "light" | "dark" | "system";
         showThemeToggle: boolean;
     };
-    nav: { main: Array<{ name: string; href: string }> };
+    nav: {
+        main: Array<{
+            name: string;
+            href: string;
+            /** Path prefix under which this item counts as current, when wider than its own href (see lib/nav.ts#isNavItemActive). */
+            section?: string;
+        }>;
+    };
     footer: { links: Array<{ name: string; href: string }> };
     repository: string;
     nightlyRelease: string;
@@ -42,7 +49,11 @@ const siteConfig: SiteConfig = {
     nav: {
         main: [
             { name: "Home", href: "/" },
-            { name: "Features", href: "/features/live-map/" },
+            {
+                name: "Features",
+                href: "/features/live-map/",
+                section: "/features/",
+            },
             { name: "Catalog", href: "/catalog/" },
             { name: "Install", href: "/install/" },
         ],
