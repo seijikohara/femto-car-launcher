@@ -92,9 +92,10 @@ internal fun MapBackdrop(
     SelfMarker(mapConfig)
 }
 
-// Ripple disc radius; a frozen mid-animation frame of the live CSS pulse
-// (index.html's .ripple), which this static render cannot animate.
+// Ripple disc radius and opacity; a frozen mid-animation frame of the live CSS
+// pulse (index.html's .ripple), which this static render cannot animate.
 private val RippleRadius = 24.dp
+private val RippleAlpha = 0.18f
 
 // Matches the live marker's <svg width="34" height="34" viewBox="0 0 30 30">
 // (webmap/index.html): a square icon box, sized in dp, housing a 30-unit
@@ -105,7 +106,9 @@ private val ChevronStrokeWidth = 1.5.dp
 
 // Foreshortens the chevron vertically to stand in for the live page's
 // perspective(600px) rotateX(...) tilt on the pitched map — an approximation,
-// not a 3D projection (see SelfMarker).
+// not a 3D projection (see SelfMarker). Fixed for the default MapConfig tilt
+// and heading-up follow mode, which is all the goldens and catalog render;
+// a tilt or north-up axis would have to derive it from mapConfig instead.
 private val ChevronForeshorten = 0.8f
 
 /**
@@ -120,7 +123,7 @@ private val ChevronForeshorten = 0.8f
 @Composable
 private fun SelfMarker(mapConfig: MapConfig) {
     val chevronColor = MaterialTheme.colorScheme.primary
-    val rippleColor = chevronColor.copy(alpha = 0.18f)
+    val rippleColor = chevronColor.copy(alpha = RippleAlpha)
     Canvas(modifier = Modifier.fillMaxSize()) {
         val xShift = SelfMarkerAnchor.xShift(mapConfig.leftSafeFraction, mapConfig.rightSafeFraction)
         val drop = SelfMarkerAnchor.drop(mapConfig.markerPos, mapConfig.bottomSafeFraction)
