@@ -118,13 +118,18 @@ dialog.catalog__lightbox {
        that ignores the site's own light/dark toggle. Pin it back. */
     color: var(--color-text);
     max-width: min(96vw, 1400px);
-    /* dvh tracks a mobile browser's collapsing toolbar; the vh declaration
-       stays first as the fallback for engines that don't support dvh, since
-       an unsupported unit invalidates the whole declaration and is dropped,
-       leaving the one before it in effect. */
     --catalog-lightbox-max-height: 94vh;
-    --catalog-lightbox-max-height: 94dvh;
     max-height: var(--catalog-lightbox-max-height);
+}
+/* dvh tracks a mobile browser's collapsing toolbar. The override is gated on
+   @supports rather than declared twice: a custom property accepts any token
+   at parse time, so a second `94dvh` declaration would always win and then
+   fail at computed-value time on engines without dvh, dropping max-height
+   entirely instead of falling back to the vh value. */
+@supports (height: 1dvh) {
+    dialog.catalog__lightbox {
+        --catalog-lightbox-max-height: 94dvh;
+    }
 }
 dialog.catalog__lightbox::backdrop {
     background: var(--color-scrim);
