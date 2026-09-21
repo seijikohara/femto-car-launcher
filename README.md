@@ -28,7 +28,9 @@ Interface — API — level 33). No single market is privileged: language,
 units, and locale-specific behaviour adapt per device.
 
 The [project site](https://seijikohara.github.io/femto-car-launcher/)
-describes every feature in depth and carries the install guide.
+describes every feature in depth, carries the install guide, and
+hosts a screenshot catalog of the dashboard across display sizes and
+settings.
 
 <div align="center">
 
