@@ -1,6 +1,6 @@
 ---
 name: verify-android-build
-description: "Run the canonical verification pipeline (spotlessCheck → assembleDebug → lint → test), parse the results, and refuse success claims on a red build. The project's verification-procedure SSOT."
+description: "Run the canonical verification pipeline (spotlessCheck → assembleStableDebug → lint → test), parse the results, and refuse success claims on a red build. The project's verification-procedure SSOT."
 when_to_use: "Before declaring any non-trivial change complete; on 'is the build green?' or 'let's verify'; implicitly after edits to Kotlin sources, manifest, themes, res/, webmap TypeScript, or Gradle files."
 argument-hint: "[gradle-task]"
 allowed-tools:
@@ -27,7 +27,7 @@ above. This skill is the verification-procedure SSOT; other skills
 cite it rather than describing the verification themselves.
 
 When invoked manually, `$ARGUMENTS` overrides the default Gradle
-task. Default is `assembleDebug`.
+task. Default is `assembleStableDebug`.
 
 ## Procedure
 
@@ -45,11 +45,11 @@ task. Default is `assembleDebug`.
 2. **Build a debug APK.**
 
    ```bash
-   ./gradlew assembleDebug
+   ./gradlew assembleStableDebug
    ```
 
    Expect `BUILD SUCCESSFUL`. APK at
-   `app/build/outputs/apk/debug/app-debug.apk`. `assembleDebug`
+   `app/build/outputs/apk/stable/debug/app-stable-debug.apk`. `assembleStableDebug`
    also builds the LIVE map web payload (`:app:buildWebMap` runs
    pnpm + Vite over `webmap/`), so webmap regressions surface here.
 
@@ -92,7 +92,7 @@ task. Default is `assembleDebug`.
 6. **Report** explicitly what was run and what passed:
 
    - "Ran `./gradlew spotlessCheck` — passed."
-   - "Ran `./gradlew assembleDebug` — BUILD SUCCESSFUL."
+   - "Ran `./gradlew assembleStableDebug` — BUILD SUCCESSFUL."
    - "Ran `./gradlew lint` — no new findings."
 
    Do not claim success generically; cite the commands.
@@ -102,9 +102,9 @@ task. Default is `assembleDebug`.
    file level — never at module level.
 
 CI parity: `.github/workflows/ci.yml` runs the same four tasks
-(`spotlessCheck`, `lint`, `test`, `assembleDebug`), split across
+(`spotlessCheck`, `lint`, `test`, `assembleStableDebug`), split across
 three parallel jobs (`static-checks`, `unit-tests`, `assemble`) for
-wall-clock speed, plus `verifyRoborazziDebug` alongside `test` in
+wall-clock speed, plus `verifyRoborazziStableDebug` alongside `test` in
 CI only (screenshot verification against goldens recorded on the
 CI runner OS), plus the `docs-site` job (`pnpm run check` + `pnpm
 run build` under `docs/`), plus a one-entry `generateCatalog

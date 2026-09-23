@@ -2,15 +2,17 @@
 
 ## Supported versions
 
-Femto Car Launcher ships as a rolling `nightly` prerelease built from
-every merge to `main` (see [Installation](README.md#installation)).
-No versioned release exists yet, so the latest nightly is the only
-supported build. A fix reaches users in the next nightly.
+Femto Car Launcher ships two channels (see
+[Installation](README.md#installation)): a versioned stable release
+and a rolling `nightly` prerelease. The supported build is the latest
+stable release; the rolling nightly is supported as a preview of the
+next one; older builds of either channel are not supported.
 
 | Build | Supported |
 | --- | --- |
-| Latest `nightly` | Yes |
-| Older nightlies | No — install the latest nightly first |
+| Latest stable release | Yes |
+| Latest `nightly` | Yes — as a preview of the next stable release |
+| Older builds (either channel) | No — install the latest stable release or nightly |
 
 ## Report a vulnerability
 
@@ -21,8 +23,8 @@ Do not open a public issue for a vulnerability.
 
 Include in the report:
 
-- The build identifier (`nightly-<run>-<sha>`), shown in Settings →
-  System → Diagnostics.
+- The app version and channel, shown in Settings → System →
+  Diagnostics.
 - The device class (aftermarket CarPlay / Android Auto AI box,
   built-in Android head unit, phone mount, or emulator) and the
   Android version.
@@ -31,10 +33,11 @@ Include in the report:
 The project is a hobby project with a single maintainer and no
 service-level commitment ([`TERMS.md`](TERMS.md)). The maintainer
 acknowledges reports and works on fixes on a best-effort basis. The
-disclosure flow is: the maintainer confirms the report, merges a fix to
-`main`, waits for the nightly that carries the fix, and then publishes
-the advisory with credit to the reporter unless the reporter asks
-otherwise.
+disclosure flow is: the maintainer confirms the report, lands a fix on
+`develop`, waits for the nightly that carries it, merges `develop`
+into `main` so the release job publishes it in the next stable build,
+and then publishes the advisory with credit to the reporter unless the
+reporter asks otherwise.
 
 ## Scope
 
@@ -44,7 +47,7 @@ In scope:
 - The bundled map page under `webmap/`, including its bridge to the
   app.
 - The CI and release workflows under `.github/workflows/`, and the
-  signed `nightly` artifact they publish.
+  signed stable and nightly artifacts they publish.
 
 Out of scope:
 
@@ -60,5 +63,6 @@ Out of scope:
 
 Renovate opens a pull request for every vulnerability alert as soon as
 the alert appears and labels it `security`; routine dependency updates
-follow the weekly schedule in [`renovate.json5`](renovate.json5). Both
-kinds ship in the next nightly after they merge.
+follow the weekly schedule in [`renovate.json5`](renovate.json5),
+targeting `develop`. Both kinds ship in the next nightly after they
+merge, and reach the stable channel with the next release.

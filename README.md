@@ -7,6 +7,7 @@
 **A glanceable Android home launcher for in-car displays.**
 
 [![CI](https://github.com/seijikohara/femto-car-launcher/actions/workflows/ci.yml/badge.svg)](https://github.com/seijikohara/femto-car-launcher/actions/workflows/ci.yml)
+[![Download stable APK](https://img.shields.io/badge/download-stable_APK-3B82F6?logo=android&logoColor=white)](https://github.com/seijikohara/femto-car-launcher/releases/latest)
 [![Download nightly APK](https://img.shields.io/badge/download-nightly_APK-3BE0AE?logo=android&logoColor=white)](https://github.com/seijikohara/femto-car-launcher/releases/tag/nightly)
 [![Android 13+](https://img.shields.io/badge/Android-13%2B_(API_33)-3DDC84?logo=android&logoColor=white)](https://developer.android.com/about/versions/13)
 
@@ -195,13 +196,28 @@ instruments.
 
 ## Installation
 
-Every merge to `main` publishes a release-signed APK as a rolling
-prerelease tagged
-[`nightly`](https://github.com/seijikohara/femto-car-launcher/releases/tag/nightly).
-Install the APK by sideloading on the head unit or with
-`adb install -r femto-car-launcher-nightly.apk`. Play Store publication
-is not planned at present; sideloading is the supported installation
-path. Android 13 or later is required.
+Femto Car Launcher publishes two channels as release-signed APKs,
+both built from this repository by continuous integration:
+
+- **Stable** — a dated release that only changes when a build is
+  judged ready, published as a
+  [GitHub release](https://github.com/seijikohara/femto-car-launcher/releases/latest).
+  Download `femto-car-launcher-v<version>.apk` from the latest
+  release.
+- **Nightly** — the newest test build, which changes often and may
+  break, published as a rolling
+  [`nightly`](https://github.com/seijikohara/femto-car-launcher/releases/tag/nightly)
+  prerelease that replaces itself on every push. Download
+  `femto-car-launcher-nightly.apk`. Its launcher icon carries an "N"
+  badge and its app name reads "Femto Nightly", so it never gets
+  mixed up with stable.
+
+The two channels use different application ids and install side by
+side, so trying a nightly build never means uninstalling stable, and
+switching back is just as easy. Install either APK by sideloading on
+the head unit or with `adb install -r <file>.apk`. Play Store
+publication is not planned at present; sideloading is the supported
+installation path. Android 13 or later is required.
 
 To enable the optional paid map provider in Settings → Map:
 
@@ -219,8 +235,8 @@ are the only prerequisites; the Gradle build provisions Node.js and
 pnpm on demand for the bundled map page.
 
 ```bash
-./gradlew assembleDebug   # debug APK at app/build/outputs/apk/debug/
-./gradlew test lint       # unit tests and Android Lint
+./gradlew assembleStableDebug   # debug APK at app/build/outputs/apk/stable/debug/
+./gradlew test lint             # unit tests and Android Lint
 ```
 
 [`CONTRIBUTING.md`](CONTRIBUTING.md) explains how to report bugs,

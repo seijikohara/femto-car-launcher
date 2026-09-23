@@ -1,42 +1,41 @@
-# Release signing
+# Releasing
 
-The nightly job in [`ci.yml`](workflows/ci.yml) signs the release APK
-with an upload keystore supplied through repository secrets
-(`assembleRelease`, attached to the GitHub nightly release for direct
-sideload onto AI boxes / head units). Sideloading is the app's only
-distribution channel, so an APK is the only artifact built: an Android
-App Bundle defers APK generation and signing to Google Play, and no
-on-device installer can open one. Local `./gradlew assembleRelease`
-builds stay unsigned: the signing config is registered only when
-`RELEASE_KEYSTORE_PATH` is set, so contributor builds keep working with
-no keystore.
+Femto Car Launcher publishes two channels, both built and published by
+[`ci.yml`](workflows/ci.yml). Nobody runs a release command by hand: CI
+computes every version, creates every tag, and signs every APK it
+publishes.
 
-## Production release (tag-driven)
+## Channels
 
-Cut a production build by pushing a semver tag, which triggers
-[`release.yml`](workflows/release.yml):
+| Channel | Publishes on | What ships | Application id |
+| --- | --- | --- | --- |
+| `nightly` | every push to `develop` | a rolling `nightly` prerelease (replaces the previous one), asset `femto-car-launcher-nightly.apk` | `io.github.seijikohara.femto.nightly` |
+| `stable` | every push to `main` | a new dated GitHub release, asset `femto-car-launcher-v<version>.apk` | `io.github.seijikohara.femto` |
 
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
+Both are release-signed APKs, not an Android App Bundle: sideloading
+onto AI boxes and head units off the GitHub release is the only
+distribution channel, and an app bundle defers APK generation and
+signing to Google Play, which no on-device installer can open. The two
+application ids mean both channels install at once — see
+[`AGENTS.md`, Git conventions](../AGENTS.md#git-conventions).
 
-The workflow derives the version from the tag — `versionName` is the tag
-without the `v` (e.g. `1.0.0`), and `versionCode` is packed as
-`major*1000000 + minor*1000 + patch` (so `v1.0.0` → `1000000`, monotonic
-with semver; minor and patch must each be `< 1000`). It builds the **signed
-APK** and attaches it to a GitHub release for that tag.
-(`workflow_dispatch` with a `version` input is the manual fallback when
-you'd rather not push a tag.)
+## Cutting a stable release
 
-The nightly job uses the same signing secrets but stamps a
-`nightly-<run>-<sha>` version; only tagged builds carry a clean
-production version.
+Merge `develop` into `main` when the build is ready — that push is the
+entire procedure. The `release` job computes the version, builds
+`assembleStableRelease`, tags the commit, and publishes the GitHub
+release; nobody pushes a version tag by hand.
+`.github/actions/app-version` computes `versionName` and `versionCode`
+for both channels from the date — see
+[`AGENTS.md`, Git conventions](../AGENTS.md#git-conventions) for the
+scheme — and the nightly channel keeps one rolling `nightly` tag
+instead of a tag per build.
 
 ## Signing secrets
 
-A maintainer must add four repository secrets (Settings -> Secrets and
-variables -> Actions) before the nightly job can sign:
+One upload keystore signs both channels. A maintainer must add four
+repository secrets (Settings -> Secrets and variables -> Actions)
+before either job can sign:
 
 | Secret | Contents |
 | --- | --- |
@@ -63,6 +62,9 @@ base64 -i release.jks | pbcopy
 base64 -w0 release.jks
 ```
 
-Keep `release.jks` out of version control. If `RELEASE_KEYSTORE_BASE64`
-is missing, the nightly job fails with an explicit message instead of
-publishing an unsigned APK.
+Keep `release.jks` out of version control. If a secret is missing, the
+nightly or release job fails with an explicit message instead of
+publishing an unsigned APK. Local `assembleStableRelease` /
+`assembleNightlyRelease` builds stay unsigned: the signing config
+registers only when `RELEASE_KEYSTORE_PATH` is set, so a contributor
+without the keystore keeps building.

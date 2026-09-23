@@ -82,7 +82,7 @@ for manual or major bumps (`maplibre-gl`, Vite, TypeScript).
    tsconfig target), so the WebView-floor check in step 2 stays
    scoped to Vite / `maplibre-gl` bumps. Readiness criteria:
    `.claude/rules/webmap.md`.
-4. Verify with `./gradlew assembleDebug` — the `:app:buildWebMap`
+4. Verify with `./gradlew assembleStableDebug` — the `:app:buildWebMap`
    task runs the pnpm build as part of it.
 
 ## Bulk-updating to latest versions
@@ -100,7 +100,7 @@ Workflow:
 ```bash
 ./gradlew versionCatalogUpdate    # apply the update to libs.versions.toml
 ./gradlew spotlessApply           # tidy formatting
-./gradlew assembleDebug           # verify
+./gradlew assembleStableDebug     # verify
 ```
 
 Review every diff before committing. Major-version bumps still
