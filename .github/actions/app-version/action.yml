@@ -1,8 +1,9 @@
 name: App version
 description: >-
   Compute the date-based versionName, versionCode and tag for a release
-  channel. Both channels share one versionCode space so the newest build of
-  either always outranks anything older on a device.
+  channel, so a later build always outranks an earlier build of the same
+  channel on a device. The two channels' counters run independently and
+  never have to be compared: they ship under different application ids.
 
 inputs:
   channel:
