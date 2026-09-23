@@ -35,18 +35,27 @@ runs:
           stable|nightly) ;;
           *) echo "::error::channel must be stable or nightly (got '$CHANNEL')"; exit 1 ;;
         esac
-        # The N-th build of the UTC day = commits on this branch since midnight.
-        # Needs the full history the caller checks out with fetch-depth: 0; with
-        # a shallow clone this silently counts 1 and versions would collide.
-        midnight="$(date -u +%Y-%m-%dT00:00:00Z)"
-        n="$(git rev-list --count --since="$midnight" HEAD)"
-        if [ "$n" -lt 1 ]; then n=1; fi
+        day="$(date -u +%Y.%m.%d)"
+        if [ "$CHANNEL" = stable ]; then
+          # The stable counter comes from the tags already cut today, not from commit
+          # activity: a release may be cut from a branch that has been idle since
+          # midnight, and two such releases must not share a versionCode.
+          # Needs the full history the caller checks out with fetch-depth: 0; with
+          # a shallow clone tags would be missing and versions would collide.
+          n=$(( $(git tag --list "v$day-*" | wc -l) + 1 ))
+        else
+          # Nightly builds follow a push, so a new commit always raises the count.
+          # A rebuild of an unchanged commit should reuse its versionCode because
+          # it is the same build.
+          midnight="$(date -u +%Y-%m-%dT00:00:00Z)"
+          n="$(git rev-list --count --since="$midnight" HEAD)"
+          if [ "$n" -lt 1 ]; then n=1; fi
+        fi
         if [ "$n" -gt 99 ]; then
-          echo "::error::$n commits today exceeds the 2-digit build counter in the versionCode"
+          echo "::error::$n builds today exceeds the 2-digit build counter in the versionCode"
           exit 1
         fi
-        day="$(date -u +%Y.%m.%d)"
-        code="$(( $(date -u +%y%m%d) * 100 + n ))"
+        code="$(( 10#$(date -u +%y%m%d) * 100 + n ))"
         if [ "$CHANNEL" = stable ]; then
           name="$day-$n"
           tag="v$name"
