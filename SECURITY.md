@@ -23,8 +23,9 @@ Do not open a public issue for a vulnerability.
 
 Include in the report:
 
-- The app version and channel, shown in Settings → System →
-  Diagnostics.
+- The app version, shown in Settings → System → Diagnostics. The
+  nightly build's version name carries a `-nightly` suffix, so it
+  identifies the channel on its own.
 - The device class (aftermarket CarPlay / Android Auto AI box,
   built-in Android head unit, phone mount, or emulator) and the
   Android version.

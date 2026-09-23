@@ -78,7 +78,7 @@ the home dashboard.
    ```
 
    Note: `connectedStableDebugAndroidTest` **uninstalls the app afterward** —
-   run `:app:installDebug` (or `adb install -r`) again before manual
+   run `:app:installStableDebug` (or `adb install -r`) again before manual
    screenshots. After a reinstall, `am force-stop` + restart the app
    so the running process is the new code.
 

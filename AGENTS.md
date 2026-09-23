@@ -68,6 +68,7 @@ app/src/
 │   │       │   └── components/       # Area-private widgets
 │   │       └── theme/                # FemtoTheme + tokens + PreviewLightDark
 │   └── res/                          # themes (values{,-night}/), strings (per-locale once locales are wired up), icon drawables, xml/
+├── nightly/...                       # nightly-channel overrides: app_name string + badged ic_launcher_foreground
 ├── test/...                          # JVM unit tests (runTest + TestDispatcher)
 └── androidTest/...                   # Compose UI tests (createComposeRule)
 ```
@@ -206,7 +207,8 @@ rule file manually. When in doubt, read them all.
 | Command | Purpose |
 | --- | --- |
 | `./gradlew assembleStableDebug` | Debug APK at `app/build/outputs/apk/stable/debug/app-stable-debug.apk` |
-| `./gradlew lint` | Android Lint |
+| `./gradlew lint` | Android Lint (default variant, `stableDebug`, only) |
+| `./gradlew lintNightlyRelease` | Android Lint for the `app/src/nightly/res/` overrides; the only task that compiles them |
 | `./gradlew test` | JVM unit tests |
 | `./gradlew connectedStableDebugAndroidTest` | Instrumented tests on device/emulator |
 | `./gradlew spotlessCheck` | Format / lint check (Kotlin via ktlint, Gradle DSL, Markdown EOL) |
@@ -246,8 +248,13 @@ in the skill directory; `create-avd.sh` recreates it).
   owner judges the build ready.
 - Versions belong to CI, never to a commit: the date scheme is
   `YYYY.MM.DD-N` (tag `vYYYY.MM.DD-N`, `versionCode` `YYMMDDNN`),
-  computed by `.github/actions/app-version` for both channels so the
-  newest build of either always outranks an older one on a device.
+  computed per channel by `.github/actions/app-version`, so a later
+  build always outranks an earlier build of the *same* channel on a
+  device. The two channels' counters run independently (stable
+  counts the day's cut tags, nightly counts the day's commits) and
+  can diverge in either direction, but it never matters: the two
+  application ids keep Android from ever comparing versionCode across
+  channels.
 - The two channels are the `stable` and `nightly` product flavors;
   the nightly APK installs alongside the stable one as
   `io.github.seijikohara.femto.nightly`.
