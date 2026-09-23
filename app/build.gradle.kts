@@ -88,8 +88,8 @@ val mapTileHost = localProperties.getProperty("MAP_TILE_HOST", "https://tiles.op
 val mapTerrainTileJsonUrl =
     localProperties.getProperty("MAP_TERRAIN_TILEJSON_URL", "https://tiles.mapterhorn.com/tilejson.json")
 // Release signing is driven entirely by environment variables so CI can sign the
-// nightly APK without committing a keystore, while local `assembleRelease` stays
-// unsigned (no signing config attached) when the variables are absent.
+// nightly APK without committing a keystore, while local `assembleStableRelease`
+// stays unsigned (no signing config attached) when the variables are absent.
 val releaseKeystorePath: String? = System.getenv("RELEASE_KEYSTORE_PATH")
 
 // JUnit category of the screenshot-catalog generator: excluded from the unit
@@ -169,7 +169,7 @@ android {
     signingConfigs {
         // Only register the release signing config when CI supplies a keystore path
         // via env; absent it, `signingConfigs.findByName("release")` returns null and
-        // the release build stays unsigned so local `assembleRelease` still works.
+        // the release build stays unsigned so local `assembleStableRelease` still works.
         releaseKeystorePath?.let { keystorePath ->
             create("release") {
                 storeFile = file(keystorePath)
@@ -200,6 +200,21 @@ android {
             // authoring translations: en-XA accents and lengthens Latin text (~+30%),
             // ar-XB mirrors the layout right-to-left. Debug-only; never shipped.
             isPseudoLocalesEnabled = true
+        }
+    }
+    // Two distribution channels as one dimension: they differ in identity and
+    // resources, not in build settings, which is what a flavor is for. Nightly
+    // carries a package suffix so both APKs install side by side — a tester
+    // switching channels never has to uninstall the launcher (Android has no
+    // public downgrade path, and this app is the home screen).
+    flavorDimensions += "channel"
+    productFlavors {
+        create("stable") {
+            dimension = "channel"
+        }
+        create("nightly") {
+            dimension = "channel"
+            applicationIdSuffix = ".nightly"
         }
     }
     compileOptions {
@@ -233,7 +248,7 @@ android {
             isReturnDefaultValues = true
             // The screenshot-catalog generator (DashboardCatalogTest) renders
             // 960 images; it belongs to the generateCatalog task below, never to
-            // `test` / verifyRoborazziDebug.
+            // `test` / verifyRoborazziStableDebug.
             all { it.useJUnit { excludeCategories(catalogCategory) } }
         }
     }
@@ -242,6 +257,14 @@ android {
         // dominated CI lint time (~63s combined, vs ~1s for the main sources); test-code
         // lint findings carry little value since tests are not shipped.
         ignoreTestSources = true
+    }
+}
+
+androidComponents {
+    // Nightly ships only as a release-signed build; a nightlyDebug variant
+    // would be one nobody builds, so it never enters the task graph.
+    beforeVariants(selector().withBuildType("debug").withFlavor("channel" to "nightly")) {
+        it.enable = false
     }
 }
 
@@ -323,7 +346,7 @@ dependencies {
 tasks.register<Test>("generateCatalog") {
     group = "documentation"
     description = "Render the dashboard screenshot catalog into build/outputs/catalog (docs site input)"
-    val unitTest = tasks.named<Test>("testDebugUnitTest").get()
+    val unitTest = tasks.named<Test>("testStableDebugUnitTest").get()
     testClassesDirs = unitTest.testClassesDirs
     classpath = unitTest.classpath
     systemProperties(unitTest.systemProperties)
@@ -332,7 +355,7 @@ tasks.register<Test>("generateCatalog") {
     maxHeapSize = "2g"
     useJUnit { includeCategories(catalogCategory) }
     systemProperty("roborazzi.test.record", "true")
-    // Isolates results from testDebugUnitTest's own declared output dir
+    // Isolates results from testStableDebugUnitTest's own declared output dir
     // (overlap disables its local build cache).
     val roborazziResultDir = layout.buildDirectory.dir("test-results/generateCatalog/roborazzi")
     systemProperty("roborazzi.result.dir", roborazziResultDir.get().asFile.path)
