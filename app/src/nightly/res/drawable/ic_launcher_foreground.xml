@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  "Chevron Drive" mark: three forward chevrons fading in.
+  Derived from /logo.svg (the design SSOT). Geometry is scaled to fit
+  the 66/108 adaptive-icon safe zone (farthest stroke edge stays
+  within the centre circle).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <path
+        android:pathData="M155,178 L214,256 L155,334"
+        android:strokeColor="#3BE0AE"
+        android:strokeWidth="45"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeAlpha="0.25"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M226,178 L286,256 L226,334"
+        android:strokeColor="#3BE0AE"
+        android:strokeWidth="45"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeAlpha="0.55"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M298,178 L357,256 L298,334"
+        android:strokeColor="#3BE0AE"
+        android:strokeWidth="45"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+    <!-- Nightly badge: a filled disc plus an "N", bottom-right of the
+         512-unit viewport. r = 20.5 at centre 357.5,336.5 leaves ~6 units
+         to the nearest chevron stroke and stops ~6 units short of the
+         66/108 safe-zone edge (156.4 units), so no launcher mask clips it.
+         The chevron ink is the tighter of the two limits, binding at
+         r ~ 26.5, so the disc cannot simply be made bigger. In themed
+         (monochrome) mode the system keeps only alpha, so the badge shows
+         as a solid dot rather than an "N". -->
+    <path
+        android:pathData="M357.5,316 A20.5,20.5 0 1,1 357.5,357 A20.5,20.5 0 1,1 357.5,316 Z"
+        android:fillColor="#3BE0AE" />
+    <path
+        android:pathData="M349,346 L349,327 L353,327 L362,340 L362,327 L366,327 L366,346 L362,346 L353,333 L353,346 Z"
+        android:fillColor="#0E1318" />
+</vector>
