@@ -130,8 +130,15 @@ android {
         // CI injects versionCode/versionName: .github/actions/app-version
         // computes the date version for both channels, and the nightly and
         // release jobs in .github/workflows/ci.yml pass it in. Local builds
-        // fall back to the committed 1 / "1.0".
-        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1
+        // fall back to the committed 1 / "1.0". A VERSION_CODE that is set but
+        // unparseable fails the build instead of silently falling back to 1:
+        // this path now cuts permanent releases, and no device could ever
+        // accept 1 as an update. VERSION_NAME needs no such check — any
+        // string is a valid versionName.
+        versionCode =
+            System.getenv("VERSION_CODE")?.let {
+                it.toIntOrNull() ?: error("VERSION_CODE is set but not a valid integer: \"$it\"")
+            } ?: 1
         versionName = System.getenv("VERSION_NAME") ?: "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

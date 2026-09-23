@@ -22,7 +22,7 @@
   // (AGENTS.md, Git conventions), so a dependency bump landing there
   // directly would ship as an immediate stable release instead of riding
   // the nightly channel first, same as any other change.
-  baseBranches: ["develop"],
+  baseBranchPatterns: ["develop"],
   // Keep update branches rebased on the base branch and merge via rebase
   // once CI passes.
   rebaseWhen: "behind-base-branch",
