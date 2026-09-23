@@ -62,11 +62,11 @@ const deviceClasses = [
                         </p>
                         <div class="mt-8 flex flex-wrap gap-3">
                             <Button
-                                href={siteConfig.nightlyRelease}
+                                href={siteConfig.stableRelease}
                                 variant="solid"
                                 size="lg"
                             >
-                                Download the nightly APK
+                                Download the stable APK
                             </Button>
                             <Button
                                 href="/install/"
@@ -166,20 +166,24 @@ const deviceClasses = [
 
         <Section
             eyebrow="Get it"
-            title="Sideload the nightly, make it home."
-            subtitle="Every merge to main publishes a release-signed APK. Android 13 or later is required."
+            title="Sideload stable, make it home."
+            subtitle="Stable is a dated release that only changes when a build is judged ready; nightly is the newest test build, which changes often and may break. Android 13 or later is required."
             container="md"
         >
             <div class="flex flex-wrap justify-center gap-3">
                 <Button
-                    href={siteConfig.nightlyRelease}
+                    href={siteConfig.stableRelease}
                     variant="solid"
                     size="lg"
                 >
-                    Download the nightly APK
+                    Download the stable APK
                 </Button>
-                <Button href="/install/" variant="outline" size="lg">
-                    Read the install guide
+                <Button
+                    href={siteConfig.nightlyRelease}
+                    variant="outline"
+                    size="lg"
+                >
+                    Try the nightly preview
                 </Button>
                 <Button href={siteConfig.repository} variant="ghost" size="lg">
                     Source on GitHub
