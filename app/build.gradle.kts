@@ -87,9 +87,10 @@ val fontsMetadataBaseUrl = localProperties.getProperty("FONTS_METADATA_BASE_URL"
 val mapTileHost = localProperties.getProperty("MAP_TILE_HOST", "https://tiles.openfreemap.org")
 val mapTerrainTileJsonUrl =
     localProperties.getProperty("MAP_TERRAIN_TILEJSON_URL", "https://tiles.mapterhorn.com/tilejson.json")
-// Release signing is driven entirely by environment variables so CI can sign the
-// nightly APK without committing a keystore, while local `assembleStableRelease`
-// stays unsigned (no signing config attached) when the variables are absent.
+// Release signing is driven entirely by environment variables so CI can sign
+// both channels' release APKs without committing a keystore, while a local
+// `assembleStableRelease` / `assembleNightlyRelease` stays unsigned (no signing
+// config attached) when the variables are absent.
 val releaseKeystorePath: String? = System.getenv("RELEASE_KEYSTORE_PATH")
 
 // JUnit category of the screenshot-catalog generator: excluded from the unit
@@ -126,10 +127,10 @@ android {
         applicationId = "io.github.seijikohara.femto"
         minSdk = 33
         targetSdk = 36
-        // CI injects versionCode/versionName: the nightly job uses the run
-        // number, the tag-driven release workflow derives them from the version
-        // tag (see .github/workflows/{ci,release}.yml). Local builds fall back to
-        // the committed 1 / "1.0".
+        // CI injects versionCode/versionName: .github/actions/app-version
+        // computes the date version for both channels, and the nightly and
+        // release jobs in .github/workflows/ci.yml pass it in. Local builds
+        // fall back to the committed 1 / "1.0".
         versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1
         versionName = System.getenv("VERSION_NAME") ?: "1.0"
 

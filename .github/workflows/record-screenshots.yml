@@ -1,10 +1,11 @@
 name: Record screenshots
 
 # Record the Roborazzi golden images on the CI runner — the SAME OS / JDK that
-# verifyRoborazziDebug compares against in ci.yml — and upload them as an artifact
-# to commit into the repo. Font antialiasing differs across OSes, so goldens cannot
-# be recorded reliably on a developer's machine. Run this whenever the dashboard's
-# intended appearance changes, then download the artifact and commit the PNGs.
+# verifyRoborazziStableDebug compares against in ci.yml — and upload them as an
+# artifact to commit into the repo. Font antialiasing differs across OSes, so goldens
+# cannot be recorded reliably on a developer's machine. Run this whenever the
+# dashboard's intended appearance changes, then download the artifact and commit the
+# PNGs.
 on:
   workflow_dispatch:
 
@@ -28,7 +29,7 @@ jobs:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       - name: Record goldens
-        run: ./gradlew recordRoborazziDebug --stacktrace
+        run: ./gradlew recordRoborazziStableDebug --stacktrace
 
       - name: Upload goldens
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
