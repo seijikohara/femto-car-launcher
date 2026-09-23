@@ -1,0 +1,62 @@
+name: App version
+description: >-
+  Compute the date-based versionName, versionCode and tag for a release
+  channel. Both channels share one versionCode space so the newest build of
+  either always outranks anything older on a device.
+
+inputs:
+  channel:
+    description: 'stable or nightly'
+    required: true
+
+outputs:
+  name:
+    description: 'versionName, e.g. 2026.09.23-2 (nightly adds -nightly+<sha7>)'
+    value: ${{ steps.compute.outputs.name }}
+  code:
+    description: 'versionCode, e.g. 26092302 (YYMMDD * 100 + build of the day)'
+    value: ${{ steps.compute.outputs.code }}
+  tag:
+    description: 'Release tag for the stable channel, e.g. v2026.09.23-2; empty for nightly'
+    value: ${{ steps.compute.outputs.tag }}
+
+runs:
+  using: composite
+  steps:
+    - name: Compute version
+      id: compute
+      # Composite steps do not infer a shell; bash is explicit here.
+      shell: bash
+      env:
+        CHANNEL: ${{ inputs.channel }}
+      run: |
+        set -euo pipefail
+        case "$CHANNEL" in
+          stable|nightly) ;;
+          *) echo "::error::channel must be stable or nightly (got '$CHANNEL')"; exit 1 ;;
+        esac
+        # The N-th build of the UTC day = commits on this branch since midnight.
+        # Needs the full history the caller checks out with fetch-depth: 0; with
+        # a shallow clone this silently counts 1 and versions would collide.
+        midnight="$(date -u +%Y-%m-%dT00:00:00Z)"
+        n="$(git rev-list --count --since="$midnight" HEAD)"
+        if [ "$n" -lt 1 ]; then n=1; fi
+        if [ "$n" -gt 99 ]; then
+          echo "::error::$n commits today exceeds the 2-digit build counter in the versionCode"
+          exit 1
+        fi
+        day="$(date -u +%Y.%m.%d)"
+        code="$(( $(date -u +%y%m%d) * 100 + n ))"
+        if [ "$CHANNEL" = stable ]; then
+          name="$day-$n"
+          tag="v$name"
+        else
+          name="$day-$n-nightly+${GITHUB_SHA:0:7}"
+          tag=""
+        fi
+        {
+          echo "name=$name"
+          echo "code=$code"
+          echo "tag=$tag"
+        } >> "$GITHUB_OUTPUT"
+        echo "channel=$CHANNEL versionName=$name versionCode=$code tag=${tag:-(none)}"
