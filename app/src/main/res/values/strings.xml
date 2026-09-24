@@ -164,6 +164,8 @@
          cover the horizontal case. -->
     <string name="dock_move_up">Move up</string>
     <string name="dock_move_down">Move down</string>
+    <!-- Accessibility label of the dot on the Settings button while an update is on offer. -->
+    <string name="dock_update_available">Update available</string>
 
     <!-- Dashboard footer: status cluster -->
     <string name="status_cellular_connected">Mobile data connected</string>
@@ -231,6 +233,7 @@
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_section_location">Location</string>
     <string name="settings_section_panels">Panels</string>
+    <string name="settings_section_updates">Updates</string>
     <string name="settings_category_select">Select %1$s</string>
     <string name="settings_category_back">Back to categories</string>
     <string name="settings_section_screen">Screen</string>
@@ -450,6 +453,55 @@
     <string name="settings_open_privacy">Privacy policy</string>
     <string name="settings_open_terms">Terms</string>
 
+    <!-- Settings: Updates section -->
+    <string name="settings_updates_version">Installed version</string>
+    <!-- %1$s = the running version name, %2$s = its channel (e.g. "Stable channel") -->
+    <string name="settings_updates_version_summary">%1$s · %2$s</string>
+    <string name="settings_updates_channel_stable">Stable channel</string>
+    <string name="settings_updates_channel_nightly">Nightly channel</string>
+    <string name="settings_updates_check">Check for updates</string>
+    <string name="settings_updates_status_disabled">This build does not check for updates.</string>
+    <string name="settings_updates_status_never_checked">Not checked yet.</string>
+    <!-- %1$s = date and time of the last check attempt -->
+    <string name="settings_updates_status_last_checked">Last checked %1$s.</string>
+    <string name="settings_updates_status_checking">Checking for updates…</string>
+    <string name="settings_updates_status_up_to_date">Up to date.</string>
+    <!-- %1$s = date and time of the last check attempt -->
+    <string name="settings_updates_status_up_to_date_at">Up to date. Last checked %1$s.</string>
+    <!-- %1$s = the offered version name -->
+    <string name="settings_updates_status_available">Version %1$s is available.</string>
+    <!-- %1$s = the version name, %2$d = percent downloaded -->
+    <string name="settings_updates_status_downloading">Downloading version %1$s… %2$d%%</string>
+    <string name="settings_updates_status_ready">Version %1$s is downloaded and verified.</string>
+    <string name="settings_updates_status_installing">Installing version %1$s…</string>
+    <string name="settings_updates_failed_network">Could not reach the update server. Check the connection and try again.</string>
+    <string name="settings_updates_failed_rate_limited">The update server asked to wait. Try again later.</string>
+    <string name="settings_updates_failed_storage">Not enough space for the update. Free up some storage and try again.</string>
+    <string name="settings_updates_failed_verify">The download did not match the published update and was deleted.</string>
+    <string name="settings_updates_failed_install_conflict">This update is signed with a different key, so it cannot replace the installed app.</string>
+    <string name="settings_updates_failed_install_blocked">This device blocks app installs, so the update cannot be installed here.</string>
+    <string name="settings_updates_failed_other">The update could not be completed.</string>
+    <string name="settings_updates_download">Download update</string>
+    <!-- %1$s = the download size, e.g. "45.3 MB" -->
+    <string name="settings_updates_download_size">Downloads %1$s.</string>
+    <string name="settings_updates_install">Install update</string>
+    <string name="settings_updates_install_desc">Opens the system\'s install confirmation.</string>
+    <!-- Named apart from "Install update": Android shows no progress once the install is
+         accepted, and an "Install" label would invite a second acceptance. -->
+    <string name="settings_updates_show_install_dialog">Show the install dialog again</string>
+    <string name="settings_updates_show_install_dialog_desc">For when the confirmation was closed without an answer.</string>
+    <string name="settings_updates_parked_only">Available when parked</string>
+    <string name="settings_updates_retry">Retry</string>
+    <!-- %1$s = the offered version name -->
+    <string name="settings_updates_retry_desc">Version %1$s</string>
+    <string name="settings_updates_auto_check">Check automatically</string>
+    <string name="settings_updates_auto_check_desc">Look for a new version once a day. Nothing downloads until you ask.</string>
+    <string name="settings_updates_release_page">Open release page</string>
+    <string name="settings_updates_release_page_desc">Download the latest version in a browser instead.</string>
+    <!-- %1$s = the version now running -->
+    <string name="settings_updates_updated_to">Updated to %1$s</string>
+    <string name="settings_updates_updated_to_desc">The new version is installed and running.</string>
+
     <!-- Diagnostics sheet. Section titles and UI chrome are localized; fact
          labels and values render the model's raw English tokens (the report's
          grep contract, see DiagnosticsModel.kt). -->
@@ -492,7 +544,7 @@
 
     <string name="settings_reset_to_defaults">Reset to defaults</string>
     <string name="settings_reset_confirm_title">Reset all settings?</string>
-    <string name="settings_reset_confirm_message">This restores every display, unit, map, location, panel, font and calendar setting to its default value.</string>
+    <string name="settings_reset_confirm_message">This restores every display, unit, map, location, panel, font, calendar and update setting to its default value.</string>
     <string name="settings_reset_confirm">Reset</string>
     <string name="settings_reset_section">Reset this section</string>
     <string name="settings_reset_section_confirm_title">Reset %1$s?</string>

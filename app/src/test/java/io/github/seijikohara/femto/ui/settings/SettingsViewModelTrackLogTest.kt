@@ -3,12 +3,15 @@ package io.github.seijikohara.femto.ui.settings
 import android.net.Uri
 import io.github.seijikohara.femto.data.calendar.CalendarCatalogState
 import io.github.seijikohara.femto.data.location.TrackRetentionSetting
+import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.testfixtures.FakeCalendarPreferencesStore
 import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeDockSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeFontSelectionStore
 import io.github.seijikohara.femto.testfixtures.FakeLocationSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeTrackLogPort
+import io.github.seijikohara.femto.testfixtures.FakeUpdateSettingsStore
+import io.github.seijikohara.femto.testfixtures.FakeUpdaterPort
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -55,6 +58,9 @@ class SettingsViewModelTrackLogTest {
             FakeDockSettingsStore(),
             trackLog = trackLog,
             availableCalendars = flowOf(CalendarCatalogState(hasAccess = true, calendars = emptyList())),
+            updater = FakeUpdaterPort(),
+            updatePreferences = FakeUpdateSettingsStore(),
+            motion = flowOf(VehicleMotion.PARKED),
         )
 
     @Test

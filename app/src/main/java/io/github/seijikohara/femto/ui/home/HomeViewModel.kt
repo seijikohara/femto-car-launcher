@@ -26,12 +26,16 @@ import io.github.seijikohara.femto.data.geocoding.ReverseGeocoderRepository
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.TripState
+import io.github.seijikohara.femto.data.location.VehicleMotion
+import io.github.seijikohara.femto.data.location.vehicleMotion
 import io.github.seijikohara.femto.data.music.AudioSpectrumRepository
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.MusicSessionRepository
 import io.github.seijikohara.femto.data.system.SystemStatus
 import io.github.seijikohara.femto.data.system.SystemStatusRepository
+import io.github.seijikohara.femto.data.update.UpdateRepository
+import io.github.seijikohara.femto.data.update.UpdateState
 import io.github.seijikohara.femto.data.weather.MetNorwayApi
 import io.github.seijikohara.femto.data.weather.WeatherRepository
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
@@ -46,6 +50,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import okhttp3.Cache
 import okhttp3.OkHttpClient
@@ -65,6 +70,9 @@ internal class HomeViewModel(
     // offline->online reload (see WebMapView). Defaults to always-online so previews
     // and tests that do not exercise recovery are unaffected.
     private val onlineFlow: Flow<Boolean> = flowOf(true),
+    // The updater's state; drives the dock's update badge. Defaults to a build that
+    // never checks, so previews and tests that do not exercise the badge are unaffected.
+    private val updateStateFlow: Flow<UpdateState> = flowOf(UpdateState.Disabled),
     private val sendMusicCommand: (MusicCommand) -> Unit = {},
     private val resumeLastMusicSession: () -> Unit = {},
     private val resetTrip: () -> Unit = {},
@@ -72,7 +80,7 @@ internal class HomeViewModel(
     private val spectrumEnabledFlow: Flow<Boolean> = flowOf(false),
     private val spectrumBandsFor: (Flow<Boolean>) -> Flow<FloatArray?> = { flowOf(null) },
 ) : ViewModel() {
-    // Kotlin's typed combine overloads cover at most 5 flows. Stage the eight
+    // Kotlin's typed combine overloads cover at most 5 flows. Stage the nine
     // sources through a typed intermediate (CoreSignals) so the compiler enforces
     // arity and per-slot types end-to-end: a future reorder fails to compile
     // instead of silently mismapping a positional values[i] cast.
@@ -87,8 +95,17 @@ internal class HomeViewModel(
             addressFlow.catchAsDefault("address", HomeUiState.Initial.address),
             weatherFlow.catchAsDefault("weather", HomeUiState.Initial.weather),
             musicStateFlow.catchAsDefault("music", HomeUiState.Initial.musicState),
-        ) { location, address, weather, music ->
-            CoreSignals(location, address, weather, music)
+            // Seeded with "no offer": the updater resolves off the main thread when
+            // first collected (UpdateRepository.observe), and the combine emits
+            // only once every source has, so an unseeded slot would hold the
+            // whole dashboard back until then.
+            updateStateFlow
+                .map { it.offersUpdate() }
+                .distinctUntilChanged()
+                .onStart { emit(false) }
+                .catchAsDefault("update", false),
+        ) { location, address, weather, music, updateOffered ->
+            CoreSignals(location, address, weather, music, updateOffered)
         }
 
     val uiState: StateFlow<HomeUiState> =
@@ -108,6 +125,8 @@ internal class HomeViewModel(
                 systemStatus = systemStatus,
                 tripState = tripState,
                 online = online,
+                updateBadge =
+                    core.updateOffered && vehicleMotion(core.location, tripState) == VehicleMotion.PARKED,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, HomeUiState.Initial)
 
@@ -271,14 +290,27 @@ private fun <T> Flow<T>.catchAsDefault(
         emit(default)
     }
 
-// File-private holder that groups the first four sources so the two-stage
+// File-private holder that groups the first five sources so the two-stage
 // combine stays within Kotlin's typed (max-arity-5) combine overloads.
 private data class CoreSignals(
     val location: Location?,
     val address: ShortAddress?,
     val weather: WeatherSnapshot?,
     val music: MusicCardState,
+    val updateOffered: Boolean,
 )
+
+// Whether this state names a newer build the user has not installed yet:
+// offered, on its way, verified, handed to the installer, or failed with the
+// offer still known. The badge stays up across those steps instead of blinking
+// off mid-way; a failure that lost the offer shows none, like every state
+// without one.
+private fun UpdateState.offersUpdate(): Boolean =
+    when (this) {
+        is UpdateState.Available, is UpdateState.Downloading, is UpdateState.Ready, is UpdateState.Installing -> true
+        is UpdateState.Failed -> manifest != null
+        UpdateState.Disabled, is UpdateState.Idle, UpdateState.Checking, UpdateState.UpToDate -> false
+    }
 
 // Shared HTTP disk cache size. A forecast response is ~50 KB and Nominatim
 // answers are tiny, so 5 MiB holds days of both with headroom.
@@ -354,6 +386,11 @@ internal class HomeViewModelFactory(
             systemStatusFlow = systemStatus.statusFlow(),
             tripStateFlow = locationGraph.tripState,
             onlineFlow = systemStatus.onlineFlow(),
+            // The first collection here is what starts the updater and its daily
+            // check: the dashboard subscribes once onCreate has returned, and
+            // observe() resolves the updater off the main thread, so neither the
+            // cold start nor the first frame waits for it.
+            updateStateFlow = UpdateRepository.observe(application) { it.state },
             sendMusicCommand = music::send,
             resumeLastMusicSession = music::dispatchPlayMediaKey,
             resetTrip = locationGraph::resetTrip,

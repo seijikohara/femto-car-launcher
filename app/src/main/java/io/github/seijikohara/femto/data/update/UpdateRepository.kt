@@ -20,9 +20,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -676,6 +679,19 @@ internal class UpdateRepository internal constructor(
         fun get(context: Context): UpdateRepository =
             instance ?: synchronized(this) { instance ?: create(context).also { instance = it } }
 
+        /**
+         * [select] applied to the app's updater, which this resolves on first
+         * collection, on a background thread. The first [get] starts the
+         * daily check, and on the way it builds an HTTP client and opens the
+         * store: work that has no place in `MainActivity#onCreate`, where cold
+         * start is a key product metric. The dashboard's subscription is what
+         * normally collects this first, once `onCreate` has returned.
+         */
+        fun <T> observe(
+            context: Context,
+            select: (UpdateRepository) -> Flow<T>,
+        ): Flow<T> = flow { emitAll(select(get(context))) }.flowOn(Dispatchers.Default)
+
         private fun create(context: Context): UpdateRepository {
             val app = context.applicationContext
             val channel = UpdateChannel.fromFlavorOrNull(BuildConfig.FLAVOR)
@@ -737,7 +753,12 @@ internal fun autoCheckEvaluations(
         if (on) combine(online, ticks) { isOnline, _ -> isOnline } else emptyFlow()
     }
 
-private fun UpdateState.isResting(): Boolean =
+/**
+ * Whether a check may start from this state ([UpdateRepository.checkNow]
+ * ignores every other one). Internal so the Settings check row is tappable
+ * exactly when a tap would do something.
+ */
+internal fun UpdateState.isResting(): Boolean =
     this is UpdateState.Idle ||
         this == UpdateState.UpToDate ||
         this is UpdateState.Available ||

@@ -2,18 +2,24 @@ package io.github.seijikohara.femto.ui.home
 
 import android.content.ComponentName
 import android.content.Intent
+import android.location.Location
 import app.cash.turbine.test
 import io.github.seijikohara.femto.data.dock.DockNavId
 import io.github.seijikohara.femto.data.dock.DockStatusId
+import io.github.seijikohara.femto.data.location.MIN_MOVING_SPEED_MS
+import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.SPECTRUM_BAND_COUNT
+import io.github.seijikohara.femto.data.update.UpdateFailure
+import io.github.seijikohara.femto.data.update.UpdateState
 import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
 import io.github.seijikohara.femto.testfixtures.fakeLocation
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.testfixtures.fakeSystemStatus
 import io.github.seijikohara.femto.testfixtures.fakeTripState
+import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
 import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
 import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
 import kotlinx.coroutines.Dispatchers
@@ -22,7 +28,10 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -32,9 +41,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.io.File
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -463,6 +475,96 @@ class HomeViewModelTest {
             }
         }
 
+    @Test
+    fun `the update badge shows for an update on offer while a fix shows the vehicle parked`() =
+        runTest {
+            val state = settledState(badgeViewModel(update = UpdateState.Available(UPDATE)))
+            assertTrue(state.updateBadge)
+        }
+
+    @Test
+    fun `the update badge stays hidden without a fix`() =
+        runTest {
+            // Before the first fix of a drive the trip speed reads zero, so a
+            // stationary trip state alone must not count as parked.
+            val state = settledState(badgeViewModel(update = UpdateState.Available(UPDATE), location = null))
+            assertFalse(state.updateBadge)
+        }
+
+    @Test
+    fun `the update badge stays hidden while a fix shows the vehicle moving`() =
+        runTest {
+            val moving = fakeTripState(currentSpeedMs = MIN_MOVING_SPEED_MS + 10.0)
+            val state = settledState(badgeViewModel(update = UpdateState.Available(UPDATE), tripState = moving))
+            assertFalse(state.updateBadge)
+        }
+
+    @Test
+    fun `the update badge stays hidden when the build is up to date`() =
+        runTest {
+            assertFalse(settledState(badgeViewModel(update = UpdateState.UpToDate)).updateBadge)
+        }
+
+    @Test
+    fun `the update badge stays up once the update is downloaded and verified`() =
+        runTest {
+            val state = settledState(badgeViewModel(update = UpdateState.Ready(UPDATE, File("update.apk"))))
+            assertTrue(state.updateBadge)
+        }
+
+    @Test
+    fun `the update badge hides once a failure lost the offer`() =
+        runTest {
+            val lost = UpdateState.Failed(UpdateFailure.INSTALL_CONFLICT, manifest = null)
+            assertFalse(settledState(badgeViewModel(update = lost)).updateBadge)
+        }
+
+    @Test
+    fun `a failing updater costs only the badge`() =
+        runTest {
+            val weather = fakeWeatherSnapshot()
+            val viewModel =
+                HomeViewModel(
+                    locationFlow = flowOf(fakeLocation()),
+                    addressFlow = flowOf(fakeAddress()),
+                    weatherFlow = flowOf(weather),
+                    musicStateFlow = flowOf(MusicCardState.Playing(fakeNowPlaying())),
+                    calendarFlow = flowOf(fakeCalendarSnapshot()),
+                    systemStatusFlow = flowOf(fakeSystemStatus()),
+                    tripStateFlow = flowOf(fakeTripState()),
+                    updateStateFlow = flow { throw IllegalStateException("updater broke") },
+                )
+            val state = settledState(viewModel)
+            assertFalse(state.updateBadge)
+            assertEquals(weather, state.weather)
+        }
+
+    // Subscribes (WhileUiSubscribed runs the combine only while collected) and
+    // returns the state once every source has emitted.
+    private fun TestScope.settledState(viewModel: HomeViewModel): HomeUiState {
+        backgroundScope.launch { viewModel.uiState.collect { } }
+        advanceUntilIdle()
+        return viewModel.uiState.value
+    }
+
+    // Every source emits, so the combine settles. The motion inputs default to
+    // parked with a fix, so each test moves exactly one badge input.
+    private fun badgeViewModel(
+        update: UpdateState,
+        location: Location? = fakeLocation(),
+        tripState: TripState = fakeTripState(currentSpeedMs = 0.0),
+    ): HomeViewModel =
+        HomeViewModel(
+            locationFlow = flowOf(location),
+            addressFlow = flowOf(fakeAddress()),
+            weatherFlow = flowOf(fakeWeatherSnapshot()),
+            musicStateFlow = flowOf(MusicCardState.Playing(fakeNowPlaying())),
+            calendarFlow = flowOf(fakeCalendarSnapshot()),
+            systemStatusFlow = flowOf(fakeSystemStatus()),
+            tripStateFlow = flowOf(tripState),
+            updateStateFlow = flowOf(update),
+        )
+
     /**
      * Build a view-model whose spectrum source maps the derived active gate
      * straight to [bands], so the assertions above pin the gating logic
@@ -518,4 +620,8 @@ class HomeViewModelTest {
             resetTrip = resetTrip,
             resolveMusicSourceComponent = resolveMusicSourceComponent,
         )
+
+    private companion object {
+        val UPDATE = fakeUpdateManifest(versionCode = 26092501)
+    }
 }

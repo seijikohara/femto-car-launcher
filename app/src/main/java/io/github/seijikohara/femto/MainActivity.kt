@@ -52,6 +52,8 @@ import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.hasCoarseLocationPermission
 import io.github.seijikohara.femto.data.location.hasFineLocationPermission
 import io.github.seijikohara.femto.data.system.SystemPermissionSignals
+import io.github.seijikohara.femto.data.update.UpdateChannel
+import io.github.seijikohara.femto.data.update.releasePageUrl
 import io.github.seijikohara.femto.ui.assistant.AssistantOption
 import io.github.seijikohara.femto.ui.assistant.AssistantSheet
 import io.github.seijikohara.femto.ui.common.ModalSheetHost
@@ -545,6 +547,7 @@ class MainActivity : ComponentActivity() {
                 SettingsDocument.PRIVACY_POLICY -> PRIVACY_POLICY_URL
                 SettingsDocument.TERMS -> TERMS_URL
                 SettingsDocument.GOOGLE_MAPS_PLATFORM_TERMS -> GOOGLE_MAPS_PLATFORM_TERMS_URL
+                SettingsDocument.RELEASE_PAGE -> ReleasePageUrl
             }
         val intent =
             Intent(Intent.ACTION_VIEW, url.toUri())
@@ -729,3 +732,11 @@ private const val TERMS_URL = "https://github.com/seijikohara/femto-car-launcher
 // who attaches a billing account can read the restrictions that bind their use
 // of the key before entering it.
 private const val GOOGLE_MAPS_PLATFORM_TERMS_URL = "https://cloud.google.com/maps-platform/terms"
+
+// This build's channel's latest release page (Settings -> Updates -> Open release
+// page), derived from the feed the updater reads so that a fork or a test feed
+// sends the manual path to the same releases as the in-app one. A getter, not a
+// stored value: the file's other members load with onCreate, and this one waits
+// for the tap.
+private val ReleasePageUrl: String
+    get() = releasePageUrl(BuildConfig.UPDATE_FEED_BASE_URL, UpdateChannel.fromFlavorOrNull(BuildConfig.FLAVOR))

@@ -106,6 +106,10 @@ internal data class SettingsUiState(
     // calendars found" (hiding the grant affordance) when access is actually
     // denied; CalendarCatalog emits the real value on subscription.
     val hasCalendarAccess: Boolean = false,
+    // The Updates section, derived from the updater and its own store (see
+    // updatesUiState); defaulted on the field like trackExport, since the store
+    // combine builds the rest of the state before it is folded in.
+    val updates: UpdatesUiState = UpdatesUiState.Initial,
 ) {
     companion object {
         // Seeded from the persistence defaults so the default values live in one
@@ -428,7 +432,29 @@ internal sealed interface SettingsAction {
         val hidden: Boolean,
     ) : SettingsAction
 
-    /** Restore every display + font + location + calendar setting to its default value. */
+    /** Check this channel's release feed now. */
+    data object CheckForUpdates : SettingsAction
+
+    /** Download the offered update, or retry one whose failure still names its offer. */
+    data object DownloadUpdate : SettingsAction
+
+    /**
+     * Hand the verified update to the system installer, or show its pending
+     * confirmation again. Ignored while a fix shows the vehicle moving.
+     * `SettingsRoute` first sends the user to the "Install unknown apps" grant
+     * when it is missing.
+     */
+    data object InstallUpdate : SettingsAction
+
+    /** Turn the daily automatic check on or off. */
+    data class SetUpdateAutoCheck(
+        val value: Boolean,
+    ) : SettingsAction
+
+    /** The "Updated to …" notice has been shown; stop reporting it. */
+    data object AcknowledgeUpdatedTo : SettingsAction
+
+    /** Restore every display + font + location + calendar + update setting to its default value. */
     data object ResetToDefaults : SettingsAction
 
     /** Restore only [sectionId]'s own settings (and any store it owns) to their default value. */

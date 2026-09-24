@@ -24,19 +24,29 @@ import io.github.seijikohara.femto.data.fonts.FontSource
 import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
 import io.github.seijikohara.femto.data.location.TripAutoResetSetting
+import io.github.seijikohara.femto.data.location.VehicleMotion
+import io.github.seijikohara.femto.data.update.UpdateFailure
+import io.github.seijikohara.femto.data.update.UpdateSettings
+import io.github.seijikohara.femto.data.update.UpdateState
 import io.github.seijikohara.femto.testfixtures.FakeCalendarPreferencesStore
 import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeDockSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeFontSelectionStore
+import io.github.seijikohara.femto.testfixtures.FakeInstallConfirmation
 import io.github.seijikohara.femto.testfixtures.FakeLocationSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeTrackLogPort
+import io.github.seijikohara.femto.testfixtures.FakeUpdateSettingsStore
+import io.github.seijikohara.femto.testfixtures.FakeUpdaterPort
 import io.github.seijikohara.femto.testfixtures.fakeCalendarInfo
+import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -44,7 +54,10 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import java.io.File
+import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 // Pure JVM: every collaborator is an in-memory fake, so there is no DataStore IO
 // and the test is fully driven by the StandardTestDispatcher.
@@ -54,6 +67,10 @@ class SettingsViewModelTest {
     private val fontStore = FakeFontSelectionStore()
     private val locationStore = FakeLocationSettingsStore()
     private val dockStore = FakeDockSettingsStore()
+    private val updater = FakeUpdaterPort()
+    private val updateStore = FakeUpdateSettingsStore()
+    private val motion = MutableStateFlow(VehicleMotion.PARKED)
+    private val manifest = fakeUpdateManifest(versionCode = 26092501)
     private val dispatcher = StandardTestDispatcher()
 
     @Before
@@ -256,16 +273,7 @@ class SettingsViewModelTest {
     fun `ResetToDefaults also clears the hidden calendar set`() =
         runTest(dispatcher) {
             val calendarPrefs = FakeCalendarPreferencesStore(initialHidden = setOf(1L, 2L))
-            val vm =
-                SettingsViewModel(
-                    store,
-                    fontStore,
-                    locationStore,
-                    calendarPrefs,
-                    dockStore,
-                    trackLog = FakeTrackLogPort(),
-                    availableCalendars = flowOf(CalendarCatalogState(hasAccess = true, calendars = emptyList())),
-                )
+            val vm = viewModel(calendarPrefs = calendarPrefs)
             vm.onAction(SettingsAction.ResetToDefaults)
             advanceUntilIdle()
             assertEquals(emptySet(), calendarPrefs.hiddenCalendarIds.first())
@@ -365,16 +373,7 @@ class SettingsViewModelTest {
     fun `ResetSection(PANELS) resets its fields and the calendar store, leaves other sections alone`() =
         runTest(dispatcher) {
             val calendarPrefs = FakeCalendarPreferencesStore(initialHidden = setOf(1L))
-            val vm =
-                SettingsViewModel(
-                    store,
-                    fontStore,
-                    locationStore,
-                    calendarPrefs,
-                    dockStore,
-                    trackLog = FakeTrackLogPort(),
-                    availableCalendars = flowOf(CalendarCatalogState(hasAccess = true, calendars = emptyList())),
-                )
+            val vm = viewModel(calendarPrefs = calendarPrefs)
             vm.onAction(SettingsAction.SetShowMusic(false))
             vm.onAction(SettingsAction.SetMusicSpectrum(true))
             vm.onAction(SettingsAction.SetMapZoom(11))
@@ -531,23 +530,16 @@ class SettingsViewModelTest {
         runTest(dispatcher) {
             val calendarPrefs = FakeCalendarPreferencesStore()
             val vm =
-                SettingsViewModel(
-                    store,
-                    fontStore,
-                    locationStore,
-                    calendarPrefs,
-                    dockStore,
-                    trackLog = FakeTrackLogPort(),
+                viewModel(
+                    calendarPrefs = calendarPrefs,
                     availableCalendars =
-                        flowOf(
-                            CalendarCatalogState(
-                                hasAccess = true,
-                                calendars =
-                                    listOf(
-                                        fakeCalendarInfo(id = 1L),
-                                        fakeCalendarInfo(id = 2L, displayName = "Work"),
-                                    ),
-                            ),
+                        CalendarCatalogState(
+                            hasAccess = true,
+                            calendars =
+                                listOf(
+                                    fakeCalendarInfo(id = 1L),
+                                    fakeCalendarInfo(id = 2L, displayName = "Work"),
+                                ),
                         ),
                 )
             backgroundScope.launch { vm.uiState.collect { } }
@@ -663,14 +655,291 @@ class SettingsViewModelTest {
             assertEquals(false, vm.uiState.value.dockStatusVisible)
         }
 
-    private fun viewModel() =
-        SettingsViewModel(
-            store,
-            fontStore,
-            locationStore,
-            FakeCalendarPreferencesStore(),
-            dockStore,
-            trackLog = FakeTrackLogPort(),
-            availableCalendars = flowOf(CalendarCatalogState(hasAccess = true, calendars = emptyList())),
-        )
+    // --- Updates ---------------------------------------------------------------
+
+    @Test
+    fun `a build that never checks shows the disabled status and offers no step`() =
+        runTest(dispatcher) {
+            val updates = updatesFor(UpdateState.Disabled)
+            assertEquals(UpdateStatus.Disabled, updates.status)
+            assertNull(updates.step)
+        }
+
+    @Test
+    fun `Idle shows the persisted last attempt`() =
+        runTest(dispatcher) {
+            updateStore.setLastCheckAttemptAt(ATTEMPT_MS)
+            assertEquals(
+                UpdateStatus.Idle(Instant.ofEpochMilli(ATTEMPT_MS)),
+                updatesFor(UpdateState.Idle(lastAttemptAt = null)).status,
+            )
+        }
+
+    @Test
+    fun `Idle without a recorded attempt shows none`() =
+        runTest(dispatcher) {
+            assertEquals(
+                UpdateStatus.Idle(lastAttemptAt = null),
+                updatesFor(UpdateState.Idle(lastAttemptAt = null)).status,
+            )
+        }
+
+    @Test
+    fun `Checking shows the checking status and offers no step`() =
+        runTest(dispatcher) {
+            val updates = updatesFor(UpdateState.Checking)
+            assertEquals(UpdateStatus.Checking, updates.status)
+            assertNull(updates.step)
+        }
+
+    @Test
+    fun `UpToDate carries the persisted last attempt`() =
+        runTest(dispatcher) {
+            updateStore.setLastCheckAttemptAt(ATTEMPT_MS)
+            assertEquals(
+                UpdateStatus.UpToDate(Instant.ofEpochMilli(ATTEMPT_MS)),
+                updatesFor(UpdateState.UpToDate).status,
+            )
+        }
+
+    @Test
+    fun `Available offers the download at the manifest's size before it starts`() =
+        runTest(dispatcher) {
+            val updates = updatesFor(UpdateState.Available(manifest))
+            assertEquals(UpdateStatus.Available(manifest.versionName), updates.status)
+            assertEquals(UpdateStep.Download(manifest.apk.size), updates.step)
+        }
+
+    @Test
+    fun `Downloading reports its fraction and offers no step`() =
+        runTest(dispatcher) {
+            val updates = updatesFor(UpdateState.Downloading(manifest, fraction = 0.42f))
+            assertEquals(UpdateStatus.Downloading(manifest.versionName, 0.42f), updates.status)
+            assertNull(updates.step)
+        }
+
+    @Test
+    fun `Ready offers the install`() =
+        runTest(dispatcher) {
+            val updates = updatesFor(UpdateState.Ready(manifest, File("update.apk")))
+            assertEquals(UpdateStatus.Ready(manifest.versionName), updates.status)
+            assertEquals(UpdateStep.Install(blockedWhileMoving = false), updates.step)
+        }
+
+    @Test
+    fun `Installing before the confirmation arrives offers no step`() =
+        runTest(dispatcher) {
+            val updates = updatesFor(UpdateState.Installing(manifest, sessionId = SESSION_ID))
+            assertEquals(UpdateStatus.Installing(manifest.versionName), updates.status)
+            assertNull(updates.step)
+        }
+
+    @Test
+    fun `Installing with a kept confirmation offers the install dialog again`() =
+        runTest(dispatcher) {
+            val updates = updatesFor(installingWithConfirmation())
+            assertEquals(UpdateStatus.Installing(manifest.versionName), updates.status)
+            assertEquals(UpdateStep.ShowInstallDialog(blockedWhileMoving = false), updates.step)
+        }
+
+    @Test
+    fun `a failure that still names its offer offers a retry`() =
+        runTest(dispatcher) {
+            val updates = updatesFor(UpdateState.Failed(UpdateFailure.NETWORK, manifest))
+            assertEquals(UpdateStatus.Failed(UpdateFailure.NETWORK), updates.status)
+            assertEquals(UpdateStep.Retry(manifest.versionName), updates.step)
+        }
+
+    @Test
+    fun `a failure that lost its offer offers no step`() =
+        runTest(dispatcher) {
+            val updates = updatesFor(UpdateState.Failed(UpdateFailure.INSTALL_CONFLICT, manifest = null))
+            assertEquals(UpdateStatus.Failed(UpdateFailure.INSTALL_CONFLICT), updates.status)
+            assertNull(updates.step)
+        }
+
+    @Test
+    fun `the check row is tappable only where a check can start`() =
+        runTest(dispatcher) {
+            // Everywhere else the updater ignores the tap: a check is running, the
+            // offer is being acted on, or the build never checks.
+            mapOf(
+                UpdateState.Disabled to false,
+                UpdateState.Idle(lastAttemptAt = null) to true,
+                UpdateState.Checking to false,
+                UpdateState.UpToDate to true,
+                UpdateState.Available(manifest) to true,
+                UpdateState.Downloading(manifest, fraction = 0.5f) to false,
+                UpdateState.Ready(manifest, File("update.apk")) to false,
+                installingWithConfirmation() to false,
+                UpdateState.Failed(UpdateFailure.NETWORK, manifest = null) to true,
+            ).forEach { (state, canCheck) ->
+                assertEquals(canCheck, updatesFor(state).canCheck, "canCheck for $state")
+            }
+        }
+
+    @Test
+    fun `a fix showing the vehicle moving holds the install step`() =
+        runTest(dispatcher) {
+            motion.value = VehicleMotion.MOVING
+            assertEquals(
+                UpdateStep.Install(blockedWhileMoving = true),
+                updatesFor(UpdateState.Ready(manifest, File("update.apk"))).step,
+            )
+        }
+
+    @Test
+    fun `a fix showing the vehicle moving holds the install dialog step`() =
+        runTest(dispatcher) {
+            motion.value = VehicleMotion.MOVING
+            assertEquals(
+                UpdateStep.ShowInstallDialog(blockedWhileMoving = true),
+                updatesFor(installingWithConfirmation()).step,
+            )
+        }
+
+    @Test
+    fun `no fix leaves the install step open`() =
+        runTest(dispatcher) {
+            motion.value = VehicleMotion.UNKNOWN
+            assertEquals(
+                UpdateStep.Install(blockedWhileMoving = false),
+                updatesFor(UpdateState.Ready(manifest, File("update.apk"))).step,
+            )
+        }
+
+    @Test
+    fun `InstallUpdate installs while parked`() =
+        runTest(dispatcher) {
+            motion.value = VehicleMotion.PARKED
+            viewModel().onAction(SettingsAction.InstallUpdate)
+            advanceUntilIdle()
+            assertEquals(1, updater.installs)
+        }
+
+    @Test
+    fun `InstallUpdate installs without a fix`() =
+        runTest(dispatcher) {
+            // A phone without the location grant never gets a fix, and must still
+            // be able to install the update it asked for.
+            motion.value = VehicleMotion.UNKNOWN
+            viewModel().onAction(SettingsAction.InstallUpdate)
+            advanceUntilIdle()
+            assertEquals(1, updater.installs)
+        }
+
+    @Test
+    fun `InstallUpdate is ignored while a fix shows the vehicle moving`() =
+        runTest(dispatcher) {
+            motion.value = VehicleMotion.MOVING
+            viewModel().onAction(SettingsAction.InstallUpdate)
+            advanceUntilIdle()
+            assertEquals(0, updater.installs)
+        }
+
+    @Test
+    fun `CheckForUpdates asks the updater to check, whatever the motion`() =
+        runTest(dispatcher) {
+            motion.value = VehicleMotion.MOVING
+            viewModel().onAction(SettingsAction.CheckForUpdates)
+            advanceUntilIdle()
+            assertEquals(1, updater.checks)
+        }
+
+    @Test
+    fun `DownloadUpdate asks the updater to download, whatever the motion`() =
+        runTest(dispatcher) {
+            motion.value = VehicleMotion.MOVING
+            viewModel().onAction(SettingsAction.DownloadUpdate)
+            advanceUntilIdle()
+            assertEquals(1, updater.downloads)
+        }
+
+    @Test
+    fun `SetUpdateAutoCheck writes the update store and surfaces in uiState`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            backgroundScope.launch { vm.uiState.collect { } }
+            vm.onAction(SettingsAction.SetUpdateAutoCheck(false))
+            advanceUntilIdle()
+            assertEquals(false, updateStore.current.autoCheck)
+            assertEquals(false, vm.uiState.value.updates.autoCheck)
+        }
+
+    @Test
+    fun `the updated-to notice surfaces until acknowledged`() =
+        runTest(dispatcher) {
+            updater.updatedTo.value = "2026.09.25-1"
+            val vm = viewModel()
+            backgroundScope.launch { vm.uiState.collect { } }
+            advanceUntilIdle()
+            assertEquals("2026.09.25-1", vm.uiState.value.updates.updatedTo)
+
+            vm.onAction(SettingsAction.AcknowledgeUpdatedTo)
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.updates.updatedTo)
+        }
+
+    @Test
+    fun `ResetSection(UPDATES) restores the auto-check default, leaves the display store alone`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.SetUpdateAutoCheck(false))
+            vm.onAction(SettingsAction.SetMapZoom(11))
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.ResetSection(SettingsSectionId.UPDATES))
+            advanceUntilIdle()
+
+            assertEquals(UpdateSettings.Default.autoCheck, updateStore.current.autoCheck)
+            // UPDATES owns no DisplayPreferences key, so the display store is untouched.
+            assertEquals(11, store.settings.first().mapZoom)
+        }
+
+    @Test
+    fun `ResetToDefaults also restores the auto-check default`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.SetUpdateAutoCheck(false))
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.ResetToDefaults)
+            advanceUntilIdle()
+
+            assertEquals(UpdateSettings.Default.autoCheck, updateStore.current.autoCheck)
+        }
+
+    // Subscribes (WhileUiSubscribed runs the combine only while collected), stages
+    // [state] and returns the section's state once it has settled.
+    private fun TestScope.updatesFor(state: UpdateState): UpdatesUiState {
+        updater.state.value = state
+        val vm = viewModel()
+        backgroundScope.launch { vm.uiState.collect { } }
+        advanceUntilIdle()
+        return vm.uiState.value.updates
+    }
+
+    private fun installingWithConfirmation() =
+        UpdateState.Installing(manifest, sessionId = SESSION_ID, confirmation = FakeInstallConfirmation())
+
+    private fun viewModel(
+        calendarPrefs: FakeCalendarPreferencesStore = FakeCalendarPreferencesStore(),
+        availableCalendars: CalendarCatalogState = CalendarCatalogState(hasAccess = true, calendars = emptyList()),
+    ) = SettingsViewModel(
+        store,
+        fontStore,
+        locationStore,
+        calendarPrefs,
+        dockStore,
+        trackLog = FakeTrackLogPort(),
+        availableCalendars = flowOf(availableCalendars),
+        updater = updater,
+        updatePreferences = updateStore,
+        motion = motion,
+    )
+
+    private companion object {
+        const val ATTEMPT_MS = 1_790_000_000_000L
+        const val SESSION_ID = 7
+    }
 }

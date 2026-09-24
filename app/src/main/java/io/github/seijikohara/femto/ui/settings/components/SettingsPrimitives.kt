@@ -352,6 +352,8 @@ internal fun SliderRow(
 }
 
 // A navigation row: links out to a system screen, marked with an external glyph.
+// A row whose action stays in the app (checking for or downloading an update)
+// passes a glyph of its own, so the row never promises a jump it does not make.
 @Composable
 internal fun ActionRow(
     title: String,
@@ -359,13 +361,14 @@ internal fun ActionRow(
     modifier: Modifier = Modifier,
     summary: String? = null,
     summaryLiveRegion: Boolean = false,
+    icon: ImageVector = Lucide.ExternalLink,
 ) = SettingRow(
     title = title,
     summary = summary,
     summaryLiveRegion = summaryLiveRegion,
     modifier = modifier.clickable(onClick = onClick),
 ) {
-    TrailingIcon(Lucide.ExternalLink)
+    TrailingIcon(icon)
 }
 
 // A destructive row: resetting a group of settings to their defaults. Tapping

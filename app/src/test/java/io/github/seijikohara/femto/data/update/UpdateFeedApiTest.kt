@@ -319,6 +319,28 @@ class UpdateFeedApiTest {
             assertFalse(partOf(target).exists())
         }
 
+    // --- release page -------------------------------------------------------
+
+    @Test
+    fun `the stable release page is the latest release`() {
+        assertEquals("$RELEASES/latest", releasePageUrl(RELEASES, UpdateChannel.STABLE))
+    }
+
+    @Test
+    fun `the nightly release page is the nightly tag's release`() {
+        assertEquals("$RELEASES/tag/nightly", releasePageUrl(RELEASES, UpdateChannel.NIGHTLY))
+    }
+
+    @Test
+    fun `a build without a channel gets the list of every release`() {
+        assertEquals(RELEASES, releasePageUrl(RELEASES, channel = null))
+    }
+
+    @Test
+    fun `a feed base with a trailing slash still yields one separator`() {
+        assertEquals("$RELEASES/latest", releasePageUrl("$RELEASES/", UpdateChannel.STABLE))
+    }
+
     private fun newApi(nowMs: () -> Long = { 0L }): UpdateFeedApi =
         UpdateFeedApi(
             client = client,
@@ -339,6 +361,7 @@ class UpdateFeedApiTest {
 
     private companion object {
         const val USER_AGENT = "FemtoCarLauncher/test (+https://example.test)"
+        const val RELEASES = "https://example.test/owner/repo/releases"
         const val MANIFEST_SHA256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
         const val MANIFEST_APK_URL =
             "https://example.test/releases/download/v2026.09.24-1/femto-car-launcher-v2026.09.24-1.apk"

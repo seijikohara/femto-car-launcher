@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -237,6 +239,9 @@ internal fun navSpecFor(id: DockNavId): NavSpec =
  *    hidden on telephony-less units; Wi-Fi; Bluetooth; GPS reception; and a
  *    battery indicator with icon over percent, charging read from the bolt
  *    glyph and accent tint).
+ *  - [updateBadge] puts a dot on the Settings button, where the Updates
+ *    section offers the update (the caller has already applied the parked
+ *    gate, see `HomeUiState.updateBadge`).
  *
  * Iconography is the Lucide set; its stroke is lightened app-wide via FemtoIcon.
  */
@@ -251,6 +256,7 @@ internal fun DashboardDock(
     glassConfig: GlassConfig = GlassConfig(),
     dockConfig: DockConfig = DockConfig(),
     motionTier: MotionTier = MotionTier.STANDARD,
+    updateBadge: Boolean = false,
 ) = when (position) {
     DockPosition.BOTTOM, DockPosition.TOP -> {
         HorizontalDock(
@@ -262,6 +268,7 @@ internal fun DashboardDock(
             dockWidth = dockWidth,
             dockConfig = dockConfig,
             motionTier = motionTier,
+            updateBadge = updateBadge,
         )
     }
 
@@ -274,6 +281,7 @@ internal fun DashboardDock(
             modifier = modifier,
             dockConfig = dockConfig,
             motionTier = motionTier,
+            updateBadge = updateBadge,
         )
     }
 }
@@ -288,6 +296,7 @@ private fun HorizontalDock(
     modifier: Modifier = Modifier,
     dockConfig: DockConfig = DockConfig(),
     motionTier: MotionTier = MotionTier.STANDARD,
+    updateBadge: Boolean = false,
 ) {
     val visibleNav = dockConfig.visibleNav
     // Read the available width before committing to a layout. The fixed-margin
@@ -365,6 +374,7 @@ private fun HorizontalDock(
                                 onAction = onAction,
                                 onEnterEdit = { editing = true },
                                 modifier = Modifier.padding(horizontal = FemtoDimens.DockButtonMargin),
+                                updateBadge = updateBadge,
                             )
                         }
                     }
@@ -418,6 +428,7 @@ private fun HorizontalDock(
                                         onAction = onAction,
                                         onEnterEdit = { editing = true },
                                         modifier = Modifier.weight(1f),
+                                        updateBadge = updateBadge,
                                     )
                                 }
                             }
@@ -467,6 +478,7 @@ private fun VerticalDock(
     modifier: Modifier = Modifier,
     dockConfig: DockConfig = DockConfig(),
     motionTier: MotionTier = MotionTier.STANDARD,
+    updateBadge: Boolean = false,
 ) = Surface(
     // Floating rounded glass rail, mirroring HorizontalDock on the width; on the
     // Live backend the blur falls back to the tint.
@@ -546,6 +558,7 @@ private fun VerticalDock(
                                     onAction = onAction,
                                     onEnterEdit = { editing = true },
                                     modifier = Modifier.weight(1f),
+                                    updateBadge = updateBadge,
                                 )
                             }
                         }
@@ -601,6 +614,11 @@ private fun NavButton(
     // this just names it instead of leaving TalkBack to announce a generic "long click".
     onLongClickLabel: String? = null,
     onLongClick: (() -> Unit)? = null,
+    // Draws the standard M3 small badge (a dot) on the icon and announces this after
+    // [description]; null draws none. The dot takes the accent rather than the
+    // badge's default error red: it announces something new, not a fault, on a
+    // screen a driver reads at a glance.
+    badgeDescription: String? = null,
     // A long-press-triggered popup (the dock's edit menu) anchored to this same Box.
     menu: @Composable () -> Unit = {},
 ) = Box(
@@ -614,12 +632,27 @@ private fun NavButton(
             .semantics { contentDescription = description },
     contentAlignment = Alignment.Center,
 ) {
-    FemtoIcon(
-        imageVector = icon,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.size(26.dp),
-    )
+    val glyph: @Composable () -> Unit = {
+        FemtoIcon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(26.dp),
+        )
+    }
+    // An unbadged button lays out exactly as before, so no dashboard golden moves.
+    if (badgeDescription == null) {
+        glyph()
+    } else {
+        BadgedBox(
+            badge = {
+                Badge(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.semantics { contentDescription = badgeDescription },
+                )
+            },
+        ) { glyph() }
+    }
     menu()
 }
 
@@ -640,6 +673,7 @@ private fun EditableNavButton(
     onAction: (HomeAction) -> Unit,
     onEnterEdit: () -> Unit,
     modifier: Modifier = Modifier,
+    updateBadge: Boolean = false,
 ) {
     val spec = navSpecFor(id)
     NavButton(
@@ -649,6 +683,10 @@ private fun EditableNavButton(
         modifier = modifier,
         onLongClickLabel = stringResource(R.string.dock_edit),
         onLongClick = onEnterEdit,
+        // The update is offered in Settings (its Updates section), so the dot
+        // marks the button that leads there.
+        badgeDescription =
+            stringResource(R.string.dock_update_available).takeIf { updateBadge && id == DockNavId.SETTINGS },
     )
 }
 
@@ -990,6 +1028,33 @@ private fun DashboardDockCompactPreview() {
                     gpsSatelliteCount = 7,
                 ),
             onAction = {},
+        )
+    }
+}
+
+// The reference head unit with an update on offer while parked: the Settings
+// button carries the accent dot.
+@PreviewLightDark
+@Preview(name = "Dashboard dock (update badge)", widthDp = 853, heightDp = 64)
+@Composable
+private fun DashboardDockUpdateBadgePreview() {
+    FemtoTheme {
+        DashboardDock(
+            systemStatus =
+                SystemStatus(
+                    cellularConnected = true,
+                    cellularSignalLevel = 3,
+                    wifiConnected = true,
+                    wifiSignalLevel = 4,
+                    bluetoothEnabled = true,
+                    bluetoothConnected = true,
+                    batteryPercent = 78,
+                    charging = true,
+                    gpsFixed = true,
+                    gpsSatelliteCount = 9,
+                ),
+            onAction = {},
+            updateBadge = true,
         )
     }
 }

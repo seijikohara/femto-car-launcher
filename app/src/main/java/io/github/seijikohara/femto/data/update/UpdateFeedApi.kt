@@ -208,13 +208,33 @@ internal class UpdateFeedApi(
             .fold(onSuccess = { FeedResult.Found(it) }, onFailure = { FeedResult.NoInformation })
 }
 
+// The fixed tag the nightly job republishes its release under.
+private const val NIGHTLY_TAG = "nightly"
+
 // GitHub's release permalinks: /latest/download/ follows the release GitHub
 // marks latest — CI marks every stable release latest and keeps nightlies out
-// of it — while the nightly job republishes under the fixed tag "nightly".
+// of it — while the nightly job republishes under the fixed NIGHTLY_TAG.
 private fun UpdateChannel.releasePath(): String =
     when (this) {
         UpdateChannel.STABLE -> "latest/download"
-        UpdateChannel.NIGHTLY -> "download/nightly"
+        UpdateChannel.NIGHTLY -> "download/$NIGHTLY_TAG"
+    }
+
+/**
+ * The web page of [channel]'s latest release under [feedBase]: where a person
+ * downloads the same APK by hand when the in-app path cannot finish. A build
+ * without a channel of its own (null) gets the list of every release.
+ */
+internal fun releasePageUrl(
+    feedBase: String,
+    channel: UpdateChannel?,
+): String =
+    feedBase.trimEnd('/').let { base ->
+        when (channel) {
+            UpdateChannel.STABLE -> "$base/latest"
+            UpdateChannel.NIGHTLY -> "$base/tag/$NIGHTLY_TAG"
+            null -> base
+        }
     }
 
 // Marks an IOException from the local file side: a full disk or an unwritable

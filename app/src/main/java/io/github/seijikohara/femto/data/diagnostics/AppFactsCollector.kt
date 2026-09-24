@@ -5,12 +5,18 @@ import android.app.ApplicationExitInfo
 import android.content.Context
 import androidx.core.content.getSystemService
 import io.github.seijikohara.femto.BuildConfig
+import io.github.seijikohara.femto.data.update.UpdateChannel
+import io.github.seijikohara.femto.data.update.UpdatePreferences
+import io.github.seijikohara.femto.data.update.UpdateRepository
+import io.github.seijikohara.femto.data.update.UpdateState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.roundToInt
 
 // How many historical exit records to surface: enough to span a debugging
 // session's worth of restarts without the section scrolling forever.
@@ -19,7 +25,9 @@ private const val MAX_EXIT_HISTORY = 8
 private val FACT_TIMESTAMP_FORMATTER: DateTimeFormatter =
     DateTimeFormatter.ofPattern("MM-dd HH:mm", Locale.ROOT).withZone(ZoneId.systemDefault())
 
-private fun formatEpochMillis(epochMillis: Long): String =
+// Internal so every diagnostics timestamp shares one format (the SETTINGS dump
+// prints the updater's last attempt with it).
+internal fun formatEpochMillis(epochMillis: Long): String =
     FACT_TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(epochMillis))
 
 // The reasons that indicate the process actually misbehaved, as opposed to a
@@ -60,6 +68,51 @@ internal fun exitReasonName(reason: Int): String =
         else -> "REASON_$reason"
     }
 
+/** The release channel a build of [flavor] follows; a flavor without a feed of its own says so. */
+internal fun channelFact(flavor: String): DiagnosticFact =
+    DiagnosticFact(
+        "Channel",
+        FactValue.Text(UpdateChannel.fromFlavorOrNull(flavor)?.id ?: "$flavor (no update feed)"),
+    )
+
+/**
+ * Where the updater stands, with its last check attempt ([lastAttemptAtMs],
+ * failed attempts included). Only a user's own action ends in a failure (an
+ * automatic check that fails stays quiet), so a failure is a WARNING; every
+ * other state, an available update included, is plain information.
+ */
+internal fun updateCheckFact(
+    state: UpdateState,
+    lastAttemptAtMs: Long?,
+): DiagnosticFact {
+    // A build that never checks has no attempt to report.
+    val value =
+        if (state == UpdateState.Disabled) {
+            updateOutcome(state)
+        } else {
+            "${updateOutcome(state)} (last attempt ${lastAttemptAtMs?.let(::formatEpochMillis) ?: "never"})"
+        }
+    return DiagnosticFact(
+        "Update check",
+        if (state is UpdateState.Failed) FactValue.Status(value, FactHealth.WARNING) else FactValue.Text(value),
+    )
+}
+
+private fun updateOutcome(state: UpdateState): String =
+    when (state) {
+        UpdateState.Disabled -> "disabled for this build"
+        is UpdateState.Idle -> "no result yet"
+        UpdateState.Checking -> "checking"
+        UpdateState.UpToDate -> "up to date"
+        is UpdateState.Available -> "${state.manifest.versionName} available"
+        is UpdateState.Downloading -> "downloading ${state.manifest.versionName}, ${state.percent()}%"
+        is UpdateState.Ready -> "${state.manifest.versionName} ready to install"
+        is UpdateState.Installing -> "installing ${state.manifest.versionName}"
+        is UpdateState.Failed -> "failed: ${state.reason.name}"
+    }
+
+private fun UpdateState.Downloading.percent(): Int = (fraction * 100).roundToInt()
+
 /** Collects the APP and CRASH_HISTORY diagnostics sections. */
 internal class AppFactsCollector(
     private val context: Context,
@@ -95,6 +148,13 @@ internal class AppFactsCollector(
                                 packageManager.getInstallSourceInfo(context.packageName).installingPackageName
                                     ?: "sideload/unknown",
                             ),
+                        ),
+                    )
+                    add(channelFact(BuildConfig.FLAVOR))
+                    add(
+                        updateCheckFact(
+                            state = UpdateRepository.get(context).state.value,
+                            lastAttemptAtMs = UpdatePreferences(context).settings.first().lastCheckAttemptAt,
                         ),
                     )
                 },

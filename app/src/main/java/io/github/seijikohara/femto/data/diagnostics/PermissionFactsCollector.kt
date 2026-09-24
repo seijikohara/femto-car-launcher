@@ -35,6 +35,18 @@ internal fun permissionRowsFrom(
             )
         }.sortedWith(compareByDescending<PermissionRow> { it.dangerous }.thenBy { it.name })
 
+/**
+ * The "Install unknown apps" special access the updater installs with (the
+ * permission row only shows the manifest grant, never this user toggle). INFO,
+ * not a verdict: Install asks for the grant when it is missing, so "not
+ * allowed" is the normal state until the first update.
+ */
+internal fun installUnknownAppsFact(allowed: Boolean): DiagnosticFact =
+    DiagnosticFact(
+        "Install unknown apps",
+        FactValue.Status(if (allowed) "allowed" else "not allowed", FactHealth.INFO),
+    )
+
 /** Collects the PERMISSIONS diagnostics section. */
 internal class PermissionFactsCollector(
     private val context: Context,
@@ -56,6 +68,7 @@ internal class PermissionFactsCollector(
                     listOf(
                         notificationListenerFact(),
                         homeRoleFact(),
+                        installUnknownAppsFact(packageManager.canRequestPackageInstalls()),
                         batteryOptimizationFact(),
                         notificationsFact(),
                         backgroundFact(),

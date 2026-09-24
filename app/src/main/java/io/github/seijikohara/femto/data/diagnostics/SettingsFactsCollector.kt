@@ -5,14 +5,17 @@ import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.location.LocationPreferences
 import io.github.seijikohara.femto.data.location.LocationSettings
+import io.github.seijikohara.femto.data.update.UpdatePreferences
+import io.github.seijikohara.femto.data.update.UpdateSettings
 import kotlinx.coroutines.flow.first
 
 /**
- * Dumps every [DisplaySettings] and [LocationSettings] field as SETTINGS
- * facts. Labels stay English on the screen as well as in the report: the
- * dump is a debug artifact shared verbatim with the unlocalized Markdown
- * report, where stable machine-greppable wording is the contract. Secrets
- * (tokens, API keys) render only as `set` / `not set` — never their value.
+ * Dumps every [DisplaySettings], [LocationSettings] and [UpdateSettings]
+ * field as SETTINGS facts. Labels stay English on the screen as well as in
+ * the report: the dump is a debug artifact shared verbatim with the
+ * unlocalized Markdown report, where stable machine-greppable wording is the
+ * contract. Secrets (tokens, API keys) render only as `set` / `not set` —
+ * never their value.
  */
 internal class SettingsFactsCollector(
     private val context: Context,
@@ -20,7 +23,10 @@ internal class SettingsFactsCollector(
     suspend fun settingsFacts(): SectionPayload.Facts {
         val display = DisplayPreferences(context).settings.first()
         val location = LocationPreferences(context).settings.first()
-        return SectionPayload.Facts(displaySettingsFacts(display) + locationSettingsFacts(location))
+        val update = UpdatePreferences(context).settings.first()
+        return SectionPayload.Facts(
+            displaySettingsFacts(display) + locationSettingsFacts(location) + updateSettingsFacts(update),
+        )
     }
 }
 
@@ -85,6 +91,15 @@ internal fun locationSettingsFacts(location: LocationSettings): List<DiagnosticF
         entry("Trip auto-reset", location.tripAutoReset.name),
         entry("Track recording", "${location.trackRecordingEnabled}"),
         entry("Track retention", location.trackRetention.name),
+    )
+
+// The bookkeeping rides along with the setting: a pending-install record that
+// never clears is exactly what a report of a stuck update needs to show.
+internal fun updateSettingsFacts(update: UpdateSettings): List<DiagnosticFact> =
+    listOf(
+        entry("Update auto-check", "${update.autoCheck}"),
+        entry("Update last check attempt", update.lastCheckAttemptAt?.let(::formatEpochMillis) ?: "never"),
+        entry("Update pending install", update.pendingInstallVersionCode?.toString() ?: "none"),
     )
 
 private fun entry(

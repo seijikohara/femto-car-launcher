@@ -9,7 +9,8 @@ import androidx.datastore.preferences.core.Preferences
  * [DisplaySettingsStore.resetKeys] with a section's [displayKeys], plus any
  * owned other-store reset the section needs (the font store for
  * [APPEARANCE], the location store for [LOCATION], the calendar store's
- * hidden-ID set for [PANELS] — see `SettingsViewModel` for the wiring).
+ * hidden-ID set for [PANELS], the update store's auto-check setting for
+ * [UPDATES] — see `SettingsViewModel` for the wiring).
  *
  * `SettingsSectionIdTest` asserts the union of every entry's [displayKeys]
  * equals [DisplayPreferences.ALL_KEYS], so a new persisted key that is not
@@ -95,4 +96,9 @@ internal enum class SettingsSectionId(
             DisplayPreferences.MUSIC_SHOW_ART_KEY,
         ),
     ),
+
+    // The Updates section's one setting, the daily check, persists in the
+    // update store (UpdatePreferences), which also keeps the updater's
+    // bookkeeping; SettingsViewModel resets only the setting there.
+    UPDATES(emptySet()),
 }
