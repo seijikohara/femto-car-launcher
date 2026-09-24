@@ -357,41 +357,64 @@ jobs:
         # can open one.
         run: ./gradlew assembleStableRelease --stacktrace
 
-      - name: Stage the artifact with a meaningful asset name
-        env:
-          TAG: ${{ steps.version.outputs.tag }}
-        run: |
-          cp app/build/outputs/apk/stable/release/app-stable-release.apk "$RUNNER_TEMP/femto-car-launcher-$TAG.apk"
-
-      - name: Tag the release
+      - name: Resolve the release tag
+        id: tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
-          # The case worth catching is an already-released commit: a rerun
-          # recomputes the day counter, so it would cut a SECOND tag for the
-          # same commit and leave the first one without a release.
-          existing=$(git tag --list 'v*' --points-at "$GITHUB_SHA" | head -1 || true)
+          # Stand down if main has moved on. The concurrency group is not a
+          # FIFO queue: a run reaches it only after its own `validate`, so of
+          # two merges landing back to back the older one can arrive last and
+          # would publish a stale commit as --latest. The newer run carries
+          # both commits' changes, so nothing is lost by skipping this one.
+          git fetch --quiet origin main
+          tip="$(git rev-parse FETCH_HEAD)"
+          if [ "$tip" != "$GITHUB_SHA" ]; then
+            echo "::notice::main has advanced to ${tip:0:7}; that run publishes instead of this one"
+            echo "superseded=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "superseded=false" >> "$GITHUB_OUTPUT"
+          existing="$(git tag --list 'v*' --points-at "$GITHUB_SHA" | head -1 || true)"
           if [ -n "$existing" ]; then
-            echo "::error::$GITHUB_SHA is already tagged as $existing — if that tag has no release (the previous run tagged but then failed to publish), delete the tag by hand and re-run"
-            exit 1
+            if gh release view "$existing" >/dev/null 2>&1; then
+              echo "::error::$GITHUB_SHA is already released as $existing"
+              exit 1
+            fi
+            # A previous run tagged this commit and then failed before
+            # publishing. Reuse that tag: recomputing would cut a second tag
+            # for one commit and strand the first one without a release, which
+            # only a hand-deleted tag could undo.
+            echo "::notice::reusing $existing from a run that tagged but did not publish"
+            TAG="$existing"
+          else
+            if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+              echo "::error::$TAG already exists on another commit — the day counter and the tag history disagree"
+              exit 1
+            fi
+            # Create the ref through the API like the nightly job's tag
+            # handling: `git push` would depend on the credential
+            # actions/checkout persists, so a later `persist-credentials: false`
+            # would break releases silently, while GH_TOKEN is what actually
+            # authenticates here.
+            gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA"
           fi
-          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-            echo "::error::$TAG already exists on another commit — the day counter and the tag history disagree"
-            exit 1
-          fi
-          # Create the ref through the API like the nightly job's tag handling:
-          # `git push` would depend on the credential actions/checkout persists,
-          # so a later `persist-credentials: false` would break releases
-          # silently, while GH_TOKEN below is what actually authenticates here.
-          gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" \
-            -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA"
+          # The steps below name the asset and the release after the tag, so
+          # they must see the resolved one rather than the recomputed one.
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Stage the artifact with a meaningful asset name
+        if: steps.tag.outputs.superseded != 'true'
+        run: |
+          cp app/build/outputs/apk/stable/release/app-stable-release.apk "$RUNNER_TEMP/femto-car-launcher-$TAG.apk"
 
       - name: Publish the release
+        if: steps.tag.outputs.superseded != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
           # Notes span the commits since the previous v* tag; the first release
