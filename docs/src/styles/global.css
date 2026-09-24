@@ -142,13 +142,13 @@
        tabbable non-button elements would otherwise fall back to the UA outline
        at 50 % alpha (below the 3:1 non-text contrast minimum). */
     a:focus-visible,
-    [tabindex]:not([tabindex="-1"]):focus-visible {
+    [tabindex]:not([tabindex^="-"]):focus-visible {
         @apply outline-2 outline-offset-2 outline-ring;
     }
-    /* tabindex="-1" marks a programmatic focus target such as the skip link's
-       <main>, not a control; a ring around the whole landmark reads as a bug,
-       and without this the UA outline would still draw one. */
-    [tabindex="-1"]:focus {
+    /* Any negative tabindex marks a programmatic focus target such as the skip
+       link's <main>, not a control; a ring around the whole landmark reads as
+       a bug, and without this the UA outline would still draw one. */
+    [tabindex^="-"]:focus {
         outline: none;
     }
 }
