@@ -1,0 +1,78 @@
+name: Update manifest
+description: >-
+  Build the femto-car-launcher-update.json manifest published beside every
+  release APK, so the planned in-app updater can discover the latest version
+  and verify a download without scraping the GitHub release page. A missing
+  manifest must read as "no update information", never an error, so its
+  shape has to be exact — the asset name and schemaVersion are defined only
+  here, the one place both the nightly and the stable release job call.
+
+inputs:
+  channel:
+    description: 'stable or nightly'
+    required: true
+  version-code:
+    description: 'versionCode, e.g. 26092401'
+    required: true
+  version-name:
+    description: 'versionName, e.g. 2026.09.24-1'
+    required: true
+  apk-path:
+    description: 'Path to the built APK, read to compute size and sha256'
+    required: true
+  apk-name:
+    description: 'Published asset filename of the APK, e.g. femto-car-launcher-v2026.09.24-1.apk'
+    required: true
+  apk-url:
+    description: 'Public download URL of the APK asset'
+    required: true
+
+outputs:
+  path:
+    description: 'Path to the written manifest JSON'
+    value: ${{ steps.write.outputs.path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Write update manifest
+      id: write
+      # Composite steps do not infer a shell; bash is explicit here.
+      shell: bash
+      env:
+        CHANNEL: ${{ inputs.channel }}
+        VERSION_CODE: ${{ inputs.version-code }}
+        VERSION_NAME: ${{ inputs.version-name }}
+        APK_PATH: ${{ inputs.apk-path }}
+        APK_NAME: ${{ inputs.apk-name }}
+        APK_URL: ${{ inputs.apk-url }}
+      run: |
+        set -euo pipefail
+        size="$(stat -c %s "$APK_PATH")"
+        sha256="$(sha256sum "$APK_PATH" | awk '{print $1}')"
+        manifest="$RUNNER_TEMP/femto-car-launcher-update.json"
+        # jq -n assembles the object field by field so every value is escaped
+        # by jq itself; string concatenation could not guarantee valid JSON
+        # even for values that look safe, like a versionName.
+        jq -n \
+          --arg channel "$CHANNEL" \
+          --argjson versionCode "$VERSION_CODE" \
+          --arg versionName "$VERSION_NAME" \
+          --arg name "$APK_NAME" \
+          --argjson size "$size" \
+          --arg sha256 "$sha256" \
+          --arg url "$APK_URL" \
+          '{
+            schemaVersion: 1,
+            channel: $channel,
+            versionCode: $versionCode,
+            versionName: $versionName,
+            apk: {
+              name: $name,
+              size: $size,
+              sha256: $sha256,
+              url: $url
+            }
+          }' > "$manifest"
+        echo "path=$manifest" >> "$GITHUB_OUTPUT"
+        echo "wrote $manifest for channel=$CHANNEL versionName=$VERSION_NAME"

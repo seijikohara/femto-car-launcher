@@ -43,7 +43,22 @@ runs:
         # -- see the nightly branch below for the versionCode collision that
         # mismatch caused.
         day="$(TZ=UTC git show -s --format=%cd --date=format-local:%Y.%m.%d HEAD)"
+        existing=""
         if [ "$CHANNEL" = stable ]; then
+          existing="$(git tag --list 'v*' --points-at HEAD | head -1 || true)"
+        fi
+        if [ -n "$existing" ]; then
+          # ci.yml's "Resolve the release tag" step reuses a v* tag already on HEAD
+          # instead of cutting a second one, when a previous run tagged the commit
+          # but failed before publishing. Without this branch a rerun would still
+          # recompute n+1 here, so the rebuilt APK would report a versionName/Code
+          # one higher than the tag it actually ships under. Re-derive day and n
+          # from the tag name (format YYYY.MM.DD-N) rather than HEAD's commit date:
+          # the two can disagree if the rerun happens to cross a UTC day boundary.
+          reused="${existing#v}"
+          day="${reused%-*}"
+          n="${reused##*-}"
+        elif [ "$CHANNEL" = stable ]; then
           # The stable counter comes from the tags already cut today, not from commit
           # activity: a release may be cut from a branch that has been idle since
           # midnight, and two such releases must not share a versionCode.

@@ -238,10 +238,22 @@ jobs:
         run: |
           cp app/build/outputs/apk/nightly/release/app-nightly-release.apk "$RUNNER_TEMP/femto-car-launcher-nightly.apk"
 
+      - name: Build the update manifest
+        id: manifest
+        uses: ./.github/actions/update-manifest
+        with:
+          channel: nightly
+          version-code: ${{ steps.version.outputs.code }}
+          version-name: ${{ steps.version.outputs.name }}
+          apk-path: ${{ runner.temp }}/femto-car-launcher-nightly.apk
+          apk-name: femto-car-launcher-nightly.apk
+          apk-url: https://github.com/${{ github.repository }}/releases/download/nightly/femto-car-launcher-nightly.apk
+
       - name: Publish rolling nightly prerelease
         if: steps.apk.outputs.unchanged != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MANIFEST_PATH: ${{ steps.manifest.outputs.path }}
         run: |
           # `gh release edit --target` cannot move an existing tag (cli/cli#8669),
           # so delete the old rolling release and tag, then recreate against the
@@ -288,8 +300,12 @@ jobs:
               git log -1 --format='- %s' "$GITHUB_SHA"
             fi
           } > "$RUNNER_TEMP/nightly-notes.md"
+          # A release create call with several files uploads them all before the
+          # release goes live, so the APK and the update manifest always appear
+          # together — no window where a poller sees one without the other.
           gh release create nightly \
             "$RUNNER_TEMP/femto-car-launcher-nightly.apk" \
+            "$MANIFEST_PATH" \
             --target "$GITHUB_SHA" \
             --title "Nightly ${{ github.run_number }}" \
             --notes-file "$RUNNER_TEMP/nightly-notes.md" \
@@ -462,10 +478,23 @@ jobs:
         run: |
           cp app/build/outputs/apk/stable/release/app-stable-release.apk "$RUNNER_TEMP/femto-car-launcher-$TAG.apk"
 
+      - name: Build the update manifest
+        id: manifest
+        if: steps.tag.outputs.superseded != 'true'
+        uses: ./.github/actions/update-manifest
+        with:
+          channel: stable
+          version-code: ${{ steps.version.outputs.code }}
+          version-name: ${{ steps.version.outputs.name }}
+          apk-path: ${{ runner.temp }}/femto-car-launcher-${{ env.TAG }}.apk
+          apk-name: femto-car-launcher-${{ env.TAG }}.apk
+          apk-url: https://github.com/${{ github.repository }}/releases/download/${{ env.TAG }}/femto-car-launcher-${{ env.TAG }}.apk
+
       - name: Publish the release
         if: steps.apk.outputs.unchanged != 'true' && steps.tag.outputs.superseded != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MANIFEST_PATH: ${{ steps.manifest.outputs.path }}
         run: |
           set -euo pipefail
           # Notes span the commits since the previous v* tag; the first release
@@ -484,8 +513,13 @@ jobs:
           # --latest: versionName isn't valid semver, so GitHub can't infer
           # recency from it. The install guide and the planned in-app updater
           # both read /releases/latest and need it pinned explicitly.
+          #
+          # A release create call with several files uploads them all before the
+          # release goes live, so the APK and the update manifest always appear
+          # together — no window where a poller sees one without the other.
           gh release create "$TAG" \
             "$RUNNER_TEMP/femto-car-launcher-$TAG.apk" \
+            "$MANIFEST_PATH" \
             --title "$TAG" \
             --notes-file "$RUNNER_TEMP/release-notes.md" \
             --target "$GITHUB_SHA" \
