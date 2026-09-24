@@ -104,7 +104,10 @@ task. Default is `assembleStableDebug`.
 CI parity: `.github/workflows/ci.yml` runs the same four tasks
 (`spotlessCheck`, `lint`, `test`, `assembleStableDebug`), split across
 three parallel jobs (`static-checks`, `unit-tests`, `assemble`) for
-wall-clock speed, plus `verifyRoborazziStableDebug` alongside `test` in
+wall-clock speed, plus `lintNightlyRelease` alongside `lint` in CI only
+(the bare `lint` task covers the default variant, so this is the one
+check that compiles the nightly resource source set), plus
+`verifyRoborazziStableDebug` alongside `test` in
 CI only (screenshot verification against goldens recorded on the
 CI runner OS), plus the `docs-site` job (`pnpm run check` + `pnpm
 run build` under `docs/`), plus a one-entry `generateCatalog

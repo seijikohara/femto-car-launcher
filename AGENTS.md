@@ -238,10 +238,11 @@ in the skill directory; `create-avd.sh` recreates it).
   learn their fix shipped; a wordless keyword-close tells them
   nothing.
 - Merges are rebase + squash; `main` only ever receives a squash
-  merge from `develop`, so its history stays linear and every commit
-  on it is exactly one stable release. Force-push is denied; update a
-  stale branch via the GitHub update-branch API (`gh pr
-  update-branch`).
+  merge from `develop`, so its history stays linear and a push to it
+  cuts a stable release (when two merges land back to back, the newer
+  one is released and the older run stands down). Force-push is
+  denied; update a stale branch via the GitHub update-branch API
+  (`gh pr update-branch`).
 - The `Validate` status check gates every merge.
 - Branches: feature work targets `develop` (squash merge) and
   publishes the rolling nightly; `develop` merges into `main` when the

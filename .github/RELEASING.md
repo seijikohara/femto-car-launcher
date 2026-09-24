@@ -24,7 +24,10 @@ application ids mean both channels install at once — see
 Merge `develop` into `main` when the build is ready — that push is the
 entire procedure. The `release` job computes the version, builds
 `assembleStableRelease`, tags the commit, and publishes the GitHub
-release; nobody pushes a version tag by hand.
+release; nobody pushes a version tag by hand. Merge one at a time: if a
+second merge lands before the first release is out, the newer commit is
+released and the older run stands down, since it would otherwise publish
+a stale build as the latest release.
 `.github/actions/app-version` computes `versionName` and `versionCode`
 for both channels from the date — see
 [`AGENTS.md`, Git conventions](../AGENTS.md#git-conventions) for the
