@@ -190,12 +190,27 @@ export async function importCatalog(
     return "imported";
 }
 
+export interface Args {
+    inputDir: string;
+    outputDir: string;
+}
+
+// `pnpm run import-catalog -- <dir> [outDir]` forwards the `--` into argv
+// verbatim (Node does not strip it), so drop it before reading the
+// positionals. A second positional picks the output directory (docs.yml
+// uses it for the nightly channel: public/catalog/nightly); everything
+// else about the importer stays keyed off `outputDir` unchanged.
+export const parseArgs = (argv: readonly string[]): Args => {
+    const [
+        inputDir = "../app/build/outputs/catalog",
+        outputDir = "public/catalog",
+    ] = argv.filter((arg) => arg !== "--");
+    return { inputDir, outputDir };
+};
+
 const main = async (): Promise<void> => {
-    // `pnpm run import-catalog -- <dir>` forwards the `--` into argv verbatim
-    // (Node does not strip it), so drop it before reading the positional.
-    const args = process.argv.slice(2).filter((arg) => arg !== "--");
-    const [inputDir = "../app/build/outputs/catalog"] = args;
-    await importCatalog(inputDir, "public/catalog");
+    const { inputDir, outputDir } = parseArgs(process.argv.slice(2));
+    await importCatalog(inputDir, outputDir);
 };
 
 // Only the CLI entry runs main(); Vitest imports the functions without it.
