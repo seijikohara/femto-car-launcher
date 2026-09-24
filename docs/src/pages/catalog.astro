@@ -25,13 +25,27 @@ const description =
                     goldens: the map is a still, the glass blur is not
                     rasterized, and fonts fall back to the system face. The page
                     URL reflects your selection, so a combination can be shared
-                    as a link.
+                    as a link. The stable build shows the latest release; the
+                    nightly build shows the newest test build, when one is
+                    available.
                 </p>
             </header>
             <CatalogViewer
                 client:load
-                manifestUrl={withBase("/catalog/manifest.json")}
-                assetBase={withBase("/catalog/")}
+                channels={[
+                    {
+                        id: "stable",
+                        label: "Stable",
+                        manifestUrl: withBase("/catalog/manifest.json"),
+                        assetBase: withBase("/catalog/"),
+                    },
+                    {
+                        id: "nightly",
+                        label: "Nightly",
+                        manifestUrl: withBase("/catalog/nightly/manifest.json"),
+                        assetBase: withBase("/catalog/nightly/"),
+                    },
+                ]}
             />
         </Container>
     </main>

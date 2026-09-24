@@ -36,11 +36,22 @@ import {
 } from "./matrix";
 import { CATALOG_SCHEMA_VERSION } from "./schema.ts";
 
-interface Props {
-    /** Base-prefixed URL of public/catalog/manifest.json. */
+export interface Channel {
+    /** Stable identifier; also the `?channel=` URL value for a non-default channel. */
+    id: string;
+    /** Toggle-item label, e.g. "Stable" / "Nightly". */
+    label: string;
+    /** Base-prefixed URL of that channel's manifest.json. */
     manifestUrl: string;
     /** Base-prefixed URL prefix the manifest's `full`/`thumb` paths hang off. */
     assetBase: string;
+}
+
+interface Props {
+    /** Non-empty; `channels[0]` is the default — selected when the URL names
+     * no channel, an unrecognised one, or one whose probe (see the mount
+     * effect below) fails. */
+    channels: readonly Channel[];
 }
 
 type Status =
@@ -58,6 +69,54 @@ type FetchOutcome =
     | { kind: "missing" }
     | { kind: "error"; message: string }
     | { kind: "ready"; manifest: SiteManifest; initialState: ViewState };
+
+// Which channel is showing: "pending" while a `?channel=` deep link to a
+// non-default channel waits on that channel's own probe (see the mount
+// effect) to know whether to honour it or fall back to the default. The
+// default channel is never "pending" — it needs no probe.
+type Resolution =
+    { kind: "resolved"; id: string } | { kind: "pending"; requestedId: string };
+
+const probe = async (manifestUrl: string): Promise<boolean> => {
+    try {
+        const response = await fetch(manifestUrl, { method: "HEAD" });
+        return response.ok;
+    } catch {
+        return false;
+    }
+};
+
+const resolveInitialChannel = (
+    channels: readonly Channel[],
+    search: string,
+): Resolution => {
+    const defaultId = channels[0].id;
+    const requestedId = new URLSearchParams(search).get("channel");
+    if (requestedId === null || requestedId === defaultId)
+        return { kind: "resolved", id: defaultId };
+    // An id that names no configured channel is never a valid deep link
+    // (nothing to probe), so it resolves to the default immediately instead
+    // of waiting on the mount effect.
+    return channels.some((channel) => channel.id === requestedId)
+        ? { kind: "pending", requestedId }
+        : { kind: "resolved", id: defaultId };
+};
+
+// Sets or clears only the `channel` key of a query string, leaving the
+// matrix params (rows/cols/axis values/open) exactly as they are — the fetch
+// effect re-derives those against whichever manifest ends up loaded via
+// parseState, so this never needs the manifest itself.
+const withChannelParam = (
+    search: string,
+    channelId: string,
+    defaultId: string,
+): string => {
+    const params = new URLSearchParams(search);
+    if (channelId === defaultId) params.delete("channel");
+    else params.set("channel", channelId);
+    const query = params.toString();
+    return query ? `?${query}` : "";
+};
 
 const DIRECTION_ORDER: readonly Direction[] = ["left", "up", "down", "right"];
 
@@ -150,7 +209,11 @@ function AxisSelect({
     );
 }
 
-/** The Rows/Columns selects and the fixed-axis toggle groups. */
+/**
+ * The Rows/Columns selects and the fixed-axis toggle groups. Returns bare
+ * fieldsets (no wrapping row) so the caller can lay them out in the same
+ * flex toolbar as the build-channel switch.
+ */
 function Controls({ manifest, state, update }: StateProps) {
     const fixedAxes = manifest.axes.filter(
         (axis) => axis.id !== state.rows && axis.id !== state.cols,
@@ -173,7 +236,7 @@ function Controls({ manifest, state, update }: StateProps) {
     };
 
     return (
-        <div className="mb-8 flex flex-wrap items-end gap-6">
+        <>
             <AxisSelect
                 id="catalog-rows"
                 label="Rows"
@@ -221,7 +284,42 @@ function Controls({ manifest, state, update }: StateProps) {
                     </ToggleGroup>
                 </fieldset>
             ))}
-        </div>
+        </>
+    );
+}
+
+/** The build-channel switch (Stable/Nightly/…); rendered only when more than
+ * one channel actually probed as available (see the mount effect below). */
+function BuildSwitch({
+    channels,
+    value,
+    onChange,
+}: {
+    channels: readonly Channel[];
+    value: string;
+    onChange: (channelId: string) => void;
+}) {
+    return (
+        <fieldset className="grid gap-1.5">
+            <legend className="text-sm font-medium">Build</legend>
+            <ToggleGroup
+                variant="outline"
+                value={[value]}
+                onValueChange={(next) => {
+                    // Same single-select guard as the fixed-axis groups above:
+                    // ignore the un-press case so a build is always selected.
+                    const [chosen] = next;
+                    if (chosen) onChange(chosen);
+                }}
+                aria-label="Build"
+            >
+                {channels.map((channel) => (
+                    <ToggleGroupItem key={channel.id} value={channel.id}>
+                        {channel.label}
+                    </ToggleGroupItem>
+                ))}
+            </ToggleGroup>
+        </fieldset>
     );
 }
 
@@ -398,18 +496,84 @@ function Lightbox({
     );
 }
 
-export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
+export default function CatalogViewer({ channels }: Props) {
+    const defaultChannel = channels[0];
     const [status, setStatus] = useState<Status>({ kind: "loading" });
     const [state, setState] = useState<ViewState | null>(null);
+    // Astro server-renders this island's initial HTML (client:load still
+    // starts from a server pass) before any client hydrates it, and `status`
+    // stays "loading" through that whole pass regardless of `resolution` — so
+    // reading the real URL only on the client, once `window` exists, changes
+    // nothing about that shared first paint and avoids a ReferenceError
+    // server-side (same guard vitest.setup.ts uses for the jsdom/node split).
+    const [resolution, setResolution] = useState<Resolution>(() =>
+        typeof window === "undefined"
+            ? { kind: "resolved", id: defaultChannel.id }
+            : resolveInitialChannel(channels, window.location.search),
+    );
+    // Seeded with just the default: the switch stays hidden (it renders only
+    // above one available channel) until the probe below proves a non-default
+    // channel is actually reachable in this deploy.
+    const [availableIds, setAvailableIds] = useState<ReadonlySet<string>>(
+        () => new Set([defaultChannel.id]),
+    );
     // The cell button that opened the lightbox: Lightbox's finalFocus
     // returns focus here on close, instead of Base UI's own default (the
     // trigger) — there is no Dialog.Trigger here, the cells open it via
     // plain state, so this ref is what tells Base UI where "back" is.
     const lastCell = useRef<HTMLElement | null>(null);
 
+    const channelId = resolution.kind === "resolved" ? resolution.id : null;
+
+    // Probes every non-default channel once on mount: a HEAD 200 makes it
+    // selectable, anything else (a failed nightly render, or a PR build that
+    // imported no catalog at all) hides it. The default channel is never
+    // probed — it is always offered, and its own fetch below reports its
+    // "missing"/"error" status the normal way. A pending `?channel=` deep
+    // link resolves here too: to the requested channel if it probed
+    // reachable, else silently back to the default (URL included, so a
+    // stale deep link does not keep pointing at content that no longer shows).
     useEffect(() => {
         let cancelled = false;
-        fetch(manifestUrl)
+        Promise.all(
+            channels
+                .slice(1)
+                .map(
+                    async (channel) =>
+                        [channel.id, await probe(channel.manifestUrl)] as const,
+                ),
+        ).then((results) => {
+            if (cancelled) return;
+            const available = new Set<string>([defaultChannel.id]);
+            for (const [id, ok] of results) if (ok) available.add(id);
+            setAvailableIds(available);
+            setResolution((previous) => {
+                if (previous.kind !== "pending") return previous;
+                if (available.has(previous.requestedId))
+                    return { kind: "resolved", id: previous.requestedId };
+                window.history.replaceState(
+                    window.history.state,
+                    "",
+                    `${window.location.pathname}${withChannelParam(window.location.search, defaultChannel.id, defaultChannel.id)}`,
+                );
+                return { kind: "resolved", id: defaultChannel.id };
+            });
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [channels, defaultChannel.id]);
+
+    // Fetches the resolved channel's manifest: on first resolution, and again
+    // on every explicit switch (channelId changing is what drives a refetch).
+    useEffect(() => {
+        if (channelId === null) return; // still waiting on the probe above
+        const channel = channels.find(
+            (candidate) => candidate.id === channelId,
+        );
+        if (channel === undefined) return; // defensive; channelId always names a real channel
+        let cancelled = false;
+        fetch(channel.manifestUrl)
             .then(async (response): Promise<FetchOutcome> => {
                 if (response.status === 404) return { kind: "missing" };
                 if (!response.ok)
@@ -451,22 +615,48 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
         return () => {
             cancelled = true;
         };
-    }, [manifestUrl]);
+    }, [channelId, channels]);
 
     // The URL is the shareable form of the view: every state change rewrites
     // the query in place (no history entries — the back button leaves the page).
-    const update = useCallback((manifest: SiteManifest, next: ViewState) => {
-        setState(next);
-        // Astro's ClientRouter keeps {index, scrollX, scrollY} in
-        // history.state and ignores popstate when that state is null, so
-        // passing it through here (instead of null) keeps the Back button
-        // working site-wide after any viewer interaction.
+    const update = useCallback(
+        (manifest: SiteManifest, next: ViewState) => {
+            setState(next);
+            const query = withChannelParam(
+                serializeState(next, manifest),
+                channelId ?? defaultChannel.id,
+                defaultChannel.id,
+            );
+            // Astro's ClientRouter keeps {index, scrollX, scrollY} in
+            // history.state and ignores popstate when that state is null, so
+            // passing it through here (instead of null) keeps the Back button
+            // working site-wide after any viewer interaction.
+            window.history.replaceState(
+                window.history.state,
+                "",
+                `${window.location.pathname}${query}`,
+            );
+        },
+        [channelId, defaultChannel.id],
+    );
+
+    // Switches the displayed channel: the URL's non-channel params (rows,
+    // cols, axis values, open) are left exactly as they are, so the fetch
+    // effect's parseState(window.location.search, newManifest) call — the
+    // same one every load already runs — re-validates the visitor's current
+    // matrix selection against the new manifest per field, falling back only
+    // where it no longer applies. Only offered for a channel already known
+    // available (BuildSwitch renders one item per `availableIds`), so this
+    // never itself needs to probe.
+    const switchChannel = (nextId: string) => {
+        if (nextId === channelId) return;
+        setResolution({ kind: "resolved", id: nextId });
         window.history.replaceState(
             window.history.state,
             "",
-            `${window.location.pathname}${serializeState(next, manifest)}`,
+            `${window.location.pathname}${withChannelParam(window.location.search, nextId, defaultChannel.id)}`,
         );
-    }, []);
+    };
 
     const matrix = useMemo(
         () =>
@@ -498,19 +688,37 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
     if (state === null || matrix === null) return null;
 
     const { manifest } = status;
+    // channelId always names one of `channels` by construction: it is either
+    // the default, or a non-default id that a probe (or the click that only
+    // ever offers an already-probed id — see BuildSwitch/switchChannel)
+    // already proved available.
+    const currentChannel =
+        channels.find((channel) => channel.id === channelId) ?? defaultChannel;
+    const availableChannels = channels.filter((channel) =>
+        availableIds.has(channel.id),
+    );
 
     return (
         <div>
             <p className="mb-6 text-muted-foreground">
-                Rendered from commit <code>{manifest.gitSha.slice(0, 7)}</code>{" "}
-                on{" "}
+                {currentChannel.label} build, rendered from commit{" "}
+                <code>{manifest.gitSha.slice(0, 7)}</code> on{" "}
                 <time dateTime={manifest.generatedAt}>
                     {manifest.generatedAt.slice(0, 10)}
                 </time>{" "}
                 · {manifest.entries.length} renders
             </p>
 
-            <Controls manifest={manifest} state={state} update={update} />
+            <div className="mb-8 flex flex-wrap items-end gap-6">
+                {availableChannels.length > 1 && (
+                    <BuildSwitch
+                        channels={availableChannels}
+                        value={currentChannel.id}
+                        onChange={switchChannel}
+                    />
+                )}
+                <Controls manifest={manifest} state={state} update={update} />
+            </div>
 
             <div className="relative overflow-x-auto">
                 <table className="border-separate border-spacing-2">
@@ -578,7 +786,7 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
                                                     }}
                                                 >
                                                     <img
-                                                        src={`${assetBase}${entry.thumb}`}
+                                                        src={`${currentChannel.assetBase}${entry.thumb}`}
                                                         alt=""
                                                         width={entry.widthPx}
                                                         height={entry.heightPx}
@@ -601,7 +809,7 @@ export default function CatalogViewer({ manifestUrl, assetBase }: Props) {
                 manifest={manifest}
                 state={state}
                 update={update}
-                assetBase={assetBase}
+                assetBase={currentChannel.assetBase}
                 returnFocusTo={lastCell}
             />
         </div>

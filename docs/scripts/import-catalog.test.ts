@@ -15,6 +15,7 @@ import {
     THUMB_WIDTH,
     importCatalog,
     missingImages,
+    parseArgs,
     toSiteEntry,
     type GeneratorManifest,
     type SiteManifest,
@@ -156,6 +157,40 @@ describe("importCatalog", () => {
         await expect(importCatalog(input, output)).rejects.toThrow(
             /schemaVersion 2/,
         );
+    });
+});
+
+describe("parseArgs", () => {
+    it("defaults both the input and output directories when given no args", () => {
+        expect(parseArgs([])).toEqual({
+            inputDir: "../app/build/outputs/catalog",
+            outputDir: "public/catalog",
+        });
+    });
+
+    it("takes an explicit output directory as the second positional", () => {
+        expect(
+            parseArgs([
+                "../nightly-src/app/build/outputs/catalog",
+                "public/catalog/nightly",
+            ]),
+        ).toEqual({
+            inputDir: "../nightly-src/app/build/outputs/catalog",
+            outputDir: "public/catalog/nightly",
+        });
+    });
+
+    it("drops the `--` that `pnpm run` forwards verbatim, keeping the positionals after it", () => {
+        expect(
+            parseArgs([
+                "--",
+                "../nightly-src/app/build/outputs/catalog",
+                "public/catalog/nightly",
+            ]),
+        ).toEqual({
+            inputDir: "../nightly-src/app/build/outputs/catalog",
+            outputDir: "public/catalog/nightly",
+        });
     });
 });
 
