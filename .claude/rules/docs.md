@@ -45,7 +45,8 @@ edit.
   is the config); colours / radius / fonts have ONE home, the
   variable blocks in `src/styles/global.css`; the dark variant is
   `[data-theme="dark"]` (never `.dark`); `cn` comes from the `cn`
-  package.
+  package and is always imported from `@/lib/utils`, the
+  `aliases.utils` target the CLI writes into every added component.
 - Fonts: Open Sans through Astro's Fonts API (`fonts` in
   `astro.config.ts`, `<Font>` in BaseLayout) — self-hosted at build
   time, no runtime Google request; never add a Google Fonts `<link>`.
