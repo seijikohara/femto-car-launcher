@@ -71,7 +71,11 @@ tasks.named("preBuild") {
 // origin is re-pointed at it) and MAP_TERRAIN_TILEJSON_URL the raster-DEM TileJSON
 // behind the Terrain switch — both keyless volunteer services with no availability
 // commitment, so a self-hosted mirror must be a build-time (or, for the tile host,
-// a Settings) swap rather than a code change.
+// a Settings) swap rather than a code change. UPDATE_FEED_BASE_URL is the same kind
+// of override for the in-app updater: it defaults to this repository's own GitHub
+// Releases page, from which the updater derives the per-channel manifest URLs
+// (.github/actions/update-manifest publishes femto-car-launcher-update.json beside
+// every release APK), and can be repointed at a fork's release page instead.
 val localProperties =
     Properties().apply {
         rootProject
@@ -87,6 +91,11 @@ val fontsMetadataBaseUrl = localProperties.getProperty("FONTS_METADATA_BASE_URL"
 val mapTileHost = localProperties.getProperty("MAP_TILE_HOST", "https://tiles.openfreemap.org")
 val mapTerrainTileJsonUrl =
     localProperties.getProperty("MAP_TERRAIN_TILEJSON_URL", "https://tiles.mapterhorn.com/tilejson.json")
+val updateFeedBaseUrl =
+    localProperties.getProperty(
+        "UPDATE_FEED_BASE_URL",
+        "https://github.com/seijikohara/femto-car-launcher/releases",
+    )
 // Release signing is driven entirely by environment variables so CI can sign
 // both channels' release APKs without committing a keystore, while a local
 // `assembleStableRelease` / `assembleNightlyRelease` stays unsigned (no signing
@@ -135,8 +144,12 @@ android {
         // this path now cuts permanent releases, and no device could ever
         // accept 1 as an update. VERSION_NAME needs no such check — any
         // string is a valid versionName.
+        // Read once: UPDATE_CHECK_ENABLED below reuses this same presence check
+        // rather than calling System.getenv again, so the two fields can't disagree
+        // on which build this is.
+        val versionCodeEnv = System.getenv("VERSION_CODE")
         versionCode =
-            System.getenv("VERSION_CODE")?.let {
+            versionCodeEnv?.let {
                 it.toIntOrNull() ?: error("VERSION_CODE is set but not a valid integer: \"$it\"")
             } ?: 1
         versionName = System.getenv("VERSION_NAME") ?: "1.0"
@@ -149,6 +162,12 @@ android {
         buildConfigField("String", "FONTS_METADATA_BASE_URL", "\"${fontsMetadataBaseUrl}\"")
         buildConfigField("String", "MAP_TILE_HOST", "\"${mapTileHost}\"")
         buildConfigField("String", "MAP_TERRAIN_TILEJSON_URL", "\"${mapTerrainTileJsonUrl}\"")
+        buildConfigField("String", "UPDATE_FEED_BASE_URL", "\"${updateFeedBaseUrl}\"")
+        // CI always injects VERSION_CODE (and a local E2E build can too); a plain
+        // local build never sets it, so it stays versionCode 1 / debug-signed and
+        // must never see "update available" — it would find one and then fail the
+        // signature check against the downloaded release APK.
+        buildConfigField("boolean", "UPDATE_CHECK_ENABLED", "${versionCodeEnv != null}")
 
         // The native renderer ships only where a Vulkan driver realistically
         // exists: 64-bit ARM devices and the x86_64 emulator. Any other ABI
