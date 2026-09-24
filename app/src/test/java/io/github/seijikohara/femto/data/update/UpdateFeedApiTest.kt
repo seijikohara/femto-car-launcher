@@ -10,9 +10,14 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -184,9 +189,9 @@ class UpdateFeedApiTest {
             server.enqueue(MockResponse().setBody(body))
             val target = target()
 
-            val downloaded = newApi().download(apkUrl(), target, body.length.toLong()) {}
+            val result = newApi().download(apkUrl(), target, body.length.toLong()) {}
 
-            assertTrue(downloaded)
+            assertEquals(DownloadResult.Saved, result)
             assertContentEquals(body.encodeToByteArray(), target.readBytes())
             assertFalse(partOf(target).exists())
         }
@@ -222,9 +227,9 @@ class UpdateFeedApiTest {
             server.enqueue(MockResponse().setResponseCode(404))
             val target = target()
 
-            val downloaded = newApi().download(apkUrl(), target, expectedSize = 100) {}
+            val result = newApi().download(apkUrl(), target, expectedSize = 100) {}
 
-            assertFalse(downloaded)
+            assertEquals(DownloadResult.Failed(UpdateFailure.NETWORK), result)
             assertFalse(target.exists())
             assertFalse(partOf(target).exists())
         }
@@ -240,10 +245,77 @@ class UpdateFeedApiTest {
             )
             val target = target()
 
-            val downloaded = newApi().download(apkUrl(), target, body.length.toLong()) {}
+            val result = newApi().download(apkUrl(), target, body.length.toLong()) {}
 
-            assertFalse(downloaded)
+            assertEquals(DownloadResult.Failed(UpdateFailure.NETWORK), result)
             assertFalse(target.exists())
+            assertFalse(partOf(target).exists())
+        }
+
+    @Test
+    fun `a target directory that cannot be created is a storage failure`() =
+        runTest {
+            server.enqueue(MockResponse().setBody(apkBody(100)))
+            // A plain file where the directory should be: mkdirs cannot help.
+            val target = File(tempFolder.newFile("occupied"), "update.apk")
+
+            val result = newApi().download(apkUrl(), target, expectedSize = 100) {}
+
+            assertEquals(DownloadResult.Failed(UpdateFailure.STORAGE), result)
+        }
+
+    @Test
+    fun `a part file that cannot be written is a storage failure`() =
+        runTest {
+            server.enqueue(MockResponse().setBody(apkBody(100)))
+            val target = target()
+            assertTrue(partOf(target).mkdirs())
+
+            val result = newApi().download(apkUrl(), target, expectedSize = 100) {}
+
+            assertEquals(DownloadResult.Failed(UpdateFailure.STORAGE), result)
+        }
+
+    @Test
+    fun `a write that fails mid-copy is a storage failure`() =
+        runTest {
+            // What a full disk (ENOSPC) looks like to the copy loop.
+            val fullDisk =
+                object : OutputStream() {
+                    override fun write(b: Int): Unit = throw IOException("No space left on device")
+                }
+
+            assertFailsWith<StorageException> {
+                copyCapped(apkBody(100).byteInputStream(), fullDisk, expectedSize = 100) {}
+            }
+        }
+
+    @Test
+    fun `a read that fails mid-copy stays a network failure`() =
+        runTest {
+            val droppedConnection =
+                object : InputStream() {
+                    override fun read(): Int = throw IOException("Connection reset")
+                }
+
+            val failure =
+                assertFailsWith<IOException> {
+                    copyCapped(droppedConnection, ByteArrayOutputStream(), expectedSize = 100) {}
+                }
+            assertFalse(failure is StorageException)
+        }
+
+    @Test
+    fun `a target that cannot be replaced is a storage failure and leaves no part file`() =
+        runTest {
+            server.enqueue(MockResponse().setBody(apkBody(100)))
+            val target = target()
+            // A non-empty directory at the target path defeats the rename.
+            assertTrue(File(target, "occupant").mkdirs())
+
+            val result = newApi().download(apkUrl(), target, expectedSize = 100) {}
+
+            assertEquals(DownloadResult.Failed(UpdateFailure.STORAGE), result)
             assertFalse(partOf(target).exists())
         }
 

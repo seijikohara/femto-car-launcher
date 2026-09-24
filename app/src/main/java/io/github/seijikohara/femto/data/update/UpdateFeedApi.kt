@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.HttpURLConnection
@@ -44,6 +45,17 @@ internal sealed interface FeedResult {
     ) : FeedResult
 }
 
+/** What one APK download did; the repository verifies a [Saved] file before offering it. */
+internal sealed interface DownloadResult {
+    /** The body landed at the target. */
+    data object Saved : DownloadResult
+
+    /** Nothing landed; [reason] is [UpdateFailure.NETWORK] or [UpdateFailure.STORAGE]. */
+    data class Failed(
+        val reason: UpdateFailure,
+    ) : DownloadResult
+}
+
 /** The slice of [UpdateFeedApi] the repository consumes; a seam for JVM tests. */
 internal interface UpdateFeed {
     suspend fun latest(channel: UpdateChannel): FeedResult
@@ -53,7 +65,7 @@ internal interface UpdateFeed {
         target: File,
         expectedSize: Long,
         onProgress: (Float) -> Unit,
-    ): Boolean
+    ): DownloadResult
 }
 
 /**
@@ -138,15 +150,14 @@ internal class UpdateFeedApi(
      * Stream [url] into [target] through a `.part` file renamed into place, so
      * an interrupted transfer never leaves a truncated APK under the final name.
      * [onProgress] receives the fraction of [expectedSize] copied, at most once
-     * per percent. Returns whether a file landed at [target]; the caller
-     * verifies it.
+     * per percent. A file that lands is not yet trusted: the caller verifies it.
      */
     override suspend fun download(
         url: String,
         target: File,
         expectedSize: Long,
         onProgress: (Float) -> Unit,
-    ): Boolean =
+    ): DownloadResult =
         withContext(Dispatchers.IO) {
             val part = File(target.parentFile, target.name + ".part")
             runCatching {
@@ -158,14 +169,17 @@ internal class UpdateFeedApi(
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
                         Log.w(TAG, "download HTTP ${response.code}")
-                        return@use false
+                        return@use DownloadResult.Failed(UpdateFailure.NETWORK)
                     }
-                    target.parentFile?.mkdirs()
-                    part.outputStream().use { output ->
-                        copyCapped(response.body.byteStream(), output, expectedSize, onProgress)
-                    }
-                    part.renameTo(target).also { renamed ->
-                        if (!renamed) Log.w(TAG, "rename to ${target.name} failed")
+                    storing {
+                        target.parentFile?.mkdirs()
+                        part.outputStream()
+                    }.use { output -> copyCapped(response.body.byteStream(), output, expectedSize, onProgress) }
+                    if (part.renameTo(target)) {
+                        DownloadResult.Saved
+                    } else {
+                        Log.w(TAG, "rename to ${target.name} failed")
+                        DownloadResult.Failed(UpdateFailure.STORAGE)
                     }
                 }
             }
@@ -176,7 +190,11 @@ internal class UpdateFeedApi(
                 .onFailure {
                     if (it is CancellationException) throw it
                     Log.w(TAG, "download failed", it)
-                }.getOrDefault(false)
+                }.getOrElse { failure ->
+                    DownloadResult.Failed(
+                        if (failure is StorageException) UpdateFailure.STORAGE else UpdateFailure.NETWORK,
+                    )
+                }
         }
 
     private fun manifestUrl(channel: UpdateChannel): String =
@@ -199,10 +217,26 @@ private fun UpdateChannel.releasePath(): String =
         UpdateChannel.NIGHTLY -> "download/nightly"
     }
 
+// Marks an IOException from the local file side: a full disk or an unwritable
+// directory is this device's problem, not an outage, and is reported as such.
+// Internal, like copyCapped, so the read/write split is JVM-unit-testable: a
+// full disk cannot be staged in a unit test.
+internal class StorageException(
+    cause: IOException,
+) : IOException(cause)
+
+private inline fun <T> storing(block: () -> T): T =
+    try {
+        block()
+    } catch (e: IOException) {
+        throw StorageException(e)
+    }
+
 // Copies at most one byte past [expectedSize]: that byte already proves the
 // body cannot match the manifest, and reading on would only fill storage (the
-// caller's size check rejects the file).
-private suspend fun copyCapped(
+// caller's size check rejects the file). Reads fail as the network, writes as
+// storage.
+internal suspend fun copyCapped(
     input: InputStream,
     output: OutputStream,
     expectedSize: Long,
@@ -219,7 +253,7 @@ private suspend fun copyCapped(
         currentCoroutineContext().ensureActive()
         val read = input.read(buffer, 0, minOf(buffer.size.toLong(), limit - copied).toInt())
         if (read == -1) break
-        output.write(buffer, 0, read)
+        storing { output.write(buffer, 0, read) }
         copied += read
         val percent = (copied * 100 / total).coerceAtMost(100)
         if (percent != reportedPercent) {

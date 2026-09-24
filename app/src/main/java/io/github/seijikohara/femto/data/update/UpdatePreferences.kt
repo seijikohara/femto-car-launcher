@@ -24,10 +24,11 @@ internal const val DEFAULT_AUTO_CHECK = true
 
 /**
  * What the updater persists: the user's auto-check choice, plus bookkeeping
- * that must outlive the process — the last check attempt (the daily gate, and
- * "last checked" for the UI) and the versionCode of an install handed to the
- * platform. A successful install kills this process, so only the next start
- * can reconcile that record against the running version.
+ * that must outlive the process — the last check attempt, failed ones
+ * included (the daily gate, and the UI's "last attempt"), and the versionCode
+ * of an install handed to the platform. A successful install kills this
+ * process, so only the next start can reconcile that record against the
+ * running version.
  */
 internal data class UpdateSettings(
     val autoCheck: Boolean,

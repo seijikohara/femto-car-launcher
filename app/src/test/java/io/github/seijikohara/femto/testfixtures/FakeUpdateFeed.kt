@@ -1,7 +1,9 @@
 package io.github.seijikohara.femto.testfixtures
 
+import io.github.seijikohara.femto.data.update.DownloadResult
 import io.github.seijikohara.femto.data.update.FeedResult
 import io.github.seijikohara.femto.data.update.UpdateChannel
+import io.github.seijikohara.femto.data.update.UpdateFailure
 import io.github.seijikohara.femto.data.update.UpdateFeed
 import kotlinx.coroutines.CompletableDeferred
 import java.io.File
@@ -14,14 +16,16 @@ internal data class RequestedDownload(
 
 /**
  * In-memory [UpdateFeed] for repository tests. [latest] answers
- * [latestResult]; [download] writes [downloadBody] to the target (a null body
- * fails the transfer) after reporting half progress. [gateLatest] and
- * [gateDownload] hold the next call open, so a test can observe the in-flight
- * state and race a second caller against it.
+ * [latestResult]; [download] reports half progress, then writes
+ * [downloadBody] to the target — or, with [downloadFailure] set, fails with
+ * that reason and writes nothing. [gateLatest] and [gateDownload] hold the next
+ * call open, so a test can observe the in-flight state and race a second
+ * caller against it.
  */
 internal class FakeUpdateFeed(
     var latestResult: FeedResult = FeedResult.NoInformation,
-    var downloadBody: ByteArray? = FakeApkBody,
+    var downloadBody: ByteArray = FakeApkBody,
+    var downloadFailure: UpdateFailure? = null,
 ) : UpdateFeed {
     /** The channel of every lookup, in call order. */
     val latestCalls = mutableListOf<UpdateChannel>()
@@ -47,15 +51,15 @@ internal class FakeUpdateFeed(
         target: File,
         expectedSize: Long,
         onProgress: (Float) -> Unit,
-    ): Boolean {
+    ): DownloadResult {
         downloads += RequestedDownload(url, target)
         onProgress(HALF_PROGRESS)
         downloadGate?.await()
-        val body = downloadBody ?: return false
+        downloadFailure?.let { return DownloadResult.Failed(it) }
         target.parentFile?.mkdirs()
-        target.writeBytes(body)
+        target.writeBytes(downloadBody)
         onProgress(1f)
-        return true
+        return DownloadResult.Saved
     }
 
     companion object {

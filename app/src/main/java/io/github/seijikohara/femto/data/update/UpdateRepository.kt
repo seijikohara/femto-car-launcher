@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalCoroutinesApi::class) // flatMapLatest in autoCheckEvaluations.
+
 package io.github.seijikohara.femto.data.update
 
 import android.content.Context
@@ -9,14 +11,20 @@ import io.github.seijikohara.femto.data.system.SystemStatusRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -50,6 +58,9 @@ internal enum class UpdateFailure {
     /** The feed asked this client to wait (HTTP 403 / 429). */
     RATE_LIMITED,
 
+    /** The device could not store the download: a full disk or an unwritable directory. */
+    STORAGE,
+
     /** The downloaded file does not match the manifest's size or SHA-256. */
     VERIFY,
 
@@ -68,9 +79,12 @@ internal sealed interface UpdateState {
     /** This build never checks: a local build, or a flavor without a feed. */
     data object Disabled : UpdateState
 
-    /** No result in this process yet; [lastCheckedAt] is the last recorded attempt, null if none. */
+    /**
+     * No result in this process yet. [lastAttemptAt] is the last recorded
+     * check attempt — failed and uninformative ones included — or null if none.
+     */
     data class Idle(
-        val lastCheckedAt: Instant?,
+        val lastAttemptAt: Instant?,
     ) : UpdateState
 
     data object Checking : UpdateState
@@ -87,7 +101,11 @@ internal sealed interface UpdateState {
         val fraction: Float,
     ) : UpdateState
 
-    /** [file] matched the manifest's size and SHA-256; only such a file is ever installed. */
+    /**
+     * [file] matched the manifest's size and SHA-256 when it was downloaded.
+     * The hash is checked again right before the hand-off, so only a matching
+     * file is ever installed.
+     */
     data class Ready(
         val manifest: UpdateManifest,
         val file: File,
@@ -108,6 +126,12 @@ internal sealed interface UpdateState {
     ) : UpdateState
 }
 
+/** A claim that won: the state it was made from and the successor it published. */
+private data class Claim<out T : UpdateState>(
+    val from: UpdateState,
+    val to: T,
+)
+
 /**
  * App-scoped updater: checks this channel's release feed, downloads and
  * verifies the offered APK, and hands it to the platform installer.
@@ -115,10 +139,11 @@ internal sealed interface UpdateState {
  * A singleton so the Settings section, the dock badge and the installer's
  * status callbacks share one state and one in-flight check or download
  * (mirrors `FontRepository`). Construction counts as the process start: it
- * reconciles a pending install and restores a verified download before any
- * check may claim the state. Each action claims its starting state by
- * compare-and-set, so concurrent callers never double-launch. The constructor
- * stays injectable for JVM tests; production wiring goes through [get].
+ * reconciles a pending install and restores a staged download before any
+ * check may claim the state. Every action claims its starting state through
+ * one compare-and-set, so concurrent callers never double-launch. The
+ * constructor stays injectable for JVM tests; production wiring goes through
+ * [get].
  */
 internal class UpdateRepository internal constructor(
     private val feed: UpdateFeed,
@@ -130,16 +155,17 @@ internal class UpdateRepository internal constructor(
     private val enabled: Boolean,
     private val clock: Clock,
     private val scope: CoroutineScope,
-    // The updater's own directory: the staged download and nothing else.
-    private val cacheDir: File,
+    // The updater's own directory, deleted wholesale whenever the staged
+    // download goes: never one that other files share.
+    private val stagingDir: File,
     // Hashing and file IO run here; tests inject their scheduler's dispatcher.
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
-    private val stagedApk = File(cacheDir, STAGED_APK)
-    private val stagedManifest = File(cacheDir, STAGED_MANIFEST)
+    private val stagedApk = File(stagingDir, STAGED_APK)
+    private val stagedManifest = File(stagingDir, STAGED_MANIFEST)
 
     private val _state =
-        MutableStateFlow<UpdateState>(if (enabled) UpdateState.Idle(lastCheckedAt = null) else UpdateState.Disabled)
+        MutableStateFlow<UpdateState>(if (enabled) UpdateState.Idle(lastAttemptAt = null) else UpdateState.Disabled)
     val state: StateFlow<UpdateState> = _state.asStateFlow()
 
     private val _updatedTo = MutableStateFlow<String?>(null)
@@ -152,9 +178,25 @@ internal class UpdateRepository internal constructor(
     val updatedTo: StateFlow<String?> = _updatedTo.asStateFlow()
 
     // The automatic check's due-read, claim and attempt record form one step,
-    // so the next tick or an online edge sees the attempt instead of racing it
-    // into a second request.
+    // so a concurrent evaluation reads the attempt instead of racing it into a
+    // second request.
     private val autoCheckGate = Mutex()
+
+    // The last attempt this process made. The gate needs it due as well as the
+    // persisted one: a write the store lost (a full disk, a corrupted file)
+    // would otherwise leave every tick due — a request a minute for the life of
+    // the process.
+    @Volatile
+    private var lastAttemptAtMs: Long? = null
+
+    // Set at start when an install of a newer build was pending but nothing of
+    // its offer survived the cache: the next automatic check runs at once
+    // instead of waiting out the day since the check that found it.
+    @Volatile
+    private var recheckAtOnce = false
+
+    // Serialises the pending-install record's writes; see syncPendingRecord.
+    private val pendingRecordLock = Mutex()
 
     // Declared last: the reconciliation may start on another thread before the
     // constructor returns, and it reads every field above. Checks join it, so
@@ -183,16 +225,12 @@ internal class UpdateRepository internal constructor(
         if (!enabled || !online) return
         scope.launch {
             started.join()
-            val (from, attemptAt) =
-                autoCheckGate.withLock {
-                    val settings = store.settings.first()
-                    if (settings.autoCheck && isDue(settings.lastCheckAttemptAt)) {
-                        claimCheck()?.let { claimed -> claimed to recordAttempt() }
-                    } else {
-                        null
-                    }
-                } ?: return@launch
-            publishCheck(from, attemptAt, feed.latest(channel), quiet = true)
+            val (from, attemptAt) = autoCheckGate.withLock { claimAutoCheck() } ?: return@launch
+            val result = feed.latest(channel)
+            when (from) {
+                is UpdateState.Ready -> offerBeyond(from, result)
+                else -> publishCheck(from, attemptAt, result, quiet = true)
+            }
         }
     }
 
@@ -202,33 +240,19 @@ internal class UpdateRepository internal constructor(
      * phone hotspot.
      */
     fun download() {
-        val from = _state.value
-        val manifest =
-            when (from) {
-                is UpdateState.Available -> from.manifest
-                is UpdateState.Failed -> from.manifest
-                else -> null
-            } ?: return
-        if (!_state.compareAndSet(from, UpdateState.Downloading(manifest, fraction = 0f))) return
+        val downloading =
+            claim { current -> current.offerOrNull()?.let { UpdateState.Downloading(it, fraction = 0f) } }?.to
+                ?: return
         // No other action leaves Downloading, so this claim's outcome is written plainly.
-        scope.launch { _state.value = fetchVerified(manifest) }
+        scope.launch { _state.value = fetchVerified(downloading.manifest) }
     }
 
     /** Hand the verified APK to the platform installer, which asks the user to confirm. */
     fun install() {
-        val ready = _state.value as? UpdateState.Ready ?: return
-        val installing = UpdateState.Installing(ready.manifest)
-        if (!_state.compareAndSet(ready, installing)) return
-        scope.launch {
-            // Recorded before the platform takes the file: a successful install
-            // kills this process, so the next start can only recognise it by
-            // comparing its own versionCode with this record.
-            store.setPendingInstallVersionCode(ready.manifest.versionCode)
-            if (!handOff(ready)) {
-                store.setPendingInstallVersionCode(null)
-                _state.compareAndSet(installing, UpdateState.Failed(UpdateFailure.OTHER, ready.manifest))
-            }
-        }
+        val installing =
+            claim { current -> (current as? UpdateState.Ready)?.let { UpdateState.Installing(it.manifest) } }?.to
+                ?: return
+        scope.launch { handOff(installing) }
     }
 
     /** The user dismissed the platform's confirmation: offer the same verified file again. */
@@ -251,44 +275,80 @@ internal class UpdateRepository internal constructor(
     private suspend fun reconcile() {
         val settings = store.settings.first()
         val pending = settings.pendingInstallVersionCode
-        if (pending != null && currentVersionCode >= pending) {
-            store.setPendingInstallVersionCode(null)
+        val installed = pending != null && currentVersionCode >= pending
+        if (installed) {
+            // The state is not Installing, so the sync clears the record.
+            syncPendingRecord()
             _updatedTo.value = currentVersionName
         }
-        _state.value = withContext(ioDispatcher) { restoreStaged() }
-            ?: UpdateState.Idle(settings.lastCheckAttemptAt?.let(Instant::ofEpochMilli))
+        val restored = withContext(ioDispatcher) { restoreStaged() }
+        if (pending != null && !installed && restored == null) recheckAtOnce = true
+        _state.value = restored ?: UpdateState.Idle(settings.lastCheckAttemptAt?.let(Instant::ofEpochMilli))
     }
 
-    // A verified download outlives the process — an AI box cold-boots every
-    // drive — so it is offered again rather than fetched anew. Whatever no
-    // longer describes a newer, intact build of this channel is deleted: that
-    // includes the APK of an install that has since landed.
-    private fun restoreStaged(): UpdateState.Ready? {
-        val manifest =
-            stagedManifestOrNull()?.takeIf {
-                it.isUsableFor(channel) && it.versionCode > currentVersionCode && stagedApk.matches(it)
+    // A staged download outlives the process — an AI box cold-boots every
+    // drive. While its manifest still describes a newer build of this channel
+    // the offer stands: Ready when the APK has the manifest's size (its hash is
+    // checked at the hand-off, so a cold start never reads ~45 MB), Available
+    // when the system trimmed the APK. Anything else staged is deleted, the APK
+    // of an install that has since landed included.
+    private fun restoreStaged(): UpdateState? {
+        val manifest = stagedManifestOrNull()?.takeIf { it.isUsableFor(channel) && it.versionCode > currentVersionCode }
+        return when {
+            manifest == null -> {
+                clearStaged()
+                null
             }
-        if (manifest == null) clearStaged()
-        return manifest?.let { UpdateState.Ready(it, stagedApk) }
+
+            stagedApk.hasSizeOf(manifest) -> {
+                UpdateState.Ready(manifest, stagedApk)
+            }
+
+            else -> {
+                clearStagedApk()
+                UpdateState.Available(manifest)
+            }
+        }
     }
 
-    // A check starts only from a resting state. The compare-and-set makes
-    // concurrent callers race for one claim, so a double tap or a tick landing
-    // mid-check never sends a second request.
-    private fun claimCheck(): UpdateState? {
+    // The one place a state is claimed. [next] maps the current state to the
+    // claim's successor, or to null where the action does not apply; the
+    // compare-and-set makes concurrent callers race for one claim, so at most
+    // one of them proceeds.
+    private inline fun <T : UpdateState> claim(next: (UpdateState) -> T?): Claim<T>? {
         val from = _state.value
-        val resting =
-            from is UpdateState.Idle ||
-                from == UpdateState.UpToDate ||
-                from is UpdateState.Available ||
-                from is UpdateState.Failed
-        return from.takeIf { resting && _state.compareAndSet(from, UpdateState.Checking) }
+        val to = next(from) ?: return null
+        return Claim(from, to).takeIf { _state.compareAndSet(from, to) }
+    }
+
+    // A check starts only from a resting state.
+    private fun claimCheck(): UpdateState? =
+        claim { current ->
+            UpdateState.Checking.takeIf { current.isResting() }
+        }?.from
+
+    // Runs under [autoCheckGate]. The in-memory attempt is checked first: it
+    // costs nothing, spares the store a read on every tick that is not due, and
+    // still holds when the persisted attempt was lost.
+    private suspend fun claimAutoCheck(): Pair<UpdateState, Instant>? {
+        if (!isDue(lastAttemptAtMs)) return null
+        val settings = store.settings.first()
+        if (!settings.autoCheck || !(recheckAtOnce || isDue(settings.lastCheckAttemptAt))) return null
+        // Behind a verified download the check runs without claiming the state:
+        // the user can still install meanwhile, and only a strictly newer build
+        // replaces the offer (see offerBeyond).
+        val from = _state.value.takeIf { it is UpdateState.Ready } ?: claimCheck() ?: return null
+        return from to recordAttempt()
     }
 
     // Recorded before the request leaves, so a check that fails still counts
-    // against the daily gate.
+    // against the daily gate — in memory as well as on disk (see lastAttemptAtMs).
     private suspend fun recordAttempt(): Instant =
-        clock.instant().also { store.setLastCheckAttemptAt(it.toEpochMilli()) }
+        clock.instant().also { now ->
+            lastAttemptAtMs = now.toEpochMilli()
+            recheckAtOnce = false
+            store.setLastCheckAttemptAt(now.toEpochMilli())
+        }
 
     private fun isDue(lastAttemptAt: Long?): Boolean =
         lastAttemptAt == null ||
@@ -313,11 +373,25 @@ internal class UpdateRepository internal constructor(
                 // an offer until the next day's check.
                 quiet -> if (from is UpdateState.Idle) UpdateState.Idle(attemptAt) else from
 
-                result is FeedResult.Unavailable -> UpdateState.Failed(result.reason, manifest = null)
+                // A check that failed says nothing about an offer already known.
+                result is FeedResult.Unavailable -> UpdateState.Failed(result.reason, from.offerOrNull())
 
                 // No information is not a failure: nothing to offer, nothing broke.
                 else -> UpdateState.Idle(attemptAt)
             }
+    }
+
+    // A quiet check behind a verified download replaces it only with a strictly
+    // newer build: the same build is already staged, and an outage or no
+    // information says nothing new. The claim fails once the user has started
+    // installing, which is left alone. The superseded file stays staged until
+    // the newer download replaces it.
+    private fun offerBeyond(
+        ready: UpdateState.Ready,
+        result: FeedResult,
+    ) {
+        val newer = usableManifestOrNull(result)?.takeIf { it.versionCode > ready.manifest.versionCode } ?: return
+        claim { current -> UpdateState.Available(newer).takeIf { current == ready } }
     }
 
     // A manifest this build cannot act on — another channel, another schema,
@@ -331,17 +405,16 @@ internal class UpdateRepository internal constructor(
 
     private suspend fun fetchVerified(manifest: UpdateManifest): UpdateState {
         // A copy already staged for this very manifest — kept after a refused
-        // install — needs no second transfer.
+        // install — needs no second transfer; the hand-off checks its hash.
         if (withContext(ioDispatcher) { isStaged(manifest) }) return UpdateState.Ready(manifest, stagedApk)
         withContext(ioDispatcher) { clearStaged() }
-        val fetched =
+        val result =
             feed.download(manifest.apk.url, stagedApk, manifest.apk.size) { fraction ->
                 reportProgress(manifest, fraction)
             }
-        return if (fetched) {
-            withContext(ioDispatcher) { verifyStaged(manifest) }
-        } else {
-            UpdateState.Failed(UpdateFailure.NETWORK, manifest)
+        return when (result) {
+            DownloadResult.Saved -> withContext(ioDispatcher) { verifyStaged(manifest) }
+            is DownloadResult.Failed -> UpdateState.Failed(result.reason, manifest)
         }
     }
 
@@ -371,24 +444,55 @@ internal class UpdateRepository internal constructor(
         }
     }
 
-    private suspend fun handOff(ready: UpdateState.Ready): Boolean =
-        runCatching { installer.install(ready.file, ready.manifest) }
+    // The hash is checked here rather than at every cold start: hashing ~45 MB
+    // belongs to this user-initiated step, and the file sat in a cache the
+    // system may trim or damage since it was verified. A mismatch keeps the
+    // offer — the manifest still describes the release; only the staged copy
+    // went bad — so a retry downloads it afresh.
+    private suspend fun handOff(installing: UpdateState.Installing) {
+        val manifest = installing.manifest
+        if (!withContext(ioDispatcher) { stagedApk.matches(manifest) }) {
+            Log.w(TAG, "staged ${manifest.versionName} no longer matches its manifest; deleted")
+            withContext(ioDispatcher) { clearStagedApk() }
+            claim { current -> UpdateState.Failed(UpdateFailure.VERIFY, manifest).takeIf { current == installing } }
+            return
+        }
+        // Recorded before the platform takes the file: a successful install
+        // kills this process, so the next start can only recognise it by
+        // comparing its own versionCode with this record.
+        syncPendingRecord()
+        // A verdict that arrived meanwhile has settled the attempt already.
+        if (_state.value != installing) return
+        if (!commit(manifest)) {
+            claim { current -> UpdateState.Failed(UpdateFailure.OTHER, manifest).takeIf { current == installing } }
+            syncPendingRecord()
+        }
+    }
+
+    private suspend fun commit(manifest: UpdateManifest): Boolean =
+        runCatching { installer.install(stagedApk, manifest) }
             .onFailure {
                 if (it is CancellationException) throw it
                 Log.w(TAG, "install hand-off failed", it)
             }.getOrDefault(false)
 
-    // The platform's verdict ends the attempt, so the pending record — kept only
-    // to recognise the process that succeeds a successful install — goes too.
+    // The platform's verdict ends the attempt; the pending record follows.
     private fun settleInstall(next: (UpdateManifest) -> UpdateState) {
-        val installing = _state.value as? UpdateState.Installing ?: return
-        if (_state.compareAndSet(installing, next(installing.manifest))) {
-            scope.launch { store.setPendingInstallVersionCode(null) }
-        }
+        claim { current -> (current as? UpdateState.Installing)?.let { next(it.manifest) } } ?: return
+        scope.launch { syncPendingRecord() }
     }
 
+    // The pending-install record follows the state: set while an install is in
+    // the platform's hands, cleared once the attempt is over. Each write reads
+    // the current state under one lock, so writes that run in another order
+    // than their transitions still leave the record matching the latest state.
+    private suspend fun syncPendingRecord() =
+        pendingRecordLock.withLock {
+            store.setPendingInstallVersionCode((_state.value as? UpdateState.Installing)?.manifest?.versionCode)
+        }
+
     private fun isStaged(manifest: UpdateManifest): Boolean =
-        stagedManifestOrNull() == manifest && stagedApk.matches(manifest)
+        stagedManifestOrNull() == manifest && stagedApk.hasSizeOf(manifest)
 
     private fun stagedManifestOrNull(): UpdateManifest? =
         stagedManifest.takeIf { it.isFile }?.let { file ->
@@ -397,18 +501,24 @@ internal class UpdateRepository internal constructor(
                 .getOrNull()
         }
 
-    // Written only once the APK verified, so its presence vouches for the file
-    // beside it. A failed write costs nothing now: the download is just not
-    // restored after a restart.
+    // Written only once the APK verified: while the APK stays it vouches for
+    // it, and if the system trims the APK it still carries the offer across a
+    // restart. A failed write costs only that restore.
     private fun writeStagedManifest(manifest: UpdateManifest) {
         runCatching { stagedManifest.writeText(manifest.toJson()) }
             .onFailure { Log.w(TAG, "staging the manifest failed", it) }
     }
 
-    // Everything under [cacheDir] belongs to the staged download, a transfer's
-    // leftover part file included.
+    // Everything under [stagingDir] belongs to the staged download, a
+    // transfer's leftover part file included.
     private fun clearStaged() {
-        cacheDir.deleteRecursively()
+        stagingDir.deleteRecursively()
+    }
+
+    // The staged APK and any transfer leftover go; the manifest stays, so the
+    // offer outlives the file.
+    private fun clearStagedApk() {
+        stagingDir.listFiles()?.filterNot { it == stagedManifest }?.forEach { it.deleteRecursively() }
     }
 
     companion object {
@@ -424,6 +534,7 @@ internal class UpdateRepository internal constructor(
             // A flavor outside the known channels has no feed of its own: it
             // never checks rather than read another channel's.
             val enabled = BuildConfig.UPDATE_CHECK_ENABLED && channel != null
+            val store = UpdatePreferences(app)
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
             val repository =
                 UpdateRepository(
@@ -435,7 +546,7 @@ internal class UpdateRepository internal constructor(
                             feedBase = BuildConfig.UPDATE_FEED_BASE_URL,
                             userAgent = femtoUserAgent,
                         ),
-                    store = UpdatePreferences(app),
+                    store = store,
                     // No platform installer is wired yet; declining makes Install
                     // fail visibly instead of hanging.
                     installer = ApkInstaller { _, _ -> false },
@@ -448,15 +559,16 @@ internal class UpdateRepository internal constructor(
                     scope = scope,
                     // The cache domain is excluded from backups, and a download
                     // the system reclaims is simply fetched again.
-                    cacheDir = File(app.cacheDir, "update"),
+                    stagingDir = File(app.cacheDir, "update"),
                 )
             if (enabled) {
-                // "Due?" is re-evaluated on every clock tick and on the
-                // offline -> online edge; onlineFlow seeds its current value, so
-                // the first evaluation runs right after start.
-                combine(SystemStatusRepository(app).onlineFlow(), ClockRepository(app).tickFlow()) { online, _ ->
-                    online
-                }.onEach { online -> repository.maybeAutoCheck(online) }
+                // onlineFlow seeds its current value, so the first evaluation
+                // runs right after start.
+                autoCheckEvaluations(
+                    autoCheck = store.settings.map { it.autoCheck },
+                    online = SystemStatusRepository(app).onlineFlow(),
+                    ticks = ClockRepository(app).tickFlow(),
+                ).onEach { online -> repository.maybeAutoCheck(online) }
                     .launchIn(scope)
             }
             return repository
@@ -464,10 +576,41 @@ internal class UpdateRepository internal constructor(
     }
 }
 
+/**
+ * The evaluations behind [UpdateRepository.maybeAutoCheck]: the [online] state
+ * on every clock tick and every online edge. They are collected only while
+ * automatic checks are on, so turning the checks off also releases the clock
+ * receiver and the network callback behind [ticks] and [online].
+ */
+internal fun autoCheckEvaluations(
+    autoCheck: Flow<Boolean>,
+    online: Flow<Boolean>,
+    ticks: Flow<*>,
+): Flow<Boolean> =
+    autoCheck.distinctUntilChanged().flatMapLatest { on ->
+        if (on) combine(online, ticks) { isOnline, _ -> isOnline } else emptyFlow()
+    }
+
+private fun UpdateState.isResting(): Boolean =
+    this is UpdateState.Idle ||
+        this == UpdateState.UpToDate ||
+        this is UpdateState.Available ||
+        this is UpdateState.Failed
+
+// The offer a state carries: an available build, or one a failure still names.
+private fun UpdateState.offerOrNull(): UpdateManifest? =
+    when (this) {
+        is UpdateState.Available -> manifest
+        is UpdateState.Failed -> manifest
+        else -> null
+    }
+
+private fun File.hasSizeOf(manifest: UpdateManifest): Boolean = isFile && length() == manifest.apk.size
+
 // Size first: a mismatch there settles it without reading ~45 MB. A file that
 // cannot be read counts as a mismatch, so the gate fails closed.
 private fun File.matches(manifest: UpdateManifest): Boolean =
-    isFile && length() == manifest.apk.size && runCatching { sha256Hex() }.getOrNull() == manifest.apk.sha256
+    hasSizeOf(manifest) && runCatching { sha256Hex() }.getOrNull() == manifest.apk.sha256
 
 private fun File.sha256Hex(): String =
     MessageDigest

@@ -35,6 +35,9 @@ class UpdateRepositoryTest {
     private val clock = FakeClock(NOW)
     private val newer = fakeUpdateManifest(NEWER)
 
+    // A getter: the rule creates its folder only once each test starts.
+    private val stagingDir: File get() = File(tempFolder.root, "update")
+
     // --- start --------------------------------------------------------------
 
     @Test
@@ -168,6 +171,18 @@ class UpdateRepositoryTest {
 
                 assertEquals(UpdateState.Failed(reason, manifest = null), repository.state.value)
             }
+        }
+
+    @Test
+    fun `a manual check that fails keeps the offer the user already had`() =
+        runTest {
+            val repository = availableRepository()
+            feed.latestResult = FeedResult.Unavailable(UpdateFailure.NETWORK)
+
+            repository.checkNow()
+            runCurrent()
+
+            assertEquals(UpdateState.Failed(UpdateFailure.NETWORK, newer), repository.state.value)
         }
 
     @Test
@@ -314,6 +329,87 @@ class UpdateRepositoryTest {
             assertEquals(3, feed.latestCalls.size)
         }
 
+    @Test
+    fun `automatic checks stay daily when the store loses the attempt`() =
+        runTest {
+            val forgetful = FakeUpdateSettingsStore(dropsAttemptWrites = true)
+            val repository = startedRepository(store = forgetful)
+
+            repository.maybeAutoCheck(online = true)
+            runCurrent()
+            clock.now += Duration.ofMinutes(1)
+            repository.maybeAutoCheck(online = true)
+            runCurrent()
+
+            assertEquals(1, feed.latestCalls.size)
+        }
+
+    @Test
+    fun `an automatic check reads the attempt a concurrent one recorded`() =
+        runTest {
+            val repository = startedRepository()
+            val gate = store.gateReads()
+
+            // Both evaluations would read the same snapshot, without an attempt.
+            repository.maybeAutoCheck(online = true)
+            repository.maybeAutoCheck(online = true)
+            runCurrent()
+            gate.complete(Unit)
+            runCurrent()
+
+            assertEquals(1, feed.latestCalls.size)
+        }
+
+    @Test
+    fun `an automatic check behind a verified download offers a strictly newer build`() =
+        runTest {
+            val repository = readyRepository()
+            val newest = fakeUpdateManifest(NEWER + 1)
+            feed.latestResult = FeedResult.Found(newest)
+            clock.now += DAY
+
+            repository.maybeAutoCheck(online = true)
+            runCurrent()
+
+            assertEquals(UpdateState.Available(newest), repository.state.value)
+        }
+
+    @Test
+    fun `an automatic check behind a verified download keeps it for the same build`() =
+        runTest {
+            val repository = readyRepository()
+            val ready = repository.state.value
+            clock.now += DAY
+
+            repository.maybeAutoCheck(online = true)
+            runCurrent()
+
+            assertEquals(ready, repository.state.value)
+            // The check did run; the feed just had nothing newer.
+            assertEquals(2, feed.latestCalls.size)
+        }
+
+    @Test
+    fun `a quiet check behind a verified download leaves an install started meanwhile alone`() =
+        runTest {
+            val repository = readyRepository()
+            val ready = repository.state.value
+            feed.latestResult = FeedResult.Found(fakeUpdateManifest(NEWER + 1))
+            val gate = feed.gateLatest()
+            clock.now += DAY
+            repository.maybeAutoCheck(online = true)
+            runCurrent()
+            // The check is in flight, and the user still sees the verified download.
+            assertEquals(ready, repository.state.value)
+
+            repository.install()
+            runCurrent()
+            gate.complete(Unit)
+            runCurrent()
+
+            assertEquals(UpdateState.Installing(newer), repository.state.value)
+        }
+
     // --- downloading --------------------------------------------------------
 
     @Test
@@ -383,15 +479,27 @@ class UpdateRepositoryTest {
     fun `a failed transfer keeps the offer so the download can be retried`() =
         runTest {
             val repository = availableRepository()
-            feed.downloadBody = null
+            feed.downloadFailure = UpdateFailure.NETWORK
             repository.download()
             runCurrent()
             assertEquals(UpdateState.Failed(UpdateFailure.NETWORK, newer), repository.state.value)
 
-            feed.downloadBody = FakeApkBody
+            feed.downloadFailure = null
             repository.download()
             runCurrent()
             assertIs<UpdateState.Ready>(repository.state.value)
+        }
+
+    @Test
+    fun `a download the device cannot store fails as storage, not as the network`() =
+        runTest {
+            val repository = availableRepository()
+            feed.downloadFailure = UpdateFailure.STORAGE
+
+            repository.download()
+            runCurrent()
+
+            assertEquals(UpdateState.Failed(UpdateFailure.STORAGE, newer), repository.state.value)
         }
 
     @Test
@@ -466,6 +574,36 @@ class UpdateRepositoryTest {
             repository.install()
             runCurrent()
 
+            assertEquals(emptyList(), installer.installs)
+        }
+
+    @Test
+    fun `install checks the staged file again and refuses a damaged one`() =
+        runTest {
+            val repository = readyRepository()
+            val file = assertIs<UpdateState.Ready>(repository.state.value).file
+            file.writeBytes(FakeApkBody.withFirstByteFlipped())
+
+            repository.install()
+            runCurrent()
+
+            assertEquals(UpdateState.Failed(UpdateFailure.VERIFY, newer), repository.state.value)
+            assertEquals(emptyList(), installer.installs)
+            assertNull(store.current.pendingInstallVersionCode)
+            assertFalse(file.exists())
+        }
+
+    @Test
+    fun `a verdict that lands before the hand-off leaves no pending record behind`() =
+        runTest {
+            val repository = readyRepository()
+
+            // The verdict is dispatched before the hand-off's own record write runs.
+            repository.install()
+            repository.onInstallCancelled()
+            runCurrent()
+
+            assertNull(store.current.pendingInstallVersionCode)
             assertEquals(emptyList(), installer.installs)
         }
 
@@ -605,15 +743,68 @@ class UpdateRepositoryTest {
         }
 
     @Test
-    fun `a staged download that no longer verifies is deleted at start`() =
+    fun `the successor of a newer install also clears the record and the download`() =
         runTest {
-            val file = assertIs<UpdateState.Ready>(readyRepository().state.value).file
-            file.writeBytes(FakeApkBody.withFirstByteFlipped())
+            val file = installedBy(readyRepository())
+
+            // Something newer than the pending build landed (e.g. sideloaded).
+            val successor = startedRepository(currentVersionCode = NEWER + 1)
+
+            assertNull(store.current.pendingInstallVersionCode)
+            assertFalse(file.exists())
+            assertEquals(runningName(NEWER + 1), successor.updatedTo.value)
+        }
+
+    @Test
+    fun `a cold start restores a staged download from its size without hashing it`() =
+        runTest {
+            val ready = readyRepository().state.value
+            // Same size, one byte off: only a hash could tell, and a cold start
+            // must not read ~45 MB to find out.
+            assertIs<UpdateState.Ready>(ready).file.writeBytes(FakeApkBody.withFirstByteFlipped())
 
             val restarted = startedRepository()
 
-            assertEquals(UpdateState.Idle(NOW), restarted.state.value)
+            assertEquals(ready, restarted.state.value)
+        }
+
+    @Test
+    fun `a staged download whose size changed is offered for download again at start`() =
+        runTest {
+            val file = assertIs<UpdateState.Ready>(readyRepository().state.value).file
+            file.writeBytes(FakeApkBody.copyOf(FakeApkBody.size - 1))
+
+            val restarted = startedRepository()
+
+            assertEquals(UpdateState.Available(newer), restarted.state.value)
             assertFalse(file.exists())
+        }
+
+    @Test
+    fun `a pending install whose APK the system trimmed is offered for download again`() =
+        runTest {
+            val file = installedBy(readyRepository())
+            file.delete()
+
+            val restarted = startedRepository()
+
+            assertEquals(UpdateState.Available(newer), restarted.state.value)
+        }
+
+    @Test
+    fun `a pending install with nothing left staged checks at the next evaluation`() =
+        runTest {
+            installedBy(readyRepository())
+            // The system reclaimed the whole staging directory.
+            assertTrue(stagingDir.deleteRecursively())
+            val restarted = startedRepository()
+
+            // The check that found the offer ran just now, so only the lost
+            // offer makes this evaluation due.
+            restarted.maybeAutoCheck(online = true)
+            runCurrent()
+
+            assertEquals(2, feed.latestCalls.size)
         }
 
     @Test
@@ -638,6 +829,7 @@ class UpdateRepositoryTest {
         channel: UpdateChannel = UpdateChannel.STABLE,
         enabled: Boolean = true,
         installer: ApkInstaller = this@UpdateRepositoryTest.installer,
+        store: UpdateSettingsStore = this@UpdateRepositoryTest.store,
     ): UpdateRepository =
         UpdateRepository(
             feed = feed,
@@ -649,7 +841,7 @@ class UpdateRepositoryTest {
             enabled = enabled,
             clock = clock,
             scope = backgroundScope,
-            cacheDir = File(tempFolder.root, "update"),
+            stagingDir = stagingDir,
             ioDispatcher = StandardTestDispatcher(testScheduler),
         )
 
@@ -658,7 +850,9 @@ class UpdateRepositoryTest {
         currentVersionCode: Int = CURRENT,
         channel: UpdateChannel = UpdateChannel.STABLE,
         installer: ApkInstaller = this@UpdateRepositoryTest.installer,
-    ): UpdateRepository = repository(currentVersionCode, channel, installer = installer).also { runCurrent() }
+        store: UpdateSettingsStore = this@UpdateRepositoryTest.store,
+    ): UpdateRepository =
+        repository(currentVersionCode, channel, installer = installer, store = store).also { runCurrent() }
 
     // A started repository whose check (at NOW) found [manifest].
     private fun TestScope.availableRepository(
