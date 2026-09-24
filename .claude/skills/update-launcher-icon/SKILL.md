@@ -12,6 +12,7 @@ paths:
   - logo.svg
   - app/src/main/res/drawable/ic_launcher_background.xml
   - app/src/main/res/drawable/ic_launcher_foreground.xml
+  - app/src/nightly/res/drawable/ic_launcher_foreground.xml
   - app/src/main/res/mipmap-anydpi/**
 ---
 
@@ -85,6 +86,23 @@ the mark into the safe circle:
 6. **Verify** with the
    [`verify-android-build`](../verify-android-build/SKILL.md)
    skill.
+
+## Nightly channel
+
+`app/src/nightly/res/drawable/ic_launcher_foreground.xml` is the
+stable foreground plus a two-path "N" badge (filled disc + glyph)
+appended inside `<vector>`, so the two channels stay visually
+distinguishable when both are installed side by side. Source-set
+precedence lets it override the stable drawable — including the
+shared monochrome icon — with no other wiring.
+
+Regenerate it whenever `logo.svg` changes: re-run the procedure
+above for the stable foreground, then re-append the two badge paths
+unchanged. The badge geometry (disc centre 357.5,336.5, r 20.5) is
+bound by the chevron ink, the tighter of its two clearance limits —
+see the derivation in the comment above those paths in the drawable
+— so treat it as fixed rather than rescaling or repositioning it by
+eye.
 
 ## Skill-specific anti-patterns
 

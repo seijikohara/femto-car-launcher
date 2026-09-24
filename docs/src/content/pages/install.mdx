@@ -9,38 +9,54 @@ description: Get the latest build onto a head unit, an AI box or a phone, and bu
 - Permission to install apps from outside an app store on the device
   ("Install unknown apps"), or `adb` access to it.
 
-## Download the nightly build
+## Download a build
 
-Every merge to `main` publishes a release-signed APK as a rolling
-prerelease tagged
-[`nightly`](https://github.com/seijikohara/femto-car-launcher/releases/tag/nightly).
-The nightly is the only distribution channel: there is no app-store
-listing at present, and sideloading is the supported installation path.
+Femto Car Launcher publishes two channels as release-signed APKs, both
+built from the repository by continuous integration. There is no
+app-store listing at present, and sideloading is the supported
+installation path for both.
 
-1. Download `femto-car-launcher-nightly.apk` from the release page.
+- **Stable** — a dated release that only changes when a build is
+  judged ready, published as a
+  [GitHub release](https://github.com/seijikohara/femto-car-launcher/releases/latest).
+  Download `femto-car-launcher-v<version>.apk`.
+- **Nightly** — the newest test build, which changes often and may
+  break, published as a rolling
+  [`nightly`](https://github.com/seijikohara/femto-car-launcher/releases/tag/nightly)
+  prerelease that replaces itself on every push. Download
+  `femto-car-launcher-nightly.apk`. Its launcher icon carries an "N"
+  badge and its app name reads "Femto Nightly", so it never gets mixed
+  up with stable.
+
+The two channels use different application ids and install side by
+side, so trying a nightly build never means uninstalling stable, and
+switching back is just as easy.
+
+1. Download the APK for the channel you want from its release page.
 2. Install it by sideloading on the device, or from a computer:
 
     ```bash
-    adb install -r femto-car-launcher-nightly.apk
+    adb install -r <file>.apk
     ```
 
-3. Open **Femto Car Launcher**. The app asks for the permissions its
-   panels need — location for the map and the speed readout, calendar for
-   the agenda, notification access for now playing. A permission you deny
+3. Open the app. It asks for the permissions its panels need —
+   location for the map and the speed readout, calendar for the
+   agenda, notification access for now playing. A permission you deny
    renders a reduced card, never an error screen.
 
-The in-app diagnostics report (**Settings → System → Diagnostics**) names
-the installed build as `nightly-<run>-<sha>`, which is what a bug report
-should quote.
+The in-app diagnostics report (**Settings → System → Diagnostics**)
+names the installed build by its version name, which is what a bug
+report should quote.
 
 ## Make it the home screen
 
 - **Built-in Android head units and phones:** open Android's default-apps
-  settings and choose Femto Car Launcher as the home app. On a phone this
-  step is optional — the launcher also runs as a regular app.
+  settings and choose Femto Car Launcher (or Femto Nightly, on the
+  nightly channel) as the home app. On a phone this step is optional —
+  the launcher also runs as a regular app.
 - **Aftermarket AI boxes:** most boxes lock the default-launcher slot. Use
   the box's own "boot-up app" or auto-start setting to launch Femto Car
-  Launcher when the box starts.
+  Launcher (or Femto Nightly) when the box starts.
 
 ## Optional: Google Maps provider
 
@@ -61,8 +77,8 @@ demand for the bundled map page.
 ```bash
 git clone https://github.com/seijikohara/femto-car-launcher.git
 cd femto-car-launcher
-./gradlew assembleDebug   # debug APK at app/build/outputs/apk/debug/
-./gradlew test lint       # unit tests and Android Lint
+./gradlew assembleStableDebug   # debug APK at app/build/outputs/apk/stable/debug/
+./gradlew test lint             # unit tests and Android Lint
 ```
 
 The repository's

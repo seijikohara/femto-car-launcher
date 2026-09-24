@@ -68,6 +68,7 @@ app/src/
 │   │       │   └── components/       # Area-private widgets
 │   │       └── theme/                # FemtoTheme + tokens + PreviewLightDark
 │   └── res/                          # themes (values{,-night}/), strings (per-locale once locales are wired up), icon drawables, xml/
+├── nightly/...                       # nightly-channel overrides: app_name string + badged ic_launcher_foreground
 ├── test/...                          # JVM unit tests (runTest + TestDispatcher)
 └── androidTest/...                   # Compose UI tests (createComposeRule)
 ```
@@ -205,10 +206,11 @@ rule file manually. When in doubt, read them all.
 
 | Command | Purpose |
 | --- | --- |
-| `./gradlew assembleDebug` | Debug APK at `app/build/outputs/apk/debug/app-debug.apk` |
-| `./gradlew lint` | Android Lint |
+| `./gradlew assembleStableDebug` | Debug APK at `app/build/outputs/apk/stable/debug/app-stable-debug.apk` |
+| `./gradlew lint` | Android Lint (default variant, `stableDebug`, only) |
+| `./gradlew lintNightlyRelease` | Android Lint for the `app/src/nightly/res/` overrides; the only task that compiles them |
 | `./gradlew test` | JVM unit tests |
-| `./gradlew connectedAndroidTest` | Instrumented tests on device/emulator |
+| `./gradlew connectedStableDebugAndroidTest` | Instrumented tests on device/emulator |
 | `./gradlew spotlessCheck` | Format / lint check (Kotlin via ktlint, Gradle DSL, Markdown EOL) |
 | `./gradlew spotlessApply` | Auto-fix format violations in place |
 | `./gradlew versionCatalogUpdate` | Update `gradle/libs.versions.toml` to the latest stable versions (`nl.littlerobots.version-catalog-update`) |
@@ -218,7 +220,7 @@ rule file manually. When in doubt, read them all.
 
 Verify before claiming success: run the pipeline in
 [`.claude/skills/verify-android-build/SKILL.md`](.claude/skills/verify-android-build/SKILL.md)
-(spotlessCheck → assembleDebug → lint → test — the canonical
+(spotlessCheck → assembleStableDebug → lint → test — the canonical
 verification procedure) for non-trivial changes. For UI changes,
 follow it with
 [`.claude/skills/verify-on-emulator/SKILL.md`](.claude/skills/verify-on-emulator/SKILL.md)
@@ -231,10 +233,29 @@ in the skill directory; `create-avd.sh` recreates it).
   title becomes the squash subject).
 - A PR that resolves a user-filed issue posts a closing comment on
   that issue: one or two sentences of cause, and the first nightly
-  that carries the fix. The rolling nightly is the only distribution
-  channel, so the issue thread is where a reporter learns their fix
-  shipped; a wordless keyword-close tells them nothing.
-- Merges are rebase + squash; history on `main` stays linear.
-  Force-push is denied; update a stale branch via the GitHub
-  update-branch API (`gh pr update-branch`).
+  that carries the fix. The rolling nightly reaches a reporter before
+  the next stable release does, so the issue thread is where they
+  learn their fix shipped; a wordless keyword-close tells them
+  nothing.
+- Merges are rebase + squash; `main` only ever receives a squash
+  merge from `develop`, so its history stays linear and a push to it
+  cuts a stable release (when two merges land back to back, the newer
+  one is released and the older run stands down). Force-push is
+  denied; update a stale branch via the GitHub update-branch API
+  (`gh pr update-branch`).
 - The `Validate` status check gates every merge.
+- Branches: feature work targets `develop` (squash merge) and
+  publishes the rolling nightly; `develop` merges into `main` when the
+  owner judges the build ready.
+- Versions belong to CI, never to a commit: the date scheme is
+  `YYYY.MM.DD-N` (tag `vYYYY.MM.DD-N`, `versionCode` `YYMMDDNN`),
+  computed per channel by `.github/actions/app-version`, so a later
+  build always outranks an earlier build of the *same* channel on a
+  device. The two channels' counters run independently (stable
+  counts the day's cut tags, nightly counts the day's commits) and
+  can diverge in either direction, but it never matters: the two
+  application ids keep Android from ever comparing versionCode across
+  channels.
+- The two channels are the `stable` and `nightly` product flavors;
+  the nightly APK installs alongside the stable one as
+  `io.github.seijikohara.femto.nightly`.

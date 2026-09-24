@@ -28,6 +28,9 @@ export interface SiteConfig {
     };
     footer: { links: Array<{ name: string; href: string }> };
     repository: string;
+    /** Dated stable release: the primary, install-this download. */
+    stableRelease: string;
+    /** Rolling nightly prerelease: the secondary, changes-often preview. */
     nightlyRelease: string;
 }
 
@@ -65,7 +68,7 @@ const siteConfig: SiteConfig = {
                 href: "https://github.com/seijikohara/femto-car-launcher",
             },
             {
-                name: "Nightly APK",
+                name: "Nightly preview",
                 href: "https://github.com/seijikohara/femto-car-launcher/releases/tag/nightly",
             },
             { name: "Privacy Policy", href: "/privacy/" },
@@ -73,6 +76,8 @@ const siteConfig: SiteConfig = {
         ],
     },
     repository: "https://github.com/seijikohara/femto-car-launcher",
+    stableRelease:
+        "https://github.com/seijikohara/femto-car-launcher/releases/latest",
     nightlyRelease:
         "https://github.com/seijikohara/femto-car-launcher/releases/tag/nightly",
 };

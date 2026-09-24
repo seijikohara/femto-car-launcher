@@ -12,8 +12,8 @@ live in [`AGENTS.md`](AGENTS.md) and the path-scoped rule files under
 
 1. Install the latest `nightly` build (see
    [Installation](README.md#installation)) and confirm that the bug
-   still occurs. Every merge to `main` ships as a new nightly, so an
-   older build may already be fixed.
+   still occurs. Every merge to `develop` ships as a new nightly, so
+   an older build may already be fixed.
 2. Search the [open and closed issues](https://github.com/seijikohara/femto-car-launcher/issues?q=is%3Aissue)
    for the same symptom.
 3. Open a [bug report](https://github.com/seijikohara/femto-car-launcher/issues/new?template=bug_report.yml).
@@ -23,7 +23,7 @@ live in [`AGENTS.md`](AGENTS.md) and the path-scoped rule files under
 The diagnostics report is the fastest way to give the maintainer the
 facts a fix needs. In the app, open Settings → System → Diagnostics and
 tap **Copy report**. The report lists device and runtime facts, the
-build identifier (`nightly-<run>-<sha>`), the WebView version, and
+build identifier (its version name), the WebView version, and
 recent warnings. It masks API keys, but review it before you post it.
 
 When a fix merges, the maintainer posts a closing comment on the issue
@@ -76,13 +76,13 @@ Run the verification pipeline in
 [`.claude/skills/verify-android-build/SKILL.md`](.claude/skills/verify-android-build/SKILL.md)
 before you open a pull request. `./gradlew spotlessApply` fixes
 formatting in place. Continuous integration (CI) runs the same tasks
-plus the screenshot tests (`verifyRoborazziDebug`, whose goldens are
+plus the screenshot tests (`verifyRoborazziStableDebug`, whose goldens are
 recorded on the CI runner) and reports them as the single `Validate`
 status check, which every merge requires.
 
 ### Open a pull request
 
-- Branch from `main`.
+- Branch from `develop`.
 - Write commit messages and the pull request title in
   [Conventional Commits](https://www.conventionalcommits.org/) form.
   The pull request title becomes the subject of the squashed commit
@@ -95,9 +95,10 @@ status check, which every merge requires.
 - Fill in the pull request template. Its checklist mirrors this
   section.
 
-The maintainer merges with rebase and squash, so history on `main`
-stays linear. Force-push is denied; update a stale branch with
-`gh pr update-branch`.
+The maintainer squashes the pull request into `develop`, and later
+promotes `develop` to `main` as a single squash per release, which is
+why `main` stays linear. Force-push is denied; update a stale branch
+with `gh pr update-branch`.
 
 ## License of contributions
 

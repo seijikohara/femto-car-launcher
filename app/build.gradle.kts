@@ -87,9 +87,10 @@ val fontsMetadataBaseUrl = localProperties.getProperty("FONTS_METADATA_BASE_URL"
 val mapTileHost = localProperties.getProperty("MAP_TILE_HOST", "https://tiles.openfreemap.org")
 val mapTerrainTileJsonUrl =
     localProperties.getProperty("MAP_TERRAIN_TILEJSON_URL", "https://tiles.mapterhorn.com/tilejson.json")
-// Release signing is driven entirely by environment variables so CI can sign the
-// nightly APK without committing a keystore, while local `assembleRelease` stays
-// unsigned (no signing config attached) when the variables are absent.
+// Release signing is driven entirely by environment variables so CI can sign
+// both channels' release APKs without committing a keystore, while a local
+// `assembleStableRelease` / `assembleNightlyRelease` stays unsigned (no signing
+// config attached) when the variables are absent.
 val releaseKeystorePath: String? = System.getenv("RELEASE_KEYSTORE_PATH")
 
 // JUnit category of the screenshot-catalog generator: excluded from the unit
@@ -126,11 +127,18 @@ android {
         applicationId = "io.github.seijikohara.femto"
         minSdk = 33
         targetSdk = 36
-        // CI injects versionCode/versionName: the nightly job uses the run
-        // number, the tag-driven release workflow derives them from the version
-        // tag (see .github/workflows/{ci,release}.yml). Local builds fall back to
-        // the committed 1 / "1.0".
-        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1
+        // CI injects versionCode/versionName: .github/actions/app-version
+        // computes the date version for both channels, and the nightly and
+        // release jobs in .github/workflows/ci.yml pass it in. Local builds
+        // fall back to the committed 1 / "1.0". A VERSION_CODE that is set but
+        // unparseable fails the build instead of silently falling back to 1:
+        // this path now cuts permanent releases, and no device could ever
+        // accept 1 as an update. VERSION_NAME needs no such check — any
+        // string is a valid versionName.
+        versionCode =
+            System.getenv("VERSION_CODE")?.let {
+                it.toIntOrNull() ?: error("VERSION_CODE is set but not a valid integer: \"$it\"")
+            } ?: 1
         versionName = System.getenv("VERSION_NAME") ?: "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -169,7 +177,7 @@ android {
     signingConfigs {
         // Only register the release signing config when CI supplies a keystore path
         // via env; absent it, `signingConfigs.findByName("release")` returns null and
-        // the release build stays unsigned so local `assembleRelease` still works.
+        // the release build stays unsigned so local `assembleStableRelease` still works.
         releaseKeystorePath?.let { keystorePath ->
             create("release") {
                 storeFile = file(keystorePath)
@@ -200,6 +208,21 @@ android {
             // authoring translations: en-XA accents and lengthens Latin text (~+30%),
             // ar-XB mirrors the layout right-to-left. Debug-only; never shipped.
             isPseudoLocalesEnabled = true
+        }
+    }
+    // Two distribution channels as one dimension: they differ in identity and
+    // resources, not in build settings, which is what a flavor is for. Nightly
+    // carries a package suffix so both APKs install side by side — a tester
+    // switching channels never has to uninstall the launcher (Android has no
+    // public downgrade path, and this app is the home screen).
+    flavorDimensions += "channel"
+    productFlavors {
+        create("stable") {
+            dimension = "channel"
+        }
+        create("nightly") {
+            dimension = "channel"
+            applicationIdSuffix = ".nightly"
         }
     }
     compileOptions {
@@ -233,7 +256,7 @@ android {
             isReturnDefaultValues = true
             // The screenshot-catalog generator (DashboardCatalogTest) renders
             // 960 images; it belongs to the generateCatalog task below, never to
-            // `test` / verifyRoborazziDebug.
+            // `test` / verifyRoborazziStableDebug.
             all { it.useJUnit { excludeCategories(catalogCategory) } }
         }
     }
@@ -242,6 +265,14 @@ android {
         // dominated CI lint time (~63s combined, vs ~1s for the main sources); test-code
         // lint findings carry little value since tests are not shipped.
         ignoreTestSources = true
+    }
+}
+
+androidComponents {
+    // Nightly ships only as a release-signed build; a nightlyDebug variant
+    // would be one nobody builds, so it never enters the task graph.
+    beforeVariants(selector().withBuildType("debug").withFlavor("channel" to "nightly")) {
+        it.enable = false
     }
 }
 
@@ -323,7 +354,7 @@ dependencies {
 tasks.register<Test>("generateCatalog") {
     group = "documentation"
     description = "Render the dashboard screenshot catalog into build/outputs/catalog (docs site input)"
-    val unitTest = tasks.named<Test>("testDebugUnitTest").get()
+    val unitTest = tasks.named<Test>("testStableDebugUnitTest").get()
     testClassesDirs = unitTest.testClassesDirs
     classpath = unitTest.classpath
     systemProperties(unitTest.systemProperties)
@@ -332,7 +363,7 @@ tasks.register<Test>("generateCatalog") {
     maxHeapSize = "2g"
     useJUnit { includeCategories(catalogCategory) }
     systemProperty("roborazzi.test.record", "true")
-    // Isolates results from testDebugUnitTest's own declared output dir
+    // Isolates results from testStableDebugUnitTest's own declared output dir
     // (overlap disables its local build cache).
     val roborazziResultDir = layout.buildDirectory.dir("test-results/generateCatalog/roborazzi")
     systemProperty("roborazzi.result.dir", roborazziResultDir.get().asFile.path)

@@ -18,7 +18,13 @@
   timezone: "Asia/Tokyo",
   schedule: ["before 9am on monday"],
   labels: ["dependencies"],
-  // Keep update branches rebased on main and merge via rebase once CI passes.
+  // Target develop, not main: every commit on main is a stable release
+  // (AGENTS.md, Git conventions), so a dependency bump landing there
+  // directly would ship as an immediate stable release instead of riding
+  // the nightly channel first, same as any other change.
+  baseBranchPatterns: ["develop"],
+  // Keep update branches rebased on the base branch and merge via rebase
+  // once CI passes.
   rebaseWhen: "behind-base-branch",
   platformAutomerge: true,
   automergeStrategy: "rebase",

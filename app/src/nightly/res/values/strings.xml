@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Overrides for the nightly channel only; every other string comes from
+     src/main. The name has to be distinguishable in the home-app chooser,
+     where both channels appear side by side. -->
+<resources>
+    <string name="app_name">Femto Nightly</string>
+</resources>

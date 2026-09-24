@@ -1,0 +1,87 @@
+name: App version
+description: >-
+  Compute the date-based versionName, versionCode and tag for a release
+  channel, so a later build always outranks an earlier build of the same
+  channel on a device. The two channels' counters run independently and
+  never have to be compared: they ship under different application ids.
+
+inputs:
+  channel:
+    description: 'stable or nightly'
+    required: true
+
+outputs:
+  name:
+    description: 'versionName, e.g. 2026.09.23-2 (nightly adds -nightly+<sha7>)'
+    value: ${{ steps.compute.outputs.name }}
+  code:
+    description: 'versionCode, e.g. 26092302 (YYMMDD * 100 + build of the day)'
+    value: ${{ steps.compute.outputs.code }}
+  tag:
+    description: 'Release tag for the stable channel, e.g. v2026.09.23-2; empty for nightly'
+    value: ${{ steps.compute.outputs.tag }}
+
+runs:
+  using: composite
+  steps:
+    - name: Compute version
+      id: compute
+      # Composite steps do not infer a shell; bash is explicit here.
+      shell: bash
+      env:
+        CHANNEL: ${{ inputs.channel }}
+      run: |
+        set -euo pipefail
+        case "$CHANNEL" in
+          stable|nightly) ;;
+          *) echo "::error::channel must be stable or nightly (got '$CHANNEL')"; exit 1 ;;
+        esac
+        # HEAD's own committer date (UTC) decides the day, not the wall clock
+        # running the script. A build can run any time after its commit was
+        # made, so wall-clock date -u used to disagree with the commit's own
+        # day whenever a build crossed UTC midnight that the commit predates
+        # -- see the nightly branch below for the versionCode collision that
+        # mismatch caused.
+        day="$(TZ=UTC git show -s --format=%cd --date=format-local:%Y.%m.%d HEAD)"
+        if [ "$CHANNEL" = stable ]; then
+          # The stable counter comes from the tags already cut today, not from commit
+          # activity: a release may be cut from a branch that has been idle since
+          # midnight, and two such releases must not share a versionCode.
+          # Needs the full history the caller checks out with fetch-depth: 0; with
+          # a shallow clone tags would be missing and versions would collide.
+          n=$(( $(git tag --list "v$day-*" | wc -l) + 1 ))
+        else
+          # Nightly builds follow a push, so a new commit always raises the count.
+          # Count from HEAD's own day (not wall-clock midnight) so HEAD always
+          # falls inside the window it is counted against: HEAD's committer
+          # time can never be earlier than the midnight that starts its own
+          # day, so the count is always at least 1 and two unrelated commits
+          # can never both fall back to the same floored n=1.
+          since="${day//./-}T00:00:00Z"
+          n="$(git rev-list --count --since="$since" HEAD)"
+        fi
+        if [ "$n" -gt 99 ]; then
+          echo "::error::$n builds today exceeds the 2-digit build counter in the versionCode"
+          exit 1
+        fi
+        # Reuse $day instead of a second date -u (or git show) call for the
+        # compact form: a second wall-clock read is the other half of the bug
+        # this action used to have, since it can land on a different day than
+        # $day. Stripping the century and the dots turns 2026.09.23 into
+        # 260923; 10# forces base-10 so a leading zero is never read as octal.
+        compact="${day:2}"
+        compact="${compact//./}"
+        code="$(( 10#$compact * 100 + n ))"
+        if [ "$CHANNEL" = stable ]; then
+          name="$day-$n"
+          tag="v$name"
+        else
+          name="$day-$n-nightly+${GITHUB_SHA:0:7}"
+          tag=""
+        fi
+        {
+          echo "name=$name"
+          echo "code=$code"
+          echo "tag=$tag"
+        } >> "$GITHUB_OUTPUT"
+        echo "channel=$CHANNEL versionName=$name versionCode=$code tag=${tag:-(none)}"

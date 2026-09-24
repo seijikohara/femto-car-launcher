@@ -34,14 +34,18 @@ the home dashboard.
   `android-33 google_apis_playstore` system image for the host arch
   must be installed). Google sign-in inside the AVD stays a one-time
   manual step per machine — account state is not portable.
-- **App id**: `io.github.seijikohara.femto` (no debug suffix).
+- **App id**: the stable flavor is `io.github.seijikohara.femto` (no
+  debug suffix); nightly adds `.nightly`
+  (`io.github.seijikohara.femto.nightly`). Only the stable flavor has a
+  debug variant, so this skill always builds, installs, and grants
+  permissions to the stable app id.
 
 ## Procedure
 
 1. **Build the debug APK** via the
    [`verify-android-build`](../verify-android-build/SKILL.md) skill
    (the verification-procedure SSOT). The APK lands at
-   `app/build/outputs/apk/debug/app-debug.apk`.
+   `app/build/outputs/apk/stable/debug/app-stable-debug.apk`.
 
 2. **Reuse or boot the emulator.** More than one emulator may be
    running, so resolve serials first: `adb devices`, then
@@ -70,11 +74,11 @@ the home dashboard.
 3. **Install the APK**:
 
    ```bash
-   adb -s <serial> install -r app/build/outputs/apk/debug/app-debug.apk
+   adb -s <serial> install -r app/build/outputs/apk/stable/debug/app-stable-debug.apk
    ```
 
-   Note: `connectedAndroidTest` **uninstalls the app afterward** —
-   run `:app:installDebug` (or `adb install -r`) again before manual
+   Note: `connectedStableDebugAndroidTest` **uninstalls the app afterward** —
+   run `:app:installStableDebug` (or `adb install -r`) again before manual
    screenshots. After a reinstall, `am force-stop` + restart the app
    so the running process is the new code.
 
@@ -118,7 +122,7 @@ the home dashboard.
 
 Report explicitly what was run and what was observed:
 
-- "Ran `adb install -r app-debug.apk` — Success."
+- "Ran `adb install -r app-stable-debug.apk` — Success."
 - "Pre-granted permissions via `adb shell pm grant ...`."
 - "Captured `shot.png` — the calendar card renders the 6-day strip."
 

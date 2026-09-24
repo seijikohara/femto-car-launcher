@@ -29,7 +29,7 @@ import org.robolectric.annotation.GraphicsMode
  * to test multiple device sizes), so this catches visual breakage — clipping,
  * overlap, truncation — that the layout/content-presence instrumented test
  * (DashboardResponsiveTest) cannot. Runs on the JVM, so unlike androidTest it
- * executes in CI (verifyRoborazziDebug).
+ * executes in CI (verifyRoborazziStableDebug).
  *
  * The geometries are [DashboardGeometries] — see its KDoc for the selection
  * rationale; the catalog generator renders the same list.
@@ -39,7 +39,7 @@ import org.robolectric.annotation.GraphicsMode
  * Caveats baked into the goldens: Robolectric's software rasterizer does not render
  * the Haze RenderEffect blur (the glass overlays show their tint, not the frost),
  * and downloadable Google Fonts fall back to the system face — both deterministic.
- * Goldens must be recorded on the CI OS (Linux) so verifyRoborazziDebug matches; a
+ * Goldens must be recorded on the CI OS (Linux) so verifyRoborazziStableDebug matches; a
  * small changeThreshold absorbs residual sub-pixel antialiasing differences.
  */
 @RunWith(RobolectricTestRunner::class)

@@ -3,10 +3,10 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
-# Cancel superseded PR runs; never cancel an in-flight main/nightly publish.
+# Cancel superseded PR runs; never cancel an in-flight main/develop publish.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -25,20 +25,33 @@ jobs:
       matrix:
         include:
           - name: static-checks
-            tasks: spotlessCheck lint
+            # lint covers the default variant (stableDebug) only. lintNightlyRelease is
+            # added because it is the one PR check that compiles app/src/nightly/res —
+            # nothing else does (AGP creates unit-test components for the testBuildType
+            # alone, so `test` never touches the nightly source set either) — and the
+            # nightly channel is the tester feed, so a malformed override there must
+            # fail here, not the publish job.
+            tasks: spotlessCheck lint lintNightlyRelease
           - name: unit-tests
-            # verifyRoborazziDebug runs the unit tests in screenshot-verify mode, so
-            # folding it in with `test` executes testDebugUnitTest once (two separate
-            # invocations ran it twice). CI-only: the Roborazzi goldens are recorded
-            # on this runner OS (record-screenshots.yml), so the screenshot diff runs
-            # here, not in the local verify-android-build skill — a developer's render
-            # would mismatch the Linux-recorded goldens on font antialiasing.
+            # verifyRoborazziStableDebug runs the unit tests in screenshot-verify mode,
+            # so folding it in with `test` executes testStableDebugUnitTest once (two
+            # separate invocations ran it twice). CI-only: the Roborazzi goldens are
+            # recorded on this runner OS (record-screenshots.yml), so the screenshot
+            # diff runs here, not in the local verify-android-build skill — a
+            # developer's render would mismatch the Linux-recorded goldens on font
+            # antialiasing.
+            #
+            # `test` itself runs only testStableDebugUnitTest: AGP creates unit-test
+            # components for the testBuildType (stableDebug) alone, so stableRelease and
+            # nightlyRelease have no unit-test task to run at all. The nightly source
+            # set still gets a PR check — see lintNightlyRelease on static-checks above.
+            #
             # generateCatalog with a one-entry filter proves the screenshot-catalog
-            # generator still boots Robolectric, without paying for the full
-            # 960-image render on every PR.
-            tasks: test verifyRoborazziDebug generateCatalog -Pfemto.catalog.filter=head-unit-853x512__medium__light__right__bottom
+            # generator still boots Robolectric, without paying for the full 960-image
+            # render on every PR.
+            tasks: test verifyRoborazziStableDebug generateCatalog -Pfemto.catalog.filter=head-unit-853x512__medium__light__right__bottom
           - name: assemble
-            tasks: assembleDebug
+            tasks: assembleStableDebug
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -52,12 +65,13 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
         with:
-          # setup-gradle writes the cache only on the default branch; make the
-          # read-only fallback explicit so feature branches never pollute it.
-          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+          # setup-gradle writes the cache only on main/develop; a run can only restore a
+          # cache written on its own branch or its base. PRs now mostly target develop,
+          # so develop needs write access too, or its PRs would never see a warm cache.
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
 
       # The three groups together mirror the local verify-android-build skill
-      # (spotlessCheck + test + lint + assembleDebug); change both together.
+      # (spotlessCheck + test + lint + assembleStableDebug); change both together.
       - name: Run ${{ matrix.name }}
         env:
           GRADLE_TASKS: ${{ matrix.tasks }}
@@ -129,8 +143,8 @@ jobs:
     name: Publish nightly
     runs-on: ubuntu-latest
     needs: validate
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    # Serialize publishes so two concurrent main pushes never race on the rolling
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/develop'
+    # Serialize publishes so two concurrent develop pushes never race on the rolling
     # "nightly" tag (delete-then-create); queue them rather than cancel an
     # in-flight publish midway.
     concurrency:
@@ -144,7 +158,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          # Full history so the rolling "nightly" tag can be deleted and re-pointed.
+          # Full history: the rolling "nightly" tag needs to be deleted and re-pointed,
+          # and app-version counts today's commits since midnight for its day counter.
           fetch-depth: 0
 
       - name: Set up JDK 21
@@ -156,7 +171,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
         with:
-          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
 
       - name: Verify signing secrets are present
         env:
@@ -184,23 +199,29 @@ jobs:
           # Write outside the checked-out tree; $RUNNER_TEMP is auto-cleaned.
           echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
 
-      - name: Build the signed release APK
+      - name: Compute version
+        id: version
+        uses: ./.github/actions/app-version
+        with:
+          channel: nightly
+
+      - name: Build the signed nightly APK
         env:
           RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-          VERSION_CODE: ${{ github.run_number }}
-          VERSION_NAME: nightly-${{ github.run_number }}-${{ github.sha }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+          VERSION_NAME: ${{ steps.version.outputs.name }}
         # An APK, and only an APK: sideloading onto AI boxes / head units off
         # the GitHub release is the distribution channel, and an .aab defers
         # APK generation and signing to Google Play, so no on-device installer
         # can open one.
-        run: ./gradlew assembleRelease --stacktrace
+        run: ./gradlew assembleNightlyRelease --stacktrace
 
       - name: Stage the artifact with a meaningful asset name
         run: |
-          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/femto-car-launcher-nightly.apk"
+          cp app/build/outputs/apk/nightly/release/app-nightly-release.apk "$RUNNER_TEMP/femto-car-launcher-nightly.apk"
 
       - name: Publish rolling nightly prerelease
         env:
@@ -255,3 +276,166 @@ jobs:
             --notes-file "$RUNNER_TEMP/nightly-notes.md" \
             --prerelease \
             --latest=false
+
+  release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    needs: validate
+    # A manual run must not cut a release; re-running a failed job keeps the
+    # original push event, so recovery is unaffected.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # One release at a time: the job creates a tag and a GitHub release, and a
+    # second run racing it would tag the same day's counter twice.
+    concurrency:
+      group: stable-release
+      cancel-in-progress: false
+    permissions:
+      # Pushing the version tag and creating the release both write contents.
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Full history: app-version counts today's existing v* tags, and the
+          # release notes below walk the log from the previous v* tag to HEAD.
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
+
+      - name: Verify signing secrets are present
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          # Fail fast (and clearly) if any signing secret is missing, so the job
+          # never reaches Gradle half-configured and never publishes an unsigned APK.
+          missing=""
+          [ -z "$RELEASE_KEYSTORE_BASE64" ] && missing="$missing RELEASE_KEYSTORE_BASE64"
+          [ -z "$RELEASE_KEYSTORE_PASSWORD" ] && missing="$missing RELEASE_KEYSTORE_PASSWORD"
+          [ -z "$RELEASE_KEY_ALIAS" ] && missing="$missing RELEASE_KEY_ALIAS"
+          [ -z "$RELEASE_KEY_PASSWORD" ] && missing="$missing RELEASE_KEY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing signing secret(s):$missing. Add all four (RELEASE_KEYSTORE_BASE64, RELEASE_KEYSTORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD) so the stable APK can be release-signed. Refusing to publish an unsigned APK."
+            exit 1
+          fi
+
+      - name: Decode keystore
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          # Write outside the checked-out tree; $RUNNER_TEMP is auto-cleaned.
+          echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+
+      - name: Compute version
+        id: version
+        uses: ./.github/actions/app-version
+        with:
+          channel: stable
+
+      - name: Build the signed stable APK
+        env:
+          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+        # An APK, and only an APK: sideloading onto AI boxes / head units off
+        # the GitHub release is the distribution channel, and an .aab defers
+        # APK generation and signing to Google Play, so no on-device installer
+        # can open one.
+        run: ./gradlew assembleStableRelease --stacktrace
+
+      - name: Resolve the release tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # Stand down if main has moved on. The concurrency group is not a
+          # FIFO queue: a run reaches it only after its own `validate`, so of
+          # two merges landing back to back the older one can arrive last and
+          # would publish a stale commit as --latest. The newer run carries
+          # both commits' changes, so nothing is lost by skipping this one.
+          git fetch --quiet origin main
+          tip="$(git rev-parse FETCH_HEAD)"
+          if [ "$tip" != "$GITHUB_SHA" ]; then
+            echo "::notice::main has advanced to ${tip:0:7}; that run publishes instead of this one"
+            echo "superseded=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "superseded=false" >> "$GITHUB_OUTPUT"
+          existing="$(git tag --list 'v*' --points-at "$GITHUB_SHA" | head -1 || true)"
+          if [ -n "$existing" ]; then
+            if gh release view "$existing" >/dev/null 2>&1; then
+              echo "::error::$GITHUB_SHA is already released as $existing"
+              exit 1
+            fi
+            # A previous run tagged this commit and then failed before
+            # publishing. Reuse that tag: recomputing would cut a second tag
+            # for one commit and strand the first one without a release, which
+            # only a hand-deleted tag could undo.
+            echo "::notice::reusing $existing from a run that tagged but did not publish"
+            TAG="$existing"
+          else
+            if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+              echo "::error::$TAG already exists on another commit — the day counter and the tag history disagree"
+              exit 1
+            fi
+            # Create the ref through the API like the nightly job's tag
+            # handling: `git push` would depend on the credential
+            # actions/checkout persists, so a later `persist-credentials: false`
+            # would break releases silently, while GH_TOKEN is what actually
+            # authenticates here.
+            gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA"
+          fi
+          # The steps below name the asset and the release after the tag, so
+          # they must see the resolved one rather than the recomputed one.
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Stage the artifact with a meaningful asset name
+        if: steps.tag.outputs.superseded != 'true'
+        run: |
+          cp app/build/outputs/apk/stable/release/app-stable-release.apk "$RUNNER_TEMP/femto-car-launcher-$TAG.apk"
+
+      - name: Publish the release
+        if: steps.tag.outputs.superseded != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Notes span the commits since the previous v* tag; the first release
+          # has none, so fall back to the whole history (|| true absorbs it).
+          previous=$(git tag --list 'v*' --sort=-creatordate | grep -vxF "$TAG" | head -1 || true)
+          {
+            echo "Stable build from ${GITHUB_SHA:0:7} on $(date -u +%Y-%m-%d)."
+            echo
+            if [ -n "$previous" ]; then
+              echo "Changes since $previous:"
+              git log --no-merges --pretty='- %s' "$previous..$GITHUB_SHA"
+            else
+              echo "First stable release."
+            fi
+          } > "$RUNNER_TEMP/release-notes.md"
+          # --latest: versionName isn't valid semver, so GitHub can't infer
+          # recency from it. The install guide and the planned in-app updater
+          # both read /releases/latest and need it pinned explicitly.
+          gh release create "$TAG" \
+            "$RUNNER_TEMP/femto-car-launcher-$TAG.apk" \
+            --title "$TAG" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            --target "$GITHUB_SHA" \
+            --latest
