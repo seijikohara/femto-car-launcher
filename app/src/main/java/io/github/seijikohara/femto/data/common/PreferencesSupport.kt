@@ -32,6 +32,21 @@ internal fun Flow<Preferences>.catchIoAsDefaults(tag: String): Flow<Preferences>
         }
     }
 
+// A null optional field is an absent key, not a stored sentinel, so the read
+// path's plain `prefs[KEY]` yields null for it. Shared by every preferences
+// store under data/ that persists an optional value.
+internal fun <T> MutablePreferences.setOrRemove(
+    key: Preferences.Key<T>,
+    value: T?,
+) {
+    // A statement, not an expression: remove() returns the old value and set()
+    // Unit, so the expression form would infer Any for a side-effect helper.
+    when (value) {
+        null -> remove(key)
+        else -> set(key, value)
+    }
+}
+
 // Preference writes are launched fire-and-forget, so an IOException thrown by
 // edit() would otherwise escape the launching coroutine and kill the HOME
 // process. Losing one write is acceptable; crashing the launcher is not.

@@ -2,13 +2,13 @@ package io.github.seijikohara.femto.data.location
 
 import android.content.Context
 import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.seijikohara.femto.data.common.catchIoAsDefaults
 import io.github.seijikohara.femto.data.common.editOrLog
+import io.github.seijikohara.femto.data.common.setOrRemove
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
@@ -67,20 +67,6 @@ private val Context.tripStateDataStore: DataStore<Preferences> by preferencesDat
 // launch — with the reset control behind the crash. Restore 0 instead.
 // Internal so the guard is JVM-unit-testable without real DataStore IO.
 internal fun Double?.orZeroWhenUnusable(): Double = this?.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
-
-// A null optional field is an absent key, not a stored sentinel, so the read
-// path's plain `prefs[KEY]` yields null for it.
-private fun MutablePreferences.setOrRemove(
-    key: Preferences.Key<Long>,
-    value: Long?,
-) {
-    // A statement, not an expression: remove() returns the old value and set()
-    // Unit, so the expression form would infer Any for a side-effect helper.
-    when (value) {
-        null -> remove(key)
-        else -> set(key, value)
-    }
-}
 
 /** DataStore-backed accessor for [PersistedTrip]. */
 internal class TripStatePreferences(

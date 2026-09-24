@@ -1,0 +1,703 @@
+package io.github.seijikohara.femto.data.update
+
+import io.github.seijikohara.femto.testfixtures.FakeApkBody
+import io.github.seijikohara.femto.testfixtures.FakeApkInstaller
+import io.github.seijikohara.femto.testfixtures.FakeClock
+import io.github.seijikohara.femto.testfixtures.FakeUpdateFeed
+import io.github.seijikohara.femto.testfixtures.FakeUpdateSettingsStore
+import io.github.seijikohara.femto.testfixtures.HandedOffApk
+import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
+import java.time.Duration
+import java.time.Instant
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertIs
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class UpdateRepositoryTest {
+    @get:Rule
+    val tempFolder = TemporaryFolder()
+
+    private val feed = FakeUpdateFeed()
+    private val store = FakeUpdateSettingsStore()
+    private val installer = FakeApkInstaller()
+    private val clock = FakeClock(NOW)
+    private val newer = fakeUpdateManifest(NEWER)
+
+    // --- start --------------------------------------------------------------
+
+    @Test
+    fun `a disabled build stays Disabled and never touches the feed`() =
+        runTest {
+            feed.latestResult = FeedResult.Found(newer)
+            val repository = repository(enabled = false)
+
+            repository.checkNow()
+            repository.maybeAutoCheck(online = true)
+            repository.download()
+            repository.install()
+            runCurrent()
+
+            assertEquals(UpdateState.Disabled, repository.state.value)
+            assertEquals(emptyList(), feed.latestCalls)
+            assertEquals(emptyList(), feed.downloads)
+        }
+
+    @Test
+    fun `starts Idle with the last recorded attempt`() =
+        runTest {
+            val lastAttempt = NOW - Duration.ofHours(3)
+            store.setLastCheckAttemptAt(lastAttempt.toEpochMilli())
+
+            val repository = startedRepository()
+
+            assertEquals(UpdateState.Idle(lastAttempt), repository.state.value)
+        }
+
+    // --- checking -----------------------------------------------------------
+
+    @Test
+    fun `checkNow passes through Checking to Available when the feed carries a newer build`() =
+        runTest {
+            feed.latestResult = FeedResult.Found(newer)
+            val gate = feed.gateLatest()
+            val repository = startedRepository()
+
+            repository.checkNow()
+            runCurrent()
+            assertEquals(UpdateState.Checking, repository.state.value)
+
+            gate.complete(Unit)
+            runCurrent()
+            assertEquals(UpdateState.Available(newer), repository.state.value)
+        }
+
+    @Test
+    fun `checkNow reports UpToDate when the feed carries the running build`() =
+        runTest {
+            feed.latestResult = FeedResult.Found(fakeUpdateManifest(CURRENT))
+            val repository = startedRepository()
+
+            repository.checkNow()
+            runCurrent()
+
+            assertEquals(UpdateState.UpToDate, repository.state.value)
+        }
+
+    @Test
+    fun `checkNow reads the feed of the build's own channel`() =
+        runTest {
+            val repository = startedRepository(channel = UpdateChannel.NIGHTLY)
+
+            repository.checkNow()
+            runCurrent()
+
+            assertEquals(listOf(UpdateChannel.NIGHTLY), feed.latestCalls)
+        }
+
+    @Test
+    fun `checkNow records the attempt before the request leaves`() =
+        runTest {
+            feed.gateLatest()
+            val repository = startedRepository()
+
+            repository.checkNow()
+            runCurrent()
+
+            // The request is still in flight, yet the attempt already counts.
+            assertEquals(NOW.toEpochMilli(), store.current.lastCheckAttemptAt)
+        }
+
+    @Test
+    fun `a missing manifest leaves the updater Idle rather than Failed`() =
+        runTest {
+            feed.latestResult = FeedResult.NoInformation
+            val repository = startedRepository()
+
+            repository.checkNow()
+            runCurrent()
+
+            assertEquals(UpdateState.Idle(NOW), repository.state.value)
+        }
+
+    @Test
+    fun `a manifest for the other channel is no information`() =
+        runTest {
+            feed.latestResult = FeedResult.Found(fakeUpdateManifest(NEWER, channel = UpdateChannel.NIGHTLY))
+            val repository = startedRepository(channel = UpdateChannel.STABLE)
+
+            repository.checkNow()
+            runCurrent()
+
+            assertEquals(UpdateState.Idle(NOW), repository.state.value)
+        }
+
+    @Test
+    fun `a manifest of another schema version is no information`() =
+        runTest {
+            feed.latestResult =
+                FeedResult.Found(fakeUpdateManifest(NEWER, schemaVersion = SUPPORTED_MANIFEST_SCHEMA_VERSION + 1))
+            val repository = startedRepository()
+
+            repository.checkNow()
+            runCurrent()
+
+            assertEquals(UpdateState.Idle(NOW), repository.state.value)
+        }
+
+    @Test
+    fun `a manual check that cannot reach the feed fails with the reason`() =
+        runTest {
+            val repository = startedRepository()
+
+            listOf(UpdateFailure.NETWORK, UpdateFailure.RATE_LIMITED).forEach { reason ->
+                feed.latestResult = FeedResult.Unavailable(reason)
+                repository.checkNow()
+                runCurrent()
+
+                assertEquals(UpdateState.Failed(reason, manifest = null), repository.state.value)
+            }
+        }
+
+    @Test
+    fun `two concurrent checks send one request`() =
+        runTest {
+            feed.gateLatest()
+            val repository = startedRepository()
+
+            repository.checkNow()
+            repository.checkNow()
+            runCurrent()
+
+            assertEquals(1, feed.latestCalls.size)
+        }
+
+    @Test
+    fun `a check never interrupts a download`() =
+        runTest {
+            val repository = availableRepository()
+            feed.gateDownload()
+            repository.download()
+            runCurrent()
+
+            repository.checkNow()
+            runCurrent()
+
+            // Only the check that found the offer reached the feed.
+            assertEquals(1, feed.latestCalls.size)
+            assertIs<UpdateState.Downloading>(repository.state.value)
+        }
+
+    // --- automatic checks ---------------------------------------------------
+
+    @Test
+    fun `an automatic check runs when online and never checked before`() =
+        runTest {
+            feed.latestResult = FeedResult.Found(newer)
+            val repository = startedRepository()
+
+            repository.maybeAutoCheck(online = true)
+            runCurrent()
+
+            assertEquals(UpdateState.Available(newer), repository.state.value)
+        }
+
+    @Test
+    fun `an automatic check waits while offline`() =
+        runTest {
+            val repository = startedRepository()
+
+            repository.maybeAutoCheck(online = false)
+            runCurrent()
+
+            assertEquals(emptyList(), feed.latestCalls)
+        }
+
+    @Test
+    fun `an automatic check never runs with automatic checks turned off`() =
+        runTest {
+            store.setAutoCheck(false)
+            val repository = startedRepository()
+
+            repository.maybeAutoCheck(online = true)
+            runCurrent()
+
+            assertEquals(emptyList(), feed.latestCalls)
+        }
+
+    @Test
+    fun `an automatic check waits a full day after the last attempt`() =
+        runTest {
+            store.setLastCheckAttemptAt(NOW.toEpochMilli())
+            val repository = startedRepository()
+
+            clock.now = NOW + DAY - Duration.ofMillis(1)
+            repository.maybeAutoCheck(online = true)
+            runCurrent()
+            assertEquals(emptyList(), feed.latestCalls)
+
+            clock.now = NOW + DAY
+            repository.maybeAutoCheck(online = true)
+            runCurrent()
+            assertEquals(1, feed.latestCalls.size)
+        }
+
+    @Test
+    fun `an automatic check treats a clock behind the last attempt as due`() =
+        runTest {
+            // The attempt was stamped by a clock that has since been set back
+            // (an AI box boots on a wrong clock until NTP corrects it).
+            store.setLastCheckAttemptAt((NOW + Duration.ofHours(1)).toEpochMilli())
+            val repository = startedRepository()
+
+            repository.maybeAutoCheck(online = true)
+            runCurrent()
+
+            assertEquals(1, feed.latestCalls.size)
+        }
+
+    @Test
+    fun `evaluations during and after a check send no second request`() =
+        runTest {
+            val gate = feed.gateLatest()
+            val repository = startedRepository()
+
+            repository.maybeAutoCheck(online = true)
+            repository.maybeAutoCheck(online = true)
+            runCurrent()
+            gate.complete(Unit)
+            runCurrent()
+            // The attempt is on record now, so the next tick is not due either.
+            repository.maybeAutoCheck(online = true)
+            runCurrent()
+
+            assertEquals(1, feed.latestCalls.size)
+        }
+
+    @Test
+    fun `a failed automatic check stays quiet`() =
+        runTest {
+            feed.latestResult = FeedResult.Unavailable(UpdateFailure.NETWORK)
+            val repository = startedRepository()
+
+            repository.maybeAutoCheck(online = true)
+            runCurrent()
+
+            assertEquals(UpdateState.Idle(NOW), repository.state.value)
+        }
+
+    @Test
+    fun `an automatic check that learns nothing keeps the offer the user saw`() =
+        runTest {
+            val repository = availableRepository()
+
+            listOf(FeedResult.Unavailable(UpdateFailure.NETWORK), FeedResult.NoInformation).forEach { result ->
+                clock.now += DAY
+                feed.latestResult = result
+                repository.maybeAutoCheck(online = true)
+                runCurrent()
+
+                assertEquals(UpdateState.Available(newer), repository.state.value)
+            }
+            // Both automatic checks really ran; the offer survived them.
+            assertEquals(3, feed.latestCalls.size)
+        }
+
+    // --- downloading --------------------------------------------------------
+
+    @Test
+    fun `download passes through Downloading to Ready with the verified file`() =
+        runTest {
+            val repository = availableRepository()
+            val gate = feed.gateDownload()
+
+            repository.download()
+            runCurrent()
+            assertEquals(UpdateState.Downloading(newer, FakeUpdateFeed.HALF_PROGRESS), repository.state.value)
+
+            gate.complete(Unit)
+            runCurrent()
+            assertEquals(UpdateState.Ready(newer, feed.downloads.single().target), repository.state.value)
+        }
+
+    @Test
+    fun `download fetches the APK the manifest names`() =
+        runTest {
+            val repository = availableRepository()
+
+            repository.download()
+            runCurrent()
+
+            assertEquals(newer.apk.url, feed.downloads.single().url)
+        }
+
+    @Test
+    fun `a size mismatch deletes the download and fails verification`() =
+        runTest {
+            // The hash is right for the served bytes, so only the size can tell.
+            val repository = availableRepository(fakeUpdateManifest(NEWER, size = FakeApkBody.size + 1L))
+
+            repository.download()
+            runCurrent()
+
+            assertEquals(UpdateState.Failed(UpdateFailure.VERIFY, manifest = null), repository.state.value)
+            assertFalse(
+                feed.downloads
+                    .single()
+                    .target
+                    .exists(),
+            )
+        }
+
+    @Test
+    fun `a hash mismatch deletes the download and fails verification`() =
+        runTest {
+            val repository = availableRepository()
+            // The same length with one byte changed, so only the hash can tell.
+            feed.downloadBody = FakeApkBody.withFirstByteFlipped()
+
+            repository.download()
+            runCurrent()
+
+            assertEquals(UpdateState.Failed(UpdateFailure.VERIFY, manifest = null), repository.state.value)
+            assertFalse(
+                feed.downloads
+                    .single()
+                    .target
+                    .exists(),
+            )
+        }
+
+    @Test
+    fun `a failed transfer keeps the offer so the download can be retried`() =
+        runTest {
+            val repository = availableRepository()
+            feed.downloadBody = null
+            repository.download()
+            runCurrent()
+            assertEquals(UpdateState.Failed(UpdateFailure.NETWORK, newer), repository.state.value)
+
+            feed.downloadBody = FakeApkBody
+            repository.download()
+            runCurrent()
+            assertIs<UpdateState.Ready>(repository.state.value)
+        }
+
+    @Test
+    fun `two concurrent downloads start one transfer`() =
+        runTest {
+            val repository = availableRepository()
+            feed.gateDownload()
+
+            repository.download()
+            repository.download()
+            runCurrent()
+
+            assertEquals(1, feed.downloads.size)
+        }
+
+    @Test
+    fun `download does nothing without an offer`() =
+        runTest {
+            val repository = startedRepository()
+
+            repository.download()
+            runCurrent()
+
+            assertEquals(emptyList(), feed.downloads)
+        }
+
+    // --- installing ---------------------------------------------------------
+
+    @Test
+    fun `install records the pending version before the platform takes the file`() =
+        runTest {
+            var pendingAtHandOff: Int? = null
+            val observingInstaller = FakeApkInstaller { pendingAtHandOff = store.current.pendingInstallVersionCode }
+            val repository = readyRepository(installer = observingInstaller)
+
+            repository.install()
+            runCurrent()
+
+            assertEquals(NEWER, pendingAtHandOff)
+        }
+
+    @Test
+    fun `install hands the verified file over and waits for the platform`() =
+        runTest {
+            val repository = readyRepository()
+            val ready = assertIs<UpdateState.Ready>(repository.state.value)
+
+            repository.install()
+            runCurrent()
+
+            assertEquals(listOf(HandedOffApk(ready.file, newer)), installer.installs)
+            assertEquals(UpdateState.Installing(newer), repository.state.value)
+        }
+
+    @Test
+    fun `two concurrent installs hand the file over once`() =
+        runTest {
+            val repository = readyRepository()
+
+            repository.install()
+            repository.install()
+            runCurrent()
+
+            assertEquals(1, installer.installs.size)
+        }
+
+    @Test
+    fun `install does nothing until a verified file is ready`() =
+        runTest {
+            val repository = availableRepository()
+
+            repository.install()
+            runCurrent()
+
+            assertEquals(emptyList(), installer.installs)
+        }
+
+    @Test
+    fun `a hand-off the platform cannot take fails and clears the pending record`() =
+        runTest {
+            installer.accepts = false
+            val repository = readyRepository()
+
+            repository.install()
+            runCurrent()
+
+            assertEquals(UpdateState.Failed(UpdateFailure.OTHER, newer), repository.state.value)
+            assertNull(store.current.pendingInstallVersionCode)
+        }
+
+    @Test
+    fun `a platform refusal fails with its reason and clears the pending record`() =
+        runTest {
+            val repository = readyRepository()
+            repository.install()
+            runCurrent()
+
+            repository.onInstallFailed(UpdateFailure.INSTALL_CONFLICT)
+            runCurrent()
+
+            assertEquals(UpdateState.Failed(UpdateFailure.INSTALL_CONFLICT, newer), repository.state.value)
+            assertNull(store.current.pendingInstallVersionCode)
+        }
+
+    @Test
+    fun `a retry after a refused install reuses the staged file`() =
+        runTest {
+            val repository = readyRepository()
+            repository.install()
+            runCurrent()
+            repository.onInstallFailed(UpdateFailure.INSTALL_BLOCKED)
+
+            repository.download()
+            runCurrent()
+
+            assertIs<UpdateState.Ready>(repository.state.value)
+            assertEquals(1, feed.downloads.size)
+        }
+
+    @Test
+    fun `a dismissed confirmation offers the same file again`() =
+        runTest {
+            val repository = readyRepository()
+            val ready = repository.state.value
+            repository.install()
+            runCurrent()
+
+            repository.onInstallCancelled()
+            runCurrent()
+
+            assertEquals(ready, repository.state.value)
+            assertNull(store.current.pendingInstallVersionCode)
+        }
+
+    // --- the next start -----------------------------------------------------
+
+    @Test
+    fun `the successor of an install announces the version it runs`() =
+        runTest {
+            installedBy(readyRepository())
+
+            val successor = startedRepository(currentVersionCode = NEWER)
+
+            assertEquals(runningName(NEWER), successor.updatedTo.value)
+            assertNull(store.current.pendingInstallVersionCode)
+        }
+
+    @Test
+    fun `the successor of an install deletes the installed download`() =
+        runTest {
+            val file = installedBy(readyRepository())
+
+            startedRepository(currentVersionCode = NEWER)
+
+            assertFalse(file.exists())
+        }
+
+    @Test
+    fun `an update is announced once`() =
+        runTest {
+            installedBy(readyRepository())
+            val successor = startedRepository(currentVersionCode = NEWER)
+
+            successor.acknowledgeUpdatedTo()
+            val nextStart = startedRepository(currentVersionCode = NEWER)
+
+            assertNull(successor.updatedTo.value)
+            assertNull(nextStart.updatedTo.value)
+        }
+
+    @Test
+    fun `a pending install the running build has not reached returns to Ready`() =
+        runTest {
+            val file = installedBy(readyRepository())
+
+            val restarted = startedRepository(currentVersionCode = CURRENT)
+
+            assertEquals(UpdateState.Ready(newer, file), restarted.state.value)
+            assertTrue(file.exists())
+        }
+
+    @Test
+    fun `a verified download survives a restart`() =
+        runTest {
+            val ready = readyRepository().state.value
+
+            val restarted = startedRepository()
+
+            assertEquals(ready, restarted.state.value)
+        }
+
+    @Test
+    fun `a start without a pending install announces nothing`() =
+        runTest {
+            readyRepository()
+
+            val restarted = startedRepository(currentVersionCode = NEWER)
+
+            assertNull(restarted.updatedTo.value)
+        }
+
+    @Test
+    fun `a download the running build already reached is deleted at start`() =
+        runTest {
+            val file = assertIs<UpdateState.Ready>(readyRepository().state.value).file
+
+            val restarted = startedRepository(currentVersionCode = NEWER)
+
+            assertEquals(UpdateState.Idle(NOW), restarted.state.value)
+            assertFalse(file.exists())
+        }
+
+    @Test
+    fun `a staged download that no longer verifies is deleted at start`() =
+        runTest {
+            val file = assertIs<UpdateState.Ready>(readyRepository().state.value).file
+            file.writeBytes(FakeApkBody.withFirstByteFlipped())
+
+            val restarted = startedRepository()
+
+            assertEquals(UpdateState.Idle(NOW), restarted.state.value)
+            assertFalse(file.exists())
+        }
+
+    @Test
+    fun `a check waits for the start-up reconciliation`() =
+        runTest {
+            val ready = readyRepository().state.value
+            // Not started yet: the check below is queued behind the reconciliation.
+            val restarted = repository()
+
+            restarted.checkNow()
+            runCurrent()
+
+            // A restored download is not a resting state, so the check never claimed.
+            assertEquals(ready, restarted.state.value)
+            assertEquals(1, feed.latestCalls.size)
+        }
+
+    // --- helpers ------------------------------------------------------------
+
+    private fun TestScope.repository(
+        currentVersionCode: Int = CURRENT,
+        channel: UpdateChannel = UpdateChannel.STABLE,
+        enabled: Boolean = true,
+        installer: ApkInstaller = this@UpdateRepositoryTest.installer,
+    ): UpdateRepository =
+        UpdateRepository(
+            feed = feed,
+            store = store,
+            installer = installer,
+            channel = channel,
+            currentVersionCode = currentVersionCode,
+            currentVersionName = runningName(currentVersionCode),
+            enabled = enabled,
+            clock = clock,
+            scope = backgroundScope,
+            cacheDir = File(tempFolder.root, "update"),
+            ioDispatcher = StandardTestDispatcher(testScheduler),
+        )
+
+    // A repository whose start-up reconciliation has run.
+    private fun TestScope.startedRepository(
+        currentVersionCode: Int = CURRENT,
+        channel: UpdateChannel = UpdateChannel.STABLE,
+        installer: ApkInstaller = this@UpdateRepositoryTest.installer,
+    ): UpdateRepository = repository(currentVersionCode, channel, installer = installer).also { runCurrent() }
+
+    // A started repository whose check (at NOW) found [manifest].
+    private fun TestScope.availableRepository(
+        manifest: UpdateManifest = newer,
+        installer: ApkInstaller = this@UpdateRepositoryTest.installer,
+    ): UpdateRepository =
+        startedRepository(installer = installer).also { repository ->
+            feed.latestResult = FeedResult.Found(manifest)
+            repository.checkNow()
+            runCurrent()
+        }
+
+    // A repository holding a verified download of [newer], reached through the
+    // real check and download path.
+    private fun TestScope.readyRepository(
+        installer: ApkInstaller = this@UpdateRepositoryTest.installer,
+    ): UpdateRepository =
+        availableRepository(installer = installer).also { repository ->
+            repository.download()
+            runCurrent()
+        }
+
+    // Hand [repository]'s verified download to the platform; returns the staged file.
+    private fun TestScope.installedBy(repository: UpdateRepository): File =
+        assertIs<UpdateState.Ready>(repository.state.value).file.also {
+            repository.install()
+            runCurrent()
+        }
+
+    private fun ByteArray.withFirstByteFlipped(): ByteArray = copyOf().also { it[0] = (it[0] + 1).toByte() }
+
+    private companion object {
+        const val CURRENT = 26092401
+        const val NEWER = 26092402
+        val NOW: Instant = Instant.parse("2026-09-24T03:00:00Z")
+        val DAY: Duration = Duration.ofHours(24)
+
+        // Distinct from the manifest's versionName, so an announcement can only
+        // name the running build.
+        fun runningName(versionCode: Int): String = "running-$versionCode"
+    }
+}
