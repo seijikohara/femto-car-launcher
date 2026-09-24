@@ -4,9 +4,14 @@ name: Docs site
 # every push to main. ci.yml's docs-site job only proves the site builds (on
 # pull requests and on main pushes); this workflow is the one that deploys.
 # Pages keeps the previous deployment when a run fails, so a red build never
-# takes the site down. The screenshot-catalog step (generateCatalog +
-# import-catalog) renders and imports the full matrix before every deploy,
-# adding roughly 10–20 minutes.
+# takes the site down. Two screenshot catalogs are rendered and imported
+# before every deploy: the stable one from this checkout (main) and the
+# nightly one from a second checkout of develop (see nightly-src/ below),
+# adding roughly 10–20 minutes each. The nightly render is best-effort — a
+# broken develop must never block the stable site from deploying (see
+# continue-on-error below) — so a deploy can ship with only the stable
+# catalog; the viewer (docs/src/catalog/) hides the nightly switch whenever
+# that happens.
 on:
   push:
     branches: [main]
@@ -26,15 +31,29 @@ jobs:
   build:
     name: Build site
     runs-on: ubuntu-latest
-    # Headroom above the ~10-20 min catalog render for a cold Gradle compile
-    # on a 4-vCPU runner (no build-cache hit) before the pnpm steps even start.
-    timeout-minutes: 60
+    # Headroom above two ~10-20 min catalog renders (stable + nightly) plus a
+    # cold Gradle compile on a 4-vCPU runner (no build-cache hit) before the
+    # pnpm steps even start.
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: docs
     steps:
-      - name: Checkout
+      - name: Checkout main (stable)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # A second, independent checkout: the stable render below still runs
+      # against the main checkout at the workspace root, untouched.
+      - name: Checkout develop (nightly)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: develop
+          path: nightly-src
+
+      - name: Resolve the nightly commit SHA
+        id: nightly-sha
+        working-directory: .
+        run: echo "sha=$(git -C nightly-src rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK 21
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
@@ -47,22 +66,50 @@ jobs:
         with:
           # setup-gradle writes the cache only on the default branch; make the
           # read-only fallback explicit so feature branches never pollute it.
+          # Both the stable and nightly Gradle runs below share this cache.
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       # 960 dashboard renders (12 geometries × 5 sizes × 2 themes × 2 driver
       # sides × 4 dock positions) via Roborazzi; category-gated, so this is the
       # only place the full set is ever rendered.
-      - name: Render the screenshot catalog
+      - name: Render the screenshot catalog (stable)
         working-directory: .
         run: ./gradlew :app:generateCatalog --stacktrace
 
       # The importer skips silently when no manifest exists (that is the PR-build
       # path); the deploy must never publish an empty or partial catalog.
-      - name: Check the catalog render
+      - name: Check the stable catalog render
         working-directory: .
         run: |
           manifest=app/build/outputs/catalog/manifest.json
           jq -e --arg sha "$GITHUB_SHA" \
+            '.schemaVersion == 1 and .gitSha == $sha and (.entries | length) > 0' "$manifest"
+          test "$(ls app/build/outputs/catalog/img | wc -l)" -eq "$(jq '.entries | length' "$manifest")"
+
+      # Best-effort: develop can be red between merges, and a broken nightly
+      # render must never block the stable site from deploying. The generator
+      # takes its gitSha from $GITHUB_SHA before falling back to `git
+      # rev-parse HEAD` (app/build.gradle.kts, femto.catalog.gitSha) — Actions
+      # sets that env var to main's commit for the whole job, so it is
+      # overridden here to the develop checkout's own SHA, or the manifest
+      # would claim main's commit instead of the tree it was actually rendered
+      # from.
+      - name: Render the screenshot catalog (nightly)
+        id: nightly-render
+        working-directory: nightly-src
+        continue-on-error: true
+        env:
+          GITHUB_SHA: ${{ steps.nightly-sha.outputs.sha }}
+        run: ./gradlew :app:generateCatalog --stacktrace
+
+      - name: Check the nightly catalog render
+        id: nightly-check
+        if: steps.nightly-render.outcome == 'success'
+        working-directory: nightly-src
+        continue-on-error: true
+        run: |
+          manifest=app/build/outputs/catalog/manifest.json
+          jq -e --arg sha "${{ steps.nightly-sha.outputs.sha }}" \
             '.schemaVersion == 1 and .gitSha == $sha and (.entries | length) > 0' "$manifest"
           test "$(ls app/build/outputs/catalog/img | wc -l)" -eq "$(jq '.entries | length' "$manifest")"
 
@@ -81,8 +128,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Import the catalog into the site
+      # Order matters: import-catalog rmSyncs its output directory first, and
+      # public/catalog is the nightly import's PARENT directory below — importing
+      # stable second would wipe public/catalog/nightly right back out.
+      - name: Import the stable catalog into the site
         run: pnpm run import-catalog -- ../app/build/outputs/catalog
+
+      - name: Import the nightly catalog into the site
+        if: steps.nightly-render.outcome == 'success' && steps.nightly-check.outcome == 'success'
+        run: pnpm run import-catalog -- ../nightly-src/app/build/outputs/catalog public/catalog/nightly
 
       - name: Build
         run: pnpm run build
