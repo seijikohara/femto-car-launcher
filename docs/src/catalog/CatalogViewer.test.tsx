@@ -74,18 +74,24 @@ const nightlyChannel: Channel = {
     assetBase: "/b/catalog/nightly/",
 };
 
+type StubResponse = { ok: boolean; status: number; body?: unknown };
+
 // Distinguishes requests by method + URL, unlike stubFetch above (whose
 // single canned response cannot represent "the nightly probe fails while the
 // stable manifest loads fine"). Keyed as "<METHOD> <url>"; an unlisted
-// request throws, so a test only sees the calls it explicitly expects.
+// request throws, so a test only sees the calls it explicitly expects. A
+// value may also be a Promise (typically one a test resolves by hand later),
+// so a specific request can be held deliberately pending — `await` on a
+// plain (non-Promise) value resolves to that value immediately, so this
+// works uniformly for both.
 const stubChannelFetch = (
-    responses: Record<string, { ok: boolean; status: number; body?: unknown }>,
+    responses: Record<string, StubResponse | Promise<StubResponse>>,
 ) =>
     vi.stubGlobal(
         "fetch",
         vi.fn(async (url: string, init?: RequestInit) => {
             const key = `${init?.method ?? "GET"} ${url}`;
-            const response = responses[key];
+            const response = await responses[key];
             if (response === undefined)
                 throw new Error(`stubChannelFetch: unexpected request ${key}`);
             return {
@@ -95,6 +101,19 @@ const stubChannelFetch = (
             };
         }),
     );
+
+// A Promise plus its own resolve, for a test that needs to hold a specific
+// stubChannelFetch response pending and release it at a chosen moment.
+const deferred = <T,>(): {
+    promise: Promise<T>;
+    resolve: (value: T) => void;
+} => {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((r) => {
+        resolve = r;
+    });
+    return { promise, resolve };
+};
 
 afterEach(() => {
     cleanup();
@@ -580,5 +599,90 @@ describe("CatalogViewer build channel switch", () => {
             expect(window.location.search).toContain("channel=nightly"),
         );
         expect(window.history.state).toEqual({ index: 3 });
+    });
+
+    it("drops a redundant ?channel=<default> from the URL on load", async () => {
+        window.history.replaceState({ index: 5 }, "", "/?channel=stable");
+        stubChannelFetch({
+            [`GET ${stableChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: manifest,
+            },
+            [`HEAD ${nightlyChannel.manifestUrl}`]: { ok: true, status: 200 },
+        });
+        render(<CatalogViewer channels={[stableChannel, nightlyChannel]} />);
+        await screen.findByRole("table");
+        await waitFor(() =>
+            expect(window.location.search).not.toContain("channel="),
+        );
+        // The cleanup only ever touches the `channel` key; history.state must
+        // still pass through unchanged, the same invariant every other write
+        // in this file upholds.
+        expect(window.history.state).toEqual({ index: 5 });
+    });
+
+    it("drops an unrecognised ?channel=<id> from the URL on load and shows the default", async () => {
+        window.history.replaceState({ index: 5 }, "", "/?channel=bogus");
+        stubChannelFetch({
+            [`GET ${stableChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: manifest,
+            },
+            [`HEAD ${nightlyChannel.manifestUrl}`]: { ok: true, status: 200 },
+        });
+        render(<CatalogViewer channels={[stableChannel, nightlyChannel]} />);
+        await screen.findByRole("table");
+        expect(screen.getByText(/abc1234/)).toBeTruthy();
+        await waitFor(() =>
+            expect(window.location.search).not.toContain("channel="),
+        );
+        expect(window.history.state).toEqual({ index: 5 });
+    });
+
+    it("keeps the stable label and sha while a nightly switch is still loading, with no stale-data flash", async () => {
+        const user = userEvent.setup();
+        const nightlyFetch = deferred<StubResponse>();
+        stubChannelFetch({
+            [`GET ${stableChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: manifest,
+            },
+            [`HEAD ${nightlyChannel.manifestUrl}`]: { ok: true, status: 200 },
+            [`GET ${nightlyChannel.manifestUrl}`]: nightlyFetch.promise,
+        });
+        render(<CatalogViewer channels={[stableChannel, nightlyChannel]} />);
+        await screen.findByRole("table");
+        await waitFor(() =>
+            expect(
+                screen.getByRole("button", { name: "Nightly" }),
+            ).toBeTruthy(),
+        );
+        await user.click(screen.getByRole("button", { name: "Nightly" }));
+        // The click registers immediately (URL + pressed switch item), well
+        // before the deliberately pending nightly fetch ever resolves.
+        await waitFor(() =>
+            expect(window.location.search).toContain("channel=nightly"),
+        );
+        expect(
+            screen.getByRole("button", { name: "Nightly", pressed: true }),
+        ).toBeTruthy();
+        // The label/sha must still describe what is actually on screen
+        // (stable's manifest — the nightly fetch has not resolved yet), not
+        // jump ahead to name the new selection before its data has arrived.
+        expect(screen.getByText(/abc1234/)).toBeTruthy();
+        expect(document.querySelector("p.mb-6")?.textContent).toMatch(
+            /^Stable build/,
+        );
+
+        nightlyFetch.resolve({ ok: true, status: 200, body: nightlyManifest });
+        await waitFor(() =>
+            expect(screen.getByText(nightlyShaPrefix)).toBeTruthy(),
+        );
+        expect(document.querySelector("p.mb-6")?.textContent).toMatch(
+            /^Nightly build/,
+        );
     });
 });

@@ -58,7 +58,12 @@ type Status =
     | { kind: "loading" }
     | { kind: "missing" }
     | { kind: "error"; message: string }
-    | { kind: "ready"; manifest: SiteManifest };
+    // channelId names which channel `manifest` was actually fetched from —
+    // not necessarily the current selection. A switch only moves `state`
+    // (below) to this shape once its own fetch resolves, so the label and
+    // asset paths stay paired with whatever is genuinely on screen instead
+    // of flashing the new channel's name over the previous one's data.
+    | { kind: "ready"; manifest: SiteManifest; channelId: string };
 
 // The fetch effect's own resolved shape: the "ready" branch carries the
 // parsed initial ViewState alongside the manifest, so a shape-invalid
@@ -68,7 +73,12 @@ type Status =
 type FetchOutcome =
     | { kind: "missing" }
     | { kind: "error"; message: string }
-    | { kind: "ready"; manifest: SiteManifest; initialState: ViewState };
+    | {
+          kind: "ready";
+          manifest: SiteManifest;
+          initialState: ViewState;
+          channelId: string;
+      };
 
 // Which channel is showing: "pending" while a `?channel=` deep link to a
 // non-default channel waits on that channel's own probe (see the mount
@@ -100,6 +110,24 @@ const resolveInitialChannel = (
     return channels.some((channel) => channel.id === requestedId)
         ? { kind: "pending", requestedId }
         : { kind: "resolved", id: defaultId };
+};
+
+// Whether the initial `?channel=` param (if any) should be dropped from the
+// URL: true for a redundant `?channel=<default>` or an id naming no
+// configured channel — resolveInitialChannel above resolves both of those to
+// the default synchronously, so only the address bar is left stale. A valid
+// non-default id is left alone here; if its probe later fails, the mount
+// effect below cleans that one up itself, through the same withChannelParam.
+const needsInitialCleanup = (
+    channels: readonly Channel[],
+    search: string,
+): boolean => {
+    const requestedId = new URLSearchParams(search).get("channel");
+    if (requestedId === null) return false;
+    return (
+        requestedId === channels[0].id ||
+        !channels.some((channel) => channel.id === requestedId)
+    );
 };
 
 // Sets or clears only the `channel` key of a query string, leaving the
@@ -524,6 +552,21 @@ export default function CatalogViewer({ channels }: Props) {
     const lastCell = useRef<HTMLElement | null>(null);
 
     const channelId = resolution.kind === "resolved" ? resolution.id : null;
+    const loadedChannelId = status.kind === "ready" ? status.channelId : null;
+
+    // Cleans a redundant `?channel=<default>` or an unrecognised `?channel=<id>`
+    // off the URL on mount: resolveInitialChannel above already resolves both
+    // to the default synchronously (this never changes what renders), so this
+    // only keeps the address bar — and anything copied from it — from naming
+    // a channel that was never really in play.
+    useEffect(() => {
+        if (!needsInitialCleanup(channels, window.location.search)) return;
+        window.history.replaceState(
+            window.history.state,
+            "",
+            `${window.location.pathname}${withChannelParam(window.location.search, defaultChannel.id, defaultChannel.id)}`,
+        );
+    }, [channels, defaultChannel.id]);
 
     // Probes every non-default channel once on mount: a HEAD 200 makes it
     // selectable, anything else (a failed nightly render, or a PR build that
@@ -597,7 +640,12 @@ export default function CatalogViewer({ channels }: Props) {
                 // into the catch below, instead of later inside the
                 // render-time useMemo with no status left to report it through.
                 buildMatrix(manifest, initialState);
-                return { kind: "ready", manifest, initialState };
+                return {
+                    kind: "ready",
+                    manifest,
+                    initialState,
+                    channelId: channel.id,
+                };
             })
             .catch((error: unknown): FetchOutcome => ({
                 kind: "error",
@@ -607,7 +655,11 @@ export default function CatalogViewer({ channels }: Props) {
                 if (cancelled) return;
                 if (outcome.kind === "ready") {
                     setState(outcome.initialState);
-                    setStatus({ kind: "ready", manifest: outcome.manifest });
+                    setStatus({
+                        kind: "ready",
+                        manifest: outcome.manifest,
+                        channelId: outcome.channelId,
+                    });
                 } else {
                     setStatus(outcome);
                 }
@@ -622,9 +674,15 @@ export default function CatalogViewer({ channels }: Props) {
     const update = useCallback(
         (manifest: SiteManifest, next: ViewState) => {
             setState(next);
+            // Tags the URL with the channel `manifest` actually belongs to
+            // (loadedChannelId), not the raw selection (channelId): `manifest`
+            // here is always status.manifest, so during the brief window
+            // after a switch but before its fetch lands, this keeps the
+            // written `rows`/`cols`/axis params (valid against `manifest`'s
+            // own axes) paired with the channel id that actually describes them.
             const query = withChannelParam(
                 serializeState(next, manifest),
-                channelId ?? defaultChannel.id,
+                loadedChannelId ?? defaultChannel.id,
                 defaultChannel.id,
             );
             // Astro's ClientRouter keeps {index, scrollX, scrollY} in
@@ -637,7 +695,7 @@ export default function CatalogViewer({ channels }: Props) {
                 `${window.location.pathname}${query}`,
             );
         },
-        [channelId, defaultChannel.id],
+        [loadedChannelId, defaultChannel.id],
     );
 
     // Switches the displayed channel: the URL's non-channel params (rows,
@@ -688,12 +746,17 @@ export default function CatalogViewer({ channels }: Props) {
     if (state === null || matrix === null) return null;
 
     const { manifest } = status;
-    // channelId always names one of `channels` by construction: it is either
-    // the default, or a non-default id that a probe (or the click that only
-    // ever offers an already-probed id — see BuildSwitch/switchChannel)
-    // already proved available.
+    // Tied to loadedChannelId (== status.channelId here — status.kind is
+    // "ready"), not the raw `channelId` selection: a switch can be selected
+    // before its fetch resolves, and `manifest`/`state` above are still the
+    // previous channel's the whole time, so the label and asset paths below
+    // must stay paired with the channel that actually produced them, not
+    // jump ahead of the data and claim a channel whose content isn't shown
+    // yet. loadedChannelId always names one of `channels` by construction,
+    // the same way channelId does (see switchChannel below).
     const currentChannel =
-        channels.find((channel) => channel.id === channelId) ?? defaultChannel;
+        channels.find((channel) => channel.id === loadedChannelId) ??
+        defaultChannel;
     const availableChannels = channels.filter((channel) =>
         availableIds.has(channel.id),
     );
@@ -713,7 +776,12 @@ export default function CatalogViewer({ channels }: Props) {
                 {availableChannels.length > 1 && (
                     <BuildSwitch
                         channels={availableChannels}
-                        value={currentChannel.id}
+                        // The switch itself follows the selection
+                        // (channelId), not currentChannel — it presses the
+                        // just-clicked item immediately, the same instant the
+                        // URL updates, rather than waiting on that channel's
+                        // fetch the way the label/images below deliberately do.
+                        value={channelId ?? currentChannel.id}
                         onChange={switchChannel}
                     />
                 )}
