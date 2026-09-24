@@ -2,7 +2,7 @@
 
 import { Toggle as TogglePrimitive } from "@base-ui/react/toggle";
 import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 
 // The neutral bg-muted pressed state reads at ~1.06:1 against the page/card
 // background (not perceivable); aria-pressed gets a tinted primary
