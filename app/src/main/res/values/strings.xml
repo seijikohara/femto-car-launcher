@@ -518,4 +518,11 @@
     <string name="notification_trip_title">Trip tracking</string>
     <!-- %1$s = current speed, %2$s = distance, %3$s = average speed -->
     <string name="notification_trip_text">%1$s · %2$s · avg %3$s</string>
+
+    <!-- Post-update notification, posted when the launcher is not the home app -->
+    <string name="notification_update_channel_name">App updates</string>
+    <string name="notification_update_channel_desc">Tells you when a new version of the launcher has been installed.</string>
+    <!-- %1$s = the installed version name -->
+    <string name="notification_update_title">Updated to %1$s</string>
+    <string name="notification_update_text">Tap to open.</string>
 </resources>

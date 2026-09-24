@@ -1,7 +1,6 @@
 package io.github.seijikohara.femto.data.diagnostics
 
 import android.app.ActivityManager
-import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
@@ -10,6 +9,7 @@ import android.content.pm.PermissionInfo
 import android.os.PowerManager
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.getSystemService
+import io.github.seijikohara.femto.data.common.holdsHomeRole
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -86,7 +86,7 @@ internal class PermissionFactsCollector(
     // role (the user keeps their stock launcher), unlike an AI box or head
     // unit where holding it is the whole point of the app.
     private fun homeRoleFact(): DiagnosticFact {
-        val held = context.getSystemService<RoleManager>()?.isRoleHeld(RoleManager.ROLE_HOME) == true
+        val held = context.holdsHomeRole()
         val defaultPackage =
             context.packageManager
                 .resolveActivity(

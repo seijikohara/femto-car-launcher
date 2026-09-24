@@ -3,9 +3,9 @@ package io.github.seijikohara.femto.data.update
 import io.github.seijikohara.femto.testfixtures.FakeApkBody
 import io.github.seijikohara.femto.testfixtures.FakeApkInstaller
 import io.github.seijikohara.femto.testfixtures.FakeClock
+import io.github.seijikohara.femto.testfixtures.FakeInstallConfirmation
 import io.github.seijikohara.femto.testfixtures.FakeUpdateFeed
 import io.github.seijikohara.femto.testfixtures.FakeUpdateSettingsStore
-import io.github.seijikohara.femto.testfixtures.HandedOffApk
 import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -407,7 +407,7 @@ class UpdateRepositoryTest {
             gate.complete(Unit)
             runCurrent()
 
-            assertEquals(UpdateState.Installing(newer), repository.state.value)
+            assertEquals(UpdateState.Installing(newer, SESSION), repository.state.value)
         }
 
     // --- downloading --------------------------------------------------------
@@ -529,20 +529,21 @@ class UpdateRepositoryTest {
     // --- installing ---------------------------------------------------------
 
     @Test
-    fun `install records the pending version before the platform takes the file`() =
+    fun `install records the pending version before the platform takes the session`() =
         runTest {
-            var pendingAtHandOff: Int? = null
-            val observingInstaller = FakeApkInstaller { pendingAtHandOff = store.current.pendingInstallVersionCode }
+            var pendingAtCommit: Int? = null
+            val observingInstaller =
+                FakeApkInstaller(onCommit = { pendingAtCommit = store.current.pendingInstallVersionCode })
             val repository = readyRepository(installer = observingInstaller)
 
             repository.install()
             runCurrent()
 
-            assertEquals(NEWER, pendingAtHandOff)
+            assertEquals(NEWER, pendingAtCommit)
         }
 
     @Test
-    fun `install hands the verified file over and waits for the platform`() =
+    fun `install stages the verified file in a session and commits it`() =
         runTest {
             val repository = readyRepository()
             val ready = assertIs<UpdateState.Ready>(repository.state.value)
@@ -550,8 +551,9 @@ class UpdateRepositoryTest {
             repository.install()
             runCurrent()
 
-            assertEquals(listOf(HandedOffApk(ready.file, newer)), installer.installs)
-            assertEquals(UpdateState.Installing(newer), repository.state.value)
+            assertEquals(listOf(ready.file), installer.staged)
+            assertEquals(listOf(SESSION), installer.committed)
+            assertEquals(UpdateState.Installing(newer, SESSION), repository.state.value)
         }
 
     @Test
@@ -563,7 +565,7 @@ class UpdateRepositoryTest {
             repository.install()
             runCurrent()
 
-            assertEquals(1, installer.installs.size)
+            assertEquals(1, installer.staged.size)
         }
 
     @Test
@@ -574,7 +576,7 @@ class UpdateRepositoryTest {
             repository.install()
             runCurrent()
 
-            assertEquals(emptyList(), installer.installs)
+            assertEquals(emptyList(), installer.staged)
         }
 
     @Test
@@ -588,29 +590,48 @@ class UpdateRepositoryTest {
             runCurrent()
 
             assertEquals(UpdateState.Failed(UpdateFailure.VERIFY, newer), repository.state.value)
-            assertEquals(emptyList(), installer.installs)
+            assertEquals(emptyList(), installer.staged)
             assertNull(store.current.pendingInstallVersionCode)
             assertFalse(file.exists())
         }
 
     @Test
-    fun `a verdict that lands before the hand-off leaves no pending record behind`() =
+    fun `a verdict that arrives before the commit returns settles the install`() =
         runTest {
-            val repository = readyRepository()
+            // The platform can report on a session while commit() is still on
+            // its way back; the session must already be on the state by then.
+            lateinit var repository: UpdateRepository
+            val reportingInstaller = FakeApkInstaller(onCommit = { sessionId ->
+                repository.onInstallCancelled(sessionId)
+            })
+            repository = readyRepository(installer = reportingInstaller)
+            val ready = repository.state.value
 
-            // The verdict is dispatched before the hand-off's own record write runs.
             repository.install()
-            repository.onInstallCancelled()
             runCurrent()
 
+            assertEquals(ready, repository.state.value)
             assertNull(store.current.pendingInstallVersionCode)
-            assertEquals(emptyList(), installer.installs)
         }
 
     @Test
-    fun `a hand-off the platform cannot take fails and clears the pending record`() =
+    fun `a session the platform cannot open fails the install and clears the pending record`() =
         runTest {
-            installer.accepts = false
+            installer.stages = false
+            val repository = readyRepository()
+
+            repository.install()
+            runCurrent()
+
+            assertEquals(UpdateState.Failed(UpdateFailure.OTHER, newer), repository.state.value)
+            assertEquals(emptyList(), installer.committed)
+            assertNull(store.current.pendingInstallVersionCode)
+        }
+
+    @Test
+    fun `a commit the platform cannot take fails the install and clears the pending record`() =
+        runTest {
+            installer.commits = false
             val repository = readyRepository()
 
             repository.install()
@@ -621,32 +642,56 @@ class UpdateRepositoryTest {
         }
 
     @Test
-    fun `a platform refusal fails with its reason and clears the pending record`() =
+    fun `a platform refusal fails with its reason and keeps the download`() =
         runTest {
             val repository = readyRepository()
-            repository.install()
+            val file = installedBy(repository)
+
+            repository.onInstallFailed(SESSION, UpdateFailure.INSTALL_BLOCKED)
             runCurrent()
 
-            repository.onInstallFailed(UpdateFailure.INSTALL_CONFLICT)
-            runCurrent()
-
-            assertEquals(UpdateState.Failed(UpdateFailure.INSTALL_CONFLICT, newer), repository.state.value)
+            assertEquals(UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer), repository.state.value)
             assertNull(store.current.pendingInstallVersionCode)
+            assertTrue(file.exists())
         }
 
     @Test
     fun `a retry after a refused install reuses the staged file`() =
         runTest {
-            val repository = readyRepository()
-            repository.install()
-            runCurrent()
-            repository.onInstallFailed(UpdateFailure.INSTALL_BLOCKED)
+            val repository = installingRepository()
+            repository.onInstallFailed(SESSION, UpdateFailure.INSTALL_BLOCKED)
 
             repository.download()
             runCurrent()
 
             assertIs<UpdateState.Ready>(repository.state.value)
             assertEquals(1, feed.downloads.size)
+        }
+
+    @Test
+    fun `a signature conflict deletes the download and withdraws the offer`() =
+        runTest {
+            val repository = installingRepository()
+
+            repository.onInstallFailed(SESSION, UpdateFailure.INSTALL_CONFLICT)
+            runCurrent()
+
+            // No offer left, so neither a retry nor the dock badge offers the
+            // same APK: only a new check can find a build that installs.
+            assertEquals(UpdateState.Failed(UpdateFailure.INSTALL_CONFLICT, manifest = null), repository.state.value)
+            assertFalse(stagingDir.exists())
+            assertNull(store.current.pendingInstallVersionCode)
+        }
+
+    @Test
+    fun `a signature conflict is not offered again at the next start`() =
+        runTest {
+            installingRepository().onInstallFailed(SESSION, UpdateFailure.INSTALL_CONFLICT)
+            runCurrent()
+
+            val restarted = startedRepository()
+
+            assertEquals(UpdateState.Idle(NOW), restarted.state.value)
         }
 
     @Test
@@ -657,11 +702,130 @@ class UpdateRepositoryTest {
             repository.install()
             runCurrent()
 
-            repository.onInstallCancelled()
+            repository.onInstallCancelled(SESSION)
             runCurrent()
 
             assertEquals(ready, repository.state.value)
             assertNull(store.current.pendingInstallVersionCode)
+        }
+
+    @Test
+    fun `a verdict on another session leaves the install alone`() =
+        runTest {
+            val repository = installingRepository()
+            val installing = repository.state.value
+
+            // An earlier attempt's session, abandoned when this one was staged, still reports.
+            repository.onInstallFailed(SESSION + 1, UpdateFailure.INSTALL_CONFLICT)
+            repository.onInstallCancelled(SESSION + 1)
+            runCurrent()
+
+            assertEquals(installing, repository.state.value)
+            assertEquals(NEWER, store.current.pendingInstallVersionCode)
+            assertTrue(stagingDir.exists())
+        }
+
+    // --- confirming ---------------------------------------------------------
+
+    @Test
+    fun `the platform's confirmation for this install is shown and kept`() =
+        runTest {
+            val repository = installingRepository()
+            val confirmation = FakeInstallConfirmation()
+
+            repository.onConfirmationRequested(SESSION, confirmation)
+
+            assertEquals(1, confirmation.shows)
+            assertEquals(UpdateState.Installing(newer, SESSION, confirmation), repository.state.value)
+        }
+
+    @Test
+    fun `a confirmation for another session is neither shown nor kept`() =
+        runTest {
+            val repository = installingRepository()
+            val installing = repository.state.value
+            val confirmation = FakeInstallConfirmation()
+
+            repository.onConfirmationRequested(SESSION + 1, confirmation)
+
+            assertEquals(0, confirmation.shows)
+            assertEquals(installing, repository.state.value)
+        }
+
+    @Test
+    fun `install while the platform waits for the user shows its confirmation again`() =
+        runTest {
+            // Home over the system's confirmation leaves the session waiting and sends no verdict.
+            val repository = installingRepository()
+            val confirmation = FakeInstallConfirmation()
+            repository.onConfirmationRequested(SESSION, confirmation)
+
+            repository.install()
+            runCurrent()
+
+            assertEquals(2, confirmation.shows)
+            assertEquals(UpdateState.Installing(newer, SESSION, confirmation), repository.state.value)
+            assertEquals(1, installer.staged.size)
+        }
+
+    @Test
+    fun `install while the platform prepares its confirmation changes nothing`() =
+        runTest {
+            val repository = installingRepository()
+            val installing = repository.state.value
+
+            repository.install()
+            runCurrent()
+
+            assertEquals(installing, repository.state.value)
+            assertEquals(1, installer.staged.size)
+        }
+
+    @Test
+    fun `install after the platform dropped the session offers the verified file again`() =
+        runTest {
+            val repository = readyRepository()
+            val ready = repository.state.value
+            repository.install()
+            runCurrent()
+            val confirmation = FakeInstallConfirmation()
+            repository.onConfirmationRequested(SESSION, confirmation)
+            // The platform expired the session without a verdict reaching this process.
+            installer.pending -= SESSION
+
+            repository.install()
+            runCurrent()
+
+            assertEquals(ready, repository.state.value)
+            assertNull(store.current.pendingInstallVersionCode)
+            assertEquals(1, confirmation.shows)
+        }
+
+    @Test
+    fun `the file offered again after a dropped session installs in a new session`() =
+        runTest {
+            val repository = installingRepository()
+            installer.pending -= SESSION
+            repository.install()
+            runCurrent()
+
+            repository.install()
+            runCurrent()
+
+            assertEquals(listOf(SESSION, SESSION + 1), installer.committed)
+            assertEquals(UpdateState.Installing(newer, SESSION + 1), repository.state.value)
+            assertEquals(NEWER, store.current.pendingInstallVersionCode)
+        }
+
+    @Test
+    fun `canRequestInstalls reports whether the user lets the app install`() =
+        runTest {
+            val repository = startedRepository()
+
+            installer.canRequest = false
+            assertFalse(repository.canRequestInstalls())
+            installer.canRequest = true
+            assertTrue(repository.canRequestInstalls())
         }
 
     // --- the next start -----------------------------------------------------
@@ -882,11 +1046,17 @@ class UpdateRepositoryTest {
             runCurrent()
         }
 
+    // A repository whose verified download is in the platform's hands as session [SESSION].
+    private fun TestScope.installingRepository(): UpdateRepository = readyRepository().also { installedBy(it) }
+
     private fun ByteArray.withFirstByteFlipped(): ByteArray = copyOf().also { it[0] = (it[0] + 1).toByte() }
 
     private companion object {
         const val CURRENT = 26092401
         const val NEWER = 26092402
+
+        // The session the fake installer opens first.
+        const val SESSION = FakeApkInstaller.FIRST_SESSION_ID
         val NOW: Instant = Instant.parse("2026-09-24T03:00:00Z")
         val DAY: Duration = Duration.ofHours(24)
 

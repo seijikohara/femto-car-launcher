@@ -58,7 +58,11 @@ internal enum class UpdateFailure {
     /** The feed asked this client to wait (HTTP 403 / 429). */
     RATE_LIMITED,
 
-    /** The device could not store the download: a full disk or an unwritable directory. */
+    /**
+     * The device could not store the update: a full disk or an unwritable
+     * directory for the download, or too little space for the platform to
+     * install it.
+     */
     STORAGE,
 
     /** The downloaded file does not match the manifest's size or SHA-256. */
@@ -111,9 +115,17 @@ internal sealed interface UpdateState {
         val file: File,
     ) : UpdateState
 
-    /** Handed to the platform, which may be waiting for the user to confirm. */
+    /**
+     * Handed to the platform, which may be waiting for the user to confirm.
+     * [sessionId] is the platform's install session once the file is staged
+     * in one. [confirmation] is the platform's request for the user's
+     * confirmation once it has arrived; [UpdateRepository.install] shows it
+     * again, because a confirmation dismissed with Home sends no verdict.
+     */
     data class Installing(
         val manifest: UpdateManifest,
+        val sessionId: Int? = null,
+        val confirmation: InstallConfirmation? = null,
     ) : UpdateState
 
     /**
@@ -160,7 +172,7 @@ internal class UpdateRepository internal constructor(
     private val stagingDir: File,
     // Hashing and file IO run here; tests inject their scheduler's dispatcher.
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-) {
+) : InstallVerdicts {
     private val stagedApk = File(stagingDir, STAGED_APK)
     private val stagedManifest = File(stagingDir, STAGED_MANIFEST)
 
@@ -247,22 +259,64 @@ internal class UpdateRepository internal constructor(
         scope.launch { _state.value = fetchVerified(downloading.manifest) }
     }
 
-    /** Hand the verified APK to the platform installer, which asks the user to confirm. */
+    /**
+     * Hand the verified APK to the platform installer, which asks the user to
+     * confirm. While an install waits for that confirmation, this shows the
+     * confirmation again; once the platform no longer holds the session, it
+     * offers the verified file again ([UpdateState.Ready]).
+     */
     fun install() {
-        val installing =
-            claim { current -> (current as? UpdateState.Ready)?.let { UpdateState.Installing(it.manifest) } }?.to
-                ?: return
-        scope.launch { handOff(installing) }
+        val claimed = claim { current -> (current as? UpdateState.Ready)?.let { UpdateState.Installing(it.manifest) } }
+        if (claimed != null) {
+            scope.launch { handOff(claimed.to) }
+        } else {
+            (_state.value as? UpdateState.Installing)?.let { installing -> scope.launch { resume(installing) } }
+        }
     }
 
-    /** The user dismissed the platform's confirmation: offer the same verified file again. */
-    fun onInstallCancelled() = settleInstall { UpdateState.Ready(it, stagedApk) }
+    /**
+     * Whether the user lets this app request installs ("Install unknown
+     * apps"). Without that grant the platform stops [install] at a dialog of
+     * its own, so the UI routes the user to the setting first.
+     */
+    fun canRequestInstalls(): Boolean = installer.canRequestInstalls()
 
     /**
-     * The platform refused the install for [reason]. The staged file stays, so
-     * a retry once the cause is gone needs no second download.
+     * The platform asks the user to confirm session [sessionId]. The
+     * confirmation is shown and kept for [install] to show again. A request
+     * for another session, one an earlier attempt left behind, is ignored.
      */
-    fun onInstallFailed(reason: UpdateFailure) = settleInstall { UpdateState.Failed(reason, it) }
+    override fun onConfirmationRequested(
+        sessionId: Int,
+        confirmation: InstallConfirmation,
+    ) {
+        val kept = claim { current -> current.installingOrNull(sessionId)?.copy(confirmation = confirmation) }
+        if (kept != null) confirmation.show() else Log.w(TAG, "ignored a confirmation for session $sessionId")
+    }
+
+    /** The user declined session [sessionId]'s install, or it was abandoned: offer the same verified file again. */
+    override fun onInstallCancelled(sessionId: Int) = settleInstall(sessionId) { UpdateState.Ready(it, stagedApk) }
+
+    /**
+     * The platform refused session [sessionId]'s install for [reason]. The
+     * staged file stays, so a retry once the cause is gone needs no second
+     * download. [UpdateFailure.INSTALL_CONFLICT] is the exception: an APK
+     * signed with another key never installs over this one, so the file and
+     * its offer are deleted. Neither a retry nor the next start offers that
+     * APK again; only a new check can offer a newer build.
+     */
+    override fun onInstallFailed(
+        sessionId: Int,
+        reason: UpdateFailure,
+    ) = when (reason) {
+        UpdateFailure.INSTALL_CONFLICT -> {
+            settleInstall(sessionId, cleanUp = ::clearStaged) { UpdateState.Failed(reason, manifest = null) }
+        }
+
+        else -> {
+            settleInstall(sessionId) { UpdateState.Failed(reason, it) }
+        }
+    }
 
     /** The UI has shown [updatedTo]; stop reporting it. */
     fun acknowledgeUpdatedTo() {
@@ -463,25 +517,73 @@ internal class UpdateRepository internal constructor(
         // kills this process, so the next start can only recognise it by
         // comparing its own versionCode with this record.
         syncPendingRecord()
-        // A verdict that arrived meanwhile has settled the attempt already.
-        if (_state.value != installing) return
-        if (!commit(manifest)) {
-            claim { current -> UpdateState.Failed(UpdateFailure.OTHER, manifest).takeIf { current == installing } }
+        val attempt = stageSession(installing)
+        val committed =
+            attempt?.sessionId?.let { id -> platformCall("committing session $id") { installer.commit(id) } } == true
+        if (!committed) {
+            claim { current ->
+                UpdateState.Failed(UpdateFailure.OTHER, manifest).takeIf { current == (attempt ?: installing) }
+            }
             syncPendingRecord()
         }
     }
 
-    private suspend fun commit(manifest: UpdateManifest): Boolean =
-        runCatching { installer.install(stagedApk, manifest) }
+    // Stages the verified file in a new session and attaches the session to
+    // the attempt before the commit, so every status the platform sends for it
+    // finds this attempt. Nothing else moves an Installing that has no session
+    // yet (a verdict needs the session, and a repeated install() leaves it
+    // alone), so the attach is written plainly. Null when the platform took no
+    // session.
+    private suspend fun stageSession(installing: UpdateState.Installing): UpdateState.Installing? =
+        platformCall("staging the update") { installer.stage(stagedApk) }
+            ?.let { sessionId -> installing.copy(sessionId = sessionId).also { _state.value = it } }
+
+    // A confirmation left unanswered (dismissed with Home, for one) sends no
+    // verdict, and would hold Installing for the rest of the process. The
+    // platform's session decides the way out: while the platform still holds
+    // it, its confirmation is shown again; once it is gone, the verified file
+    // is offered again.
+    private suspend fun resume(installing: UpdateState.Installing) {
+        // No session yet: the hand-off is under way, and its own outcome follows.
+        val sessionId = installing.sessionId ?: return
+        if (platformCall("looking up session $sessionId") { installer.isPending(sessionId) } == true) {
+            installing.confirmation?.show()
+            return
+        }
+        claim { current -> UpdateState.Ready(installing.manifest, stagedApk).takeIf { current == installing } }
+            ?: return
+        syncPendingRecord()
+    }
+
+    // The installer fronts another process's API. A failure there fails this
+    // step and is logged; it never escapes into the scope, where it would crash
+    // the app.
+    private suspend fun <T> platformCall(
+        step: String,
+        call: suspend () -> T,
+    ): T? =
+        runCatching { call() }
             .onFailure {
                 if (it is CancellationException) throw it
-                Log.w(TAG, "install hand-off failed", it)
-            }.getOrDefault(false)
+                Log.w(TAG, "$step failed", it)
+            }.getOrNull()
 
-    // The platform's verdict ends the attempt; the pending record follows.
-    private fun settleInstall(next: (UpdateManifest) -> UpdateState) {
-        claim { current -> (current as? UpdateState.Installing)?.let { next(it.manifest) } } ?: return
-        scope.launch { syncPendingRecord() }
+    // The platform's verdict on this attempt's session ends the attempt. A
+    // verdict on any other session settles nothing: the platform names the
+    // session in every status, and an older session (one an earlier attempt
+    // left behind, abandoned when the next one is staged) still reports. The
+    // pending record follows after [cleanUp], which is file IO and so runs off
+    // the caller's thread (the status receiver calls on the main thread).
+    private fun settleInstall(
+        sessionId: Int,
+        cleanUp: () -> Unit = {},
+        next: (UpdateManifest) -> UpdateState,
+    ) {
+        claim { current -> current.installingOrNull(sessionId)?.let { next(it.manifest) } } ?: return
+        scope.launch {
+            withContext(ioDispatcher) { cleanUp() }
+            syncPendingRecord()
+        }
     }
 
     // The pending-install record follows the state: set while an install is in
@@ -549,9 +651,7 @@ internal class UpdateRepository internal constructor(
                             userAgent = femtoUserAgent,
                         ),
                     store = store,
-                    // No platform installer is wired yet; declining makes Install
-                    // fail visibly instead of hanging.
-                    installer = ApkInstaller { _, _ -> false },
+                    installer = PackageInstallerApkInstaller(PlatformInstallSessions(app)),
                     // Never read while disabled; any channel keeps the type non-null.
                     channel = channel ?: UpdateChannel.STABLE,
                     currentVersionCode = BuildConfig.VERSION_CODE,
@@ -598,6 +698,10 @@ private fun UpdateState.isResting(): Boolean =
         this == UpdateState.UpToDate ||
         this is UpdateState.Available ||
         this is UpdateState.Failed
+
+// The install attempt this state is, if it is the one on [sessionId].
+private fun UpdateState.installingOrNull(sessionId: Int): UpdateState.Installing? =
+    (this as? UpdateState.Installing)?.takeIf { it.sessionId == sessionId }
 
 // The offer a state carries: an available build, or one a failure still names.
 private fun UpdateState.offerOrNull(): UpdateManifest? =
