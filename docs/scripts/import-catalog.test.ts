@@ -169,26 +169,15 @@ describe("parseArgs", () => {
     });
 
     it("takes an explicit output directory as the second positional", () => {
-        expect(
-            parseArgs([
-                "../nightly-src/app/build/outputs/catalog",
-                "public/catalog/nightly",
-            ]),
-        ).toEqual({
-            inputDir: "../nightly-src/app/build/outputs/catalog",
+        expect(parseArgs(["/in", "public/catalog/nightly"])).toEqual({
+            inputDir: "/in",
             outputDir: "public/catalog/nightly",
         });
     });
 
     it("drops the `--` that `pnpm run` forwards verbatim, keeping the positionals after it", () => {
-        expect(
-            parseArgs([
-                "--",
-                "../nightly-src/app/build/outputs/catalog",
-                "public/catalog/nightly",
-            ]),
-        ).toEqual({
-            inputDir: "../nightly-src/app/build/outputs/catalog",
+        expect(parseArgs(["--", "/in", "public/catalog/nightly"])).toEqual({
+            inputDir: "/in",
             outputDir: "public/catalog/nightly",
         });
     });

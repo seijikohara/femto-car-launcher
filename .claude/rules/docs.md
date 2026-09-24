@@ -113,12 +113,14 @@ edit.
 - `docs.yml` renders both channels before every deploy (~10–20 min
   each) and imports them stable then nightly (see the importer bullet
   above for why the order is load-bearing). `develop`'s render runs in
-  its own read-only job and reaches the build job only as an artifact
-  that is validated as untrusted input; the workflow's header comment
-  is the SSOT for that job split and its permissions. The nightly half
-  is best-effort at every stage, so a broken `develop` never blocks
-  the stable site from deploying. `public/catalog/` is never
-  committed.
+  its own job, where the token (`contents: read`) and `cache-mode: read`
+  are enforced but uploading extra artifacts to the run is not; the
+  site build (`cache-mode: none`) therefore validates the nightly
+  catalog as untrusted input, and a hostile `develop` can at worst make
+  the Pages upload fail. The workflow's header comment is the SSOT for
+  that job split, its permissions and cache modes. The nightly half is
+  best-effort at every stage, so a broken `develop` never blocks the
+  stable site from deploying. `public/catalog/` is never committed.
 
 ### Gotchas
 
