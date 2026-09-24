@@ -329,7 +329,9 @@ internal class UpdateRepository internal constructor(
 
     // Runs under [autoCheckGate]. The in-memory attempt is checked first: it
     // costs nothing, spares the store a read on every tick that is not due, and
-    // still holds when the persisted attempt was lost.
+    // still holds when the persisted attempt was lost. Keep this order: the
+    // test that pins the gate relies on it, and with the store read first the
+    // in-memory check alone would mask a missing gate.
     private suspend fun claimAutoCheck(): Pair<UpdateState, Instant>? {
         if (!isDue(lastAttemptAtMs)) return null
         val settings = store.settings.first()
