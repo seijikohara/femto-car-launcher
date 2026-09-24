@@ -674,15 +674,19 @@ export default function CatalogViewer({ channels }: Props) {
     const update = useCallback(
         (manifest: SiteManifest, next: ViewState) => {
             setState(next);
-            // Tags the URL with the channel `manifest` actually belongs to
-            // (loadedChannelId), not the raw selection (channelId): `manifest`
-            // here is always status.manifest, so during the brief window
-            // after a switch but before its fetch lands, this keeps the
-            // written `rows`/`cols`/axis params (valid against `manifest`'s
-            // own axes) paired with the channel id that actually describes them.
+            // The matrix params are serialised against `manifest` (always
+            // status.manifest, the one on screen), but the channel param
+            // carries the selection (channelId), not the loaded channel: a
+            // control touched after a switch but before its fetch lands
+            // would otherwise drop the pending channel from the URL, and the
+            // page would then show that channel's content under a URL that
+            // names the previous one. When the selected manifest arrives,
+            // the fetch effect re-validates these params against it through
+            // parseState. channelId is never null here — the matrix only
+            // renders once a resolved channel has loaded.
             const query = withChannelParam(
                 serializeState(next, manifest),
-                loadedChannelId ?? defaultChannel.id,
+                channelId ?? defaultChannel.id,
                 defaultChannel.id,
             );
             // Astro's ClientRouter keeps {index, scrollX, scrollY} in
@@ -695,7 +699,7 @@ export default function CatalogViewer({ channels }: Props) {
                 `${window.location.pathname}${query}`,
             );
         },
-        [loadedChannelId, defaultChannel.id],
+        [channelId, defaultChannel.id],
     );
 
     // Switches the displayed channel: the URL's non-channel params (rows,

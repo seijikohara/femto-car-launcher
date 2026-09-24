@@ -115,6 +115,13 @@ const deferred = <T,>(): {
     return { promise, resolve };
 };
 
+// Thumbnails are decorative (alt="") inside labelled buttons, so they carry no
+// img role; their sources are read through the cell buttons instead.
+const thumbSources = () =>
+    screen
+        .getAllByRole("button", { name: /^Open / })
+        .map((button) => button.querySelector("img")?.getAttribute("src"));
+
 afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
@@ -142,11 +149,9 @@ describe("CatalogViewer", () => {
         expect(
             screen.getByRole("rowheader", { name: "Head unit" }),
         ).toBeTruthy();
-        // Thumbnails are decorative (alt="") inside labelled buttons, so they carry no img role.
-        const thumbs = screen
-            .getAllByRole("button", { name: /^Open / })
-            .map((button) => button.querySelector("img")?.getAttribute("src"));
-        expect(thumbs).toContain("/b/catalog/thumb/floor__small__light.webp");
+        expect(thumbSources()).toContain(
+            "/b/catalog/thumb/floor__small__light.webp",
+        );
         expect(screen.getByText("—")).toBeTruthy();
         expect(screen.getByText(/abc1234/)).toBeTruthy();
     });
@@ -459,10 +464,7 @@ describe("CatalogViewer build channel switch", () => {
         await waitFor(() =>
             expect(screen.getByText(nightlyShaPrefix)).toBeTruthy(),
         );
-        const thumbs = screen
-            .getAllByRole("button", { name: /^Open / })
-            .map((button) => button.querySelector("img")?.getAttribute("src"));
-        expect(thumbs).toContain(
+        expect(thumbSources()).toContain(
             `${nightlyChannel.assetBase}thumb/floor__small__light.webp`,
         );
         expect(window.location.search).toContain("channel=nightly");
@@ -684,5 +686,75 @@ describe("CatalogViewer build channel switch", () => {
         expect(document.querySelector("p.mb-6")?.textContent).toMatch(
             /^Nightly build/,
         );
+    });
+
+    it("keeps ?channel=nightly in the URL when a matrix control changes while the switch is still loading", async () => {
+        const user = userEvent.setup();
+        const nightlyFetch = deferred<StubResponse>();
+        stubChannelFetch({
+            [`GET ${stableChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: manifest,
+            },
+            [`HEAD ${nightlyChannel.manifestUrl}`]: { ok: true, status: 200 },
+            [`GET ${nightlyChannel.manifestUrl}`]: nightlyFetch.promise,
+        });
+        render(<CatalogViewer channels={[stableChannel, nightlyChannel]} />);
+        await screen.findByRole("table");
+        await waitFor(() =>
+            expect(
+                screen.getByRole("button", { name: "Nightly" }),
+            ).toBeTruthy(),
+        );
+        await user.click(screen.getByRole("button", { name: "Nightly" }));
+        await waitFor(() =>
+            expect(window.location.search).toContain("channel=nightly"),
+        );
+
+        // The controls still edit stable's matrix (the nightly fetch is
+        // pending), so this rewrites the URL from stable's manifest — the
+        // write must keep the pending channel, not the loaded one.
+        await user.click(screen.getByRole("combobox", { name: "Rows" }));
+        await user.click(await screen.findByRole("option", { name: "Theme" }));
+        await waitFor(() =>
+            expect(
+                screen.getByRole("rowheader", { name: "Dark" }),
+            ).toBeTruthy(),
+        );
+        const midSwitch = new URLSearchParams(window.location.search);
+        expect(midSwitch.get("rows")).toBe("theme");
+        expect(midSwitch.get("channel")).toBe("nightly");
+        // The label, sha and asset paths still describe the loaded channel.
+        expect(document.querySelector("p.mb-6")?.textContent).toMatch(
+            /^Stable build/,
+        );
+        expect(screen.getByText(/abc1234/)).toBeTruthy();
+        expect(thumbSources()).toContain(
+            `${stableChannel.assetBase}thumb/floor__small__light.webp`,
+        );
+
+        nightlyFetch.resolve({ ok: true, status: 200, body: nightlyManifest });
+        await waitFor(() =>
+            expect(screen.getByText(nightlyShaPrefix)).toBeTruthy(),
+        );
+        expect(document.querySelector("p.mb-6")?.textContent).toMatch(
+            /^Nightly build/,
+        );
+        expect(thumbSources()).toContain(
+            `${nightlyChannel.assetBase}thumb/floor__small__light.webp`,
+        );
+        // The URL still names the channel on screen, and its matrix params —
+        // written mid-switch against stable's manifest — hold up against
+        // nightly's: the selection made during the switch survives it.
+        const settled = new URLSearchParams(window.location.search);
+        expect(settled.get("channel")).toBe("nightly");
+        expect(settled.get("rows")).toBe("theme");
+        expect(settled.get("cols")).toBe("scale");
+        expect(settled.get("geometry")).toBe("floor");
+        expect(screen.getByRole("rowheader", { name: "Dark" })).toBeTruthy();
+        expect(
+            screen.getByRole("combobox", { name: "Rows" }).textContent,
+        ).toContain("Theme");
     });
 });
