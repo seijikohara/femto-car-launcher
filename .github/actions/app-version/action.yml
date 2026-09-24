@@ -36,7 +36,13 @@ runs:
           stable|nightly) ;;
           *) echo "::error::channel must be stable or nightly (got '$CHANNEL')"; exit 1 ;;
         esac
-        day="$(date -u +%Y.%m.%d)"
+        # HEAD's own committer date (UTC) decides the day, not the wall clock
+        # running the script. A build can run any time after its commit was
+        # made, so wall-clock date -u used to disagree with the commit's own
+        # day whenever a build crossed UTC midnight that the commit predates
+        # -- see the nightly branch below for the versionCode collision that
+        # mismatch caused.
+        day="$(TZ=UTC git show -s --format=%cd --date=format-local:%Y.%m.%d HEAD)"
         if [ "$CHANNEL" = stable ]; then
           # The stable counter comes from the tags already cut today, not from commit
           # activity: a release may be cut from a branch that has been idle since
@@ -46,17 +52,26 @@ runs:
           n=$(( $(git tag --list "v$day-*" | wc -l) + 1 ))
         else
           # Nightly builds follow a push, so a new commit always raises the count.
-          # A rebuild of an unchanged commit should reuse its versionCode because
-          # it is the same build.
-          midnight="$(date -u +%Y-%m-%dT00:00:00Z)"
-          n="$(git rev-list --count --since="$midnight" HEAD)"
-          if [ "$n" -lt 1 ]; then n=1; fi
+          # Count from HEAD's own day (not wall-clock midnight) so HEAD always
+          # falls inside the window it is counted against: HEAD's committer
+          # time can never be earlier than the midnight that starts its own
+          # day, so the count is always at least 1 and two unrelated commits
+          # can never both fall back to the same floored n=1.
+          since="${day//./-}T00:00:00Z"
+          n="$(git rev-list --count --since="$since" HEAD)"
         fi
         if [ "$n" -gt 99 ]; then
           echo "::error::$n builds today exceeds the 2-digit build counter in the versionCode"
           exit 1
         fi
-        code="$(( 10#$(date -u +%y%m%d) * 100 + n ))"
+        # Reuse $day instead of a second date -u (or git show) call for the
+        # compact form: a second wall-clock read is the other half of the bug
+        # this action used to have, since it can land on a different day than
+        # $day. Stripping the century and the dots turns 2026.09.23 into
+        # 260923; 10# forces base-10 so a leading zero is never read as octal.
+        compact="${day:2}"
+        compact="${compact//./}"
+        code="$(( 10#$compact * 100 + n ))"
         if [ "$CHANNEL" = stable ]; then
           name="$day-$n"
           tag="v$name"
