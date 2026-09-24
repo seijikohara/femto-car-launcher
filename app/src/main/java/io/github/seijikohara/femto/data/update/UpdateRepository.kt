@@ -50,6 +50,14 @@ private const val AUTO_CHECK_INTERVAL_MS = 24L * 60 * 60 * 1000
 private const val STAGED_APK = "update.apk"
 private const val STAGED_MANIFEST = "update.json"
 
+// Two confirmations for one session must never stack. A tap on "show again"
+// while the dialog is still coming up, a double tap on a head unit's touch
+// panel, or a re-show after Home while the first dialog is still alive would
+// stack them, and on Android 13 accepting both, or cancelling the stale one,
+// destroys the session under the first. A re-show this soon after the last one
+// is ignored. Internal so tests probe both sides of it.
+internal const val CONFIRMATION_RESHOW_GUARD_MS = 10_000L
+
 /** Why the last update action failed, for the UI to phrase. */
 internal enum class UpdateFailure {
     /** The feed or the download could not be reached. */
@@ -71,7 +79,10 @@ internal enum class UpdateFailure {
     /** The platform refused the APK as signed with a different key. */
     INSTALL_CONFLICT,
 
-    /** The device (a policy or a verifier) blocks the install. */
+    /**
+     * The device blocks the install: a policy, a verifier, or a system that
+     * cannot show the install confirmation (its package installer disabled).
+     */
     INSTALL_BLOCKED,
 
     /** Anything else, e.g. the platform could not take the file at all. */
@@ -207,6 +218,10 @@ internal class UpdateRepository internal constructor(
     @Volatile
     private var recheckAtOnce = false
 
+    // When a confirmation last went on screen; see CONFIRMATION_RESHOW_GUARD_MS.
+    @Volatile
+    private var confirmationShownAtMs: Long? = null
+
     // Serialises the pending-install record's writes; see syncPendingRecord.
     private val pendingRecordLock = Mutex()
 
@@ -262,8 +277,9 @@ internal class UpdateRepository internal constructor(
     /**
      * Hand the verified APK to the platform installer, which asks the user to
      * confirm. While an install waits for that confirmation, this shows the
-     * confirmation again; once the platform no longer holds the session, it
-     * offers the verified file again ([UpdateState.Ready]).
+     * confirmation again, though not within [CONFIRMATION_RESHOW_GUARD_MS] of
+     * the last time; once the platform no longer holds the session, it offers
+     * the verified file again ([UpdateState.Ready]).
      */
     fun install() {
         val claimed = claim { current -> (current as? UpdateState.Ready)?.let { UpdateState.Installing(it.manifest) } }
@@ -291,7 +307,7 @@ internal class UpdateRepository internal constructor(
         confirmation: InstallConfirmation,
     ) {
         val kept = claim { current -> current.installingOrNull(sessionId)?.copy(confirmation = confirmation) }
-        if (kept != null) confirmation.show() else Log.w(TAG, "ignored a confirmation for session $sessionId")
+        if (kept != null) show(sessionId, confirmation) else Log.w(TAG, "ignored a confirmation for session $sessionId")
     }
 
     /** The user declined session [sessionId]'s install, or it was abandoned: offer the same verified file again. */
@@ -310,7 +326,7 @@ internal class UpdateRepository internal constructor(
         reason: UpdateFailure,
     ) = when (reason) {
         UpdateFailure.INSTALL_CONFLICT -> {
-            settleInstall(sessionId, cleanUp = ::clearStaged) { UpdateState.Failed(reason, manifest = null) }
+            settleInstall(sessionId, cleanUp = { clearStaged() }) { UpdateState.Failed(reason, manifest = null) }
         }
 
         else -> {
@@ -547,7 +563,7 @@ internal class UpdateRepository internal constructor(
         // No session yet: the hand-off is under way, and its own outcome follows.
         val sessionId = installing.sessionId ?: return
         if (platformCall("looking up session $sessionId") { installer.isPending(sessionId) } == true) {
-            installing.confirmation?.show()
+            installing.confirmation?.takeUnless { shownRecently() }?.let { show(sessionId, it) }
             return
         }
         claim { current -> UpdateState.Ready(installing.manifest, stagedApk).takeIf { current == installing } }
@@ -568,15 +584,43 @@ internal class UpdateRepository internal constructor(
                 Log.w(TAG, "$step failed", it)
             }.getOrNull()
 
-    // The platform's verdict on this attempt's session ends the attempt. A
-    // verdict on any other session settles nothing: the platform names the
-    // session in every status, and an older session (one an earlier attempt
-    // left behind, abandoned when the next one is staged) still reports. The
-    // pending record follows after [cleanUp], which is file IO and so runs off
-    // the caller's thread (the status receiver calls on the main thread).
+    // Puts session [sessionId]'s [confirmation] on screen. A confirmation the
+    // platform cannot start (a locked-down ROM with its package installer
+    // disabled, for one) would leave the session waiting until the platform
+    // expires it days later, and the attempt waiting with it. So the attempt
+    // fails as blocked, and the session is abandoned.
+    private fun show(
+        sessionId: Int,
+        confirmation: InstallConfirmation,
+    ) {
+        confirmationShownAtMs = clock.millis()
+        if (confirmation.show()) return
+        settleInstall(sessionId, cleanUp = { abandon(sessionId) }) {
+            UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, it)
+        }
+    }
+
+    private suspend fun abandon(sessionId: Int) {
+        platformCall("abandoning session $sessionId") { installer.abandon(sessionId) }
+    }
+
+    // A clock set back since the last show counts as long ago, so a re-show is
+    // never held off for longer than the guard.
+    private fun shownRecently(): Boolean =
+        confirmationShownAtMs?.let { shownAt ->
+            clock.millis() - shownAt in 0 until CONFIRMATION_RESHOW_GUARD_MS
+        } == true
+
+    // A verdict on this attempt's session (the platform's, or a confirmation
+    // that could not be shown) ends the attempt. A verdict on any other session
+    // settles nothing: the platform names the session in every status, and an
+    // older session (one an earlier attempt left behind, abandoned when the next
+    // one is staged) still reports. The pending record follows after [cleanUp],
+    // which does IO and so runs off the caller's thread (the status receiver
+    // calls on the main thread).
     private fun settleInstall(
         sessionId: Int,
-        cleanUp: () -> Unit = {},
+        cleanUp: suspend () -> Unit = {},
         next: (UpdateManifest) -> UpdateState,
     ) {
         claim { current -> current.installingOrNull(sessionId)?.let { next(it.manifest) } } ?: return

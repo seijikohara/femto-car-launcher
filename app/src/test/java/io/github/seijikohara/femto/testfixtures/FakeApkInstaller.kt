@@ -9,10 +9,10 @@ import java.io.File
  * [commit] records the session and answers [commits].
  *
  * [pending] holds the sessions the "platform" still keeps: every committed
- * one, until a test removes it the way the platform drops a session it has
- * finished or abandoned. [onCommit] runs inside [commit], so a test can
- * observe what was persisted at the moment the platform takes a session, or
- * deliver a verdict before [commit] returns.
+ * one, until [abandon] or a test removes it the way the platform drops a
+ * session it has finished or expired. [onCommit] runs inside [commit], so a
+ * test can observe what was persisted at the moment the platform takes a
+ * session, or deliver a verdict before [commit] returns.
  */
 internal class FakeApkInstaller(
     var stages: Boolean = true,
@@ -23,6 +23,7 @@ internal class FakeApkInstaller(
     val staged = mutableListOf<File>()
     val committed = mutableListOf<Int>()
     val pending = mutableSetOf<Int>()
+    val abandoned = mutableListOf<Int>()
     private var nextSessionId = FIRST_SESSION_ID
 
     override fun canRequestInstalls(): Boolean = canRequest
@@ -43,6 +44,11 @@ internal class FakeApkInstaller(
     }
 
     override suspend fun isPending(sessionId: Int): Boolean = sessionId in pending
+
+    override suspend fun abandon(sessionId: Int) {
+        abandoned += sessionId
+        pending -= sessionId
+    }
 
     companion object {
         /** The id of the first session [stage] opens. */

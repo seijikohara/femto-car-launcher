@@ -759,6 +759,7 @@ class UpdateRepositoryTest {
             val repository = installingRepository()
             val confirmation = FakeInstallConfirmation()
             repository.onConfirmationRequested(SESSION, confirmation)
+            clock.now += RESHOW_GUARD
 
             repository.install()
             runCurrent()
@@ -766,6 +767,84 @@ class UpdateRepositoryTest {
             assertEquals(2, confirmation.shows)
             assertEquals(UpdateState.Installing(newer, SESSION, confirmation), repository.state.value)
             assertEquals(1, installer.staged.size)
+        }
+
+    @Test
+    fun `a re-show sooner than the guard after the last show is ignored`() =
+        runTest {
+            // A tap while the dialog is still starting, or a double tap: two
+            // dialogs for one session would destroy it once both are answered.
+            val repository = installingRepository()
+            val confirmation = FakeInstallConfirmation()
+            repository.onConfirmationRequested(SESSION, confirmation)
+            clock.now += RESHOW_GUARD - Duration.ofMillis(1)
+
+            repository.install()
+            runCurrent()
+
+            assertEquals(1, confirmation.shows)
+        }
+
+    @Test
+    fun `each re-show restarts the guard`() =
+        runTest {
+            val repository = installingRepository()
+            val confirmation = FakeInstallConfirmation()
+            repository.onConfirmationRequested(SESSION, confirmation)
+            clock.now += RESHOW_GUARD
+            repository.install()
+            runCurrent()
+
+            clock.now += RESHOW_GUARD - Duration.ofMillis(1)
+            repository.install()
+            runCurrent()
+
+            assertEquals(2, confirmation.shows)
+        }
+
+    @Test
+    fun `a clock set back since the last show does not hold a re-show off`() =
+        runTest {
+            val repository = installingRepository()
+            val confirmation = FakeInstallConfirmation()
+            repository.onConfirmationRequested(SESSION, confirmation)
+            clock.now -= Duration.ofHours(1)
+
+            repository.install()
+            runCurrent()
+
+            assertEquals(2, confirmation.shows)
+        }
+
+    @Test
+    fun `a confirmation the platform cannot start fails the install as blocked`() =
+        runTest {
+            // A locked-down ROM with its package installer disabled: the session
+            // would otherwise wait for days, and the install with it.
+            val repository = installingRepository()
+
+            repository.onConfirmationRequested(SESSION, FakeInstallConfirmation(starts = false))
+            runCurrent()
+
+            assertEquals(UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer), repository.state.value)
+            assertEquals(listOf(SESSION), installer.abandoned)
+            assertNull(store.current.pendingInstallVersionCode)
+        }
+
+    @Test
+    fun `a re-shown confirmation the platform cannot start fails the install as blocked`() =
+        runTest {
+            val repository = installingRepository()
+            val confirmation = FakeInstallConfirmation()
+            repository.onConfirmationRequested(SESSION, confirmation)
+            confirmation.starts = false
+            clock.now += RESHOW_GUARD
+
+            repository.install()
+            runCurrent()
+
+            assertEquals(UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer), repository.state.value)
+            assertEquals(listOf(SESSION), installer.abandoned)
         }
 
     @Test
@@ -1057,6 +1136,7 @@ class UpdateRepositoryTest {
 
         // The session the fake installer opens first.
         const val SESSION = FakeApkInstaller.FIRST_SESSION_ID
+        val RESHOW_GUARD: Duration = Duration.ofMillis(CONFIRMATION_RESHOW_GUARD_MS)
         val NOW: Instant = Instant.parse("2026-09-24T03:00:00Z")
         val DAY: Duration = Duration.ofHours(24)
 

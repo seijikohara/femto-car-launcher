@@ -6,13 +6,13 @@ import io.github.seijikohara.femto.testfixtures.FakeApkBody
 import io.github.seijikohara.femto.testfixtures.FakeInstallSessions
 import io.github.seijikohara.femto.testfixtures.FakeInstallSessions.Companion.FIRST_SESSION_ID
 import io.github.seijikohara.femto.testfixtures.WrittenSession
+import io.github.seijikohara.femto.testfixtures.newFakeApk
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
@@ -27,7 +27,7 @@ class PackageInstallerApkInstallerTest {
     @Test
     fun `a session names this app, the file's size and the OTHER package source`() =
         runTest {
-            val apk = apk()
+            val apk = tempFolder.newFakeApk()
 
             installer().stage(apk)
 
@@ -47,7 +47,7 @@ class PackageInstallerApkInstallerTest {
     @Test
     fun `stage writes the file into the session it opened`() =
         runTest {
-            val apk = apk()
+            val apk = tempFolder.newFakeApk()
 
             val sessionId = installer().stage(apk)
 
@@ -61,7 +61,7 @@ class PackageInstallerApkInstallerTest {
         runTest {
             val leftovers = FakeInstallSessions(leftovers = listOf(7, 8))
 
-            val sessionId = installer(leftovers).stage(apk())
+            val sessionId = installer(leftovers).stage(tempFolder.newFakeApk())
 
             // Only the leftovers: the session just opened stays.
             assertEquals(listOf(7, 8), leftovers.abandoned.sorted())
@@ -73,7 +73,7 @@ class PackageInstallerApkInstallerTest {
         runTest {
             sessions.writeFails = true
 
-            val sessionId = installer().stage(apk())
+            val sessionId = installer().stage(tempFolder.newFakeApk())
 
             assertNull(sessionId)
             assertEquals(listOf(FIRST_SESSION_ID), sessions.abandoned)
@@ -84,7 +84,7 @@ class PackageInstallerApkInstallerTest {
         runTest {
             sessions.createFails = true
 
-            val sessionId = installer().stage(apk())
+            val sessionId = installer().stage(tempFolder.newFakeApk())
 
             assertNull(sessionId)
             assertEquals(emptyList<WrittenSession>(), sessions.written)
@@ -94,7 +94,7 @@ class PackageInstallerApkInstallerTest {
     fun `commit hands the session to the platform`() =
         runTest {
             val installer = installer()
-            val sessionId = checkNotNull(installer.stage(apk()))
+            val sessionId = checkNotNull(installer.stage(tempFolder.newFakeApk()))
 
             assertTrue(installer.commit(sessionId))
             assertEquals(listOf(sessionId), sessions.committed)
@@ -105,7 +105,7 @@ class PackageInstallerApkInstallerTest {
     fun `commit abandons a session the platform refused`() =
         runTest {
             val installer = installer()
-            val sessionId = checkNotNull(installer.stage(apk()))
+            val sessionId = checkNotNull(installer.stage(tempFolder.newFakeApk()))
             sessions.commitFails = true
 
             assertFalse(installer.commit(sessionId))
@@ -116,7 +116,7 @@ class PackageInstallerApkInstallerTest {
     fun `isPending follows whether the platform still holds the session`() =
         runTest {
             val installer = installer()
-            val sessionId = checkNotNull(installer.stage(apk()))
+            val sessionId = checkNotNull(installer.stage(tempFolder.newFakeApk()))
             assertTrue(installer.isPending(sessionId))
 
             sessions.abandon(sessionId)
@@ -125,10 +125,22 @@ class PackageInstallerApkInstallerTest {
         }
 
     @Test
+    fun `abandon hands the session back to the platform`() =
+        runTest {
+            val installer = installer()
+            val sessionId = checkNotNull(installer.stage(tempFolder.newFakeApk()))
+
+            installer.abandon(sessionId)
+
+            assertEquals(listOf(sessionId), sessions.abandoned)
+            assertFalse(installer.isPending(sessionId))
+        }
+
+    @Test
     fun `isPending reads a session the platform will not look up as gone`() =
         runTest {
             val installer = installer()
-            val sessionId = checkNotNull(installer.stage(apk()))
+            val sessionId = checkNotNull(installer.stage(tempFolder.newFakeApk()))
             sessions.lookupFails = true
 
             assertFalse(installer.isPending(sessionId))
@@ -136,6 +148,4 @@ class PackageInstallerApkInstallerTest {
 
     private fun TestScope.installer(sessions: InstallSessions = this@PackageInstallerApkInstallerTest.sessions) =
         PackageInstallerApkInstaller(sessions, ioDispatcher = StandardTestDispatcher(testScheduler))
-
-    private fun apk(): File = tempFolder.newFile("update.apk").apply { writeBytes(FakeApkBody) }
 }

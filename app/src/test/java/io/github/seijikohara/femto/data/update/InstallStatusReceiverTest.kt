@@ -33,11 +33,23 @@ class InstallStatusReceiverTest {
 
         val requested = assertIs<ReceivedVerdict.ConfirmationRequested>(verdicts.received.single())
         assertEquals(SESSION, requested.sessionId)
-        requested.confirmation.show()
+        assertTrue(requested.confirmation.show())
         val started = shadowOf(app).nextStartedActivity
         assertEquals(CONFIRM_ACTION, started.action)
         assertEquals(INSTALLER_PACKAGE, started.`package`)
         assertTrue(started.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
+    }
+
+    @Test
+    fun `a confirmation the platform cannot start reports that it did not`() {
+        // A locked-down ROM with its package installer disabled: nothing resolves the request.
+        shadowOf(app).checkActivities(true)
+        deliver(PackageInstaller.STATUS_PENDING_USER_ACTION) {
+            putExtra(Intent.EXTRA_INTENT, Intent(CONFIRM_ACTION).setPackage(INSTALLER_PACKAGE))
+        }
+
+        val requested = assertIs<ReceivedVerdict.ConfirmationRequested>(verdicts.received.single())
+        assertFalse(requested.confirmation.show())
     }
 
     @Test

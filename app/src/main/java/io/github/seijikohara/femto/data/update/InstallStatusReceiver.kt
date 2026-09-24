@@ -127,7 +127,9 @@ private fun requestConfirmation(
 // IntentCompat, not the platform's typed getParcelableExtra: on Android 13
 // (this app's floor, and what the AI boxes run) the typed call can throw
 // (b/232589966), and the untyped one is deprecated. Outside an activity, the
-// platform starts an activity only into a new task.
+// platform starts an activity only into a new task. A start that throws (no
+// package installer to confirm with, on a locked-down ROM) reports failure, so
+// the attempt can end instead of waiting on a dialog that never appears.
 private fun confirmationOrNull(
     context: Context,
     intent: Intent,
@@ -136,5 +138,6 @@ private fun confirmationOrNull(
         InstallConfirmation {
             runCatching { context.startActivity(Intent(request).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 .onFailure { Log.w(TAG, "showing the install confirmation failed", it) }
+                .isSuccess
         }
     }

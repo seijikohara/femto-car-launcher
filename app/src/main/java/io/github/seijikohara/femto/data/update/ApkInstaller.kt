@@ -32,9 +32,13 @@ internal interface ApkInstaller {
 
     /** Whether the platform still holds session [sessionId], typically while it waits for the user to confirm. */
     suspend fun isPending(sessionId: Int): Boolean
+
+    /** Give up session [sessionId], so the platform drops it and its copy of the APK. */
+    suspend fun abandon(sessionId: Int)
 }
 
-/** The platform's request that the user confirm an install; [show] puts the system's confirmation on screen. */
+/** The platform's request that the user confirm an install. */
 internal fun interface InstallConfirmation {
-    fun show()
+    /** Put the system's confirmation on screen; false when the platform could not start it. */
+    fun show(): Boolean
 }

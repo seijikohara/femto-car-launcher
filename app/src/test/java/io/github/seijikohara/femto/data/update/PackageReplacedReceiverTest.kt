@@ -60,10 +60,10 @@ class PackageReplacedReceiverTest {
             NotificationManager.IMPORTANCE_LOW,
             notifications.getNotificationChannel(notification.channelId).importance,
         )
-        assertEquals(
-            MainActivity::class.java.name,
-            shadowOf(notification.contentIntent).savedIntent.component?.className,
-        )
+        val open = shadowOf(notification.contentIntent)
+        assertEquals(MainActivity::class.java.name, open.savedIntent.component?.className)
+        // Nothing may rewrite where the tap leads.
+        assertTrue(open.isImmutable)
         assertNull(shadowOf(app).nextStartedActivity)
     }
 

@@ -1,17 +1,18 @@
 package io.github.seijikohara.femto.data.update
 
+import android.Manifest
 import android.app.Application
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.testfixtures.FakeApkBody
+import io.github.seijikohara.femto.testfixtures.newFakeApk
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -42,7 +43,7 @@ class PlatformInstallSessionsTest {
     @Test
     fun `a written session can be committed`() {
         val sessionId = sessions.create(PARAMS)
-        sessions.write(sessionId, "base.apk", apk())
+        sessions.write(sessionId, "base.apk", tempFolder.newFakeApk())
 
         // Throws if write() left a stream into the session open.
         sessions.commit(sessionId)
@@ -74,10 +75,8 @@ class PlatformInstallSessionsTest {
                 PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong()),
             )
 
-        assertTrue("android.permission.REQUEST_INSTALL_PACKAGES" in info.requestedPermissions.orEmpty())
+        assertTrue(Manifest.permission.REQUEST_INSTALL_PACKAGES in info.requestedPermissions.orEmpty())
     }
-
-    private fun apk(): File = tempFolder.newFile("update.apk").apply { writeBytes(FakeApkBody) }
 
     private companion object {
         val PARAMS =

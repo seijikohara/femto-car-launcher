@@ -86,6 +86,8 @@ internal class PackageInstallerApkInstaller(
                 .getOrDefault(false)
         }
 
+    override suspend fun abandon(sessionId: Int) = withContext(ioDispatcher) { abandonSession(sessionId) }
+
     // PACKAGE_SOURCE_OTHER, never LOCAL_FILE or DOWNLOADED_FILE: on Android 13
     // either of those re-applies the "restricted settings" guard on every
     // install, updates included, and notification-listener access (the music
@@ -107,7 +109,7 @@ internal class PackageInstallerApkInstaller(
         runCatching { sessions.mine() }
             .onFailure { Log.w(TAG, "listing this app's install sessions failed", it) }
             .getOrDefault(emptyList())
-            .forEach(::abandon)
+            .forEach(::abandonSession)
 
     private fun writeInto(
         sessionId: Int,
@@ -123,10 +125,10 @@ internal class PackageInstallerApkInstaller(
         runCatching(block)
             .onFailure {
                 Log.w(TAG, "$step failed for session $sessionId", it)
-                abandon(sessionId)
+                abandonSession(sessionId)
             }.isSuccess
 
-    private fun abandon(sessionId: Int) {
+    private fun abandonSession(sessionId: Int) {
         runCatching { sessions.abandon(sessionId) }
             .onFailure { Log.w(TAG, "abandoning session $sessionId failed", it) }
     }
