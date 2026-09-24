@@ -82,24 +82,39 @@ edit.
   with `manifest.json` (schema v1: `schemaVersion`, `generatedAt`,
   `gitSha`, `axes[{id,label,values[{id,label}]}]`,
   `entries[{id,file,widthDp,heightDp,values}]`) and `img/<id>.png`.
-- `pnpm run import-catalog -- <dir>` (`scripts/import-catalog.ts`)
-  writes `public/catalog/{manifest.json,full/<id>.webp,thumb/<id>.webp}`
-  (lossy WebP q85 full size; 480 px q75 thumbnails) and adds `full`,
-  `thumb`, `widthPx`, `heightPx` per entry plus `thumbWidth`. It is a
-  no-op without a manifest (PR builds ship the page with its empty
-  state) and fails when a manifest entry has no image (a partial render
-  must not be published).
+- `pnpm run import-catalog -- <dir> [outDir]` (`scripts/import-catalog.ts`,
+  `outDir` default `public/catalog`) writes
+  `<outDir>/{manifest.json,full/<id>.webp,thumb/<id>.webp}` (lossy WebP
+  q85 full size; 480 px q75 thumbnails) and adds `full`, `thumb`,
+  `widthPx`, `heightPx` per entry plus `thumbWidth`. It is a no-op
+  without a manifest (PR builds ship the page with its empty state)
+  and fails when a manifest entry has no image (a partial render must
+  not be published). It `rmSync`s `outDir` first, and `public/catalog`
+  is `public/catalog/nightly`'s parent — always import stable before
+  nightly, never the reverse.
+- Two channels, same shape, different paths: stable at
+  `public/catalog/`, nightly (rendered from `develop`) at
+  `public/catalog/nightly/`. `CatalogViewer`'s `channels` prop lists
+  them (`{id, label, manifestUrl, assetBase}`, first entry the
+  default); it probes each non-default channel's manifest with a
+  `HEAD` request on mount, hides it from the switch when that fails,
+  and falls a stale `?channel=<id>` deep link back to the default —
+  the URL carries the selection, omitted for the default channel.
 - The viewer is `src/catalog/`: `matrix.ts` (pure — state ↔ URL with
   `rows`, `cols`, one param per remaining axis and `open`; matrix
   layout; neighbour navigation; entries may be a subset of the axis
   product) and `CatalogViewer.tsx`, the catalog's React island
   (`client:load` — see Toolchain for the site's full island list),
-  which fetches `catalog/manifest.json` at runtime.
+  which fetches the selected channel's manifest at runtime.
   `manifest.ts` re-exports the script's types so the shape has one
   home; `schema.ts` holds `CATALOG_SCHEMA_VERSION`, the schema-version
   constant shared by the import script and the island.
-- `docs.yml` renders and imports the catalog before every deploy
-  (~10–20 min); `public/catalog/` is never committed.
+- `docs.yml` renders and imports both channels before every deploy,
+  stable then nightly (~10–20 min each, see the importer bullet above
+  for why the order is load-bearing). The nightly render is
+  best-effort (`continue-on-error`), so a broken `develop` never
+  blocks the stable site from deploying. `public/catalog/` is never
+  committed.
 
 ### Gotchas
 
