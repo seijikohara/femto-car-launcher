@@ -315,8 +315,9 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
-        # cache-mode: none above already blocks this job's cache access, so
-        # cache-read-only would be a no-op here; omitted rather than left stale.
+        with:
+          # Matches cache-mode: none, so setup-gradle never attempts a restore or save the cache service would refuse.
+          cache-disabled: true
 
       - name: Verify signing secrets are present
         env:
