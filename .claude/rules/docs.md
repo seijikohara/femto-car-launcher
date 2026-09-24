@@ -110,11 +110,14 @@ edit.
   `manifest.ts` re-exports the script's types so the shape has one
   home; `schema.ts` holds `CATALOG_SCHEMA_VERSION`, the schema-version
   constant shared by the import script and the island.
-- `docs.yml` renders and imports both channels before every deploy,
-  stable then nightly (~10–20 min each, see the importer bullet above
-  for why the order is load-bearing). The nightly render is
-  best-effort (`continue-on-error`), so a broken `develop` never
-  blocks the stable site from deploying. `public/catalog/` is never
+- `docs.yml` renders both channels before every deploy (~10–20 min
+  each) and imports them stable then nightly (see the importer bullet
+  above for why the order is load-bearing). `develop`'s render runs in
+  its own read-only job and reaches the build job only as an artifact
+  that is validated as untrusted input; the workflow's header comment
+  is the SSOT for that job split and its permissions. The nightly half
+  is best-effort at every stage, so a broken `develop` never blocks
+  the stable site from deploying. `public/catalog/` is never
   committed.
 
 ### Gotchas

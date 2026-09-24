@@ -4,23 +4,34 @@ name: Docs site
 # every push to main. ci.yml's docs-site job only proves the site builds (on
 # pull requests and on main pushes); this workflow is the one that deploys.
 # Pages keeps the previous deployment when a run fails, so a red build never
-# takes the site down. Two screenshot catalogs are rendered and imported
-# before every deploy: the stable one from this checkout (main) and the
-# nightly one from a second checkout of develop (see nightly-src/ below),
-# adding roughly 10–20 minutes each. The nightly render is best-effort — a
-# broken develop must never block the stable site from deploying (see
-# continue-on-error below) — so a deploy can ship with only the stable
-# catalog; the viewer (docs/src/catalog/) hides the nightly switch whenever
-# that happens.
+# takes the site down.
+#
+# Every deploy carries two screenshot catalogs, built across three jobs:
+# - nightly-catalog renders the nightly catalog from develop. develop carries
+#   code main has not taken yet (Renovate automerges dependency updates into
+#   it), and its Gradle build executes that code, so the render runs in a job
+#   of its own: a fresh runner, a read-only token that checkout does not
+#   leave behind, and a setup-gradle that restores the cache but never saves
+#   it. Only the rendered catalog (plus its commit SHA) leaves the job, as a
+#   short-lived artifact.
+# - build renders the stable catalog from main, validates the nightly
+#   artifact as untrusted input before importing it, builds the site and
+#   uploads the Pages artifact.
+# - deploy publishes that artifact. It is the only job granted pages: write
+#   and id-token: write, so develop's code never runs beside the deployment
+#   credentials.
+# The nightly half is best-effort at every stage (render, download,
+# validation, import): a broken develop never blocks the stable site, a deploy
+# can ship with only the stable catalog, and the viewer (docs/src/catalog/)
+# hides the nightly switch whenever that happens.
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
+# Read-only for every job; deploy alone widens its own grant.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # One deployment at a time; queue rather than cancel an in-flight publish.
 concurrency:
@@ -28,32 +39,95 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  nightly-catalog:
+    name: Render the nightly catalog
+    runs-on: ubuntu-latest
+    # One ~10–20 min catalog render plus a cold Gradle compile.
+    timeout-minutes: 60
+    # Explicit, so a later workflow-level grant never reaches develop's code.
+    permissions:
+      contents: read
+    outputs:
+      sha: ${{ steps.sha.outputs.sha }}
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: develop
+          # Nothing here pushes, so the token need not stay on the runner
+          # for develop's build to find.
+          persist-credentials: false
+
+      - name: Resolve the rendered commit SHA
+        id: sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
+        with:
+          # Never save: this run is triggered from main, so a cache saved here
+          # would land in main's scope, where main's own builds (the stable
+          # release included) restore it.
+          cache-read-only: true
+
+      # The same full render as the stable one in build. The generator takes
+      # its gitSha from $GITHUB_SHA before falling back to `git rev-parse
+      # HEAD` (app/build.gradle.kts, femto.catalog.gitSha), and GITHUB_SHA is
+      # main's commit for the whole run. The override has to happen in the
+      # shell: the runner re-exports GITHUB_* after applying a step's env:
+      # block, so an env: override is silently ignored and the manifest would
+      # claim main's commit instead of the tree it was rendered from.
+      - name: Render the screenshot catalog
+        env:
+          RENDERED_SHA: ${{ steps.sha.outputs.sha }}
+        run: GITHUB_SHA="$RENDERED_SHA" ./gradlew :app:generateCatalog --stacktrace
+
+      # A partial render must not become an artifact at all.
+      - name: Check the catalog render
+        env:
+          RENDERED_SHA: ${{ steps.sha.outputs.sha }}
+        run: |
+          manifest=app/build/outputs/catalog/manifest.json
+          jq -e --arg sha "$RENDERED_SHA" \
+            '.schemaVersion == 1 and .gitSha == $sha and (.entries | length) > 0' "$manifest"
+          test "$(ls app/build/outputs/catalog/img | wc -l)" -eq "$(jq '.entries | length' "$manifest")"
+
+      # Only the catalog leaves this job. The PNGs are already deflated, so
+      # compression level 0 skips a second pass over ~1 GB for nothing.
+      - name: Upload the catalog
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: nightly-catalog
+          path: |
+            app/build/outputs/catalog/manifest.json
+            app/build/outputs/catalog/img/*.png
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
   build:
     name: Build site
+    # needs only orders the jobs, so the nightly artifact exists before the
+    # download below; !cancelled() runs this job whatever the nightly render's
+    # result, so a red develop never holds back the stable site.
+    needs: nightly-catalog
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
-    # Headroom above two ~10-20 min catalog renders (stable + nightly) plus a
-    # cold Gradle compile on a 4-vCPU runner (no build-cache hit) before the
-    # pnpm steps even start.
-    timeout-minutes: 90
+    # One ~10–20 min catalog render plus a cold Gradle compile on a 4-vCPU
+    # runner (no build-cache hit) before the pnpm steps even start.
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: docs
     steps:
-      - name: Checkout main (stable)
+      - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      # A second, independent checkout: the stable render below still runs
-      # against the main checkout at the workspace root, untouched.
-      - name: Checkout develop (nightly)
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: develop
-          path: nightly-src
-
-      - name: Resolve the nightly commit SHA
-        id: nightly-sha
-        working-directory: .
-        run: echo "sha=$(git -C nightly-src rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK 21
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
@@ -66,12 +140,11 @@ jobs:
         with:
           # setup-gradle writes the cache only on the default branch; make the
           # read-only fallback explicit so feature branches never pollute it.
-          # Both the stable and nightly Gradle runs below share this cache.
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       # 960 dashboard renders (12 geometries × 5 sizes × 2 themes × 2 driver
-      # sides × 4 dock positions) via Roborazzi; category-gated, so this is the
-      # only place the full set is ever rendered.
+      # sides × 4 dock positions) via Roborazzi; category-gated, so this
+      # workflow is the only place the full set is ever rendered.
       - name: Render the screenshot catalog (stable)
         working-directory: .
         run: ./gradlew :app:generateCatalog --stacktrace
@@ -83,33 +156,6 @@ jobs:
         run: |
           manifest=app/build/outputs/catalog/manifest.json
           jq -e --arg sha "$GITHUB_SHA" \
-            '.schemaVersion == 1 and .gitSha == $sha and (.entries | length) > 0' "$manifest"
-          test "$(ls app/build/outputs/catalog/img | wc -l)" -eq "$(jq '.entries | length' "$manifest")"
-
-      # Best-effort: develop can be red between merges, and a broken nightly
-      # render must never block the stable site from deploying. The generator
-      # takes its gitSha from $GITHUB_SHA before falling back to `git
-      # rev-parse HEAD` (app/build.gradle.kts, femto.catalog.gitSha) — Actions
-      # sets that env var to main's commit for the whole job, so it is
-      # overridden here to the develop checkout's own SHA, or the manifest
-      # would claim main's commit instead of the tree it was actually rendered
-      # from.
-      - name: Render the screenshot catalog (nightly)
-        id: nightly-render
-        working-directory: nightly-src
-        continue-on-error: true
-        env:
-          GITHUB_SHA: ${{ steps.nightly-sha.outputs.sha }}
-        run: ./gradlew :app:generateCatalog --stacktrace
-
-      - name: Check the nightly catalog render
-        id: nightly-check
-        if: steps.nightly-render.outcome == 'success'
-        working-directory: nightly-src
-        continue-on-error: true
-        run: |
-          manifest=app/build/outputs/catalog/manifest.json
-          jq -e --arg sha "${{ steps.nightly-sha.outputs.sha }}" \
             '.schemaVersion == 1 and .gitSha == $sha and (.entries | length) > 0' "$manifest"
           test "$(ls app/build/outputs/catalog/img | wc -l)" -eq "$(jq '.entries | length' "$manifest")"
 
@@ -134,9 +180,78 @@ jobs:
       - name: Import the stable catalog into the site
         run: pnpm run import-catalog -- ../app/build/outputs/catalog
 
+      # nightly-catalog uploads the artifact as its last step, so only a
+      # successful job leaves one to download.
+      - name: Download the nightly catalog
+        id: nightly-download
+        if: needs.nightly-catalog.result == 'success'
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: nightly-catalog
+          path: ${{ runner.temp }}/nightly-catalog
+
+      # Untrusted input: the artifact comes out of a job that ran develop's
+      # code, and this job goes on to build the Pages artifact. The render
+      # checks are repeated here (the nightly job's own pass proves nothing),
+      # and the directory must hold exactly manifest.json plus one
+      # img/<id>.png per entry before the importer reads anything from it.
+      - name: Validate the nightly catalog
+        id: nightly-validate
+        if: steps.nightly-download.outcome == 'success'
+        continue-on-error: true
+        env:
+          NIGHTLY_SHA: ${{ needs.nightly-catalog.outputs.sha }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/nightly-catalog"
+          manifest="$dir/manifest.json"
+          reject() {
+            echo "::warning::Skipping the nightly catalog: $1"
+            exit 1
+          }
+          [[ "$NIGHTLY_SHA" =~ ^[0-9a-f]{40}$ ]] || reject "nightly-catalog reported no commit SHA"
+          # The stable render's checks: schema version, rendered commit, image count.
+          jq -e --arg sha "$NIGHTLY_SHA" \
+            '.schemaVersion == 1 and .gitSha == $sha and (.entries | length) > 0' "$manifest" ||
+            reject "manifest.json is not a schema-1 manifest of $NIGHTLY_SHA"
+          test "$(ls "$dir/img" | wc -l)" -eq "$(jq '.entries | length' "$manifest")" ||
+            reject "the image count does not match the manifest"
+          # import-catalog reads entry.file and names its output after entry.id,
+          # so each entry must point at its own image under a plain file-name id.
+          jq -e 'all(.entries[]; (.id | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]*$")) and .file == "img/\(.id).png")' "$manifest" ||
+            reject "an entry id or image path is malformed"
+          # On disk: regular files under plain names, no directory but img/, and
+          # exactly manifest.json plus the images the manifest lists.
+          test -z "$(find "$dir" -mindepth 1 \( ! -type f ! -type d -o -name '*[!A-Za-z0-9._-]*' \) -print -quit)" ||
+            reject "the artifact holds a link, a special file or an unexpected name"
+          test "$(find "$dir" -mindepth 1 -type d)" = "$dir/img" ||
+            reject "the artifact holds a directory other than img/"
+          diff <(cd "$dir" && find . -type f | sort) \
+            <({ echo ./manifest.json; jq -r '.entries[] | "./" + .file' "$manifest"; } | sort) ||
+            reject "the files on disk do not match the manifest"
+          # sharp picks its decoder from the bytes, not the file name, so every
+          # image must open with the PNG signature to stay on the PNG decoder.
+          find "$dir/img" -type f -exec sh -c '
+            for png; do
+              [ "$(head -c 8 "$png" | od -An -tx1 | tr -d " \n")" = 89504e470d0a1a0a ] || exit 1
+            done' sh {} + ||
+            reject "an image is not a PNG"
+
+      # Best-effort as well: an image can pass the checks above and still fail
+      # to convert, and that must not block the stable deploy.
       - name: Import the nightly catalog into the site
-        if: steps.nightly-render.outcome == 'success' && steps.nightly-check.outcome == 'success'
-        run: pnpm run import-catalog -- ../nightly-src/app/build/outputs/catalog public/catalog/nightly
+        id: nightly-import
+        if: steps.nightly-validate.outcome == 'success'
+        continue-on-error: true
+        run: pnpm run import-catalog -- "$RUNNER_TEMP/nightly-catalog" public/catalog/nightly
+
+      # The importer clears its output first and writes manifest.json last, so
+      # the viewer already hides the switch after a failed import; this only
+      # keeps the half-converted images out of the deploy.
+      - name: Drop a failed nightly import
+        if: steps.nightly-import.outcome == 'failure'
+        run: rm -rf public/catalog/nightly
 
       - name: Build
         run: pnpm run build
@@ -149,7 +264,14 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     needs: build
+    # The explicit result check replaces the implicit success(), which counts
+    # every ancestor job: a failed nightly-catalog would otherwise skip the
+    # stable deploy even after build succeeded.
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
+    permissions:
+      pages: write # create the Pages deployment
+      id-token: write # mint the OIDC token Pages verifies the deploying ref with
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
