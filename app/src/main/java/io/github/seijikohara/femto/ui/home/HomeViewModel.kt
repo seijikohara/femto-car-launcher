@@ -139,7 +139,6 @@ internal class HomeViewModel(
                 // layer (DashboardContent intercepts this action before it reaches
                 // here). Kept in the sealed action so the dock's APPS nav spec can
                 // dispatch it; a no-op if it ever reaches the ViewModel.
-                Unit
             }
 
             is HomeAction.LaunchApp -> {
