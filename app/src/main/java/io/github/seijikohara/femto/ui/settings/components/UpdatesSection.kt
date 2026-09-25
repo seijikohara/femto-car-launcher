@@ -17,7 +17,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.CircleCheck
 import com.composables.icons.lucide.Download
 import com.composables.icons.lucide.Lucide
@@ -139,7 +138,11 @@ private fun UpdateStatusRow(
     if (status is UpdateStatus.Downloading) {
         LinearProgressIndicator(
             progress = { status.fraction },
-            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = SettingRowHorizontalInset)
+                    .padding(bottom = SettingRowVerticalInset),
         )
     }
 }
@@ -156,11 +159,7 @@ private fun UpdateStepRow(
             title = stringResource(R.string.settings_updates_download),
             onClick = { onAction(SettingsAction.DownloadUpdate) },
             modifier = modifier,
-            summary =
-                stringResource(
-                    R.string.settings_updates_download_size,
-                    Formatter.formatShortFileSize(LocalContext.current, step.sizeBytes),
-                ),
+            summary = stringResource(R.string.settings_updates_download_size, fileSize(step.sizeBytes)),
             icon = Lucide.Download,
         )
     }
@@ -170,6 +169,7 @@ private fun UpdateStepRow(
             title = stringResource(R.string.settings_updates_install),
             summary = stringResource(R.string.settings_updates_install_desc),
             blockedWhileMoving = step.blockedWhileMoving,
+            grantDeclined = step.grantDeclined,
             onClick = { onAction(SettingsAction.InstallUpdate) },
             modifier = modifier,
         )
@@ -180,6 +180,7 @@ private fun UpdateStepRow(
             title = stringResource(R.string.settings_updates_show_install_dialog),
             summary = stringResource(R.string.settings_updates_show_install_dialog_desc),
             blockedWhileMoving = step.blockedWhileMoving,
+            grantDeclined = step.grantDeclined,
             onClick = { onAction(SettingsAction.InstallUpdate) },
             modifier = modifier,
         )
@@ -190,7 +191,7 @@ private fun UpdateStepRow(
             title = stringResource(R.string.settings_updates_retry),
             onClick = { onAction(SettingsAction.DownloadUpdate) },
             modifier = modifier,
-            summary = stringResource(R.string.settings_updates_retry_desc, step.versionName),
+            summary = stringResource(R.string.settings_updates_retry_desc, step.versionName, fileSize(step.sizeBytes)),
             icon = Lucide.RotateCw,
         )
     }
@@ -199,19 +200,33 @@ private fun UpdateStepRow(
 // A step that puts the system's install confirmation on screen. While a fix
 // shows the vehicle moving it stays in place, untappable, and says when it
 // becomes available, rather than vanishing and leaving the ready update
-// unexplained.
+// unexplained. After a trip to the "Install unknown apps" access that came
+// back without it, the row says so, and a tap sends the user there again.
 @Composable
 private fun InstallStepRow(
     title: String,
     summary: String,
     blockedWhileMoving: Boolean,
+    grantDeclined: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) = if (blockedWhileMoving) {
     SettingRow(title = title, modifier = modifier, summary = stringResource(R.string.settings_updates_parked_only))
 } else {
-    ActionRow(title = title, onClick = onClick, modifier = modifier, summary = summary, icon = Lucide.PackageCheck)
+    ActionRow(
+        title = title,
+        onClick = onClick,
+        modifier = modifier,
+        summary = if (grantDeclined) stringResource(R.string.settings_updates_install_grant_declined) else summary,
+        // The decline is an outcome, so it is announced like the check row's.
+        summaryLiveRegion = grantDeclined,
+        icon = Lucide.PackageCheck,
+    )
 }
+
+// A download size in the device's locale, e.g. "45 MB".
+@Composable
+private fun fileSize(bytes: Long): String = Formatter.formatShortFileSize(LocalContext.current, bytes)
 
 @Composable
 private fun updateStatusSummary(status: UpdateStatus): String =
@@ -306,6 +321,7 @@ private fun UpdatesSectionAvailablePreview() =
             step = UpdateStep.Download(sizeBytes = PREVIEW_APK_BYTES),
             autoCheck = true,
             updatedTo = null,
+            updateOffered = true,
         ),
     )
 
@@ -320,6 +336,7 @@ private fun UpdatesSectionDownloadingPreview() =
             step = null,
             autoCheck = true,
             updatedTo = null,
+            updateOffered = true,
         ),
     )
 
@@ -332,13 +349,31 @@ private fun UpdatesSectionReadyWhileMovingPreview() =
         UpdatesUiState(
             status = UpdateStatus.Ready(PREVIEW_VERSION),
             canCheck = false,
-            step = UpdateStep.Install(blockedWhileMoving = true),
+            step = UpdateStep.Install(blockedWhileMoving = true, grantDeclined = false),
             autoCheck = true,
             updatedTo = "2026.09.24-1",
+            updateOffered = true,
         ),
     )
 
-// A failed download whose offer is still known: phrased for a person, with a retry.
+// A verified update after the "Install unknown apps" access came back off:
+// the install row says why nothing was installed.
+@PreviewLightDark
+@Composable
+private fun UpdatesSectionGrantDeclinedPreview() =
+    UpdatesSectionPreviewHost(
+        UpdatesUiState(
+            status = UpdateStatus.Ready(PREVIEW_VERSION),
+            canCheck = false,
+            step = UpdateStep.Install(blockedWhileMoving = false, grantDeclined = true),
+            autoCheck = true,
+            updatedTo = null,
+            updateOffered = true,
+        ),
+    )
+
+// A failed download whose offer is still known: phrased for a person, with a
+// retry that shows what it may download.
 @PreviewLightDark
 @Composable
 private fun UpdatesSectionFailedPreview() =
@@ -346,9 +381,10 @@ private fun UpdatesSectionFailedPreview() =
         UpdatesUiState(
             status = UpdateStatus.Failed(UpdateFailure.NETWORK),
             canCheck = true,
-            step = UpdateStep.Retry(PREVIEW_VERSION),
+            step = UpdateStep.Retry(PREVIEW_VERSION, PREVIEW_APK_BYTES),
             autoCheck = false,
             updatedTo = null,
+            updateOffered = true,
         ),
     )
 

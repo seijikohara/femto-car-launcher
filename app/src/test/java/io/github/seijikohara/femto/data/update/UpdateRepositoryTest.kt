@@ -896,17 +896,6 @@ class UpdateRepositoryTest {
             assertEquals(NEWER, store.current.pendingInstallVersionCode)
         }
 
-    @Test
-    fun `canRequestInstalls reports whether the user lets the app install`() =
-        runTest {
-            val repository = startedRepository()
-
-            installer.canRequest = false
-            assertFalse(repository.canRequestInstalls())
-            installer.canRequest = true
-            assertTrue(repository.canRequestInstalls())
-        }
-
     // --- the next start -----------------------------------------------------
 
     @Test

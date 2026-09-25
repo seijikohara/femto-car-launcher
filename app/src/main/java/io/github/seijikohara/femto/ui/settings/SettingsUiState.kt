@@ -446,6 +446,9 @@ internal sealed interface SettingsAction {
      */
     data object InstallUpdate : SettingsAction
 
+    /** The user came back from the "Install unknown apps" access without turning it on. */
+    data object InstallGrantDeclined : SettingsAction
+
     /** Turn the daily automatic check on or off. */
     data class SetUpdateAutoCheck(
         val value: Boolean,

@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.ComponentName
 import android.content.Intent
 import android.location.Location
+import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -16,6 +17,7 @@ import io.github.seijikohara.femto.data.calendar.CalendarRepository
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.clock.ClockRepository
 import io.github.seijikohara.femto.data.common.WhileUiSubscribed
+import io.github.seijikohara.femto.data.common.catchAsDefault
 import io.github.seijikohara.femto.data.common.femtoUserAgent
 import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.geocoding.NominatimApi
@@ -27,7 +29,7 @@ import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.location.VehicleMotion
-import io.github.seijikohara.femto.data.location.vehicleMotion
+import io.github.seijikohara.femto.data.location.vehicleMotionFlow
 import io.github.seijikohara.femto.data.music.AudioSpectrumRepository
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
@@ -36,16 +38,15 @@ import io.github.seijikohara.femto.data.system.SystemStatus
 import io.github.seijikohara.femto.data.system.SystemStatusRepository
 import io.github.seijikohara.femto.data.update.UpdateRepository
 import io.github.seijikohara.femto.data.update.UpdateState
+import io.github.seijikohara.femto.data.update.offersUpdate
 import io.github.seijikohara.femto.data.weather.MetNorwayApi
 import io.github.seijikohara.femto.data.weather.WeatherRepository
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
@@ -73,6 +74,9 @@ internal class HomeViewModel(
     // The updater's state; drives the dock's update badge. Defaults to a build that
     // never checks, so previews and tests that do not exercise the badge are unaffected.
     private val updateStateFlow: Flow<UpdateState> = flowOf(UpdateState.Disabled),
+    // The boot clock the motion gate judges a fix's age against; tests pin it,
+    // because Robolectric's clock starts at zero.
+    private val nowElapsedRealtimeNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
     private val sendMusicCommand: (MusicCommand) -> Unit = {},
     private val resumeLastMusicSession: () -> Unit = {},
     private val resetTrip: () -> Unit = {},
@@ -80,6 +84,22 @@ internal class HomeViewModel(
     private val spectrumEnabledFlow: Flow<Boolean> = flowOf(false),
     private val spectrumBandsFor: (Flow<Boolean>) -> Flow<FloatArray?> = { flowOf(null) },
 ) : ViewModel() {
+    // The dock's update dot: an update is on offer and a live GPS fix shows the
+    // vehicle parked (fail-closed; see VehicleMotion). The motion is judged as
+    // each fix or trip update arrives, never as other cards update, so a verdict
+    // does not change while no new fix has come in. Seeded with "no dot": the
+    // updater resolves off the main thread when first collected
+    // (UpdateRepository.observe), and the combine below emits only once every
+    // source has, so an unseeded slot would hold the whole dashboard back.
+    private val updateBadge: Flow<Boolean> =
+        combine(
+            updateStateFlow.map { it.offersUpdate() },
+            vehicleMotionFlow(locationFlow, tripStateFlow, nowElapsedRealtimeNanos),
+        ) { offered, motion -> offered && motion == VehicleMotion.PARKED }
+            .onStart { emit(false) }
+            .distinctUntilChanged()
+            .catchAsDefault(TAG, "update badge", false)
+
     // Kotlin's typed combine overloads cover at most 5 flows. Stage the nine
     // sources through a typed intermediate (CoreSignals) so the compiler enforces
     // arity and per-slot types end-to-end: a future reorder fails to compile
@@ -91,30 +111,22 @@ internal class HomeViewModel(
     // process. Catching per source degrades only that card to its initial value.
     private val coreSignals: Flow<CoreSignals> =
         combine(
-            locationFlow.catchAsDefault("location", HomeUiState.Initial.location),
-            addressFlow.catchAsDefault("address", HomeUiState.Initial.address),
-            weatherFlow.catchAsDefault("weather", HomeUiState.Initial.weather),
-            musicStateFlow.catchAsDefault("music", HomeUiState.Initial.musicState),
-            // Seeded with "no offer": the updater resolves off the main thread when
-            // first collected (UpdateRepository.observe), and the combine emits
-            // only once every source has, so an unseeded slot would hold the
-            // whole dashboard back until then.
-            updateStateFlow
-                .map { it.offersUpdate() }
-                .distinctUntilChanged()
-                .onStart { emit(false) }
-                .catchAsDefault("update", false),
-        ) { location, address, weather, music, updateOffered ->
-            CoreSignals(location, address, weather, music, updateOffered)
+            locationFlow.catchAsDefault(TAG, "location", HomeUiState.Initial.location),
+            addressFlow.catchAsDefault(TAG, "address", HomeUiState.Initial.address),
+            weatherFlow.catchAsDefault(TAG, "weather", HomeUiState.Initial.weather),
+            musicStateFlow.catchAsDefault(TAG, "music", HomeUiState.Initial.musicState),
+            updateBadge,
+        ) { location, address, weather, music, badge ->
+            CoreSignals(location, address, weather, music, badge)
         }
 
     val uiState: StateFlow<HomeUiState> =
         combine(
             coreSignals,
-            calendarFlow.catchAsDefault("calendar", HomeUiState.Initial.calendar),
-            systemStatusFlow.catchAsDefault("system status", HomeUiState.Initial.systemStatus),
-            tripStateFlow.catchAsDefault("trip state", HomeUiState.Initial.tripState),
-            onlineFlow.catchAsDefault("connectivity", HomeUiState.Initial.online),
+            calendarFlow.catchAsDefault(TAG, "calendar", HomeUiState.Initial.calendar),
+            systemStatusFlow.catchAsDefault(TAG, "system status", HomeUiState.Initial.systemStatus),
+            tripStateFlow.catchAsDefault(TAG, "trip state", HomeUiState.Initial.tripState),
+            onlineFlow.catchAsDefault(TAG, "connectivity", HomeUiState.Initial.online),
         ) { core, calendar, systemStatus, tripState, online ->
             HomeUiState(
                 location = core.location,
@@ -125,8 +137,7 @@ internal class HomeViewModel(
                 systemStatus = systemStatus,
                 tripState = tripState,
                 online = online,
-                updateBadge =
-                    core.updateOffered && vehicleMotion(core.location, tripState) == VehicleMotion.PARKED,
+                updateBadge = core.updateBadge,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, HomeUiState.Initial)
 
@@ -272,45 +283,16 @@ internal class HomeViewModel(
     }
 }
 
-// Replace a source failure with that source's neutral value so one broken
-// repository degrades its own card instead of killing the launcher process.
-// Cancellation is rethrown to keep structured concurrency intact. By design the
-// failed source then COMPLETES for the rest of the current subscription epoch:
-// its card stays at the neutral value until WhileUiSubscribed tears the chain
-// down and a later subscriber re-collects the cold sources from scratch. No
-// automatic retry within an epoch — a broken system service would turn a retry
-// loop into a battery drain on the head unit.
-private fun <T> Flow<T>.catchAsDefault(
-    source: String,
-    default: T,
-): Flow<T> =
-    catch { e ->
-        if (e is CancellationException) throw e
-        Log.e(TAG, "$source flow failed", e)
-        emit(default)
-    }
-
-// File-private holder that groups the first five sources so the two-stage
-// combine stays within Kotlin's typed (max-arity-5) combine overloads.
+// File-private holder that groups the first five slots (four sources and the
+// update badge) so the two-stage combine stays within Kotlin's typed
+// (max-arity-5) combine overloads.
 private data class CoreSignals(
     val location: Location?,
     val address: ShortAddress?,
     val weather: WeatherSnapshot?,
     val music: MusicCardState,
-    val updateOffered: Boolean,
+    val updateBadge: Boolean,
 )
-
-// Whether this state names a newer build the user has not installed yet:
-// offered, on its way, verified, handed to the installer, or failed with the
-// offer still known. The badge stays up across those steps instead of blinking
-// off mid-way; a failure that lost the offer shows none, like every state
-// without one.
-private fun UpdateState.offersUpdate(): Boolean =
-    when (this) {
-        is UpdateState.Available, is UpdateState.Downloading, is UpdateState.Ready, is UpdateState.Installing -> true
-        is UpdateState.Failed -> manifest != null
-        UpdateState.Disabled, is UpdateState.Idle, UpdateState.Checking, UpdateState.UpToDate -> false
-    }
 
 // Shared HTTP disk cache size. A forecast response is ~50 KB and Nominatim
 // answers are tiny, so 5 MiB holds days of both with headroom.

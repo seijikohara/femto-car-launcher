@@ -9,6 +9,7 @@ import android.content.pm.PermissionInfo
 import android.os.PowerManager
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.getSystemService
+import io.github.seijikohara.femto.data.common.hasInstallUnknownAppsAccess
 import io.github.seijikohara.femto.data.common.holdsHomeRole
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -68,7 +69,7 @@ internal class PermissionFactsCollector(
                     listOf(
                         notificationListenerFact(),
                         homeRoleFact(),
-                        installUnknownAppsFact(packageManager.canRequestPackageInstalls()),
+                        installUnknownAppsFact(context.hasInstallUnknownAppsAccess()),
                         batteryOptimizationFact(),
                         notificationsFact(),
                         backgroundFact(),

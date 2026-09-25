@@ -5,6 +5,7 @@ import io.github.seijikohara.femto.data.update.UpdateFailure
 import io.github.seijikohara.femto.data.update.UpdateSettings
 import io.github.seijikohara.femto.data.update.UpdateState
 import io.github.seijikohara.femto.data.update.isResting
+import io.github.seijikohara.femto.data.update.offersUpdate
 import java.time.Instant
 
 /**
@@ -21,6 +22,8 @@ internal data class UpdatesUiState(
     val autoCheck: Boolean,
     /** The version this process was updated to, until the section acknowledges it; null otherwise. */
     val updatedTo: String?,
+    /** Whether an update waits (UpdateState.offersUpdate, the dock badge's rule); the category list's dot. */
+    val updateOffered: Boolean,
 ) {
     companion object {
         val Initial =
@@ -30,6 +33,7 @@ internal data class UpdatesUiState(
                 step = null,
                 autoCheck = DEFAULT_AUTO_CHECK,
                 updatedTo = null,
+                updateOffered = false,
             )
     }
 }
@@ -80,7 +84,9 @@ internal sealed interface UpdateStatus {
  * confirmation on screen carry `blockedWhileMoving`: a local gate
  * (AGENTS.md#driving-lockout) that holds them while a fix shows the vehicle
  * moving, so the dialog never pops up over navigation. Checks and downloads
- * are never gated; they put nothing on screen.
+ * are never gated; they put nothing on screen. The same two carry
+ * `grantDeclined`: the last install tap sent the user to the "Install unknown
+ * apps" access, and they came back without turning it on.
  */
 internal sealed interface UpdateStep {
     /** Download the offered build; [sizeBytes] is shown before the transfer starts. */
@@ -90,6 +96,7 @@ internal sealed interface UpdateStep {
 
     data class Install(
         val blockedWhileMoving: Boolean,
+        val grantDeclined: Boolean,
     ) : UpdateStep
 
     /**
@@ -100,18 +107,25 @@ internal sealed interface UpdateStep {
      */
     data class ShowInstallDialog(
         val blockedWhileMoving: Boolean,
+        val grantDeclined: Boolean,
     ) : UpdateStep
 
-    /** Try the offer that failed again; the updater skips the transfer when the verified file is still staged. */
+    /**
+     * Try the offer that failed again; the updater skips the transfer when the
+     * verified file is still staged. [sizeBytes] is shown first, since the
+     * retry may download it all again.
+     */
     data class Retry(
         val versionName: String,
+        val sizeBytes: Long,
     ) : UpdateStep
 }
 
 /**
  * The Updates section's state for the updater's [state], its [settings],
- * the pending [updatedTo] notice, and whether a fix shows the vehicle moving
- * ([installBlocked]).
+ * the pending [updatedTo] notice, whether a fix shows the vehicle moving
+ * ([installBlocked]), and whether the last install tap came back without the
+ * "Install unknown apps" access ([installGrantDeclined]).
  *
  * The "last checked" time is the persisted attempt for every status: the
  * updater records it before each request leaves, failed and uninformative
@@ -123,6 +137,7 @@ internal fun updatesUiState(
     settings: UpdateSettings,
     updatedTo: String?,
     installBlocked: Boolean,
+    installGrantDeclined: Boolean,
 ): UpdatesUiState {
     val lastAttemptAt = settings.lastCheckAttemptAt?.let(Instant::ofEpochMilli)
     return UpdatesUiState(
@@ -146,19 +161,24 @@ internal fun updatesUiState(
                 }
 
                 is UpdateState.Ready -> {
-                    UpdateStep.Install(blockedWhileMoving = installBlocked)
+                    UpdateStep.Install(blockedWhileMoving = installBlocked, grantDeclined = installGrantDeclined)
                 }
 
                 // Only a kept confirmation can be shown again; before it arrives,
                 // the hand-off is still under way.
                 is UpdateState.Installing -> {
-                    state.confirmation?.let { UpdateStep.ShowInstallDialog(blockedWhileMoving = installBlocked) }
+                    state.confirmation?.let {
+                        UpdateStep.ShowInstallDialog(
+                            blockedWhileMoving = installBlocked,
+                            grantDeclined = installGrantDeclined,
+                        )
+                    }
                 }
 
                 // A failure that lost its offer leaves only a new check, which the
                 // check row already is.
                 is UpdateState.Failed -> {
-                    state.manifest?.let { UpdateStep.Retry(it.versionName) }
+                    state.manifest?.let { UpdateStep.Retry(it.versionName, it.apk.size) }
                 }
 
                 UpdateState.Disabled,
@@ -172,5 +192,6 @@ internal fun updatesUiState(
             },
         autoCheck = settings.autoCheck,
         updatedTo = updatedTo,
+        updateOffered = state.offersUpdate(),
     )
 }

@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.ui.home
 import android.content.ComponentName
 import android.content.Intent
 import android.location.Location
+import android.location.LocationManager
 import app.cash.turbine.test
 import io.github.seijikohara.femto.data.dock.DockNavId
 import io.github.seijikohara.femto.data.dock.DockStatusId
@@ -24,6 +25,7 @@ import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
 import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -476,10 +478,20 @@ class HomeViewModelTest {
         }
 
     @Test
-    fun `the update badge shows for an update on offer while a fix shows the vehicle parked`() =
+    fun `the update badge shows for an update on offer while a live GPS fix shows the vehicle parked`() =
         runTest {
             val state = settledState(badgeViewModel(update = UpdateState.Available(UPDATE)))
             assertTrue(state.updateBadge)
+        }
+
+    @Test
+    fun `the update badge stays hidden on a stale GPS fix`() =
+        runTest {
+            // The cached seed a subscription starts with: the trip speed reads zero
+            // until live fixes set it, so the seed alone must not count as parked.
+            val seed = liveGpsFix().apply { elapsedRealtimeNanos = BADGE_NOW - STALE_FIX_AGE_NANOS }
+            val state = settledState(badgeViewModel(update = UpdateState.Available(UPDATE), location = seed))
+            assertFalse(state.updateBadge)
         }
 
     @Test
@@ -539,6 +551,28 @@ class HomeViewModelTest {
             assertEquals(weather, state.weather)
         }
 
+    @Test
+    fun `an updater that has not resolved yet holds nothing back`() =
+        runTest {
+            // The updater resolves off the main thread when first collected; until
+            // it speaks, the badge slot's seed must keep the dashboard flowing.
+            val weather = fakeWeatherSnapshot()
+            val viewModel =
+                HomeViewModel(
+                    locationFlow = flowOf(fakeLocation()),
+                    addressFlow = flowOf(fakeAddress()),
+                    weatherFlow = flowOf(weather),
+                    musicStateFlow = flowOf(MusicCardState.Playing(fakeNowPlaying())),
+                    calendarFlow = flowOf(fakeCalendarSnapshot()),
+                    systemStatusFlow = flowOf(fakeSystemStatus()),
+                    tripStateFlow = flowOf(fakeTripState()),
+                    updateStateFlow = flow { awaitCancellation() },
+                )
+            val state = settledState(viewModel)
+            assertEquals(weather, state.weather)
+            assertFalse(state.updateBadge)
+        }
+
     // Subscribes (WhileUiSubscribed runs the combine only while collected) and
     // returns the state once every source has emitted.
     private fun TestScope.settledState(viewModel: HomeViewModel): HomeUiState {
@@ -548,10 +582,11 @@ class HomeViewModelTest {
     }
 
     // Every source emits, so the combine settles. The motion inputs default to
-    // parked with a fix, so each test moves exactly one badge input.
+    // parked with a live GPS fix, so each test moves exactly one badge input.
+    // The clock is pinned: Robolectric's boot clock starts at zero.
     private fun badgeViewModel(
         update: UpdateState,
-        location: Location? = fakeLocation(),
+        location: Location? = liveGpsFix(),
         tripState: TripState = fakeTripState(currentSpeedMs = 0.0),
     ): HomeViewModel =
         HomeViewModel(
@@ -563,7 +598,11 @@ class HomeViewModelTest {
             systemStatusFlow = flowOf(fakeSystemStatus()),
             tripStateFlow = flowOf(tripState),
             updateStateFlow = flowOf(update),
+            nowElapsedRealtimeNanos = { BADGE_NOW },
         )
+
+    private fun liveGpsFix(): Location =
+        fakeLocation(provider = LocationManager.GPS_PROVIDER, elapsedRealtimeNanos = BADGE_NOW)
 
     /**
      * Build a view-model whose spectrum source maps the derived active gate
@@ -623,5 +662,11 @@ class HomeViewModelTest {
 
     private companion object {
         val UPDATE = fakeUpdateManifest(versionCode = 26092501)
+
+        // An hour into the boot clock, so a fix can be dated before "now".
+        const val BADGE_NOW = 3_600_000_000_000L
+
+        // A minute old: a cached seed from before this subscription.
+        const val STALE_FIX_AGE_NANOS = 60_000_000_000L
     }
 }

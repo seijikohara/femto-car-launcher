@@ -12,6 +12,7 @@ import io.github.seijikohara.femto.data.calendar.CalendarCatalogState
 import io.github.seijikohara.femto.data.calendar.CalendarPreferences
 import io.github.seijikohara.femto.data.calendar.CalendarPreferencesStore
 import io.github.seijikohara.femto.data.common.WhileUiSubscribed
+import io.github.seijikohara.femto.data.common.catchAsDefault
 import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.DisplaySettingsStore
 import io.github.seijikohara.femto.data.display.MapBackend
@@ -24,7 +25,7 @@ import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.LocationPreferences
 import io.github.seijikohara.femto.data.location.LocationSettingsStore
 import io.github.seijikohara.femto.data.location.VehicleMotion
-import io.github.seijikohara.femto.data.location.vehicleMotion
+import io.github.seijikohara.femto.data.location.vehicleMotionFlow
 import io.github.seijikohara.femto.data.update.UpdatePreferences
 import io.github.seijikohara.femto.data.update.UpdateRepository
 import io.github.seijikohara.femto.data.update.UpdateSettingsStore
@@ -36,9 +37,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private const val TAG = "SettingsViewModel"
 
 /**
  * Narrow port for the track-log actions Settings drives. The factory binds it
@@ -83,12 +87,19 @@ internal class SettingsViewModel(
     availableCalendars: Flow<CalendarCatalogState>,
     private val updater: UpdaterPort,
     private val updatePreferences: UpdateSettingsStore,
-    // What the latest fix says about the vehicle; gates the install steps.
+    // What the latest fix says about the vehicle, emitted on change
+    // (vehicleMotionFlow); gates the install steps.
     private val motion: Flow<VehicleMotion>,
 ) : ViewModel() {
     // VM-local export progress folded into the derived UiState below; every
     // other UiState field mirrors a persisted store, the updater's state aside.
     private val trackExportState = MutableStateFlow<TrackExportState>(TrackExportState.Idle)
+
+    // VM-local like the export progress: whether the last install tap came back
+    // from the "Install unknown apps" access without it turned on. It stays set
+    // until an install goes ahead, so the install row can say why nothing
+    // happened.
+    private val installGrantDeclined = MutableStateFlow(false)
 
     private val storeState: Flow<SettingsUiState> =
         combine(
@@ -172,16 +183,27 @@ internal class SettingsViewModel(
 
     // Only a fix that shows the vehicle moving holds the install steps: a phone
     // without the location grant never has a fix, and must still be able to
-    // install an update it asked for.
+    // install an update it asked for. Seeded and caught like the dashboard's
+    // slots: the updater resolves off the main thread when first collected, and
+    // neither that wait nor a failure there may hold back or crash the rest of
+    // Settings.
     private val updates: Flow<UpdatesUiState> =
         combine(
             updater.state,
             updater.updatedTo,
             updatePreferences.settings,
             motion,
-        ) { state, updatedTo, settings, currentMotion ->
-            updatesUiState(state, settings, updatedTo, installBlocked = currentMotion == VehicleMotion.MOVING)
-        }
+            installGrantDeclined,
+        ) { state, updatedTo, settings, currentMotion, grantDeclined ->
+            updatesUiState(
+                state = state,
+                settings = settings,
+                updatedTo = updatedTo,
+                installBlocked = currentMotion == VehicleMotion.MOVING,
+                installGrantDeclined = grantDeclined,
+            )
+        }.onStart { emit(UpdatesUiState.Initial) }
+            .catchAsDefault(TAG, "updates", UpdatesUiState.Initial)
 
     // Folded in here rather than into the store combine above, which already holds
     // kotlinx's five-flow typed overload.
@@ -460,12 +482,19 @@ internal class SettingsViewModel(
                 }
 
                 SettingsAction.InstallUpdate -> {
+                    // SettingsRoute sends this only once the access is on, so a
+                    // decline no longer describes the install row.
+                    installGrantDeclined.value = false
                     // A local gate (AGENTS.md#driving-lockout): the system's install
                     // confirmation must not pop up over navigation while driving. The
                     // row already waits while moving; this read covers a tap that
                     // raced the car pulling away, and the install that resumes after
                     // the "Install unknown apps" grant screen.
                     if (motion.first() != VehicleMotion.MOVING) updater.install()
+                }
+
+                SettingsAction.InstallGrantDeclined -> {
+                    installGrantDeclined.value = true
                 }
 
                 is SettingsAction.SetUpdateAutoCheck -> {
@@ -534,10 +563,7 @@ internal class SettingsViewModelFactory(
             updatePreferences = UpdatePreferences(application),
             // The dashboard's own location pipeline: one GPS registration shared
             // with the sheet's host, not a second one for this screen.
-            motion =
-                combine(locationGraph.locationFlow(), locationGraph.tripState) { location, trip ->
-                    vehicleMotion(location, trip)
-                },
+            motion = vehicleMotionFlow(locationGraph.locationFlow(), locationGraph.tripState),
         ) as T
     }
 
@@ -589,8 +615,4 @@ internal class SettingsViewModelFactory(
 
             override suspend fun clearHistory(): Boolean = trackLog.clearHistory()
         }
-
-    private companion object {
-        const val TAG = "SettingsViewModel"
-    }
 }

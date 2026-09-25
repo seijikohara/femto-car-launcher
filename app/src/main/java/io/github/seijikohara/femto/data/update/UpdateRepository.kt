@@ -294,13 +294,6 @@ internal class UpdateRepository internal constructor(
     }
 
     /**
-     * Whether the user lets this app request installs ("Install unknown
-     * apps"). Without that grant the platform stops [install] at a dialog of
-     * its own, so the UI routes the user to the setting first.
-     */
-    fun canRequestInstalls(): Boolean = installer.canRequestInstalls()
-
-    /**
      * The platform asks the user to confirm session [sessionId]. The
      * confirmation is shown and kept for [install] to show again. A request
      * for another session, one an earlier attempt left behind, is ignored.
@@ -763,6 +756,20 @@ internal fun UpdateState.isResting(): Boolean =
         this == UpdateState.UpToDate ||
         this is UpdateState.Available ||
         this is UpdateState.Failed
+
+/**
+ * Whether this state names a newer build that is not installed yet: offered,
+ * downloading, verified, handed to the installer, or failed while the offer is
+ * still known. The dock's badge and the Updates entry's dot in the Settings
+ * category list both read this one rule, so they cannot disagree, and neither
+ * blinks off between steps.
+ */
+internal fun UpdateState.offersUpdate(): Boolean =
+    when (this) {
+        is UpdateState.Available, is UpdateState.Downloading, is UpdateState.Ready, is UpdateState.Installing -> true
+        is UpdateState.Failed -> manifest != null
+        UpdateState.Disabled, is UpdateState.Idle, UpdateState.Checking, UpdateState.UpToDate -> false
+    }
 
 // The install attempt this state is, if it is the one on [sessionId].
 private fun UpdateState.installingOrNull(sessionId: Int): UpdateState.Installing? =

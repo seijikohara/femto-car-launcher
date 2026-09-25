@@ -17,13 +17,6 @@ import java.io.File
  * success is only visible to the next process start.
  */
 internal interface ApkInstaller {
-    /**
-     * Whether the user lets this app request installs ("Install unknown
-     * apps"). Without that grant the platform stops the install at a dialog
-     * of its own.
-     */
-    fun canRequestInstalls(): Boolean
-
     /** Write [file], already verified, into a new install session; the session's id, or null when the platform could not take it. */
     suspend fun stage(file: File): Int?
 

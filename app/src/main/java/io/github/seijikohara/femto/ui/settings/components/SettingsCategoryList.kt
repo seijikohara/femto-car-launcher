@@ -22,6 +22,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.ui.common.UpdateBadge
 import io.github.seijikohara.femto.ui.settings.SettingsCategoryId
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 
@@ -31,13 +32,16 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
  * its width / placement differs at the call site (see `SettingsScreen`). Every
  * [SettingsCategoryId] gets one row, in enum declaration order; the row
  * matching [selectedId] is highlighted so the wide rail always shows which
- * category the detail pane is showing.
+ * category the detail pane is showing. The rows of [badged] categories carry
+ * the update dot ([UpdateBadge]): today only Updates, while an update is on
+ * offer.
  */
 @Composable
 internal fun SettingsCategoryList(
     selectedId: SettingsCategoryId,
     onSelect: (SettingsCategoryId) -> Unit,
     modifier: Modifier = Modifier,
+    badged: Set<SettingsCategoryId> = emptySet(),
 ) = Column(
     modifier = modifier.verticalScroll(rememberScrollState()),
 ) {
@@ -46,6 +50,7 @@ internal fun SettingsCategoryList(
             title = stringResource(id.titleRes),
             selected = id == selectedId,
             onClick = { onSelect(id) },
+            badged = id in badged,
         )
     }
 }
@@ -55,12 +60,15 @@ internal fun SettingsCategoryList(
 // contentDescription ("Select X") is distinct from the title Text's plain
 // string so the two never collide in the wide layout, where the rail's row
 // and the detail pane's own header both show the same category title at once.
+// A [badged] row's dot follows the title, and its "Update available" merges
+// into the row's description after "Select X".
 @Composable
 private fun SettingsCategoryListItem(
     title: String,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    badged: Boolean = false,
 ) {
     val containerColor =
         if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
@@ -85,6 +93,9 @@ private fun SettingsCategoryListItem(
             color = contentColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            // Shrinks a long title rather than pushing the dot off the row.
+            modifier = Modifier.weight(1f, fill = false),
         )
+        if (badged) UpdateBadge()
     }
 }

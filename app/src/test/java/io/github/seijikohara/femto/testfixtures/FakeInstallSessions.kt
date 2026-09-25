@@ -32,8 +32,6 @@ internal class FakeInstallSessions(
     private val held = leftovers.toMutableSet()
     private var nextSessionId = FIRST_SESSION_ID
 
-    override fun canRequestInstalls(): Boolean = true
-
     override fun mine(): List<Int> = held.toList()
 
     override fun create(params: InstallSessionParams): Int {

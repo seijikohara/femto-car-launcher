@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -72,6 +71,7 @@ import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.dock.DockNavId
 import io.github.seijikohara.femto.data.dock.DockStatusId
 import io.github.seijikohara.femto.data.system.SystemStatus
+import io.github.seijikohara.femto.ui.common.UpdateBadge
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
@@ -614,11 +614,8 @@ private fun NavButton(
     // this just names it instead of leaving TalkBack to announce a generic "long click".
     onLongClickLabel: String? = null,
     onLongClick: (() -> Unit)? = null,
-    // Draws the standard M3 small badge (a dot) on the icon and announces this after
-    // [description]; null draws none. The dot takes the accent rather than the
-    // badge's default error red: it announces something new, not a fault, on a
-    // screen a driver reads at a glance.
-    badgeDescription: String? = null,
+    // Draws the update dot (UpdateBadge) on the icon.
+    updateBadge: Boolean = false,
     // A long-press-triggered popup (the dock's edit menu) anchored to this same Box.
     menu: @Composable () -> Unit = {},
 ) = Box(
@@ -641,18 +638,7 @@ private fun NavButton(
         )
     }
     // An unbadged button lays out exactly as before, so no dashboard golden moves.
-    if (badgeDescription == null) {
-        glyph()
-    } else {
-        BadgedBox(
-            badge = {
-                Badge(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.semantics { contentDescription = badgeDescription },
-                )
-            },
-        ) { glyph() }
-    }
+    if (updateBadge) BadgedBox(badge = { UpdateBadge() }) { glyph() } else glyph()
     menu()
 }
 
@@ -685,8 +671,7 @@ private fun EditableNavButton(
         onLongClick = onEnterEdit,
         // The update is offered in Settings (its Updates section), so the dot
         // marks the button that leads there.
-        badgeDescription =
-            stringResource(R.string.dock_update_available).takeIf { updateBadge && id == DockNavId.SETTINGS },
+        updateBadge = updateBadge && id == DockNavId.SETTINGS,
     )
 }
 

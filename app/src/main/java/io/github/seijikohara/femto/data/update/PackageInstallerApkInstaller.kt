@@ -29,8 +29,6 @@ internal data class InstallSessionParams(
  * throws.
  */
 internal interface InstallSessions {
-    fun canRequestInstalls(): Boolean
-
     /** The ids of the sessions this app created that the platform still holds. */
     fun mine(): List<Int>
 
@@ -65,8 +63,6 @@ internal class PackageInstallerApkInstaller(
     private val appPackageName: String = BuildConfig.APPLICATION_ID,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ApkInstaller {
-    override fun canRequestInstalls(): Boolean = sessions.canRequestInstalls()
-
     override suspend fun stage(file: File): Int? =
         withContext(ioDispatcher) {
             abandonLeftovers()
@@ -139,8 +135,6 @@ internal class PlatformInstallSessions(
     private val context: Context,
 ) : InstallSessions {
     private val installer: PackageInstaller get() = context.packageManager.packageInstaller
-
-    override fun canRequestInstalls(): Boolean = context.packageManager.canRequestPackageInstalls()
 
     override fun mine(): List<Int> = installer.mySessions.map { it.sessionId }
 

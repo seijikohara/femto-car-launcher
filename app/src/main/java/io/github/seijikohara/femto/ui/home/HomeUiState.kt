@@ -27,9 +27,9 @@ internal data class HomeUiState(
     // until the connectivity flow reports otherwise.
     val online: Boolean,
     // Whether the dock's Settings button carries the update dot: an update is on
-    // offer and a fix shows the vehicle parked (VehicleMotion.PARKED). Fail-closed:
-    // no fix never counts as parked, because the trip speed reads zero until the
-    // first fix of a drive.
+    // offer and a live GPS fix shows the vehicle parked (VehicleMotion.PARKED).
+    // Fail-closed: no fix, a cached fix and a network fix never count as parked,
+    // because the trip speed reads zero until live GPS fixes set it.
     val updateBadge: Boolean,
 ) {
     companion object {

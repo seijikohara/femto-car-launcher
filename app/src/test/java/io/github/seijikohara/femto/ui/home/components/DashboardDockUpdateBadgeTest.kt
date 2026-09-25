@@ -30,7 +30,7 @@ class DashboardDockUpdateBadgeTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val settingsLabel = context.getString(R.string.nav_settings)
-    private val updateAvailableLabel = context.getString(R.string.dock_update_available)
+    private val updateAvailableLabel = context.getString(R.string.update_available)
 
     private fun setDock(updateBadge: Boolean) {
         rule.setContent {

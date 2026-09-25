@@ -101,6 +101,11 @@ internal fun SettingsScreen(
         // Meaningless in the wide layout, where the rail and detail pane are
         // always both visible side by side.
         var showDetail by rememberSaveable { mutableStateOf(false) }
+        // The Updates entry carries the dock's update dot whenever an update is
+        // on offer. Unlike the dock's, this one is not motion-gated: the person is
+        // already in Settings, where the section itself holds the steps that
+        // must wait.
+        val badged = if (uiState.updates.updateOffered) setOf(SettingsCategoryId.UPDATES) else emptySet()
 
         BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f)) {
             if (maxWidth >= SettingsWidePaneBreakpoint) {
@@ -109,12 +114,14 @@ internal fun SettingsScreen(
                     selectedId = selectedId,
                     onSelect = { selectedId = it },
                     onAction = onAction,
+                    badged = badged,
                 )
             } else {
                 SettingsNarrowPane(
                     entries = entries,
                     selectedId = selectedId,
                     showDetail = showDetail,
+                    badged = badged,
                     onSelect = {
                         selectedId = it
                         showDetail = true
@@ -138,6 +145,7 @@ private fun SettingsWidePane(
     onSelect: (SettingsCategoryId) -> Unit,
     onAction: (SettingsAction) -> Unit,
     modifier: Modifier = Modifier,
+    badged: Set<SettingsCategoryId> = emptySet(),
 ) = Row(
     modifier = modifier.fillMaxSize(),
     horizontalArrangement = Arrangement.spacedBy(FemtoDimens.ScreenPadding),
@@ -146,6 +154,7 @@ private fun SettingsWidePane(
         selectedId = selectedId,
         onSelect = onSelect,
         modifier = Modifier.width(SettingsRailWidth).fillMaxHeight(),
+        badged = badged,
     )
     val selected = entries.first { it.id == selectedId }
     SettingsCategoryDetail(
@@ -168,6 +177,7 @@ private fun SettingsNarrowPane(
     onBack: () -> Unit,
     onAction: (SettingsAction) -> Unit,
     modifier: Modifier = Modifier,
+    badged: Set<SettingsCategoryId> = emptySet(),
 ) = Box(modifier = modifier.fillMaxSize()) {
     if (showDetail) {
         val selected = entries.first { it.id == selectedId }
@@ -183,6 +193,7 @@ private fun SettingsNarrowPane(
             selectedId = selectedId,
             onSelect = onSelect,
             modifier = Modifier.fillMaxSize(),
+            badged = badged,
         )
     }
 }

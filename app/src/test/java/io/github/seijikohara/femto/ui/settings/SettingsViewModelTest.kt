@@ -41,8 +41,11 @@ import io.github.seijikohara.femto.testfixtures.fakeCalendarInfo
 import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -723,7 +726,7 @@ class SettingsViewModelTest {
         runTest(dispatcher) {
             val updates = updatesFor(UpdateState.Ready(manifest, File("update.apk")))
             assertEquals(UpdateStatus.Ready(manifest.versionName), updates.status)
-            assertEquals(UpdateStep.Install(blockedWhileMoving = false), updates.step)
+            assertEquals(UpdateStep.Install(blockedWhileMoving = false, grantDeclined = false), updates.step)
         }
 
     @Test
@@ -739,15 +742,16 @@ class SettingsViewModelTest {
         runTest(dispatcher) {
             val updates = updatesFor(installingWithConfirmation())
             assertEquals(UpdateStatus.Installing(manifest.versionName), updates.status)
-            assertEquals(UpdateStep.ShowInstallDialog(blockedWhileMoving = false), updates.step)
+            assertEquals(UpdateStep.ShowInstallDialog(blockedWhileMoving = false, grantDeclined = false), updates.step)
         }
 
     @Test
-    fun `a failure that still names its offer offers a retry`() =
+    fun `a failure that still names its offer offers a retry at the download's size`() =
         runTest(dispatcher) {
+            // The retry may download the whole APK again, so its size shows first.
             val updates = updatesFor(UpdateState.Failed(UpdateFailure.NETWORK, manifest))
             assertEquals(UpdateStatus.Failed(UpdateFailure.NETWORK), updates.status)
-            assertEquals(UpdateStep.Retry(manifest.versionName), updates.step)
+            assertEquals(UpdateStep.Retry(manifest.versionName, manifest.apk.size), updates.step)
         }
 
     @Test
@@ -779,11 +783,82 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `the category list's dot follows the dock badge's offer rule`() =
+        runTest(dispatcher) {
+            mapOf(
+                UpdateState.Disabled to false,
+                UpdateState.Idle(lastAttemptAt = null) to false,
+                UpdateState.Checking to false,
+                UpdateState.UpToDate to false,
+                UpdateState.Available(manifest) to true,
+                UpdateState.Downloading(manifest, fraction = 0.5f) to true,
+                UpdateState.Ready(manifest, File("update.apk")) to true,
+                installingWithConfirmation() to true,
+                UpdateState.Failed(UpdateFailure.NETWORK, manifest) to true,
+                UpdateState.Failed(UpdateFailure.INSTALL_CONFLICT, manifest = null) to false,
+            ).forEach { (state, offered) ->
+                assertEquals(offered, updatesFor(state).updateOffered, "updateOffered for $state")
+            }
+        }
+
+    @Test
+    fun `a declined install grant marks the install step until an install goes ahead`() =
+        runTest(dispatcher) {
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            val vm = viewModel()
+            backgroundScope.launch { vm.uiState.collect { } }
+
+            vm.onAction(SettingsAction.InstallGrantDeclined)
+            advanceUntilIdle()
+            assertEquals(
+                UpdateStep.Install(blockedWhileMoving = false, grantDeclined = true),
+                vm.uiState.value.updates.step,
+            )
+
+            vm.onAction(SettingsAction.InstallUpdate)
+            advanceUntilIdle()
+            assertEquals(
+                UpdateStep.Install(blockedWhileMoving = false, grantDeclined = false),
+                vm.uiState.value.updates.step,
+            )
+        }
+
+    @Test
+    fun `an updater that has not resolved yet holds the rest of Settings open`() =
+        runTest(dispatcher) {
+            val stalled = object : UpdaterPort by updater {
+                override val state: Flow<UpdateState> = flow { awaitCancellation() }
+            }
+            store.setShowMusic(false)
+            val vm = viewModel(updaterPort = stalled)
+            backgroundScope.launch { vm.uiState.collect { } }
+            advanceUntilIdle()
+
+            assertEquals(false, vm.uiState.value.showMusic)
+            assertEquals(UpdatesUiState.Initial, vm.uiState.value.updates)
+        }
+
+    @Test
+    fun `a failing updater costs only the Updates section`() =
+        runTest(dispatcher) {
+            val broken = object : UpdaterPort by updater {
+                override val state: Flow<UpdateState> = flow { throw IllegalStateException("updater broke") }
+            }
+            store.setShowMusic(false)
+            val vm = viewModel(updaterPort = broken)
+            backgroundScope.launch { vm.uiState.collect { } }
+            advanceUntilIdle()
+
+            assertEquals(false, vm.uiState.value.showMusic)
+            assertEquals(UpdatesUiState.Initial, vm.uiState.value.updates)
+        }
+
+    @Test
     fun `a fix showing the vehicle moving holds the install step`() =
         runTest(dispatcher) {
             motion.value = VehicleMotion.MOVING
             assertEquals(
-                UpdateStep.Install(blockedWhileMoving = true),
+                UpdateStep.Install(blockedWhileMoving = true, grantDeclined = false),
                 updatesFor(UpdateState.Ready(manifest, File("update.apk"))).step,
             )
         }
@@ -793,7 +868,7 @@ class SettingsViewModelTest {
         runTest(dispatcher) {
             motion.value = VehicleMotion.MOVING
             assertEquals(
-                UpdateStep.ShowInstallDialog(blockedWhileMoving = true),
+                UpdateStep.ShowInstallDialog(blockedWhileMoving = true, grantDeclined = false),
                 updatesFor(installingWithConfirmation()).step,
             )
         }
@@ -803,7 +878,7 @@ class SettingsViewModelTest {
         runTest(dispatcher) {
             motion.value = VehicleMotion.UNKNOWN
             assertEquals(
-                UpdateStep.Install(blockedWhileMoving = false),
+                UpdateStep.Install(blockedWhileMoving = false, grantDeclined = false),
                 updatesFor(UpdateState.Ready(manifest, File("update.apk"))).step,
             )
         }
@@ -925,6 +1000,7 @@ class SettingsViewModelTest {
     private fun viewModel(
         calendarPrefs: FakeCalendarPreferencesStore = FakeCalendarPreferencesStore(),
         availableCalendars: CalendarCatalogState = CalendarCatalogState(hasAccess = true, calendars = emptyList()),
+        updaterPort: UpdaterPort = updater,
     ) = SettingsViewModel(
         store,
         fontStore,
@@ -933,7 +1009,7 @@ class SettingsViewModelTest {
         dockStore,
         trackLog = FakeTrackLogPort(),
         availableCalendars = flowOf(availableCalendars),
-        updater = updater,
+        updater = updaterPort,
         updatePreferences = updateStore,
         motion = motion,
     )

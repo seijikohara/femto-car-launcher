@@ -164,8 +164,9 @@
          cover the horizontal case. -->
     <string name="dock_move_up">Move up</string>
     <string name="dock_move_down">Move down</string>
-    <!-- Accessibility label of the dot on the Settings button while an update is on offer. -->
-    <string name="dock_update_available">Update available</string>
+    <!-- Accessibility label of the update dot, on the dock's Settings button and on the
+         Updates entry of the Settings category list, while an update is on offer. -->
+    <string name="update_available">Update available</string>
 
     <!-- Dashboard footer: status cluster -->
     <string name="status_cellular_connected">Mobile data connected</string>
@@ -485,15 +486,18 @@
     <!-- %1$s = the download size, e.g. "45.3 MB" -->
     <string name="settings_updates_download_size">Downloads %1$s.</string>
     <string name="settings_updates_install">Install update</string>
-    <string name="settings_updates_install_desc">Opens the system\'s install confirmation.</string>
+    <!-- True for both paths of the first tap: without the "Install unknown apps" access,
+         Android first opens that setting for this app; with it, the install confirmation. -->
+    <string name="settings_updates_install_desc">Android asks you to confirm. The first time, allow installs from this app.</string>
+    <string name="settings_updates_install_grant_declined">Installs from this app are off, so the update was not installed. Tap to allow them.</string>
     <!-- Named apart from "Install update": Android shows no progress once the install is
          accepted, and an "Install" label would invite a second acceptance. -->
     <string name="settings_updates_show_install_dialog">Show the install dialog again</string>
     <string name="settings_updates_show_install_dialog_desc">For when the confirmation was closed without an answer.</string>
     <string name="settings_updates_parked_only">Available when parked</string>
     <string name="settings_updates_retry">Retry</string>
-    <!-- %1$s = the offered version name -->
-    <string name="settings_updates_retry_desc">Version %1$s</string>
+    <!-- %1$s = the offered version name, %2$s = its download size, e.g. "45.3 MB" -->
+    <string name="settings_updates_retry_desc">Version %1$s · %2$s</string>
     <string name="settings_updates_auto_check">Check automatically</string>
     <string name="settings_updates_auto_check_desc">Look for a new version once a day. Nothing downloads until you ask.</string>
     <string name="settings_updates_release_page">Open release page</string>

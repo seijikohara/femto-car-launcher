@@ -17,7 +17,6 @@ import java.io.File
 internal class FakeApkInstaller(
     var stages: Boolean = true,
     var commits: Boolean = true,
-    var canRequest: Boolean = true,
     private val onCommit: (sessionId: Int) -> Unit = {},
 ) : ApkInstaller {
     val staged = mutableListOf<File>()
@@ -25,8 +24,6 @@ internal class FakeApkInstaller(
     val pending = mutableSetOf<Int>()
     val abandoned = mutableListOf<Int>()
     private var nextSessionId = FIRST_SESSION_ID
-
-    override fun canRequestInstalls(): Boolean = canRequest
 
     override suspend fun stage(file: File): Int? =
         if (stages) {

@@ -57,6 +57,12 @@ import kotlin.math.roundToInt
 // control at a glance.
 private val BackIconSize = 28.dp
 
+// SettingRow's inset from the card's edge. Internal, so that content a section
+// draws under a row (the Updates section's progress bar) lines up with the
+// row's text.
+internal val SettingRowHorizontalInset = 20.dp
+internal val SettingRowVerticalInset = 12.dp
+
 @Composable
 internal fun Header(
     onBack: () -> Unit,
@@ -450,7 +456,7 @@ internal fun SettingRow(
         modifier
             .fillMaxWidth()
             .heightIn(min = FemtoDimens.MinTouchTarget)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = SettingRowHorizontalInset, vertical = SettingRowVerticalInset),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(16.dp),
 ) {
