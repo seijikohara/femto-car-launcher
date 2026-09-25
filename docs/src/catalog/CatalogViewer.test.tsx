@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import CatalogViewer from "./CatalogViewer";
+import CatalogViewer, { type Channel } from "./CatalogViewer";
 import type { SiteManifest } from "./manifest";
 
 const value = (id: string, label = id) => ({ id, label });
@@ -61,6 +61,67 @@ const stubFetch = (response: { ok: boolean; status: number; body?: unknown }) =>
         })),
     );
 
+const stableChannel: Channel = {
+    id: "stable",
+    label: "Stable",
+    manifestUrl: "/b/catalog/manifest.json",
+    assetBase: "/b/catalog/",
+};
+const nightlyChannel: Channel = {
+    id: "nightly",
+    label: "Nightly",
+    manifestUrl: "/b/catalog/nightly/manifest.json",
+    assetBase: "/b/catalog/nightly/",
+};
+
+type StubResponse = { ok: boolean; status: number; body?: unknown };
+
+// Distinguishes requests by method + URL, unlike stubFetch above (whose
+// single canned response cannot represent "the nightly probe fails while the
+// stable manifest loads fine"). Keyed as "<METHOD> <url>"; an unlisted
+// request throws, so a test only sees the calls it explicitly expects. A
+// value may also be a Promise (typically one a test resolves by hand later),
+// so a specific request can be held deliberately pending — `await` on a
+// plain (non-Promise) value resolves to that value immediately, so this
+// works uniformly for both.
+const stubChannelFetch = (
+    responses: Record<string, StubResponse | Promise<StubResponse>>,
+) =>
+    vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: RequestInit) => {
+            const key = `${init?.method ?? "GET"} ${url}`;
+            const response = await responses[key];
+            if (response === undefined)
+                throw new Error(`stubChannelFetch: unexpected request ${key}`);
+            return {
+                ok: response.ok,
+                status: response.status,
+                json: async () => response.body,
+            };
+        }),
+    );
+
+// A Promise plus its own resolve, for a test that needs to hold a specific
+// stubChannelFetch response pending and release it at a chosen moment.
+const deferred = <T,>(): {
+    promise: Promise<T>;
+    resolve: (value: T) => void;
+} => {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((r) => {
+        resolve = r;
+    });
+    return { promise, resolve };
+};
+
+// Thumbnails are decorative (alt="") inside labelled buttons, so they carry no
+// img role; their sources are read through the cell buttons instead.
+const thumbSources = () =>
+    screen
+        .getAllByRole("button", { name: /^Open / })
+        .map((button) => button.querySelector("img")?.getAttribute("src"));
+
 afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
@@ -70,12 +131,7 @@ afterEach(() => {
 describe("CatalogViewer", () => {
     it("explains when the build carries no catalog", async () => {
         stubFetch({ ok: false, status: 404 });
-        render(
-            <CatalogViewer
-                manifestUrl="/b/catalog/manifest.json"
-                assetBase="/b/catalog/"
-            />,
-        );
+        render(<CatalogViewer channels={[stableChannel]} />);
         await waitFor(() =>
             expect(screen.getByRole("status").textContent).toMatch(
                 /no catalog/i,
@@ -85,12 +141,7 @@ describe("CatalogViewer", () => {
 
     it("renders the matrix with axis headers, thumbnails and an empty cell marker", async () => {
         stubFetch({ ok: true, status: 200, body: manifest });
-        render(
-            <CatalogViewer
-                manifestUrl="/b/catalog/manifest.json"
-                assetBase="/b/catalog/"
-            />,
-        );
+        render(<CatalogViewer channels={[stableChannel]} />);
         await screen.findByRole("table");
         expect(
             screen.getByRole("columnheader", { name: "Small" }),
@@ -98,11 +149,9 @@ describe("CatalogViewer", () => {
         expect(
             screen.getByRole("rowheader", { name: "Head unit" }),
         ).toBeTruthy();
-        // Thumbnails are decorative (alt="") inside labelled buttons, so they carry no img role.
-        const thumbs = screen
-            .getAllByRole("button", { name: /^Open / })
-            .map((button) => button.querySelector("img")?.getAttribute("src"));
-        expect(thumbs).toContain("/b/catalog/thumb/floor__small__light.webp");
+        expect(thumbSources()).toContain(
+            "/b/catalog/thumb/floor__small__light.webp",
+        );
         expect(screen.getByText("—")).toBeTruthy();
         expect(screen.getByText(/abc1234/)).toBeTruthy();
     });
@@ -110,12 +159,7 @@ describe("CatalogViewer", () => {
     it("opens the lightbox with the full image and mirrors the state into the URL, then closes on Escape and returns focus to the originating cell", async () => {
         const user = userEvent.setup();
         stubFetch({ ok: true, status: 200, body: manifest });
-        render(
-            <CatalogViewer
-                manifestUrl="/b/catalog/manifest.json"
-                assetBase="/b/catalog/"
-            />,
-        );
+        render(<CatalogViewer channels={[stableChannel]} />);
         await screen.findByRole("table");
         const cellButton = screen.getByRole("button", {
             name: /Floor · Medium/,
@@ -140,12 +184,7 @@ describe("CatalogViewer", () => {
 
     it("focuses the Close button when the lightbox opens", async () => {
         stubFetch({ ok: true, status: 200, body: manifest });
-        render(
-            <CatalogViewer
-                manifestUrl="/b/catalog/manifest.json"
-                assetBase="/b/catalog/"
-            />,
-        );
+        render(<CatalogViewer channels={[stableChannel]} />);
         await screen.findByRole("table");
         fireEvent.click(screen.getByRole("button", { name: /Floor · Small/ }));
         await screen.findByRole("dialog");
@@ -164,12 +203,7 @@ describe("CatalogViewer", () => {
         const user = userEvent.setup();
         window.history.replaceState({ index: 3 }, "", "/");
         stubFetch({ ok: true, status: 200, body: manifest });
-        render(
-            <CatalogViewer
-                manifestUrl="/b/catalog/manifest.json"
-                assetBase="/b/catalog/"
-            />,
-        );
+        render(<CatalogViewer channels={[stableChannel]} />);
         await screen.findByRole("table");
         await user.click(
             screen.getByRole("button", { name: "Dark", pressed: false }),
@@ -183,12 +217,7 @@ describe("CatalogViewer", () => {
     it("switches the row axis from the controls", async () => {
         const user = userEvent.setup();
         stubFetch({ ok: true, status: 200, body: manifest });
-        render(
-            <CatalogViewer
-                manifestUrl="/b/catalog/manifest.json"
-                assetBase="/b/catalog/"
-            />,
-        );
+        render(<CatalogViewer channels={[stableChannel]} />);
         await screen.findByRole("table");
         const rowsSelect = screen.getByRole("combobox", { name: "Rows" });
         await user.click(rowsSelect);
@@ -208,12 +237,7 @@ describe("CatalogViewer", () => {
     it("swaps rows and columns when a select is set to the other axis's current value", async () => {
         const user = userEvent.setup();
         stubFetch({ ok: true, status: 200, body: manifest });
-        render(
-            <CatalogViewer
-                manifestUrl="/b/catalog/manifest.json"
-                assetBase="/b/catalog/"
-            />,
-        );
+        render(<CatalogViewer channels={[stableChannel]} />);
         await screen.findByRole("table");
         // Default: rows=geometry ("Floor"/"Head unit"), cols=scale ("Small"/"Medium").
         expect(screen.getByRole("rowheader", { name: "Floor" })).toBeTruthy();
@@ -236,12 +260,7 @@ describe("CatalogViewer", () => {
     it("opens the lightbox for an `open` id already in the URL on load, with the fixed axis it implies", async () => {
         window.history.replaceState(null, "", "/?open=floor__medium__light");
         stubFetch({ ok: true, status: 200, body: manifest });
-        render(
-            <CatalogViewer
-                manifestUrl="/b/catalog/manifest.json"
-                assetBase="/b/catalog/"
-            />,
-        );
+        render(<CatalogViewer channels={[stableChannel]} />);
         const dialog = await screen.findByRole("dialog");
         expect(dialog.querySelector("img")?.getAttribute("src")).toBe(
             "/b/catalog/full/floor__medium__light.webp",
@@ -263,12 +282,7 @@ describe("CatalogViewer", () => {
 
     it("moves to the neighbour on ArrowRight and updates the URL, keeping the same dialog element and focus", async () => {
         stubFetch({ ok: true, status: 200, body: manifest });
-        render(
-            <CatalogViewer
-                manifestUrl="/b/catalog/manifest.json"
-                assetBase="/b/catalog/"
-            />,
-        );
+        render(<CatalogViewer channels={[stableChannel]} />);
         await screen.findByRole("table");
         fireEvent.click(screen.getByRole("button", { name: /Floor · Small/ }));
         const dialog = await screen.findByRole("dialog");
@@ -296,12 +310,7 @@ describe("CatalogViewer", () => {
     it("keeps focus on an arrow button after it becomes edge-disabled by its own activation", async () => {
         const user = userEvent.setup();
         stubFetch({ ok: true, status: 200, body: manifest });
-        render(
-            <CatalogViewer
-                manifestUrl="/b/catalog/manifest.json"
-                assetBase="/b/catalog/"
-            />,
-        );
+        render(<CatalogViewer channels={[stableChannel]} />);
         await screen.findByRole("table");
         fireEvent.click(screen.getByRole("button", { name: /Floor · Small/ }));
         const dialog = await screen.findByRole("dialog");
@@ -338,12 +347,7 @@ describe("CatalogViewer", () => {
     it("changes the visible cells and the URL when a fixed-axis toggle changes", async () => {
         const user = userEvent.setup();
         stubFetch({ ok: true, status: 200, body: manifest });
-        render(
-            <CatalogViewer
-                manifestUrl="/b/catalog/manifest.json"
-                assetBase="/b/catalog/"
-            />,
-        );
+        render(<CatalogViewer channels={[stableChannel]} />);
         await screen.findByRole("table");
         expect(
             screen.getAllByRole("button", { name: /^Open / }).length,
@@ -363,12 +367,7 @@ describe("CatalogViewer", () => {
     it("closes when the overlay is clicked, clearing `open=` from the URL", async () => {
         const user = userEvent.setup();
         stubFetch({ ok: true, status: 200, body: manifest });
-        render(
-            <CatalogViewer
-                manifestUrl="/b/catalog/manifest.json"
-                assetBase="/b/catalog/"
-            />,
-        );
+        render(<CatalogViewer channels={[stableChannel]} />);
         await screen.findByRole("table");
         fireEvent.click(screen.getByRole("button", { name: /Floor · Small/ }));
         await screen.findByRole("dialog");
@@ -386,12 +385,7 @@ describe("CatalogViewer", () => {
                 throw new Error("network down");
             }),
         );
-        render(
-            <CatalogViewer
-                manifestUrl="/b/catalog/manifest.json"
-                assetBase="/b/catalog/"
-            />,
-        );
+        render(<CatalogViewer channels={[stableChannel]} />);
         await waitFor(() =>
             expect(screen.getByRole("alert").textContent).toMatch(
                 /network down/,
@@ -405,16 +399,362 @@ describe("CatalogViewer", () => {
             status: 200,
             body: { ...manifest, schemaVersion: 2 },
         });
-        render(
-            <CatalogViewer
-                manifestUrl="/b/catalog/manifest.json"
-                assetBase="/b/catalog/"
-            />,
-        );
+        render(<CatalogViewer channels={[stableChannel]} />);
         await waitFor(() =>
             expect(screen.getByRole("alert").textContent).toMatch(
                 /unsupported format/i,
             ),
         );
+    });
+});
+
+describe("CatalogViewer build channel switch", () => {
+    const nightlyManifest: SiteManifest = { ...manifest, gitSha: "9f8e7d6c5b" };
+    // The "Rendered from commit" line truncates gitSha to 7 chars (see
+    // CatalogViewer's `manifest.gitSha.slice(0, 7)`), so assertions below
+    // match only that prefix of nightlyManifest.gitSha.
+    const nightlyShaPrefix = /9f8e7d6/;
+
+    it("hides the switch when the nightly probe fails", async () => {
+        stubChannelFetch({
+            [`GET ${stableChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: manifest,
+            },
+            [`HEAD ${nightlyChannel.manifestUrl}`]: { ok: false, status: 404 },
+        });
+        render(<CatalogViewer channels={[stableChannel, nightlyChannel]} />);
+        await screen.findByRole("table");
+        // The probe settles on a later microtask than the manifest fetch;
+        // waitFor gives it that turn before asserting its absence.
+        await waitFor(() =>
+            expect(
+                screen.queryByRole("button", { name: "Nightly" }),
+            ).toBeNull(),
+        );
+        // A single available channel hides the whole switch, not just the item
+        // whose probe failed.
+        expect(screen.queryByRole("button", { name: "Stable" })).toBeNull();
+    });
+
+    it("switches to the nightly channel, loading its manifest and asset paths", async () => {
+        const user = userEvent.setup();
+        stubChannelFetch({
+            [`GET ${stableChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: manifest,
+            },
+            [`HEAD ${nightlyChannel.manifestUrl}`]: { ok: true, status: 200 },
+            [`GET ${nightlyChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: nightlyManifest,
+            },
+        });
+        render(<CatalogViewer channels={[stableChannel, nightlyChannel]} />);
+        await screen.findByRole("table");
+        await waitFor(() =>
+            expect(
+                screen.getByRole("button", { name: "Nightly" }),
+            ).toBeTruthy(),
+        );
+        await user.click(screen.getByRole("button", { name: "Nightly" }));
+        await waitFor(() =>
+            expect(screen.getByText(nightlyShaPrefix)).toBeTruthy(),
+        );
+        expect(thumbSources()).toContain(
+            `${nightlyChannel.assetBase}thumb/floor__small__light.webp`,
+        );
+        expect(window.location.search).toContain("channel=nightly");
+    });
+
+    it("deep-links straight into the nightly channel via ?channel=", async () => {
+        window.history.replaceState(null, "", "/?channel=nightly");
+        stubChannelFetch({
+            [`HEAD ${nightlyChannel.manifestUrl}`]: { ok: true, status: 200 },
+            [`GET ${nightlyChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: nightlyManifest,
+            },
+        });
+        render(<CatalogViewer channels={[stableChannel, nightlyChannel]} />);
+        await screen.findByRole("table");
+        expect(screen.getByText(nightlyShaPrefix)).toBeTruthy();
+        expect(
+            screen.getByRole("button", { name: "Nightly", pressed: true }),
+        ).toBeTruthy();
+    });
+
+    it("falls back to the default channel when a ?channel= deep link fails its probe", async () => {
+        window.history.replaceState(null, "", "/?channel=nightly");
+        stubChannelFetch({
+            [`GET ${stableChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: manifest,
+            },
+            [`HEAD ${nightlyChannel.manifestUrl}`]: { ok: false, status: 404 },
+        });
+        render(<CatalogViewer channels={[stableChannel, nightlyChannel]} />);
+        await screen.findByRole("table");
+        expect(screen.getByText(/abc1234/)).toBeTruthy();
+        expect(window.location.search).not.toContain("channel=");
+    });
+
+    it("never puts the default channel in the URL", async () => {
+        const user = userEvent.setup();
+        stubChannelFetch({
+            [`GET ${stableChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: manifest,
+            },
+            [`HEAD ${nightlyChannel.manifestUrl}`]: { ok: true, status: 200 },
+            [`GET ${nightlyChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: nightlyManifest,
+            },
+        });
+        render(<CatalogViewer channels={[stableChannel, nightlyChannel]} />);
+        await screen.findByRole("table");
+        await waitFor(() =>
+            expect(
+                screen.getByRole("button", { name: "Nightly" }),
+            ).toBeTruthy(),
+        );
+        await user.click(screen.getByRole("button", { name: "Nightly" }));
+        await waitFor(() =>
+            expect(window.location.search).toContain("channel=nightly"),
+        );
+        await user.click(screen.getByRole("button", { name: "Stable" }));
+        await waitFor(() => expect(screen.getByText(/abc1234/)).toBeTruthy());
+        expect(window.location.search).not.toContain("channel=");
+    });
+
+    it("keeps a valid matrix selection across a channel switch", async () => {
+        const user = userEvent.setup();
+        stubChannelFetch({
+            [`GET ${stableChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: manifest,
+            },
+            [`HEAD ${nightlyChannel.manifestUrl}`]: { ok: true, status: 200 },
+            [`GET ${nightlyChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: nightlyManifest,
+            },
+        });
+        render(<CatalogViewer channels={[stableChannel, nightlyChannel]} />);
+        await screen.findByRole("table");
+        await user.click(
+            screen.getByRole("button", { name: "Dark", pressed: false }),
+        );
+        await waitFor(() =>
+            expect(window.location.search).toContain("theme=dark"),
+        );
+        await waitFor(() =>
+            expect(
+                screen.getByRole("button", { name: "Nightly" }),
+            ).toBeTruthy(),
+        );
+        await user.click(screen.getByRole("button", { name: "Nightly" }));
+        await waitFor(() =>
+            expect(screen.getByText(nightlyShaPrefix)).toBeTruthy(),
+        );
+        expect(
+            screen.getByRole("button", { name: "Dark", pressed: true }),
+        ).toBeTruthy();
+        expect(window.location.search).toContain("theme=dark");
+    });
+
+    it("preserves history.state when switching channels", async () => {
+        const user = userEvent.setup();
+        window.history.replaceState({ index: 3 }, "", "/");
+        stubChannelFetch({
+            [`GET ${stableChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: manifest,
+            },
+            [`HEAD ${nightlyChannel.manifestUrl}`]: { ok: true, status: 200 },
+            [`GET ${nightlyChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: nightlyManifest,
+            },
+        });
+        render(<CatalogViewer channels={[stableChannel, nightlyChannel]} />);
+        await screen.findByRole("table");
+        await waitFor(() =>
+            expect(
+                screen.getByRole("button", { name: "Nightly" }),
+            ).toBeTruthy(),
+        );
+        await user.click(screen.getByRole("button", { name: "Nightly" }));
+        await waitFor(() =>
+            expect(window.location.search).toContain("channel=nightly"),
+        );
+        expect(window.history.state).toEqual({ index: 3 });
+    });
+
+    it("drops a redundant ?channel=<default> from the URL on load", async () => {
+        window.history.replaceState({ index: 5 }, "", "/?channel=stable");
+        stubChannelFetch({
+            [`GET ${stableChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: manifest,
+            },
+            [`HEAD ${nightlyChannel.manifestUrl}`]: { ok: true, status: 200 },
+        });
+        render(<CatalogViewer channels={[stableChannel, nightlyChannel]} />);
+        await screen.findByRole("table");
+        await waitFor(() =>
+            expect(window.location.search).not.toContain("channel="),
+        );
+        // The cleanup only ever touches the `channel` key; history.state must
+        // still pass through unchanged, the same invariant every other write
+        // in this file upholds.
+        expect(window.history.state).toEqual({ index: 5 });
+    });
+
+    it("drops an unrecognised ?channel=<id> from the URL on load and shows the default", async () => {
+        window.history.replaceState({ index: 5 }, "", "/?channel=bogus");
+        stubChannelFetch({
+            [`GET ${stableChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: manifest,
+            },
+            [`HEAD ${nightlyChannel.manifestUrl}`]: { ok: true, status: 200 },
+        });
+        render(<CatalogViewer channels={[stableChannel, nightlyChannel]} />);
+        await screen.findByRole("table");
+        expect(screen.getByText(/abc1234/)).toBeTruthy();
+        await waitFor(() =>
+            expect(window.location.search).not.toContain("channel="),
+        );
+        expect(window.history.state).toEqual({ index: 5 });
+    });
+
+    it("keeps the stable label and sha while a nightly switch is still loading, with no stale-data flash", async () => {
+        const user = userEvent.setup();
+        const nightlyFetch = deferred<StubResponse>();
+        stubChannelFetch({
+            [`GET ${stableChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: manifest,
+            },
+            [`HEAD ${nightlyChannel.manifestUrl}`]: { ok: true, status: 200 },
+            [`GET ${nightlyChannel.manifestUrl}`]: nightlyFetch.promise,
+        });
+        render(<CatalogViewer channels={[stableChannel, nightlyChannel]} />);
+        await screen.findByRole("table");
+        await waitFor(() =>
+            expect(
+                screen.getByRole("button", { name: "Nightly" }),
+            ).toBeTruthy(),
+        );
+        await user.click(screen.getByRole("button", { name: "Nightly" }));
+        // The click registers immediately (URL + pressed switch item), well
+        // before the deliberately pending nightly fetch ever resolves.
+        await waitFor(() =>
+            expect(window.location.search).toContain("channel=nightly"),
+        );
+        expect(
+            screen.getByRole("button", { name: "Nightly", pressed: true }),
+        ).toBeTruthy();
+        // The label/sha must still describe what is actually on screen
+        // (stable's manifest — the nightly fetch has not resolved yet), not
+        // jump ahead to name the new selection before its data has arrived.
+        expect(screen.getByText(/abc1234/)).toBeTruthy();
+        expect(document.querySelector("p.mb-6")?.textContent).toMatch(
+            /^Stable build/,
+        );
+
+        nightlyFetch.resolve({ ok: true, status: 200, body: nightlyManifest });
+        await waitFor(() =>
+            expect(screen.getByText(nightlyShaPrefix)).toBeTruthy(),
+        );
+        expect(document.querySelector("p.mb-6")?.textContent).toMatch(
+            /^Nightly build/,
+        );
+    });
+
+    it("keeps ?channel=nightly in the URL when a matrix control changes while the switch is still loading", async () => {
+        const user = userEvent.setup();
+        const nightlyFetch = deferred<StubResponse>();
+        stubChannelFetch({
+            [`GET ${stableChannel.manifestUrl}`]: {
+                ok: true,
+                status: 200,
+                body: manifest,
+            },
+            [`HEAD ${nightlyChannel.manifestUrl}`]: { ok: true, status: 200 },
+            [`GET ${nightlyChannel.manifestUrl}`]: nightlyFetch.promise,
+        });
+        render(<CatalogViewer channels={[stableChannel, nightlyChannel]} />);
+        await screen.findByRole("table");
+        await waitFor(() =>
+            expect(
+                screen.getByRole("button", { name: "Nightly" }),
+            ).toBeTruthy(),
+        );
+        await user.click(screen.getByRole("button", { name: "Nightly" }));
+        await waitFor(() =>
+            expect(window.location.search).toContain("channel=nightly"),
+        );
+
+        // The controls still edit stable's matrix (the nightly fetch is
+        // pending), so this rewrites the URL from stable's manifest — the
+        // write must keep the pending channel, not the loaded one.
+        await user.click(screen.getByRole("combobox", { name: "Rows" }));
+        await user.click(await screen.findByRole("option", { name: "Theme" }));
+        await waitFor(() =>
+            expect(
+                screen.getByRole("rowheader", { name: "Dark" }),
+            ).toBeTruthy(),
+        );
+        const midSwitch = new URLSearchParams(window.location.search);
+        expect(midSwitch.get("rows")).toBe("theme");
+        expect(midSwitch.get("channel")).toBe("nightly");
+        // The label, sha and asset paths still describe the loaded channel.
+        expect(document.querySelector("p.mb-6")?.textContent).toMatch(
+            /^Stable build/,
+        );
+        expect(screen.getByText(/abc1234/)).toBeTruthy();
+        expect(thumbSources()).toContain(
+            `${stableChannel.assetBase}thumb/floor__small__light.webp`,
+        );
+
+        nightlyFetch.resolve({ ok: true, status: 200, body: nightlyManifest });
+        await waitFor(() =>
+            expect(screen.getByText(nightlyShaPrefix)).toBeTruthy(),
+        );
+        expect(document.querySelector("p.mb-6")?.textContent).toMatch(
+            /^Nightly build/,
+        );
+        expect(thumbSources()).toContain(
+            `${nightlyChannel.assetBase}thumb/floor__small__light.webp`,
+        );
+        // The URL still names the channel on screen, and its matrix params —
+        // written mid-switch against stable's manifest — hold up against
+        // nightly's: the selection made during the switch survives it.
+        const settled = new URLSearchParams(window.location.search);
+        expect(settled.get("channel")).toBe("nightly");
+        expect(settled.get("rows")).toBe("theme");
+        expect(settled.get("cols")).toBe("scale");
+        expect(settled.get("geometry")).toBe("floor");
+        expect(screen.getByRole("rowheader", { name: "Dark" })).toBeTruthy();
+        expect(
+            screen.getByRole("combobox", { name: "Rows" }).textContent,
+        ).toContain("Theme");
     });
 });

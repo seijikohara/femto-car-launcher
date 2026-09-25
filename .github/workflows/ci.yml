@@ -292,6 +292,13 @@ jobs:
     permissions:
       # Pushing the version tag and creating the release both write contents.
       contents: write
+    # This job signs stable APKs. `develop` is the default branch, and GitHub
+    # Actions lets a run restore a cache written on its own branch or the
+    # default branch, so a `main` run here could restore a Gradle cache that
+    # `develop` code (e.g. an auto-merged dependency bump) wrote. `release`
+    # runs once per stable release, so a cold Gradle build is an acceptable
+    # price for keeping that cache out of the signing job's reach.
+    cache-mode: none
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -309,7 +316,8 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
         with:
-          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
+          # Matches cache-mode: none, so setup-gradle never attempts a restore or save the cache service would refuse.
+          cache-disabled: true
 
       - name: Verify signing secrets are present
         env:
