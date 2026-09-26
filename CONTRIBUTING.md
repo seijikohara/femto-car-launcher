@@ -96,9 +96,11 @@ status check, which every merge requires.
   section.
 
 The maintainer squashes the pull request into `develop`, and later
-promotes `develop` to `main` as a single squash per release, which is
-why `main` stays linear. Force-push is denied; update a stale branch
-with `gh pr update-branch`.
+promotes `develop` to `main` as a single squash per promotion (a
+release when the APK changed; see
+[`.github/RELEASING.md`](.github/RELEASING.md)), which is why `main`
+stays linear. Force-push is denied; update a stale branch with
+`gh pr update-branch`.
 
 ## License of contributions
 

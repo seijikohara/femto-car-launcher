@@ -33,12 +33,15 @@ Include in the report:
 
 The project is a hobby project with a single maintainer and no
 service-level commitment ([`TERMS.md`](TERMS.md)). The maintainer
-acknowledges reports and works on fixes on a best-effort basis. The
-disclosure flow is: the maintainer confirms the report, lands a fix on
-`develop`, waits for the nightly that carries it, merges `develop`
-into `main` so the release job publishes it in the next stable build,
-and then publishes the advisory with credit to the reporter unless the
-reporter asks otherwise.
+acknowledges reports and works on fixes on a best-effort basis. For a
+fix that changes the APK, the disclosure flow is: the maintainer
+confirms the report, lands the fix on `develop`, waits for the nightly
+that carries it, merges `develop` into `main` so the release job
+publishes it in the next stable build, and then publishes the advisory
+with credit to the reporter unless the reporter asks otherwise. A fix
+confined to the CI and release workflows changes no APK and publishes
+no build: it takes effect as it merges, and the advisory follows once
+the fix reaches `main`.
 
 ## Scope
 

@@ -274,13 +274,16 @@ jobs:
           # channel, so its notes are the only place a reporter can see that
           # the fix for their issue has shipped. previous_sha comes from the
           # release listing above (empty on the first-ever run, where the
-          # changelog degrades to just the current subject).
+          # changelog degrades to just the current subject). The log follows
+          # develop's own line only: a promotion sync merges main's squash
+          # into develop, and listing that squash would repeat commits an
+          # earlier nightly already shipped.
           {
             echo "Automated nightly build from ${GITHUB_SHA:0:7} (run #${{ github.run_number }}) on $(date -u +%Y-%m-%d)."
             echo
             echo "Changes since the previous nightly:"
             if [ -n "$PREVIOUS_NIGHTLY_SHA" ] && git cat-file -e "$PREVIOUS_NIGHTLY_SHA" 2>/dev/null; then
-              git log --format='- %s' "$PREVIOUS_NIGHTLY_SHA..$GITHUB_SHA"
+              git log --first-parent --no-merges --format='- %s' "$PREVIOUS_NIGHTLY_SHA..$GITHUB_SHA"
             else
               git log -1 --format='- %s' "$GITHUB_SHA"
             fi
@@ -312,8 +315,9 @@ jobs:
     # Actions lets a run restore a cache written on its own branch or the
     # default branch, so a `main` run here could restore a Gradle cache that
     # `develop` code (e.g. an auto-merged dependency bump) wrote. `release`
-    # runs once per stable release, so a cold Gradle build is an acceptable
-    # price for keeping that cache out of the signing job's reach.
+    # runs once per push to `main` (one per promotion), so a cold Gradle
+    # build is an acceptable price for keeping that cache out of the signing
+    # job's reach.
     cache-mode: none
     steps:
       - name: Checkout

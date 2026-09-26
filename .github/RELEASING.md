@@ -27,14 +27,17 @@ request, record `main`'s latest promotion in `develop`. `main`'s
 ruleset requires the promotion to be up to date with `main`, and a
 squash promotion never reaches `develop`, so every promotion after the
 first starts behind. The record is a merge commit whose tree is
-`develop`'s own and whose parents are `develop` and `main`: run
-`git merge -s ours origin/main` on a branch cut from `origin/develop`,
-push the branch as `sync/main-into-develop`, open a pull request into
-`develop`, and merge that pull request with a merge commit
-(`gh pr merge <number> --merge`). Never squash the sync pull request: a
-squash drops `main` as a parent. The sync is safe because `main` only
-ever receives `develop`'s content, so the merge changes no file and
-cannot conflict.
+`develop`'s own and whose parents are `develop` and `main`. On a branch
+cut from `origin/develop`, run
+`git merge -s ours -m "chore: record the v<version> promotion in develop" origin/main`
+(for a promotion that published no release, write its pull request,
+`#<number>`, in place of `v<version>`), push the branch as
+`sync/main-into-develop`, open a pull request into `develop`, and merge
+that pull request with a merge commit (`gh pr merge <number> --merge`).
+Use a merge commit only: never squash or rebase the sync pull request,
+since either drops `main` as a parent. The sync is safe because `main`
+only ever receives `develop`'s content, so the merge changes no file
+and cannot conflict.
 [#430](https://github.com/seijikohara/femto-car-launcher/pull/430) is
 the first such sync.
 
@@ -62,8 +65,8 @@ previous release's `versionCode` and `versionName` and compares that
 APK with the published one
 ([`actions/apk-unchanged`](actions/apk-unchanged/apk-unchanged.sh)).
 The two count as unchanged when they hold the same zip entries with the
-same bytes, ignoring only `META-INF/version-control-info.textproto`
-(where the build records its commit) and JAR signature files.
+same bytes, except for the entries that the script's header comment
+lists as ignored and explains.
 
 An unchanged push publishes nothing: the `nightly` prerelease stays as
 it is, and the `release` job computes no version, creates no tag, and

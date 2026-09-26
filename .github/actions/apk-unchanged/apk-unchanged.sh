@@ -99,7 +99,9 @@ if [ -z "$version_code" ] || [ -z "$version_name" ]; then
 fi
 
 echo "Building HEAD as $label (versionCode $version_code, versionName $version_name) to compare"
-VERSION_CODE="$version_code" VERSION_NAME="$version_name" ./gradlew "$task" --stacktrace ||
+# The build runs third-party code (Gradle plugins, npm packages), and only
+# the API calls above need the token, so the build never sees it.
+env -u GH_TOKEN VERSION_CODE="$version_code" VERSION_NAME="$version_name" ./gradlew "$task" --stacktrace ||
     give_up "Building HEAD with the version of $label failed"
 # output-metadata.json names the APK, whose file name depends on whether the
 # build was signed.
