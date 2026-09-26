@@ -291,14 +291,19 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             "zoom" | "heading" | "tilt",
             number | null
         >,
-        // The chevron's screen offset (px from the viewport centre) the
-        // camera was last placed for: MapLibre's padding analogue, which
-        // persists while the user pans, so a read-back finds the location
-        // under the chevron's spot (see the glide's current()).
-        offset: { x: 0, y: 0 },
-        // Where the chevron is on screen (see spotMotion); null while it is
-        // hidden (detached) or not yet placed.
-        shownSpot: null as MarkerSpot | null,
+        // Where the chevron is placed, as fractions of the viewport
+        // (googleMarkerSpot): its left/top, and — MapLibre's padding
+        // analogue — the spot a read-back measures the camera against
+        // wherever the glide does not own the offset (see the glide's
+        // current()). That is after the user took the camera: the chevron is
+        // hidden then, and a layout or tilt change moves its spot with no
+        // camera move, so the re-follow's placement sets the new spot before
+        // its glide reads the map back. Centred until the first placement.
+        spot: { x: 0, y: 0 } as MarkerSpot,
+        // Whether the chevron is on screen at [spot]: false while it is
+        // hidden (detached) or not yet placed, when a new spot takes no glide
+        // of its own (see spotMotion).
+        spotShown: false,
         // tilt is used only on a VECTOR map; a raster map ignores it.
         // markerPos / bottomSafe / rightSafe / leftSafe are the host's
         // safe-zone fractions, kept so a re-follow (easeHome) reproduces the
@@ -469,18 +474,16 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         const now = Date.now();
         const opts: GMCameraOptions = {};
         if (pose.lat !== undefined && pose.lng !== undefined) {
-            const offset = { x: pose.offsetX ?? state.offset.x, y: pose.offsetY ?? state.offset.y };
             opts.center = cameraCenterFor(
                 { lat: pose.lat, lng: pose.lng },
                 {
                     zoom: pose.zoom ?? liveMap.getZoom() ?? 0,
                     // A raster map stays north-up whatever the pose carries.
                     heading: state.isVector ? (pose.heading ?? liveMap.getHeading() ?? 0) : 0,
-                    offsetX: offset.x,
-                    offsetY: offset.y,
+                    offsetX: pose.offsetX ?? state.spot.x * window.innerWidth,
+                    offsetY: pose.offsetY ?? state.spot.y * window.innerHeight,
                 },
             );
-            state.offset = offset;
         }
         // lastSet records only what is SENT: a heading/tilt the raster phase
         // never passed on must count as a change once the map turns vector,
@@ -514,19 +517,20 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // pose per frame, from the pose last applied (or, for a field not applied
     // since the user last took the camera, from what the map shows now). The
     // map shows a camera centre; its pose is the location under the
-    // chevron's last spot (anchorAt), so a re-follow after a pan eases that
-    // location to the fix, as MapLibre's padded easeTo does. The location is
-    // read at the zoom, heading and offset the glide starts from — the owned
-    // ones where it has them — because moveCam derives the first frame's
-    // centre from exactly those: read at a clamped zoom (Google caps it at
-    // the map type's ceiling) while the glide starts from the zoom it asked
-    // for, the first frame would jump.
+    // chevron's spot (anchorAt, against state.spot), so a re-follow after a
+    // pan eases that location to the fix, pivoting on the chevron as drawn,
+    // as MapLibre's padded easeTo does. The location is read at the zoom,
+    // heading and offset the glide starts from — the owned ones where it has
+    // them — because moveCam derives the first frame's centre from exactly
+    // those: read at a clamped zoom (Google caps it at the map type's
+    // ceiling) while the glide starts from the zoom it asked for, the first
+    // frame would jump.
     const glide = createCameraGlide({
         current: (owned) => {
             const zoom = liveMap.getZoom() ?? 0;
             const heading = liveMap.getHeading() ?? 0;
-            const offsetX = state.offset.x;
-            const offsetY = state.offset.y;
+            const offsetX = owned.offsetX ?? state.spot.x * window.innerWidth;
+            const offsetY = owned.offsetY ?? state.spot.y * window.innerHeight;
             const center = liveMap.getCenter();
             const anchor = center
                 ? anchorAt(
@@ -534,8 +538,8 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
                       {
                           zoom: owned.zoom ?? zoom,
                           heading: state.isVector ? (owned.heading ?? heading) : 0,
-                          offsetX: owned.offsetX ?? offsetX,
-                          offsetY: owned.offsetY ?? offsetY,
+                          offsetX,
+                          offsetY,
                       },
                   )
                 : { lat: 0, lng: 0 };
@@ -584,12 +588,14 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             offsetX: at.x * width,
             offsetY: at.y * height,
         });
-        const plan = spotMotion(state.shownSpot, spot, pushMotion);
+        const plan = spotMotion(state.spotShown ? state.spot : null, spot, pushMotion);
         if (plan.snapAt) glide.jump(poseAt(plan.snapAt));
         markerTransition.setActive(plan.motion === REFLOW_MOTION);
         markerEl.style.left = `${(0.5 + spot.x) * 100}%`;
         markerEl.style.top = `${(0.5 + spot.y) * 100}%`;
-        state.shownSpot = state.following ? spot : null;
+        // Before the glide below reads the map back against it.
+        state.spot = spot;
+        state.spotShown = state.following;
         if (plan.motion === null) {
             glide.jump(poseAt(spot));
         } else {
@@ -639,7 +645,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             // non-deprecated route, materially more complex) is a documented
             // follow-up.
             markerEl.style.display = "none";
-            state.shownSpot = null;
+            state.spotShown = false;
         }
     }
 

@@ -153,6 +153,26 @@ function screenOf(
     };
 }
 
+// The camera centre that puts [loc] at screen offset ([x], [y]) px under a
+// flat Web Mercator camera at [zoom] and [heading]: the inverse of screenOf.
+function centreShowing(
+    loc: { lat: number; lng: number },
+    x: number,
+    y: number,
+    zoom: number,
+    heading: number,
+): { lat: number; lng: number } {
+    const worldPx = 256 * 2 ** zoom;
+    const th = (heading * Math.PI) / 180;
+    const east = Math.cos(th) * x - Math.sin(th) * y;
+    const south = Math.sin(th) * x + Math.cos(th) * y;
+    const north = mercatorNorth(loc.lat) + south / worldPx;
+    return {
+        lat: (360 / Math.PI) * Math.atan(Math.exp(2 * Math.PI * north)) - 90,
+        lng: loc.lng - (east * 360) / worldPx,
+    };
+}
+
 interface PushOptions {
     tilt?: number;
     zoom?: number;
@@ -404,6 +424,30 @@ describe("the Google Maps page", () => {
         page.advance(0);
         const jump = screenOf(page.map, before, true);
         expect(Math.hypot(jump.x, jump.y)).toBeLessThan(1e-6);
+    });
+
+    it("re-follows about the chevron as drawn after the tilt moved its spot while detached", async () => {
+        // While the chevron is hidden, a layout or tilt change moves its
+        // spot with no placement to carry the camera along. The re-follow
+        // must read the map against the spot the chevron re-appears at, or
+        // its glide pivots on the spot the chevron has left.
+        const page = await boot("VECTOR", "VECTOR");
+        push(page.win, FIX, 90);
+        page.map.fire("dragstart");
+        push(page.win, FIX, 90, { tilt: 0 });
+        page.win.setNorthUp(true);
+        // The fix already sits where the chevron re-appears, beside the
+        // cards, so the re-follow only turns the map north-up about it.
+        page.map.center = centreShowing(FIX, -MX * W, DROP * H, 16, 90);
+        page.win.setFollow(true);
+        expect(page.marker.style.left).toBe(`${(0.5 - MX) * 100}%`);
+        const drift = Array.from({ length: 45 }, () => {
+            page.advance(16);
+            const at = screenOf(page.map, FIX, true);
+            return Math.hypot(at.x + MX * W, at.y - DROP * H);
+        });
+        expect(Math.max(...drift)).toBeLessThan(1e-5);
+        expect(page.map.heading).toBe(0);
     });
 
     it("still detects a user zoom while following a turn", async () => {
