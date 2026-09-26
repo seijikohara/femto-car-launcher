@@ -45,10 +45,12 @@
                 line-height: 20px;
                 padding: 8px 12px;
             }
-            /* Self-location chevron pinned at a fixed screen spot (centre X,
-         markerPos height). The camera brings the location to it, so the
-         chevron stays put and the map slides / rotates beneath it (car-nav
-         style) instead of the marker sliding to catch the eased camera. */
+            /* Self-location chevron pinned at a fixed screen spot, which the
+         backend modules set from the placement in src/style.ts (clear of the
+         side cards, dropped per markerPos). The camera brings the location
+         to it, so the chevron stays put and the map slides / rotates beneath
+         it (car-nav style) instead of the marker sliding to catch the eased
+         camera. */
             #self-marker {
                 position: fixed;
                 left: 50%;

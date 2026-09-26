@@ -11,8 +11,8 @@
 // Two render modes, chosen by whether the user supplied a Cloud Map ID
 // (femtoBridge.googleMapsMapId()):
 //   - VECTOR (Map ID present): full heading-up rotation, tilt, and 3D —
-//     parity with the OSM backend. The map rotates in heading-up; the
-//     chevron rotates in north-up.
+//     parity with the OSM backend. The map rotates in heading-up, to the
+//     same smoothed heading as the OSM map; the chevron rotates in north-up.
 //   - RASTER (no Map ID): north-up only. A raster map cannot rotate or tilt,
 //     and passing heading/tilt to moveCamera stops the camera from
 //     positioning, so the map stays north-up and the chevron always rotates
@@ -20,26 +20,31 @@
 //     aerial-imagery mode, which would tilt and turn it on its own, is
 //     switched off at construction.)
 //
-// Like the OSM backend, the screen-pinned chevron sits left-of-centre
-// (and drops with markerPos) to clear the side cards / bottom overlay, and
-// the camera targets an off-centre point so the GPS location renders under
-// the chevron. Google Maps has no camera `padding` (unlike MapLibre),
-// so that off-centre target is computed from the flat-Mercator projection,
-// un-rotated by the map heading — see offsetCenterFor. Tilt is not modelled,
-// so a tilted vector camera offsets approximately; a raster (north-up,
-// no tilt) camera offsets exactly.
+// Like the OSM backend, the screen-pinned chevron sits clear of the side
+// cards (and drops with markerPos to clear the bottom overlay), and the
+// camera holds the GPS location under it. Google Maps has no camera
+// `padding` (MapLibre's way to put the location there), so the glide carries
+// the chevron's screen offset in its pose and the page derives the camera
+// centre from it every frame with flat Web Mercator math (cameraCenterFor in
+// camera-glide.ts); a rotation or zoom therefore pivots on the chevron, as on
+// the OSM map. The missing padding costs two things. A tilted vector map's
+// perspective always converges on the viewport centre, so the chevron sits
+// on the centre line there (googleMarkerSpot in style.ts) — beside it, the
+// road ahead would lean toward the centre. And tilt is not modelled in the
+// centre math, so on a tilted map the location sits under the chevron only
+// approximately (exactly on a raster or flat map).
 //
 // This backend does NOT use the shared follow-camera engine: Google's camera
 // API is immediate (moveCamera has no easing, and there is no easeTo), so the
 // page interpolates the camera itself frame by frame (camera-glide.ts, the
 // loop Google's own vector-map guidance animates the camera with) under the
-// same duration policy as the MapLibre engine; camera-change events carry no
-// user-vs-programmatic flag (suppression windows stand in for originalEvent
-// gating); and there is no mapId-free, non-deprecated geo marker for the
-// detached mode — the chevron simply hides while detached (a geo-anchored
-// OverlayView is the documented follow-up). It shares the chevron helpers,
-// the bridge plumbing, the reflow lockstep, and the camera.ts / style.ts
-// pure math.
+// same motion policy as the MapLibre engine (camera.ts: followMotion and the
+// shared curves); camera-change events carry no user-vs-programmatic flag
+// (suppression windows stand in for originalEvent gating); and there is no
+// mapId-free, non-deprecated geo marker for the detached mode — the chevron
+// simply hides while detached (a geo-anchored OverlayView is the documented
+// follow-up). It shares the chevron helpers, the bridge plumbing, the reflow
+// lockstep, and the camera.ts / style.ts pure math.
 import { importLibrary, setOptions } from "@googlemaps/js-api-loader";
 import type { PageReporter, PendingBridgeCalls } from "../bridge";
 import { createBearingReporter, webglRenderer, webglSupport } from "../bridge";
@@ -47,25 +52,32 @@ import {
     AUTO_REFOLLOW_MS,
     type CameraMotion,
     DETACHED_ZOOM_STEP_MOTION,
+    type FollowOrientation,
     followMotion,
-    heldHeading,
+    followOrientation,
     isPaddingOnlyReflow,
     isRealPosition,
     LAYOUT_REFLOW_MS,
     LOCATION_STALE_THRESHOLD_MS,
-    NO_HEADING_HOLD,
     ORIENTATION_FLIP_MOTION,
     REFLOW_MOTION,
     REFOLLOW_MOTION,
     smoothedBearing,
+    spotMotion,
 } from "../camera";
-import { type CameraPose, createCameraGlide } from "../camera-glide";
-import { chevronHandles, setChevronColor, setChevronTransform, startStaleTicker } from "../chevron";
+import { anchorAt, type CameraPose, cameraCenterFor, createCameraGlide } from "../camera-glide";
+import {
+    chevronHandles,
+    chevronReachPx,
+    setChevronColor,
+    setChevronTransform,
+    startStaleTicker,
+} from "../chevron";
 import { createMarkerTransition } from "../marker-motion";
-// Shared self-marker offset model with the OSM backend (style.ts is
-// the SSOT): how far left of centre the chevron sits to clear the side cards,
-// and how far it drops with markerPos to clear the bottom overlay.
-import { markerDrop, markerXFraction } from "../style";
+// The self-marker placement (style.ts is the SSOT, shared with the OSM
+// backend): where the chevron sits to clear the side cards and the bottom
+// overlay, and where a tilted vector map needs it instead.
+import { googleMarkerSpot, type MarkerSpot } from "../style";
 
 // The Google Maps bridge extends the base femtoBridge with googleMapsApiKey()
 // and googleMapsMapId(), present only when the host has wired up the Google
@@ -110,23 +122,11 @@ interface GMCameraOptions {
 interface GMMapsEventListener {
     remove(): void;
 }
-interface GMPoint {
-    x: number;
-    y: number;
-}
-// google.maps.LatLng (method accessors), as returned by
-// Projection.fromPointToLatLng — distinct from the GMLatLng literal we pass
-// into moveCamera.
+// google.maps.LatLng (method accessors), as returned by Map.getCenter —
+// distinct from the GMLatLng literal we pass into moveCamera.
 interface GMLatLngObj {
     lat(): number;
     lng(): number;
-}
-// google.maps.Projection: the flat-Mercator world projection (heading/tilt
-// independent), used to compute the off-centre camera target for the
-// chevron's left/down placement.
-interface GMProjection {
-    fromLatLngToPoint(latLng: GMLatLng): GMPoint | null;
-    fromPointToLatLng(pixel: GMPoint): GMLatLngObj | null;
 }
 interface GMMap {
     moveCamera(opts: GMCameraOptions): void;
@@ -136,9 +136,6 @@ interface GMMap {
     getZoom(): number | undefined;
     getHeading(): number | undefined;
     getTilt(): number | undefined;
-    // Null until the projection is ready (first idle); offsetCenterFor falls
-    // back to the un-offset centre until then.
-    getProjection(): GMProjection | null;
     // "VECTOR" | "RASTER" | "UNINITIALIZED". Google may silently downgrade a
     // VECTOR map to RASTER when the device's WebGL cannot host it.
     getRenderingType(): string;
@@ -151,19 +148,9 @@ interface GMMapsLibrary {
     Map: new (el: HTMLElement, opts: Record<string, unknown>) => GMMap;
     TrafficLayer: new () => GMTrafficLayer;
 }
-interface GMNamespace {
-    // google.maps.Point constructor — Projection.fromPointToLatLng requires a
-    // Point instance (it does not accept a literal).
-    Point: new (x: number, y: number) => GMPoint;
-}
 
 function gmBridge(): GoogleMapsFemtoBridge | undefined {
     return window.femtoBridge as GoogleMapsFemtoBridge | undefined;
-}
-
-// Typed accessor for the CDN-injected google.maps namespace.
-function gmapsNS(): GMNamespace {
-    return (window as unknown as { google: { maps: GMNamespace } }).google.maps;
 }
 
 // Maps the GoogleMapType enum name strings from the Android bridge to the
@@ -186,10 +173,13 @@ const MAP_TYPE_IDS: Record<string, string> = {
 // that changes that property: the glide calls moveCamera every frame while
 // following, so a single window opened by every call would never close on
 // the move and a pinch-zoom would go undetected for as long as the car is
-// moving. A pure translation (a straight road) opens nothing, and a turn
-// opens only the heading window, so a user zoom stays detectable through
-// both. The blind spot that remains is a pinch during the second or two a
-// zoom step itself glides — head units have no multitouch, so it is accepted.
+// moving. While following, the heading window reopens with every fix (the
+// map turns to each smoothed bearing), which hides no gesture: user
+// rotation is off (headingInteractionEnabled is false on a vector map, and a
+// raster map never rotates). Zoom and tilt open only on frames that change
+// them, so a user zoom stays detectable throughout. The blind spot that
+// remains is a pinch during the second or two a zoom step itself glides —
+// head units have no multitouch, so it is accepted.
 //
 // The window outlasts a late frame by a wide margin: should the API defer a
 // change event to its next render, a frame that stalls on a head unit (the
@@ -285,14 +275,6 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // this.
         northUp: false,
         lastBearing: null as number | null,
-        // The heading the vector map is rotated to, with the dead band's
-        // state: the smoothed bearing passes through heldHeading, so the map
-        // only rotates on a real turn (and, once, to settle a residual that
-        // persists on a straight road). Reset to NO_HEADING_HOLD whenever
-        // the next fix should adopt the bearing outright: a signal gap
-        // (updateCamera), and every easeHome — a re-follow, a north-up flip,
-        // a rendering-mode resolve. The one list of reset points.
-        headingHold: NO_HEADING_HOLD,
         lastFixMs: 0,
         lastPushedZoom: 0,
         // The first camera placement snaps into position (no fly-in from the
@@ -308,11 +290,14 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             "zoom" | "heading" | "tilt",
             number | null
         >,
-        // Whether the last camera placement could offset the target for the
-        // chevron's spot (the projection was ready). A change moves the
-        // chevron without a new fix, so it glides in lockstep with the
-        // camera like a layout reflow does.
-        offsetApplied: false,
+        // The chevron's screen offset (px from the viewport centre) the
+        // camera was last placed for: MapLibre's padding analogue, which
+        // persists while the user pans, so a read-back finds the location
+        // under the chevron's spot (see the glide's current()).
+        offset: { x: 0, y: 0 },
+        // Where the chevron is on screen (see spotMotion); null while it is
+        // hidden (detached) or not yet placed.
+        shownSpot: null as MarkerSpot | null,
         // tilt is used only on a VECTOR map; a raster map ignores it.
         // markerPos / bottomSafe / rightSafe / leftSafe are the host's
         // safe-zone fractions, kept so a re-follow (easeHome) reproduces the
@@ -332,37 +317,26 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
 
     const chevron = chevronHandles();
     const markerEl = chevron.el;
+    // The chevron's reach (its ripple) that googleMarkerSpot keeps clear of
+    // the side cards; fixed by the page's CSS, so read once.
+    const chevronReach = chevronReachPx(chevron);
     // Lockstep control for a layout reflow — see isPaddingOnlyReflow and
     // marker-motion.ts; the same arrangement as the shared follow engine.
     const markerTransition = createMarkerTransition(markerEl, LAYOUT_REFLOW_MS);
 
-    // VECTOR: heading-up rotates the MAP to [mapHeading] and the chevron turns
-    // by whatever the dead band left unrotated, so the arrow still points along
-    // the true travel [heading]; north-up rotates the chevron by the heading
-    // alone. The perspective lays it onto the tilted ground plane. RASTER: the
-    // map is permanently north-up, so the chevron always rotates to the travel
-    // bearing and there is no tilt plane.
-    function syncChevron(tilt: number, heading: number, mapHeading: number): void {
-        if (state.isVector) {
-            setChevronTransform(
-                markerEl,
-                tilt,
-                state.northUp ? heading : heading - mapHeading,
-                true,
-            );
-            return;
-        }
-        setChevronTransform(markerEl, 0, heading, false);
+    // The map's bearing and the chevron's turn for a fix, the one rule both
+    // backends orient by (followOrientation): a VECTOR map rotates like the
+    // OSM map, a RASTER map stays north-up with the chevron carrying the
+    // heading.
+    function orientationFor(heading: number): FollowOrientation {
+        return followOrientation(state.northUp, heading, state.isVector);
     }
 
-    // The heading the vector map is rotated to for a fix: north-up pins it at
-    // 0; heading-up passes the smoothed bearing through the dead band and
-    // records what was applied, so the next fix can hold it.
-    function mapHeadingFor(heading: number): number {
-        if (state.northUp) return 0;
-        const hold = heldHeading(state.headingHold, heading, Date.now());
-        state.headingHold = hold;
-        return hold.applied;
+    // Turn the chevron by [turn]; on a VECTOR map the perspective lays it onto
+    // the tilted ground plane, as follow-camera.ts does. A RASTER map has no
+    // tilt plane.
+    function syncChevron(tilt: number, turn: number): void {
+        setChevronTransform(markerEl, state.isVector ? tilt : 0, turn, state.isVector);
     }
 
     // gm_authFailure is Google's global hook for invalid/revoked API keys.
@@ -472,17 +446,32 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     state.trafficLayer = new mapsLib.TrafficLayer();
 
     // One immediate camera move — the glide's per-frame step, and the jump.
-    // Opens the gesture-suppression window of each property the move changes
-    // (see GESTURE_SUPPRESS_MS), so the camera-change events this call fires
-    // are ignored by the gesture detacher. The tilt window also opens on a
-    // zoom change: a vector map clamps tilt by zoom, so a zoom step can move
-    // the tilt without this page having asked for a new one. heading/tilt
-    // are vector-only (a raster map reinterprets them and stops positioning).
+    // A pose that carries the anchor sends the camera centre that shows the
+    // anchor at the pose's chevron offset, at the zoom and heading this same
+    // move sets (cameraCenterFor), so every frame keeps the fix under the
+    // chevron while the heading and zoom glide. Opens the gesture-suppression
+    // window of each property the move changes (see GESTURE_SUPPRESS_MS), so
+    // the camera-change events this call fires are ignored by the gesture
+    // detacher. The tilt window also opens on a zoom change: a vector map
+    // clamps tilt by zoom, so a zoom step can move the tilt without this page
+    // having asked for a new one. heading/tilt are vector-only (a raster map
+    // reinterprets them and stops positioning).
     function moveCam(pose: Partial<CameraPose>): void {
         const now = Date.now();
         const opts: GMCameraOptions = {};
         if (pose.lat !== undefined && pose.lng !== undefined) {
-            opts.center = { lat: pose.lat, lng: pose.lng };
+            const offset = { x: pose.offsetX ?? state.offset.x, y: pose.offsetY ?? state.offset.y };
+            opts.center = cameraCenterFor(
+                { lat: pose.lat, lng: pose.lng },
+                {
+                    zoom: pose.zoom ?? liveMap.getZoom() ?? 0,
+                    // A raster map stays north-up whatever the pose carries.
+                    heading: state.isVector ? (pose.heading ?? liveMap.getHeading() ?? 0) : 0,
+                    offsetX: offset.x,
+                    offsetY: offset.y,
+                },
+            );
+            state.offset = offset;
         }
         // lastSet records only what is SENT: a heading/tilt the raster phase
         // never passed on must count as a change once the map turns vector,
@@ -514,108 +503,75 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
 
     // The camera easing this API lacks: a glide re-applies an interpolated
     // pose per frame, from the pose last applied (or, for a field not applied
-    // since the user last took the camera, from what the map shows now).
+    // since the user last took the camera, from what the map shows now). The
+    // map shows a camera centre; its pose is the location under the
+    // chevron's last spot (anchorAt), so a re-follow after a pan eases that
+    // location to the fix, as MapLibre's padded easeTo does.
     const glide = createCameraGlide({
         current: () => {
+            const zoom = liveMap.getZoom() ?? 0;
+            const heading = liveMap.getHeading() ?? 0;
+            const offsetX = state.offset.x;
+            const offsetY = state.offset.y;
             const center = liveMap.getCenter();
-            return {
-                lat: center?.lat() ?? 0,
-                lng: center?.lng() ?? 0,
-                zoom: liveMap.getZoom() ?? 0,
-                heading: liveMap.getHeading() ?? 0,
-                tilt: liveMap.getTilt() ?? 0,
-            };
+            const anchor = center
+                ? anchorAt(
+                      { lat: center.lat(), lng: center.lng() },
+                      { zoom, heading: state.isVector ? heading : 0, offsetX, offsetY },
+                  )
+                : { lat: 0, lng: 0 };
+            return { ...anchor, zoom, heading, tilt: liveMap.getTilt() ?? 0, offsetX, offsetY };
         },
         apply: moveCam,
     });
 
-    // Compute the camera centre that renders `target` at screen offset (dxPx
-    // right, dyPx down) from centre, via the flat-Mercator world projection.
-    // The screen offset is un-rotated by the map heading so the shift stays
-    // "screen-left" under heading-up rotation. Tilt is not modelled (the
-    // projection is flat), so a tilted vector camera offsets approximately.
-    // Returns null until the projection is ready (first idle), so the caller
-    // keeps the chevron centred until the offset can actually be applied.
-    function offsetCenterFor(
-        target: GMLatLng,
-        dxPx: number,
-        dyPx: number,
-        zoom: number,
-        headingDeg: number,
-    ): GMLatLng | null {
-        const proj = liveMap.getProjection();
-        const worldPt = proj?.fromLatLngToPoint(target);
-        if (!proj || !worldPt) return null;
-        // World units -> screen px scale: the 256-unit world is 2**zoom tiles
-        // wide, so one world unit spans 2**zoom screen px.
-        const scale = 2 ** zoom;
-        const th = (headingDeg * Math.PI) / 180;
-        const cos = Math.cos(th);
-        const sin = Math.sin(th);
-        // world = R(heading) . screen. Screen +x = right, +y = down; world
-        // +x = east, +y = south; the two coincide at heading 0. Subtracting
-        // the world offset from the target places the target at +screen
-        // offset from centre.
-        const worldDx = (cos * dxPx - sin * dyPx) / scale;
-        const worldDy = (sin * dxPx + cos * dyPx) / scale;
-        const center = proj.fromPointToLatLng(
-            new (gmapsNS().Point)(worldPt.x - worldDx, worldPt.y - worldDy),
-        );
-        return center ? { lat: center.lat(), lng: center.lng() } : null;
-    }
-
-    // Pin the chevron left-of-centre (and dropped per markerPos) and target
-    // the camera at the matching off-centre point so the GPS location renders
-    // under it — the OSM `markerEl.left/top` + camera `padding`
-    // parity, done without a native padding API. mapHeading is the applied
-    // map heading (0 for a raster map). When the projection is not yet ready
-    // the camera cannot offset, so the chevron stays centred over the
-    // un-offset location.
+    // Pin the chevron at its spot (googleMarkerSpot: clear of the side cards
+    // and dropped per markerPos, or on the centre line of a tilted vector
+    // map) and glide the camera to hold the fix under it — the OSM
+    // `markerEl.left/top` + camera `padding` parity, done without a native
+    // padding API: the pose carries the fix as its anchor plus the chevron's
+    // offset, and moveCam derives the camera centre from both every frame.
+    // [mapBearing] is the map's bearing (0 for a raster map).
     //
-    // The camera snaps (null) or glides per [motion]. The offset becoming
-    // available is the same kind of move as a layout reflow — the chevron's
-    // screen spot changes without a new fix — so it takes the reflow motion
-    // too; on either, the marker's CSS transition runs in lockstep with the
-    // camera glide so they land together, while on a fix the marker's
-    // left/top write snaps and the camera eases the ground underneath it.
+    // The camera snaps (null) or glides per [pushMotion], refined by
+    // spotMotion: a chevron that moves on screen — a layout reflow, the map
+    // tilting to or from 0°, the rendering-mode resolve — glides with the
+    // reflow motion, its CSS transition in lockstep with the camera; on a fix
+    // the chevron stays put and the camera eases the ground underneath it.
     function placeFollowCamera(
         fix: NonNullable<typeof state.lastFix>,
-        mapHeading: number,
+        mapBearing: number,
         pushMotion: CameraMotion | null,
     ): void {
-        // Net horizontal shift: a right-card reserve shifts the marker left,
-        // a left-card reserve shifts it right. Only one is ever non-zero.
-        const mx = markerXFraction(fix.rightSafe) - markerXFraction(fix.leftSafe);
-        const drop = markerDrop(fix.markerPos, fix.bottomSafe);
-        const target: GMLatLng = { lat: fix.lat, lng: fix.lng };
-        const center =
-            offsetCenterFor(
-                target,
-                -mx * window.innerWidth,
-                drop * window.innerHeight,
-                fix.zoom,
-                mapHeading,
-            ) ?? target;
-        const offsetApplied = center !== target;
-        const motion =
-            pushMotion !== null && offsetApplied !== state.offsetApplied
-                ? REFLOW_MOTION
-                : pushMotion;
-        state.offsetApplied = offsetApplied;
-        markerTransition.setActive(motion === REFLOW_MOTION);
-        markerEl.style.left = offsetApplied ? `${(0.5 - mx) * 100}%` : "50%";
-        markerEl.style.top = offsetApplied ? `${(0.5 + drop) * 100}%` : "50%";
-        const pose: CameraPose = {
-            lat: center.lat,
-            lng: center.lng,
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        const spot = googleMarkerSpot(fix, {
+            vector: state.isVector,
+            tiltDeg: fix.tilt,
+            widthPx: width,
+            reachPx: chevronReach,
+        });
+        const poseAt = (at: MarkerSpot): CameraPose => ({
+            lat: fix.lat,
+            lng: fix.lng,
             zoom: fix.zoom,
-            heading: mapHeading,
-            tilt: fix.tilt,
-        };
-        if (motion === null) {
-            glide.jump(pose);
+            heading: mapBearing,
+            // A raster map never tilts: a 0 here keeps the tilt the glide owns
+            // equal to what the map shows, should the map resolve to vector.
+            tilt: state.isVector ? fix.tilt : 0,
+            offsetX: at.x * width,
+            offsetY: at.y * height,
+        });
+        const plan = spotMotion(state.shownSpot, spot, pushMotion);
+        if (plan.snapAt) glide.jump(poseAt(plan.snapAt));
+        markerTransition.setActive(plan.motion === REFLOW_MOTION);
+        markerEl.style.left = `${(0.5 + spot.x) * 100}%`;
+        markerEl.style.top = `${(0.5 + spot.y) * 100}%`;
+        state.shownSpot = state.following ? spot : null;
+        if (plan.motion === null) {
+            glide.jump(poseAt(spot));
         } else {
-            glide.to(pose, motion);
+            glide.to(poseAt(spot), plan.motion);
         }
     }
 
@@ -623,21 +579,15 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
 
     // Place the camera back onto the last fix (a re-follow, a north-up flip,
     // a rendering-mode switch), re-syncing the chevron for the current mode;
-    // a null [motion] snaps.
+    // a null [motion] snaps. The chevron takes the mode's turn at once, so it
+    // reads correctly the instant the camera starts to move, before the next
+    // fix arrives.
     function easeHome(motion: CameraMotion | null): void {
         const fix = state.lastFix;
         if (!fix) return;
-        // Raster map re-shows the chevron at the last travel bearing so it
-        // reads correctly the instant follow re-attaches, before the next fix
-        // arrives; a vector map re-syncs the chevron from the next
-        // updateCamera push (the map rotates). placeFollowCamera restores the
-        // off-centre target + chevron spot.
-        // A re-follow adopts the fix heading outright rather than holding
-        // whatever the map was rotated to before the user panned it.
-        state.headingHold = NO_HEADING_HOLD;
-        const mapHeading = state.isVector ? mapHeadingFor(fix.heading) : 0;
-        syncChevron(state.isVector ? fix.tilt : 0, fix.heading, mapHeading);
-        placeFollowCamera(fix, mapHeading, motion);
+        const orientation = orientationFor(fix.heading);
+        syncChevron(fix.tilt, orientation.chevronTurn);
+        placeFollowCamera(fix, orientation.mapBearing, motion);
     }
 
     function setFollowing(follow: boolean): void {
@@ -667,6 +617,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             // non-deprecated route, materially more complex) is a documented
             // follow-up.
             markerEl.style.display = "none";
+            state.shownSpot = null;
         }
     }
 
@@ -761,7 +712,10 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // easeHome re-issues a camera move + chevron sync for the resolved
         // mode — as a snap: on the downgrade the raster map has ignored every
         // placement so far (they carried heading/tilt) and still sits at the
-        // construction centre, which an ease would fly in from.
+        // construction centre, which an ease would fly in from. The chevron's
+        // spot changes with the mode on a tilted map (googleMarkerSpot), so
+        // the snap lands with the fix under the chevron where it is, and the
+        // two then glide to the new spot together (spotMotion).
         const resolved = liveMap.getRenderingType();
         log(`renderingType=${resolved}`);
         const resolvedVector = resolved === "VECTOR";
@@ -803,16 +757,13 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // The same measurements the shared engine feeds followMotion: the
         // previous push (to tell a reflow from a fix), the interval since it
         // (measured BEFORE lastFixMs is refreshed), and whether that interval
-        // is a signal gap (which also restarts bearing smoothing and the
-        // heading dead band from the raw value).
+        // is a signal gap (which also restarts bearing smoothing from the raw
+        // value).
         const previousFix = state.lastFix;
         const now = Date.now();
         const sinceLastFixMs = state.lastFixMs > 0 ? now - state.lastFixMs : 0;
         const signalGap = sinceLastFixMs > LOCATION_STALE_THRESHOLD_MS;
-        if (signalGap) {
-            state.lastBearing = null;
-            state.headingHold = NO_HEADING_HOLD;
-        }
+        if (signalGap) state.lastBearing = null;
 
         setChevronColor(chevron, markerColor);
         state.lastFixMs = now;
@@ -859,16 +810,14 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         });
         state.firstCamera = false;
 
-        // VECTOR drives heading-up rotation (through the dead band, so a
-        // straight road translates without re-laying-out every label; a real
-        // turn then glides round over the segment) + tilt/3D; RASTER is
-        // north-up (mapHeading 0, no tilt). placeFollowCamera offsets both
-        // the chevron and the camera target so the location sits clear of
-        // the side cards — the OSM parity.
-        const mapHeading = state.isVector ? mapHeadingFor(heading) : 0;
-        syncChevron(tilt || 0, heading, mapHeading);
+        // VECTOR turns the map to the smoothed heading of every fix in
+        // heading-up, as the OSM map does, and tilts it; RASTER stays
+        // north-up and flat. placeFollowCamera places the chevron and holds
+        // the location under it, clear of the side cards — the OSM parity.
+        const orientation = orientationFor(heading);
+        syncChevron(fix.tilt, orientation.chevronTurn);
         markerEl.style.display = "block";
-        placeFollowCamera(fix, mapHeading, motion);
+        placeFollowCamera(fix, orientation.mapBearing, motion);
     };
 
     // Android -> JS: switch the map type and toggle the traffic overlay.
