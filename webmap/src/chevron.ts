@@ -27,6 +27,18 @@ export function setChevronColor(chevron: ChevronHandles, color: string): void {
     chevron.el.style.setProperty("--marker-color", color);
 }
 
+// How far the chevron reaches from its centre on screen, in px: half the
+// wider of the arrow and its ripple disc, which expands past the arrow. Read
+// from the page's CSS (index.html is the one home of both sizes); a computed
+// width resolves even while the chevron is still hidden (display: none).
+export function chevronReachPx(chevron: ChevronHandles): number {
+    const widths = [".ripple", "svg"]
+        .map((selector) => chevron.el.querySelector(selector))
+        .map((el) => (el ? Number.parseFloat(getComputedStyle(el).width) : Number.NaN))
+        .filter((width) => Number.isFinite(width));
+    return widths.length > 0 ? Math.max(...widths) / 2 : 0;
+}
+
 // Orient the chevron. turnDeg rotates it to the travel bearing (north-up
 // mode, and always on a Google raster map); perspective lays it onto the
 // tilted ground plane (the GL backends and the Google vector map — a raster

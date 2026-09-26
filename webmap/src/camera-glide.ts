@@ -7,34 +7,127 @@
 // interpolated pose every frame until the target lands. The MapLibre backend
 // needs none of this (maplibregl.Map#easeTo is the same loop, built in).
 //
-// Pure interpolation (lerpPose) is separate from the frame driver so the math
-// is unit-testable, and the driver takes its frame source and clock as
-// dependencies so the tests can step it deterministically.
+// The glide moves what MapLibre's easeTo moves: the location under the
+// chevron and the chevron's screen offset (MapLibre's camera padding), not the
+// camera centre. The backend derives the centre from each frame
+// (cameraCenterFor), so a rotation or a zoom pivots on the chevron, as it does
+// on the OSM map; interpolating the centre instead would swing the location
+// off the chevron mid-move.
+//
+// Pure interpolation (lerpPose) and centre math are separate from the frame
+// driver so they are unit-testable, and the driver takes its frame source and
+// clock as dependencies so the tests can step it deterministically.
 import { type CameraMotion, normalizeBearing, shortestBearingDelta } from "./camera";
 
-// The camera the glide moves: the Google Maps CameraOptions surface with the
-// centre split into its two numbers. heading/tilt ride along for a raster
-// map too (the backend drops them before moveCamera).
-export interface CameraPose {
+export interface LatLng {
     lat: number;
     lng: number;
+}
+
+// The camera besides its anchor: the zoom, the heading (clockwise from north,
+// the direction at the top of the screen), and the chevron's screen offset
+// from the viewport centre in px (x right, y down).
+export interface CameraView {
     zoom: number;
     heading: number;
+    offsetX: number;
+    offsetY: number;
+}
+
+// The camera the glide moves: the anchor (lat/lng, the location that sits at
+// the chevron's spot) plus the view and the tilt. heading/tilt ride along for
+// a raster map too (the backend drops them before moveCamera).
+export interface CameraPose extends LatLng, CameraView {
     tilt: number;
 }
 
-const POSE_KEYS = ["lat", "lng", "zoom", "heading", "tilt"] as const;
+const POSE_KEYS = ["lat", "lng", "zoom", "heading", "tilt", "offsetX", "offsetY"] as const;
 
 // Below this delta a field is applied as the target rather than interpolated.
-// A start pose read back from the map can differ from what was last set by a
-// rounding hair; interpolating that hair would re-set the field every frame —
-// and each heading set re-lays-out a vector map's labels.
+// After a release() a glide starts from the camera read back from the map,
+// which can differ from what was last set by a rounding hair; interpolating
+// that hair would re-set the field every frame, and a zoom or tilt set every
+// frame keeps that property's gesture window open.
 const HOLD_EPSILON = 1e-9;
 
-// The pose [t] of the way from [from] to the fields [to] names; the heading
-// turns the short way round and folds into [0, 360). Only the named fields
-// are returned, so a partial target (a zoom-only step) leaves the rest of the
-// camera alone.
+// Web Mercator world coordinates, the projection of Google's built-in map
+// types (and MapLibre's): a WORLD_SIZE-unit square, x east from the
+// antimeridian, y south from the top edge; at zoom z one unit spans 2^z px.
+const WORLD_SIZE = 256;
+
+function worldX(lng: number): number {
+    return (WORLD_SIZE * (lng + 180)) / 360;
+}
+
+function worldY(lat: number): number {
+    const phi = (lat * Math.PI) / 180;
+    return WORLD_SIZE * (0.5 - Math.log(Math.tan(Math.PI / 4 + phi / 2)) / (2 * Math.PI));
+}
+
+// [lng] folded into [-180, 180); an in-range value passes through untouched.
+function wrapLongitude(lng: number): number {
+    return lng >= -180 && lng < 180 ? lng : normalizeBearing(lng + 180) - 180;
+}
+
+function lngAt(x: number): number {
+    return wrapLongitude((360 * x) / WORLD_SIZE - 180);
+}
+
+function latAt(y: number): number {
+    return (360 / Math.PI) * Math.atan(Math.exp((0.5 - y / WORLD_SIZE) * 2 * Math.PI)) - 90;
+}
+
+// The world-unit displacement of the view's screen offset. The map turns
+// clockwise by the heading, so screen right points along heading + 90° and
+// screen down along heading + 180°; screen and world axes coincide at
+// heading 0.
+function worldOffset(view: CameraView): { dx: number; dy: number } {
+    const scale = 2 ** view.zoom;
+    const th = (view.heading * Math.PI) / 180;
+    const cos = Math.cos(th);
+    const sin = Math.sin(th);
+    return {
+        dx: (cos * view.offsetX - sin * view.offsetY) / scale,
+        dy: (sin * view.offsetX + cos * view.offsetY) / scale,
+    };
+}
+
+// The camera centre that shows [anchor] at the view's screen offset. Flat
+// math: a tilted map's perspective is not modelled, so there the anchor sits
+// at the offset only approximately (exactly on a flat map).
+export function cameraCenterFor(anchor: LatLng, view: CameraView): LatLng {
+    const d = worldOffset(view);
+    return { lat: latAt(worldY(anchor.lat) - d.dy), lng: lngAt(worldX(anchor.lng) - d.dx) };
+}
+
+// The location at the view's screen offset when the camera centre is
+// [center]: the inverse of cameraCenterFor.
+export function anchorAt(center: LatLng, view: CameraView): LatLng {
+    const d = worldOffset(view);
+    return { lat: latAt(worldY(center.lat) + d.dy), lng: lngAt(worldX(center.lng) + d.dx) };
+}
+
+// One field [t] of the way from [from] to [to]. The heading turns and the
+// longitude moves the short way round; the latitude moves evenly in Mercator
+// y, as MapLibre moves its camera; the rest move linearly.
+function lerpField(key: (typeof POSE_KEYS)[number], from: number, to: number, t: number): number {
+    const delta = key === "heading" || key === "lng" ? shortestBearingDelta(from, to) : to - from;
+    if (Math.abs(delta) < HOLD_EPSILON) return to;
+    switch (key) {
+        case "heading":
+            return normalizeBearing(from + delta * t);
+        case "lng":
+            return wrapLongitude(from + delta * t);
+        case "lat":
+            return latAt(worldY(from) + (worldY(to) - worldY(from)) * t);
+        default:
+            return from + delta * t;
+    }
+}
+
+// The pose [t] of the way from [from] to the fields [to] names. Only the
+// named fields are returned, so a partial target (a zoom-only step) leaves the
+// rest of the camera alone.
 export function lerpPose(
     from: CameraPose,
     to: Partial<CameraPose>,
@@ -44,14 +137,7 @@ export function lerpPose(
     for (const key of POSE_KEYS) {
         const target = to[key];
         if (target === undefined) continue;
-        const delta =
-            key === "heading" ? shortestBearingDelta(from.heading, target) : target - from[key];
-        if (Math.abs(delta) < HOLD_EPSILON) {
-            out[key] = target;
-        } else {
-            const value = from[key] + delta * t;
-            out[key] = key === "heading" ? normalizeBearing(value) : value;
-        }
+        out[key] = lerpField(key, from[key], target, t);
     }
     return out;
 }
@@ -59,8 +145,12 @@ export function lerpPose(
 export interface CameraGlideDeps {
     // The camera the map shows right now: the start of a glide for every
     // field the glide does not own (see CameraGlide.release), so a re-follow
-    // starts from wherever the user panned.
-    current(): CameraPose;
+    // starts from wherever the user panned. [owned] holds the fields the
+    // glide starts from instead of the read-back; a field read back through
+    // others (the anchor, read from the map's centre at a zoom, heading and
+    // offset) must be read at the owned values, or the first frame jumps
+    // wherever the map did not take an owned value as given.
+    current(owned: Partial<CameraPose>): CameraPose;
     // Set the map's camera to [pose] immediately (moveCamera).
     apply(pose: Partial<CameraPose>): void;
     // Frame source and clock; default to the page's requestAnimationFrame
@@ -113,7 +203,7 @@ export function createCameraGlide(deps: CameraGlideDeps): CameraGlide {
                 return;
             }
             const generation = state.generation;
-            const from = { ...deps.current(), ...state.owned };
+            const from = { ...deps.current(state.owned), ...state.owned };
             const startMs = now();
             const frame = (): void => {
                 if (generation !== state.generation) return;
