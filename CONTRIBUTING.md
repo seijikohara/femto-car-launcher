@@ -12,8 +12,8 @@ live in [`AGENTS.md`](AGENTS.md) and the path-scoped rule files under
 
 1. Install the latest `nightly` build (see
    [Installation](README.md#installation)) and confirm that the bug
-   still occurs. Every merge to `develop` ships as a new nightly, so
-   an older build may already be fixed.
+   still occurs. Every merge to `develop` that changes the APK ships
+   as a new nightly, so an older build may already be fixed.
 2. Search the [open and closed issues](https://github.com/seijikohara/femto-car-launcher/issues?q=is%3Aissue)
    for the same symptom.
 3. Open a [bug report](https://github.com/seijikohara/femto-car-launcher/issues/new?template=bug_report.yml).
@@ -96,9 +96,11 @@ status check, which every merge requires.
   section.
 
 The maintainer squashes the pull request into `develop`, and later
-promotes `develop` to `main` as a single squash per release, which is
-why `main` stays linear. Force-push is denied; update a stale branch
-with `gh pr update-branch`.
+promotes `develop` to `main` as a single squash per promotion (a
+release when the APK changed; see
+[`.github/RELEASING.md`](.github/RELEASING.md)), which is why `main`
+stays linear. Force-push is denied; update a stale branch with
+`gh pr update-branch`.
 
 ## License of contributions
 

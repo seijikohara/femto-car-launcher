@@ -192,7 +192,19 @@ jobs:
             exit 1
           fi
 
+      # Publish only an APK that differs from the current nightly: a push that
+      # leaves the app untouched (docs, CI, tests) would otherwise replace the
+      # nightly with the same app under a new version. The action rebuilds
+      # HEAD as the current nightly and compares the two APKs; every step
+      # below is gated on its verdict, and a failed check counts as changed.
+      - name: Compare with the current nightly
+        id: apk
+        uses: ./.github/actions/apk-unchanged
+        with:
+          channel: nightly
+
       - name: Decode keystore
+        if: steps.apk.outputs.unchanged != 'true'
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
         run: |
@@ -201,11 +213,13 @@ jobs:
 
       - name: Compute version
         id: version
+        if: steps.apk.outputs.unchanged != 'true'
         uses: ./.github/actions/app-version
         with:
           channel: nightly
 
       - name: Build the signed nightly APK
+        if: steps.apk.outputs.unchanged != 'true'
         env:
           RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
@@ -220,10 +234,12 @@ jobs:
         run: ./gradlew assembleNightlyRelease --stacktrace
 
       - name: Stage the artifact with a meaningful asset name
+        if: steps.apk.outputs.unchanged != 'true'
         run: |
           cp app/build/outputs/apk/nightly/release/app-nightly-release.apk "$RUNNER_TEMP/femto-car-launcher-nightly.apk"
 
       - name: Publish rolling nightly prerelease
+        if: steps.apk.outputs.unchanged != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -258,13 +274,16 @@ jobs:
           # channel, so its notes are the only place a reporter can see that
           # the fix for their issue has shipped. previous_sha comes from the
           # release listing above (empty on the first-ever run, where the
-          # changelog degrades to just the current subject).
+          # changelog degrades to just the current subject). The log follows
+          # develop's own line only: a promotion sync merges main's squash
+          # into develop, and listing that squash would repeat commits an
+          # earlier nightly already shipped.
           {
             echo "Automated nightly build from ${GITHUB_SHA:0:7} (run #${{ github.run_number }}) on $(date -u +%Y-%m-%d)."
             echo
             echo "Changes since the previous nightly:"
             if [ -n "$PREVIOUS_NIGHTLY_SHA" ] && git cat-file -e "$PREVIOUS_NIGHTLY_SHA" 2>/dev/null; then
-              git log --format='- %s' "$PREVIOUS_NIGHTLY_SHA..$GITHUB_SHA"
+              git log --first-parent --no-merges --format='- %s' "$PREVIOUS_NIGHTLY_SHA..$GITHUB_SHA"
             else
               git log -1 --format='- %s' "$GITHUB_SHA"
             fi
@@ -296,8 +315,9 @@ jobs:
     # Actions lets a run restore a cache written on its own branch or the
     # default branch, so a `main` run here could restore a Gradle cache that
     # `develop` code (e.g. an auto-merged dependency bump) wrote. `release`
-    # runs once per stable release, so a cold Gradle build is an acceptable
-    # price for keeping that cache out of the signing job's reach.
+    # runs once per push to `main` (one per promotion), so a cold Gradle
+    # build is an acceptable price for keeping that cache out of the signing
+    # job's reach.
     cache-mode: none
     steps:
       - name: Checkout
@@ -338,7 +358,26 @@ jobs:
             exit 1
           fi
 
+      # A v* tag already on HEAD comes from an earlier run of this commit that
+      # decided to publish and tagged it. That decision is not made again:
+      # "Resolve the release tag" finishes the release, or refuses a second
+      # one, where a skip here would strand a tag without a release.
+      - name: Find a version tag already on this commit
+        id: head-tag
+        run: echo "tag=$(git tag --list 'v*' --points-at "$GITHUB_SHA" | head -1)" >> "$GITHUB_OUTPUT"
+
+      # Publish only an APK that differs from the latest release, as the
+      # nightly job does: an unchanged APK gets no version, no tag, and no
+      # release.
+      - name: Compare with the latest release
+        id: apk
+        if: steps.head-tag.outputs.tag == ''
+        uses: ./.github/actions/apk-unchanged
+        with:
+          channel: stable
+
       - name: Decode keystore
+        if: steps.apk.outputs.unchanged != 'true'
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
         run: |
@@ -347,11 +386,13 @@ jobs:
 
       - name: Compute version
         id: version
+        if: steps.apk.outputs.unchanged != 'true'
         uses: ./.github/actions/app-version
         with:
           channel: stable
 
       - name: Build the signed stable APK
+        if: steps.apk.outputs.unchanged != 'true'
         env:
           RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
@@ -367,9 +408,11 @@ jobs:
 
       - name: Resolve the release tag
         id: tag
+        if: steps.apk.outputs.unchanged != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.version.outputs.tag }}
+          HEAD_TAG: ${{ steps.head-tag.outputs.tag }}
         run: |
           set -euo pipefail
           # Stand down if main has moved on. The concurrency group is not a
@@ -385,7 +428,7 @@ jobs:
             exit 0
           fi
           echo "superseded=false" >> "$GITHUB_OUTPUT"
-          existing="$(git tag --list 'v*' --points-at "$GITHUB_SHA" | head -1 || true)"
+          existing="$HEAD_TAG"
           if [ -n "$existing" ]; then
             if gh release view "$existing" >/dev/null 2>&1; then
               echo "::error::$GITHUB_SHA is already released as $existing"
@@ -415,12 +458,12 @@ jobs:
           echo "TAG=$TAG" >> "$GITHUB_ENV"
 
       - name: Stage the artifact with a meaningful asset name
-        if: steps.tag.outputs.superseded != 'true'
+        if: steps.apk.outputs.unchanged != 'true' && steps.tag.outputs.superseded != 'true'
         run: |
           cp app/build/outputs/apk/stable/release/app-stable-release.apk "$RUNNER_TEMP/femto-car-launcher-$TAG.apk"
 
       - name: Publish the release
-        if: steps.tag.outputs.superseded != 'true'
+        if: steps.apk.outputs.unchanged != 'true' && steps.tag.outputs.superseded != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

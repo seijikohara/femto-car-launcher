@@ -1,0 +1,29 @@
+name: APK unchanged
+description: >-
+  Decide whether HEAD would publish the same app as the channel's previous
+  release: rebuild HEAD with that release's versionCode and versionName and
+  compare the two APKs entry by entry. Anything short of a proven match
+  reports a change, so the check can skip a redundant publish but never
+  block a real one. .github/RELEASING.md describes the policy.
+
+inputs:
+  channel:
+    description: 'stable or nightly'
+    required: true
+
+outputs:
+  unchanged:
+    description: "'true' when the APK built from HEAD matches the previous release's APK, otherwise 'false'"
+    value: ${{ steps.compare.outputs.unchanged }}
+
+runs:
+  using: composite
+  steps:
+    - name: Compare with the previous release
+      id: compare
+      # Composite steps do not infer a shell; bash is explicit here.
+      shell: bash
+      env:
+        CHANNEL: ${{ inputs.channel }}
+        GH_TOKEN: ${{ github.token }}
+      run: bash "$GITHUB_ACTION_PATH/apk-unchanged.sh"

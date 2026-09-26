@@ -33,12 +33,15 @@ Include in the report:
 
 The project is a hobby project with a single maintainer and no
 service-level commitment ([`TERMS.md`](TERMS.md)). The maintainer
-acknowledges reports and works on fixes on a best-effort basis. The
-disclosure flow is: the maintainer confirms the report, lands a fix on
-`develop`, waits for the nightly that carries it, merges `develop`
-into `main` so the release job publishes it in the next stable build,
-and then publishes the advisory with credit to the reporter unless the
-reporter asks otherwise.
+acknowledges reports and works on fixes on a best-effort basis. For a
+fix that changes the APK, the disclosure flow is: the maintainer
+confirms the report, lands the fix on `develop`, waits for the nightly
+that carries it, merges `develop` into `main` so the release job
+publishes it in the next stable build, and then publishes the advisory
+with credit to the reporter unless the reporter asks otherwise. A fix
+confined to the CI and release workflows changes no APK and publishes
+no build: it takes effect as it merges, and the advisory follows once
+the fix reaches `main`.
 
 ## Scope
 
@@ -65,5 +68,6 @@ Out of scope:
 Renovate opens a pull request for every vulnerability alert as soon as
 the alert appears and labels it `security`; routine dependency updates
 follow the weekly schedule in [`renovate.json5`](renovate.json5),
-targeting `develop`. Both kinds ship in the next nightly after they
-merge, and reach the stable channel with the next release.
+targeting `develop`. An update of either kind that changes the APK
+ships in the next nightly after it merges, and reaches the stable
+channel with the next release.
