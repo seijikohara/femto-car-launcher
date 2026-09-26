@@ -21,8 +21,25 @@ application ids mean both channels install at once — see
 
 ## Cutting a stable release
 
-Merge `develop` into `main` when the build is ready — that push is the
-entire procedure. The `release` job computes the version, builds
+Promote `develop` to `main` when the build is ready, through a pull
+request from `develop` into `main`. Before opening that promotion pull
+request, record `main`'s latest promotion in `develop`. `main`'s
+ruleset requires the promotion to be up to date with `main`, and a
+squash promotion never reaches `develop`, so every promotion after the
+first starts behind. The record is a merge commit whose tree is
+`develop`'s own and whose parents are `develop` and `main`: run
+`git merge -s ours origin/main` on a branch cut from `origin/develop`,
+push the branch as `sync/main-into-develop`, open a pull request into
+`develop`, and merge that pull request with a merge commit
+(`gh pr merge <number> --merge`). Never squash the sync pull request: a
+squash drops `main` as a parent. The sync is safe because `main` only
+ever receives `develop`'s content, so the merge changes no file and
+cannot conflict.
+[#430](https://github.com/seijikohara/femto-car-launcher/pull/430) is
+the first such sync.
+
+Then open the promotion pull request and squash-merge it. Its push to
+`main` is the release: the `release` job computes the version, builds
 `assembleStableRelease`, tags the commit, and publishes the GitHub
 release; nobody pushes a version tag by hand. When the APK is unchanged
 since the latest release, the job does none of that (see

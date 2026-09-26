@@ -65,5 +65,6 @@ Out of scope:
 Renovate opens a pull request for every vulnerability alert as soon as
 the alert appears and labels it `security`; routine dependency updates
 follow the weekly schedule in [`renovate.json5`](renovate.json5),
-targeting `develop`. Both kinds ship in the next nightly after they
-merge, and reach the stable channel with the next release.
+targeting `develop`. An update of either kind that changes the APK
+ships in the next nightly after it merges, and reaches the stable
+channel with the next release.

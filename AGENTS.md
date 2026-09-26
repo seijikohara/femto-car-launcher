@@ -242,8 +242,10 @@ in the skill directory; `create-avd.sh` recreates it).
   cuts a stable release when its APK changed (as
   `.github/RELEASING.md` defines it; when two merges land back to
   back, the newer one is released and the older run stands down).
-  Force-push is denied; update a stale branch via the GitHub
-  update-branch API (`gh pr update-branch`).
+  The only merge commits are the sync pull requests that record
+  `main`'s latest promotion in `develop` before each promotion (see
+  `.github/RELEASING.md`). Force-push is denied; update a stale branch
+  via the GitHub update-branch API (`gh pr update-branch`).
 - The `Validate` status check gates every merge.
 - Branches: feature work targets `develop` (squash merge) and
   publishes the rolling nightly when its APK changed; `develop` merges

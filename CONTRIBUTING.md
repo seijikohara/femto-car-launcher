@@ -12,8 +12,8 @@ live in [`AGENTS.md`](AGENTS.md) and the path-scoped rule files under
 
 1. Install the latest `nightly` build (see
    [Installation](README.md#installation)) and confirm that the bug
-   still occurs. Every merge to `develop` ships as a new nightly, so
-   an older build may already be fixed.
+   still occurs. Every merge to `develop` that changes the APK ships
+   as a new nightly, so an older build may already be fixed.
 2. Search the [open and closed issues](https://github.com/seijikohara/femto-car-launcher/issues?q=is%3Aissue)
    for the same symptom.
 3. Open a [bug report](https://github.com/seijikohara/femto-car-launcher/issues/new?template=bug_report.yml).
