@@ -145,8 +145,12 @@ export function lerpPose(
 export interface CameraGlideDeps {
     // The camera the map shows right now: the start of a glide for every
     // field the glide does not own (see CameraGlide.release), so a re-follow
-    // starts from wherever the user panned.
-    current(): CameraPose;
+    // starts from wherever the user panned. [owned] holds the fields the
+    // glide starts from instead of the read-back; a field read back through
+    // others (the anchor, read from the map's centre at a zoom, heading and
+    // offset) must be read at the owned values, or the first frame jumps
+    // wherever the map did not take an owned value as given.
+    current(owned: Partial<CameraPose>): CameraPose;
     // Set the map's camera to [pose] immediately (moveCamera).
     apply(pose: Partial<CameraPose>): void;
     // Frame source and clock; default to the page's requestAnimationFrame
@@ -199,7 +203,7 @@ export function createCameraGlide(deps: CameraGlideDeps): CameraGlide {
                 return;
             }
             const generation = state.generation;
-            const from = { ...deps.current(), ...state.owned };
+            const from = { ...deps.current(state.owned), ...state.owned };
             const startMs = now();
             const frame = (): void => {
                 if (generation !== state.generation) return;

@@ -117,11 +117,12 @@ policy:
   and chevron orientation (`followOrientation`), and the bearing
   smoothing — and `src/style.ts` of the chevron placement. A backend
   never keeps its own motion duration, curve, or heading rule.
-- Both maps turn to the smoothed bearing of every fix. Never hold
-  the heading back in one backend: the Google-only heading dead band
-  (#409, settled by #414) left the road and the arrow off vertical
-  and was removed. A change to how the map heading follows the
-  bearing (a speed gate, say) goes into `src/camera.ts` for both.
+- In heading-up, both maps turn to the smoothed bearing of every
+  fix. Never hold the heading back in one backend: the Google-only
+  heading dead band (#409, settled by #414) left the road and the
+  arrow off vertical and was removed. A change to how the map heading
+  follows the bearing (a speed gate, say) goes into `src/camera.ts`
+  for both.
 - The Google glide moves what `easeTo` moves — the location under
   the chevron and the chevron's screen offset, never the camera
   centre — and derives the centre every frame, so a rotation or zoom
@@ -130,7 +131,9 @@ policy:
   map's perspective converges on the viewport centre: the chevron
   sits on the vertical centre line there, clamped clear of the side
   cards (`googleMarkerSpot`). A chevron that changes spot glides in
-  lockstep with the camera (`spotMotion`); it never jumps.
+  lockstep with the camera (`spotMotion`) with the reflow motion both
+  backends use; as with any reflow, a fix that arrives during that
+  glide finishes the remaining chevron move at once.
 
 ## Toolchain split
 

@@ -173,9 +173,14 @@ describe("createCameraGlide", () => {
         const clock = { now: 1_000 };
         const frames: Array<(now: number) => void> = [];
         const applied: Array<Partial<CameraPose>> = [];
+        // What each glide handed current() as the fields it owns.
+        const owned: Array<Partial<CameraPose>> = [];
         const camera: CameraPose = { ...REST };
         const glide = createCameraGlide({
-            current: () => ({ ...camera }),
+            current: (fields) => {
+                owned.push({ ...fields });
+                return { ...camera };
+            },
             apply: (pose) => {
                 applied.push(pose);
                 Object.assign(camera, pose);
@@ -190,7 +195,7 @@ describe("createCameraGlide", () => {
             clock.now += ms;
             for (const cb of frames.splice(0)) cb(clock.now);
         };
-        return { glide, applied, frames, tick, camera };
+        return { glide, applied, owned, frames, tick, camera };
     }
 
     const TARGET: CameraPose = {
@@ -311,6 +316,19 @@ describe("createCameraGlide", () => {
         h.glide.to({ ...TARGET, zoom: 20 }, SECOND);
         h.tick(500);
         expect(h.applied[1]?.zoom).toBe(19);
+    });
+
+    it("hands current() the fields it owns, so a read-back can be taken at them", () => {
+        // The Google page reads the anchor back from the map's centre at a
+        // zoom; read at a clamped zoom while the glide starts from the zoom
+        // it owns, the first frame would jump.
+        const h = harness(18);
+        h.glide.jump({ zoom: 19 });
+        h.glide.to(TARGET, SECOND);
+        expect(h.owned).toEqual([{ zoom: 19 }]);
+        h.glide.release();
+        h.glide.to(TARGET, SECOND);
+        expect(h.owned[1]).toEqual({});
     });
 
     it("lands the map heading exactly on every smoothed bearing, however small the turn", () => {

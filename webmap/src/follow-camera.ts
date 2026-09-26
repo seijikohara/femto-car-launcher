@@ -12,9 +12,9 @@
 // from the one symbol.
 import {
     AUTO_REFOLLOW_MS,
-    appliedBearing,
     type CameraMotion,
     DETACHED_ZOOM_STEP_MOTION,
+    type FollowOrientation,
     followMotion,
     followOrientation,
     isPaddingOnlyReflow,
@@ -170,13 +170,18 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
         el.classList.toggle("stale", markerEl.classList.contains("stale"));
     }
 
-    // North-up keeps the map pinned to north and rotates the chevron to the
-    // heading instead; heading-up rotates the map and the chevron points up
-    // (followOrientation — MapLibre always rotates). The perspective
-    // transform lays the chevron onto the tilted ground plane.
-    function syncChevron(tilt: number, heading: number): void {
-        const { chevronTurn } = followOrientation(state.northUp, heading, true);
-        setChevronTransform(markerEl, tilt, chevronTurn, true);
+    // The map's bearing and the chevron's turn for a fix, from the one rule
+    // both backends orient by (followOrientation; MapLibre always rotates):
+    // north-up keeps the map pinned to north and rotates the chevron to the
+    // heading instead; heading-up rotates the map and the chevron points up.
+    function orientationFor(heading: number): FollowOrientation {
+        return followOrientation(state.northUp, heading, true);
+    }
+
+    // Turn the chevron by [turn]; the perspective transform lays it onto the
+    // tilted ground plane.
+    function syncChevron(tilt: number, turn: number): void {
+        setChevronTransform(markerEl, tilt, turn, true);
     }
 
     function easeHome(motion: CameraMotion): void {
@@ -184,7 +189,7 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
         if (!fix) return;
         map.easeTo({
             center: [fix.lon, fix.lat],
-            bearing: appliedBearing(state.northUp, fix.heading),
+            bearing: orientationFor(fix.heading).mapBearing,
             zoom: fix.zoom,
             pitch: fix.tilt,
             padding: {
@@ -355,11 +360,12 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
             const spot = markerSpot({ markerPos, bottomSafe, rightSafe, leftSafe });
             markerEl.style.left = `${(0.5 + spot.x) * 100}%`;
             markerEl.style.top = `${(0.5 + spot.y) * 100}%`;
-            syncChevron(tilt || 0, heading);
+            const orientation = orientationFor(heading);
+            syncChevron(tilt || 0, orientation.chevronTurn);
             markerEl.style.display = "block";
             const opts: FollowCameraOpts = {
                 center: [lon, lat],
-                bearing: appliedBearing(state.northUp, heading),
+                bearing: orientation.mapBearing,
                 zoom: Number.isFinite(zoom) ? zoom : 16,
                 pitch: tilt || 0,
                 padding: {
@@ -391,13 +397,14 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
             // for up to one GPS interval.
             const fix = state.lastFix;
             if (state.following && fix) {
+                const orientation = orientationFor(fix.heading);
                 map.easeTo({
-                    bearing: appliedBearing(state.northUp, fix.heading),
+                    bearing: orientation.mapBearing,
                     duration: ORIENTATION_FLIP_MOTION.durationMs,
                     easing: ORIENTATION_FLIP_MOTION.easing,
                     essential: true,
                 });
-                syncChevron(fix.tilt, fix.heading);
+                syncChevron(fix.tilt, orientation.chevronTurn);
             }
         },
         onHostResume(): void {

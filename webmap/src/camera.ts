@@ -292,13 +292,15 @@ export interface SpotPlan {
 
 // The Google Maps page's refinement of followMotion for the chevron's spot
 // (googleMarkerSpot in style.ts), which also moves without a layout reflow —
-// the map tilting to or from 0°, the rendering-mode resolve — and must never
-// jump. [shown] is where the chevron is on screen now, null while it is
-// hidden or not yet placed: it then appears at [next] with no glide of its
-// own. A chevron that moves glides with REFLOW_MOTION, the marker's CSS
-// transition and the camera in lockstep; a push that would snap first lands
-// the camera with the fix under the chevron where it still is, since a snap
-// cannot carry the chevron with it.
+// the map tilting to or from 0°, the rendering-mode resolve. [shown] is where
+// the chevron is on screen now, null while it is hidden or not yet placed: it
+// then appears at [next] with no glide of its own. A chevron that moves
+// glides with REFLOW_MOTION, the marker's CSS transition and the camera in
+// lockstep; a push that would snap first lands the camera with the fix under
+// the chevron where it still is, since a snap cannot carry the chevron with
+// it. As after any layout reflow, a fix that arrives during the glide
+// finishes the chevron's remaining move at once (it clears the transition),
+// and the camera catches up over that fix's segment.
 export function spotMotion(
     shown: MarkerSpot | null,
     next: MarkerSpot,

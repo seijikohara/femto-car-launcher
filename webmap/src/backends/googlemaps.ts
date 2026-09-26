@@ -173,13 +173,14 @@ const MAP_TYPE_IDS: Record<string, string> = {
 // that changes that property: the glide calls moveCamera every frame while
 // following, so a single window opened by every call would never close on
 // the move and a pinch-zoom would go undetected for as long as the car is
-// moving. While following, the heading window reopens with every fix (the
-// map turns to each smoothed bearing), which hides no gesture: user
-// rotation is off (headingInteractionEnabled is false on a vector map, and a
-// raster map never rotates). Zoom and tilt open only on frames that change
-// them, so a user zoom stays detectable throughout. The blind spot that
-// remains is a pinch during the second or two a zoom step itself glides —
-// head units have no multitouch, so it is accepted.
+// moving. While following, the heading window reopens with every frame of a
+// turn (the map turns to each smoothed bearing), so a user rotation would go
+// undetected; the page therefore switches rotation gestures off
+// (headingInteractionEnabled: false at construction, in every mode — see the
+// map options). Zoom and tilt open only on frames that change them, so a
+// user zoom stays detectable throughout. The blind spot that remains is a
+// pinch during the second or two a zoom step itself glides — head units have
+// no multitouch, so it is accepted.
 //
 // The window outlasts a late frame by a wide margin: should the API defer a
 // change event to its next render, a frame that stalls on a head unit (the
@@ -410,9 +411,16 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // rather than rejecting them (heading applies to aerial imagery and snaps to
     // available angles; tilt takes only 0 or 45 as an imagery-switching policy),
     // and passing them stops moveCamera from positioning — so they are omitted
-    // entirely. headingInteractionEnabled stays false because heading is driven
-    // solely by the host (north-up vs heading-up), never by user rotation
-    // gestures.
+    // entirely.
+    //
+    // headingInteractionEnabled: false is passed in every mode, because the
+    // heading is driven solely by the host (north-up vs heading-up), never by
+    // user rotation gestures. The API applies it to a vector map only, and
+    // when it is not set in code the Map ID's cloud configuration decides —
+    // so an AUTO map that resolves to vector could otherwise let a two-finger
+    // twist rotate it. While following, the heading's gesture window reopens
+    // with every frame of a turn (see GESTURE_SUPPRESS_MS), so such a twist
+    // would not detach the follow: the glide would fight the user's fingers.
     //
     // isFractionalZoomEnabled defaults to false on a raster map, which would
     // round the glide's in-between zoom values and turn a zoom step into a
@@ -424,7 +432,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // else — it switches off the automatic 45° aerial imagery that the
     // satellite and hybrid map types otherwise flip on wherever it exists at
     // the zoom (the default) — which keeps the raster map the flat,
-    // north-up surface the chevron and the off-centre target assume, and
+    // north-up surface the chevron placement and the centre math assume, and
     // keeps tilt_changed from ever firing there (the gesture detacher below
     // would read a flip as a user gesture).
     const liveMap = new mapsLib.Map(mapEl as HTMLElement, {
@@ -439,7 +447,8 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         colorScheme,
         ...(mapId !== "" ? { mapId } : {}),
         ...(rendering === "AUTO" ? {} : { renderingType: rendering }),
-        ...(state.isVector ? { heading: 0, headingInteractionEnabled: false } : {}),
+        ...(state.isVector ? { heading: 0 } : {}),
+        headingInteractionEnabled: false,
     });
     state.map = liveMap;
     // Traffic layer is created once and toggled on/off via setMap (memoized).
@@ -506,9 +515,14 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // since the user last took the camera, from what the map shows now). The
     // map shows a camera centre; its pose is the location under the
     // chevron's last spot (anchorAt), so a re-follow after a pan eases that
-    // location to the fix, as MapLibre's padded easeTo does.
+    // location to the fix, as MapLibre's padded easeTo does. The location is
+    // read at the zoom, heading and offset the glide starts from — the owned
+    // ones where it has them — because moveCam derives the first frame's
+    // centre from exactly those: read at a clamped zoom (Google caps it at
+    // the map type's ceiling) while the glide starts from the zoom it asked
+    // for, the first frame would jump.
     const glide = createCameraGlide({
-        current: () => {
+        current: (owned) => {
             const zoom = liveMap.getZoom() ?? 0;
             const heading = liveMap.getHeading() ?? 0;
             const offsetX = state.offset.x;
@@ -517,7 +531,12 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             const anchor = center
                 ? anchorAt(
                       { lat: center.lat(), lng: center.lng() },
-                      { zoom, heading: state.isVector ? heading : 0, offsetX, offsetY },
+                      {
+                          zoom: owned.zoom ?? zoom,
+                          heading: state.isVector ? (owned.heading ?? heading) : 0,
+                          offsetX: owned.offsetX ?? offsetX,
+                          offsetY: owned.offsetY ?? offsetY,
+                      },
                   )
                 : { lat: 0, lng: 0 };
             return { ...anchor, zoom, heading, tilt: liveMap.getTilt() ?? 0, offsetX, offsetY };
@@ -537,7 +556,10 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // spotMotion: a chevron that moves on screen — a layout reflow, the map
     // tilting to or from 0°, the rendering-mode resolve — glides with the
     // reflow motion, its CSS transition in lockstep with the camera; on a fix
-    // the chevron stays put and the camera eases the ground underneath it.
+    // the chevron stays put and the camera eases the ground underneath it. A
+    // fix that arrives during such a glide finishes the chevron's remaining
+    // move at once while the camera catches up over the fix's segment — the
+    // reflow behaviour both backends share.
     function placeFollowCamera(
         fix: NonNullable<typeof state.lastFix>,
         mapBearing: number,
@@ -706,8 +728,9 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // Upgrade: AUTO starts raster because the Map ID's cloud configuration
         // is unreadable from here, so a Map ID configured for vector arrives as
         // an upgrade. Nothing needs re-constructing — heading/tilt ride every
-        // updateCamera push, and headingInteractionEnabled already defaults to
-        // false on a vector map, which is what the launcher wants anyway.
+        // updateCamera push, and headingInteractionEnabled was passed false at
+        // construction in every mode, so the upgraded map ignores rotation
+        // gestures even when the Map ID's cloud configuration enables them.
         //
         // easeHome re-issues a camera move + chevron sync for the resolved
         // mode — as a snap: on the downgrade the raster map has ignored every
@@ -838,11 +861,12 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // Raster maps are north-up only and cannot rotate, so this is a no-op
         // for the map there; the chevron always shows the bearing regardless.
         if (!state.isVector) return;
-        // Vector map: re-orient while following (the off-centre target turns
-        // with the map, so the whole placement is redone); a detached camera
-        // keeps the user's rotation until re-attach. The chevron flips with
-        // the camera — waiting for the next fix would leave it pointing wrong
-        // for up to one GPS interval.
+        // Vector map: re-orient while following (the camera centre is derived
+        // from the chevron's spot at each frame's heading, so the whole
+        // placement is redone and the map turns about the chevron); a
+        // detached camera keeps the user's rotation until re-attach. The
+        // chevron flips with the camera — waiting for the next fix would leave
+        // it pointing wrong for up to one GPS interval.
         if (state.following) {
             easeHome(ORIENTATION_FLIP_MOTION);
         }
