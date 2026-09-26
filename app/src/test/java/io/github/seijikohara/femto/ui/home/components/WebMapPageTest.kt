@@ -4,6 +4,7 @@ import io.github.seijikohara.femto.data.display.MapBackend
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class WebMapPageTest {
@@ -88,14 +89,68 @@ class WebMapPageTest {
         assertEquals("", tileHostForAttempt(emptyList(), 0))
     }
 
-    @Test fun `live reload retry backoff doubles then caps`() {
+    @Test fun `live reload retry backoff doubles then caps at a minute`() {
         assertEquals(5_000L, liveReloadRetryDelayMs(0))
         assertEquals(10_000L, liveReloadRetryDelayMs(1))
         assertEquals(20_000L, liveReloadRetryDelayMs(2))
-        assertEquals(160_000L, liveReloadRetryDelayMs(5))
-        // Past the budget-sized shift the delay stays at the cap (and stays a
-        // well-defined Long shift for any attempt value).
-        assertEquals(160_000L, liveReloadRetryDelayMs(9))
-        assertEquals(160_000L, liveReloadRetryDelayMs(MAX_LIVE_RELOAD_RETRIES))
+        assertEquals(40_000L, liveReloadRetryDelayMs(3))
+        assertEquals(60_000L, liveReloadRetryDelayMs(4))
+        // Past the cap the delay stays there, and the shift stays a
+        // well-defined Long shift for any attempt value.
+        assertEquals(60_000L, liveReloadRetryDelayMs(9))
+        assertEquals(60_000L, liveReloadRetryDelayMs(Int.MAX_VALUE))
+    }
+
+    @Test fun `a network failure keeps retrying at the capped delay after the bounded budget`() {
+        // What a page opened without data reports: the OSM page once no tile
+        // has arrived, a hosted style that never loaded, the Google Maps
+        // script that never arrived.
+        NetworkFailureDetails.forEach { detail ->
+            assertEquals(
+                60_000L,
+                liveReloadRetryDelayMsOrNull(detail, MAX_LIVE_RELOAD_RETRIES + 3, online = true),
+                detail,
+            )
+        }
+    }
+
+    @Test fun `a network failure retries without a validated network`() {
+        // Data can come back with no offline->online edge (a hotspot whose
+        // network stayed VALIDATED while its upstream was gone), so the retry
+        // must not wait for the validated signal.
+        NetworkFailureDetails.forEach { detail ->
+            assertEquals(5_000L, liveReloadRetryDelayMsOrNull(detail, 0, online = false), detail)
+            assertEquals(60_000L, liveReloadRetryDelayMsOrNull(detail, 20, online = false), detail)
+        }
+    }
+
+    @Test fun `credential and WebGL failures keep the bounded budget while online`() {
+        // A rejected BYO key must not hammer the provider.
+        listOf("google-maps-auth", "no-webgl-context", "map-init-exception: boom").forEach { detail ->
+            assertEquals(liveReloadRetryDelayMs(0), liveReloadRetryDelayMsOrNull(detail, 0, online = true), detail)
+            val lastAttempt = MAX_LIVE_RELOAD_RETRIES - 1
+            assertEquals(
+                liveReloadRetryDelayMs(lastAttempt),
+                liveReloadRetryDelayMsOrNull(detail, lastAttempt, online = true),
+                detail,
+            )
+            assertNull(liveReloadRetryDelayMsOrNull(detail, MAX_LIVE_RELOAD_RETRIES, online = true), detail)
+            assertNull(liveReloadRetryDelayMsOrNull(detail, 0, online = false), detail)
+        }
+    }
+
+    @Test fun `a failure is a network failure only by its leading kind`() {
+        NetworkFailureDetails.forEach { assertTrue(isNetworkFailure(it), it) }
+        // The text after the kind is free (an exception message, a URL).
+        assertFalse(isNetworkFailure("map-init-exception: style-load-failed: x"))
+        assertFalse(isNetworkFailure("google-maps-auth"))
+        assertFalse(isNetworkFailure(""))
     }
 }
+
+private val NetworkFailureDetails =
+    listOf(
+        "tile-host-unreachable: AJAXError: Failed to fetch (0): https://tiles.openfreemap.org/planet",
+        "style-load-failed: AJAXError: Failed to fetch (0): https://tiles.openfreemap.org/styles/positron",
+        "backend-load-failed: The Google Maps JavaScript API could not load.",
+    )

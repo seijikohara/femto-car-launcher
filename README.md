@@ -84,8 +84,9 @@ vehicle.
 - **Self-healing.** A map that fails to load — an unstable link, a
   provider outage, a missing key — shows a clear notice in the visible
   map area and recovers automatically: reloads retry with a capped
-  backoff while the network reports connectivity, and a reconnect after
-  an offline period reloads the map without user action.
+  backoff for as long as the map data stays out of reach, even while
+  the device still reports a connection, and a reconnect after an
+  offline period reloads the map at once.
 
 ## Driving data and trips
 

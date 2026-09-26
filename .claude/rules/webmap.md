@@ -50,11 +50,15 @@ rewriting. The Kotlin side owns the host list and its fallback order
 the getters are absent and the upstream defaults apply.
 
 An unreachable tile host does not fail the style load — the bundled
-styles come from `appassets` and only their sources fail — so the
-page escalates a run of source errors with nothing loading to a
-`fatal`, which is what makes the host rotate. That escalation is
-gated on `tileHostFallback()`: with a single host the old rule
-stands and post-load errors stay log-only, never UI.
+styles come from `appassets` and only their sources fail, and
+MapLibre never re-fetches a failed TileJSON — so the page escalates
+an error naming the tile host to a `fatal` when no tile has arrived
+within the grace period (`src/load-outcome.ts`), whatever the number
+of hosts. A page opened without data is the common case, not only a
+dead mirror. The `fatal` is what makes the host reload the page, on
+the next host when there is one; `liveReloadRetryDelayMsOrNull` in
+`WebMapView.kt` owns the retry policy. Errors after a tile has
+arrived stay log-only, never UI.
 
 Two caveats follow from the rewrite. The origin the styles are
 written against is a cross-language fact — `UPSTREAM_TILE_HOST`,

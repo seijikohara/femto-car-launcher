@@ -92,18 +92,19 @@ import kotlinx.coroutines.delay
  * tell a working map from one that failed silently), `error`
  * for transient resource failures (tile / style / DEM fetch — logged, never UI,
  * because the removed auto-downgrade misfired on exactly such ambiguous signals),
- * `fatal` for definitive never-going-to-render facts (no WebGL context, a missing
- * BYO credential, map construction threw), `follow` for camera-follow state flips,
+ * `fatal` for definitive never-going-to-render facts about the page (no WebGL
+ * context, a missing BYO credential, map construction threw, or the page's map
+ * data never arrived), `follow` for camera-follow state flips,
  * and `bearing` (throttled) for the compass overlay. A `fatal` swaps the
  * permanently-blank WebView for a static notice (centred in the exposed map
- * region, clear of the floating cards) pointing back at the Settings Map
- * section — same posture as renderer-death containment below: inform, never
- * switch the persisted backend. While the network stays validated-online, a
- * fatal is additionally retried with a capped exponential-backoff page reload
- * (see the retry effect) — a flaky link can fail a fetch without ever going
- * through the offline->online edge that normally reloads the page; the
- * non-self-healing notices (missing credential, renderer give-up) never
- * retry.
+ * region, clear of the floating cards) that names the cause, pointing back at
+ * the Settings Map section where a setting can fix it — same posture as
+ * renderer-death containment below: inform, never switch the persisted
+ * backend. A fatal is additionally retried with a capped exponential-backoff
+ * page reload ([liveReloadRetryDelayMsOrNull]); a failure whose map data never
+ * arrived retries until the page renders, whether or not the network reports
+ * itself validated, and the non-self-healing notices (missing credential,
+ * renderer give-up) never retry.
  *
  * Renderer-death containment is the one exception to "do nothing": without an
  * [android.webkit.WebViewClient.onRenderProcessGone] override the platform kills
@@ -204,15 +205,16 @@ internal fun WebMapView(
     val rendererDeathsMs = remember { mutableListOf<Long>() }
     val crashedViews = remember { mutableSetOf<WebView>() }
 
-    // Connectivity-recovery reload. The map's style, sprite, glyphs, and tiles are all
-    // fetched from the network with nothing bundled offline, so a page opened offline
-    // cannot render and cannot recover on its own: the OSM page stays blank-but-live
-    // (fetch failures are logged `error` events) while the credentialed Google Maps
-    // backend reports a `fatal`. Bumping this generation on the
-    // offline->online edge tears down and reloads the WebView — a key of the WebView,
-    // pageReady, AND liveInitFailed remembers below, exactly like rendererGeneration —
-    // so the resources re-fetch against the now-live network and a fatal gets a fresh
-    // online init.
+    // Connectivity-recovery reload. The map's data — the OSM tiles and their TileJSON,
+    // sprite, glyphs and hosted styles, or the Google Maps script — comes from the
+    // network, so a page opened without data cannot render and cannot recover on its
+    // own (a failed fetch is never repeated): both backends report a `fatal`, the OSM
+    // page once no tile has arrived within its grace. Bumping this generation tears
+    // down and reloads the WebView — a key of the WebView, pageReady, AND
+    // liveInitFailed remembers below, exactly like rendererGeneration — so the
+    // resources re-fetch and a fatal gets a fresh init. The retry effect below bumps
+    // it on its backoff; the offline->online edge here bumps it at once, as the fast
+    // path.
     //
     // The edge detector sits ABOVE the early-return notice branch on purpose: a `fatal`
     // takes that branch, so an effect placed below it would never compose while the
@@ -221,10 +223,11 @@ internal fun WebMapView(
     // recomposition — like bearingHolder above); a normal online start, an
     // online->offline drop, or the initial value never bumps.
     var reloadGeneration by remember { mutableIntStateOf(0) }
-    // Auto-retry budget for retryable failures (see the retry effect below the
-    // failure remembers). Deliberately NOT keyed on reloadGeneration — each
-    // retry bumps that — so the budget survives its own reloads; a
-    // backend/credential change or a connectivity edge refunds it.
+    // Auto-retry attempt count (see the retry effect below the failure
+    // remembers): it steps the backoff, and spends the bounded budget of the
+    // failures that have one. Deliberately NOT keyed on reloadGeneration — each
+    // retry bumps that — so the count survives its own reloads; a
+    // backend/credential change or a connectivity edge resets it.
     //
     // The count also selects the OSM tile host the rebuilt page reads
     // (`tileHost()` walks [tileHosts] by attempt), so every write here must be
@@ -247,8 +250,8 @@ internal fun WebMapView(
     LaunchedEffect(online) {
         if (online && !wasOnline[0]) {
             reloadGeneration++
-            // A connectivity edge is a new world: refund the retry budget so a
-            // failure that exhausted it offline gets fresh attempts online.
+            // A connectivity edge is a new world: restart the backoff short,
+            // and give a bounded failure that spent its budget fresh attempts.
             retryAttempts.intValue = 0
         }
         wasOnline[0] = online
@@ -281,8 +284,8 @@ internal fun WebMapView(
     // Keyed on backend AND the active backend's BYO credentials so a fatal from one
     // backend does not suppress the other's page, and re-entering a corrected
     // key / Map ID clears a prior failure. reloadGeneration is a key too, so a
-    // connectivity-recovery reload clears an offline-triggered fatal (Google Maps
-    // reports one when opened offline) and the rebuilt page gets a fresh online init.
+    // connectivity-recovery reload or a retry clears the fatal of a page opened
+    // without data (both backends report one) and the rebuilt page gets a fresh init.
     var liveInitFailed by
         remember(
             reloadGeneration,
@@ -319,23 +322,22 @@ internal fun WebMapView(
     val googleMapsBackend = mapConfig.backend == MapBackend.GOOGLEMAPS
     val googleMapsKeyMissing = googleMapsBackend && mapConfig.googleMapsApiKey.isBlank()
 
-    // Failure auto-retry: a fatal while the network is validated-online is
-    // often transient (a dropped style/chunk fetch on a flaky link), but the
-    // offline->online edge above never fires in that state, so the notice used
-    // to stick until a backend or credential change. Reload with a capped
-    // exponential backoff instead, bounded by [MAX_LIVE_RELOAD_RETRIES] so a
-    // genuinely broken credential cannot hammer the provider (BYO keys
-    // rate-limit — repeated reloads have tripped gm_authFailure before). The
+    // Failure auto-retry: reload a page that reported a fatal after a capped
+    // exponential backoff, by the policy in [liveReloadRetryDelayMsOrNull]. A
+    // network failure keeps retrying whatever `online` says, because the
+    // offline->online edge above never fires when data returns under a network
+    // that stayed validated; the edge only makes recovery faster. The
     // non-self-healing notices (missing credential, renderer give-up) never
-    // retry, and the effect idles while offline: reconnection reloads via the
-    // edge above, which also refunds the budget. Each retry also advances the
-    // OSM tile host the rebuilt page reads (tileHost() below walks the list by
-    // attempt), so an unreachable override falls back to the default host on
-    // the next attempt instead of being reloaded forever.
-    val retryEligible = liveInitFailed && online && !rendererGaveUp && !googleMapsKeyMissing
-    LaunchedEffect(retryEligible, retryAttempts.intValue) {
-        if (!retryEligible || retryAttempts.intValue >= MAX_LIVE_RELOAD_RETRIES) return@LaunchedEffect
-        delay(liveReloadRetryDelayMs(retryAttempts.intValue))
+    // retry. Each retry also advances the OSM tile host the rebuilt page reads
+    // (tileHost() below walks the list by attempt), so an unreachable override
+    // falls back to the default host on the next attempt instead of being
+    // reloaded forever.
+    val retryDelayMs =
+        lastFatalDetail
+            ?.takeIf { liveInitFailed && !rendererGaveUp && !googleMapsKeyMissing }
+            ?.let { liveReloadRetryDelayMsOrNull(it, retryAttempts.intValue, online) }
+    LaunchedEffect(retryDelayMs, retryAttempts.intValue) {
+        delay(retryDelayMs ?: return@LaunchedEffect)
         retryAttempts.intValue++
         reloadGeneration++
     }
@@ -343,6 +345,10 @@ internal fun WebMapView(
     // A custom style that never loaded is a Settings problem under Appearance,
     // not a provider problem; it gets its own notice.
     val customStyleFailed = effectiveCustomStyleUrl.isNotBlank() && liveInitFailed
+    // The page's map data never arrived (no data connection, or a dead tile
+    // host): the retry above recovers it by itself, so the notice says so
+    // instead of sending the driver to Settings.
+    val mapDataUnavailable = liveInitFailed && lastFatalDetail?.let(::isNetworkFailure) == true
     if (rendererGaveUp || liveInitFailed || googleMapsKeyMissing) {
         Box(modifier = modifier) {
             ExposedMapRegion(mapConfig = mapConfig) {
@@ -359,6 +365,8 @@ internal fun WebMapView(
 
                             customStyleFailed -> R.string.map_custom_style_failed
 
+                            mapDataUnavailable -> R.string.map_live_data_unavailable
+
                             else -> R.string.map_live_init_failed
                         },
                     hintRes =
@@ -367,6 +375,7 @@ internal fun WebMapView(
                             googleMapsKeyMissing -> R.string.map_googlemaps_no_key_hint
                             googleMapsBackend && liveInitFailed -> R.string.map_googlemaps_failed_hint
                             customStyleFailed -> R.string.map_custom_style_failed_hint
+                            mapDataUnavailable -> R.string.map_live_data_unavailable_hint
                             else -> R.string.map_live_init_failed_hint
                         },
                     // Why it failed is debugging detail, not driver-facing content.
@@ -497,16 +506,6 @@ internal fun WebMapView(
                         // to the next on the following reload (tileHostForAttempt).
                         @JavascriptInterface
                         fun tileHost(): String = tileHostForAttempt(tileHosts, retryAttempts.intValue)
-
-                        // Whether the host list has somewhere to rotate to. A dead
-                        // tile host does not fail the style load — the bundled
-                        // styles come from appassets and only their sources fail —
-                        // so the page reports a `fatal` (and thus a retry on the
-                        // next host) when no source loads, but only when this is
-                        // true. With a single host those errors stay transient, as
-                        // they were before the host became configurable.
-                        @JavascriptInterface
-                        fun tileHostFallback(): Boolean = tileHosts.size > 1
 
                         // The raster-DEM TileJSON the page injects while the Terrain
                         // switch is on; a build-time endpoint (MAP_TERRAIN_TILEJSON_URL).
@@ -939,16 +938,43 @@ private fun LiveMapNoticePreview() {
 
 private const val TAG = "WebMapView"
 
-// Auto-retry backoff for retryable live-page failures: 5 s, 10 s, 20 s, ...,
-// capped at the max delay, and stopped for good once the budget below is
-// spent (a broken BYO credential must not hammer the provider). The
-// offline->online edge and any backend/credential change refund the budget.
+// Auto-retry backoff for failed live pages: 5 s, 10 s, 20 s, 40 s, then the
+// cap for every later attempt. The cap bounds how long a driver waits for the
+// map once data is back but no offline->online edge reloads it at once.
 internal fun liveReloadRetryDelayMs(attempt: Int): Long =
     (LIVE_RELOAD_RETRY_BASE_MS shl attempt.coerceAtMost(LIVE_RELOAD_RETRY_MAX_SHIFT))
         .coerceAtMost(LIVE_RELOAD_RETRY_MAX_DELAY_MS)
 
+// The delay before reloading a page that reported [failureDetail] after
+// [attempt] earlier retries, or null to stop retrying. A network failure
+// retries for as long as it lasts, online or not: data can die and return
+// while the network stays VALIDATED (a hotspot that lost its upstream, a unit
+// with validation disabled), so no offline->online edge ever reloads the page,
+// and a reload costs nothing while no data flows. Every other failure keeps
+// the bounded budget and waits for a validated network: a rejected BYO key
+// must not hammer the provider (repeated reloads have tripped gm_authFailure
+// before).
+internal fun liveReloadRetryDelayMsOrNull(
+    failureDetail: String,
+    attempt: Int,
+    online: Boolean,
+): Long? =
+    liveReloadRetryDelayMs(attempt).takeIf {
+        isNetworkFailure(failureDetail) || (online && attempt < MAX_LIVE_RELOAD_RETRIES)
+    }
+
+// Whether a page `fatal` says the page's map data never arrived — its style,
+// its tile host, or its backend's script failed to load — rather than a
+// defect a reload cannot fix. Read from the detail's leading kind, which the
+// page sets (webmap/src: backends/osm.ts, load-outcome.ts, main.ts); the kinds
+// are a compatibility contract with it.
+internal fun isNetworkFailure(failureDetail: String): Boolean =
+    failureDetail.substringBefore(':').trim() in NetworkFailureKinds
+
+private val NetworkFailureKinds = setOf("tile-host-unreachable", "style-load-failed", "backend-load-failed")
+
 private const val LIVE_RELOAD_RETRY_BASE_MS = 5_000L
-private const val LIVE_RELOAD_RETRY_MAX_DELAY_MS = 160_000L
+private const val LIVE_RELOAD_RETRY_MAX_DELAY_MS = 60_000L
 
 // coerceAtMost on the shift keeps the Long shift well-defined for any attempt.
 private const val LIVE_RELOAD_RETRY_MAX_SHIFT = 5

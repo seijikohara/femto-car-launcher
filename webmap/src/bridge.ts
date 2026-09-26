@@ -55,7 +55,9 @@ declare global {
 }
 
 // JS -> Android event kinds. "fatal" = definitive never-going-to-render facts
-// (no WebGL context, a missing BYO credential, map construction threw);
+// about this page (no WebGL context, a missing BYO credential, map
+// construction threw, or its map data never arrived — a page cannot re-fetch
+// a style, TileJSON or script that failed, so only a reload can recover it);
 // "error" = transient resource failures (tile / style / DEM fetch), log-only
 // on the host; "follow" = camera-follow state flips; "bearing" = throttled
 // camera bearing for the compass overlay. `ready` marks the first frame the

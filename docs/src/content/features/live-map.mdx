@@ -51,6 +51,7 @@ and the light / dark theme, or use the provider's own styles unchanged.
 
 A map that fails to load — an unstable link, a provider outage, a missing
 key — shows a clear notice inside the visible map area instead of a blank
-panel, and recovers on its own: reloads retry with a capped backoff while
-the network reports connectivity, and a reconnect after an offline period
-reloads the map without any action from you.
+panel, and recovers on its own: reloads retry with a capped backoff for as
+long as the map data stays out of reach, even while the device still reports
+a connection, and a reconnect after an offline period reloads the map at once,
+without any action from you.

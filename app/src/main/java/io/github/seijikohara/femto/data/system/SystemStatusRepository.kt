@@ -115,11 +115,10 @@ internal class SystemStatusRepository(
      * on purpose (no `addTransportType`), unlike [wifiFlow] / [cellularFlow] which
      * report per-transport dock state.
      *
-     * Exists for the live map: the map WebView fetches its style, sprite, glyphs, and
-     * tiles from the network with nothing bundled offline, so a page opened offline
-     * cannot render — it stays blank, or a credentialed backend reports a fatal init
-     * failure — and cannot recover on its own. The host reloads the page on the
-     * offline->online edge this flow reports.
+     * Exists for the live map: the map WebView fetches its map data from the network,
+     * so a page opened offline cannot render and cannot recover on its own. The host
+     * reloads the page at once on the offline->online edge this flow reports; its
+     * retry backoff (see WebMapView) covers data that returns with no such edge.
      *
      * The request requires VALIDATED (real internet, not mere link-up), so
      * `onAvailable` / `onLost` bracket exactly the validated lifetime and the tracked

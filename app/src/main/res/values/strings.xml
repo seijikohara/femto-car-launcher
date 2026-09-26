@@ -9,6 +9,8 @@
     <string name="map_live_renderer_gone_hint">The map renderer keeps crashing on this device. Switch the map provider to OpenStreetMap in Settings.</string>
     <string name="map_live_init_failed">Live map can\'t start</string>
     <string name="map_live_init_failed_hint">This device can\'t render the live map. Switch the map provider to OpenStreetMap in Settings.</string>
+    <string name="map_live_data_unavailable">Map data can\'t load</string>
+    <string name="map_live_data_unavailable_hint">The map reloads by itself once the data connection is back.</string>
     <string name="map_googlemaps_no_key">Google Maps needs an API key</string>
     <string name="map_googlemaps_no_key_hint">Enter your Google Maps API key in Settings → Map to show the map.</string>
     <string name="map_googlemaps_failed">Google Maps can\'t load</string>
