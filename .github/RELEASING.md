@@ -9,8 +9,8 @@ publishes.
 
 | Channel | Publishes on | What ships | Application id |
 | --- | --- | --- | --- |
-| `nightly` | every push to `develop` | a rolling `nightly` prerelease (replaces the previous one), asset `femto-car-launcher-nightly.apk` | `io.github.seijikohara.femto.nightly` |
-| `stable` | every push to `main` | a new dated GitHub release, asset `femto-car-launcher-v<version>.apk` | `io.github.seijikohara.femto` |
+| `nightly` | every push to `develop` that changes the APK | a rolling `nightly` prerelease (replaces the previous one), asset `femto-car-launcher-nightly.apk` | `io.github.seijikohara.femto.nightly` |
+| `stable` | every push to `main` that changes the APK | a new dated GitHub release, asset `femto-car-launcher-v<version>.apk` | `io.github.seijikohara.femto` |
 
 Both are release-signed APKs, not an Android App Bundle: sideloading
 onto AI boxes and head units off the GitHub release is the only
@@ -24,7 +24,9 @@ application ids mean both channels install at once — see
 Merge `develop` into `main` when the build is ready — that push is the
 entire procedure. The `release` job computes the version, builds
 `assembleStableRelease`, tags the commit, and publishes the GitHub
-release; nobody pushes a version tag by hand. Merge one at a time: if a
+release; nobody pushes a version tag by hand. When the APK is unchanged
+since the latest release, the job does none of that (see
+[Unchanged APKs](#unchanged-apks)). Merge one at a time: if a
 second merge lands before the first release is out, the newer commit is
 released and the older run stands down, since it would otherwise publish
 a stale build as the latest release.
@@ -33,6 +35,38 @@ for both channels from the date — see
 [`AGENTS.md`, Git conventions](../AGENTS.md#git-conventions) for the
 scheme — and the nightly channel keeps one rolling `nightly` tag
 instead of a tag per build.
+
+## Unchanged APKs
+
+A push publishes only an APK that differs from the channel's previous
+release: the current `nightly` prerelease, or the latest stable
+release. Before publishing, the job rebuilds the pushed commit with the
+previous release's `versionCode` and `versionName` and compares that
+APK with the published one
+([`actions/apk-unchanged`](actions/apk-unchanged/apk-unchanged.sh)).
+The two count as unchanged when they hold the same zip entries with the
+same bytes, ignoring only `META-INF/version-control-info.textproto`
+(where the build records its commit) and JAR signature files.
+
+An unchanged push publishes nothing: the `nightly` prerelease stays as
+it is, and the `release` job computes no version, creates no tag, and
+publishes no release. A push that changes only docs, CI, or tests
+therefore ships no new build, while almost any edit to the app's
+sources does: the release dex keeps line numbers, so even a comment
+that moves lines changes the APK. The commits a skipped push carries
+still reach the release notes of the next build that ships, which list
+everything since the previous release.
+
+The check errs toward publishing. No previous release, no APK asset, a
+failed download or build, or any other failure of the check makes the
+job publish as before, with a warning in the run log. A `release` run
+of a commit that already carries a `v*` tag skips the check: an
+earlier run of that commit decided to publish, tagged it, and failed,
+so this run finishes that release instead of stranding the tag.
+
+The comparison is a full build of the pushed commit. On an unchanged
+push it is the job's only build; on a changed push the signed build
+that follows it is incremental.
 
 ## Signing secrets
 
