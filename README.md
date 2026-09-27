@@ -207,10 +207,10 @@ both built from this repository by continuous integration:
 - **Nightly** — the newest test build, which changes often and may
   break, published as a rolling
   [`nightly`](https://github.com/seijikohara/femto-car-launcher/releases/tag/nightly)
-  prerelease that replaces itself on every push. Download
-  `femto-car-launcher-nightly.apk`. Its launcher icon carries an "N"
-  badge and its app name reads "Femto Nightly", so it never gets
-  mixed up with stable.
+  prerelease that replaces itself on every push that changes the APK.
+  Download `femto-car-launcher-nightly.apk`. Its launcher icon carries
+  an "N" badge and its app name reads "Femto Nightly", so it never
+  gets mixed up with stable.
 
 The two channels use different application ids and install side by
 side, so trying a nightly build never means uninstalling stable, and
