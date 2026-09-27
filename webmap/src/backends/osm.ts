@@ -323,11 +323,16 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
             pageAttribution,
         ) => {
             if (!url) return;
-            // A swap to another style is a fresh load for the outcome-gated
-            // fatal: MapLibre never retries a style that failed to fetch, and
-            // without this the old style would stay on screen with the failure
-            // logged as transient — no notice, nothing pointing at the URL.
-            if (url !== state.currentStyleUrl) styleWatchdog.onStyleSwap();
+            // A swap to another style is a fresh load for both outcome-gated
+            // fatals: MapLibre never retries a style or a TileJSON that failed
+            // to fetch, and without this the old style would stay on screen
+            // with the failure logged as transient — no notice, nothing
+            // pointing at the URL — or the new style's source would sit blank
+            // behind the tiles the old style had drawn.
+            if (url !== state.currentStyleUrl) {
+                styleWatchdog.onStyleSwap();
+                noTileWatchdog.onStyleSwap();
+            }
             state.currentStyleUrl = url;
             setPageAttribution(!!pageAttribution);
             state.accentColors = bg

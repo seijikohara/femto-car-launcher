@@ -152,6 +152,34 @@ describe("createNoTileWatchdog", () => {
         expect(h.events).toEqual([`fatal=tile-host-unreachable: ${TILEJSON_FAILURE}`]);
     });
 
+    it("judges a swapped-in style afresh although the replaced style drew tiles", () => {
+        // A light/dark flip between a hosted and a bundled style re-creates the
+        // vector source, so the new style fetches the TileJSON again; if that
+        // fails, only this watchdog can see the blank map. A DEM tile of the
+        // new style still proves nothing.
+        const h = noTileHarness();
+        h.watchdog.onTile(VECTOR_SOURCE_ID);
+        h.watchdog.onStyleSwap();
+        h.watchdog.onError(TILEJSON_FAILURE, 0);
+        h.watchdog.onTile(TERRAIN_SOURCE_ID);
+        h.advance(GRACE_MS);
+        expect(h.events).toEqual([`fatal=tile-host-unreachable: ${TILEJSON_FAILURE}`]);
+    });
+
+    it("retires a timer armed for the replaced style", () => {
+        const second = `AJAXError: Failed to fetch (0): ${TILE_HOST}/planet?style=2`;
+        const h = noTileHarness();
+        h.watchdog.onError(TILEJSON_FAILURE, 0);
+        h.advance(GRACE_MS / 2);
+        h.watchdog.onStyleSwap();
+        // The replaced style's timer comes due here: that style is gone.
+        h.advance(GRACE_MS / 2);
+        expect(h.events).toEqual([]);
+        h.watchdog.onError(second, 0);
+        h.advance(GRACE_MS);
+        expect(h.events).toEqual([`fatal=tile-host-unreachable: ${second}`]);
+    });
+
     it("never arms once a tile has arrived", () => {
         // A flaky tile on a map that has drawn is no outage.
         const h = noTileHarness();

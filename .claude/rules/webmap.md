@@ -57,8 +57,10 @@ within the grace period (`src/load-outcome.ts`), whatever the number
 of hosts. A page opened without data is the common case, not only a
 dead mirror. The `fatal` is what makes the host reload the page, on
 the next host when there is one; `liveReloadRetryDelayMsOrNull` in
-`WebMapView.kt` owns the retry policy. Errors after a tile has
-arrived stay log-only, never UI.
+`WebMapView.kt` owns the retry policy. Errors after a tile of the
+current style has arrived stay log-only, never UI; a style swap
+starts the judgement afresh, because it can re-create the vector
+source and fetch its TileJSON again.
 
 The fatal's kind tells the host whether a reload can help. The page
 classifies every load failure in `src/load-outcome.ts`:

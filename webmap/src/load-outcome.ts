@@ -50,8 +50,14 @@ export interface NoTileWatchdog {
     // tile host arms the timer.
     onError(detail: string, status: number | null): void;
     // A tile of [sourceId] arrived: unless that source is served from
-    // elsewhere, the tile host answers, for the rest of the page's life.
+    // elsewhere, the tile host answers, until the next style swap.
     onTile(sourceId: string): void;
+    // setStyleUrl switched to another style: judge it like a fresh page. A
+    // swap can re-create the vector source (a hosted and a bundled style
+    // declare it differently), which fetches its TileJSON again, so tiles of
+    // the replaced style prove nothing, and a timer armed for that style has
+    // nothing left to judge.
+    onStyleSwap(): void;
 }
 
 // An unreachable tile host does NOT fail the style load: the bundled styles
@@ -64,8 +70,8 @@ export interface NoTileWatchdog {
 // or tile-host-rejected when the host refused every request. The fatal is
 // what makes the host reload the page (on the next tile host, when there is
 // one), with one host as with several. A tile arriving at any point from a
-// source the tile host serves stands the watchdog down, so a flaky tile on a
-// map that has drawn never reaches the UI.
+// source the tile host serves stands the watchdog down until the next style
+// swap, so a flaky tile on a map that has drawn never reaches the UI.
 export function createNoTileWatchdog(deps: {
     // The origin serving the page's tiles. An error naming another origin (a
     // terrain DEM, a hosted style) never arms: it must not rotate the tile host.
@@ -82,7 +88,12 @@ export function createNoTileWatchdog(deps: {
     const schedule = scheduleOrDefault(deps.schedule);
     // Mutable state in a const holder (let/var are banned — see the lint block
     // in vite.config.ts and no-let.js).
-    const state = { tileArrived: false, evidence: null as GateEvidence | null };
+    const state = {
+        tileArrived: false,
+        // Bumped by every style swap, retiring the timers armed before it.
+        generation: 0,
+        evidence: null as GateEvidence | null,
+    };
     return {
         onError(detail: string, status: number | null): void {
             if (state.tileArrived || !detail.includes(deps.tileHost)) return;
@@ -92,7 +103,9 @@ export function createNoTileWatchdog(deps: {
             }
             const evidence: GateEvidence = { detail, network: isNetworkStatus(status) };
             state.evidence = evidence;
+            const generation = state.generation;
             schedule(() => {
+                if (generation !== state.generation) return;
                 if (state.tileArrived || !deps.styleLoaded()) return;
                 const kind = evidence.network ? "tile-host-unreachable" : "tile-host-rejected";
                 deps.reporter.log(`no tile arrived (${kind}): ${evidence.detail}`);
@@ -102,6 +115,11 @@ export function createNoTileWatchdog(deps: {
         onTile(sourceId: string): void {
             if (deps.ignoredSourceIds.includes(sourceId)) return;
             state.tileArrived = true;
+        },
+        onStyleSwap(): void {
+            state.tileArrived = false;
+            state.generation += 1;
+            state.evidence = null;
         },
     };
 }
