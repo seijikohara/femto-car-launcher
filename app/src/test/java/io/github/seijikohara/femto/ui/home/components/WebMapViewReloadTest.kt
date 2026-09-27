@@ -54,6 +54,19 @@ class WebMapViewReloadTest {
         assertNotSame(first, page())
     }
 
+    @Test fun `a network failure keeps reloading past the bounded budget while offline`() {
+        // Offline throughout: the bounded budget and its `online` gate would
+        // have stopped this ladder after six tries, or never started it.
+        showMap(onlineAtStart = false)
+        repeat(MAX_LIVE_RELOAD_RETRIES + 2) { attempt ->
+            reportFatal(NetworkFailure)
+            advanceBy(liveReloadRetryDelayMs(attempt) - MARGIN_MS)
+            assertEquals(0, pages().size, "attempt $attempt waits out its delay")
+            advanceBy(2 * MARGIN_MS)
+            assertEquals(1, pages().size, "attempt $attempt reloads")
+        }
+    }
+
     @Test fun `a hidden launcher holds the retry and reloads at once on its return`() {
         showMap()
         reportFatal(NetworkFailure)
@@ -61,7 +74,9 @@ class WebMapViewReloadTest {
         advanceBy(TEN_MINUTES_MS)
         assertEquals(0, pages().size, "no reload while hidden")
         setLifecycle(Lifecycle.State.RESUMED)
-        assertEquals(1, pages().size, "one reload at once on the return")
+        val returned = page()
+        advanceBy(liveReloadRetryDelayMs(0) - MARGIN_MS)
+        assertSame(returned, page(), "exactly one reload on the return")
     }
 
     @Test fun `the return reload counts as a retry and the backoff resumes`() {
@@ -85,7 +100,9 @@ class WebMapViewReloadTest {
         advanceBy(TEN_MINUTES_MS)
         assertEquals(0, pages().size)
         setLifecycle(Lifecycle.State.RESUMED)
-        assertEquals(1, pages().size)
+        val returned = page()
+        advanceBy(liveReloadRetryDelayMs(0) - MARGIN_MS)
+        assertSame(returned, page(), "exactly one reload on the return")
     }
 
     @Test fun `a reconnect while visible reloads at once`() {

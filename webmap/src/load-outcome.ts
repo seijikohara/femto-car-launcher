@@ -49,8 +49,9 @@ export interface NoTileWatchdog {
     // Feed every map error with its HTTP status; the first one naming the
     // tile host arms the timer.
     onError(detail: string, status: number | null): void;
-    // A tile arrived: the tile host answers, for the rest of the page's life.
-    onTile(): void;
+    // A tile of [sourceId] arrived: unless that source is served from
+    // elsewhere, the tile host answers, for the rest of the page's life.
+    onTile(sourceId: string): void;
 }
 
 // An unreachable tile host does NOT fail the style load: the bundled styles
@@ -62,13 +63,16 @@ export interface NoTileWatchdog {
 // `fatal` only if NO tile has arrived when it fires: tile-host-unreachable,
 // or tile-host-rejected when the host refused every request. The fatal is
 // what makes the host reload the page (on the next tile host, when there is
-// one), with one host as with several. A tile arriving at any point stands
-// the watchdog down, so a flaky tile on a map that has drawn never reaches
-// the UI.
+// one), with one host as with several. A tile arriving at any point from a
+// source the tile host serves stands the watchdog down, so a flaky tile on a
+// map that has drawn never reaches the UI.
 export function createNoTileWatchdog(deps: {
     // The origin serving the page's tiles. An error naming another origin (a
     // terrain DEM, a hosted style) never arms: it must not rotate the tile host.
     tileHost: string;
+    // Sources served from another origin (the terrain DEM): their tiles say
+    // nothing about the tile host, so they never stand the watchdog down.
+    ignoredSourceIds: readonly string[];
     graceMs: number;
     // A style that never loaded is the style-load watchdog's to report.
     styleLoaded: () => boolean;
@@ -95,7 +99,8 @@ export function createNoTileWatchdog(deps: {
                 deps.reporter.report("fatal", `${kind}: ${evidence.detail}`.slice(0, 200));
             }, deps.graceMs);
         },
-        onTile(): void {
+        onTile(sourceId: string): void {
+            if (deps.ignoredSourceIds.includes(sourceId)) return;
             state.tileArrived = true;
         },
     };

@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.testfixtures.BoundedFailureDetails
 import io.github.seijikohara.femto.testfixtures.NetworkFailureDetails
@@ -203,6 +204,58 @@ class WebMapPageTest {
         retryDelayMs = retryDelayMs,
         heldWhileHidden = heldWhileHidden,
         pageFromReturnReload = pageFromReturnReload,
+    )
+
+    @Test fun `an OSM tile host or hosted style that refused the map gets its own notice`() {
+        // Not the provider-switch advice: the page is already on OpenStreetMap.
+        listOf(
+            "tile-host-rejected: AJAXError: Forbidden (403): https://tiles.example.test/planet",
+            "style-load-rejected: AJAXError: Not Found (404): https://tiles.openfreemap.org/styles/positron",
+        ).forEach { detail ->
+            assertEquals(
+                LiveMapNoticeText(R.string.map_live_data_refused, R.string.map_live_data_refused_hint),
+                osmNotice(fatalDetail = detail),
+                detail,
+            )
+        }
+    }
+
+    @Test fun `unreachable OSM data gets the notice that it reloads by itself`() {
+        assertEquals(
+            LiveMapNoticeText(R.string.map_live_data_unavailable, R.string.map_live_data_unavailable_hint),
+            osmNotice(fatalDetail = NetworkFailureDetails.first()),
+        )
+    }
+
+    @Test fun `a custom style keeps its own notice, refused or not`() {
+        listOf(
+            "style-load-rejected: AJAXError: Not Found (404): https://styles.example.test/basic/style.json",
+            "style-load-failed: AJAXError: Failed to fetch (0): https://styles.example.test/basic/style.json",
+        ).forEach { detail ->
+            assertEquals(
+                LiveMapNoticeText(R.string.map_custom_style_failed, R.string.map_custom_style_failed_hint),
+                osmNotice(fatalDetail = detail, customStyleActive = true),
+                detail,
+            )
+        }
+    }
+
+    @Test fun `other OSM failures keep the generic notice`() {
+        assertEquals(
+            LiveMapNoticeText(R.string.map_live_init_failed, R.string.map_live_init_failed_hint),
+            osmNotice(fatalDetail = "no-webgl-context"),
+        )
+    }
+
+    private fun osmNotice(
+        fatalDetail: String,
+        customStyleActive: Boolean = false,
+    ) = liveMapNoticeText(
+        rendererGaveUp = false,
+        googleMapsKeyMissing = false,
+        googleMapsBackend = false,
+        customStyleActive = customStyleActive,
+        fatalDetail = fatalDetail,
     )
 
     @Test fun `a failure is a network failure only by its leading kind`() {

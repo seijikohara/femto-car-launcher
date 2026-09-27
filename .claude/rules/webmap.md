@@ -60,15 +60,19 @@ the next host when there is one; `liveReloadRetryDelayMsOrNull` in
 `WebMapView.kt` owns the retry policy. Errors after a tile has
 arrived stay log-only, never UI.
 
-The fatal's kind tells the host whether a reload can help, so every
-load failure is classified in `src/load-outcome.ts` and nowhere
-else: `isNetworkStatus` decides from MapLibre's `AJAXError` status
-whether a request never reached its data or was refused, and
+The fatal's kind tells the host whether a reload can help. The page
+classifies every load failure in `src/load-outcome.ts`:
+`isNetworkStatus` decides from MapLibre's `AJAXError` status whether
+a request never reached its data or was refused, and
 `initFailureDetail` keeps `backend-load-failed` for a map script
-that could not be fetched. Only the network kinds retry without
-limit; a refused request, or an exception once the map library has
-loaded, is a configuration failure the host retries within its
-budget.
+that could not be fetched. Status 0 covers every failure the WebView
+cannot read, DNS failures and CORS-blocked answers included, so a
+mistyped host name retries like an outage. The host mirrors the
+kinds in `NetworkFailureKinds` and `RefusedFailureKinds`
+(`WebMapView.kt`), and `FailureKindContractTest` guards the pair.
+Only the network kinds retry without limit; a refused request, or an
+exception once the map library has loaded, is a configuration
+failure the host retries within its budget.
 
 Two caveats follow from the rewrite. The origin the styles are
 written against is a cross-language fact — `UPSTREAM_TILE_HOST`,

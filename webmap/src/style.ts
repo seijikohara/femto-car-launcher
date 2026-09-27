@@ -44,6 +44,11 @@ export const BUILDING_EXTRUSION_OPACITY = 0.5;
 // default.
 export const DEFAULT_TERRAIN_TILEJSON_URL = "https://tiles.mapterhorn.com/tilejson.json";
 
+// The id of the raster-DEM source injectFeatures adds while terrain is on.
+// Its tiles come from the DEM host, not the tile host, so the no-tile
+// watchdog (load-outcome.ts) must not count them.
+export const TERRAIN_SOURCE_ID = "terrainSource";
+
 // The origin the bundled styles and the hosted style URLs are written against.
 // The launcher may serve the same layout from another host (a self-hosted
 // mirror, or the fallback rotation after a failed load); rewriteHost re-points
@@ -170,8 +175,8 @@ export function injectFeatures(
     nextStyle.layers = nextStyle.layers.filter((l) => l.id !== "femto-3d-buildings");
     // Only strip terrain if WE injected it (terrainSource present), so a base
     // style that ever ships its own terrain is left intact.
-    if (nextStyle.sources.terrainSource) {
-        delete nextStyle.sources.terrainSource;
+    if (nextStyle.sources[TERRAIN_SOURCE_ID]) {
+        delete nextStyle.sources[TERRAIN_SOURCE_ID];
         delete nextStyle.terrain;
     }
     // ACCENT scheme: recolour background / water / land / building fills, the
@@ -248,11 +253,11 @@ export function injectFeatures(
         else nextStyle.layers.push(buildings);
     }
     if (features.terrain) {
-        nextStyle.sources.terrainSource = {
+        nextStyle.sources[TERRAIN_SOURCE_ID] = {
             type: "raster-dem",
             url: features.terrainUrl || DEFAULT_TERRAIN_TILEJSON_URL,
         };
-        nextStyle.terrain = { source: "terrainSource", exaggeration: 1.0 };
+        nextStyle.terrain = { source: TERRAIN_SOURCE_ID, exaggeration: 1.0 };
     }
     return nextStyle;
 }

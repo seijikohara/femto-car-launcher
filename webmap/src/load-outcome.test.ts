@@ -6,8 +6,11 @@ import {
     isNetworkStatus,
     ScriptLoadError,
 } from "./load-outcome";
+import { TERRAIN_SOURCE_ID } from "./style";
 
 const TILE_HOST = "https://tiles.openfreemap.org";
+// The bundled styles' vector source, served by the tile host.
+const VECTOR_SOURCE_ID = "openmaptiles";
 const GRACE_MS = 10_000;
 // The first error a page opened without data logs: the vector source's
 // TileJSON fetch, which MapLibre never repeats. Status 0: no response.
@@ -44,13 +47,15 @@ function fakeReporter() {
     return { events, reporter };
 }
 
-// A no-tile watchdog for the default configuration (one tile host, a style
-// that has loaded unless the test says otherwise).
+// A no-tile watchdog wired the way osm.ts wires it (one tile host, the
+// terrain DEM ignored), with a style that has loaded unless the test says
+// otherwise.
 function noTileHarness(options: { styleLoaded?: boolean } = {}) {
     const { schedule, advance } = fakeTimers();
     const { events, reporter } = fakeReporter();
     const watchdog = createNoTileWatchdog({
         tileHost: TILE_HOST,
+        ignoredSourceIds: [TERRAIN_SOURCE_ID],
         graceMs: GRACE_MS,
         styleLoaded: () => options.styleLoaded ?? true,
         reporter,
@@ -132,15 +137,25 @@ describe("createNoTileWatchdog", () => {
         const h = noTileHarness();
         h.watchdog.onError(TILEJSON_FAILURE, 0);
         h.advance(GRACE_MS / 2);
-        h.watchdog.onTile();
+        h.watchdog.onTile(VECTOR_SOURCE_ID);
         h.advance(GRACE_MS);
         expect(h.events).toEqual([]);
+    });
+
+    it("does not count a terrain DEM tile as the tile host answering", () => {
+        // Terrain on, the tile host dead, the DEM host answering: shading
+        // with no roads is still a dead map.
+        const h = noTileHarness();
+        h.watchdog.onError(TILEJSON_FAILURE, 0);
+        h.watchdog.onTile(TERRAIN_SOURCE_ID);
+        h.advance(GRACE_MS);
+        expect(h.events).toEqual([`fatal=tile-host-unreachable: ${TILEJSON_FAILURE}`]);
     });
 
     it("never arms once a tile has arrived", () => {
         // A flaky tile on a map that has drawn is no outage.
         const h = noTileHarness();
-        h.watchdog.onTile();
+        h.watchdog.onTile(VECTOR_SOURCE_ID);
         h.watchdog.onError(`AJAXError: Failed to fetch (0): ${TILE_HOST}/planet/1/0/0.pbf`, 0);
         h.advance(GRACE_MS);
         expect(h.events).toEqual([]);

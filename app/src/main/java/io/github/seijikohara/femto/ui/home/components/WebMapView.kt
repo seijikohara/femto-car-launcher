@@ -403,42 +403,20 @@ internal fun WebMapView(
         }
     }
 
-    // A custom style that never loaded is a Settings problem under Appearance,
-    // not a provider problem; it gets its own notice.
-    val customStyleFailed = effectiveCustomStyleUrl.isNotBlank() && liveInitFailed
-    // The page's map data could not be reached (no data connection, or a dead
-    // tile host): the retry above recovers it by itself, so the notice says so
-    // instead of sending the driver to Settings.
-    val mapDataUnavailable = liveInitFailed && lastFatalDetail?.let(::isNetworkFailure) == true
     if (rendererGaveUp || liveInitFailed || googleMapsKeyMissing) {
+        val notice =
+            liveMapNoticeText(
+                rendererGaveUp = rendererGaveUp,
+                googleMapsKeyMissing = googleMapsKeyMissing,
+                googleMapsBackend = googleMapsBackend,
+                customStyleActive = effectiveCustomStyleUrl.isNotBlank(),
+                fatalDetail = lastFatalDetail.takeIf { liveInitFailed },
+            )
         Box(modifier = modifier) {
             ExposedMapRegion(mapConfig = mapConfig) {
                 LiveMapNotice(
-                    titleRes =
-                        when {
-                            rendererGaveUp -> R.string.map_live_renderer_gone
-
-                            // Check the missing key before liveInitFailed: a blank key also
-                            // triggers a fatal from the page, so both can be true at once.
-                            googleMapsKeyMissing -> R.string.map_googlemaps_no_key
-
-                            googleMapsBackend && liveInitFailed -> R.string.map_googlemaps_failed
-
-                            customStyleFailed -> R.string.map_custom_style_failed
-
-                            mapDataUnavailable -> R.string.map_live_data_unavailable
-
-                            else -> R.string.map_live_init_failed
-                        },
-                    hintRes =
-                        when {
-                            rendererGaveUp -> R.string.map_live_renderer_gone_hint
-                            googleMapsKeyMissing -> R.string.map_googlemaps_no_key_hint
-                            googleMapsBackend && liveInitFailed -> R.string.map_googlemaps_failed_hint
-                            customStyleFailed -> R.string.map_custom_style_failed_hint
-                            mapDataUnavailable -> R.string.map_live_data_unavailable_hint
-                            else -> R.string.map_live_init_failed_hint
-                        },
+                    titleRes = notice.title,
+                    hintRes = notice.hint,
                     // Why it failed is debugging detail, not driver-facing content.
                     reason = (if (rendererGaveUp) lastRendererDeath else lastFatalDetail).takeIf { BuildConfig.DEBUG },
                 )
@@ -1083,11 +1061,74 @@ internal fun liveReloadStep(
 // the server refused (style-load-rejected, tile-host-rejected) or an
 // exception thrown once the map library loaded (map-init-exception). Read
 // from the detail's leading kind, which webmap/src/load-outcome.ts assigns;
-// the kinds are a compatibility contract with the page.
-internal fun isNetworkFailure(failureDetail: String): Boolean =
-    failureDetail.substringBefore(':').trim() in NetworkFailureKinds
+// the kinds are a compatibility contract with the page, which
+// FailureKindContractTest guards.
+internal fun isNetworkFailure(failureDetail: String): Boolean = failureKind(failureDetail) in NetworkFailureKinds
 
-private val NetworkFailureKinds = setOf("tile-host-unreachable", "style-load-failed", "backend-load-failed")
+// Whether a page `fatal` says the map server answered the OSM page and
+// refused its requests (a 4xx): a tile host or a hosted style that only a
+// setting or the provider can change.
+internal fun isRefusedFailure(failureDetail: String): Boolean = failureKind(failureDetail) in RefusedFailureKinds
+
+private fun failureKind(failureDetail: String): String = failureDetail.substringBefore(':').trim()
+
+// The host's mirror of the kinds webmap/src/load-outcome.ts reports: the
+// network kinds (the true side of each of its classifying ternaries) and the
+// refused-request kinds (the false side of its two outcome gates).
+internal val NetworkFailureKinds = setOf("tile-host-unreachable", "style-load-failed", "backend-load-failed")
+internal val RefusedFailureKinds = setOf("tile-host-rejected", "style-load-rejected")
+
+// The failure notice's title and hint.
+internal data class LiveMapNoticeText(
+    @StringRes val title: Int,
+    @StringRes val hint: Int,
+)
+
+// Which notice replaces a failed live page. [fatalDetail] is the page's
+// `fatal`, or null when the page reported none (a renderer give-up, a
+// missing key).
+internal fun liveMapNoticeText(
+    rendererGaveUp: Boolean,
+    googleMapsKeyMissing: Boolean,
+    googleMapsBackend: Boolean,
+    customStyleActive: Boolean,
+    fatalDetail: String?,
+): LiveMapNoticeText =
+    when {
+        rendererGaveUp -> {
+            LiveMapNoticeText(R.string.map_live_renderer_gone, R.string.map_live_renderer_gone_hint)
+        }
+
+        // Before the fatal: a blank key also makes the page report one, so both
+        // hold at once.
+        googleMapsKeyMissing -> {
+            LiveMapNoticeText(R.string.map_googlemaps_no_key, R.string.map_googlemaps_no_key_hint)
+        }
+
+        googleMapsBackend -> {
+            LiveMapNoticeText(R.string.map_googlemaps_failed, R.string.map_googlemaps_failed_hint)
+        }
+
+        // A custom style that never loaded is a Settings problem under
+        // Appearance, not a provider problem.
+        customStyleActive -> {
+            LiveMapNoticeText(R.string.map_custom_style_failed, R.string.map_custom_style_failed_hint)
+        }
+
+        // The retry recovers unreachable data by itself, so the notice says so
+        // instead of sending the driver to Settings.
+        fatalDetail?.let(::isNetworkFailure) == true -> {
+            LiveMapNoticeText(R.string.map_live_data_unavailable, R.string.map_live_data_unavailable_hint)
+        }
+
+        fatalDetail?.let(::isRefusedFailure) == true -> {
+            LiveMapNoticeText(R.string.map_live_data_refused, R.string.map_live_data_refused_hint)
+        }
+
+        else -> {
+            LiveMapNoticeText(R.string.map_live_init_failed, R.string.map_live_init_failed_hint)
+        }
+    }
 
 private const val LIVE_RELOAD_RETRY_BASE_MS = 5_000L
 private const val LIVE_RELOAD_RETRY_MAX_DELAY_MS = 60_000L

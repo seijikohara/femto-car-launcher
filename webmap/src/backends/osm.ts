@@ -6,7 +6,7 @@
 // MapLibre 6 is ESM-only and publishes no default export, so the classes come in
 // by name. `MapLibreMap` is the library's own alias for its `Map` export, which
 // would otherwise shadow the global `Map`.
-import { AJAXError, AttributionControl, MapLibreMap, Marker, setWorkerUrl } from "maplibre-gl";
+import { AttributionControl, MapLibreMap, Marker, setWorkerUrl } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 // MapLibre 6 resolves its worker through `import.meta.url`, which a bundler
 // cannot honour, so every bundled consumer must hand it the URL. `?worker&url`
@@ -21,7 +21,14 @@ import { webglRenderer, webglSupport } from "../bridge";
 import { chevronHandles } from "../chevron";
 import { createFollowEngine } from "../follow-camera";
 import { createNoTileWatchdog, createStyleLoadWatchdog } from "../load-outcome";
-import { type AccentColors, injectFeatures, rewriteHost, UPSTREAM_TILE_HOST } from "../style";
+import { requestStatusOf } from "../request-status";
+import {
+    type AccentColors,
+    injectFeatures,
+    rewriteHost,
+    TERRAIN_SOURCE_ID,
+    UPSTREAM_TILE_HOST,
+} from "../style";
 
 setWorkerUrl(maplibreWorkerUrl);
 
@@ -145,6 +152,8 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
 
         const noTileWatchdog = createNoTileWatchdog({
             tileHost,
+            // The terrain DEM comes from its own host, not the tile host.
+            ignoredSourceIds: [TERRAIN_SOURCE_ID],
             graceMs: LOAD_FATAL_GRACE_MS,
             styleLoaded: styleWatchdog.styleLoaded,
             reporter,
@@ -155,7 +164,7 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
         // (the bundled light style's relief layer) reports itself loaded the
         // moment it is added, without a single request leaving the device.
         liveMap.on("sourcedata", (e) => {
-            if (e.tile) noTileWatchdog.onTile();
+            if (e.tile) noTileWatchdog.onTile(e.sourceId);
         });
 
         // Tile / style / DEM fetch failures surface here; the host only logs
@@ -163,7 +172,7 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
         // unless one of the two outcome-gated fatals above concludes otherwise.
         liveMap.on("error", (e) => {
             const detail = String(e?.error?.message || "unknown map error");
-            const status = e?.error instanceof AJAXError ? e.error.status : null;
+            const status = requestStatusOf(e?.error);
             log(`error: ${detail}`);
             reportErrorThrottled(detail);
             styleWatchdog.onError(detail, status);
