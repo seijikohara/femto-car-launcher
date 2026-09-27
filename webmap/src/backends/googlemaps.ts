@@ -61,6 +61,7 @@ import {
 } from "../camera";
 import { type CameraPose, createCameraGlide } from "../camera-glide";
 import { chevronHandles, setChevronColor, setChevronTransform, startStaleTicker } from "../chevron";
+import { ScriptLoadError } from "../load-outcome";
 import { createMarkerTransition } from "../marker-motion";
 // Shared self-marker offset model with the OSM backend (style.ts is
 // the SSOT): how far left of centre the chevron sits to clear the side cards,
@@ -386,12 +387,19 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     };
 
     // Load the Maps JS API from Google's CDN through the official loader
-    // package with the runtime key. A rejected import (network, blocked CDN)
-    // propagates to the boot module's catch, which reports a fatal the host
-    // can auto-retry. The cast narrows the loader's full google.maps typing
-    // to the local stubs above.
+    // package with the runtime key. The loader rejects only when the script
+    // (or a library module it pulls) cannot be fetched — network, blocked CDN
+    // — so that rejection is tagged ScriptLoadError, which the boot module
+    // reports as backend-load-failed: a network failure the host retries for
+    // as long as it lasts. Anything thrown after this point happens with the
+    // script loaded and reaches the host as map-init-exception, which it
+    // retries only within its budget: from `new mapsLib.Map` on, every reload
+    // is a billed map load. The cast narrows the loader's full google.maps
+    // typing to the local stubs above.
     setOptions({ key, v: "weekly" });
-    const mapsLib = (await importLibrary("maps")) as unknown as GMMapsLibrary;
+    const mapsLib = (await importLibrary("maps").catch((e: unknown) => {
+        throw new ScriptLoadError(e instanceof Error ? e.message : String(e));
+    })) as unknown as GMMapsLibrary;
 
     const mapEl = document.getElementById("map");
     if (!mapEl) {
@@ -738,8 +746,10 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // readiness via onPageFinished, not a bridge event. Detach immediately;
     // the event fires repeatedly. google.maps.Map emits no general "error"
     // event, so the only fatal paths are the missing-key check,
-    // gm_authFailure, the WebGL pre-check, and the bootstrap/importLibrary
-    // rejection caught by the boot module's init().catch.
+    // gm_authFailure, the WebGL pre-check, the missing container, and what
+    // the boot module's init().catch reports: the importLibrary rejection
+    // (backend-load-failed) or an exception thrown after it
+    // (map-init-exception).
     const tilesListener = liveMap.addListener("tilesloaded", () => {
         if (state.rendered) return;
         state.rendered = true;

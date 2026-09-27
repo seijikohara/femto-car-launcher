@@ -6,7 +6,7 @@
 // MapLibre 6 is ESM-only and publishes no default export, so the classes come in
 // by name. `MapLibreMap` is the library's own alias for its `Map` export, which
 // would otherwise shadow the global `Map`.
-import { AttributionControl, MapLibreMap, Marker, setWorkerUrl } from "maplibre-gl";
+import { AJAXError, AttributionControl, MapLibreMap, Marker, setWorkerUrl } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 // MapLibre 6 resolves its worker through `import.meta.url`, which a bundler
 // cannot honour, so every bundled consumer must hand it the URL. `?worker&url`
@@ -20,7 +20,7 @@ import type { PageReporter, PendingBridgeCalls } from "../bridge";
 import { webglRenderer, webglSupport } from "../bridge";
 import { chevronHandles } from "../chevron";
 import { createFollowEngine } from "../follow-camera";
-import { createNoTileWatchdog } from "../load-outcome";
+import { createNoTileWatchdog, createStyleLoadWatchdog } from "../load-outcome";
 import { type AccentColors, injectFeatures, rewriteHost, UPSTREAM_TILE_HOST } from "../style";
 
 setWorkerUrl(maplibreWorkerUrl);
@@ -52,10 +52,11 @@ const DEFAULT_STYLE_URL = `${UPSTREAM_TILE_HOST}/styles/positron`;
 const STYLE_FADE_MS = 500;
 const STYLE_FADE_MAX_WAIT_MS = 4000;
 
-// Grace period for both outcome-gated fatals (armStyleLoadFatal and the
-// no-tile watchdog): long enough that a slow-but-healthy first load with an
-// early flaky-tile error still beats the timer, short enough that a dead style
-// or missing map data surfaces as a notice instead of an indefinite blank page.
+// Grace period for both outcome-gated fatals (the style-load and no-tile
+// watchdogs in load-outcome.ts): long enough that a slow-but-healthy first
+// load with an early flaky-tile error still beats the timer, short enough
+// that a dead style or missing map data surfaces as a notice instead of an
+// indefinite blank page.
 const LOAD_FATAL_GRACE_MS = 10_000;
 
 export function init(reporter: PageReporter, pending: PendingBridgeCalls): void {
@@ -84,12 +85,6 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
     // lint block in vite.config.ts and no-let.js). The follow camera's state
     // lives inside the shared engine.
     const state = {
-        // Set on the first successful render/load; gates the error policy
-        // below (post-load errors are transient; a pre-load failure can mean
-        // the style never arrives).
-        styleLoaded: false,
-        // One armed grace timer per page load — see armStyleLoadFatal.
-        fatalArmed: false,
         currentStyleUrl: initialStyleUrl,
         // Set by setStyleUrl for the ACCENT scheme, or null for a plain style.
         accentColors: null as AccentColors | null,
@@ -102,6 +97,9 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
     };
 
     try {
+        // The page's two outcome-gated fatals (load-outcome.ts): a style that
+        // never loads, and a loaded style whose data never arrives.
+        const styleWatchdog = createStyleLoadWatchdog({ graceMs: LOAD_FATAL_GRACE_MS, reporter });
         const liveMap = new MapLibreMap({
             container: "map",
             style: initialStyleUrl,
@@ -121,23 +119,21 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
         // reports `ready` for the MAP diagnostics section.
         const onFirstRender = (): void => {
             if (!liveMap.isStyleLoaded()) return;
-            state.styleLoaded = true;
+            styleWatchdog.onStyleLoaded();
             log("rendered");
             report("ready", webglRenderer());
             liveMap.off("render", onFirstRender);
         };
         liveMap.on("render", onFirstRender);
         liveMap.on("load", () => {
-            state.styleLoaded = true;
+            styleWatchdog.onStyleLoaded();
             log("load");
         });
         // `load` fires once per map; every later style swap reports through
-        // `style.load`. Tracking both keeps styleLoaded honest across swaps, so
-        // a swap to a style that never arrives (a mistyped custom URL) is judged
-        // the way a cold start is — see setStyleUrl.
-        liveMap.on("style.load", () => {
-            state.styleLoaded = true;
-        });
+        // `style.load`. Tracking both keeps the style watchdog honest across
+        // swaps, so a swap to a style that never arrives (a mistyped custom
+        // URL) is judged the way a cold start is — see setStyleUrl.
+        liveMap.on("style.load", () => styleWatchdog.onStyleLoaded());
 
         // WebGL context loss is usually TRANSIENT on mobile / WebView GPUs,
         // and MapLibre auto-recovers: it preventDefault()s the loss, saves
@@ -147,33 +143,10 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
         liveMap.on("webglcontextlost", () => log("webglcontextlost (awaiting MapLibre restore)"));
         liveMap.on("webglcontextrestored", () => log("webglcontextrestored"));
 
-        // An error before the style has ever loaded CAN mean the style fetch
-        // itself failed — then the map stays blank forever (MapLibre does not
-        // re-fetch a failed style), which previously showed as a silent blank
-        // page until a connectivity edge. But a pre-load error can also be a
-        // single flaky tile on an otherwise healthy load, so the fatal is
-        // outcome-gated, not message-gated: arm one grace timer and report
-        // fatal only if the style has STILL not loaded when it fires. A
-        // healthy load ends with styleLoaded=true well inside the grace and
-        // the timer is a no-op; a dead style load cannot set it, so the host
-        // gets a notice (and its auto-retry) instead of a blank map.
-        function armStyleLoadFatal(detail: string): void {
-            if (state.styleLoaded || state.fatalArmed) return;
-            state.fatalArmed = true;
-            setTimeout(() => {
-                if (state.styleLoaded) return;
-                log(`style never loaded after error: ${detail}`);
-                report("fatal", `style-load-failed: ${detail}`.slice(0, 200));
-            }, LOAD_FATAL_GRACE_MS);
-        }
-
-        // Same shape as armStyleLoadFatal, on the other outcome: the style
-        // loaded but its data never arrived (no data connection, or a dead
-        // tile host) — see load-outcome.ts.
         const noTileWatchdog = createNoTileWatchdog({
             tileHost,
             graceMs: LOAD_FATAL_GRACE_MS,
-            styleLoaded: () => state.styleLoaded,
+            styleLoaded: styleWatchdog.styleLoaded,
             reporter,
         });
 
@@ -189,11 +162,12 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
         // them (transient by definition — never UI, never a backend switch)
         // unless one of the two outcome-gated fatals above concludes otherwise.
         liveMap.on("error", (e) => {
-            const detail = e?.error?.message || "unknown map error";
+            const detail = String(e?.error?.message || "unknown map error");
+            const status = e?.error instanceof AJAXError ? e.error.status : null;
             log(`error: ${detail}`);
-            reportErrorThrottled(String(detail));
-            if (!state.styleLoaded) armStyleLoadFatal(String(detail));
-            noTileWatchdog.onError(String(detail));
+            reportErrorThrottled(detail);
+            styleWatchdog.onError(detail, status);
+            noTileWatchdog.onError(detail, status);
         });
 
         function applyStyle(): void {
@@ -344,10 +318,7 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
             // fatal: MapLibre never retries a style that failed to fetch, and
             // without this the old style would stay on screen with the failure
             // logged as transient — no notice, nothing pointing at the URL.
-            if (url !== state.currentStyleUrl) {
-                state.styleLoaded = false;
-                state.fatalArmed = false;
-            }
+            if (url !== state.currentStyleUrl) styleWatchdog.onStyleSwap();
             state.currentStyleUrl = url;
             setPageAttribution(!!pageAttribution);
             state.accentColors = bg

@@ -14,6 +14,7 @@ import {
     installPendingStubs,
     startFrameSampler,
 } from "./bridge";
+import { initFailureDetail } from "./load-outcome";
 
 const backend = resolveBackend(window.location.search);
 const reporter = createReporter(backend);
@@ -42,8 +43,9 @@ loadBackend()
     .catch((e) => {
         // A failed chunk fetch or an exception escaping the backend's async init:
         // the page will stay blank forever, so tell the host (which may retry by
-        // reloading the page).
-        const msg = e instanceof Error ? e.message : String(e);
-        reporter.log(`backend-load-failed: ${msg}`);
-        reporter.report("fatal", `backend-load-failed: ${msg}`.slice(0, 200));
+        // reloading the page). initFailureDetail decides whether a reload can
+        // help — only a map script that could not be fetched.
+        const detail = initFailureDetail(e);
+        reporter.log(detail);
+        reporter.report("fatal", detail);
     });

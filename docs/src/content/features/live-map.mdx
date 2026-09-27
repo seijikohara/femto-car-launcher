@@ -51,7 +51,10 @@ and the light / dark theme, or use the provider's own styles unchanged.
 
 A map that fails to load — an unstable link, a provider outage, a missing
 key — shows a clear notice inside the visible map area instead of a blank
-panel, and recovers on its own: reloads retry with a capped backoff for as
-long as the map data stays out of reach, even while the device still reports
-a connection, and a reconnect after an offline period reloads the map at once,
-without any action from you.
+panel, and recovers on its own while the launcher is on screen: reloads retry
+with a capped backoff for as long as the map data stays out of reach, even
+while the device still reports a connection, and a reconnect after an offline
+period reloads the map at once, without any action from you. Behind another
+app the map waits, and reloads once when you return to the launcher. A
+setting the provider refuses, such as a mistyped style address or a rejected
+key, stops the retries after a few attempts.

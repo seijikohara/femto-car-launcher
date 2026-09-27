@@ -117,8 +117,9 @@ internal class SystemStatusRepository(
      *
      * Exists for the live map: the map WebView fetches its map data from the network,
      * so a page opened offline cannot render and cannot recover on its own. The host
-     * reloads the page at once on the offline->online edge this flow reports; its
-     * retry backoff (see WebMapView) covers data that returns with no such edge.
+     * reloads the page on the offline->online edge this flow reports (at once, or on
+     * the launcher's return when it is hidden); its retry backoff covers data that
+     * returns with no such edge. WebMapView owns both.
      *
      * The request requires VALIDATED (real internet, not mere link-up), so
      * `onAvailable` / `onLost` bracket exactly the validated lifetime and the tracked

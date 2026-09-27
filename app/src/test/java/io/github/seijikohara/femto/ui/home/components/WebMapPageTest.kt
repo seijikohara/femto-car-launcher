@@ -1,6 +1,8 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import io.github.seijikohara.femto.data.display.MapBackend
+import io.github.seijikohara.femto.testfixtures.BoundedFailureDetails
+import io.github.seijikohara.femto.testfixtures.NetworkFailureDetails
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -124,9 +126,11 @@ class WebMapPageTest {
         }
     }
 
-    @Test fun `credential and WebGL failures keep the bounded budget while online`() {
-        // A rejected BYO key must not hammer the provider.
-        listOf("google-maps-auth", "no-webgl-context", "map-init-exception: boom").forEach { detail ->
+    @Test fun `credential, configuration and WebGL failures keep the bounded budget while online`() {
+        // A rejected BYO key must not hammer the provider, a refused URL does
+        // not heal by itself, and every Google reload after the map object
+        // exists is a billed map load.
+        BoundedFailureDetails.forEach { detail ->
             assertEquals(liveReloadRetryDelayMs(0), liveReloadRetryDelayMsOrNull(detail, 0, online = true), detail)
             val lastAttempt = MAX_LIVE_RELOAD_RETRIES - 1
             assertEquals(
@@ -139,18 +143,73 @@ class WebMapPageTest {
         }
     }
 
+    @Test fun `a visible launcher retries a failed page on the backoff`() {
+        assertEquals(
+            LiveReloadStep.Retry(delayMs = 20_000L, onReturn = false),
+            reloadStep(retryDelayMs = 20_000L),
+        )
+    }
+
+    @Test fun `a hidden launcher holds every reload`() {
+        assertEquals(LiveReloadStep.Held, reloadStep(started = false, retryDelayMs = 20_000L))
+        assertEquals(LiveReloadStep.Held, reloadStep(started = false, reconnectPending = true))
+        assertEquals(
+            LiveReloadStep.Held,
+            reloadStep(started = false, reconnectPending = true, pageFromReturnReload = true),
+        )
+    }
+
+    @Test fun `the return reloads what came due while hidden at once`() {
+        assertEquals(
+            LiveReloadStep.Retry(delayMs = 0L, onReturn = true),
+            reloadStep(retryDelayMs = 60_000L, heldWhileHidden = true),
+        )
+    }
+
+    @Test fun `a reconnect reloads at once and wins over a retry`() {
+        assertEquals(
+            LiveReloadStep.Reconnect,
+            reloadStep(reconnectPending = true, retryDelayMs = 60_000L, heldWhileHidden = true),
+        )
+    }
+
+    @Test fun `a reconnect reaching the page the return reload built reloads nothing more`() {
+        // The dashboard's state catches up only after the return, so an edge
+        // from behind another app arrives after that reload.
+        assertEquals(
+            LiveReloadStep.CoveredReconnect,
+            reloadStep(reconnectPending = true, pageFromReturnReload = true),
+        )
+    }
+
+    @Test fun `nothing reloads when nothing is due`() {
+        listOf(true, false).forEach { started ->
+            assertEquals(
+                LiveReloadStep.None,
+                reloadStep(started = started, heldWhileHidden = true, pageFromReturnReload = true),
+            )
+        }
+    }
+
+    private fun reloadStep(
+        started: Boolean = true,
+        reconnectPending: Boolean = false,
+        retryDelayMs: Long? = null,
+        heldWhileHidden: Boolean = false,
+        pageFromReturnReload: Boolean = false,
+    ) = liveReloadStep(
+        started = started,
+        reconnectPending = reconnectPending,
+        retryDelayMs = retryDelayMs,
+        heldWhileHidden = heldWhileHidden,
+        pageFromReturnReload = pageFromReturnReload,
+    )
+
     @Test fun `a failure is a network failure only by its leading kind`() {
         NetworkFailureDetails.forEach { assertTrue(isNetworkFailure(it), it) }
+        BoundedFailureDetails.forEach { assertFalse(isNetworkFailure(it), it) }
         // The text after the kind is free (an exception message, a URL).
         assertFalse(isNetworkFailure("map-init-exception: style-load-failed: x"))
-        assertFalse(isNetworkFailure("google-maps-auth"))
         assertFalse(isNetworkFailure(""))
     }
 }
-
-private val NetworkFailureDetails =
-    listOf(
-        "tile-host-unreachable: AJAXError: Failed to fetch (0): https://tiles.openfreemap.org/planet",
-        "style-load-failed: AJAXError: Failed to fetch (0): https://tiles.openfreemap.org/styles/positron",
-        "backend-load-failed: The Google Maps JavaScript API could not load.",
-    )
