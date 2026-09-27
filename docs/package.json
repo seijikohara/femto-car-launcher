@@ -21,7 +21,7 @@
     "@base-ui/react": "^1.8.0",
     "astro": "^7.3.3",
     "class-variance-authority": "^0.7.1",
-    "cn": "^0.3.0",
+    "cn": "^0.4.0",
     "lucide-react": "^1.47.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -53,5 +53,5 @@
   "engines": {
     "node": ">=24.11.0"
   },
-  "packageManager": "pnpm@12.4.2"
+  "packageManager": "pnpm@12.6.0"
 }
