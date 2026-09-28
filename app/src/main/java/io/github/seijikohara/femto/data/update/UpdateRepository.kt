@@ -178,11 +178,11 @@ private class ShownConfirmation(
  * A singleton so the Settings section, the dock badge and the installer's
  * status callbacks share one state and one in-flight check or download
  * (mirrors `FontRepository`). Construction counts as the process start: it
- * reconciles a pending install and restores a staged download before any
- * check may claim the state. Every action claims its starting state through
- * one compare-and-set, so concurrent callers never double-launch. The
- * constructor stays injectable for JVM tests; production wiring goes through
- * [get].
+ * reconciles a pending install and restores a staged download, or else the
+ * offer the last check found, before any check may claim the state. Every
+ * action claims its starting state through one compare-and-set, so
+ * concurrent callers never double-launch. The constructor stays injectable
+ * for JVM tests; production wiring goes through [get].
  */
 internal class UpdateRepository internal constructor(
     private val feed: UpdateFeed,
@@ -274,8 +274,9 @@ internal class UpdateRepository internal constructor(
             started.join()
             val (from, attemptAt) = autoCheckGate.withLock { claimAutoCheck() } ?: return@launch
             val result = feed.latest(channel)
-            when (from) {
-                is UpdateState.Ready -> offerBeyond(from, result)
+            when {
+                from is UpdateState.Ready -> offerBeyond(from, result)
+                from.offerOrNull() != null -> publishBehindOffer(from, attemptAt, result)
                 else -> publishCheck(from, attemptAt, result, quiet = true)
             }
         }
@@ -283,15 +284,16 @@ internal class UpdateRepository internal constructor(
 
     /**
      * Download and verify the offered APK, or retry after a failure that still
-     * names its offer. Only ever at the user's request: the ~45 MB may ride a
-     * phone hotspot.
+     * names its offer; a build the channel published since the check is
+     * fetched instead (see fetchCurrent). Only ever at the user's request: the
+     * ~45 MB may ride a phone hotspot.
      */
     fun download() {
         val downloading =
             claim { current -> current.offerOrNull()?.let { UpdateState.Downloading(it, fraction = 0f) } }?.to
                 ?: return
         // No other action leaves Downloading, so this claim's outcome is written plainly.
-        scope.launch { _state.value = fetchVerified(downloading.manifest) }
+        scope.launch { _state.value = fetchCurrent(downloading.manifest) }
     }
 
     /**
@@ -339,15 +341,16 @@ internal class UpdateRepository internal constructor(
      * staged file stays, so a retry once the cause is gone needs no second
      * download. [UpdateFailure.INSTALL_CONFLICT] is the exception: an APK
      * signed with another key never installs over this one, so the file and
-     * its offer are deleted. Neither a retry nor the next start offers that
-     * APK again; only a new check can offer a newer build.
+     * its offer are deleted, the persisted one included. Neither a retry nor
+     * the next start offers that APK again; only a new check can offer a
+     * newer build.
      */
     override fun onInstallFailed(
         sessionId: Int,
         reason: UpdateFailure,
     ) = when (reason) {
         UpdateFailure.INSTALL_CONFLICT -> {
-            settleInstall(sessionId, cleanUp = { clearStaged() }) { UpdateState.Failed(reason, manifest = null) }
+            settleInstall(sessionId, cleanUp = { withdrawOffer() }) { UpdateState.Failed(reason, manifest = null) }
         }
 
         else -> {
@@ -372,7 +375,11 @@ internal class UpdateRepository internal constructor(
             syncPendingRecord()
             _updatedTo.value = currentVersionName
         }
-        val restored = withContext(ioDispatcher) { restoreStaged() }
+        val staged = withContext(ioDispatcher) { restoreStaged() }
+        // A verified download wins over a plain offer. The offer the last check
+        // found wins over a staged manifest whose APK the system trimmed: it is
+        // the later finding.
+        val restored = staged as? UpdateState.Ready ?: restoreOffer(settings.offer) ?: staged
         if (pending != null && !installed && restored == null) recheckAtOnce = true
         _state.value = restored ?: UpdateState.Idle(settings.lastCheckAttemptAt?.let(Instant::ofEpochMilli))
     }
@@ -384,7 +391,7 @@ internal class UpdateRepository internal constructor(
     // when the system trimmed the APK. Anything else staged is deleted, the APK
     // of an install that has since landed included.
     private fun restoreStaged(): UpdateState? {
-        val manifest = stagedManifestOrNull()?.takeIf { it.isUsableFor(channel) && it.versionCode > currentVersionCode }
+        val manifest = stagedManifestOrNull()?.takeIf { it.isOffer() }
         return when {
             manifest == null -> {
                 clearStaged()
@@ -401,6 +408,31 @@ internal class UpdateRepository internal constructor(
             }
         }
     }
+
+    // The offer the last check found outlives the process the same way, through
+    // the same filter. A record that fails it (the running build has caught
+    // up, or this build cannot use it) is deleted.
+    private suspend fun restoreOffer(offer: UpdateManifest?): UpdateState.Available? =
+        when {
+            offer == null -> {
+                null
+            }
+
+            offer.isOffer() -> {
+                UpdateState.Available(offer)
+            }
+
+            else -> {
+                store.setOffer(null)
+                null
+            }
+        }
+
+    // Whether this build may offer [this]: usable for its channel, and newer
+    // than the running build. A staged manifest and a persisted offer both pass
+    // through it at start.
+    private fun UpdateManifest.isOffer(): Boolean =
+        isUsableFor(this@UpdateRepository.channel) && versionCode > currentVersionCode
 
     // The one place a state is claimed. [next] maps the current state to the
     // claim's successor, or to null where the action does not apply; the
@@ -427,10 +459,14 @@ internal class UpdateRepository internal constructor(
         if (!isDue(lastAttemptAtMs)) return null
         val settings = store.settings.first()
         if (!settings.autoCheck || !(recheckAtOnce || isDue(settings.lastCheckAttemptAt))) return null
-        // Behind a verified download the check runs without claiming the state:
-        // the user can still install meanwhile, and only a strictly newer build
-        // replaces the offer (see offerBeyond).
-        val from = _state.value.takeIf { it is UpdateState.Ready } ?: claimCheck() ?: return null
+        // Behind an offer (a verified download, an available build, or a
+        // failure that still names one) the check runs without claiming the
+        // state. The offer stays on screen, so the dock's dot and the step row
+        // stay up while the request runs, which on a weak hotspot can take the
+        // client's timeouts, and the user can still act on it meanwhile (see
+        // offerBeyond and publishBehindOffer).
+        val from =
+            _state.value.takeIf { it is UpdateState.Ready || it.offerOrNull() != null } ?: claimCheck() ?: return null
         return from to recordAttempt()
     }
 
@@ -447,15 +483,40 @@ internal class UpdateRepository internal constructor(
         lastAttemptAt == null ||
             (clock.millis() - lastAttemptAt).let { elapsed -> elapsed < 0 || elapsed >= AUTO_CHECK_INTERVAL_MS }
 
-    private fun publishCheck(
+    // No other action leaves Checking, so the claimed check publishes plainly.
+    private suspend fun publishCheck(
         from: UpdateState,
         attemptAt: Instant,
         result: FeedResult,
         quiet: Boolean,
     ) {
-        val manifest = usableManifestOrNull(result)
-        // No other action leaves Checking, so the claimed check publishes plainly.
-        _state.value =
+        val outcome = checkOutcome(from, attemptAt, result, quiet)
+        _state.value = outcome
+        recordOffer(outcome)
+    }
+
+    // A quiet check behind an offer claimed nothing, so its outcome replaces
+    // the offer only while the user has left it as it was: a Download tap
+    // meanwhile moved it on, and wins.
+    private suspend fun publishBehindOffer(
+        from: UpdateState,
+        attemptAt: Instant,
+        result: FeedResult,
+    ) {
+        val outcome = checkOutcome(from, attemptAt, result, quiet = true)
+        claim { current -> outcome.takeIf { current == from } } ?: return
+        recordOffer(outcome)
+    }
+
+    // What a check that read [result] leaves on screen, starting from [from];
+    // [quiet] for an automatic check.
+    private fun checkOutcome(
+        from: UpdateState,
+        attemptAt: Instant,
+        result: FeedResult,
+        quiet: Boolean,
+    ): UpdateState =
+        usableManifestOrNull(result).let { manifest ->
             when {
                 manifest != null && manifest.versionCode > currentVersionCode -> UpdateState.Available(manifest)
 
@@ -472,19 +533,33 @@ internal class UpdateRepository internal constructor(
                 // No information is not a failure: nothing to offer, nothing broke.
                 else -> UpdateState.Idle(attemptAt)
             }
-    }
+        }
+
+    // The persisted offer (UpdateSettings.offer) follows what checks find, and
+    // is written only here: a newer build sets it, a check that found nothing
+    // newer clears it, and an outcome that learnt nothing leaves it. Two
+    // deletions sit elsewhere: a record the running build has caught up with
+    // (restoreOffer), and a build refused as signed with another key
+    // (withdrawOffer).
+    private suspend fun recordOffer(outcome: UpdateState) =
+        when (outcome) {
+            is UpdateState.Available -> store.setOffer(outcome.manifest)
+            UpdateState.UpToDate -> store.setOffer(null)
+            else -> Unit
+        }
 
     // A quiet check behind a verified download replaces it only with a strictly
     // newer build: the same build is already staged, and an outage or no
     // information says nothing new. The claim fails once the user has started
     // installing, which is left alone. The superseded file stays staged until
     // the newer download replaces it.
-    private fun offerBeyond(
+    private suspend fun offerBeyond(
         ready: UpdateState.Ready,
         result: FeedResult,
     ) {
         val newer = usableManifestOrNull(result)?.takeIf { it.versionCode > ready.manifest.versionCode } ?: return
-        claim { current -> UpdateState.Available(newer).takeIf { current == ready } }
+        val offered = claim { current -> UpdateState.Available(newer).takeIf { current == ready } } ?: return
+        recordOffer(offered.to)
     }
 
     // A manifest this build cannot act on — another channel, another schema,
@@ -495,6 +570,35 @@ internal class UpdateRepository internal constructor(
                 if (!usable) Log.w(TAG, "ignored an unusable manifest: $manifest")
             }
         }
+
+    // The channel's manifest is read once more right before the transfer. The
+    // nightly republishes under one asset URL, so a build pushed since the
+    // check would otherwise cost a full transfer that then fails verification.
+    // The read is no check: the daily gate stays as it is. A build still newer
+    // than the running one is the one fetched, and becomes the offer; one that
+    // is not ends the offer, as a check would; no answer fetches the offered
+    // build.
+    private suspend fun fetchCurrent(offered: UpdateManifest): UpdateState {
+        val found = usableManifestOrNull(feed.latest(channel))
+        return when {
+            found == null -> {
+                fetchVerified(offered)
+            }
+
+            found.versionCode <= currentVersionCode -> {
+                UpdateState.UpToDate.also { recordOffer(it) }
+            }
+
+            else -> {
+                if (found != offered) {
+                    // Still Downloading, which no other action leaves.
+                    _state.value = UpdateState.Downloading(found, fraction = 0f)
+                    recordOffer(UpdateState.Available(found))
+                }
+                fetchVerified(found)
+            }
+        }
+    }
 
     private suspend fun fetchVerified(manifest: UpdateManifest): UpdateState {
         // A copy already staged for this very manifest — kept after a refused
@@ -514,8 +618,8 @@ internal class UpdateRepository internal constructor(
     // The integrity gate, failing closed: only a file whose size and SHA-256
     // both equal the manifest's becomes Ready. A mismatch drops the manifest
     // too — the file was corrupted in transit, or the nightly release moved on
-    // since the check (its APK URL never changes), and only a new check can
-    // tell which.
+    // in the moments since the manifest was read (its APK URL never changes),
+    // and only a new check can tell which.
     private fun verifyStaged(manifest: UpdateManifest): UpdateState =
         if (stagedApk.matches(manifest)) {
             writeStagedManifest(manifest)
@@ -717,6 +821,13 @@ internal class UpdateRepository internal constructor(
     // transfer's leftover part file included.
     private fun clearStaged() {
         stagingDir.deleteRecursively()
+    }
+
+    // A build refused as signed with another key goes for good: its file, and
+    // the persisted offer that would bring it back at the next start.
+    private suspend fun withdrawOffer() {
+        clearStaged()
+        store.setOffer(null)
     }
 
     // The staged APK and any transfer leftover go; the manifest stays, so the

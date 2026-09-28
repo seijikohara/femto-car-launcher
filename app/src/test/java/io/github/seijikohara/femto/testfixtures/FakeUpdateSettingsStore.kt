@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.testfixtures
 
+import io.github.seijikohara.femto.data.update.UpdateManifest
 import io.github.seijikohara.femto.data.update.UpdateSettings
 import io.github.seijikohara.femto.data.update.UpdateSettingsStore
 import kotlinx.coroutines.CompletableDeferred
@@ -48,6 +49,8 @@ internal class FakeUpdateSettingsStore(
 
     override suspend fun setPendingInstallVersionCode(versionCode: Int?) =
         state.update { it.copy(pendingInstallVersionCode = versionCode) }
+
+    override suspend fun setOffer(manifest: UpdateManifest?) = state.update { it.copy(offer = manifest) }
 
     override suspend fun resetToDefaults() = state.update { it.copy(autoCheck = UpdateSettings.Default.autoCheck) }
 }

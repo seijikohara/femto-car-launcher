@@ -94,12 +94,14 @@ internal fun locationSettingsFacts(location: LocationSettings): List<DiagnosticF
     )
 
 // The bookkeeping rides along with the setting: a pending-install record that
-// never clears is exactly what a report of a stuck update needs to show.
+// never clears, or an offer that outlived its build, is exactly what a report
+// of a stuck update needs to show.
 internal fun updateSettingsFacts(update: UpdateSettings): List<DiagnosticFact> =
     listOf(
         entry("Update auto-check", "${update.autoCheck}"),
         entry("Update last check attempt", update.lastCheckAttemptAt?.let(::formatEpochMillis) ?: "never"),
         entry("Update pending install", update.pendingInstallVersionCode?.toString() ?: "none"),
+        entry("Update offer", update.offer?.let { "${it.versionName} (${it.versionCode})" } ?: "none"),
     )
 
 private fun entry(

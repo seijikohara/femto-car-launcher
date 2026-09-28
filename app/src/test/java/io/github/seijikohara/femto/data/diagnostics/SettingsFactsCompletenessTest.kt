@@ -39,6 +39,7 @@ class SettingsFactsCompletenessTest {
             "autoCheck" to "Update auto-check",
             "lastCheckAttemptAt" to "Update last check attempt",
             "pendingInstallVersionCode" to "Update pending install",
+            "offer" to "Update offer",
         )
 
     private val propertyToFactLabel: Map<String, String> =

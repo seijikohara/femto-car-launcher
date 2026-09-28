@@ -2,7 +2,9 @@ package io.github.seijikohara.femto.data.update
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.core.app.ApplicationProvider
+import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -35,8 +37,9 @@ class UpdatePreferencesTest {
             store.setAutoCheck(false)
             store.setLastCheckAttemptAt(ATTEMPT_AT)
             store.setPendingInstallVersionCode(PENDING)
+            store.setOffer(OFFER)
 
-            assertEquals(UpdateSettings(false, ATTEMPT_AT, PENDING), store.settings.first())
+            assertEquals(UpdateSettings(false, ATTEMPT_AT, PENDING, OFFER), store.settings.first())
         }
 
     @Test
@@ -51,16 +54,39 @@ class UpdatePreferencesTest {
         }
 
     @Test
+    fun `a null offer removes the record`() =
+        runTest {
+            val store = clearedStore()
+            store.setOffer(OFFER)
+
+            store.setOffer(null)
+
+            assertNull(store.settings.first().offer)
+        }
+
+    @Test
+    fun `an offer record that is not a manifest reads as no offer`() =
+        runTest {
+            val context = ApplicationProvider.getApplicationContext<Context>()
+            val store = clearedStore()
+            // Written under the store's own key, as a damaged or foreign record would be.
+            context.updateDataStore.edit { it[stringPreferencesKey("update_offer")] = "{\"schemaVersion\":1}" }
+
+            assertNull(store.settings.first().offer)
+        }
+
+    @Test
     fun `resetToDefaults restores automatic checks and keeps the bookkeeping`() =
         runTest {
             val store = clearedStore()
             store.setAutoCheck(false)
             store.setLastCheckAttemptAt(ATTEMPT_AT)
             store.setPendingInstallVersionCode(PENDING)
+            store.setOffer(OFFER)
 
             store.resetToDefaults()
 
-            assertEquals(UpdateSettings(DEFAULT_AUTO_CHECK, ATTEMPT_AT, PENDING), store.settings.first())
+            assertEquals(UpdateSettings(DEFAULT_AUTO_CHECK, ATTEMPT_AT, PENDING, OFFER), store.settings.first())
         }
 
     private suspend fun clearedStore(): UpdatePreferences {
@@ -72,5 +98,6 @@ class UpdatePreferencesTest {
     private companion object {
         const val ATTEMPT_AT = 1_790_000_000_000L
         const val PENDING = 26092402
+        val OFFER = fakeUpdateManifest(PENDING)
     }
 }
