@@ -9,11 +9,15 @@ import java.util.Locale
 /** Stand-in APK bytes: the updater only ever compares their size and SHA-256. */
 internal val FakeApkBody: ByteArray = "femto-car-launcher stand-in apk".encodeToByteArray()
 
+/** The releases page the fake manifests' APKs are published under. */
+internal const val FAKE_FEED_BASE = "https://example.test/releases"
+
 /**
  * A manifest describing [body] the way CI's update-manifest action publishes
  * one. The digest is computed here, independently of the production code, so a
  * wrong digest format there cannot agree with itself; override [size] or
- * [sha256] to describe a file other than [body].
+ * [sha256] to describe a file other than [body], and [url] to publish it
+ * somewhere other than [FAKE_FEED_BASE].
  */
 internal fun fakeUpdateManifest(
     versionCode: Int,
@@ -22,6 +26,7 @@ internal fun fakeUpdateManifest(
     schemaVersion: Int = SUPPORTED_MANIFEST_SCHEMA_VERSION,
     size: Long = body.size.toLong(),
     sha256: String = sha256Of(body),
+    url: String = "$FAKE_FEED_BASE/download/v$versionCode/femto-car-launcher-v$versionCode.apk",
 ): UpdateManifest =
     UpdateManifest(
         schemaVersion = schemaVersion,
@@ -33,7 +38,7 @@ internal fun fakeUpdateManifest(
                 name = "femto-car-launcher-v$versionCode.apk",
                 size = size,
                 sha256 = sha256,
-                url = "https://example.test/releases/download/v$versionCode/femto-car-launcher-v$versionCode.apk",
+                url = url,
             ),
     )
 

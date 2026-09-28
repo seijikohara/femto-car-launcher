@@ -21,9 +21,21 @@ private const val TAG = "UpdateFeedApi"
 // beside its APK (.github/actions/update-manifest), so its URL is a permalink.
 private const val MANIFEST_ASSET_NAME = "femto-car-launcher-update.json"
 
-// Without a usable Retry-After (absent, or the HTTP-date form GitHub does not
-// send), wait a minute: GitHub's rate-limit guidance asks for at least that.
+// Without a usable Retry-After (absent, negative, or the HTTP-date form GitHub
+// does not send), wait a minute: GitHub's rate-limit guidance asks for at
+// least that.
 private const val RATE_LIMIT_FALLBACK_MS = 60_000L
+
+// A longer Retry-After is taken as a day: far beyond any wait GitHub asks for,
+// and it keeps the conversion to milliseconds from overflowing into a horizon
+// in the past.
+private const val MAX_RETRY_AFTER_SECONDS = 24L * 60 * 60
+
+/**
+ * The largest manifest body read. A manifest is a few hundred bytes; a body
+ * past this is no manifest, and is never read whole.
+ */
+internal const val MAX_MANIFEST_BYTES = 64 * 1024
 
 /** What one manifest lookup found; [UpdateRepository] turns it into an [UpdateState]. */
 internal sealed interface FeedResult {
@@ -119,6 +131,8 @@ internal class UpdateFeedApi(
                                     .header("Retry-After")
                                     ?.trim()
                                     ?.toLongOrNull()
+                                    ?.takeIf { it >= 0 }
+                                    ?.coerceAtMost(MAX_RETRY_AFTER_SECONDS)
                                     ?.let { it * 1000 } ?: RATE_LIMIT_FALLBACK_MS
                             retryAfterUntilMs = nowMs() + waitMs
                             Log.w(TAG, "manifest HTTP ${response.code}; lookups paused for ${waitMs / 1000}s")
@@ -134,7 +148,14 @@ internal class UpdateFeedApi(
                             retryAfterUntilMs = null
                             // Read here, outside manifestOrNoInformation: a body cut
                             // short is an outage, not an unreadable manifest.
-                            manifestOrNoInformation(response.body.string())
+                            response.body.source().let { body ->
+                                if (body.request(MAX_MANIFEST_BYTES + 1L)) {
+                                    Log.w(TAG, "manifest body over $MAX_MANIFEST_BYTES bytes")
+                                    FeedResult.NoInformation
+                                } else {
+                                    manifestOrNoInformation(body.readUtf8())
+                                }
+                            }
                         }
                     }
                 }

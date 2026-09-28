@@ -2,7 +2,9 @@ package io.github.seijikohara.femto.data.update
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -53,5 +55,18 @@ class AutoCheckEvaluationsTest {
             runCurrent()
 
             assertEquals(listOf(false, false, true), evaluations)
+        }
+
+    @Test
+    fun `a failing source ends the evaluations instead of throwing`() =
+        runTest {
+            // A network callback the platform refuses to register (too many
+            // callbacks, for one): the updater's scope has no handler, so an
+            // escape would take down the HOME process.
+            val broken = flow<Boolean> { throw IllegalStateException("callback refused") }
+
+            val evaluations = autoCheckEvaluations(flowOf(true), broken, ticks).toList()
+
+            assertEquals(emptyList(), evaluations)
         }
 }

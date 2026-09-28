@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
@@ -192,6 +193,9 @@ internal class UpdateRepository internal constructor(
     // (LocationGraph.vehicleMotion); gates the install confirmation.
     private val motion: Flow<VehicleMotion>,
     private val channel: UpdateChannel,
+    // The feed's releases page, the one [feed] reads; a manifest's APK must be
+    // served from the same server (isUsableFor).
+    private val feedBase: String,
     private val currentVersionCode: Int,
     private val currentVersionName: String,
     private val enabled: Boolean,
@@ -432,7 +436,7 @@ internal class UpdateRepository internal constructor(
     // than the running build. A staged manifest and a persisted offer both pass
     // through it at start.
     private fun UpdateManifest.isOffer(): Boolean =
-        isUsableFor(this@UpdateRepository.channel) && versionCode > currentVersionCode
+        isUsableFor(this@UpdateRepository.channel, feedBase) && versionCode > currentVersionCode
 
     // The one place a state is claimed. [next] maps the current state to the
     // claim's successor, or to null where the action does not apply; the
@@ -563,10 +567,11 @@ internal class UpdateRepository internal constructor(
     }
 
     // A manifest this build cannot act on — another channel, another schema,
-    // no verifiable hash — is no information, the same as none at all.
+    // no verifiable hash, an APK served from elsewhere — is no information,
+    // the same as none at all.
     private fun usableManifestOrNull(result: FeedResult): UpdateManifest? =
         (result as? FeedResult.Found)?.manifest?.takeIf { manifest ->
-            manifest.isUsableFor(channel).also { usable ->
+            manifest.isUsableFor(channel, feedBase).also { usable ->
                 if (!usable) Log.w(TAG, "ignored an unusable manifest: $manifest")
             }
         }
@@ -863,6 +868,7 @@ internal class UpdateRepository internal constructor(
             // never checks rather than read another channel's.
             val enabled = BuildConfig.UPDATE_CHECK_ENABLED && channel != null
             val store = UpdatePreferences(app)
+            val feedBase = BuildConfig.UPDATE_FEED_BASE_URL
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
             val repository =
                 UpdateRepository(
@@ -871,7 +877,7 @@ internal class UpdateRepository internal constructor(
                     feed =
                         UpdateFeedApi(
                             client = OkHttpClient(),
-                            feedBase = BuildConfig.UPDATE_FEED_BASE_URL,
+                            feedBase = feedBase,
                             userAgent = femtoUserAgent,
                         ),
                     store = store,
@@ -882,6 +888,7 @@ internal class UpdateRepository internal constructor(
                     motion = flow { emitAll(LocationGraph.get(app).vehicleMotion()) },
                     // Never read while disabled; any channel keeps the type non-null.
                     channel = channel ?: UpdateChannel.STABLE,
+                    feedBase = feedBase,
                     currentVersionCode = BuildConfig.VERSION_CODE,
                     currentVersionName = BuildConfig.VERSION_NAME,
                     enabled = enabled,
@@ -911,15 +918,25 @@ internal class UpdateRepository internal constructor(
  * on every clock tick and every online edge. They are collected only while
  * automatic checks are on, so turning the checks off also releases the clock
  * receiver and the network callback behind [ticks] and [online].
+ *
+ * A source that fails (the platform refusing the network callback, for one)
+ * ends the evaluations for the life of the process, logged. The driver runs
+ * in the updater's own scope, which has no exception handler, so an escape
+ * would take down the HOME process; manual checks keep working without it.
  */
 internal fun autoCheckEvaluations(
     autoCheck: Flow<Boolean>,
     online: Flow<Boolean>,
     ticks: Flow<*>,
 ): Flow<Boolean> =
-    autoCheck.distinctUntilChanged().flatMapLatest { on ->
-        if (on) combine(online, ticks) { isOnline, _ -> isOnline } else emptyFlow()
-    }
+    autoCheck
+        .distinctUntilChanged()
+        .flatMapLatest { on ->
+            if (on) combine(online, ticks) { isOnline, _ -> isOnline } else emptyFlow()
+        }.catch { e ->
+            if (e is CancellationException) throw e
+            Log.w(TAG, "automatic checks stopped", e)
+        }
 
 /**
  * Whether a check may start from this state ([UpdateRepository.checkNow]

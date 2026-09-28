@@ -19,6 +19,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class UpdateFeedApiTest {
@@ -123,6 +124,37 @@ class UpdateFeedApiTest {
         }
 
     @Test
+    fun `a manifest body past the size cap is no information`() =
+        runTest {
+            // A valid manifest padded past the cap: only the cap, not the parser, refuses it.
+            server.enqueue(MockResponse().setBody(MANIFEST_BODY.padEnd(MAX_MANIFEST_BYTES + 1)))
+
+            assertEquals(FeedResult.NoInformation, newApi().latest(UpdateChannel.STABLE))
+        }
+
+    @Test
+    fun `a manifest body at the size cap is read`() =
+        runTest {
+            server.enqueue(MockResponse().setBody(MANIFEST_BODY.padEnd(MAX_MANIFEST_BYTES)))
+
+            assertIs<FeedResult.Found>(newApi().latest(UpdateChannel.STABLE))
+        }
+
+    @Test
+    fun `a manifest request redirected elsewhere on the server is followed`() =
+        runTest {
+            // GitHub answers every release download with a redirect to its asset host.
+            server.enqueue(MockResponse().setResponseCode(302).setHeader("Location", REDIRECTED_MANIFEST_PATH))
+            server.enqueue(MockResponse().setBody(MANIFEST_BODY))
+
+            val result = newApi().latest(UpdateChannel.STABLE)
+
+            assertIs<FeedResult.Found>(result)
+            server.takeRequest()
+            assertEquals(REDIRECTED_MANIFEST_PATH, server.takeRequest().path)
+        }
+
+    @Test
     fun `a server error is a network failure`() =
         runTest {
             server.enqueue(MockResponse().setResponseCode(500))
@@ -180,6 +212,25 @@ class UpdateFeedApiTest {
             assertEquals(2, server.requestCount)
         }
 
+    @Test
+    fun `a Retry-After past a day pauses lookups for a day, not for ever`() =
+        runTest {
+            var now = 0L
+            val api = newApi(nowMs = { now })
+            // Seconds that would overflow once turned into milliseconds.
+            server.enqueue(MockResponse().setResponseCode(429).setHeader("Retry-After", "${Long.MAX_VALUE / 10}"))
+
+            api.latest(UpdateChannel.STABLE)
+            now = DAY_MS - 1_000L
+            api.latest(UpdateChannel.STABLE)
+            assertEquals(1, server.requestCount)
+
+            now = DAY_MS
+            server.enqueue(MockResponse().setBody(MANIFEST_BODY))
+            api.latest(UpdateChannel.STABLE)
+            assertEquals(2, server.requestCount)
+        }
+
     // --- download -----------------------------------------------------------
 
     @Test
@@ -194,6 +245,20 @@ class UpdateFeedApiTest {
             assertEquals(DownloadResult.Saved, result)
             assertContentEquals(body.encodeToByteArray(), target.readBytes())
             assertFalse(partOf(target).exists())
+        }
+
+    @Test
+    fun `an APK request redirected elsewhere on the server is followed`() =
+        runTest {
+            val body = apkBody(100_000)
+            server.enqueue(MockResponse().setResponseCode(302).setHeader("Location", "/assets/app.apk"))
+            server.enqueue(MockResponse().setBody(body))
+            val target = target()
+
+            val result = newApi().download(apkUrl(), target, body.length.toLong()) {}
+
+            assertEquals(DownloadResult.Saved, result)
+            assertContentEquals(body.encodeToByteArray(), target.readBytes())
         }
 
     @Test
@@ -362,6 +427,8 @@ class UpdateFeedApiTest {
     private companion object {
         const val USER_AGENT = "FemtoCarLauncher/test (+https://example.test)"
         const val RELEASES = "https://example.test/owner/repo/releases"
+        const val DAY_MS = 24L * 60 * 60 * 1000
+        const val REDIRECTED_MANIFEST_PATH = "/assets/femto-car-launcher-update.json"
         const val MANIFEST_SHA256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
         const val MANIFEST_APK_URL =
             "https://example.test/releases/download/v2026.09.24-1/femto-car-launcher-v2026.09.24-1.apk"

@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.data.update
 
 import io.github.seijikohara.femto.data.location.MOTION_VERDICT_TIMEOUT_MS
 import io.github.seijikohara.femto.data.location.VehicleMotion
+import io.github.seijikohara.femto.testfixtures.FAKE_FEED_BASE
 import io.github.seijikohara.femto.testfixtures.FakeApkBody
 import io.github.seijikohara.femto.testfixtures.FakeApkInstaller
 import io.github.seijikohara.femto.testfixtures.FakeClock
@@ -1432,6 +1433,7 @@ class UpdateRepositoryTest {
             installer = installer,
             motion = motionSource,
             channel = channel,
+            feedBase = FAKE_FEED_BASE,
             currentVersionCode = currentVersionCode,
             currentVersionName = runningName(currentVersionCode),
             enabled = enabled,

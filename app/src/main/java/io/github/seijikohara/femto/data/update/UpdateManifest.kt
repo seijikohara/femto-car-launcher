@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.data.update
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
  * The manifest schema this build reads (CI's update-manifest action writes
@@ -41,14 +42,38 @@ internal data class UpdateManifest(
 }
 
 /**
- * True when a build of [channel] may act on this manifest: the supported
- * schema, the same channel, and an APK described well enough to verify.
+ * The largest APK a manifest may describe: about four times the ~45 MB the
+ * app ships at. The download stops one byte past the size it expects, so a
+ * bogus size could otherwise fill the device's cache.
  */
-internal fun UpdateManifest.isUsableFor(channel: UpdateChannel): Boolean =
+internal const val MAX_APK_SIZE_BYTES = 200L * 1024 * 1024
+
+/**
+ * True when a build of [channel] may act on this manifest: the supported
+ * schema, the same channel, and an APK described well enough to verify, of a
+ * sane size, and served by the feed's own server ([feedBase]'s scheme and
+ * host). The server rule keeps a manifest from sending every downloading
+ * client's address and User-Agent to another host; GitHub's download URL is
+ * on the feed's host, and the redirect it answers with is still followed.
+ */
+internal fun UpdateManifest.isUsableFor(
+    channel: UpdateChannel,
+    feedBase: String,
+): Boolean =
     schemaVersion == SUPPORTED_MANIFEST_SCHEMA_VERSION &&
         this.channel == channel.id &&
-        apk.size > 0 &&
-        Sha256Hex.matches(apk.sha256)
+        apk.size in 1..MAX_APK_SIZE_BYTES &&
+        Sha256Hex.matches(apk.sha256) &&
+        isServedBy(apk.url, feedBase)
+
+// Anything but an http(s) URL on both sides fails, closed.
+private fun isServedBy(
+    url: String,
+    feedBase: String,
+): Boolean =
+    url.toHttpUrlOrNull()?.let { apk ->
+        feedBase.toHttpUrlOrNull()?.let { feed -> apk.scheme == feed.scheme && apk.host == feed.host }
+    } == true
 
 /** Decode [text] as a manifest; throws when it is not one. */
 internal fun parseUpdateManifest(text: String): UpdateManifest = ManifestJson.decodeFromString<UpdateManifest>(text)

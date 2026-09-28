@@ -2,8 +2,9 @@
 <!--
    Auto Backup / device-transfer rules (API 31+).
    Everything is backed up by default; location-related settings are excluded so
-   they are never copied off-device. The DataStore preference files live under
-   the "file" domain at datastore/<name>.preferences_pb.
+   they are never copied off-device, and so is the updater's bookkeeping, which
+   describes only this install. The DataStore preference files live under the
+   "file" domain at datastore/<name>.preferences_pb.
 -->
 <data-extraction-rules>
     <cloud-backup>
@@ -11,10 +12,14 @@
         <exclude domain="file" path="datastore/location_preferences.preferences_pb" />
         <!-- The recorded trip track (1 Hz position, speed, bearing, altitude; recording is on by default and the history is kept for 90 days) is the most sensitive data the app holds, and the database domain is backed up by default — so without this the history would be copied to the user's Google account, contradicting what Settings and the privacy policy both promise. -->
         <exclude domain="database" path="track_log.db" />
+        <!-- update_preferences is the updater's bookkeeping about this install, none of it portable: a restored pending-install record would make a fresh install announce an update it never made, a restored check time would hold off the first automatic check for up to a day, and a restored offer describes the old install's build. -->
+        <exclude domain="file" path="datastore/update_preferences.preferences_pb" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="datastore/location_preferences.preferences_pb" />
         <!-- Excluded from device transfer as well: the track is tied to the vehicle it was recorded in, and a transfer is not a reason to move a position history onto different hardware. -->
         <exclude domain="database" path="track_log.db" />
+        <!-- The updater's bookkeeping describes this install, not the new device's (see cloud-backup). -->
+        <exclude domain="file" path="datastore/update_preferences.preferences_pb" />
     </device-transfer>
 </data-extraction-rules>
