@@ -1363,6 +1363,49 @@ class UpdateRepositoryTest {
         }
 
     @Test
+    fun `a download that failed verification is not offered again after a restart`() =
+        runTest {
+            // Corrupted in transit, or a nightly that moved on: only a new check can tell.
+            val repository = availableRepository()
+            feed.downloadBody = FakeApkBody.withFirstByteFlipped()
+            repository.download()
+            runCurrent()
+            assertEquals(UpdateState.Failed(UpdateFailure.VERIFY, manifest = null), repository.state.value)
+
+            val restarted = startedRepository()
+
+            assertEquals(UpdateState.Idle(NOW), restarted.state.value)
+        }
+
+    @Test
+    fun `an offer a manual check stopped showing is not offered again after a restart`() =
+        runTest {
+            val repository = availableRepository()
+            feed.latestResult = FeedResult.NoInformation
+            repository.checkNow()
+            runCurrent()
+            assertEquals(UpdateState.Idle(NOW), repository.state.value)
+
+            val restarted = startedRepository()
+
+            assertEquals(UpdateState.Idle(NOW), restarted.state.value)
+        }
+
+    @Test
+    fun `an install the device blocked is still offered after a restart`() =
+        runTest {
+            // The failure keeps its offer, and so does the next start.
+            val repository = installingRepository()
+            repository.onConfirmationRequested(SESSION, FakeInstallConfirmation(starts = false))
+            runCurrent()
+            assertEquals(UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer), repository.state.value)
+
+            val restarted = startedRepository()
+
+            assertEquals(newer, assertIs<UpdateState.Ready>(restarted.state.value).manifest)
+        }
+
+    @Test
     fun `a persisted offer the running build has caught up with is dropped at start`() =
         runTest {
             availableRepository()

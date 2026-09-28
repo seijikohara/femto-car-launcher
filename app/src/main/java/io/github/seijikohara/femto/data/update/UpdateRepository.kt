@@ -298,7 +298,7 @@ internal class UpdateRepository internal constructor(
             claim { current -> current.offerOrNull()?.let { UpdateState.Downloading(it, fraction = 0f) } }?.to
                 ?: return
         // No other action leaves Downloading, so this claim's outcome is written plainly.
-        scope.launch { _state.value = fetchCurrent(downloading.manifest) }
+        scope.launch { publish(fetchCurrent(downloading.manifest)) }
     }
 
     /**
@@ -355,7 +355,7 @@ internal class UpdateRepository internal constructor(
         reason: UpdateFailure,
     ) = when (reason) {
         UpdateFailure.INSTALL_CONFLICT -> {
-            settleInstall(sessionId, cleanUp = { withdrawOffer() }) { UpdateState.Failed(reason, manifest = null) }
+            settleInstall(sessionId, cleanUp = { clearStaged() }) { UpdateState.Failed(reason, manifest = null) }
         }
 
         else -> {
@@ -414,9 +414,9 @@ internal class UpdateRepository internal constructor(
         }
     }
 
-    // The offer the last check found outlives the process the same way, through
-    // the same filter. A record that fails it (the running build has caught
-    // up, or this build cannot use it) is deleted.
+    // The persisted offer (recordOffer) outlives the process the same way,
+    // through the same filter. A record that fails it (the running build has
+    // caught up, or this build cannot use it) is deleted.
     private suspend fun restoreOffer(offer: UpdateManifest?): UpdateState.Available? =
         when {
             offer == null -> {
@@ -494,8 +494,12 @@ internal class UpdateRepository internal constructor(
         attemptAt: Instant,
         result: FeedResult,
         quiet: Boolean,
-    ) {
-        val outcome = checkOutcome(from, attemptAt, result, quiet)
+    ) = publish(checkOutcome(from, attemptAt, result, quiet))
+
+    // Writes [outcome] as the state and records its offer, for an action that
+    // owns the state it replaces: a claimed check or a download, since no
+    // other action leaves Checking or Downloading.
+    private suspend fun publish(outcome: UpdateState) {
         _state.value = outcome
         recordOffer(outcome)
     }
@@ -540,18 +544,19 @@ internal class UpdateRepository internal constructor(
             }
         }
 
-    // The persisted offer (UpdateSettings.offer) follows what checks find, and
-    // is written only here: a newer build sets it, a check that found nothing
-    // newer clears it, and an outcome that learnt nothing leaves it. Two
-    // deletions sit elsewhere: a record the running build has caught up with
-    // (restoreOffer), and a build refused as signed with another key
-    // (withdrawOffer).
-    private suspend fun recordOffer(outcome: UpdateState) =
-        when (outcome) {
-            is UpdateState.Available -> store.setOffer(outcome.manifest)
-            UpdateState.UpToDate -> store.setOffer(null)
-            else -> Unit
-        }
+    // The persisted offer (UpdateSettings.offer) mirrors the offer each settled
+    // outcome leaves on screen, so a restart offers exactly what the user last
+    // saw. It is written only here, from the outcome of a check, a download or
+    // an install verdict. A newer build, or a failure that still names one,
+    // sets it. An outcome that names none clears it: nothing newer, a check
+    // that found no manifest, a download that failed verification, a build
+    // refused as signed with another key. A state still on its way
+    // (Downloading, Ready, Installing) leaves the record on the offer it acts
+    // on. The one deletion elsewhere is at start: a record the running build
+    // has caught up with, or that this build cannot use (restoreOffer).
+    private suspend fun recordOffer(outcome: UpdateState) {
+        if (outcome.isResting()) store.setOffer(outcome.offerOrNull())
+    }
 
     // A quiet check behind a verified download replaces it only with a strictly
     // newer build: the same build is already staged, and an outage or no
@@ -592,7 +597,7 @@ internal class UpdateRepository internal constructor(
             }
 
             found.versionCode <= currentVersionCode -> {
-                UpdateState.UpToDate.also { recordOffer(it) }
+                UpdateState.UpToDate
             }
 
             else -> {
@@ -622,10 +627,11 @@ internal class UpdateRepository internal constructor(
     }
 
     // The integrity gate, failing closed: only a file whose size and SHA-256
-    // both equal the manifest's becomes Ready. A mismatch drops the manifest
-    // too — the file was corrupted in transit, or the nightly release moved on
-    // in the moments since the manifest was read (its APK URL never changes),
-    // and only a new check can tell which.
+    // both equal the manifest's becomes Ready. A mismatch drops the offer too,
+    // the persisted one included (recordOffer), so no restart brings it back —
+    // the file was corrupted in transit, or the nightly release moved on in
+    // the moments since the manifest was read (its APK URL never changes), and
+    // only a new check can tell which.
     private fun verifyStaged(manifest: UpdateManifest): UpdateState =
         if (stagedApk.matches(manifest)) {
             writeStagedManifest(manifest)
@@ -781,17 +787,18 @@ internal class UpdateRepository internal constructor(
     // that could not be shown) ends the attempt. A verdict on any other session
     // settles nothing: the platform names the session in every status, and an
     // older session (one an earlier attempt left behind, abandoned when the next
-    // one is staged) still reports. The pending record follows after [cleanUp],
-    // which does IO and so runs off the caller's thread (the status receiver
-    // calls on the main thread).
+    // one is staged) still reports. The offer and pending records follow after
+    // [cleanUp], which does IO and so runs off the caller's thread (the status
+    // receiver calls on the main thread).
     private fun settleInstall(
         sessionId: Int,
         cleanUp: suspend () -> Unit = {},
         next: (UpdateManifest) -> UpdateState,
     ) {
-        claim { current -> current.installingOrNull(sessionId)?.let { next(it.manifest) } } ?: return
+        val settled = claim { current -> current.installingOrNull(sessionId)?.let { next(it.manifest) } } ?: return
         scope.launch {
             withContext(ioDispatcher) { cleanUp() }
+            recordOffer(settled.to)
             syncPendingRecord()
         }
     }
@@ -827,13 +834,6 @@ internal class UpdateRepository internal constructor(
     // transfer's leftover part file included.
     private fun clearStaged() {
         stagingDir.deleteRecursively()
-    }
-
-    // A build refused as signed with another key goes for good: its file, and
-    // the persisted offer that would bring it back at the next start.
-    private suspend fun withdrawOffer() {
-        clearStaged()
-        store.setOffer(null)
     }
 
     // The staged APK and any transfer leftover go; the manifest stays, so the

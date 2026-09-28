@@ -37,10 +37,12 @@ internal data class UpdateSettings(
     val lastCheckAttemptAt: Long?,
     val pendingInstallVersionCode: Int?,
     /**
-     * The newer build a check found, until a check finds nothing newer or the
-     * running build catches up with it. An AI box cold-boots every drive, and
-     * the daily gate keeps each new process from checking, so an offer kept
-     * only in memory would be gone until the next day's check.
+     * The newer build the updater offers, until an outcome withdraws it (a
+     * check that finds nothing newer or no manifest, a download that fails
+     * verification, a build refused as signed with another key) or the running
+     * build catches up with it. An AI box cold-boots every drive, and the daily
+     * gate keeps each new process from checking, so an offer kept only in
+     * memory would be gone until the next day's check.
      */
     val offer: UpdateManifest?,
 ) {
