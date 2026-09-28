@@ -19,6 +19,22 @@ signing to Google Play, which no on-device installer can open. The two
 application ids mean both channels install at once — see
 [`AGENTS.md`, Git conventions](../AGENTS.md#git-conventions).
 
+## Update manifest
+
+Every release also publishes `femto-car-launcher-update.json` beside
+the APK: a small file the in-app updater reads to learn a channel's
+latest version, and the size and SHA-256 the downloaded APK must
+match. [`update-manifest`](actions/update-manifest/action.yml)
+is the composite action that writes it; both the nightly and the
+release job call it only when they publish, once the signed APK is
+built and staged with its final asset name, and before the release is
+published. A push that publishes nothing (see
+[Unchanged APKs](#unchanged-apks)) publishes no manifest either: the
+channel keeps its previous manifest, so installed copies keep the
+offer they had. The asset name is fixed — the app requests it by that
+exact name — so renaming it here breaks the update check for every
+copy already installed.
+
 ## Cutting a stable release
 
 Promote `develop` to `main` when the build is ready, through a pull

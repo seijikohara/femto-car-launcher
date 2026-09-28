@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Effective date: 2026-09-18**
+**Effective date: 2026-09-25**
 
 Femto Car Launcher ("the app") is an Android home launcher. This policy explains
 what data the app accesses, why, and who it is shared with. The app does **not**
@@ -66,6 +66,15 @@ coordinates to the following services, governed by their own privacy policies:
   Google Fonts (`fonts.gstatic.com`). If you choose a font already installed
   on the device, it is read locally and nothing is sent over the network. No
   personal data is sent.
+- **App updates** — the app checks GitHub (`github.com`) for a small
+  update-availability file published beside each release; GitHub redirects
+  the actual file to `release-assets.githubusercontent.com`. This check runs
+  automatically at most once a day while the dashboard is in use — turn it
+  off in Settings → Updates — and again whenever you tap "Check for updates"
+  there. Each check sends only the request information any web request
+  carries: the device's IP address and a User-Agent naming the app and its
+  version. The update file itself, about 45 MB, downloads only when you tap
+  Download.
 
 Voice input uses the device's built-in speech recognizer. On devices with Google
 services this may transmit audio to Google for recognition, outside the app's

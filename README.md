@@ -224,6 +224,10 @@ the head unit or with `adb install -r <file>.apk`. Play Store
 publication is not planned at present; sideloading is the supported
 installation path. Android 13 or later is required.
 
+The app checks for updates on its own — see the
+[install guide](https://seijikohara.github.io/femto-car-launcher/install/)
+for details.
+
 To enable the optional paid map provider in Settings → Map:
 
 - **Google Maps** — enter a personal Google Maps Platform API key with
