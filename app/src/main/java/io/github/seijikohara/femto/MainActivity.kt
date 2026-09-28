@@ -53,6 +53,7 @@ import io.github.seijikohara.femto.data.location.hasCoarseLocationPermission
 import io.github.seijikohara.femto.data.location.hasFineLocationPermission
 import io.github.seijikohara.femto.data.system.SystemPermissionSignals
 import io.github.seijikohara.femto.data.update.UpdateChannel
+import io.github.seijikohara.femto.data.update.dismissUpdateNotification
 import io.github.seijikohara.femto.data.update.releasePageUrl
 import io.github.seijikohara.femto.ui.assistant.AssistantOption
 import io.github.seijikohara.femto.ui.assistant.AssistantSheet
@@ -350,6 +351,15 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    // Back on screen, by a notification tap, Home or a relaunch Android allowed:
+    // the "Updated to …" notification has done its job. onResume, not onCreate,
+    // because a return that reuses the running launcher resumes it without
+    // creating it; the call is one cancel, so a cold start stays lean.
+    override fun onResume() {
+        super.onResume()
+        dismissUpdateNotification()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

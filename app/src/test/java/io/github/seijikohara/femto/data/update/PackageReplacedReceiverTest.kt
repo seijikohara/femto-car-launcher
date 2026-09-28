@@ -30,9 +30,8 @@ class PackageReplacedReceiverTest {
     private val notifications: NotificationManager = app.getSystemService(NotificationManager::class.java)
 
     @Test
-    fun `the home app comes back as the home screen`() {
+    fun `the home app tries to come back as the home screen`() {
         holdHomeRole()
-        // Allowed to notify as well: the home app still does not.
         shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
 
         receive(Intent.ACTION_MY_PACKAGE_REPLACED)
@@ -42,7 +41,54 @@ class PackageReplacedReceiverTest {
         assertEquals(setOf(Intent.CATEGORY_HOME), started.categories)
         assertEquals(app.packageName, started.`package`)
         assertTrue(started.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
+    }
+
+    @Test
+    fun `the home app also announces the update when it may notify`() {
+        // Android refuses the home app's start without an error when another
+        // launcher's process took the home screen during the install, so the
+        // notification is the way back that always works.
+        holdHomeRole()
+        shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+
+        receive(Intent.ACTION_MY_PACKAGE_REPLACED)
+
+        val notification = shadowOf(notifications).allNotifications.single()
+        assertEquals(
+            app.getString(R.string.notification_update_title, BuildConfig.VERSION_NAME),
+            notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString(),
+        )
+    }
+
+    @Test
+    fun `the home app that may not notify only tries to come back`() {
+        holdHomeRole()
+        shadowOf(app).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+
+        receive(Intent.ACTION_MY_PACKAGE_REPLACED)
+
+        assertEquals(Intent.ACTION_MAIN, shadowOf(app).nextStartedActivity.action)
         assertEquals(0, shadowOf(notifications).size())
+    }
+
+    @Test
+    fun `the launcher's return removes the update notification`() {
+        shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        receive(Intent.ACTION_MY_PACKAGE_REPLACED)
+
+        app.dismissUpdateNotification()
+
+        assertEquals(0, shadowOf(notifications).size())
+    }
+
+    @Test
+    fun `the launcher's return leaves the app's other notifications alone`() {
+        // Same id, no tag: only the update notification's own tag may match.
+        notifications.notify(1, Notification.Builder(app, "other").setSmallIcon(R.drawable.ic_update_installed).build())
+
+        app.dismissUpdateNotification()
+
+        assertEquals(1, shadowOf(notifications).size())
     }
 
     @Test

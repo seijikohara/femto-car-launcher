@@ -6,9 +6,10 @@ import org.junit.runners.Parameterized
 import kotlin.test.assertEquals
 
 /**
- * Decision table for [afterUpdateAction]: the HOME role wins, since only the
- * home app may start an activity from the background; a notification serves
- * any other install that may post one; otherwise nothing is done.
+ * Decision table for [afterUpdateAction]: the home app tries to come back on
+ * screen, and every install that may post a notification announces the
+ * update. Android can refuse the home app's start without an error, so the
+ * home app announces it too when it may; otherwise nothing is done.
  */
 @RunWith(Parameterized::class)
 internal class AfterUpdateActionTest(
@@ -26,10 +27,10 @@ internal class AfterUpdateActionTest(
         @Parameterized.Parameters(name = "home={0}, notify={1} -> {2}")
         fun cases(): List<Array<Any>> =
             listOf(
-                arrayOf(true, true, AfterUpdate.OPEN_LAUNCHER),
-                arrayOf(true, false, AfterUpdate.OPEN_LAUNCHER),
-                arrayOf(false, true, AfterUpdate.NOTIFY),
-                arrayOf(false, false, AfterUpdate.NOTHING),
+                arrayOf(true, true, AfterUpdate(openLauncher = true, notify = true)),
+                arrayOf(true, false, AfterUpdate(openLauncher = true, notify = false)),
+                arrayOf(false, true, AfterUpdate(openLauncher = false, notify = true)),
+                arrayOf(false, false, AfterUpdate(openLauncher = false, notify = false)),
             )
     }
 }

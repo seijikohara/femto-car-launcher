@@ -25,39 +25,47 @@ private const val CHANNEL_ID = "app_updates"
 private const val NOTIFICATION_TAG = "update_installed"
 private const val NOTIFICATION_ID = 1
 
-/** What the launcher does once a new version of itself has replaced the old one. */
-internal enum class AfterUpdate {
-    /** Come back on screen as the home app. */
-    OPEN_LAUNCHER,
-
-    /** Post a notification whose tap opens the launcher. */
-    NOTIFY,
-
-    /** Nothing: the user opens the launcher again when they want it. */
-    NOTHING,
-}
+/** What the launcher does once a new version of itself has replaced the old one; both steps can apply. */
+internal data class AfterUpdate(
+    /** Try to come back as the home screen; Android may refuse without an error. */
+    val openLauncher: Boolean,
+    /**
+     * Post a notification whose tap opens the launcher. The launcher removes it
+     * when it comes back on screen ([dismissUpdateNotification]).
+     */
+    val notify: Boolean,
+)
 
 /**
- * The platform blocks activity starts from the background, and exempts the
- * home app; any other install cannot bring itself back. A notification tap is
- * a start the platform allows, so it serves the other installs, when they may
- * post notifications.
+ * Android blocks activity starts from the background and lets the home app
+ * through, but it recognises the home app by the home process that is running:
+ * AOSP 13's `ActivityStarter#isHomeApp` compares the caller with
+ * `mHomeProcess` before it looks up the default home activity. The install
+ * killed this process, so when another launcher's home task took the screen
+ * meanwhile, that launcher's process is the home process and the start is
+ * refused without an error. The home app therefore tries, and also posts the
+ * notification whenever it may, since a notification tap is a start Android
+ * allows. Any other install cannot bring itself back, and only notifies.
  */
 internal fun afterUpdateAction(
     holdsHomeRole: Boolean,
     mayNotify: Boolean,
-): AfterUpdate =
-    when {
-        holdsHomeRole -> AfterUpdate.OPEN_LAUNCHER
-        mayNotify -> AfterUpdate.NOTIFY
-        else -> AfterUpdate.NOTHING
-    }
+): AfterUpdate = AfterUpdate(openLauncher = holdsHomeRole, notify = mayNotify)
+
+/**
+ * Remove the "Updated to …" notification. The launcher calls this each time
+ * it comes to the foreground: once it is back on screen, by a tap, by Home or
+ * by a relaunch Android allowed, the notification has nothing left to offer.
+ */
+internal fun Context.dismissUpdateNotification() =
+    NotificationManagerCompat.from(this).cancel(NOTIFICATION_TAG, NOTIFICATION_ID)
 
 /**
  * Brings the launcher back after an install replaced it: the install killed
  * the process that asked for it. Any replacement triggers it, a manual
  * sideload included, and each one is an update the user may want to open.
- * Not exported: the platform's own broadcast still reaches it.
+ * How it comes back is [afterUpdateAction]'s decision. Not exported: the
+ * platform's own broadcast still reaches it.
  */
 internal class PackageReplacedReceiver : BroadcastReceiver() {
     override fun onReceive(
@@ -68,17 +76,16 @@ internal class PackageReplacedReceiver : BroadcastReceiver() {
         val mayNotify =
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
                 PackageManager.PERMISSION_GRANTED
-        when (afterUpdateAction(context.holdsHomeRole(), mayNotify)) {
-            AfterUpdate.OPEN_LAUNCHER -> openHome(context)
-            AfterUpdate.NOTIFY -> notifyUpdated(context)
-            AfterUpdate.NOTHING -> Unit
-        }
+        val after = afterUpdateAction(context.holdsHomeRole(), mayNotify)
+        if (after.notify) notifyUpdated(context)
+        if (after.openLauncher) openHome(context)
     }
 }
 
 // The HOME intent, limited to this package, rather than the launcher's own
 // activity: the launcher comes back as the home screen, not as an ordinary
-// app launch.
+// app launch. A start Android refuses as a background start throws nothing
+// (see afterUpdateAction); the catch covers only a start that fails outright.
 private fun openHome(context: Context) {
     runCatching {
         context.startActivity(
