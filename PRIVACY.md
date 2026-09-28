@@ -35,8 +35,9 @@ nowhere. Exporting a trip as a GPX file writes it to the location you choose.
 
 ## Third parties
 
-To provide map, address, and weather features the app sends your location
-coordinates to the following services, governed by their own privacy policies:
+The app contacts the following services, each governed by its own privacy
+policy. Map, weather, and address requests carry your location coordinates;
+font downloads and update checks carry none:
 
 - **Weather** — MET Norway (the Norwegian Meteorological Institute, `api.met.no`).
 - **Map tiles (default / OSM backend)** — OpenFreeMap and Mapterhorn (OpenStreetMap-based map data).
