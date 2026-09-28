@@ -238,8 +238,11 @@ jobs:
         run: |
           cp app/build/outputs/apk/nightly/release/app-nightly-release.apk "$RUNNER_TEMP/femto-car-launcher-nightly.apk"
 
+      # Hashes the staged, signed APK under its new version, never the
+      # comparison build: the manifest must describe the file published below.
       - name: Build the update manifest
         id: manifest
+        if: steps.apk.outputs.unchanged != 'true'
         uses: ./.github/actions/update-manifest
         with:
           channel: nightly
@@ -478,9 +481,12 @@ jobs:
         run: |
           cp app/build/outputs/apk/stable/release/app-stable-release.apk "$RUNNER_TEMP/femto-car-launcher-$TAG.apk"
 
+      # Hashes the staged, signed APK under the resolved tag's version, never
+      # the comparison build: the manifest must describe the file published
+      # below.
       - name: Build the update manifest
         id: manifest
-        if: steps.tag.outputs.superseded != 'true'
+        if: steps.apk.outputs.unchanged != 'true' && steps.tag.outputs.superseded != 'true'
         uses: ./.github/actions/update-manifest
         with:
           channel: stable
