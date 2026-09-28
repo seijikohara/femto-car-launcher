@@ -25,7 +25,7 @@ import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.LocationPreferences
 import io.github.seijikohara.femto.data.location.LocationSettingsStore
 import io.github.seijikohara.femto.data.location.VehicleMotion
-import io.github.seijikohara.femto.data.location.vehicleMotionFlow
+import io.github.seijikohara.femto.data.location.currentOrUnknown
 import io.github.seijikohara.femto.data.update.UpdatePreferences
 import io.github.seijikohara.femto.data.update.UpdateRepository
 import io.github.seijikohara.femto.data.update.UpdateSettingsStore
@@ -36,7 +36,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -489,8 +488,10 @@ internal class SettingsViewModel(
                     // confirmation must not pop up over navigation while driving. The
                     // row already waits while moving; this read covers a tap that
                     // raced the car pulling away, and the install that resumes after
-                    // the "Install unknown apps" grant screen.
-                    if (motion.first() != VehicleMotion.MOVING) updater.install()
+                    // the "Install unknown apps" grant screen. The updater gates the
+                    // confirmation again when it arrives, reading the same source
+                    // through the same function.
+                    if (motion.currentOrUnknown() != VehicleMotion.MOVING) updater.install()
                 }
 
                 SettingsAction.InstallGrantDeclined -> {
@@ -563,7 +564,7 @@ internal class SettingsViewModelFactory(
             updatePreferences = UpdatePreferences(application),
             // The dashboard's own location pipeline: one GPS registration shared
             // with the sheet's host, not a second one for this screen.
-            motion = vehicleMotionFlow(locationGraph.locationFlow(), locationGraph.tripState),
+            motion = locationGraph.vehicleMotion(),
         ) as T
     }
 

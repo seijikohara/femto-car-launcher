@@ -1,5 +1,7 @@
 package io.github.seijikohara.femto.data.update
 
+import io.github.seijikohara.femto.data.location.MOTION_VERDICT_TIMEOUT_MS
+import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.testfixtures.FakeApkBody
 import io.github.seijikohara.femto.testfixtures.FakeApkInstaller
 import io.github.seijikohara.femto.testfixtures.FakeClock
@@ -8,8 +10,14 @@ import io.github.seijikohara.femto.testfixtures.FakeUpdateFeed
 import io.github.seijikohara.femto.testfixtures.FakeUpdateSettingsStore
 import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -34,6 +42,11 @@ class UpdateRepositoryTest {
     private val installer = FakeApkInstaller()
     private val clock = FakeClock(NOW)
     private val newer = fakeUpdateManifest(NEWER)
+
+    // Parked unless a test says otherwise; [motionSource] swaps in a source
+    // that behaves differently from any verdict.
+    private val motion = MutableStateFlow(VehicleMotion.PARKED)
+    private var motionSource: Flow<VehicleMotion> = motion
 
     // A getter: the rule creates its folder only once each test starts.
     private val stagingDir: File get() = File(tempFolder.root, "update")
@@ -734,6 +747,7 @@ class UpdateRepositoryTest {
             val confirmation = FakeInstallConfirmation()
 
             repository.onConfirmationRequested(SESSION, confirmation)
+            runCurrent()
 
             assertEquals(1, confirmation.shows)
             assertEquals(UpdateState.Installing(newer, SESSION, confirmation), repository.state.value)
@@ -747,9 +761,130 @@ class UpdateRepositoryTest {
             val confirmation = FakeInstallConfirmation()
 
             repository.onConfirmationRequested(SESSION + 1, confirmation)
+            runCurrent()
 
             assertEquals(0, confirmation.shows)
             assertEquals(installing, repository.state.value)
+        }
+
+    @Test
+    fun `a confirmation that arrives while the vehicle moves is kept but not shown`() =
+        runTest {
+            // A tap at a light staged the update while parked, and the car
+            // pulled away before the platform asked.
+            val repository = installingRepository()
+            motion.value = VehicleMotion.MOVING
+            val confirmation = FakeInstallConfirmation()
+
+            repository.onConfirmationRequested(SESSION, confirmation)
+            runCurrent()
+
+            assertEquals(0, confirmation.shows)
+            assertEquals(UpdateState.Installing(newer, SESSION, confirmation), repository.state.value)
+        }
+
+    @Test
+    fun `a confirmation that arrives while no fix can tell the motion is shown`() =
+        runTest {
+            // No location grant or no fix yet: only a vehicle known to move holds it.
+            val repository = installingRepository()
+            motion.value = VehicleMotion.UNKNOWN
+            val confirmation = FakeInstallConfirmation()
+
+            repository.onConfirmationRequested(SESSION, confirmation)
+            runCurrent()
+
+            assertEquals(1, confirmation.shows)
+        }
+
+    @Test
+    fun `a confirmation is shown once the motion source stays silent past the bound`() =
+        runTest {
+            // A stalled location stack must not hold the confirmation forever.
+            motionSource = flow { awaitCancellation() }
+            val repository = installingRepository()
+            val confirmation = FakeInstallConfirmation()
+            repository.onConfirmationRequested(SESSION, confirmation)
+            runCurrent()
+
+            advanceTimeBy(MOTION_VERDICT_TIMEOUT_MS)
+            runCurrent()
+
+            assertEquals(1, confirmation.shows)
+        }
+
+    @Test
+    fun `a confirmation held while moving never shows on its own once the vehicle stops`() =
+        runTest {
+            // Parked also means stopped at the next light: a dialog popping up
+            // there could meet the car pulling away again.
+            val repository = installingRepository()
+            motion.value = VehicleMotion.MOVING
+            val confirmation = FakeInstallConfirmation()
+            repository.onConfirmationRequested(SESSION, confirmation)
+            runCurrent()
+
+            motion.value = VehicleMotion.PARKED
+            advanceUntilIdle()
+
+            assertEquals(0, confirmation.shows)
+        }
+
+    @Test
+    fun `a held confirmation shows at once on the first request to show it again`() =
+        runTest {
+            val repository = installingRepository()
+            motion.value = VehicleMotion.MOVING
+            val confirmation = FakeInstallConfirmation()
+            repository.onConfirmationRequested(SESSION, confirmation)
+            runCurrent()
+            assertEquals(0, confirmation.shows)
+            motion.value = VehicleMotion.PARKED
+
+            // Well inside the re-show guard, which debounces only a dialog that went up.
+            repository.install()
+            runCurrent()
+
+            assertEquals(1, confirmation.shows)
+        }
+
+    @Test
+    fun `an earlier attempt's dialog does not hold off a held confirmation of the next one`() =
+        runTest {
+            val repository = installingRepository()
+            repository.onConfirmationRequested(SESSION, FakeInstallConfirmation())
+            runCurrent()
+            // Declined: the same file is offered again, and the retry opens a new session.
+            repository.onInstallCancelled(SESSION)
+            runCurrent()
+            repository.install()
+            runCurrent()
+            motion.value = VehicleMotion.MOVING
+            val held = FakeInstallConfirmation()
+            repository.onConfirmationRequested(SESSION + 1, held)
+            runCurrent()
+            assertEquals(0, held.shows)
+            motion.value = VehicleMotion.PARKED
+
+            // Still inside the guard of the first attempt's dialog.
+            repository.install()
+            runCurrent()
+
+            assertEquals(1, held.shows)
+        }
+
+    @Test
+    fun `a request to show again while the first show is on its way puts up one dialog`() =
+        runTest {
+            // A tap on "show again" while the platform's dialog is still coming up.
+            val repository = installingRepository()
+            val confirmation = FakeInstallConfirmation()
+
+            repository.onConfirmationRequested(SESSION, confirmation)
+            repository.install()
+            runCurrent()
+
+            assertEquals(1, confirmation.shows)
         }
 
     @Test
@@ -759,6 +894,7 @@ class UpdateRepositoryTest {
             val repository = installingRepository()
             val confirmation = FakeInstallConfirmation()
             repository.onConfirmationRequested(SESSION, confirmation)
+            runCurrent()
             clock.now += RESHOW_GUARD
 
             repository.install()
@@ -777,6 +913,7 @@ class UpdateRepositoryTest {
             val repository = installingRepository()
             val confirmation = FakeInstallConfirmation()
             repository.onConfirmationRequested(SESSION, confirmation)
+            runCurrent()
             clock.now += RESHOW_GUARD - Duration.ofMillis(1)
 
             repository.install()
@@ -791,6 +928,7 @@ class UpdateRepositoryTest {
             val repository = installingRepository()
             val confirmation = FakeInstallConfirmation()
             repository.onConfirmationRequested(SESSION, confirmation)
+            runCurrent()
             clock.now += RESHOW_GUARD
             repository.install()
             runCurrent()
@@ -808,6 +946,7 @@ class UpdateRepositoryTest {
             val repository = installingRepository()
             val confirmation = FakeInstallConfirmation()
             repository.onConfirmationRequested(SESSION, confirmation)
+            runCurrent()
             clock.now -= Duration.ofHours(1)
 
             repository.install()
@@ -837,6 +976,7 @@ class UpdateRepositoryTest {
             val repository = installingRepository()
             val confirmation = FakeInstallConfirmation()
             repository.onConfirmationRequested(SESSION, confirmation)
+            runCurrent()
             confirmation.starts = false
             clock.now += RESHOW_GUARD
 
@@ -869,6 +1009,7 @@ class UpdateRepositoryTest {
             runCurrent()
             val confirmation = FakeInstallConfirmation()
             repository.onConfirmationRequested(SESSION, confirmation)
+            runCurrent()
             // The platform expired the session without a verdict reaching this process.
             installer.pending -= SESSION
 
@@ -1067,6 +1208,7 @@ class UpdateRepositoryTest {
             feed = feed,
             store = store,
             installer = installer,
+            motion = motionSource,
             channel = channel,
             currentVersionCode = currentVersionCode,
             currentVersionName = runningName(currentVersionCode),

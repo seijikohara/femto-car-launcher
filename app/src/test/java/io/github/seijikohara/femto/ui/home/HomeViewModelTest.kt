@@ -33,8 +33,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -574,10 +574,12 @@ class HomeViewModelTest {
         }
 
     // Subscribes (WhileUiSubscribed runs the combine only while collected) and
-    // returns the state once every source has emitted.
+    // returns the state once every source has emitted. The clock stays put: a
+    // parked verdict ages out after LOCATION_STALE_THRESHOLD_MS without a new
+    // fix, and these sources emit one fix each.
     private fun TestScope.settledState(viewModel: HomeViewModel): HomeUiState {
         backgroundScope.launch { viewModel.uiState.collect { } }
-        advanceUntilIdle()
+        runCurrent()
         return viewModel.uiState.value
     }
 

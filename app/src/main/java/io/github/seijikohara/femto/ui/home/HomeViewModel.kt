@@ -86,8 +86,9 @@ internal class HomeViewModel(
 ) : ViewModel() {
     // The dock's update dot: an update is on offer and a live GPS fix shows the
     // vehicle parked (fail-closed; see VehicleMotion). The motion is judged as
-    // each fix or trip update arrives, never as other cards update, so a verdict
-    // does not change while no new fix has come in. Seeded with "no dot": the
+    // each GPS fix or trip update arrives, never as other cards update, and a
+    // parked verdict ages out once no fix follows (vehicleMotionFlow), so the
+    // dot goes when the receiver goes quiet. Seeded with "no dot": the
     // updater resolves off the main thread when first collected
     // (UpdateRepository.observe), and the combine below emits only once every
     // source has, so an unseeded slot would hold the whole dashboard back.

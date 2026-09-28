@@ -1,21 +1,39 @@
+@file:OptIn(ExperimentalCoroutinesApi::class) // transformLatest in vehicleMotionFlow.
+
 package io.github.seijikohara.femto.data.location
 
 import android.location.Location
-import android.location.LocationManager
 import android.os.SystemClock
+import io.github.seijikohara.femto.data.common.catchAsDefault
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.runningFold
+import kotlinx.coroutines.flow.transformLatest
+import kotlinx.coroutines.withTimeoutOrNull
+
+private const val TAG = "VehicleMotion"
+
+/**
+ * How long a gate waits for the current verdict ([currentOrUnknown]). A live
+ * pipeline answers at once, and a cold one within its first seed; the bound
+ * only keeps a stalled location stack from holding a gate forever.
+ */
+internal const val MOTION_VERDICT_TIMEOUT_MS = 2_000L
 
 /**
  * What the latest fix says about the vehicle's motion. [TripState.stationary]
  * alone cannot tell parked from unknown. The trip speed starts at zero in
  * every process, and the first fix only anchors the trip math. NETWORK fixes
- * never reach the trip math at all, because it is GPS-only. So [PARKED] also
- * needs a live GPS fix: the receiver fixing now, not a cached seed and not a
- * network position. [UNKNOWN] covers every reading that cannot tell. Each
- * gate picks its own failure direction from it: the dock's update badge waits
- * for [PARKED], and the install steps hold only on [MOVING].
+ * never reach the trip math at all, because it is GPS-only ([isGpsFix]). So
+ * [PARKED] also needs a live GPS fix: the receiver fixing now, not a cached
+ * seed and not a network position. [UNKNOWN] covers every reading that cannot
+ * tell. Each gate picks its own failure direction from it: the dock's update
+ * badge waits for [PARKED], and the install steps hold only on [MOVING].
  */
 internal enum class VehicleMotion {
     /** A live GPS fix, and neither it nor the trip speed says the vehicle moves. */
@@ -24,14 +42,13 @@ internal enum class VehicleMotion {
     /** The trip speed, or a live GPS fix's own speed, is at or above the parked floor. */
     MOVING,
 
-    /** No reading can tell: no fix yet, a cached or network fix, or a receiver gone quiet. */
+    /** No reading can tell: no GPS fix yet, a cached fix, or a receiver gone quiet. */
     UNKNOWN,
 }
 
 /**
- * The motion that [tripState] and the location flow's latest [location] (null
- * before any fix) show at [nowElapsedRealtimeNanos] (pass
- * [SystemClock.elapsedRealtimeNanos]).
+ * The motion that [tripState] and the latest GPS [location] (null before any)
+ * show at [nowElapsedRealtimeNanos] (pass [SystemClock.elapsedRealtimeNanos]).
  *
  * A fix is live within [LOCATION_STALE_THRESHOLD_MS] ([isFresh]). That window
  * is the project's single definition of when a position stops describing the
@@ -56,20 +73,60 @@ internal fun vehicleMotion(
     }
 
 /**
- * [vehicleMotion], evaluated each time a fix or a trip update arrives, and
- * emitted only on change. The clock is read at those moments and no others, so
- * a verdict holds until the next reading instead of decaying on a timer. A
- * cached seed is judged on arrival, when it is as old as it will ever be. A
- * receiver that is fixing is judged again on every fix.
+ * [vehicleMotion], judged each time a GPS fix or a trip update arrives, and
+ * emitted only on change. The location flow interleaves NETWORK fixes with
+ * GPS ones. A NETWORK fix neither replaces the latest GPS fix nor counts as a
+ * new reading, so it cannot flip a parked verdict to unknown and back. Before
+ * the first GPS fix, the flow still reads [VehicleMotion.UNKNOWN], so a gate
+ * waiting on its first verdict never waits on a device with network fixes
+ * only.
+ *
+ * A receiver gone quiet sends nothing to judge, so [VehicleMotion.PARKED]
+ * ages out on its own: [LOCATION_STALE_THRESHOLD_MS] after it was judged with
+ * no new reading, it becomes [VehicleMotion.UNKNOWN], as the fix it rests on
+ * stops being live. [VehicleMotion.MOVING] never ages out. A car that drives
+ * into a tunnel keeps the verdict of its last fix, so the install steps stay
+ * held until a fix shows it stopped.
  */
 internal fun vehicleMotionFlow(
     locationFlow: Flow<Location?>,
     tripStateFlow: Flow<TripState>,
     nowElapsedRealtimeNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
 ): Flow<VehicleMotion> =
-    combine(locationFlow, tripStateFlow) { location, tripState ->
+    combine(locationFlow.latestGpsFix(), tripStateFlow) { location, tripState ->
         vehicleMotion(location, tripState, nowElapsedRealtimeNanos())
-    }.distinctUntilChanged()
+    }
+        // Before the dedup below: every reading must restart the ageing, a
+        // repeated verdict included.
+        .transformLatest { motion ->
+            emit(motion)
+            if (motion == VehicleMotion.PARKED) {
+                delay(LOCATION_STALE_THRESHOLD_MS)
+                emit(VehicleMotion.UNKNOWN)
+            }
+        }.distinctUntilChanged()
+
+/**
+ * The verdict this flow gives now, or [VehicleMotion.UNKNOWN] when it gives
+ * none within [MOTION_VERDICT_TIMEOUT_MS] or fails. Every gate on the install
+ * confirmation reads motion through this one function, so none of them can
+ * judge the same moment differently. They hold only on [VehicleMotion.MOVING],
+ * so a silent or broken location stack leaves them open, the same as a phone
+ * without the location grant.
+ */
+internal suspend fun Flow<VehicleMotion>.currentOrUnknown(): VehicleMotion =
+    withTimeoutOrNull(MOTION_VERDICT_TIMEOUT_MS) {
+        catchAsDefault(TAG, "vehicle motion", VehicleMotion.UNKNOWN).firstOrNull()
+    } ?: VehicleMotion.UNKNOWN
+
+// The latest GPS fix, or null before one. The first upstream element always
+// yields a value, NETWORK or not, so the combine above can speak. After that,
+// an element that leaves the latest GPS fix in place (a NETWORK fix) is
+// dropped, since it is no new reading.
+private fun Flow<Location?>.latestGpsFix(): Flow<Location?> =
+    runningFold<Location?, Location?>(null) { latest, fix -> fix?.takeIf { it.isGpsFix() } ?: latest }
+        .drop(1)
+        .distinctUntilChanged { old, new -> old === new }
 
 private fun Location.isLiveGpsFix(nowElapsedRealtimeNanos: Long): Boolean =
-    provider == LocationManager.GPS_PROVIDER && isFresh(nowElapsedRealtimeNanos)
+    isGpsFix() && isFresh(nowElapsedRealtimeNanos)

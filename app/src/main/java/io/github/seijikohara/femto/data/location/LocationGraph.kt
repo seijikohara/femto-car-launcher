@@ -66,6 +66,13 @@ internal class LocationGraph private constructor(
     val tripState: StateFlow<TripState> =
         tripRepository.stateFlow().stateIn(scope, WhileUiSubscribed, TripState.Initial)
 
+    /**
+     * What this pipeline says about the vehicle's motion ([vehicleMotionFlow]).
+     * The Settings install step and the updater's confirmation both read it
+     * here, so the two gates judge one source and cannot disagree.
+     */
+    fun vehicleMotion(): Flow<VehicleMotion> = vehicleMotionFlow(locationFlow(), tripState)
+
     /** Whether the user has opted into background ranging (the foreground-service toggle). */
     val backgroundRangingEnabled: Flow<Boolean> =
         preferences.settings.map { it.backgroundRangingEnabled }.distinctUntilChanged()

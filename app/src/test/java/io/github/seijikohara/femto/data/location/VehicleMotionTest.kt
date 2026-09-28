@@ -5,10 +5,16 @@ import android.location.LocationManager
 import io.github.seijikohara.femto.testfixtures.fakeLocation
 import io.github.seijikohara.femto.testfixtures.fakeTripState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -65,8 +71,7 @@ class VehicleMotionTest {
     @Test
     fun `a live NETWORK fix is unknown, since the trip math never sees it`() {
         // An "Approximate" grant: network fixes only, and a trip speed stuck at zero.
-        val networkFix = fakeLocation(provider = LocationManager.NETWORK_PROVIDER, elapsedRealtimeNanos = NOW)
-        assertEquals(VehicleMotion.UNKNOWN, vehicleMotion(networkFix, parked, NOW))
+        assertEquals(VehicleMotion.UNKNOWN, vehicleMotion(networkFix(), parked, NOW))
     }
 
     @Test
@@ -86,10 +91,7 @@ class VehicleMotionTest {
     fun `the flow judges each fix as it arrives and speaks only on change`() =
         runTest {
             val locations = MutableSharedFlow<Location?>()
-            val trips = MutableStateFlow(parked)
-            val verdicts = mutableListOf<VehicleMotion>()
-            backgroundScope.launch { vehicleMotionFlow(locations, trips) { NOW }.toList(verdicts) }
-            runCurrent()
+            val verdicts = verdictsOf(locations, MutableStateFlow(parked))
 
             locations.emit(gpsFix(ageNanos = STALE_NANOS))
             runCurrent()
@@ -100,6 +102,125 @@ class VehicleMotionTest {
 
             assertEquals(listOf(VehicleMotion.UNKNOWN, VehicleMotion.PARKED), verdicts)
         }
+
+    @Test
+    fun `a NETWORK fix after a GPS fix leaves a parked verdict standing`() =
+        runTest {
+            // The location flow interleaves both providers; the network fix is
+            // live, newer than the GPS fix, and must still not count as a reading.
+            val locations = MutableSharedFlow<Location?>()
+            val verdicts = verdictsOf(locations, MutableStateFlow(parked))
+
+            locations.emit(gpsFix())
+            runCurrent()
+            locations.emit(networkFix())
+            runCurrent()
+
+            assertEquals(listOf(VehicleMotion.PARKED), verdicts)
+        }
+
+    @Test
+    fun `NETWORK fixes alone still read unknown`() =
+        runTest {
+            // A gate waits for the first verdict: with network fixes only, the
+            // flow must still give one.
+            val locations = MutableSharedFlow<Location?>()
+            val verdicts = verdictsOf(locations, MutableStateFlow(parked))
+
+            locations.emit(networkFix())
+            runCurrent()
+
+            assertEquals(listOf(VehicleMotion.UNKNOWN), verdicts)
+        }
+
+    @Test
+    fun `a parked verdict ages out once no GPS fix follows within the freshness window`() =
+        runTest {
+            // A receiver gone quiet (a covered car park, location switched off)
+            // sends nothing that could judge the verdict again.
+            val locations = MutableSharedFlow<Location?>()
+            val verdicts = verdictsOf(locations, MutableStateFlow(parked))
+            locations.emit(gpsFix())
+            runCurrent()
+
+            advanceTimeBy(LOCATION_STALE_THRESHOLD_MS - 1)
+            runCurrent()
+            assertEquals(listOf(VehicleMotion.PARKED), verdicts)
+
+            advanceTimeBy(1)
+            runCurrent()
+            assertEquals(listOf(VehicleMotion.PARKED, VehicleMotion.UNKNOWN), verdicts)
+        }
+
+    @Test
+    fun `each GPS fix restarts the ageing of a parked verdict`() =
+        runTest {
+            val locations = MutableSharedFlow<Location?>()
+            val verdicts = verdictsOf(locations, MutableStateFlow(parked))
+            locations.emit(gpsFix())
+            runCurrent()
+
+            advanceTimeBy(LOCATION_STALE_THRESHOLD_MS - 1)
+            locations.emit(gpsFix())
+            runCurrent()
+            advanceTimeBy(LOCATION_STALE_THRESHOLD_MS - 1)
+            runCurrent()
+
+            assertEquals(listOf(VehicleMotion.PARKED), verdicts)
+        }
+
+    @Test
+    fun `a moving verdict does not age out`() =
+        runTest {
+            // A tunnel: the receiver goes quiet mid-drive, and the install steps
+            // must stay held rather than open on the silence.
+            val locations = MutableSharedFlow<Location?>()
+            val verdicts = verdictsOf(locations, MutableStateFlow(moving))
+            locations.emit(gpsFix())
+            runCurrent()
+
+            advanceTimeBy(10 * LOCATION_STALE_THRESHOLD_MS)
+            runCurrent()
+
+            assertEquals(listOf(VehicleMotion.MOVING), verdicts)
+        }
+
+    @Test
+    fun `a gate reads the verdict the source gives now`() =
+        runTest {
+            assertEquals(VehicleMotion.MOVING, MutableStateFlow(VehicleMotion.MOVING).currentOrUnknown())
+        }
+
+    @Test
+    fun `a gate reads unknown once the source stays silent past the bound`() =
+        runTest {
+            val silent = flow<VehicleMotion> { awaitCancellation() }
+
+            assertEquals(VehicleMotion.UNKNOWN, silent.currentOrUnknown())
+            assertEquals(MOTION_VERDICT_TIMEOUT_MS, currentTime)
+        }
+
+    @Test
+    fun `a gate reads unknown when the source fails`() =
+        runTest {
+            val broken = flow<VehicleMotion> { throw IllegalStateException("location stack broke") }
+
+            assertEquals(VehicleMotion.UNKNOWN, broken.currentOrUnknown())
+        }
+
+    // Every verdict the flow gives for [locations] and [trips], collected in
+    // the background with the boot clock pinned at NOW.
+    private fun TestScope.verdictsOf(
+        locations: Flow<Location?>,
+        trips: Flow<TripState>,
+    ): List<VehicleMotion> =
+        mutableListOf<VehicleMotion>().also { verdicts ->
+            backgroundScope.launch { vehicleMotionFlow(locations, trips) { NOW }.toList(verdicts) }
+            runCurrent()
+        }
+
+    private fun networkFix(): Location =
+        fakeLocation(provider = LocationManager.NETWORK_PROVIDER, elapsedRealtimeNanos = NOW)
 
     private fun gpsFix(
         speedMps: Float = 0f,

@@ -7,6 +7,9 @@ import android.util.Log
 import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.data.clock.ClockRepository
 import io.github.seijikohara.femto.data.common.femtoUserAgent
+import io.github.seijikohara.femto.data.location.LocationGraph
+import io.github.seijikohara.femto.data.location.VehicleMotion
+import io.github.seijikohara.femto.data.location.currentOrUnknown
 import io.github.seijikohara.femto.data.system.SystemStatusRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -39,6 +42,7 @@ import java.io.File
 import java.security.MessageDigest
 import java.time.Clock
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.cancellation.CancellationException
 
 private const val TAG = "UpdateRepository"
@@ -57,8 +61,10 @@ private const val STAGED_MANIFEST = "update.json"
 // while the dialog is still coming up, a double tap on a head unit's touch
 // panel, or a re-show after Home while the first dialog is still alive would
 // stack them, and on Android 13 accepting both, or cancelling the stale one,
-// destroys the session under the first. A re-show this soon after the last one
-// is ignored. Internal so tests probe both sides of it.
+// destroys the session under the first. A re-show this soon after the same
+// confirmation last went on screen is ignored; one that never went up (held
+// while the vehicle moved) shows at once. Internal so tests probe both sides
+// of it.
 internal const val CONFIRMATION_RESHOW_GUARD_MS = 10_000L
 
 /** Why the last update action failed, for the UI to phrase. */
@@ -134,7 +140,8 @@ internal sealed interface UpdateState {
      * [sessionId] is the platform's install session once the file is staged
      * in one. [confirmation] is the platform's request for the user's
      * confirmation once it has arrived; [UpdateRepository.install] shows it
-     * again, because a confirmation dismissed with Home sends no verdict.
+     * again, because a confirmation dismissed with Home sends no verdict, or
+     * for the first time, when it arrived while the vehicle moved.
      */
     data class Installing(
         val manifest: UpdateManifest,
@@ -158,6 +165,12 @@ private data class Claim<out T : UpdateState>(
     val to: T,
 )
 
+/** The confirmation that last went on screen, and when (clock millis). */
+private class ShownConfirmation(
+    val confirmation: InstallConfirmation,
+    val atMs: Long,
+)
+
 /**
  * App-scoped updater: checks this channel's release feed, downloads and
  * verifies the offered APK, and hands it to the platform installer.
@@ -175,6 +188,9 @@ internal class UpdateRepository internal constructor(
     private val feed: UpdateFeed,
     private val store: UpdateSettingsStore,
     private val installer: ApkInstaller,
+    // The vehicle's motion, from the source the Settings install step reads
+    // (LocationGraph.vehicleMotion); gates the install confirmation.
+    private val motion: Flow<VehicleMotion>,
     private val channel: UpdateChannel,
     private val currentVersionCode: Int,
     private val currentVersionName: String,
@@ -221,9 +237,10 @@ internal class UpdateRepository internal constructor(
     @Volatile
     private var recheckAtOnce = false
 
-    // When a confirmation last went on screen; see CONFIRMATION_RESHOW_GUARD_MS.
-    @Volatile
-    private var confirmationShownAtMs: Long? = null
+    // The confirmation that last went on screen; see CONFIRMATION_RESHOW_GUARD_MS.
+    // Compared and set as one step (see present), so two callers racing to
+    // show one confirmation put up one dialog.
+    private val lastShown = AtomicReference<ShownConfirmation?>(null)
 
     // Serialises the pending-install record's writes; see syncPendingRecord.
     private val pendingRecordLock = Mutex()
@@ -280,9 +297,10 @@ internal class UpdateRepository internal constructor(
     /**
      * Hand the verified APK to the platform installer, which asks the user to
      * confirm. While an install waits for that confirmation, this shows the
-     * confirmation again, though not within [CONFIRMATION_RESHOW_GUARD_MS] of
-     * the last time; once the platform no longer holds the session, it offers
-     * the verified file again ([UpdateState.Ready]).
+     * confirmation (again, or for the first time when it arrived while the
+     * vehicle moved), though not within [CONFIRMATION_RESHOW_GUARD_MS] of the
+     * last time it went up; once the platform no longer holds the session, it
+     * offers the verified file again ([UpdateState.Ready]).
      */
     fun install() {
         val claimed = claim { current -> (current as? UpdateState.Ready)?.let { UpdateState.Installing(it.manifest) } }
@@ -295,15 +313,22 @@ internal class UpdateRepository internal constructor(
 
     /**
      * The platform asks the user to confirm session [sessionId]. The
-     * confirmation is shown and kept for [install] to show again. A request
-     * for another session, one an earlier attempt left behind, is ignored.
+     * confirmation is kept for [install] to show again, and shown now unless a
+     * fix shows the vehicle moving: a tap while stopped at a light stages the
+     * update, and the car can pull away in the seconds before the platform
+     * asks. A request for another session, one an earlier attempt left behind,
+     * is ignored.
      */
     override fun onConfirmationRequested(
         sessionId: Int,
         confirmation: InstallConfirmation,
     ) {
         val kept = claim { current -> current.installingOrNull(sessionId)?.copy(confirmation = confirmation) }
-        if (kept != null) show(sessionId, confirmation) else Log.w(TAG, "ignored a confirmation for session $sessionId")
+        if (kept != null) {
+            scope.launch { presentUnlessMoving(sessionId, confirmation) }
+        } else {
+            Log.w(TAG, "ignored a confirmation for session $sessionId")
+        }
     }
 
     /** The user declined session [sessionId]'s install, or it was abandoned: offer the same verified file again. */
@@ -550,16 +575,16 @@ internal class UpdateRepository internal constructor(
         platformCall("staging the update") { installer.stage(stagedApk) }
             ?.let { sessionId -> installing.copy(sessionId = sessionId).also { _state.value = it } }
 
-    // A confirmation left unanswered (dismissed with Home, for one) sends no
-    // verdict, and would hold Installing for the rest of the process. The
-    // platform's session decides the way out: while the platform still holds
-    // it, its confirmation is shown again; once it is gone, the verified file
-    // is offered again.
+    // A confirmation left unanswered (dismissed with Home, or held while the
+    // vehicle moved) sends no verdict, and would hold Installing for the rest
+    // of the process. The platform's session decides the way out: while the
+    // platform still holds it, its confirmation is shown; once it is gone, the
+    // verified file is offered again.
     private suspend fun resume(installing: UpdateState.Installing) {
         // No session yet: the hand-off is under way, and its own outcome follows.
         val sessionId = installing.sessionId ?: return
         if (platformCall("looking up session $sessionId") { installer.isPending(sessionId) } == true) {
-            installing.confirmation?.takeUnless { shownRecently() }?.let { show(sessionId, it) }
+            installing.confirmation?.let { present(sessionId, it) }
             return
         }
         claim { current -> UpdateState.Ready(installing.manifest, stagedApk).takeIf { current == installing } }
@@ -580,6 +605,49 @@ internal class UpdateRepository internal constructor(
                 Log.w(TAG, "$step failed", it)
             }.getOrNull()
 
+    // Only a fix that shows the vehicle moving holds the arriving confirmation
+    // back: the Settings install step's own rule, read through the same
+    // source and function (currentOrUnknown). A held confirmation is never put
+    // on screen later on its own. "Parked" also means stopped at the next
+    // light, where a dialog popping up could meet the car pulling away again;
+    // the install step, which waits while the vehicle moves, shows it when the
+    // user asks. The state may have moved on during the motion read, so only
+    // the confirmation this session still holds is shown.
+    private suspend fun presentUnlessMoving(
+        sessionId: Int,
+        confirmation: InstallConfirmation,
+    ) {
+        when {
+            motion.currentOrUnknown() == VehicleMotion.MOVING -> {
+                Log.i(TAG, "session $sessionId: confirmation held while the vehicle moves")
+            }
+
+            _state.value.installingOrNull(sessionId)?.confirmation === confirmation -> {
+                present(sessionId, confirmation)
+            }
+        }
+    }
+
+    // Shows [confirmation] unless that same confirmation went on screen less
+    // than CONFIRMATION_RESHOW_GUARD_MS ago; a clock set back since counts as
+    // long ago, so a re-show is never held off for longer than the guard. The
+    // mark is taken by one compare-and-set before the show, so of an arriving
+    // confirmation's first show and a racing tap to show it again, one wins.
+    private fun present(
+        sessionId: Int,
+        confirmation: InstallConfirmation,
+    ) {
+        val now = clock.millis()
+        val last = lastShown.get()
+        val shownRecently =
+            last != null &&
+                last.confirmation === confirmation &&
+                now - last.atMs in 0 until CONFIRMATION_RESHOW_GUARD_MS
+        if (!shownRecently && lastShown.compareAndSet(last, ShownConfirmation(confirmation, now))) {
+            show(sessionId, confirmation)
+        }
+    }
+
     // Puts session [sessionId]'s [confirmation] on screen. A confirmation the
     // platform cannot start (a locked-down ROM with its package installer
     // disabled, for one) would leave the session waiting until the platform
@@ -589,7 +657,6 @@ internal class UpdateRepository internal constructor(
         sessionId: Int,
         confirmation: InstallConfirmation,
     ) {
-        confirmationShownAtMs = clock.millis()
         if (confirmation.show()) return
         settleInstall(sessionId, cleanUp = { abandon(sessionId) }) {
             UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, it)
@@ -599,13 +666,6 @@ internal class UpdateRepository internal constructor(
     private suspend fun abandon(sessionId: Int) {
         platformCall("abandoning session $sessionId") { installer.abandon(sessionId) }
     }
-
-    // A clock set back since the last show counts as long ago, so a re-show is
-    // never held off for longer than the guard.
-    private fun shownRecently(): Boolean =
-        confirmationShownAtMs?.let { shownAt ->
-            clock.millis() - shownAt in 0 until CONFIRMATION_RESHOW_GUARD_MS
-        } == true
 
     // A verdict on this attempt's session (the platform's, or a confirmation
     // that could not be shown) ends the attempt. A verdict on any other session
@@ -705,6 +765,10 @@ internal class UpdateRepository internal constructor(
                         ),
                     store = store,
                     installer = PackageInstallerApkInstaller(PlatformInstallSessions(app)),
+                    // Resolved on first read: building the location graph starts
+                    // its track-log upkeep, which a process started by an install
+                    // status broadcast has no use for until a confirmation arrives.
+                    motion = flow { emitAll(LocationGraph.get(app).vehicleMotion()) },
                     // Never read while disabled; any channel keeps the type non-null.
                     channel = channel ?: UpdateChannel.STABLE,
                     currentVersionCode = BuildConfig.VERSION_CODE,
