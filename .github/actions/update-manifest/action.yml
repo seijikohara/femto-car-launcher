@@ -1,8 +1,8 @@
 name: Update manifest
 description: >-
   Build the femto-car-launcher-update.json manifest published beside every
-  release APK, so the planned in-app updater can discover the latest version
-  and verify a download without scraping the GitHub release page. A missing
+  release APK, so the in-app updater can discover the latest version and
+  verify a download without scraping the GitHub release page. A missing
   manifest must read as "no update information", never an error, so its
   shape has to be exact — the asset name and schemaVersion are defined only
   here, the one place both the nightly and the stable release job call.
@@ -18,13 +18,10 @@ inputs:
     description: 'versionName, e.g. 2026.09.24-1'
     required: true
   apk-path:
-    description: 'Path to the built APK, read to compute size and sha256'
+    description: 'Path to the APK as uploaded, staged under its published asset name (e.g. femto-car-launcher-v2026.09.24-1.apk): its size, sha256 and file name go into the manifest'
     required: true
-  apk-name:
-    description: 'Published asset filename of the APK, e.g. femto-car-launcher-v2026.09.24-1.apk'
-    required: true
-  apk-url:
-    description: 'Public download URL of the APK asset'
+  release-tag:
+    description: 'Tag of the release the APK is published under (e.g. v2026.09.24-1, or nightly), for its download URL'
     required: true
 
 outputs:
@@ -44,10 +41,14 @@ runs:
         VERSION_CODE: ${{ inputs.version-code }}
         VERSION_NAME: ${{ inputs.version-name }}
         APK_PATH: ${{ inputs.apk-path }}
-        APK_NAME: ${{ inputs.apk-name }}
-        APK_URL: ${{ inputs.apk-url }}
+        RELEASE_TAG: ${{ inputs.release-tag }}
       run: |
         set -euo pipefail
+        # The APK is staged under the asset name it is uploaded with, and GitHub
+        # serves every release asset under one URL shape, so both come from
+        # here rather than from inputs that could drift from the uploaded file.
+        name="$(basename "$APK_PATH")"
+        url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/$name"
         size="$(stat -c %s "$APK_PATH")"
         sha256="$(sha256sum "$APK_PATH" | awk '{print $1}')"
         manifest="$RUNNER_TEMP/femto-car-launcher-update.json"
@@ -58,10 +59,10 @@ runs:
           --arg channel "$CHANNEL" \
           --argjson versionCode "$VERSION_CODE" \
           --arg versionName "$VERSION_NAME" \
-          --arg name "$APK_NAME" \
+          --arg name "$name" \
           --argjson size "$size" \
           --arg sha256 "$sha256" \
-          --arg url "$APK_URL" \
+          --arg url "$url" \
           '{
             schemaVersion: 1,
             channel: $channel,

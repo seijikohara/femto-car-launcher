@@ -249,8 +249,7 @@ jobs:
           version-code: ${{ steps.version.outputs.code }}
           version-name: ${{ steps.version.outputs.name }}
           apk-path: ${{ runner.temp }}/femto-car-launcher-nightly.apk
-          apk-name: femto-car-launcher-nightly.apk
-          apk-url: https://github.com/${{ github.repository }}/releases/download/nightly/femto-car-launcher-nightly.apk
+          release-tag: nightly
 
       - name: Publish rolling nightly prerelease
         if: steps.apk.outputs.unchanged != 'true'
@@ -493,8 +492,7 @@ jobs:
           version-code: ${{ steps.version.outputs.code }}
           version-name: ${{ steps.version.outputs.name }}
           apk-path: ${{ runner.temp }}/femto-car-launcher-${{ env.TAG }}.apk
-          apk-name: femto-car-launcher-${{ env.TAG }}.apk
-          apk-url: https://github.com/${{ github.repository }}/releases/download/${{ env.TAG }}/femto-car-launcher-${{ env.TAG }}.apk
+          release-tag: ${{ env.TAG }}
 
       - name: Publish the release
         if: steps.apk.outputs.unchanged != 'true' && steps.tag.outputs.superseded != 'true'
@@ -517,8 +515,8 @@ jobs:
             fi
           } > "$RUNNER_TEMP/release-notes.md"
           # --latest: versionName isn't valid semver, so GitHub can't infer
-          # recency from it. The install guide and the planned in-app updater
-          # both read /releases/latest and need it pinned explicitly.
+          # recency from it. The install guide and the in-app updater both
+          # read /releases/latest and need it pinned explicitly.
           #
           # A release create call with several files uploads them all before the
           # release goes live, so the APK and the update manifest always appear
