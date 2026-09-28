@@ -64,8 +64,8 @@ The app checks its own channel for a newer build — stable checks the latest
 stable release, nightly checks the rolling nightly — so you don't need to
 repeat the sideloading steps above for every new version.
 
-- **Automatic check.** At most once a day while the dashboard is in use, the
-  app looks for a newer build. Turn this off with the "Check automatically"
+- **Automatic check.** At most once a day while the app is running, the app
+  looks for a newer build. Turn this off with the "Check automatically"
   switch under **Settings → Updates**.
 - **Manual check.** Tap **Check for updates** under **Settings → Updates** at
   any time.
@@ -75,8 +75,9 @@ repeat the sideloading steps above for every new version.
   Launcher (or Femto Nightly). Some devices then add a security-scan prompt
   of their own; continue past it to finish the install.
 - **While driving.** Install is unavailable while the vehicle is known to be
-  moving, so the confirmation never pops up over the road ahead. Checking and
-  downloading are not affected.
+  moving. If the vehicle starts moving before Android's confirmation appears,
+  the confirmation waits until you tap **Show the install dialog again**
+  under **Settings → Updates**. Checking and downloading are not affected.
 - **Where to look.** A dot on the dock's Settings button shows an update is
   waiting, while the vehicle is parked with a live GPS fix. The same dot
   shows on **Settings → Updates**, which is where to check if the Settings
