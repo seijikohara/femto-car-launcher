@@ -47,8 +47,10 @@ internal enum class VehicleMotion {
 }
 
 /**
- * The motion that [tripState] and the latest GPS [location] (null before any)
+ * The motion that [tripState] and the latest [location] (null before any fix)
  * show at [nowElapsedRealtimeNanos] (pass [SystemClock.elapsedRealtimeNanos]).
+ * A NETWORK [location] never reads [VehicleMotion.PARKED]; the trip speed can
+ * still read [VehicleMotion.MOVING] beside it.
  *
  * A fix is live within [LOCATION_STALE_THRESHOLD_MS] ([isFresh]). That window
  * is the project's single definition of when a position stops describing the
@@ -73,13 +75,17 @@ internal fun vehicleMotion(
     }
 
 /**
- * [vehicleMotion], judged each time a GPS fix or a trip update arrives, and
- * emitted only on change. The location flow interleaves NETWORK fixes with
- * GPS ones. A NETWORK fix neither replaces the latest GPS fix nor counts as a
- * new reading, so it cannot flip a parked verdict to unknown and back. Before
- * the first GPS fix, the flow still reads [VehicleMotion.UNKNOWN], so a gate
- * waiting on its first verdict never waits on a device with network fixes
- * only.
+ * [vehicleMotion], judged each time a new reading (a fix or a trip update)
+ * arrives, and emitted only on change. The location flow interleaves NETWORK
+ * fixes with GPS ones. Once a GPS fix has arrived, a NETWORK fix neither
+ * replaces it nor counts as a new reading, so it cannot flip a parked verdict
+ * to unknown and back. Before the first GPS fix, each fix is judged as it
+ * comes, so the trip speed can still read [VehicleMotion.MOVING]. The shared
+ * location flow replays its latest fix, NETWORK ones included, and every gate
+ * reads a fresh collection of it. A gate that starts reading on a NETWORK fix
+ * while the car pulls away, or drives through a tunnel with cellular
+ * coverage, must still hold. A device with network fixes only reads
+ * [VehicleMotion.UNKNOWN], so a gate waiting on its first verdict never waits.
  *
  * A receiver gone quiet sends nothing to judge, so [VehicleMotion.PARKED]
  * ages out on its own: [LOCATION_STALE_THRESHOLD_MS] after it was judged with
@@ -119,13 +125,20 @@ internal suspend fun Flow<VehicleMotion>.currentOrUnknown(): VehicleMotion =
         catchAsDefault(TAG, "vehicle motion", VehicleMotion.UNKNOWN).firstOrNull()
     } ?: VehicleMotion.UNKNOWN
 
-// The latest GPS fix, or null before one. The first upstream element always
-// yields a value, NETWORK or not, so the combine above can speak. After that,
-// an element that leaves the latest GPS fix in place (a NETWORK fix) is
-// dropped, since it is no new reading.
+// The latest GPS fix once there is one. Until then, each element passes as it
+// is (a NETWORK fix, or the null no-fix signal): the first upstream element
+// always yields a value, so the combine above can speak, and a moving trip
+// speed is not silenced by a missing GPS fix. After the first GPS fix, an
+// element that leaves it in place (a NETWORK fix) is dropped, since it is no
+// new reading.
 private fun Flow<Location?>.latestGpsFix(): Flow<Location?> =
-    runningFold<Location?, Location?>(null) { latest, fix -> fix?.takeIf { it.isGpsFix() } ?: latest }
-        .drop(1)
+    runningFold<Location?, Location?>(null) { latest, fix ->
+        when {
+            fix?.isGpsFix() == true -> fix
+            latest?.isGpsFix() == true -> latest
+            else -> fix
+        }
+    }.drop(1)
         .distinctUntilChanged { old, new -> old === new }
 
 private fun Location.isLiveGpsFix(nowElapsedRealtimeNanos: Long): Boolean =

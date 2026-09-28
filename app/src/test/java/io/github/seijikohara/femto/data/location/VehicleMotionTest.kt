@@ -134,6 +134,33 @@ class VehicleMotionTest {
         }
 
     @Test
+    fun `a first reading from a NETWORK fix still reads moving while the trip speed says so`() =
+        runTest {
+            // The shared location flow replays its latest fix, NETWORK ones
+            // included, and every install gate reads a fresh collection of it:
+            // the car pulling away must still hold the confirmation.
+            val verdicts = verdictsOf(MutableStateFlow(networkFix()), MutableStateFlow(moving))
+
+            assertEquals(listOf(VehicleMotion.MOVING), verdicts)
+        }
+
+    @Test
+    fun `NETWORK fixes before any GPS fix keep a moving verdict`() =
+        runTest {
+            // A tunnel with cellular coverage: GPS is gone, network fixes keep
+            // coming, and the trip speed still says the car moves.
+            val locations = MutableSharedFlow<Location?>()
+            val verdicts = verdictsOf(locations, MutableStateFlow(moving))
+
+            locations.emit(networkFix())
+            runCurrent()
+            locations.emit(networkFix())
+            runCurrent()
+
+            assertEquals(listOf(VehicleMotion.MOVING), verdicts)
+        }
+
+    @Test
     fun `a parked verdict ages out once no GPS fix follows within the freshness window`() =
         runTest {
             // A receiver gone quiet (a covered car park, location switched off)

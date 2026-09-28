@@ -493,7 +493,7 @@
     <!-- Named apart from "Install update": Android shows no progress once the install is
          accepted, and an "Install" label would invite a second acceptance. -->
     <string name="settings_updates_show_install_dialog">Show the install dialog again</string>
-    <string name="settings_updates_show_install_dialog_desc">For when the confirmation was closed without an answer.</string>
+    <string name="settings_updates_show_install_dialog_desc">For a confirmation closed without an answer, or held back while the vehicle moved.</string>
     <string name="settings_updates_parked_only">Available when parked</string>
     <string name="settings_updates_retry">Retry</string>
     <!-- %1$s = the offered version name, %2$s = its download size, e.g. "45.3 MB" -->
