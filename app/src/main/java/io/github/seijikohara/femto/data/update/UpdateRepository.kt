@@ -236,8 +236,9 @@ internal class UpdateRepository internal constructor(
     private var lastAttemptAtMs: Long? = null
 
     // Set at start when an install of a newer build was pending but nothing of
-    // its offer survived the cache: the next automatic check runs at once
-    // instead of waiting out the day since the check that found it.
+    // its offer survived, neither the staged download nor the persisted offer:
+    // the next automatic check runs at once instead of waiting out the day
+    // since the check that found it.
     @Volatile
     private var recheckAtOnce = false
 
