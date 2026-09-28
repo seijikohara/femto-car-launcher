@@ -5,14 +5,18 @@
 // backend keeps its own machine (its camera-change events carry no
 // user-vs-programmatic flag and it has no mapId-free geo marker — see
 // backends/googlemaps.ts) but moves the camera by the same rules: the
-// motion policy (followMotion and the one-shot motions) lives in camera.ts.
-// The one-shot moves here pass only the duration; MapLibre's easeTo applies
-// its own default curve, a comparable ease.
+// motion policy (followMotion and the one-shot motions, curves included) and
+// the orientation rule (followOrientation) live in camera.ts. The one-shot
+// moves pass their curve to easeTo explicitly: it is MapLibre's own default,
+// so the OSM map moves as it always has, and both backends read the curve
+// from the one symbol.
 import {
     AUTO_REFOLLOW_MS,
-    appliedBearing,
+    type CameraMotion,
     DETACHED_ZOOM_STEP_MOTION,
+    type FollowOrientation,
     followMotion,
+    followOrientation,
     isPaddingOnlyReflow,
     isRealPosition,
     LAYOUT_REFLOW_MS,
@@ -31,7 +35,7 @@ import {
     startStaleTicker,
 } from "./chevron";
 import { createMarkerTransition } from "./marker-motion";
-import { markerDrop, markerPadLeft, markerPadRight, markerPadTop, markerXFraction } from "./style";
+import { markerPadLeft, markerPadRight, markerPadTop, markerSpot } from "./style";
 
 // The camera-option shape this engine passes to easeTo/jumpTo — a structural
 // subset of maplibre-gl's camera options.
@@ -166,19 +170,26 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
         el.classList.toggle("stale", markerEl.classList.contains("stale"));
     }
 
-    // North-up keeps the map pinned to north and rotates the chevron to the
+    // The map's bearing and the chevron's turn for a fix, from the one rule
+    // both backends orient by (followOrientation; MapLibre always rotates):
+    // north-up keeps the map pinned to north and rotates the chevron to the
     // heading instead; heading-up rotates the map and the chevron points up.
-    // The perspective transform lays the chevron onto the tilted ground plane.
-    function syncChevron(tilt: number, heading: number): void {
-        setChevronTransform(markerEl, tilt, state.northUp ? heading : 0, true);
+    function orientationFor(heading: number): FollowOrientation {
+        return followOrientation(state.northUp, heading, true);
     }
 
-    function easeHome(durationMs: number): void {
+    // Turn the chevron by [turn]; the perspective transform lays it onto the
+    // tilted ground plane.
+    function syncChevron(tilt: number, turn: number): void {
+        setChevronTransform(markerEl, tilt, turn, true);
+    }
+
+    function easeHome(motion: CameraMotion): void {
         const fix = state.lastFix;
         if (!fix) return;
         map.easeTo({
             center: [fix.lon, fix.lat],
-            bearing: appliedBearing(state.northUp, fix.heading),
+            bearing: orientationFor(fix.heading).mapBearing,
             zoom: fix.zoom,
             pitch: fix.tilt,
             padding: {
@@ -191,7 +202,8 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
                 left: markerPadLeft(fix.leftSafe, map.getContainer().clientWidth || 0),
                 right: markerPadRight(fix.rightSafe, map.getContainer().clientWidth || 0),
             },
-            duration: durationMs,
+            duration: motion.durationMs,
+            easing: motion.easing,
             essential: true,
         });
     }
@@ -208,7 +220,7 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
             markerEl.style.display = "block";
             // Ease home in one continuous transition; the per-fix cadence
             // easing resumes from the next push.
-            easeHome(REFOLLOW_MOTION.durationMs);
+            easeHome(REFOLLOW_MOTION);
         } else {
             // The screen-fixed chevron points at arbitrary map while
             // detached; the geo-anchored clone tracks the real position
@@ -317,6 +329,7 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
                     map.easeTo({
                         zoom: state.lastPushedZoom,
                         duration: DETACHED_ZOOM_STEP_MOTION.durationMs,
+                        easing: DETACHED_ZOOM_STEP_MOTION.easing,
                         essential: true,
                     });
                 }
@@ -344,13 +357,15 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
             // otherwise so a real fix keeps snapping the screen-pinned marker
             // while the camera eases the ground underneath it.
             markerTransition.setActive(motion === REFLOW_MOTION);
-            markerEl.style.left = `${(0.5 - markerXFraction(rightSafe) + markerXFraction(leftSafe)) * 100}%`;
-            markerEl.style.top = `${50 + markerDrop(markerPos, bottomSafe) * 100}%`;
-            syncChevron(tilt || 0, heading);
+            const spot = markerSpot({ markerPos, bottomSafe, rightSafe, leftSafe });
+            markerEl.style.left = `${(0.5 + spot.x) * 100}%`;
+            markerEl.style.top = `${(0.5 + spot.y) * 100}%`;
+            const orientation = orientationFor(heading);
+            syncChevron(tilt || 0, orientation.chevronTurn);
             markerEl.style.display = "block";
             const opts: FollowCameraOpts = {
                 center: [lon, lat],
-                bearing: appliedBearing(state.northUp, heading),
+                bearing: orientation.mapBearing,
                 zoom: Number.isFinite(zoom) ? zoom : 16,
                 pitch: tilt || 0,
                 padding: {
@@ -382,12 +397,14 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
             // for up to one GPS interval.
             const fix = state.lastFix;
             if (state.following && fix) {
+                const orientation = orientationFor(fix.heading);
                 map.easeTo({
-                    bearing: appliedBearing(state.northUp, fix.heading),
+                    bearing: orientation.mapBearing,
                     duration: ORIENTATION_FLIP_MOTION.durationMs,
+                    easing: ORIENTATION_FLIP_MOTION.easing,
                     essential: true,
                 });
-                syncChevron(fix.tilt, fix.heading);
+                syncChevron(fix.tilt, orientation.chevronTurn);
             }
         },
         onHostResume(): void {

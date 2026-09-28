@@ -2,11 +2,12 @@ import { describe, expect, it } from "vite-plus/test";
 import {
     appliedBearing,
     BEARING_SNAP_DELTA_DEG,
+    cubicBezier,
+    DETACHED_ZOOM_STEP_MOTION,
+    defaultEase,
     easeDurationMs,
     followMotion,
-    HEADING_SETTLE_MIN_DEG,
-    HEADING_SETTLE_MS,
-    heldHeading,
+    followOrientation,
     isPaddingOnlyReflow,
     isRealPosition,
     linearEase,
@@ -14,13 +15,13 @@ import {
     MAX_LATITUDE_DEG,
     MAX_LONGITUDE_DEG,
     MIN_EASE_MS,
-    NO_HEADING_HOLD,
+    ORIENTATION_FLIP_MOTION,
     REFLOW_MOTION,
+    REFOLLOW_MOTION,
     type ReflowFix,
     shortestBearingDelta,
-    settledHeading,
-    smoothEase,
     smoothedBearing,
+    spotMotion,
 } from "./camera";
 
 describe("easeDurationMs", () => {
@@ -47,17 +48,50 @@ describe("linearEase", () => {
     });
 });
 
-describe("smoothEase", () => {
-    it("starts and ends on the endpoints", () => {
-        expect(smoothEase(0)).toBe(0);
-        expect(smoothEase(1)).toBe(1);
+describe("cubicBezier", () => {
+    it("is the identity for the straight curve, including where the solver bisects", () => {
+        // cubic-bezier(0, 0, 1, 1) is flat at both ends in x(t), which sends
+        // the solver from Newton's method to its bisection fallback there.
+        const straight = cubicBezier(0, 0, 1, 1);
+        for (const x of [1e-7, 1e-3, 0.1, 0.5, 0.9, 1 - 1e-3, 1 - 1e-7]) {
+            expect(Math.abs(straight(x) - x)).toBeLessThan(1e-5);
+        }
     });
 
-    it("accelerates out of the start and decelerates into the end symmetrically", () => {
-        expect(smoothEase(0.25)).toBeLessThan(0.25);
-        expect(smoothEase(0.75)).toBeGreaterThan(0.75);
-        expect(smoothEase(0.5)).toBe(0.5);
-        expect(smoothEase(0.25) + smoothEase(0.75)).toBeCloseTo(1);
+    it("holds the endpoints outside [0, 1]", () => {
+        const curve = cubicBezier(0.42, 0, 0.58, 1);
+        expect(curve(-0.5)).toBe(0);
+        expect(curve(0)).toBe(0);
+        expect(curve(1)).toBe(1);
+        expect(curve(1.5)).toBe(1);
+    });
+});
+
+describe("defaultEase", () => {
+    it("matches MapLibre's default easeTo curve, cubic-bezier(0.25, 0.1, 0.25, 1)", () => {
+        // Reference values from maplibre-gl 6.10.0's own bezier(.25, .1, .25, 1),
+        // the curve the OSM map's one-shot moves have always taken.
+        expect(Math.abs(defaultEase(0.25) - 0.408510593016)).toBeLessThan(1e-6);
+        expect(Math.abs(defaultEase(0.5) - 0.802403387695)).toBeLessThan(1e-6);
+        expect(Math.abs(defaultEase(0.75) - 0.960459072953)).toBeLessThan(1e-6);
+    });
+
+    it("starts fast and settles gently, rising monotonically from 0 to 1", () => {
+        const samples = Array.from({ length: 101 }, (_, i) => defaultEase(i / 100));
+        expect(samples[0]).toBe(0);
+        expect(samples[100]).toBe(1);
+        expect(samples.every((v, i) => i === 0 || v >= samples[i - 1])).toBe(true);
+        expect(defaultEase(0.25)).toBeGreaterThan(0.25);
+    });
+
+    it("is the curve of every one-shot camera move, for both backends", () => {
+        for (const motion of [
+            REFOLLOW_MOTION,
+            ORIENTATION_FLIP_MOTION,
+            DETACHED_ZOOM_STEP_MOTION,
+        ]) {
+            expect(motion.easing).toBe(defaultEase);
+        }
     });
 });
 
@@ -112,6 +146,39 @@ describe("appliedBearing", () => {
     });
 });
 
+describe("followOrientation", () => {
+    it("turns a rotating map to every smoothed bearing, however small the change", () => {
+        // Bearing jitter on a straight road, every step under the 4° the
+        // removed Google dead band held back: the map lands on each smoothed
+        // bearing and the chevron points straight up, with no residual.
+        const headings = [90, 90.8, 91.3, 90.9].reduce<number[]>(
+            (smoothed, raw) => [
+                ...smoothed,
+                smoothedBearing(smoothed.length > 0 ? smoothed[smoothed.length - 1] : null, raw),
+            ],
+            [],
+        );
+        [90, 90.4, 90.85, 90.875].forEach((expected, i) => {
+            expect(headings[i]).toBeCloseTo(expected, 9);
+        });
+        for (const heading of headings) {
+            expect(followOrientation(false, heading, true)).toEqual({
+                mapBearing: heading,
+                chevronTurn: 0,
+            });
+        }
+    });
+
+    it("pins a rotating map to north in north-up and turns the chevron instead", () => {
+        expect(followOrientation(true, 137, true)).toEqual({ mapBearing: 0, chevronTurn: 137 });
+    });
+
+    it("keeps a map that cannot rotate north-up, the chevron carrying the heading", () => {
+        expect(followOrientation(false, 137, false)).toEqual({ mapBearing: 0, chevronTurn: 137 });
+        expect(followOrientation(true, 137, false)).toEqual({ mapBearing: 0, chevronTurn: 137 });
+    });
+});
+
 describe("followMotion", () => {
     const steady = { firstCamera: false, signalGap: false, reflow: false, sinceLastFixMs: 1_000 };
 
@@ -131,6 +198,48 @@ describe("followMotion", () => {
         const motion = followMotion({ ...steady, sinceLastFixMs: 250 });
         expect(motion?.durationMs).toBe(easeDurationMs(250));
         expect(motion?.easing).toBe(linearEase);
+    });
+});
+
+describe("spotMotion", () => {
+    const offset = { x: -0.214, y: 0.224 };
+    const centred = { x: 0, y: 0.224 };
+    const fix = followMotion({
+        firstCamera: false,
+        signalGap: false,
+        reflow: false,
+        sinceLastFixMs: 1_000,
+    });
+
+    it("places a chevron that is not on screen yet without a glide of its own", () => {
+        expect(spotMotion(null, centred, null)).toEqual({ snapAt: null, motion: null });
+        expect(spotMotion(null, centred, REFOLLOW_MOTION)).toEqual({
+            snapAt: null,
+            motion: REFOLLOW_MOTION,
+        });
+    });
+
+    it("keeps the push's motion while the chevron stays where it is", () => {
+        expect(spotMotion(centred, { ...centred }, fix)).toEqual({ snapAt: null, motion: fix });
+        expect(spotMotion(centred, { ...centred }, null)).toEqual({ snapAt: null, motion: null });
+    });
+
+    it("glides a chevron that moves with the reflow motion, the camera in lockstep", () => {
+        expect(spotMotion(offset, centred, fix)).toEqual({ snapAt: null, motion: REFLOW_MOTION });
+        expect(spotMotion(centred, offset, ORIENTATION_FLIP_MOTION)).toEqual({
+            snapAt: null,
+            motion: REFLOW_MOTION,
+        });
+    });
+
+    it("lands a snap under the chevron where it is, then glides the chevron to its new spot", () => {
+        // A snap (a signal gap, the rendering-mode resolve) cannot carry the
+        // chevron: it would jump. The camera snaps with the fix under the
+        // chevron's current spot and the two then glide together.
+        expect(spotMotion(offset, centred, null)).toEqual({
+            snapAt: offset,
+            motion: REFLOW_MOTION,
+        });
     });
 });
 
@@ -197,95 +306,5 @@ describe("isRealPosition", () => {
     it("rejects a coordinate off the globe", () => {
         expect(isRealPosition(MAX_LATITUDE_DEG + 1, 0)).toBe(false);
         expect(isRealPosition(0, -MAX_LONGITUDE_DEG - 1)).toBe(false);
-    });
-});
-
-describe("heldHeading", () => {
-    const held90 = { ...NO_HEADING_HOLD, applied: 90 };
-
-    it("adopts the target when nothing is applied", () => {
-        expect(heldHeading(NO_HEADING_HOLD, 350, 0)).toEqual({ ...NO_HEADING_HOLD, applied: 350 });
-    });
-
-    it("holds inside the band and starts the residual clock", () => {
-        expect(heldHeading(held90, 92, 1_000)).toEqual({
-            applied: 90,
-            residualSide: 1,
-            residualSinceMs: 1_000,
-        });
-    });
-
-    it("rotates at once when the target leaves the band", () => {
-        expect(heldHeading(held90, 94, 1_000)).toEqual({ ...NO_HEADING_HOLD, applied: 94 });
-    });
-
-    it("settles a residual that has persisted for the settle time", () => {
-        const holding = heldHeading(held90, 92, 1_000);
-        expect(heldHeading(holding, 92, 1_000 + HEADING_SETTLE_MS - 1).applied).toBe(90);
-        expect(heldHeading(holding, 92, 1_000 + HEADING_SETTLE_MS)).toEqual({
-            ...NO_HEADING_HOLD,
-            applied: 92,
-        });
-    });
-
-    it("leaves a residual below the settle minimum alone", () => {
-        const target = 90 + HEADING_SETTLE_MIN_DEG / 2;
-        const holding = heldHeading(held90, target, 1_000);
-        expect(holding).toEqual({ ...NO_HEADING_HOLD, applied: 90 });
-        expect(heldHeading(holding, target, 1_000 + 2 * HEADING_SETTLE_MS).applied).toBe(90);
-    });
-
-    it("restarts the residual clock when the residual dips below the minimum", () => {
-        const a = heldHeading(held90, 92, 0);
-        const b = heldHeading(a, 90.5, 1_000);
-        expect(b.residualSinceMs).toBeNull();
-        const c = heldHeading(b, 92, 2_000);
-        expect(c.residualSinceMs).toBe(2_000);
-        expect(heldHeading(c, 92, 2_000 + HEADING_SETTLE_MS - 1).applied).toBe(90);
-        expect(heldHeading(c, 92, 2_000 + HEADING_SETTLE_MS).applied).toBe(92);
-    });
-
-    it("measures the residual across the north seam", () => {
-        const holding = heldHeading({ ...NO_HEADING_HOLD, applied: 359 }, 1, 0);
-        expect(holding.applied).toBe(359);
-        expect(holding.residualSinceMs).toBe(0);
-        expect(heldHeading(holding, 1, HEADING_SETTLE_MS).applied).toBe(1);
-    });
-
-    it("restarts the residual clock when the residual changes side", () => {
-        // Bearing jitter that swings across the applied heading (a slow
-        // crawl with a poor fix) never dips under the minimum, yet it is not
-        // a residual that stays: settling onto one side would put the other
-        // side outside the band and turn every fix into a rotation.
-        const hold = [92, 88, 92, 88, 92, 88, 92, 88, 92, 88, 92, 88, 92, 88].reduce(
-            (h, target, i) => heldHeading(h, target, i * 500),
-            held90 as ReturnType<typeof heldHeading>,
-        );
-        expect(hold.applied).toBe(90);
-    });
-});
-
-describe("settledHeading", () => {
-    it("adopts the target when nothing is applied yet", () => {
-        expect(settledHeading(null, 350)).toBe(350);
-        expect(settledHeading(null, -10)).toBe(350);
-    });
-
-    it("holds the applied heading while the drift stays inside the dead band", () => {
-        // Jitter on a straight road: the map must not rotate.
-        expect(settledHeading(90, 92)).toBe(90);
-        expect(settledHeading(90, 87)).toBe(90);
-        expect(settledHeading(359, 2)).toBe(359);
-    });
-
-    it("follows the target once the drift leaves the dead band", () => {
-        expect(settledHeading(90, 94)).toBe(94);
-        expect(settledHeading(90, 85)).toBe(85);
-        expect(settledHeading(359, 5)).toBe(5);
-    });
-
-    it("honours a caller-supplied band", () => {
-        expect(settledHeading(90, 99, 10)).toBe(90);
-        expect(settledHeading(90, 100, 10)).toBe(100);
     });
 });

@@ -1,5 +1,6 @@
 // Pure camera-follow math, kept free of MapLibre runtime and DOM state so it is
 // unit-testable (see camera.test.ts); main.ts owns the page wiring.
+import type { MarkerSpot } from "./style";
 
 // How long after the last camera push the position counts as lost (a tunnel):
 // the chevron greys out, and the next push snaps the camera instead of easing
@@ -33,13 +34,60 @@ export function linearEase(t: number): number {
     return t;
 }
 
-// Ease-in-out (cubic) for the one-shot camera moves below, which start and
-// end at rest, unlike the chained per-fix segments. MapLibre's easeTo applies
-// a comparable curve by default and takes only the duration; the Google Maps
-// page interpolates its own camera (camera-glide.ts) and takes both.
-export function smoothEase(t: number): number {
-    return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+// The easing curve of a CSS cubic-bezier(p1x, p1y, p2x, p2y) timing function:
+// progress in, eased progress out. A port of the @mapbox/unitbezier solver
+// MapLibre bundles — up to eight Newton steps on x(t), then up to twenty
+// bisection steps where Newton stalls on a flat stretch or does not converge
+// — to the same 1e-6 tolerance, so a curve evaluated here matches MapLibre's
+// own. Importing MapLibre's copy instead would pull maplibre-gl into the
+// Google Maps page's bundle.
+export function cubicBezier(
+    p1x: number,
+    p1y: number,
+    p2x: number,
+    p2y: number,
+): (t: number) => number {
+    const cx = 3 * p1x;
+    const bx = 3 * (p2x - p1x) - cx;
+    const ax = 1 - cx - bx;
+    const cy = 3 * p1y;
+    const by = 3 * (p2y - p1y) - cy;
+    const ay = 1 - cy - by;
+    const curveX = (s: number): number => ((ax * s + bx) * s + cx) * s;
+    const curveY = (s: number): number => ((ay * s + by) * s + cy) * s;
+    const slopeX = (s: number): number => (3 * ax * s + 2 * bx) * s + cx;
+    const epsilon = 1e-6;
+    // The curve parameter s whose x(s) is [x]; recursion stands in for the
+    // original loops (let is banned — see the vite.config.ts lint block).
+    const newton = (x: number, s: number, step: number): number | null => {
+        if (step === 8) return null;
+        const dx = curveX(s) - x;
+        if (Math.abs(dx) < epsilon) return s;
+        const slope = slopeX(s);
+        if (Math.abs(slope) < 1e-6) return null;
+        return newton(x, s - dx / slope, step + 1);
+    };
+    const bisect = (x: number, s: number, lo: number, hi: number, step: number): number => {
+        if (step === 20) return s;
+        const xs = curveX(s);
+        if (Math.abs(xs - x) < epsilon) return s;
+        return x > xs
+            ? bisect(x, (s + hi) / 2, s, hi, step + 1)
+            : bisect(x, (lo + s) / 2, lo, s, step + 1);
+    };
+    return (t: number): number => {
+        if (t <= 0) return 0;
+        if (t >= 1) return 1;
+        return curveY(newton(t, t, 0) ?? bisect(t, t, 0, 1, 0));
+    };
 }
+
+// The curve of the one-shot camera moves below, which start and end at rest,
+// unlike the chained per-fix segments: MapLibre's default easeTo curve (CSS
+// `ease`), which starts fast and settles gently. The OSM engine passes it to
+// easeTo and the Google Maps page's glide (camera-glide.ts) applies it, so
+// both maps take the one curve from here.
+export const defaultEase = cubicBezier(0.25, 0.1, 0.25, 1);
 
 // How a camera move plays out: an ease of this length and shape.
 export interface CameraMotion {
@@ -52,9 +100,9 @@ export interface CameraMotion {
 // transition; a north-up flip re-orients while following; a pushed zoom step
 // while detached (the host's +/- button) applies around the free camera's
 // own centre.
-export const REFOLLOW_MOTION: CameraMotion = { durationMs: 600, easing: smoothEase };
-export const ORIENTATION_FLIP_MOTION: CameraMotion = { durationMs: 400, easing: smoothEase };
-export const DETACHED_ZOOM_STEP_MOTION: CameraMotion = { durationMs: 250, easing: smoothEase };
+export const REFOLLOW_MOTION: CameraMotion = { durationMs: 600, easing: defaultEase };
+export const ORIENTATION_FLIP_MOTION: CameraMotion = { durationMs: 400, easing: defaultEase };
+export const DETACHED_ZOOM_STEP_MOTION: CameraMotion = { durationMs: 250, easing: defaultEase };
 
 // WGS84 coordinate bounds. A push outside them (or a non-finite one) makes the
 // camera target garbage and throws the marker off the viewport until the next
@@ -106,86 +154,6 @@ export function normalizeBearing(bearing: number): number {
     return ((bearing % 360) + 360) % 360;
 }
 
-// How far the smoothed bearing may drift from the heading the map is rotated
-// to before the map rotates again. A rotation is the most expensive camera
-// change a vector renderer makes — every label is re-laid-out and re-tested
-// for collisions — and the GNSS bearing wanders a degree or two on every fix
-// even on a straight road, so without a dead band every fix is a rotation.
-// Inside the band the map only translates and the chevron carries the
-// residual, so the arrow still shows the true travel direction — but the
-// road itself then sits up to the band's width off vertical, which is what
-// the settle below closes.
-export const HEADING_HYSTERESIS_DEG = 4;
-
-// A residual inside the band that persists this long — a straight road
-// entered at a slight angle, a turn that ended just inside the band — is
-// closed with one rotation, so the road ends up vertical after a few seconds
-// of straight driving. Residuals under HEADING_SETTLE_MIN_DEG are left
-// alone: they are not visible, and the smoothed bearing's own wander would
-// otherwise trigger a settle every few seconds on a straight road. The clock
-// restarts whenever the residual dips under the minimum or swings to the
-// other side of the applied heading, so only a residual that stays on one
-// side counts: bearing jitter swinging across the applied heading (a slow
-// crawl with a poor fix) is not a lean to close, and settling onto one side
-// of it would put the other side outside the band and turn every fix into a
-// rotation — the very thing the band exists to avoid.
-export const HEADING_SETTLE_MS = 3_000;
-export const HEADING_SETTLE_MIN_DEG = 1.5;
-
-// The heading dead band's state: the heading the map is rotated to (null
-// until a fix adopts the bearing outright — the backend decides when, see
-// its reset sites), plus the side of it the current residual lies on and
-// when that residual first reached the settle minimum (both null while it
-// is under the minimum).
-export interface HeadingHold {
-    applied: number | null;
-    residualSide: 1 | -1 | null;
-    residualSinceMs: number | null;
-}
-
-export const NO_HEADING_HOLD: HeadingHold = {
-    applied: null,
-    residualSide: null,
-    residualSinceMs: null,
-};
-
-// The hold after one fix with the smoothed bearing [target] at [nowMs]: its
-// `applied` is the heading to rotate the map to — held while the drift stays
-// inside the dead band (see HEADING_HYSTERESIS_DEG) and its residual has not
-// yet persisted for HEADING_SETTLE_MS; [target] once the drift leaves the
-// band, the residual settles, or nothing is applied yet.
-export function heldHeading(
-    hold: HeadingHold,
-    target: number,
-    nowMs: number,
-): HeadingHold & { applied: number } {
-    const settled = settledHeading(hold.applied, target);
-    if (settled !== hold.applied) return { ...NO_HEADING_HOLD, applied: settled };
-    const delta = shortestBearingDelta(settled, target);
-    if (Math.abs(delta) < HEADING_SETTLE_MIN_DEG) return { ...NO_HEADING_HOLD, applied: settled };
-    const side = delta < 0 ? -1 : 1;
-    const since = side === hold.residualSide ? (hold.residualSinceMs ?? nowMs) : nowMs;
-    if (nowMs - since >= HEADING_SETTLE_MS) {
-        return { ...NO_HEADING_HOLD, applied: normalizeBearing(target) };
-    }
-    return { applied: settled, residualSide: side, residualSinceMs: since };
-}
-
-// The heading the map should be rotated to for [target], given the heading it
-// is currently rotated to: [applied] while the drift stays inside the dead
-// band, [target] once it leaves it or when nothing is applied yet (first fix,
-// re-follow, signal gap).
-export function settledHeading(
-    applied: number | null,
-    target: number,
-    thresholdDeg: number = HEADING_HYSTERESIS_DEG,
-): number {
-    if (applied === null) return normalizeBearing(target);
-    return Math.abs(shortestBearingDelta(applied, target)) < thresholdDeg
-        ? applied
-        : normalizeBearing(target);
-}
-
 // How long after the user's last gesture the camera re-attaches to the
 // location follow on its own. Long enough to read the map after a scroll,
 // short enough that a driver who forgets the map is detached gets the
@@ -193,9 +161,34 @@ export function settledHeading(
 export const AUTO_REFOLLOW_MS = 15_000;
 
 // The bearing the follow camera applies: north-up pins the map to north and
-// leaves orientation to the chevron; heading-up rotates the map itself.
+// leaves orientation to the chevron; heading-up rotates the map itself, to
+// the smoothed heading of every fix. Nothing holds the map back from a small
+// turn: a map left short of the heading shows the road and the arrow off
+// vertical by the difference.
 export function appliedBearing(northUp: boolean, heading: number): number {
     return northUp ? 0 : heading;
+}
+
+// The follow camera's orientation for one fix: the bearing the map rotates
+// to, and the chevron's turn on screen.
+export interface FollowOrientation {
+    mapBearing: number;
+    chevronTurn: number;
+}
+
+// The orientation of a map that can rotate ([mapRotates]: MapLibre, a Google
+// vector map) follows appliedBearing, the chevron pointing straight up in
+// heading-up and turned to the heading in north-up; a map that cannot (a
+// Google raster map) stays north-up and the chevron always carries the
+// heading. Both backends orient through here, so the maps and their chevrons
+// turn alike.
+export function followOrientation(
+    northUp: boolean,
+    heading: number,
+    mapRotates: boolean,
+): FollowOrientation {
+    if (!mapRotates) return { mapBearing: 0, chevronTurn: heading };
+    return { mapBearing: appliedBearing(northUp, heading), chevronTurn: northUp ? heading : 0 };
 }
 
 // --- Layout-reflow lockstep --------------------------------------------------
@@ -285,4 +278,35 @@ export function followMotion(push: FollowPush): CameraMotion | null {
     if (push.firstCamera || push.signalGap) return null;
     if (push.reflow) return REFLOW_MOTION;
     return { durationMs: easeDurationMs(push.sinceLastFixMs), easing: linearEase };
+}
+
+// How one placement of the Google Maps page's chevron moves the camera.
+export interface SpotPlan {
+    // Where to snap the camera first, with the fix under the chevron at this
+    // spot, before the move below; null for none.
+    snapAt: MarkerSpot | null;
+    // Then move the camera, the chevron at its new spot, like this; null
+    // snaps.
+    motion: CameraMotion | null;
+}
+
+// The Google Maps page's refinement of followMotion for the chevron's spot
+// (googleMarkerSpot in style.ts), which also moves without a layout reflow —
+// the map tilting to or from 0°, the rendering-mode resolve. [shown] is where
+// the chevron is on screen now, null while it is hidden or not yet placed: it
+// then appears at [next] with no glide of its own. A chevron that moves
+// glides with REFLOW_MOTION, the marker's CSS transition and the camera in
+// lockstep; a push that would snap first lands the camera with the fix under
+// the chevron where it still is, since a snap cannot carry the chevron with
+// it. As after any layout reflow, a fix that arrives during the glide
+// finishes the chevron's remaining move at once (it clears the transition),
+// and the camera catches up over that fix's segment.
+export function spotMotion(
+    shown: MarkerSpot | null,
+    next: MarkerSpot,
+    push: CameraMotion | null,
+): SpotPlan {
+    const moved = shown !== null && (shown.x !== next.x || shown.y !== next.y);
+    if (!moved) return { snapAt: null, motion: push };
+    return { snapAt: push === null ? shown : null, motion: REFLOW_MOTION };
 }
