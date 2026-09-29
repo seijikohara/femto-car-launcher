@@ -43,7 +43,8 @@ convention wins.
 - `stateIn` / `shareIn` use a shared policy from
   `data/common/FlowSharing.kt` — `WhileUiSubscribed`, or
   `WhileUiSubscribedFresh` for state that must never show stale (it
-  drops the cached value once the upstream stops) — never an inline
+  stops the upstream and drops the cached value as soon as the last
+  subscriber leaves, with no grace) — never an inline
   `WhileSubscribed(...)` literal.
 - New screens copy the shape of an existing area under `ui/` — the
   living code is the template (pick a stateless screen or a full

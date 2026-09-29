@@ -174,10 +174,11 @@ internal class HomeViewModel(
      * ask again after the next full dwell.
      *
      * Its own state, apart from [uiState], and shared with
-     * [WhileUiSubscribedFresh]: a dashboard back from the background starts
-     * from no prompt and judges the motion afresh. Held in [uiState], the
-     * prompt it left would show again until every dashboard source had spoken,
-     * even while the vehicle moves.
+     * [WhileUiSubscribedFresh]: a dashboard that comes back, even a second
+     * later, starts from no prompt and judges the motion afresh, so leaving
+     * the dashboard, or a rotation, starts the dwell over. Held in [uiState],
+     * the prompt it left would show again until every dashboard source had
+     * spoken, even while the vehicle moves.
      */
     val updatePrompt: StateFlow<UpdateManifest?> =
         combine(

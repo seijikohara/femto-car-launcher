@@ -686,6 +686,25 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun `a prompt left on screen is gone when the dashboard returns a second later, before any new fix`() =
+        runTest {
+            // The receiver goes quiet once the dashboard leaves at 60 s: the
+            // vehicle can move off with no fix yet to say so.
+            val fixes = liveGpsFixes(silentSeconds = 61L..Long.MAX_VALUE)
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), fixes = fixes)
+            val onScreen = watch(viewModel)
+            at(UPDATE_PROMPT_PARKED_DWELL_MS)
+            assertEquals(UPDATE, viewModel.updatePrompt.value)
+
+            onScreen.cancel()
+            at(UPDATE_PROMPT_PARKED_DWELL_MS + 1_000)
+            watch(viewModel)
+            runCurrent()
+
+            assertNull(viewModel.updatePrompt.value)
+        }
+
+    @Test
     fun `the update prompt asks about a verified download too`() =
         runTest {
             val ready = UpdateState.Ready(UPDATE, File("update.apk"))
