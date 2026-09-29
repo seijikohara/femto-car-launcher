@@ -4,7 +4,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.DockWidth
 import io.github.seijikohara.femto.data.display.DriverSide
@@ -76,8 +80,10 @@ internal fun HomeScreen(
     // The update prompt waits while a sheet covers the dashboard. Over Settings
     // it could ask about the very offer the Updates section shows (and records
     // as seen) right then; over any sheet it would cut into what the user is
-    // doing there.
-    updatePrompt?.takeUnless { sheetOpen }?.let { update ->
+    // doing there. It shows only while the dashboard is resumed, too (see
+    // UpdatePromptDialog on the task snapshot).
+    val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+    updatePrompt?.takeIf { lifecycleState.isAtLeast(Lifecycle.State.RESUMED) && !sheetOpen }?.let { update ->
         UpdatePromptDialog(update = update, onAction = onAction, fullscreen = fullscreen)
     }
 }

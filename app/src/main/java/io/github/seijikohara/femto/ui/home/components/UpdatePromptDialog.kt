@@ -29,6 +29,12 @@ import io.github.seijikohara.femto.ui.theme.PreviewTextStress
  * dialog answers nothing, since a stray tap near the map must not answer
  * "never ask about this version". [fullscreen] keeps the dashboard's
  * immersive mode on the dialog's own window.
+ *
+ * Show it only while the dashboard is resumed. Android takes the task
+ * snapshot once the activity pauses on its way out, and a dialog still in the
+ * window lands in it: a warm return then shows the old prompt from the
+ * snapshot, even while the vehicle moves, until the live UI takes over.
+ * Leaving the window on pause answers nothing and records nothing.
  */
 @Composable
 internal fun UpdatePromptDialog(

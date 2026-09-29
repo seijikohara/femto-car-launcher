@@ -4,13 +4,18 @@ import android.content.Context
 import android.text.format.Formatter
 import android.view.MotionEvent
 import androidx.activity.ComponentDialog
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.testfixtures.FakeLifecycleOwner
 import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
@@ -32,10 +37,11 @@ import kotlin.test.assertEquals
  * The dashboard's update prompt as the driver meets it: the dialog names the
  * version and its download size, each answer is a full-size touch target that
  * carries the version it answers, Back counts as Later while a tap beside the
- * dialog answers nothing, and a sheet over the dashboard holds the prompt
- * back. The dashboard goldens never carry a prompt, so nothing else
- * pins these. Same Robolectric harness as PanelDismissTest: no fix keeps the
- * map on its static fallback.
+ * dialog answers nothing, the dialog leaves the window while the dashboard is
+ * not resumed, and a sheet over the dashboard holds the prompt back. The
+ * dashboard goldens never carry a prompt, so nothing else pins these. Same
+ * Robolectric harness as PanelDismissTest: no fix keeps the map on its static
+ * fallback.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -117,6 +123,23 @@ class UpdatePromptTest {
     }
 
     @Test
+    fun `the prompt leaves the window while the dashboard is not resumed`() {
+        // Android takes the task snapshot once the activity pauses on its way
+        // out; a dialog still in the window would show again, stale, on a warm
+        // return.
+        val lifecycleOwner = FakeLifecycleOwner()
+        setHome(lifecycleOwner = lifecycleOwner)
+
+        rule.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.STARTED) }
+        rule.waitForIdle()
+        rule.onNodeWithText(context.getString(R.string.update_prompt_title)).assertDoesNotExist()
+
+        rule.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.RESUMED) }
+        rule.waitForIdle()
+        rule.onNodeWithText(context.getString(R.string.update_prompt_title)).assertExists()
+    }
+
+    @Test
     fun `a sheet over the dashboard holds the prompt back`() {
         // Over Settings, the Updates section may be showing (and recording as
         // seen) the very offer the prompt would ask about.
@@ -125,22 +148,29 @@ class UpdatePromptTest {
         rule.onNodeWithText(context.getString(R.string.update_prompt_title)).assertDoesNotExist()
     }
 
-    private fun setHome(sheetOpen: Boolean = false) {
+    // [lifecycleOwner] stands in for the dashboard's host when a test moves it;
+    // otherwise the test activity's (resumed) is used.
+    private fun setHome(
+        sheetOpen: Boolean = false,
+        lifecycleOwner: LifecycleOwner? = null,
+    ) {
         rule.setContent {
-            FemtoTheme {
-                HomeScreen(
-                    uiState = HomeUiState.Initial,
-                    is24Hour = true,
-                    showClockSeconds = true,
-                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
-                    temperatureUnit = TemperatureUnit.CELSIUS,
-                    mapConfig = MapConfig(),
-                    panels = PanelVisibility(),
-                    glassConfig = GlassConfig(),
-                    onAction = { actions += it },
-                    updatePrompt = UPDATE,
-                    sheetOpen = sheetOpen,
-                )
+            CompositionLocalProvider(LocalLifecycleOwner provides (lifecycleOwner ?: LocalLifecycleOwner.current)) {
+                FemtoTheme {
+                    HomeScreen(
+                        uiState = HomeUiState.Initial,
+                        is24Hour = true,
+                        showClockSeconds = true,
+                        speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                        temperatureUnit = TemperatureUnit.CELSIUS,
+                        mapConfig = MapConfig(),
+                        panels = PanelVisibility(),
+                        glassConfig = GlassConfig(),
+                        onAction = { actions += it },
+                        updatePrompt = UPDATE,
+                        sheetOpen = sheetOpen,
+                    )
+                }
             }
         }
         rule.waitForIdle()
