@@ -118,7 +118,9 @@ internal class HomeViewModel(
     private val updateSignals: Flow<UpdateSignals> =
         combine(
             updateStateFlow,
-            updateSettingsFlow,
+            // Caught on its own, like each dashboard source: a broken store
+            // costs only its record, never the dot.
+            updateSettingsFlow.catchAsDefault(TAG, "update settings", UpdateSettings.Default),
             answeredVersionCodes,
             vehicleMotionFlow(locationFlow, tripStateFlow, nowElapsedRealtimeNanos),
         ) { state, settings, answered, motion ->

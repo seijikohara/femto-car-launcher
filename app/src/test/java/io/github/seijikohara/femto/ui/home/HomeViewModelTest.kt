@@ -663,6 +663,14 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun `a failing update store costs the prompt, not the dot`() =
+        runTest {
+            val broken = flow<UpdateSettings> { throw IllegalStateException("update store broke") }
+            val state = settledState(promptViewModel(update = UpdateState.Available(UPDATE), settings = broken))
+            assertTrue(state.updateBadge)
+        }
+
+    @Test
     fun `an answer closes the prompt even when the store loses its record`() =
         runTest {
             // A full or damaged disk must not leave a dialog that no answer closes.
@@ -745,6 +753,7 @@ class HomeViewModelTest {
         location: Location? = liveGpsFix(),
         tripState: Flow<TripState> = flowOf(fakeTripState(currentSpeedMs = 0.0)),
         store: FakeUpdateSettingsStore = FakeUpdateSettingsStore(),
+        settings: Flow<UpdateSettings> = store.settings,
         record: suspend (Int) -> Unit = store::recordPrompted,
     ): HomeViewModel =
         HomeViewModel(
@@ -756,7 +765,7 @@ class HomeViewModelTest {
             systemStatusFlow = flowOf(fakeSystemStatus()),
             tripStateFlow = tripState,
             updateStateFlow = flowOf(update),
-            updateSettingsFlow = store.settings,
+            updateSettingsFlow = settings,
             recordUpdatePrompted = record,
             nowElapsedRealtimeNanos = { BADGE_NOW },
         )
