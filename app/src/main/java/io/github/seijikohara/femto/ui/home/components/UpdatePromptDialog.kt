@@ -1,6 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,17 +41,24 @@ internal fun UpdatePromptDialog(
         confirmButton = {
             TextButton(
                 onClick = { onAction(HomeAction.UpdateNow(update.versionCode)) },
-                modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
+                modifier = AnswerTarget,
             ) { Text(text = stringResource(R.string.update_prompt_update)) }
         },
         dismissButton = {
             TextButton(
                 onClick = later,
-                modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
+                modifier = AnswerTarget,
             ) { Text(text = stringResource(R.string.update_prompt_later)) }
         },
     )
 }
+
+// Each answer is a full tap target both ways: a short label such as "Later"
+// alone makes a button narrower than the floor.
+private val AnswerTarget = Modifier.sizeIn(
+    minWidth = FemtoDimens.MinTouchTarget,
+    minHeight = FemtoDimens.MinTouchTarget,
+)
 
 @PreviewLightDark
 @Composable

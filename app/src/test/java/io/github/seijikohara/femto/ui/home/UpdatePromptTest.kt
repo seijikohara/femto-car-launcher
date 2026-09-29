@@ -2,6 +2,8 @@ package io.github.seijikohara.femto.ui.home
 
 import android.content.Context
 import android.text.format.Formatter
+import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -13,6 +15,7 @@ import io.github.seijikohara.femto.ui.home.components.MapConfig
 import io.github.seijikohara.femto.ui.home.components.PanelVisibility
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
+import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
@@ -24,10 +27,11 @@ import kotlin.test.assertEquals
 
 /**
  * The dashboard's update prompt as the driver meets it: the dialog names the
- * version and its download size, each answer carries the version it answers,
- * and a sheet over the dashboard holds the prompt back. The dashboard goldens
- * never carry a prompt, so nothing else pins these. Same Robolectric harness
- * as PanelDismissTest: no fix keeps the map on its static fallback.
+ * version and its download size, each answer is a full-size touch target that
+ * carries the version it answers, and a sheet over the dashboard holds the
+ * prompt back. The dashboard goldens never carry a prompt, so nothing else
+ * pins these. Same Robolectric harness as PanelDismissTest: no fix keeps the
+ * map on its static fallback.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -64,6 +68,18 @@ class UpdatePromptTest {
         rule.onNodeWithText(context.getString(R.string.update_prompt_update)).performClick()
 
         assertEquals(listOf<HomeAction>(HomeAction.UpdateNow(UPDATE.versionCode)), answers())
+    }
+
+    @Test
+    fun `both answers are full-size touch targets`() {
+        setHome()
+
+        listOf(R.string.update_prompt_later, R.string.update_prompt_update).forEach { label ->
+            rule
+                .onNodeWithText(context.getString(label))
+                .assertWidthIsAtLeast(FemtoDimens.MinTouchTarget)
+                .assertHeightIsAtLeast(FemtoDimens.MinTouchTarget)
+        }
     }
 
     @Test
