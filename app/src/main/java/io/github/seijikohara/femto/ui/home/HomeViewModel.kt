@@ -30,6 +30,7 @@ import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.location.vehicleMotionFlow
+import io.github.seijikohara.femto.data.location.withParkedDwell
 import io.github.seijikohara.femto.data.music.AudioSpectrumRepository
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
@@ -105,16 +106,17 @@ internal class HomeViewModel(
 
     // The dock's update dot and the dashboard's update prompt. Both wait for a
     // live GPS fix showing the vehicle parked (fail-closed; see VehicleMotion),
-    // judged from one motion reading so the two never disagree about it. The
-    // motion is judged as each GPS fix or trip update arrives, never as other
-    // cards update, and a parked verdict ages out once no fix follows
-    // (vehicleMotionFlow), so the dot goes when the receiver goes quiet and an
-    // open prompt closes, unanswered, to ask again at the next stop. The dot
-    // shows for any offer; the prompt asks about one the user has not acted on
-    // yet, once per build. Seeded with neither: the updater resolves off the
-    // main thread when first collected (UpdateRepository.observe), and the
-    // combine below emits only once every source has, so an unseeded slot
-    // would hold the whole dashboard back.
+    // judged from one motion reading so the two never disagree about it: the dot
+    // at once, the prompt once the vehicle has stayed parked for
+    // UPDATE_PROMPT_PARKED_DWELL_MS. The motion is judged as each GPS fix or
+    // trip update arrives, never as other cards update, and a parked verdict
+    // ages out once no fix follows (vehicleMotionFlow), so the dot goes when
+    // the receiver goes quiet and an open prompt closes, unanswered, to ask
+    // again after the next full dwell. The dot shows for any offer; the prompt
+    // asks about one the user has not acted on yet, once per build. Seeded with
+    // neither: the updater resolves off the main thread when first collected
+    // (UpdateRepository.observe), and the combine below emits only once every
+    // source has, so an unseeded slot would hold the whole dashboard back.
     private val updateSignals: Flow<UpdateSignals> =
         combine(
             updateStateFlow,
@@ -122,17 +124,18 @@ internal class HomeViewModel(
             // costs only its record, never the dot.
             updateSettingsFlow.catchAsDefault(TAG, "update settings", UpdateSettings.Default),
             answeredVersionCodes,
-            vehicleMotionFlow(locationFlow, tripStateFlow, nowElapsedRealtimeNanos),
-        ) { state, settings, answered, motion ->
-            (motion == VehicleMotion.PARKED).let { parked ->
-                UpdateSignals(
-                    badge = parked && state.offersUpdate(),
-                    prompt =
-                        state.promptableOfferOrNull()?.takeIf { offer ->
-                            parked && offer.versionCode !in answered && !settings.promptedFor(offer.versionCode)
-                        },
-                )
-            }
+            vehicleMotionFlow(locationFlow, tripStateFlow, nowElapsedRealtimeNanos)
+                .withParkedDwell(UPDATE_PROMPT_PARKED_DWELL_MS),
+        ) { state, settings, answered, reading ->
+            UpdateSignals(
+                badge = reading.motion == VehicleMotion.PARKED && state.offersUpdate(),
+                prompt =
+                    state.promptableOfferOrNull()?.takeIf { offer ->
+                        reading.parkedThroughDwell &&
+                            offer.versionCode !in answered &&
+                            !settings.promptedFor(offer.versionCode)
+                    },
+            )
         }.onStart { emit(UpdateSignals.None) }
             .distinctUntilChanged()
             .catchAsDefault(TAG, "update signals", UpdateSignals.None)
@@ -357,6 +360,20 @@ private data class UpdateSignals(
         val None = UpdateSignals(badge = false, prompt = null)
     }
 }
+
+/**
+ * How long the vehicle must read PARKED without a break before the
+ * dashboard's update prompt asks. Most traffic-light stops are shorter, and a
+ * car parked at its destination stays longer, so the prompt meets a driver who
+ * has arrived rather than one about to pull away. The dock's dot does not wait.
+ *
+ * A known consequence: with the location "minimum distance" setting above 0,
+ * fixes stop while the car stands still, PARKED ages out after
+ * LOCATION_STALE_THRESHOLD_MS, and the prompt never reaches the dwell. The dot
+ * (while fixes last) and Settings still offer the update. Internal so tests
+ * probe both sides of the dwell.
+ */
+internal const val UPDATE_PROMPT_PARKED_DWELL_MS = 60_000L
 
 // The offer the update prompt may ask about: one still waiting for the user's
 // first step, to download it or to install the verified file. An update under

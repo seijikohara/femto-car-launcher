@@ -28,6 +28,7 @@ import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -37,6 +38,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -579,18 +582,77 @@ class HomeViewModelTest {
         }
 
     // --- Update prompt -----------------------------------------------------------
+    //
+    // The prompt waits for UPDATE_PROMPT_PARKED_DWELL_MS of unbroken PARKED, so
+    // these run on virtual time with a receiver fixing once a second (see
+    // promptViewModel) and judge the prompt only once the dwell is over:
+    // otherwise a test for any other gate would pass on the dwell alone.
 
     @Test
-    fun `the update prompt asks about an available update while a live GPS fix shows the vehicle parked`() =
+    fun `the update prompt asks about an available update once the vehicle has been parked for the dwell`() =
         runTest {
-            assertEquals(UPDATE, settledState(promptViewModel(update = UpdateState.Available(UPDATE))).updatePrompt)
+            assertEquals(UPDATE, promptAfterDwell(promptViewModel(update = UpdateState.Available(UPDATE))).updatePrompt)
+        }
+
+    @Test
+    fun `the update prompt waits out a stop a second shorter than the dwell`() =
+        runTest {
+            // Most traffic-light stops are shorter than the dwell.
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE))
+            settledState(viewModel)
+
+            at(UPDATE_PROMPT_PARKED_DWELL_MS - 1_000)
+
+            assertNull(viewModel.uiState.value.updatePrompt)
+        }
+
+    @Test
+    fun `the dot shows at once while the prompt waits for the dwell`() =
+        runTest {
+            val state = settledState(promptViewModel(update = UpdateState.Available(UPDATE)))
+            assertTrue(state.updateBadge)
+            assertNull(state.updatePrompt)
+        }
+
+    @Test
+    fun `a MOVING reading 30 s into the dwell starts the count over`() =
+        runTest {
+            val trip = MutableStateFlow(fakeTripState(currentSpeedMs = 0.0))
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), tripState = trip)
+            settledState(viewModel)
+
+            at(30_000)
+            trip.value = fakeTripState(currentSpeedMs = MIN_MOVING_SPEED_MS + 10.0)
+            at(31_000)
+            trip.value = fakeTripState(currentSpeedMs = 0.0)
+            at(UPDATE_PROMPT_PARKED_DWELL_MS)
+            assertNull(viewModel.uiState.value.updatePrompt)
+
+            at(31_000 + UPDATE_PROMPT_PARKED_DWELL_MS)
+            assertEquals(UPDATE, viewModel.uiState.value.updatePrompt)
+        }
+
+    @Test
+    fun `an UNKNOWN reading 30 s into the dwell starts the count over`() =
+        runTest {
+            // The receiver goes quiet after its fix at 20 s, so the parked verdict
+            // ages out to UNKNOWN at 30 s; fixes resume at 31 s.
+            val fixes = liveGpsFixes(silentSeconds = 21L..30L)
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), fixes = fixes)
+            settledState(viewModel)
+
+            at(UPDATE_PROMPT_PARKED_DWELL_MS)
+            assertNull(viewModel.uiState.value.updatePrompt)
+
+            at(31_000 + UPDATE_PROMPT_PARKED_DWELL_MS)
+            assertEquals(UPDATE, viewModel.uiState.value.updatePrompt)
         }
 
     @Test
     fun `the update prompt asks about a verified download too`() =
         runTest {
             val ready = UpdateState.Ready(UPDATE, File("update.apk"))
-            assertEquals(UPDATE, settledState(promptViewModel(update = ready)).updatePrompt)
+            assertEquals(UPDATE, promptAfterDwell(promptViewModel(update = ready)).updatePrompt)
         }
 
     @Test
@@ -602,7 +664,7 @@ class HomeViewModelTest {
                 UpdateState.Failed(UpdateFailure.NETWORK, UPDATE),
                 UpdateState.UpToDate,
             ).forEach { state ->
-                assertNull(settledState(promptViewModel(update = state)).updatePrompt, "prompt for $state")
+                assertNull(promptAfterDwell(promptViewModel(update = state)).updatePrompt, "prompt for $state")
             }
         }
 
@@ -611,31 +673,31 @@ class HomeViewModelTest {
         runTest {
             val moving = fakeTripState(currentSpeedMs = MIN_MOVING_SPEED_MS + 10.0)
             val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), tripState = flowOf(moving))
-            assertNull(settledState(viewModel).updatePrompt)
+            assertNull(promptAfterDwell(viewModel).updatePrompt)
         }
 
     @Test
     fun `the update prompt waits without a fix`() =
         runTest {
             // Fail-closed, like the dock's dot: no fix never counts as parked.
-            val state = settledState(promptViewModel(update = UpdateState.Available(UPDATE), location = null))
-            assertNull(state.updatePrompt)
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), fixes = flowOf(null))
+            assertNull(promptAfterDwell(viewModel).updatePrompt)
         }
 
     @Test
     fun `the update prompt waits on a stale GPS fix`() =
         runTest {
             val seed = liveGpsFix().apply { elapsedRealtimeNanos = BADGE_NOW - STALE_FIX_AGE_NANOS }
-            val state = settledState(promptViewModel(update = UpdateState.Available(UPDATE), location = seed))
-            assertNull(state.updatePrompt)
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), fixes = flowOf(seed))
+            assertNull(promptAfterDwell(viewModel).updatePrompt)
         }
 
     @Test
     fun `a recorded version, asked about before or shown in Settings, is not asked about again`() =
         runTest {
             val store = FakeUpdateSettingsStore(UpdateSettings.Default.copy(promptedVersionCode = UPDATE.versionCode))
-            val state = settledState(promptViewModel(update = UpdateState.Available(UPDATE), store = store))
-            assertNull(state.updatePrompt)
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), store = store)
+            assertNull(promptAfterDwell(viewModel).updatePrompt)
         }
 
     @Test
@@ -643,8 +705,8 @@ class HomeViewModelTest {
         runTest {
             val store =
                 FakeUpdateSettingsStore(UpdateSettings.Default.copy(promptedVersionCode = UPDATE.versionCode - 1))
-            val state = settledState(promptViewModel(update = UpdateState.Available(UPDATE), store = store))
-            assertEquals(UPDATE, state.updatePrompt)
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), store = store)
+            assertEquals(UPDATE, promptAfterDwell(viewModel).updatePrompt)
         }
 
     @Test
@@ -652,7 +714,7 @@ class HomeViewModelTest {
         runTest {
             val store = FakeUpdateSettingsStore()
             val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), store = store)
-            settledState(viewModel)
+            promptAfterDwell(viewModel)
 
             viewModel.onAction(HomeAction.UpdateLater(UPDATE.versionCode))
             runCurrent()
@@ -675,7 +737,7 @@ class HomeViewModelTest {
         runTest {
             // A full or damaged disk must not leave a dialog that no answer closes.
             val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), record = {})
-            settledState(viewModel)
+            promptAfterDwell(viewModel)
 
             viewModel.onAction(HomeAction.UpdateLater(UPDATE.versionCode))
             runCurrent()
@@ -699,12 +761,12 @@ class HomeViewModelTest {
         }
 
     @Test
-    fun `the prompt closes unrecorded once the vehicle moves, and asks again at the next stop`() =
+    fun `the prompt closes unrecorded once the vehicle moves, and asks again after the next full dwell`() =
         runTest {
             val store = FakeUpdateSettingsStore()
             val trip = MutableStateFlow(fakeTripState(currentSpeedMs = 0.0))
             val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), store = store, tripState = trip)
-            assertEquals(UPDATE, settledState(viewModel).updatePrompt)
+            assertEquals(UPDATE, promptAfterDwell(viewModel).updatePrompt)
 
             trip.value = fakeTripState(currentSpeedMs = MIN_MOVING_SPEED_MS + 10.0)
             runCurrent()
@@ -713,7 +775,8 @@ class HomeViewModelTest {
 
             trip.value = fakeTripState(currentSpeedMs = 0.0)
             runCurrent()
-            assertEquals(UPDATE, viewModel.uiState.value.updatePrompt)
+            assertNull(viewModel.uiState.value.updatePrompt)
+            assertEquals(UPDATE, promptAfterDwell(viewModel).updatePrompt)
         }
 
     // Subscribes (WhileUiSubscribed runs the combine only while collected) and
@@ -746,18 +809,52 @@ class HomeViewModelTest {
             nowElapsedRealtimeNanos = { BADGE_NOW },
         )
 
-    // badgeViewModel's sources, plus the updater's own store: the record the
-    // prompt reads and its answers write.
-    private fun promptViewModel(
+    // Subscribes like settledState, then lets a full dwell pass on the virtual
+    // clock and returns the state the prompt shows then.
+    private fun TestScope.promptAfterDwell(viewModel: HomeViewModel): HomeUiState {
+        settledState(viewModel)
+        advanceTimeBy(UPDATE_PROMPT_PARKED_DWELL_MS)
+        runCurrent()
+        return viewModel.uiState.value
+    }
+
+    // Runs the virtual clock to [timeMs] since the test started.
+    private fun TestScope.at(timeMs: Long) {
+        advanceTimeBy(timeMs - currentTime)
+        runCurrent()
+    }
+
+    // The boot clock, read off the virtual one, so each fix is judged live.
+    private fun TestScope.virtualNowNanos(): Long = BADGE_NOW + currentTime * 1_000_000
+
+    // A GPS receiver fixing once a second on the virtual clock, silent in the
+    // [silentSeconds] since the test started.
+    private fun TestScope.liveGpsFixes(silentSeconds: LongRange = LongRange.EMPTY): Flow<Location?> =
+        flow {
+            while (true) {
+                if (currentTime / 1_000 !in silentSeconds) {
+                    emit(
+                        fakeLocation(provider = LocationManager.GPS_PROVIDER, elapsedRealtimeNanos = virtualNowNanos()),
+                    )
+                }
+                delay(1_000)
+            }
+        }
+
+    // badgeViewModel's sources, plus the updater's own store (the record the
+    // prompt reads and its answers write), on the virtual clock: [fixes]
+    // defaults to a receiver fixing once a second, since a single fix ages out
+    // long before the dwell ends.
+    private fun TestScope.promptViewModel(
         update: UpdateState,
-        location: Location? = liveGpsFix(),
+        fixes: Flow<Location?> = liveGpsFixes(),
         tripState: Flow<TripState> = flowOf(fakeTripState(currentSpeedMs = 0.0)),
         store: FakeUpdateSettingsStore = FakeUpdateSettingsStore(),
         settings: Flow<UpdateSettings> = store.settings,
         record: suspend (Int) -> Unit = store::recordPrompted,
     ): HomeViewModel =
         HomeViewModel(
-            locationFlow = flowOf(location),
+            locationFlow = fixes,
             addressFlow = flowOf(fakeAddress()),
             weatherFlow = flowOf(fakeWeatherSnapshot()),
             musicStateFlow = flowOf(MusicCardState.Playing(fakeNowPlaying())),
@@ -767,7 +864,7 @@ class HomeViewModelTest {
             updateStateFlow = flowOf(update),
             updateSettingsFlow = settings,
             recordUpdatePrompted = record,
-            nowElapsedRealtimeNanos = { BADGE_NOW },
+            nowElapsedRealtimeNanos = { virtualNowNanos() },
         )
 
     private fun liveGpsFix(): Location =

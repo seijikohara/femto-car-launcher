@@ -34,7 +34,8 @@ internal data class HomeUiState(
     val updateBadge: Boolean,
     // The build the dashboard's update prompt asks about, or null: an offer
     // waiting for its first step (to download, or to install the verified
-    // file), while the badge's parked rule holds, that the prompt has not
+    // file), once the badge's parked rule has held for
+    // UPDATE_PROMPT_PARKED_DWELL_MS without a break, that the prompt has not
     // asked about and the Updates section has not shown
     // (UpdateSettings.promptedFor, or an answer earlier in this process).
     val updatePrompt: UpdateManifest?,
