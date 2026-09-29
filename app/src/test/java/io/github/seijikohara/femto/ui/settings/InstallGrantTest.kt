@@ -26,10 +26,14 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * The install tap's "Install unknown apps" round trip (Decision 11), driven
- * through a recording result registry: what the tap starts, what comes of the
- * way back, and where it falls back to the release page. The access and the
- * device policy are Robolectric's shadows of the platform's own checks.
+ * The "Install unknown apps" round trip (Decision 11), driven through a
+ * recording result registry: what a tap starts, what comes of the way back,
+ * and where it falls back to the release page. Then which Settings actions go
+ * through it: the install tap, and the one-tap update, whose download starts
+ * only once the access is on, from the row's tap and from the dashboard
+ * prompt's "Update" alike, so the access screen never opens a minute later,
+ * when the download lands. The access and the device policy are Robolectric's
+ * shadows of the platform's own checks.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -41,6 +45,8 @@ class InstallGrantTest {
     private val registry = RecordingRegistry()
     private val outcomes = mutableListOf<Outcome>()
     private lateinit var installUpdate: () -> Unit
+    private val forwarded = mutableListOf<SettingsAction>()
+    private lateinit var routeAction: (SettingsAction) -> Unit
 
     private enum class Outcome { INSTALL, GRANT_DECLINED, UNAVAILABLE }
 
@@ -133,6 +139,117 @@ class InstallGrantTest {
         assertEquals(listOf(Outcome.UNAVAILABLE), outcomes)
     }
 
+    // --- The Settings actions routed through the access ---------------------------
+
+    @Test
+    fun `the one-tap update with the access off opens the access screen first and starts nothing`() {
+        setAccess(on = false)
+        setActions()
+
+        rule.runOnIdle { routeAction(SettingsAction.StartUpdate) }
+
+        assertEquals(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, (registry.launched.single() as Intent).action)
+        assertEquals(emptyList(), forwarded)
+    }
+
+    @Test
+    fun `the one-tap update starts once the access is turned on there`() {
+        setAccess(on = false)
+        setActions()
+        rule.runOnIdle { routeAction(SettingsAction.StartUpdate) }
+
+        setAccess(on = true)
+        rule.runOnIdle { registry.dispatchResult(registry.lastRequestCode, Activity.RESULT_OK, null) }
+
+        assertEquals(listOf<SettingsAction>(SettingsAction.StartUpdate), forwarded)
+    }
+
+    @Test
+    fun `a one-tap update whose access was left off starts nothing and reports the decline`() {
+        setAccess(on = false)
+        setActions()
+        rule.runOnIdle { routeAction(SettingsAction.StartUpdate) }
+
+        rule.runOnIdle { registry.dispatchResult(registry.lastRequestCode, Activity.RESULT_CANCELED, null) }
+
+        assertEquals(listOf<SettingsAction>(SettingsAction.InstallGrantDeclined), forwarded)
+    }
+
+    @Test
+    fun `the one-tap update with the access on starts at once`() {
+        setAccess(on = true)
+        setActions()
+
+        rule.runOnIdle { routeAction(SettingsAction.StartUpdate) }
+
+        assertEquals(listOf<SettingsAction>(SettingsAction.StartUpdate), forwarded)
+        assertTrue(registry.launched.isEmpty())
+    }
+
+    @Test
+    fun `opened by the update prompt without the access, the access screen opens first and nothing starts`() {
+        setAccess(on = false)
+
+        setActions(startUpdate = true)
+
+        assertEquals(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, (registry.launched.single() as Intent).action)
+        assertEquals(emptyList(), forwarded)
+    }
+
+    @Test
+    fun `opened by the update prompt, the update starts once the access is turned on there`() {
+        setAccess(on = false)
+        setActions(startUpdate = true)
+
+        setAccess(on = true)
+        rule.runOnIdle { registry.dispatchResult(registry.lastRequestCode, Activity.RESULT_OK, null) }
+
+        assertEquals(listOf<SettingsAction>(SettingsAction.StartUpdate), forwarded)
+    }
+
+    @Test
+    fun `opened by the update prompt, an access left off starts nothing and reports the decline`() {
+        setAccess(on = false)
+        setActions(startUpdate = true)
+
+        rule.runOnIdle { registry.dispatchResult(registry.lastRequestCode, Activity.RESULT_CANCELED, null) }
+
+        assertEquals(listOf<SettingsAction>(SettingsAction.InstallGrantDeclined), forwarded)
+    }
+
+    @Test
+    fun `opened by the update prompt with the access on, the update starts at once`() {
+        setAccess(on = true)
+
+        setActions(startUpdate = true)
+
+        assertEquals(listOf<SettingsAction>(SettingsAction.StartUpdate), forwarded)
+        assertTrue(registry.launched.isEmpty())
+    }
+
+    @Test
+    fun `the install tap goes through the access the same way`() {
+        setAccess(on = false)
+        setActions()
+        rule.runOnIdle { routeAction(SettingsAction.InstallUpdate) }
+
+        setAccess(on = true)
+        rule.runOnIdle { registry.dispatchResult(registry.lastRequestCode, Activity.RESULT_OK, null) }
+
+        assertEquals(listOf<SettingsAction>(SettingsAction.InstallUpdate), forwarded)
+    }
+
+    @Test
+    fun `every other action passes straight through`() {
+        setAccess(on = false)
+        setActions()
+
+        rule.runOnIdle { routeAction(SettingsAction.CheckForUpdates) }
+
+        assertEquals(listOf<SettingsAction>(SettingsAction.CheckForUpdates), forwarded)
+        assertTrue(registry.launched.isEmpty())
+    }
+
     private fun setAccess(on: Boolean) = shadowOf(context.packageManager).setCanRequestPackageInstalls(on)
 
     private fun setRoute() {
@@ -142,10 +259,29 @@ class InstallGrantTest {
         rule.setContent {
             CompositionLocalProvider(LocalActivityResultRegistryOwner provides owner) {
                 installUpdate =
-                    rememberInstallUpdate(
-                        onInstall = { outcomes += Outcome.INSTALL },
-                        onGrantDecline = { outcomes += Outcome.GRANT_DECLINED },
+                    rememberInstallGrant(
+                        onGrant = { outcomes += Outcome.INSTALL },
+                        onDecline = { outcomes += Outcome.GRANT_DECLINED },
                         onUnavailable = { outcomes += Outcome.UNAVAILABLE },
+                    )
+            }
+        }
+        rule.waitForIdle()
+    }
+
+    // The Settings route's action wiring; [startUpdate] is Settings opened by
+    // the dashboard's update prompt.
+    private fun setActions(startUpdate: Boolean = false) {
+        val owner = object : ActivityResultRegistryOwner {
+            override val activityResultRegistry: ActivityResultRegistry = registry
+        }
+        rule.setContent {
+            CompositionLocalProvider(LocalActivityResultRegistryOwner provides owner) {
+                routeAction =
+                    rememberInstallGrantedActions(
+                        onAction = { forwarded += it },
+                        onUnavailable = { outcomes += Outcome.UNAVAILABLE },
+                        startUpdate = startUpdate,
                     )
             }
         }

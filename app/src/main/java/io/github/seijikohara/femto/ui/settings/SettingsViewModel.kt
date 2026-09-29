@@ -229,7 +229,7 @@ internal class SettingsViewModel(
     /**
      * Requests to start the install the way a tap on the "Update to …" row
      * starts it: through the "Install unknown apps" access, which only the UI
-     * can open (rememberInstallUpdate). The one-tap update makes one once its
+     * can open (rememberInstallGrantedActions). The one-tap update makes one once its
      * download is verified, and only while the Updates section is on screen:
      * collect it only while the screen is started (InstallRequestsEffect).
      */
@@ -512,6 +512,9 @@ internal class SettingsViewModel(
                 }
 
                 SettingsAction.StartUpdate -> {
+                    // SettingsRoute sends this only once the access is on, so a
+                    // decline no longer describes the update row.
+                    installGrantDeclined.value = false
                     // The mark reads the updater's latest state, so no outcome of
                     // the download slips past it. A build already downloaded is not
                     // claimed again; the mark acts on it at once.

@@ -445,7 +445,9 @@ internal sealed interface SettingsAction {
      * The one-tap update: download the offered build, then install it once
      * verified, the way [InstallUpdate] installs it, while the Updates section
      * is still on screen and no fix shows the vehicle moving. A build already
-     * downloaded installs at once.
+     * downloaded installs at once. `SettingsRoute` first sends the user to the
+     * "Install unknown apps" grant when it is missing, so the download starts
+     * only once the install can follow.
      */
     data object StartUpdate : SettingsAction
 

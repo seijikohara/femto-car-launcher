@@ -6,7 +6,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -21,8 +20,8 @@ import io.github.seijikohara.femto.data.fonts.FontSlot
  * notification-access screen, the OS settings root) flow up to [MainActivity] via
  * the callbacks so this route owns no Activity concerns beyond the two round
  * trips whose results feed an action back into the VM: the RECORD_AUDIO prompt
- * and the "Install unknown apps" grant ([rememberInstallUpdate]), which both an
- * install tap and the one-tap update's install request go through.
+ * and the "Install unknown apps" grant ([rememberInstallGrantedActions]), which
+ * the install tap, the one-tap update and its install request all go through.
  */
 @Composable
 internal fun SettingsRoute(
@@ -57,28 +56,10 @@ internal fun SettingsRoute(
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestPermission(),
         ) { viewModel.onAction(SettingsAction.SetMusicSpectrum(true)) }
-    // Where the grant cannot be given here, the release page is the manual
-    // path that is left.
-    val installUpdate =
-        rememberInstallUpdate(
-            onInstall = { viewModel.onAction(SettingsAction.InstallUpdate) },
-            onGrantDecline = { viewModel.onAction(SettingsAction.InstallGrantDeclined) },
-            onUnavailable = { onOpenDocument(SettingsDocument.RELEASE_PAGE) },
-        )
-    // The one-tap update installs its verified download exactly as the install
-    // tap does, the "Install unknown apps" round trip included.
-    InstallRequestsEffect(requests = viewModel.installRequests, onRequest = installUpdate)
-    // The prompt's "Update" starts the one-tap update as a tap on the Updates
-    // section's "Update to …" row would, once per opening of the sheet.
-    LaunchedEffect(startUpdate) { if (startUpdate) viewModel.onAction(SettingsAction.StartUpdate) }
-    val onAction: (SettingsAction) -> Unit = { action ->
+    val viewModelAction: (SettingsAction) -> Unit = { action ->
         when {
             action is SettingsAction.SetMusicSpectrum && action.value && !context.hasRecordAudioPermission() -> {
                 recordAudioLauncher.launch(Manifest.permission.RECORD_AUDIO)
-            }
-
-            action == SettingsAction.InstallUpdate -> {
-                installUpdate()
             }
 
             else -> {
@@ -86,6 +67,17 @@ internal fun SettingsRoute(
             }
         }
     }
+    // Where the grant cannot be given here, the release page is the manual
+    // path that is left.
+    val onAction =
+        rememberInstallGrantedActions(
+            onAction = viewModelAction,
+            onUnavailable = { onOpenDocument(SettingsDocument.RELEASE_PAGE) },
+            startUpdate = startUpdate,
+        )
+    // The one-tap update installs its verified download exactly as the install
+    // tap does, the "Install unknown apps" round trip included.
+    InstallRequestsEffect(requests = viewModel.installRequests, onRequest = { onAction(SettingsAction.InstallUpdate) })
     SettingsScreen(
         uiState = uiState,
         onAction = onAction,

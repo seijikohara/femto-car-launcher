@@ -755,7 +755,7 @@ class SettingsViewModelTest {
     fun `Available offers the one-tap update at the manifest's size before it starts`() =
         runTest(dispatcher) {
             assertEquals(
-                UpdateStep.Download(manifest.versionName, manifest.apk.size),
+                UpdateStep.Download(manifest.versionName, manifest.apk.size, grantDeclined = false),
                 updatesFor(UpdateState.Available(manifest)).step,
             )
         }
@@ -850,6 +850,29 @@ class SettingsViewModelTest {
             ).forEach { (state, offered) ->
                 assertEquals(offered, updatesFor(state).updateOffered, "updateOffered for $state")
             }
+        }
+
+    @Test
+    fun `a declined install grant marks the one-tap update step until the update starts`() =
+        runTest(dispatcher) {
+            // StartUpdate reaches the ViewModel only once the access is on.
+            updater.state.value = UpdateState.Available(manifest)
+            val vm = viewModel()
+            backgroundScope.launch { vm.uiState.collect { } }
+
+            vm.onAction(SettingsAction.InstallGrantDeclined)
+            advanceUntilIdle()
+            assertEquals(
+                UpdateStep.Download(manifest.versionName, manifest.apk.size, grantDeclined = true),
+                vm.uiState.value.updates.step,
+            )
+
+            vm.onAction(SettingsAction.StartUpdate)
+            advanceUntilIdle()
+            assertEquals(
+                UpdateStep.Download(manifest.versionName, manifest.apk.size, grantDeclined = false),
+                vm.uiState.value.updates.step,
+            )
         }
 
     @Test

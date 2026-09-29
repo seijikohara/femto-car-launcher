@@ -89,15 +89,20 @@ internal sealed interface AvailableVersion {
  * carry `blockedWhileMoving`: a local gate (AGENTS.md#driving-lockout) that
  * holds them while a fix shows the vehicle moving, so the dialog never pops up
  * over navigation. Checks and downloads are never gated; they put nothing on
- * screen. The same two carry `grantDeclined`: the last install tap sent the
- * user to the "Install unknown apps" access, and they came back without
- * turning it on.
+ * screen. Every step a tap on which asks for the "Install unknown apps" access
+ * carries `grantDeclined`: the last such tap sent the user to that access,
+ * and they came back without turning it on.
  */
 internal sealed interface UpdateStep {
-    /** Download the offered build; [sizeBytes] is shown before the transfer starts. */
+    /**
+     * Download the offered build, then install it; [sizeBytes] is shown before
+     * the transfer starts. The tap asks for the "Install unknown apps" access
+     * first when it is missing, hence `grantDeclined`.
+     */
     data class Download(
         val versionName: String,
         val sizeBytes: Long,
+        val grantDeclined: Boolean,
     ) : UpdateStep
 
     /** The download under way; [fraction] runs 0..1 over its size. The row takes no tap meanwhile. */
@@ -199,7 +204,11 @@ internal fun updatesUiState(
         step =
             when (state) {
                 is UpdateState.Available -> {
-                    UpdateStep.Download(state.manifest.versionName, state.manifest.apk.size)
+                    UpdateStep.Download(
+                        state.manifest.versionName,
+                        state.manifest.apk.size,
+                        grantDeclined = installGrantDeclined,
+                    )
                 }
 
                 is UpdateState.Downloading -> {

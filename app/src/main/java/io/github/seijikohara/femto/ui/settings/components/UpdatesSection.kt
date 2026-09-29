@@ -189,7 +189,13 @@ private fun UpdateStepRow(
             title = updateTitle(step.versionName),
             onClick = { onAction(SettingsAction.StartUpdate) },
             modifier = modifier,
-            summary = stringResource(R.string.settings_updates_update_download_desc, fileSize(step.sizeBytes)),
+            summary =
+                grantAwareSummary(
+                    summary = stringResource(R.string.settings_updates_update_download_desc, fileSize(step.sizeBytes)),
+                    grantDeclined = step.grantDeclined,
+                ),
+            // The decline is an outcome, so it is announced like the check row's.
+            summaryLiveRegion = step.grantDeclined,
             icon = Lucide.Download,
         )
     }
@@ -289,12 +295,20 @@ private fun InstallStepRow(
         title = title,
         onClick = onClick,
         modifier = modifier,
-        summary = if (grantDeclined) stringResource(R.string.settings_updates_install_grant_declined) else summary,
+        summary = grantAwareSummary(summary = summary, grantDeclined = grantDeclined),
         // The decline is an outcome, so it is announced like the check row's.
         summaryLiveRegion = grantDeclined || announceSummary,
         icon = Lucide.PackageCheck,
     )
 }
+
+// A step's summary, or, after a trip to the "Install unknown apps" access that
+// came back without it, why nothing happened. A tap sends the user there again.
+@Composable
+private fun grantAwareSummary(
+    summary: String,
+    grantDeclined: Boolean,
+): String = if (grantDeclined) stringResource(R.string.settings_updates_install_grant_declined) else summary
 
 // The one-tap update row's title, through every stage.
 @Composable
@@ -370,7 +384,7 @@ private fun UpdatesSectionAvailablePreview() =
             status = UpdateStatus.Checked(PreviewAttempt),
             canCheck = true,
             availableVersion = PreviewOffer,
-            step = UpdateStep.Download(PREVIEW_VERSION, PREVIEW_APK_BYTES),
+            step = UpdateStep.Download(PREVIEW_VERSION, PREVIEW_APK_BYTES, grantDeclined = false),
             autoCheck = true,
             updatedTo = null,
             updateOffered = true,
