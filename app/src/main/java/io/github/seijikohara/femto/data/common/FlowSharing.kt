@@ -7,6 +7,13 @@ import kotlinx.coroutines.flow.catch
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
+ * How long a shared upstream stays alive after its last UI subscriber leaves:
+ * the grace both policies below give a configuration change. Internal so tests
+ * step past it.
+ */
+internal const val UI_SUBSCRIPTION_GRACE_MS = 5_000L
+
+/**
  * Shared `stateIn` / `shareIn` start policy for flows the UI subscribes to.
  *
  * The 5 s grace keeps the upstream (location callbacks, broadcast receivers,
@@ -14,7 +21,18 @@ import kotlin.coroutines.cancellation.CancellationException
  * — the new subscriber reattaches before the timeout — while still parking the
  * upstream when the launcher genuinely leaves the foreground.
  */
-internal val WhileUiSubscribed: SharingStarted = SharingStarted.WhileSubscribed(5_000)
+internal val WhileUiSubscribed: SharingStarted = SharingStarted.WhileSubscribed(UI_SUBSCRIPTION_GRACE_MS)
+
+/**
+ * [WhileUiSubscribed] for state that must never show stale: the same grace
+ * across a configuration change, but once the upstream stops, the cached value
+ * is dropped (`replayExpirationMillis = 0`), so a UI back from the background
+ * starts from the initial value and waits for a fresh one. For state that a
+ * stale value makes unsafe: the dashboard's update prompt, which a stale value
+ * would put up again while the vehicle moves.
+ */
+internal val WhileUiSubscribedFresh: SharingStarted =
+    SharingStarted.WhileSubscribed(UI_SUBSCRIPTION_GRACE_MS, replayExpirationMillis = 0)
 
 /**
  * Replace a failure of [source], one slot of a ViewModel's combined UI state,

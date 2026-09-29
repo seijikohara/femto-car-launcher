@@ -9,6 +9,7 @@ import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.DockWidth
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
+import io.github.seijikohara.femto.data.update.UpdateManifest
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
 import io.github.seijikohara.femto.ui.home.components.DockConfig
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
@@ -41,6 +42,8 @@ internal fun HomeScreen(
     musicShowArt: Boolean = true,
     spectrum: StateFlow<FloatArray?>? = null,
     motionTier: MotionTier = MotionTier.STANDARD,
+    // The build the update prompt asks about (HomeViewModel.updatePrompt), or null.
+    updatePrompt: UpdateManifest? = null,
     // Whether one of the host's sheets covers the dashboard (Settings, the
     // assistant, ...).
     sheetOpen: Boolean = false,
@@ -72,7 +75,7 @@ internal fun HomeScreen(
     // it could ask about the very offer the Updates section shows (and records
     // as seen) right then; over any sheet it would cut into what the user is
     // doing there.
-    uiState.updatePrompt?.takeUnless { sheetOpen }?.let { update ->
+    updatePrompt?.takeUnless { sheetOpen }?.let { update ->
         UpdatePromptDialog(update = update, onAction = onAction)
     }
 }

@@ -17,6 +17,7 @@ import io.github.seijikohara.femto.data.calendar.CalendarRepository
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.clock.ClockRepository
 import io.github.seijikohara.femto.data.common.WhileUiSubscribed
+import io.github.seijikohara.femto.data.common.WhileUiSubscribedFresh
 import io.github.seijikohara.femto.data.common.catchAsDefault
 import io.github.seijikohara.femto.data.common.femtoUserAgent
 import io.github.seijikohara.femto.data.display.DisplayPreferences
@@ -104,41 +105,22 @@ internal class HomeViewModel(
     // reason). The store carries the answers to later processes.
     private val answeredVersionCodes = MutableStateFlow(emptySet<Int>())
 
-    // The dock's update dot and the dashboard's update prompt. Both wait for a
-    // live GPS fix showing the vehicle parked (fail-closed; see VehicleMotion),
-    // judged from one motion reading so the two never disagree about it: the dot
-    // at once, the prompt once the vehicle has stayed parked for
-    // UPDATE_PROMPT_PARKED_DWELL_MS. The motion is judged as each GPS fix or
-    // trip update arrives, never as other cards update, and a parked verdict
-    // ages out once no fix follows (vehicleMotionFlow), so the dot goes when
-    // the receiver goes quiet and an open prompt closes, unanswered, to ask
-    // again after the next full dwell. The dot shows for any offer; the prompt
-    // asks about one the user has not acted on yet, once per build. Seeded with
-    // neither: the updater resolves off the main thread when first collected
+    // The dock's update dot: an update is on offer and a live GPS fix shows the
+    // vehicle parked (fail-closed; see VehicleMotion). The motion is judged as
+    // each GPS fix or trip update arrives, never as other cards update, and a
+    // parked verdict ages out once no fix follows (vehicleMotionFlow), so the
+    // dot goes when the receiver goes quiet. Seeded with "no dot": the
+    // updater resolves off the main thread when first collected
     // (UpdateRepository.observe), and the combine below emits only once every
     // source has, so an unseeded slot would hold the whole dashboard back.
-    private val updateSignals: Flow<UpdateSignals> =
+    private val updateBadge: Flow<Boolean> =
         combine(
-            updateStateFlow,
-            // Caught on its own, like each dashboard source: a broken store
-            // costs only its record, never the dot.
-            updateSettingsFlow.catchAsDefault(TAG, "update settings", UpdateSettings.Default),
-            answeredVersionCodes,
-            vehicleMotionFlow(locationFlow, tripStateFlow, nowElapsedRealtimeNanos)
-                .withParkedDwell(UPDATE_PROMPT_PARKED_DWELL_MS),
-        ) { state, settings, answered, reading ->
-            UpdateSignals(
-                badge = reading.motion == VehicleMotion.PARKED && state.offersUpdate(),
-                prompt =
-                    state.promptableOfferOrNull()?.takeIf { offer ->
-                        reading.parkedThroughDwell &&
-                            offer.versionCode !in answered &&
-                            !settings.promptedFor(offer.versionCode)
-                    },
-            )
-        }.onStart { emit(UpdateSignals.None) }
+            updateStateFlow.map { it.offersUpdate() },
+            vehicleMotionFlow(locationFlow, tripStateFlow, nowElapsedRealtimeNanos),
+        ) { offered, motion -> offered && motion == VehicleMotion.PARKED }
+            .onStart { emit(false) }
             .distinctUntilChanged()
-            .catchAsDefault(TAG, "update signals", UpdateSignals.None)
+            .catchAsDefault(TAG, "update badge", false)
 
     // Kotlin's typed combine overloads cover at most 5 flows. Stage the nine
     // sources through a typed intermediate (CoreSignals) so the compiler enforces
@@ -155,9 +137,9 @@ internal class HomeViewModel(
             addressFlow.catchAsDefault(TAG, "address", HomeUiState.Initial.address),
             weatherFlow.catchAsDefault(TAG, "weather", HomeUiState.Initial.weather),
             musicStateFlow.catchAsDefault(TAG, "music", HomeUiState.Initial.musicState),
-            updateSignals,
-        ) { location, address, weather, music, update ->
-            CoreSignals(location, address, weather, music, update)
+            updateBadge,
+        ) { location, address, weather, music, badge ->
+            CoreSignals(location, address, weather, music, badge)
         }
 
     val uiState: StateFlow<HomeUiState> =
@@ -177,10 +159,44 @@ internal class HomeViewModel(
                 systemStatus = systemStatus,
                 tripState = tripState,
                 online = online,
-                updateBadge = core.update.badge,
-                updatePrompt = core.update.prompt,
+                updateBadge = core.updateBadge,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, HomeUiState.Initial)
+
+    /**
+     * The build the dashboard's update prompt asks about, or null: an offer
+     * waiting for its first step (to download, or to install the verified
+     * file), once a live GPS fix has shown the vehicle parked for
+     * [UPDATE_PROMPT_PARKED_DWELL_MS] without a break (fail-closed; see
+     * VehicleMotion), that the prompt has not asked about and the Updates
+     * section has not shown (promptedFor, or an answer earlier in this
+     * process). A verdict that leaves PARKED closes it at once, unrecorded, to
+     * ask again after the next full dwell.
+     *
+     * Its own state, apart from [uiState], and shared with
+     * [WhileUiSubscribedFresh]: a dashboard back from the background starts
+     * from no prompt and judges the motion afresh. Held in [uiState], the
+     * prompt it left would show again until every dashboard source had spoken,
+     * even while the vehicle moves.
+     */
+    val updatePrompt: StateFlow<UpdateManifest?> =
+        combine(
+            updateStateFlow,
+            // Caught on its own, and failing open: a broken store may ask again
+            // after a restart, while the answers kept in this process hold.
+            updateSettingsFlow.catchAsDefault(TAG, "update settings", UpdateSettings.Default),
+            answeredVersionCodes,
+            vehicleMotionFlow(locationFlow, tripStateFlow, nowElapsedRealtimeNanos)
+                .withParkedDwell(UPDATE_PROMPT_PARKED_DWELL_MS),
+        ) { state, settings, answered, reading ->
+            state.promptableOfferOrNull()?.takeIf { offer ->
+                reading.parkedThroughDwell &&
+                    offer.versionCode !in answered &&
+                    !settings.promptedFor(offer.versionCode)
+            }
+        }.distinctUntilChanged()
+            .catchAsDefault(TAG, "update prompt", null)
+            .stateIn(viewModelScope, WhileUiSubscribedFresh, null)
 
     // Spectrum levels for the music card's spectrum background, or null while
     // the visualization is off / unavailable. Kept OUT of HomeUiState: the
@@ -341,25 +357,15 @@ internal class HomeViewModel(
 }
 
 // File-private holder that groups the first five slots (four sources and the
-// update signals) so the two-stage combine stays within Kotlin's typed
+// update badge) so the two-stage combine stays within Kotlin's typed
 // (max-arity-5) combine overloads.
 private data class CoreSignals(
     val location: Location?,
     val address: ShortAddress?,
     val weather: WeatherSnapshot?,
     val music: MusicCardState,
-    val update: UpdateSignals,
+    val updateBadge: Boolean,
 )
-
-// The update slot: the dock's dot, and the build the prompt asks about.
-private data class UpdateSignals(
-    val badge: Boolean,
-    val prompt: UpdateManifest?,
-) {
-    companion object {
-        val None = UpdateSignals(badge = false, prompt = null)
-    }
-}
 
 /**
  * How long the vehicle must read PARKED without a break before the

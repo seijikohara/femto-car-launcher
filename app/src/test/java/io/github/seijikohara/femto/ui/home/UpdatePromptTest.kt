@@ -95,7 +95,7 @@ class UpdatePromptTest {
         rule.setContent {
             FemtoTheme {
                 HomeScreen(
-                    uiState = HomeUiState.Initial.copy(updatePrompt = UPDATE),
+                    uiState = HomeUiState.Initial,
                     is24Hour = true,
                     showClockSeconds = true,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
@@ -104,6 +104,7 @@ class UpdatePromptTest {
                     panels = PanelVisibility(),
                     glassConfig = GlassConfig(),
                     onAction = { actions += it },
+                    updatePrompt = UPDATE,
                     sheetOpen = sheetOpen,
                 )
             }
