@@ -20,7 +20,8 @@ import io.github.seijikohara.femto.data.fonts.FontSlot
  * notification-access screen, the OS settings root) flow up to [MainActivity] via
  * the callbacks so this route owns no Activity concerns beyond the two round
  * trips whose results feed an action back into the VM: the RECORD_AUDIO prompt
- * and the "Install unknown apps" grant ([rememberInstallUpdate]).
+ * and the "Install unknown apps" grant ([rememberInstallUpdate]), which both an
+ * install tap and the one-tap update's install request go through.
  */
 @Composable
 internal fun SettingsRoute(
@@ -60,6 +61,9 @@ internal fun SettingsRoute(
             onGrantDecline = { viewModel.onAction(SettingsAction.InstallGrantDeclined) },
             onUnavailable = { onOpenDocument(SettingsDocument.RELEASE_PAGE) },
         )
+    // The one-tap update installs its verified download exactly as the install
+    // tap does, the "Install unknown apps" round trip included.
+    InstallRequestsEffect(requests = viewModel.installRequests, onRequest = installUpdate)
     val onAction: (SettingsAction) -> Unit = { action ->
         when {
             action is SettingsAction.SetMusicSpectrum && action.value && !context.hasRecordAudioPermission() -> {

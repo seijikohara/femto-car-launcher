@@ -17,6 +17,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.LifecycleStartEffect
 import com.composables.icons.lucide.CircleCheck
 import com.composables.icons.lucide.Download
 import com.composables.icons.lucide.Lucide
@@ -55,13 +56,18 @@ internal fun UpdatesSection(
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier) {
     val updates = uiState.updates
+    // Read through rememberUpdatedState: keying the effects below on the
+    // callback would restart them, and so report, whenever the host passes a
+    // new lambda.
+    val currentOnAction by rememberUpdatedState(onAction)
+    // Off screen once it leaves the composition or the screen stops (behind
+    // another app): a one-tap update under way then no longer installs by
+    // itself, later or elsewhere.
+    LifecycleStartEffect(Unit) { onStopOrDispose { currentOnAction(SettingsAction.UpdatesHidden) } }
     updates.updatedTo?.let { version ->
         UpdatedNotice(version = version)
         // Acknowledged when the section closes: the notice stays for as long as
-        // it is on screen, and does not come back afterwards. Read through
-        // rememberUpdatedState: keying the effect on the callback would restart
-        // it, and so acknowledge, whenever the host passes a new lambda.
-        val currentOnAction by rememberUpdatedState(onAction)
+        // it is on screen, and does not come back afterwards.
         DisposableEffect(version) { onDispose { currentOnAction(SettingsAction.AcknowledgeUpdatedTo) } }
     }
     SettingRow(
@@ -176,7 +182,7 @@ private fun UpdateStepRow(
     is UpdateStep.Download -> {
         ActionRow(
             title = updateTitle(step.versionName),
-            onClick = { onAction(SettingsAction.DownloadUpdate) },
+            onClick = { onAction(SettingsAction.StartUpdate) },
             modifier = modifier,
             summary = stringResource(R.string.settings_updates_update_download_desc, fileSize(step.sizeBytes)),
             icon = Lucide.Download,

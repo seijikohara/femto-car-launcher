@@ -47,9 +47,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -961,6 +963,126 @@ class SettingsViewModelTest {
             assertEquals(0, updater.installs)
         }
 
+    // --- One-tap update --------------------------------------------------------
+
+    @Test
+    fun `StartUpdate downloads the offer`() =
+        runTest(dispatcher) {
+            updater.state.value = UpdateState.Available(manifest)
+            viewModel().onAction(SettingsAction.StartUpdate)
+            advanceUntilIdle()
+            assertEquals(1, updater.downloads)
+        }
+
+    @Test
+    fun `the one-tap update asks for the install once its download lands while parked`() =
+        runTest(dispatcher) {
+            val requests = startedOneTapUpdate()
+
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            assertEquals(1, requests.size)
+        }
+
+    @Test
+    fun `the one-tap update asks for the install without a fix, as the tap would`() =
+        runTest(dispatcher) {
+            motion.value = VehicleMotion.UNKNOWN
+            val requests = startedOneTapUpdate()
+
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            assertEquals(1, requests.size)
+        }
+
+    @Test
+    fun `a download that lands while moving stops the one-tap update for good`() =
+        runTest(dispatcher) {
+            val requests = startedOneTapUpdate()
+
+            motion.value = VehicleMotion.MOVING
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+            // Stopping later must not pop the install up by itself: the row
+            // waits for a tap.
+            motion.value = VehicleMotion.PARKED
+            advanceUntilIdle()
+
+            assertEquals(0, requests.size)
+        }
+
+    @Test
+    fun `a failed download ends the one-tap update`() =
+        runTest(dispatcher) {
+            val requests = startedOneTapUpdate()
+
+            updater.state.value = UpdateState.Failed(UpdateFailure.NETWORK, manifest)
+            advanceUntilIdle()
+            // A retry is a plain download: its verified file waits for a tap.
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            assertEquals(0, requests.size)
+        }
+
+    @Test
+    fun `leaving the Updates section ends the one-tap update`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            val requests = startedOneTapUpdate(vm)
+
+            vm.onAction(SettingsAction.UpdatesHidden)
+            advanceUntilIdle()
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            assertEquals(0, requests.size)
+        }
+
+    @Test
+    fun `the one-tap update installs a build already downloaded at once`() =
+        runTest(dispatcher) {
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            val vm = viewModel()
+            val requests = installRequestsOf(vm)
+
+            vm.onAction(SettingsAction.StartUpdate)
+            advanceUntilIdle()
+
+            assertEquals(1, requests.size)
+        }
+
+    @Test
+    fun `the one-tap update asks for the install only once`() =
+        runTest(dispatcher) {
+            val requests = startedOneTapUpdate()
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            // The install went ahead and came back declined: the verified file
+            // is offered again, for a tap.
+            updater.state.value = UpdateState.Installing(manifest, sessionId = SESSION_ID)
+            advanceUntilIdle()
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            assertEquals(1, requests.size)
+        }
+
+    @Test
+    fun `a verified download without the one-tap update waits for a tap`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            val requests = installRequestsOf(vm)
+
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            assertEquals(0, requests.size)
+        }
+
     @Test
     fun `CheckForUpdates asks the updater to check, whatever the motion`() =
         runTest(dispatcher) {
@@ -1041,6 +1163,25 @@ class SettingsViewModelTest {
         backgroundScope.launch { vm.uiState.collect { } }
         advanceUntilIdle()
         return vm.uiState.value.updates
+    }
+
+    // Every install request [vm] makes from now on. Collected unconfined, so a
+    // request lands at once: advanceUntilIdle does not wait for background work.
+    private fun TestScope.installRequestsOf(vm: SettingsViewModel): List<Unit> =
+        mutableListOf<Unit>().also { requests ->
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.installRequests.toList(requests) }
+        }
+
+    // Starts the one-tap update on an offer and lets its download begin; returns
+    // the install requests [vm] makes from then on.
+    private fun TestScope.startedOneTapUpdate(vm: SettingsViewModel = viewModel()): List<Unit> {
+        val requests = installRequestsOf(vm)
+        updater.state.value = UpdateState.Available(manifest)
+        vm.onAction(SettingsAction.StartUpdate)
+        advanceUntilIdle()
+        updater.state.value = UpdateState.Downloading(manifest, fraction = 0.5f)
+        advanceUntilIdle()
+        return requests
     }
 
     private fun installingWithConfirmation() =

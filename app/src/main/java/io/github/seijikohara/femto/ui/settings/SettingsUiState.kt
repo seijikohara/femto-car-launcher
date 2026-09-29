@@ -435,8 +435,22 @@ internal sealed interface SettingsAction {
     /** Check this channel's release feed now. */
     data object CheckForUpdates : SettingsAction
 
-    /** Download the offered update, or retry one whose failure still names its offer. */
+    /**
+     * Retry the download of an offer whose failure still names it. A plain
+     * download: its verified file waits for a tap, unlike [StartUpdate]'s.
+     */
     data object DownloadUpdate : SettingsAction
+
+    /**
+     * The one-tap update: download the offered build, then install it once
+     * verified, the way [InstallUpdate] installs it, while the Updates section
+     * is still on screen and no fix shows the vehicle moving. A build already
+     * downloaded installs at once.
+     */
+    data object StartUpdate : SettingsAction
+
+    /** The Updates section left the screen: a one-tap update under way no longer installs by itself. */
+    data object UpdatesHidden : SettingsAction
 
     /**
      * Hand the verified update to the system installer, or show its pending

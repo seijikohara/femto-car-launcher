@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.ui.settings.components
 
 import android.content.Context
 import android.text.format.Formatter
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -12,9 +13,12 @@ import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.update.UpdateFailure
+import io.github.seijikohara.femto.testfixtures.FakeLifecycleOwner
 import io.github.seijikohara.femto.ui.settings.AvailableVersion
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
@@ -35,10 +39,10 @@ import kotlin.test.assertEquals
  * to date, the "Update to …" row reads each step of the one-tap update and
  * takes a tap only where one does something, a held install stays inert and
  * says why, a declined install grant says so and stays tappable, a retry shows
- * its size, the check row takes a tap only while a check can start, and the
- * "Updated to …" notice is acknowledged when the section leaves the screen —
- * never while it shows. Settings has no screenshot goldens, so nothing else
- * pins these.
+ * its size, and the check row takes a tap only while a check can start. On
+ * leaving the screen — never while it shows — the section ends a one-tap
+ * update under way and acknowledges the "Updated to …" notice. Settings has no
+ * screenshot goldens, so nothing else pins these.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -88,13 +92,13 @@ class UpdatesSectionTest {
     }
 
     @Test
-    fun `the update row offers the download with its size and sends the update`() {
+    fun `the update row offers the download with its size and starts the one-tap update`() {
         setSection(offered(UpdateStep.Download(VERSION, APK_BYTES)))
 
         rule.onNodeWithText(context.getString(R.string.settings_updates_update_download_desc, size)).assertExists()
         rule.onNodeWithText(updateTitle).performClick()
 
-        assertEquals(listOf<SettingsAction>(SettingsAction.DownloadUpdate), tapActions())
+        assertEquals(listOf<SettingsAction>(SettingsAction.StartUpdate), tapActions())
     }
 
     @Test
@@ -181,6 +185,55 @@ class UpdatesSectionTest {
     }
 
     @Test
+    fun `leaving the section ends a one-tap update under way, and only then`() {
+        var shown by mutableStateOf(true)
+        val downloading = SettingsUiState.Initial.copy(updates = offered(UpdateStep.Downloading(VERSION, 0.5f)))
+        rule.setContent {
+            FemtoTheme {
+                if (shown) {
+                    UpdatesSection(
+                        uiState = downloading,
+                        onAction = { actions += it },
+                        onOpenDocument = {},
+                    )
+                }
+            }
+        }
+        rule.waitForIdle()
+        assertEquals(emptyList(), hides())
+
+        rule.runOnIdle { shown = false }
+        rule.waitForIdle()
+
+        assertEquals(listOf<SettingsAction>(SettingsAction.UpdatesHidden), hides())
+    }
+
+    @Test
+    fun `the screen going to the background ends a one-tap update under way`() {
+        // Behind another app the section is off screen too: a download that
+        // lands then must not install over what the user is doing.
+        val lifecycleOwner = FakeLifecycleOwner()
+        val downloading = SettingsUiState.Initial.copy(updates = offered(UpdateStep.Downloading(VERSION, 0.5f)))
+        rule.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
+                FemtoTheme {
+                    UpdatesSection(
+                        uiState = downloading,
+                        onAction = { actions += it },
+                        onOpenDocument = {},
+                    )
+                }
+            }
+        }
+        rule.waitForIdle()
+
+        rule.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.CREATED) }
+        rule.waitForIdle()
+
+        assertEquals(listOf<SettingsAction>(SettingsAction.UpdatesHidden), hides())
+    }
+
+    @Test
     fun `the updated notice is acknowledged when the section leaves, not while it shows`() {
         var shown by mutableStateOf(true)
         val updates = UpdatesUiState.Initial.copy(updatedTo = "2026.09.25-1")
@@ -218,9 +271,11 @@ class UpdatesSectionTest {
     }
 
     // The actions a tap sent, apart from the section's own reports.
-    private fun tapActions() = actions.filterNot { it == SettingsAction.AcknowledgeUpdatedTo }
+    private fun tapActions() = actions.filterNot { it in SectionReports }
 
     private fun acknowledgements() = actions.filter { it == SettingsAction.AcknowledgeUpdatedTo }
+
+    private fun hides() = actions.filter { it == SettingsAction.UpdatesHidden }
 
     private fun offered(step: UpdateStep) =
         UpdatesUiState(
@@ -236,5 +291,8 @@ class UpdatesSectionTest {
     private companion object {
         const val VERSION = "2026.09.25-1"
         const val APK_BYTES = 45_310_215L
+
+        // What the section reports by itself, on leaving the screen.
+        val SectionReports = setOf(SettingsAction.AcknowledgeUpdatedTo, SettingsAction.UpdatesHidden)
     }
 }

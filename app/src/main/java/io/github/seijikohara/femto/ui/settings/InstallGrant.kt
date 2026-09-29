@@ -10,13 +10,18 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.getSystemService
 import androidx.core.net.toUri
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import io.github.seijikohara.femto.data.common.hasInstallUnknownAppsAccess
+import kotlinx.coroutines.flow.Flow
 
 private const val TAG = "InstallGrant"
 
@@ -86,3 +91,22 @@ private fun Context.installsBlockedByPolicy(): Boolean =
         users.hasUserRestriction(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES) ||
             users.hasUserRestriction(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES_GLOBALLY)
     } == true
+
+/**
+ * Runs [onRequest] for each of [requests] that arrives while this screen is
+ * started: the one-tap update's install, started the way an install tap starts
+ * it (pass the action [rememberInstallUpdate] returns). A request that arrives
+ * while the screen is stopped, behind another app say, is dropped rather than
+ * kept, so an install never starts by itself later or elsewhere.
+ */
+@Composable
+internal fun InstallRequestsEffect(
+    requests: Flow<Unit>,
+    onRequest: () -> Unit,
+) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val latestOnRequest by rememberUpdatedState(onRequest)
+    LaunchedEffect(requests, lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) { requests.collect { latestOnRequest() } }
+    }
+}

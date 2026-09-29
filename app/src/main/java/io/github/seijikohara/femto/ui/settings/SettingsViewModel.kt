@@ -32,10 +32,15 @@ import io.github.seijikohara.femto.data.update.UpdateSettingsStore
 import io.github.seijikohara.femto.data.update.UpdateState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -203,6 +208,23 @@ internal class SettingsViewModel(
             )
         }.onStart { emit(UpdatesUiState.Initial) }
             .catchAsDefault(TAG, "updates", UpdatesUiState.Initial)
+
+    // The one-tap update's "install when ready" mark, held as the coroutine that
+    // acts on it (installOnceDownloaded). StartUpdate sets it; it is gone once it
+    // has acted, and once the Updates section leaves the screen (UpdatesHidden),
+    // so an install never starts by itself later or elsewhere.
+    private var installWhenReady: Job? = null
+
+    private val mutableInstallRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    /**
+     * Requests to start the install the way a tap on the "Update to …" row
+     * starts it: through the "Install unknown apps" access, which only the UI
+     * can open (rememberInstallUpdate). The one-tap update makes one once its
+     * download is verified. A request no screen collects is dropped, and the
+     * row then waits for a tap.
+     */
+    val installRequests: SharedFlow<Unit> = mutableInstallRequests.asSharedFlow()
 
     // Folded in here rather than into the store combine above, which already holds
     // kotlinx's five-flow typed overload.
@@ -480,6 +502,19 @@ internal class SettingsViewModel(
                     updater.download()
                 }
 
+                SettingsAction.StartUpdate -> {
+                    // The mark reads the updater's latest state, so no outcome of
+                    // the download slips past it. A build already downloaded is not
+                    // claimed again; the mark acts on it at once.
+                    installWhenReady?.cancel()
+                    installWhenReady = viewModelScope.launch { installOnceDownloaded() }
+                    updater.download()
+                }
+
+                SettingsAction.UpdatesHidden -> {
+                    installWhenReady?.cancel()
+                }
+
                 SettingsAction.InstallUpdate -> {
                     // SettingsRoute sends this only once the access is on, so a
                     // decline no longer describes the install row.
@@ -539,6 +574,22 @@ internal class SettingsViewModel(
                 }
             }
         }
+    }
+
+    // The one-tap update's second half: wait for the download it started to
+    // settle. A verified file is then installed as a tap on the row installs it,
+    // unless a fix shows the vehicle moving: then the chain stops, and the row
+    // waits for a tap once parked, since a dialog that pops up later by itself
+    // could meet the car pulling away (the updater holds its confirmation back
+    // for the same reason). Any other outcome ends the chain too: a failed
+    // download, or no newer build after all. A failing updater reads as no
+    // download, like the rest of the section.
+    private suspend fun installOnceDownloaded() {
+        val downloaded =
+            updater.state
+                .catchAsDefault(TAG, "one-tap update", UpdateState.Disabled)
+                .firstOrNull { it !is UpdateState.Available && it !is UpdateState.Downloading } is UpdateState.Ready
+        if (downloaded && motion.currentOrUnknown() != VehicleMotion.MOVING) mutableInstallRequests.tryEmit(Unit)
     }
 }
 
