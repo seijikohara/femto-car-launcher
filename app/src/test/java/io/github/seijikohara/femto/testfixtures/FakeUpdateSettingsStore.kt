@@ -13,7 +13,8 @@ import kotlinx.coroutines.flow.update
 /**
  * In-memory [UpdateSettingsStore]: every setter mutates a [MutableStateFlow]
  * synchronously, so a test sees the write with no DataStore IO. Like the real
- * store, [resetToDefaults] restores only the auto-check setting.
+ * store, [resetToDefaults] restores only the auto-check setting, and
+ * [recordPrompted] never lowers the record.
  *
  * [dropsAttemptWrites] models a store that loses the attempt record (a full
  * disk, a corrupted file). [gateReads] makes each read take its snapshot and
@@ -51,6 +52,9 @@ internal class FakeUpdateSettingsStore(
         state.update { it.copy(pendingInstallVersionCode = versionCode) }
 
     override suspend fun setOffer(manifest: UpdateManifest?) = state.update { it.copy(offer = manifest) }
+
+    override suspend fun recordPrompted(versionCode: Int) =
+        state.update { it.copy(promptedVersionCode = maxOf(versionCode, it.promptedVersionCode ?: versionCode)) }
 
     override suspend fun resetToDefaults() = state.update { it.copy(autoCheck = UpdateSettings.Default.autoCheck) }
 }

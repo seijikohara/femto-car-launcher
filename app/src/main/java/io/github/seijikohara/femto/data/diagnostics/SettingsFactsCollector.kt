@@ -102,6 +102,7 @@ internal fun updateSettingsFacts(update: UpdateSettings): List<DiagnosticFact> =
         entry("Update last check attempt", update.lastCheckAttemptAt?.let(::formatEpochMillis) ?: "never"),
         entry("Update pending install", update.pendingInstallVersionCode?.toString() ?: "none"),
         entry("Update offer", update.offer?.let { "${it.versionName} (${it.versionCode})" } ?: "none"),
+        entry("Update prompted", update.promptedVersionCode?.toString() ?: "none"),
     )
 
 private fun entry(

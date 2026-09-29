@@ -28,9 +28,10 @@ internal const val DEFAULT_AUTO_CHECK = true
  * What the updater persists: the user's auto-check choice, plus bookkeeping
  * that must outlive the process — the last check attempt, failed ones
  * included (the daily gate, and the UI's "last attempt"), the versionCode of
- * an install handed to the platform, and the [offer] the last check found. A
- * successful install kills this process, so only the next start can
- * reconcile that record against the running version.
+ * an install handed to the platform, the [offer] the last check found, and
+ * the newest build the update prompt has asked about. A successful install
+ * kills this process, so only the next start can reconcile the pending
+ * install against the running version.
  */
 internal data class UpdateSettings(
     val autoCheck: Boolean,
@@ -45,6 +46,14 @@ internal data class UpdateSettings(
      * memory would be gone until the next day's check.
      */
     val offer: UpdateManifest?,
+    /**
+     * The newest versionCode the dashboard's update prompt has asked about, or
+     * the Updates section has shown: the prompt never asks about it, or an
+     * older build, again. Null until the first one. Kept apart from [offer],
+     * which follows what the updater offers; this follows what the user has
+     * already seen.
+     */
+    val promptedVersionCode: Int?,
 ) {
     companion object {
         val Default =
@@ -53,9 +62,19 @@ internal data class UpdateSettings(
                 lastCheckAttemptAt = null,
                 pendingInstallVersionCode = null,
                 offer = null,
+                promptedVersionCode = null,
             )
     }
 }
+
+/**
+ * Whether the dashboard's update prompt has asked about [versionCode] already,
+ * or the Updates section has shown it (see [UpdateSettings.promptedVersionCode]).
+ * Build numbers only grow on a channel, so one record covers every build up
+ * to it.
+ */
+internal fun UpdateSettings.promptedFor(versionCode: Int): Boolean =
+    promptedVersionCode?.let { it >= versionCode } == true
 
 /**
  * Read/write surface for [UpdateSettings]. [UpdatePreferences] is the
@@ -74,6 +93,13 @@ internal interface UpdateSettingsStore {
 
     /** Record the offer a check found; null clears the record. */
     suspend fun setOffer(manifest: UpdateManifest?)
+
+    /**
+     * Record that the update prompt has asked about [versionCode], or the
+     * Updates section has shown it. A code below the recorded one leaves the
+     * record as it is.
+     */
+    suspend fun recordPrompted(versionCode: Int)
 
     /** Restore the auto-check setting to its default; the bookkeeping is not a setting and stays. */
     suspend fun resetToDefaults()
@@ -96,6 +122,7 @@ internal class UpdatePreferences(
                     lastCheckAttemptAt = prefs[LAST_CHECK_ATTEMPT_KEY],
                     pendingInstallVersionCode = prefs[PENDING_INSTALL_KEY],
                     offer = prefs[OFFER_KEY]?.let(::storedOfferOrNull),
+                    promptedVersionCode = prefs[PROMPTED_KEY],
                 )
             }
 
@@ -115,6 +142,14 @@ internal class UpdatePreferences(
         context.updateDataStore.editOrLog(TAG) { it.setOrRemove(OFFER_KEY, manifest?.toJson()) }
     }
 
+    // Read and written in one edit, so two writers (the prompt's answer and the
+    // Updates section's record of what it showed) cannot lower the record.
+    override suspend fun recordPrompted(versionCode: Int) {
+        context.updateDataStore.editOrLog(TAG) { prefs ->
+            prefs[PROMPTED_KEY] = maxOf(versionCode, prefs[PROMPTED_KEY] ?: versionCode)
+        }
+    }
+
     // Only the setting's key: clearing the file would also drop a pending-install
     // record, and the successor of that install would then never announce itself.
     override suspend fun resetToDefaults() {
@@ -126,6 +161,7 @@ internal class UpdatePreferences(
         val LAST_CHECK_ATTEMPT_KEY = longPreferencesKey("update_last_check_attempt_at")
         val PENDING_INSTALL_KEY = intPreferencesKey("update_pending_install_version_code")
         val OFFER_KEY = stringPreferencesKey("update_offer")
+        val PROMPTED_KEY = intPreferencesKey("update_prompted_version_code")
     }
 }
 
