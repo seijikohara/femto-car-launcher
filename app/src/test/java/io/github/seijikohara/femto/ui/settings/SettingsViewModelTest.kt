@@ -661,10 +661,11 @@ class SettingsViewModelTest {
     // --- Updates ---------------------------------------------------------------
 
     @Test
-    fun `a build that never checks shows the disabled status and offers no step`() =
+    fun `a build that never checks shows the disabled status, no available version and no step`() =
         runTest(dispatcher) {
             val updates = updatesFor(UpdateState.Disabled)
             assertEquals(UpdateStatus.Disabled, updates.status)
+            assertNull(updates.availableVersion)
             assertNull(updates.step)
         }
 
@@ -673,18 +674,15 @@ class SettingsViewModelTest {
         runTest(dispatcher) {
             updateStore.setLastCheckAttemptAt(ATTEMPT_MS)
             assertEquals(
-                UpdateStatus.Idle(Instant.ofEpochMilli(ATTEMPT_MS)),
+                UpdateStatus.Checked(Instant.ofEpochMilli(ATTEMPT_MS)),
                 updatesFor(UpdateState.Idle(lastAttemptAt = null)).status,
             )
         }
 
     @Test
-    fun `Idle without a recorded attempt shows none`() =
+    fun `Idle without a recorded attempt has never checked`() =
         runTest(dispatcher) {
-            assertEquals(
-                UpdateStatus.Idle(lastAttemptAt = null),
-                updatesFor(UpdateState.Idle(lastAttemptAt = null)).status,
-            )
+            assertEquals(UpdateStatus.NeverChecked, updatesFor(UpdateState.Idle(lastAttemptAt = null)).status)
         }
 
     @Test
@@ -696,53 +694,104 @@ class SettingsViewModelTest {
         }
 
     @Test
-    fun `UpToDate carries the persisted last attempt`() =
+    fun `the check row reports the last check, never what it found`() =
         runTest(dispatcher) {
+            // The offer lives only in the "Available version" row.
             updateStore.setLastCheckAttemptAt(ATTEMPT_MS)
+            listOf(
+                UpdateState.UpToDate,
+                UpdateState.Available(manifest),
+                UpdateState.Downloading(manifest, fraction = 0.5f),
+                UpdateState.Ready(manifest, File("update.apk")),
+                installingWithConfirmation(),
+            ).forEach { state ->
+                assertEquals(
+                    UpdateStatus.Checked(Instant.ofEpochMilli(ATTEMPT_MS)),
+                    updatesFor(state).status,
+                    "status for $state",
+                )
+            }
+        }
+
+    @Test
+    fun `a result whose attempt the store lost shows no time rather than never checked`() =
+        runTest(dispatcher) {
+            // A result means a check ran; only its time is unknown.
+            assertEquals(UpdateStatus.Checked(lastAttemptAt = null), updatesFor(UpdateState.UpToDate).status)
+        }
+
+    @Test
+    fun `the available version row names the offer wherever the state carries one`() =
+        runTest(dispatcher) {
+            val offered = AvailableVersion.Offered(manifest.versionName, manifest.apk.size)
+            listOf(
+                UpdateState.Available(manifest),
+                UpdateState.Downloading(manifest, fraction = 0.5f),
+                UpdateState.Ready(manifest, File("update.apk")),
+                UpdateState.Installing(manifest, sessionId = SESSION_ID),
+                installingWithConfirmation(),
+                UpdateState.Failed(UpdateFailure.NETWORK, manifest),
+            ).forEach { state ->
+                assertEquals(offered, updatesFor(state).availableVersion, "availableVersion for $state")
+            }
+        }
+
+    @Test
+    fun `the available version row says up to date only after a check found nothing newer`() =
+        runTest(dispatcher) {
+            mapOf(
+                UpdateState.UpToDate to AvailableVersion.UpToDate,
+                UpdateState.Idle(lastAttemptAt = null) to null,
+                UpdateState.Checking to null,
+                UpdateState.Failed(UpdateFailure.NETWORK, manifest = null) to null,
+            ).forEach { (state, availableVersion) ->
+                assertEquals(availableVersion, updatesFor(state).availableVersion, "availableVersion for $state")
+            }
+        }
+
+    @Test
+    fun `Available offers the one-tap update at the manifest's size before it starts`() =
+        runTest(dispatcher) {
             assertEquals(
-                UpdateStatus.UpToDate(Instant.ofEpochMilli(ATTEMPT_MS)),
-                updatesFor(UpdateState.UpToDate).status,
+                UpdateStep.Download(manifest.versionName, manifest.apk.size),
+                updatesFor(UpdateState.Available(manifest)).step,
             )
         }
 
     @Test
-    fun `Available offers the download at the manifest's size before it starts`() =
+    fun `Downloading reports its fraction in the update step`() =
         runTest(dispatcher) {
-            val updates = updatesFor(UpdateState.Available(manifest))
-            assertEquals(UpdateStatus.Available(manifest.versionName), updates.status)
-            assertEquals(UpdateStep.Download(manifest.apk.size), updates.step)
-        }
-
-    @Test
-    fun `Downloading reports its fraction and offers no step`() =
-        runTest(dispatcher) {
-            val updates = updatesFor(UpdateState.Downloading(manifest, fraction = 0.42f))
-            assertEquals(UpdateStatus.Downloading(manifest.versionName, 0.42f), updates.status)
-            assertNull(updates.step)
+            assertEquals(
+                UpdateStep.Downloading(manifest.versionName, fraction = 0.42f),
+                updatesFor(UpdateState.Downloading(manifest, fraction = 0.42f)).step,
+            )
         }
 
     @Test
     fun `Ready offers the install`() =
         runTest(dispatcher) {
-            val updates = updatesFor(UpdateState.Ready(manifest, File("update.apk")))
-            assertEquals(UpdateStatus.Ready(manifest.versionName), updates.status)
-            assertEquals(UpdateStep.Install(blockedWhileMoving = false, grantDeclined = false), updates.step)
+            assertEquals(
+                UpdateStep.Install(manifest.versionName, blockedWhileMoving = false, grantDeclined = false),
+                updatesFor(UpdateState.Ready(manifest, File("update.apk"))).step,
+            )
         }
 
     @Test
-    fun `Installing before the confirmation arrives offers no step`() =
+    fun `Installing before the confirmation arrives reports the hand-off`() =
         runTest(dispatcher) {
-            val updates = updatesFor(UpdateState.Installing(manifest, sessionId = SESSION_ID))
-            assertEquals(UpdateStatus.Installing(manifest.versionName), updates.status)
-            assertNull(updates.step)
+            assertEquals(
+                UpdateStep.Installing(manifest.versionName),
+                updatesFor(UpdateState.Installing(manifest, sessionId = SESSION_ID)).step,
+            )
         }
 
     @Test
     fun `Installing with a kept confirmation offers the install dialog again`() =
         runTest(dispatcher) {
-            val updates = updatesFor(installingWithConfirmation())
-            assertEquals(UpdateStatus.Installing(manifest.versionName), updates.status)
-            assertEquals(UpdateStep.ShowInstallDialog(blockedWhileMoving = false, grantDeclined = false), updates.step)
+            assertEquals(
+                UpdateStep.ShowInstallDialog(blockedWhileMoving = false, grantDeclined = false),
+                updatesFor(installingWithConfirmation()).step,
+            )
         }
 
     @Test
@@ -811,14 +860,14 @@ class SettingsViewModelTest {
             vm.onAction(SettingsAction.InstallGrantDeclined)
             advanceUntilIdle()
             assertEquals(
-                UpdateStep.Install(blockedWhileMoving = false, grantDeclined = true),
+                UpdateStep.Install(manifest.versionName, blockedWhileMoving = false, grantDeclined = true),
                 vm.uiState.value.updates.step,
             )
 
             vm.onAction(SettingsAction.InstallUpdate)
             advanceUntilIdle()
             assertEquals(
-                UpdateStep.Install(blockedWhileMoving = false, grantDeclined = false),
+                UpdateStep.Install(manifest.versionName, blockedWhileMoving = false, grantDeclined = false),
                 vm.uiState.value.updates.step,
             )
         }
@@ -858,7 +907,7 @@ class SettingsViewModelTest {
         runTest(dispatcher) {
             motion.value = VehicleMotion.MOVING
             assertEquals(
-                UpdateStep.Install(blockedWhileMoving = true, grantDeclined = false),
+                UpdateStep.Install(manifest.versionName, blockedWhileMoving = true, grantDeclined = false),
                 updatesFor(UpdateState.Ready(manifest, File("update.apk"))).step,
             )
         }
@@ -878,7 +927,7 @@ class SettingsViewModelTest {
         runTest(dispatcher) {
             motion.value = VehicleMotion.UNKNOWN
             assertEquals(
-                UpdateStep.Install(blockedWhileMoving = false, grantDeclined = false),
+                UpdateStep.Install(manifest.versionName, blockedWhileMoving = false, grantDeclined = false),
                 updatesFor(UpdateState.Ready(manifest, File("update.apk"))).step,
             )
         }

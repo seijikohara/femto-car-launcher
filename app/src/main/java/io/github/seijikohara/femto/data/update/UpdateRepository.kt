@@ -951,18 +951,25 @@ internal fun UpdateState.isResting(): Boolean =
         this is UpdateState.Failed
 
 /**
- * Whether this state names a newer build that is not installed yet: offered,
+ * The newer build this state names that is not installed yet: offered,
  * downloading, verified, handed to the installer, or failed while the offer is
- * still known. The dock's badge and the Updates entry's dot in the Settings
- * category list both read this one rule, so they cannot disagree, and neither
- * blinks off between steps.
+ * still known; null otherwise. The dock's badge, the Updates entry's dot in
+ * the Settings category list and the section's "Available version" row all
+ * read this one rule, so they cannot disagree, and none blinks off between
+ * steps.
  */
-internal fun UpdateState.offersUpdate(): Boolean =
+internal fun UpdateState.offeredManifestOrNull(): UpdateManifest? =
     when (this) {
-        is UpdateState.Available, is UpdateState.Downloading, is UpdateState.Ready, is UpdateState.Installing -> true
-        is UpdateState.Failed -> manifest != null
-        UpdateState.Disabled, is UpdateState.Idle, UpdateState.Checking, UpdateState.UpToDate -> false
+        is UpdateState.Available -> manifest
+        is UpdateState.Downloading -> manifest
+        is UpdateState.Ready -> manifest
+        is UpdateState.Installing -> manifest
+        is UpdateState.Failed -> manifest
+        UpdateState.Disabled, is UpdateState.Idle, UpdateState.Checking, UpdateState.UpToDate -> null
     }
+
+/** Whether this state names a newer build that is not installed yet ([offeredManifestOrNull]). */
+internal fun UpdateState.offersUpdate(): Boolean = offeredManifestOrNull() != null
 
 // The install attempt this state is, if it is the one on [sessionId].
 private fun UpdateState.installingOrNull(sessionId: Int): UpdateState.Installing? =

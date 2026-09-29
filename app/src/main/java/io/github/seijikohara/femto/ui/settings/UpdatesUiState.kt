@@ -5,19 +5,25 @@ import io.github.seijikohara.femto.data.update.UpdateFailure
 import io.github.seijikohara.femto.data.update.UpdateSettings
 import io.github.seijikohara.femto.data.update.UpdateState
 import io.github.seijikohara.femto.data.update.isResting
+import io.github.seijikohara.femto.data.update.offeredManifestOrNull
 import io.github.seijikohara.femto.data.update.offersUpdate
 import java.time.Instant
 
 /**
- * What the Updates section shows: the updater's state reduced to what a person
- * reads ([status]) and the one step it offers next ([step]), plus the daily
- * check and the one-time notice. [SettingsViewModel] derives it with
- * [updatesUiState]; nothing here is persisted but [autoCheck].
+ * What the Updates section shows: the check row ([status]), the build on offer
+ * or a check's finding that there is none ([availableVersion]), and the one
+ * step the updater offers next ([step]), plus the daily check and the
+ * one-time notice. Each fact has one row: the check row reports the check, the
+ * "Available version" row what it found, the step row what to do about it.
+ * [SettingsViewModel] derives it with [updatesUiState]; nothing here is
+ * persisted but [autoCheck].
  */
 internal data class UpdatesUiState(
     val status: UpdateStatus,
     /** Whether a tap on the check row starts a check; while one cannot start, the row only reports. */
     val canCheck: Boolean,
+    /** The "Available version" row; null hides it, until a check has found something to say. */
+    val availableVersion: AvailableVersion?,
     val step: UpdateStep?,
     val autoCheck: Boolean,
     /** The version this process was updated to, until the section acknowledges it; null otherwise. */
@@ -28,8 +34,9 @@ internal data class UpdatesUiState(
     companion object {
         val Initial =
             UpdatesUiState(
-                status = UpdateStatus.Idle(lastAttemptAt = null),
+                status = UpdateStatus.NeverChecked,
                 canCheck = false,
+                availableVersion = null,
                 step = null,
                 autoCheck = DEFAULT_AUTO_CHECK,
                 updatedTo = null,
@@ -38,72 +45,87 @@ internal data class UpdatesUiState(
     }
 }
 
-/** The check row's status line, one per [UpdateState]. */
+/** The check row's status line: the check itself, never what it found (see [AvailableVersion]). */
 internal sealed interface UpdateStatus {
     /** This build never checks: a local build, or a flavor without a feed. */
     data object Disabled : UpdateStatus
 
-    /** No result in this process yet; [lastAttemptAt] is the last recorded attempt, if any. */
-    data class Idle(
-        val lastAttemptAt: Instant?,
-    ) : UpdateStatus
+    /** No check has run: no result, and no recorded attempt. */
+    data object NeverChecked : UpdateStatus
 
     data object Checking : UpdateStatus
 
-    data class UpToDate(
+    /**
+     * No check is running, and one has. [lastAttemptAt] is the last recorded
+     * attempt, failed and uninformative ones included. It is null only when a
+     * result stands but the store lost the attempt's time; the row then shows
+     * no time rather than a false "not checked yet".
+     */
+    data class Checked(
         val lastAttemptAt: Instant?,
     ) : UpdateStatus
 
-    data class Available(
-        val versionName: String,
-    ) : UpdateStatus
-
-    /** [fraction] runs 0..1 over the download's size. */
-    data class Downloading(
-        val versionName: String,
-        val fraction: Float,
-    ) : UpdateStatus
-
-    /** Downloaded and verified against its manifest. */
-    data class Ready(
-        val versionName: String,
-    ) : UpdateStatus
-
-    /** Handed to the system installer, which may be waiting for the user to confirm. */
-    data class Installing(
-        val versionName: String,
-    ) : UpdateStatus
-
+    /** The last check, download or install failed; one that still names its offer keeps it on offer. */
     data class Failed(
         val reason: UpdateFailure,
     ) : UpdateStatus
 }
 
+/** The "Available version" row: the newer build on offer, or a check's finding that there is none. */
+internal sealed interface AvailableVersion {
+    /** [sizeBytes] is the download's size, shown before anything moves. */
+    data class Offered(
+        val versionName: String,
+        val sizeBytes: Long,
+    ) : AvailableVersion
+
+    data object UpToDate : AvailableVersion
+}
+
 /**
- * The one step the updater offers next. The two that put the system's install
- * confirmation on screen carry `blockedWhileMoving`: a local gate
- * (AGENTS.md#driving-lockout) that holds them while a fix shows the vehicle
- * moving, so the dialog never pops up over navigation. Checks and downloads
- * are never gated; they put nothing on screen. The same two carry
- * `grantDeclined`: the last install tap sent the user to the "Install unknown
- * apps" access, and they came back without turning it on.
+ * The one step the updater offers next. [Download], [Downloading], [Install]
+ * and [Installing] are the stages of one "Update to …" row, the one-tap
+ * update. The two steps that put the system's install confirmation on screen
+ * carry `blockedWhileMoving`: a local gate (AGENTS.md#driving-lockout) that
+ * holds them while a fix shows the vehicle moving, so the dialog never pops up
+ * over navigation. Checks and downloads are never gated; they put nothing on
+ * screen. The same two carry `grantDeclined`: the last install tap sent the
+ * user to the "Install unknown apps" access, and they came back without
+ * turning it on.
  */
 internal sealed interface UpdateStep {
     /** Download the offered build; [sizeBytes] is shown before the transfer starts. */
     data class Download(
+        val versionName: String,
         val sizeBytes: Long,
     ) : UpdateStep
 
+    /** The download under way; [fraction] runs 0..1 over its size. The row takes no tap meanwhile. */
+    data class Downloading(
+        val versionName: String,
+        val fraction: Float,
+    ) : UpdateStep
+
+    /** Install the downloaded and verified build. */
     data class Install(
+        val versionName: String,
         val blockedWhileMoving: Boolean,
         val grantDeclined: Boolean,
     ) : UpdateStep
 
     /**
+     * Handed to the system installer, whose confirmation has not arrived yet:
+     * the row reports the hand-off and takes no tap.
+     */
+    data class Installing(
+        val versionName: String,
+    ) : UpdateStep
+
+    /**
      * Show the platform's pending confirmation again: one dismissed with Home
-     * sends no verdict. Named apart from [Install] because Android 13 shows no
-     * progress once the user accepts, and an "Install" label would invite a
-     * second acceptance.
+     * sends no verdict. Named apart from [Install]'s "Update to …" because
+     * Android 13 shows no progress once the user accepts, and an "Update"
+     * label would invite a second acceptance.
      */
     data class ShowInstallDialog(
         val blockedWhileMoving: Boolean,
@@ -143,36 +165,64 @@ internal fun updatesUiState(
     return UpdatesUiState(
         status =
             when (state) {
-                UpdateState.Disabled -> UpdateStatus.Disabled
-                is UpdateState.Idle -> UpdateStatus.Idle(lastAttemptAt)
-                UpdateState.Checking -> UpdateStatus.Checking
-                UpdateState.UpToDate -> UpdateStatus.UpToDate(lastAttemptAt)
-                is UpdateState.Available -> UpdateStatus.Available(state.manifest.versionName)
-                is UpdateState.Downloading -> UpdateStatus.Downloading(state.manifest.versionName, state.fraction)
-                is UpdateState.Ready -> UpdateStatus.Ready(state.manifest.versionName)
-                is UpdateState.Installing -> UpdateStatus.Installing(state.manifest.versionName)
-                is UpdateState.Failed -> UpdateStatus.Failed(state.reason)
+                UpdateState.Disabled -> {
+                    UpdateStatus.Disabled
+                }
+
+                UpdateState.Checking -> {
+                    UpdateStatus.Checking
+                }
+
+                is UpdateState.Failed -> {
+                    UpdateStatus.Failed(state.reason)
+                }
+
+                // No result yet: only a recorded attempt says a check has run.
+                is UpdateState.Idle -> {
+                    lastAttemptAt?.let(UpdateStatus::Checked) ?: UpdateStatus.NeverChecked
+                }
+
+                // A result says a check has run, even when the store lost its time.
+                UpdateState.UpToDate,
+                is UpdateState.Available,
+                is UpdateState.Downloading,
+                is UpdateState.Ready,
+                is UpdateState.Installing,
+                -> {
+                    UpdateStatus.Checked(lastAttemptAt)
+                }
             },
         canCheck = state.isResting(),
+        availableVersion =
+            state.offeredManifestOrNull()?.let { AvailableVersion.Offered(it.versionName, it.apk.size) }
+                ?: AvailableVersion.UpToDate.takeIf { state == UpdateState.UpToDate },
         step =
             when (state) {
                 is UpdateState.Available -> {
-                    UpdateStep.Download(state.manifest.apk.size)
+                    UpdateStep.Download(state.manifest.versionName, state.manifest.apk.size)
+                }
+
+                is UpdateState.Downloading -> {
+                    UpdateStep.Downloading(state.manifest.versionName, state.fraction)
                 }
 
                 is UpdateState.Ready -> {
-                    UpdateStep.Install(blockedWhileMoving = installBlocked, grantDeclined = installGrantDeclined)
+                    UpdateStep.Install(
+                        state.manifest.versionName,
+                        blockedWhileMoving = installBlocked,
+                        grantDeclined = installGrantDeclined,
+                    )
                 }
 
                 // Only a kept confirmation can be shown again; before it arrives,
-                // the hand-off is still under way.
+                // the hand-off is still under way, and the row says so.
                 is UpdateState.Installing -> {
                     state.confirmation?.let {
                         UpdateStep.ShowInstallDialog(
                             blockedWhileMoving = installBlocked,
                             grantDeclined = installGrantDeclined,
                         )
-                    }
+                    } ?: UpdateStep.Installing(state.manifest.versionName)
                 }
 
                 // A failure that lost its offer leaves only a new check, which the
@@ -185,7 +235,6 @@ internal fun updatesUiState(
                 is UpdateState.Idle,
                 UpdateState.Checking,
                 UpdateState.UpToDate,
-                is UpdateState.Downloading,
                 -> {
                     null
                 }

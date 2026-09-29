@@ -460,21 +460,16 @@
     <string name="settings_updates_version_summary">%1$s · %2$s</string>
     <string name="settings_updates_channel_stable">Stable channel</string>
     <string name="settings_updates_channel_nightly">Nightly channel</string>
+    <string name="settings_updates_available">Available version</string>
+    <!-- %1$s = the offered version name, %2$s = its download size, e.g. "45.3 MB" -->
+    <string name="settings_updates_available_summary">%1$s · %2$s</string>
+    <string name="settings_updates_up_to_date">Up to date</string>
     <string name="settings_updates_check">Check for updates</string>
     <string name="settings_updates_status_disabled">This build does not check for updates.</string>
     <string name="settings_updates_status_never_checked">Not checked yet.</string>
     <!-- %1$s = date and time of the last check attempt -->
     <string name="settings_updates_status_last_checked">Last checked %1$s.</string>
     <string name="settings_updates_status_checking">Checking for updates…</string>
-    <string name="settings_updates_status_up_to_date">Up to date.</string>
-    <!-- %1$s = date and time of the last check attempt -->
-    <string name="settings_updates_status_up_to_date_at">Up to date. Last checked %1$s.</string>
-    <!-- %1$s = the offered version name -->
-    <string name="settings_updates_status_available">Version %1$s is available.</string>
-    <!-- %1$s = the version name, %2$d = percent downloaded -->
-    <string name="settings_updates_status_downloading">Downloading version %1$s… %2$d%%</string>
-    <string name="settings_updates_status_ready">Version %1$s is downloaded and verified.</string>
-    <string name="settings_updates_status_installing">Installing version %1$s…</string>
     <string name="settings_updates_failed_network">Could not reach the update server. Check the connection and try again.</string>
     <string name="settings_updates_failed_rate_limited">The update server asked to wait. Try again later.</string>
     <string name="settings_updates_failed_storage">Not enough space for the update. Free up some storage and try again.</string>
@@ -482,16 +477,20 @@
     <string name="settings_updates_failed_install_conflict">This update is signed with a different key, so it cannot replace the installed app.</string>
     <string name="settings_updates_failed_install_blocked">This device blocks app installs, so the update cannot be installed here.</string>
     <string name="settings_updates_failed_other">The update could not be completed.</string>
-    <string name="settings_updates_download">Download update</string>
-    <!-- %1$s = the download size, e.g. "45.3 MB" -->
-    <string name="settings_updates_download_size">Downloads %1$s.</string>
-    <string name="settings_updates_install">Install update</string>
-    <!-- True for both paths of the first tap: without the "Install unknown apps" access,
-         Android first opens that setting for this app; with it, the install confirmation. -->
-    <string name="settings_updates_install_desc">Android asks you to confirm. The first time, allow installs from this app.</string>
+    <!-- The one-tap update row, through every stage; %1$s = the offered version name -->
+    <string name="settings_updates_update">Update to %1$s</string>
+    <!-- %1$s = the download size, e.g. "45.3 MB". "Android asks you to confirm" holds for
+         the first install too: without the "Install unknown apps" access, Android first
+         opens that setting for this app, then asks. -->
+    <string name="settings_updates_update_download_desc">Downloads %1$s, then Android asks you to confirm.</string>
+    <!-- %1$d = percent downloaded -->
+    <string name="settings_updates_update_downloading">Downloading… %1$d%%</string>
+    <string name="settings_updates_update_ready_desc">Downloaded and verified. Android asks you to confirm.</string>
+    <!-- Handed to Android's installer, before its confirmation comes up. -->
+    <string name="settings_updates_update_installing">Installing…</string>
     <string name="settings_updates_install_grant_declined">Installs from this app are off, so the update was not installed. Tap to allow them.</string>
-    <!-- Named apart from "Install update": Android shows no progress once the install is
-         accepted, and an "Install" label would invite a second acceptance. -->
+    <!-- Named apart from "Update to …": Android shows no progress once the install is
+         accepted, and an "Update" label would invite a second acceptance. -->
     <string name="settings_updates_show_install_dialog">Show the install dialog again</string>
     <string name="settings_updates_show_install_dialog_desc">For a confirmation closed without an answer, or held back while the vehicle moved.</string>
     <string name="settings_updates_parked_only">Available when parked</string>
