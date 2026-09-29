@@ -40,6 +40,8 @@ internal fun SettingsSheet(
     onDismiss: () -> Unit,
     fullscreen: Boolean,
     modifier: Modifier = Modifier,
+    // Opened by the dashboard's update prompt: see SettingsRoute.
+    startUpdate: Boolean = false,
 ) {
     val sheetHeight = rememberSheetHeight(FemtoDimens.SettingsSheetHeightFraction)
     ModalBottomSheet(
@@ -66,6 +68,7 @@ internal fun SettingsSheet(
                 onOpenDiagnostics = onOpenDiagnostics,
                 onOpenLicenses = onOpenLicenses,
                 onOpenDocument = onOpenDocument,
+                startUpdate = startUpdate,
             )
         }
     }

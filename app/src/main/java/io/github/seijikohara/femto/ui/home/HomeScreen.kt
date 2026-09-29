@@ -14,6 +14,7 @@ import io.github.seijikohara.femto.ui.home.components.DockConfig
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
 import io.github.seijikohara.femto.ui.home.components.PanelVisibility
+import io.github.seijikohara.femto.ui.home.components.UpdatePromptDialog
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -40,6 +41,9 @@ internal fun HomeScreen(
     musicShowArt: Boolean = true,
     spectrum: StateFlow<FloatArray?>? = null,
     motionTier: MotionTier = MotionTier.STANDARD,
+    // Whether one of the host's sheets covers the dashboard (Settings, the
+    // assistant, ...).
+    sheetOpen: Boolean = false,
 ) = Surface(
     modifier = modifier.fillMaxSize(),
     color = MaterialTheme.colorScheme.background,
@@ -64,6 +68,13 @@ internal fun HomeScreen(
         spectrum = spectrum,
         motionTier = motionTier,
     )
+    // The update prompt waits while a sheet covers the dashboard. Over Settings
+    // it could ask about the very offer the Updates section shows (and records
+    // as seen) right then; over any sheet it would cut into what the user is
+    // doing there.
+    uiState.updatePrompt?.takeUnless { sheetOpen }?.let { update ->
+        UpdatePromptDialog(update = update, onAction = onAction)
+    }
 }
 
 @PreviewLightDark

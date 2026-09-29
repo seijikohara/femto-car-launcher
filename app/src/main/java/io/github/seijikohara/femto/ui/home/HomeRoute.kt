@@ -38,6 +38,7 @@ internal fun HomeRoute(
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
     motionTier: MotionTier = MotionTier.STANDARD,
+    sheetOpen: Boolean = false,
 ) {
     val context = LocalContext.current
     val viewModel: HomeViewModel =
@@ -66,5 +67,6 @@ internal fun HomeRoute(
         musicShowArt = musicShowArt,
         spectrum = viewModel.audioSpectrum,
         motionTier = motionTier,
+        sheetOpen = sheetOpen,
     )
 }

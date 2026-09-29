@@ -54,8 +54,14 @@ internal sealed interface HomeEvent {
     /** Open the system "Notification listener access" settings so the user can grant our NLS. */
     data object OpenNotificationListenerSettings : HomeEvent
 
-    /** Open the in-app settings screen (units, theme, font, system links). */
-    data object OpenInAppSettings : HomeEvent
+    /**
+     * Open the in-app settings screen (units, theme, font, system links). With
+     * [startUpdate] (the update prompt's "Update") it opens on the Updates
+     * category and starts the one-tap update there.
+     */
+    data class OpenInAppSettings(
+        val startUpdate: Boolean = false,
+    ) : HomeEvent
 
     /**
      * Open the in-app licences and credits screen. The map and weather credits

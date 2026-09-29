@@ -1,7 +1,6 @@
 package io.github.seijikohara.femto.ui.settings.components
 
 import android.text.format.DateUtils
-import android.text.format.Formatter
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,6 +27,7 @@ import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.update.UpdateChannel
 import io.github.seijikohara.femto.data.update.UpdateFailure
+import io.github.seijikohara.femto.ui.common.fileSize
 import io.github.seijikohara.femto.ui.settings.AvailableVersion
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsDocument
@@ -60,10 +60,15 @@ internal fun UpdatesSection(
     // callback would restart them, and so report, whenever the host passes a
     // new lambda.
     val currentOnAction by rememberUpdatedState(onAction)
-    // Off screen once it leaves the composition or the screen stops (behind
-    // another app): a one-tap update under way then no longer installs by
-    // itself, later or elsewhere.
-    LifecycleStartEffect(Unit) { onStopOrDispose { currentOnAction(SettingsAction.UpdatesHidden) } }
+    // On screen while composed and started. Meanwhile every offer shown counts
+    // as seen, so the dashboard's prompt never asks about it. Off screen once it
+    // leaves the composition or the screen stops (behind another app): a
+    // one-tap update under way then no longer installs by itself, later or
+    // elsewhere.
+    LifecycleStartEffect(Unit) {
+        currentOnAction(SettingsAction.UpdatesShown)
+        onStopOrDispose { currentOnAction(SettingsAction.UpdatesHidden) }
+    }
     updates.updatedTo?.let { version ->
         UpdatedNotice(version = version)
         // Acknowledged when the section closes: the notice stays for as long as
@@ -294,10 +299,6 @@ private fun InstallStepRow(
 // The one-tap update row's title, through every stage.
 @Composable
 private fun updateTitle(versionName: String): String = stringResource(R.string.settings_updates_update, versionName)
-
-// A download size in the device's locale, e.g. "45 MB".
-@Composable
-private fun fileSize(bytes: Long): String = Formatter.formatShortFileSize(LocalContext.current, bytes)
 
 // Null for a result whose attempt time the store lost: the row then shows its
 // title alone rather than claim no check has run.

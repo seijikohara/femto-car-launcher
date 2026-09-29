@@ -167,6 +167,12 @@
     <!-- Accessibility label of the update dot, on the dock's Settings button and on the
          Updates entry of the Settings category list, while an update is on offer. -->
     <string name="update_available">Update available</string>
+    <!-- The dashboard's update prompt, asked once per version while parked -->
+    <string name="update_prompt_title">Update available</string>
+    <!-- %1$s = the offered version name, %2$s = its download size, e.g. "45.3 MB" -->
+    <string name="update_prompt_text">Version %1$s (%2$s) is available. Update now?</string>
+    <string name="update_prompt_later">Later</string>
+    <string name="update_prompt_update">Update</string>
 
     <!-- Dashboard footer: status cluster -->
     <string name="status_cellular_connected">Mobile data connected</string>

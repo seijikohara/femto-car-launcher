@@ -67,6 +67,9 @@ internal fun SettingsScreen(
     onOpenLicenses: () -> Unit,
     onOpenDocument: (SettingsDocument) -> Unit,
     modifier: Modifier = Modifier,
+    // The category to open on, with its detail showing in the narrow layout;
+    // null opens on the category list (the first category, wide).
+    initialCategory: SettingsCategoryId? = null,
 ) = Surface(
     modifier = modifier.fillMaxSize(),
     // Hosted in the settings bottom sheet: match the M3 sheet container colour so the
@@ -96,11 +99,11 @@ internal fun SettingsScreen(
         // Hoisted here (not the ViewModel): which category is showing is pure
         // navigation state, not a persisted setting. rememberSaveable keeps it
         // across rotation the same way the old per-section expand flags did.
-        var selectedId by rememberSaveable { mutableStateOf(SettingsCategoryId.entries.first()) }
+        var selectedId by rememberSaveable { mutableStateOf(initialCategory ?: SettingsCategoryId.entries.first()) }
         // Narrow list-detail only — whether the detail view covers the list.
         // Meaningless in the wide layout, where the rail and detail pane are
         // always both visible side by side.
-        var showDetail by rememberSaveable { mutableStateOf(false) }
+        var showDetail by rememberSaveable { mutableStateOf(initialCategory != null) }
         // The Updates entry carries the dock's update dot whenever an update is
         // on offer. Unlike the dock's, this one is not motion-gated: the person is
         // already in Settings, where the section itself holds the steps that

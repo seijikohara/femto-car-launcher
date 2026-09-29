@@ -30,6 +30,7 @@ import io.github.seijikohara.femto.data.update.UpdatePreferences
 import io.github.seijikohara.femto.data.update.UpdateRepository
 import io.github.seijikohara.femto.data.update.UpdateSettingsStore
 import io.github.seijikohara.femto.data.update.UpdateState
+import io.github.seijikohara.femto.data.update.offeredManifestOrNull
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -40,7 +41,9 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -214,6 +217,11 @@ internal class SettingsViewModel(
     // has acted, and once the Updates section leaves the screen (UpdatesHidden),
     // so an install never starts by itself later or elsewhere.
     private var installWhenReady: Job? = null
+
+    // While the Updates section is on screen, every offer it shows counts as
+    // seen (recordOffersSeen): UpdatesShown starts the record, UpdatesHidden
+    // ends it.
+    private var offersSeen: Job? = null
 
     private val mutableInstallRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -511,7 +519,13 @@ internal class SettingsViewModel(
                     updater.download()
                 }
 
+                SettingsAction.UpdatesShown -> {
+                    offersSeen?.cancel()
+                    offersSeen = viewModelScope.launch { recordOffersSeen() }
+                }
+
                 SettingsAction.UpdatesHidden -> {
+                    offersSeen?.cancel()
                     installWhenReady?.cancel()
                 }
 
@@ -584,6 +598,16 @@ internal class SettingsViewModel(
     // for the same reason). Any other outcome ends the chain too: a failed
     // download, or no newer build after all. A failing updater reads as no
     // download, like the rest of the section.
+    // Every offer the Updates section shows, from the state its "Available
+    // version" row reads, is recorded as prompted: the dashboard's prompt never
+    // asks about an update the user has already read about here.
+    private suspend fun recordOffersSeen() =
+        updater.state
+            .catchAsDefault(TAG, "offers seen", UpdateState.Disabled)
+            .mapNotNull { it.offeredManifestOrNull()?.versionCode }
+            .distinctUntilChanged()
+            .collect { updatePreferences.recordPrompted(it) }
+
     private suspend fun installOnceDownloaded() {
         val downloaded =
             updater.state

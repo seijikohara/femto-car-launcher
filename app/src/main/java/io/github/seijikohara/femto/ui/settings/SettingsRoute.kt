@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -33,6 +34,9 @@ internal fun SettingsRoute(
     onOpenLicenses: () -> Unit,
     onOpenDocument: (SettingsDocument) -> Unit,
     modifier: Modifier = Modifier,
+    // Opened by the dashboard's update prompt: open on Updates and start the
+    // one-tap update there.
+    startUpdate: Boolean = false,
 ) {
     val context = LocalContext.current
     val viewModel: SettingsViewModel =
@@ -64,6 +68,9 @@ internal fun SettingsRoute(
     // The one-tap update installs its verified download exactly as the install
     // tap does, the "Install unknown apps" round trip included.
     InstallRequestsEffect(requests = viewModel.installRequests, onRequest = installUpdate)
+    // The prompt's "Update" starts the one-tap update as a tap on the Updates
+    // section's "Update to …" row would, once per opening of the sheet.
+    LaunchedEffect(startUpdate) { if (startUpdate) viewModel.onAction(SettingsAction.StartUpdate) }
     val onAction: (SettingsAction) -> Unit = { action ->
         when {
             action is SettingsAction.SetMusicSpectrum && action.value && !context.hasRecordAudioPermission() -> {
@@ -90,5 +97,6 @@ internal fun SettingsRoute(
         onOpenLicenses = onOpenLicenses,
         onOpenDocument = onOpenDocument,
         modifier = modifier,
+        initialCategory = SettingsCategoryId.UPDATES.takeIf { startUpdate },
     )
 }

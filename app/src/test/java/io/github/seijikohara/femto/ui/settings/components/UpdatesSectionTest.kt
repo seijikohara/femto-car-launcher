@@ -39,10 +39,11 @@ import kotlin.test.assertEquals
  * to date, the "Update to …" row reads each step of the one-tap update and
  * takes a tap only where one does something, a held install stays inert and
  * says why, a declined install grant says so and stays tappable, a retry shows
- * its size, and the check row takes a tap only while a check can start. On
- * leaving the screen — never while it shows — the section ends a one-tap
- * update under way and acknowledges the "Updated to …" notice. Settings has no
- * screenshot goldens, so nothing else pins these.
+ * its size, and the check row takes a tap only while a check can start. The
+ * section reports coming on screen, so the offers it shows count as seen. On
+ * leaving the screen — never while it shows — it ends a one-tap update under
+ * way and acknowledges the "Updated to …" notice. Settings has no screenshot
+ * goldens, so nothing else pins these.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -185,6 +186,13 @@ class UpdatesSectionTest {
     }
 
     @Test
+    fun `the section reports being on screen, so the offers it shows count as seen`() {
+        setSection(offered(UpdateStep.Download(VERSION, APK_BYTES)))
+
+        assertEquals(listOf<SettingsAction>(SettingsAction.UpdatesShown), shows())
+    }
+
+    @Test
     fun `leaving the section ends a one-tap update under way, and only then`() {
         var shown by mutableStateOf(true)
         val downloading = SettingsUiState.Initial.copy(updates = offered(UpdateStep.Downloading(VERSION, 0.5f)))
@@ -275,6 +283,8 @@ class UpdatesSectionTest {
 
     private fun acknowledgements() = actions.filter { it == SettingsAction.AcknowledgeUpdatedTo }
 
+    private fun shows() = actions.filter { it == SettingsAction.UpdatesShown }
+
     private fun hides() = actions.filter { it == SettingsAction.UpdatesHidden }
 
     private fun offered(step: UpdateStep) =
@@ -292,7 +302,8 @@ class UpdatesSectionTest {
         const val VERSION = "2026.09.25-1"
         const val APK_BYTES = 45_310_215L
 
-        // What the section reports by itself, on leaving the screen.
-        val SectionReports = setOf(SettingsAction.AcknowledgeUpdatedTo, SettingsAction.UpdatesHidden)
+        // What the section reports by itself, on coming on screen and leaving it.
+        val SectionReports =
+            setOf(SettingsAction.AcknowledgeUpdatedTo, SettingsAction.UpdatesShown, SettingsAction.UpdatesHidden)
     }
 }

@@ -7,6 +7,7 @@ import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.system.SystemStatus
+import io.github.seijikohara.femto.data.update.UpdateManifest
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
 
 // @Immutable despite android.location.Location being a mutable Java type:
@@ -31,6 +32,12 @@ internal data class HomeUiState(
     // Fail-closed: no fix, a cached fix and a network fix never count as parked,
     // because the trip speed reads zero until live GPS fixes set it.
     val updateBadge: Boolean,
+    // The build the dashboard's update prompt asks about, or null: an offer
+    // waiting for its first step (to download, or to install the verified
+    // file), while the badge's parked rule holds, that the prompt has not
+    // asked about and the Updates section has not shown
+    // (UpdateSettings.promptedFor, or an answer earlier in this process).
+    val updatePrompt: UpdateManifest?,
 ) {
     companion object {
         val Initial: HomeUiState =
@@ -44,6 +51,7 @@ internal data class HomeUiState(
                 tripState = TripState.Initial,
                 online = true,
                 updateBadge = false,
+                updatePrompt = null,
             )
     }
 }

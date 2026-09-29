@@ -449,6 +449,12 @@ internal sealed interface SettingsAction {
      */
     data object StartUpdate : SettingsAction
 
+    /**
+     * The Updates section came on screen: while it stays there, every offer it
+     * shows counts as seen, and the dashboard's update prompt never asks about it.
+     */
+    data object UpdatesShown : SettingsAction
+
     /** The Updates section left the screen: a one-tap update under way no longer installs by itself. */
     data object UpdatesHidden : SettingsAction
 

@@ -1083,6 +1083,59 @@ class SettingsViewModelTest {
             assertEquals(0, requests.size)
         }
 
+    // --- Offers seen in Settings ------------------------------------------------
+
+    @Test
+    fun `an offer the Updates section shows counts as prompted`() =
+        runTest(dispatcher) {
+            // The dashboard's prompt then never asks about what the user read here.
+            updater.state.value = UpdateState.Available(manifest)
+            val vm = viewModel()
+
+            vm.onAction(SettingsAction.UpdatesShown)
+            advanceUntilIdle()
+
+            assertEquals(manifest.versionCode, updateStore.current.promptedVersionCode)
+        }
+
+    @Test
+    fun `an offer found while the Updates section shows counts as prompted`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.UpdatesShown)
+            advanceUntilIdle()
+
+            updater.state.value = UpdateState.Available(manifest)
+            advanceUntilIdle()
+
+            assertEquals(manifest.versionCode, updateStore.current.promptedVersionCode)
+        }
+
+    @Test
+    fun `an offer the Updates section never showed is not recorded`() =
+        runTest(dispatcher) {
+            viewModel()
+            updater.state.value = UpdateState.Available(manifest)
+            advanceUntilIdle()
+
+            assertNull(updateStore.current.promptedVersionCode)
+        }
+
+    @Test
+    fun `an offer found after the Updates section left is not recorded`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.UpdatesShown)
+            advanceUntilIdle()
+            vm.onAction(SettingsAction.UpdatesHidden)
+            advanceUntilIdle()
+
+            updater.state.value = UpdateState.Available(manifest)
+            advanceUntilIdle()
+
+            assertNull(updateStore.current.promptedVersionCode)
+        }
+
     @Test
     fun `CheckForUpdates asks the updater to check, whatever the motion`() =
         runTest(dispatcher) {

@@ -36,14 +36,19 @@ import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.MusicSessionRepository
 import io.github.seijikohara.femto.data.system.SystemStatus
 import io.github.seijikohara.femto.data.system.SystemStatusRepository
+import io.github.seijikohara.femto.data.update.UpdateManifest
+import io.github.seijikohara.femto.data.update.UpdatePreferences
 import io.github.seijikohara.femto.data.update.UpdateRepository
+import io.github.seijikohara.femto.data.update.UpdateSettings
 import io.github.seijikohara.femto.data.update.UpdateState
 import io.github.seijikohara.femto.data.update.offersUpdate
+import io.github.seijikohara.femto.data.update.promptedFor
 import io.github.seijikohara.femto.data.weather.MetNorwayApi
 import io.github.seijikohara.femto.data.weather.WeatherRepository
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -53,6 +58,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import okhttp3.Cache
 import okhttp3.OkHttpClient
 import java.io.File
@@ -71,9 +78,14 @@ internal class HomeViewModel(
     // offline->online reload (see WebMapView). Defaults to always-online so previews
     // and tests that do not exercise recovery are unaffected.
     private val onlineFlow: Flow<Boolean> = flowOf(true),
-    // The updater's state; drives the dock's update badge. Defaults to a build that
-    // never checks, so previews and tests that do not exercise the badge are unaffected.
+    // The updater's state; drives the dock's update badge and the update prompt.
+    // Defaults to a build that never checks, so previews and tests that do not
+    // exercise either are unaffected.
     private val updateStateFlow: Flow<UpdateState> = flowOf(UpdateState.Disabled),
+    // The updater's store: the prompt reads which build it has asked about
+    // (UpdateSettings.promptedVersionCode) and records each answer.
+    private val updateSettingsFlow: Flow<UpdateSettings> = flowOf(UpdateSettings.Default),
+    private val recordUpdatePrompted: suspend (Int) -> Unit = {},
     // The boot clock the motion gate judges a fix's age against; tests pin it,
     // because Robolectric's clock starts at zero.
     private val nowElapsedRealtimeNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
@@ -84,22 +96,44 @@ internal class HomeViewModel(
     private val spectrumEnabledFlow: Flow<Boolean> = flowOf(false),
     private val spectrumBandsFor: (Flow<Boolean>) -> Flow<FloatArray?> = { flowOf(null) },
 ) : ViewModel() {
-    // The dock's update dot: an update is on offer and a live GPS fix shows the
-    // vehicle parked (fail-closed; see VehicleMotion). The motion is judged as
-    // each GPS fix or trip update arrives, never as other cards update, and a
-    // parked verdict ages out once no fix follows (vehicleMotionFlow), so the
-    // dot goes when the receiver goes quiet. Seeded with "no dot": the
-    // updater resolves off the main thread when first collected
-    // (UpdateRepository.observe), and the combine below emits only once every
-    // source has, so an unseeded slot would hold the whole dashboard back.
-    private val updateBadge: Flow<Boolean> =
+    // The builds the update prompt has been answered about in this process. The
+    // prompt closes on the answer itself, not on the store's write: a slow disk
+    // would hold it open after the tap, and a full or damaged one would never
+    // close it (the updater keeps its daily gate in memory for the same
+    // reason). The store carries the answers to later processes.
+    private val answeredVersionCodes = MutableStateFlow(emptySet<Int>())
+
+    // The dock's update dot and the dashboard's update prompt. Both wait for a
+    // live GPS fix showing the vehicle parked (fail-closed; see VehicleMotion),
+    // judged from one motion reading so the two never disagree about it. The
+    // motion is judged as each GPS fix or trip update arrives, never as other
+    // cards update, and a parked verdict ages out once no fix follows
+    // (vehicleMotionFlow), so the dot goes when the receiver goes quiet and an
+    // open prompt closes, unanswered, to ask again at the next stop. The dot
+    // shows for any offer; the prompt asks about one the user has not acted on
+    // yet, once per build. Seeded with neither: the updater resolves off the
+    // main thread when first collected (UpdateRepository.observe), and the
+    // combine below emits only once every source has, so an unseeded slot
+    // would hold the whole dashboard back.
+    private val updateSignals: Flow<UpdateSignals> =
         combine(
-            updateStateFlow.map { it.offersUpdate() },
+            updateStateFlow,
+            updateSettingsFlow,
+            answeredVersionCodes,
             vehicleMotionFlow(locationFlow, tripStateFlow, nowElapsedRealtimeNanos),
-        ) { offered, motion -> offered && motion == VehicleMotion.PARKED }
-            .onStart { emit(false) }
+        ) { state, settings, answered, motion ->
+            (motion == VehicleMotion.PARKED).let { parked ->
+                UpdateSignals(
+                    badge = parked && state.offersUpdate(),
+                    prompt =
+                        state.promptableOfferOrNull()?.takeIf { offer ->
+                            parked && offer.versionCode !in answered && !settings.promptedFor(offer.versionCode)
+                        },
+                )
+            }
+        }.onStart { emit(UpdateSignals.None) }
             .distinctUntilChanged()
-            .catchAsDefault(TAG, "update badge", false)
+            .catchAsDefault(TAG, "update signals", UpdateSignals.None)
 
     // Kotlin's typed combine overloads cover at most 5 flows. Stage the nine
     // sources through a typed intermediate (CoreSignals) so the compiler enforces
@@ -116,9 +150,9 @@ internal class HomeViewModel(
             addressFlow.catchAsDefault(TAG, "address", HomeUiState.Initial.address),
             weatherFlow.catchAsDefault(TAG, "weather", HomeUiState.Initial.weather),
             musicStateFlow.catchAsDefault(TAG, "music", HomeUiState.Initial.musicState),
-            updateBadge,
-        ) { location, address, weather, music, badge ->
-            CoreSignals(location, address, weather, music, badge)
+            updateSignals,
+        ) { location, address, weather, music, update ->
+            CoreSignals(location, address, weather, music, update)
         }
 
     val uiState: StateFlow<HomeUiState> =
@@ -138,7 +172,8 @@ internal class HomeViewModel(
                 systemStatus = systemStatus,
                 tripState = tripState,
                 online = online,
-                updateBadge = core.updateBadge,
+                updateBadge = core.update.badge,
+                updatePrompt = core.update.prompt,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, HomeUiState.Initial)
 
@@ -242,7 +277,16 @@ internal class HomeViewModel(
             }
 
             HomeAction.OpenSettings -> {
-                mutableEvents.tryEmit(HomeEvent.OpenInAppSettings)
+                mutableEvents.tryEmit(HomeEvent.OpenInAppSettings())
+            }
+
+            is HomeAction.UpdateLater -> {
+                answerUpdatePrompt(action.versionCode)
+            }
+
+            is HomeAction.UpdateNow -> {
+                answerUpdatePrompt(action.versionCode)
+                mutableEvents.tryEmit(HomeEvent.OpenInAppSettings(startUpdate = true))
             }
 
             HomeAction.OpenLicenses -> {
@@ -282,18 +326,45 @@ internal class HomeViewModel(
             }
         }
     }
+
+    // Either answer settles the prompt for build [versionCode]: it closes at
+    // once, and never asks about the build again, in this process or a later one.
+    private fun answerUpdatePrompt(versionCode: Int) {
+        answeredVersionCodes.update { it + versionCode }
+        viewModelScope.launch { recordUpdatePrompted(versionCode) }
+    }
 }
 
 // File-private holder that groups the first five slots (four sources and the
-// update badge) so the two-stage combine stays within Kotlin's typed
+// update signals) so the two-stage combine stays within Kotlin's typed
 // (max-arity-5) combine overloads.
 private data class CoreSignals(
     val location: Location?,
     val address: ShortAddress?,
     val weather: WeatherSnapshot?,
     val music: MusicCardState,
-    val updateBadge: Boolean,
+    val update: UpdateSignals,
 )
+
+// The update slot: the dock's dot, and the build the prompt asks about.
+private data class UpdateSignals(
+    val badge: Boolean,
+    val prompt: UpdateManifest?,
+) {
+    companion object {
+        val None = UpdateSignals(badge = false, prompt = null)
+    }
+}
+
+// The offer the update prompt may ask about: one still waiting for the user's
+// first step, to download it or to install the verified file. An update under
+// way has already been acted on, and a failed one is Settings' to explain.
+private fun UpdateState.promptableOfferOrNull(): UpdateManifest? =
+    when (this) {
+        is UpdateState.Available -> manifest
+        is UpdateState.Ready -> manifest
+        else -> null
+    }
 
 // Shared HTTP disk cache size. A forecast response is ~50 KB and Nominatim
 // answers are tiny, so 5 MiB holds days of both with headroom.
@@ -358,6 +429,7 @@ internal class HomeViewModelFactory(
         val systemStatus = SystemStatusRepository(application, locationFlow)
         val apps = AppsRepository(application)
         val displayPreferences = DisplayPreferences(application)
+        val updatePreferences = UpdatePreferences(application)
 
         @Suppress("UNCHECKED_CAST")
         return HomeViewModel(
@@ -374,6 +446,8 @@ internal class HomeViewModelFactory(
             // observe() resolves the updater off the main thread, so neither the
             // cold start nor the first frame waits for it.
             updateStateFlow = UpdateRepository.observe(application) { it.state },
+            updateSettingsFlow = updatePreferences.settings,
+            recordUpdatePrompted = updatePreferences::recordPrompted,
             sendMusicCommand = music::send,
             resumeLastMusicSession = music::dispatchPlayMediaKey,
             resetTrip = locationGraph::resetTrip,
