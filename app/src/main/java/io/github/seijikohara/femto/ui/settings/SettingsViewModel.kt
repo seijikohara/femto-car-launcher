@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onStart
@@ -229,8 +230,8 @@ internal class SettingsViewModel(
      * Requests to start the install the way a tap on the "Update to …" row
      * starts it: through the "Install unknown apps" access, which only the UI
      * can open (rememberInstallUpdate). The one-tap update makes one once its
-     * download is verified. A request no screen collects is dropped, and the
-     * row then waits for a tap.
+     * download is verified, and only while the Updates section is on screen:
+     * collect it only while the screen is started (InstallRequestsEffect).
      */
     val installRequests: SharedFlow<Unit> = mutableInstallRequests.asSharedFlow()
 
@@ -590,14 +591,6 @@ internal class SettingsViewModel(
         }
     }
 
-    // The one-tap update's second half: wait for the download it started to
-    // settle. A verified file is then installed as a tap on the row installs it,
-    // unless a fix shows the vehicle moving: then the chain stops, and the row
-    // waits for a tap once parked, since a dialog that pops up later by itself
-    // could meet the car pulling away (the updater holds its confirmation back
-    // for the same reason). Any other outcome ends the chain too: a failed
-    // download, or no newer build after all. A failing updater reads as no
-    // download, like the rest of the section.
     // Every offer the Updates section shows, from the state its "Available
     // version" row reads, is recorded as prompted: the dashboard's prompt never
     // asks about an update the user has already read about here.
@@ -608,12 +601,27 @@ internal class SettingsViewModel(
             .distinctUntilChanged()
             .collect { updatePreferences.recordPrompted(it) }
 
+    // The one-tap update's second half: wait for the download it started to
+    // settle. A verified file is then installed as a tap on the row installs it,
+    // unless a fix shows the vehicle moving: then the chain stops, and the row
+    // waits for a tap once parked, since a dialog that pops up later by itself
+    // could meet the car pulling away (the updater holds its confirmation back
+    // for the same reason). Any other outcome ends the chain too: a failed
+    // download, or no newer build after all. A failing updater reads as no
+    // download, like the rest of the section.
+    //
+    // The request waits for the screen to collect it: a sheet the dashboard's
+    // prompt just opened on a verified build can settle before its collector
+    // starts. It can wait only while the Updates section is on screen, which is
+    // all the mark lives; the motion is read after the wait, just before asking.
     private suspend fun installOnceDownloaded() {
         val downloaded =
             updater.state
                 .catchAsDefault(TAG, "one-tap update", UpdateState.Disabled)
                 .firstOrNull { it !is UpdateState.Available && it !is UpdateState.Downloading } is UpdateState.Ready
-        if (downloaded && motion.currentOrUnknown() != VehicleMotion.MOVING) mutableInstallRequests.tryEmit(Unit)
+        if (!downloaded) return
+        mutableInstallRequests.subscriptionCount.first { it > 0 }
+        if (motion.currentOrUnknown() != VehicleMotion.MOVING) mutableInstallRequests.tryEmit(Unit)
     }
 }
 

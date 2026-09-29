@@ -1055,6 +1055,22 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `an install request waits for the screen to start collecting`() =
+        runTest(dispatcher) {
+            // Settings opened by the dashboard's prompt on a build already
+            // downloaded: the verdict can land before the screen collects.
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            val vm = viewModel()
+            vm.onAction(SettingsAction.StartUpdate)
+            advanceUntilIdle()
+
+            val requests = installRequestsOf(vm)
+            advanceUntilIdle()
+
+            assertEquals(1, requests.size)
+        }
+
+    @Test
     fun `the one-tap update asks for the install only once`() =
         runTest(dispatcher) {
             val requests = startedOneTapUpdate()
