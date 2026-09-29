@@ -47,6 +47,8 @@ internal fun HomeScreen(
     // Whether one of the host's sheets covers the dashboard (Settings, the
     // assistant, ...).
     sheetOpen: Boolean = false,
+    // The fullscreen choice, for the update prompt's own window.
+    fullscreen: Boolean = false,
 ) = Surface(
     modifier = modifier.fillMaxSize(),
     color = MaterialTheme.colorScheme.background,
@@ -76,7 +78,7 @@ internal fun HomeScreen(
     // as seen) right then; over any sheet it would cut into what the user is
     // doing there.
     updatePrompt?.takeUnless { sheetOpen }?.let { update ->
-        UpdatePromptDialog(update = update, onAction = onAction)
+        UpdatePromptDialog(update = update, onAction = onAction, fullscreen = fullscreen)
     }
 }
 

@@ -235,6 +235,13 @@ class MainActivity : ComponentActivity() {
                 // there. Kept out of the saved state, so a recreated activity
                 // reopens the sheet without starting the update a second time.
                 var settingsStartsUpdate by remember { mutableStateOf(false) }
+                // The modal sheets and the update prompt render in their own windows,
+                // which do not inherit the Activity's immersive flags; pass the
+                // fullscreen choice so each re-applies it to its window (see
+                // ImmersiveSheetEffect). The app launcher is no longer a sheet — it
+                // is a maximize panel inside the dashboard (see DashboardOverlays /
+                // AppDrawerPanelHost).
+                val fullscreen = settings.fullscreen == FullscreenSetting.ON
                 // The font picker opens over settings for one slot at a time; null = closed.
                 var fontPickerSlot by rememberSaveable { mutableStateOf<FontSlot?>(null) }
                 // Diagnostics opens over settings, like the font picker.
@@ -302,13 +309,8 @@ class MainActivity : ComponentActivity() {
                     },
                     sheetOpen =
                         showAssistant || showSettings || fontPickerSlot != null || showDiagnostics || showLicenses,
+                    fullscreen = fullscreen,
                 )
-                // The modal sheets render in their own windows, which do not inherit
-                // the Activity's immersive flags; pass the fullscreen choice so each
-                // re-applies it to its window (see ImmersiveSheetEffect). The app
-                // launcher is no longer a sheet — it is a maximize panel inside the
-                // dashboard (see DashboardOverlays / AppDrawerPanelHost).
-                val fullscreen = settings.fullscreen == FullscreenSetting.ON
                 // Every sheet is hosted at the platform density so adjusting UI scale
                 // or font size cannot rebuild the open sheet's window — see
                 // ModalSheetHost.

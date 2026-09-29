@@ -39,6 +39,7 @@ internal fun HomeRoute(
     musicShowArt: Boolean = true,
     motionTier: MotionTier = MotionTier.STANDARD,
     sheetOpen: Boolean = false,
+    fullscreen: Boolean = false,
 ) {
     val context = LocalContext.current
     val viewModel: HomeViewModel =
@@ -70,5 +71,6 @@ internal fun HomeRoute(
         motionTier = motionTier,
         updatePrompt = updatePrompt,
         sheetOpen = sheetOpen,
+        fullscreen = fullscreen,
     )
 }

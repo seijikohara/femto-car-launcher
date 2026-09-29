@@ -2,6 +2,8 @@ package io.github.seijikohara.femto.ui.home
 
 import android.content.Context
 import android.text.format.Formatter
+import android.view.MotionEvent
+import androidx.activity.ComponentDialog
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -23,13 +25,15 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.shadows.ShadowDialog
 import kotlin.test.assertEquals
 
 /**
  * The dashboard's update prompt as the driver meets it: the dialog names the
  * version and its download size, each answer is a full-size touch target that
- * carries the version it answers, and a sheet over the dashboard holds the
- * prompt back. The dashboard goldens never carry a prompt, so nothing else
+ * carries the version it answers, Back counts as Later while a tap beside the
+ * dialog answers nothing, and a sheet over the dashboard holds the prompt
+ * back. The dashboard goldens never carry a prompt, so nothing else
  * pins these. Same Robolectric harness as PanelDismissTest: no fix keeps the
  * map on its static fallback.
  */
@@ -68,6 +72,36 @@ class UpdatePromptTest {
         rule.onNodeWithText(context.getString(R.string.update_prompt_update)).performClick()
 
         assertEquals(listOf<HomeAction>(HomeAction.UpdateNow(UPDATE.versionCode)), answers())
+    }
+
+    @Test
+    fun `Back counts as Later`() {
+        setHome()
+
+        rule.runOnIdle { (ShadowDialog.getLatestDialog() as ComponentDialog).onBackPressedDispatcher.onBackPressed() }
+        rule.waitForIdle()
+
+        assertEquals(listOf<HomeAction>(HomeAction.UpdateLater(UPDATE.versionCode)), answers())
+    }
+
+    @Test
+    fun `a tap beside the dialog answers nothing`() {
+        // A stray tap near the map must not answer "never ask about this
+        // version": only Back or a button does.
+        setHome()
+
+        rule.runOnIdle {
+            // The dialog's window wraps its content, so a tap beside it arrives
+            // at the window with coordinates outside its bounds.
+            val dialog = ShadowDialog.getLatestDialog()
+            listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP).forEach { action ->
+                MotionEvent.obtain(0L, 0L, action, -20f, -20f, 0).also { dialog.onTouchEvent(it) }.recycle()
+            }
+        }
+        rule.waitForIdle()
+
+        assertEquals(emptyList(), answers())
+        rule.onNodeWithText(context.getString(R.string.update_prompt_title)).assertExists()
     }
 
     @Test
