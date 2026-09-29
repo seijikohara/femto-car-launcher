@@ -436,8 +436,10 @@ internal sealed interface SettingsAction {
     data object CheckForUpdates : SettingsAction
 
     /**
-     * Retry the download of an offer whose failure still names it. A plain
-     * download: its verified file waits for a tap, unlike [StartUpdate]'s.
+     * Retry the download of an offer whose failure still names it, or start the
+     * download of an offer while a fix shows the vehicle moving (the one-tap
+     * update row's tap then; see UpdateStep.Download). A plain download: its
+     * verified file waits for a tap, unlike [StartUpdate]'s.
      */
     data object DownloadUpdate : SettingsAction
 
@@ -447,7 +449,8 @@ internal sealed interface SettingsAction {
      * is still on screen and no fix shows the vehicle moving. A build already
      * downloaded installs at once. `SettingsRoute` first sends the user to the
      * "Install unknown apps" grant when it is missing, so the download starts
-     * only once the install can follow.
+     * only once the install can follow. The row sends it only while no fix
+     * shows the vehicle moving; its tap while moving is a [DownloadUpdate].
      */
     data object StartUpdate : SettingsAction
 

@@ -755,7 +755,7 @@ class SettingsViewModelTest {
     fun `Available offers the one-tap update at the manifest's size before it starts`() =
         runTest(dispatcher) {
             assertEquals(
-                UpdateStep.Download(manifest.versionName, manifest.apk.size, grantDeclined = false),
+                downloadStep(),
                 updatesFor(UpdateState.Available(manifest)).step,
             )
         }
@@ -863,14 +863,14 @@ class SettingsViewModelTest {
             vm.onAction(SettingsAction.InstallGrantDeclined)
             advanceUntilIdle()
             assertEquals(
-                UpdateStep.Download(manifest.versionName, manifest.apk.size, grantDeclined = true),
+                downloadStep(grantDeclined = true),
                 vm.uiState.value.updates.step,
             )
 
             vm.onAction(SettingsAction.StartUpdate)
             advanceUntilIdle()
             assertEquals(
-                UpdateStep.Download(manifest.versionName, manifest.apk.size, grantDeclined = false),
+                downloadStep(),
                 vm.uiState.value.updates.step,
             )
         }
@@ -944,6 +944,42 @@ class SettingsViewModelTest {
             assertEquals(
                 UpdateStep.ShowInstallDialog(blockedWhileMoving = true, grantDeclined = false),
                 updatesFor(installingWithConfirmation()).step,
+            )
+        }
+
+    @Test
+    fun `a fix showing the vehicle moving makes the update row's tap a plain download`() =
+        runTest(dispatcher) {
+            motion.value = VehicleMotion.MOVING
+            assertEquals(
+                downloadStep(downloadOnly = true),
+                updatesFor(UpdateState.Available(manifest)).step,
+            )
+        }
+
+    @Test
+    fun `no fix leaves the update row's tap the whole one-tap update`() =
+        runTest(dispatcher) {
+            motion.value = VehicleMotion.UNKNOWN
+            assertEquals(
+                downloadStep(),
+                updatesFor(UpdateState.Available(manifest)).step,
+            )
+        }
+
+    @Test
+    fun `while moving, the update row drops a declined access, since its tap asks for none`() =
+        runTest(dispatcher) {
+            updater.state.value = UpdateState.Available(manifest)
+            val vm = viewModel()
+            backgroundScope.launch { vm.uiState.collect { } }
+            vm.onAction(SettingsAction.InstallGrantDeclined)
+            motion.value = VehicleMotion.MOVING
+            advanceUntilIdle()
+
+            assertEquals(
+                downloadStep(downloadOnly = true),
+                vm.uiState.value.updates.step,
             )
         }
 
@@ -1130,6 +1166,24 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `a download the update row starts while moving asks for no install once it lands`() =
+        runTest(dispatcher) {
+            // The row's tap while moving is a plain download: no mark follows it.
+            motion.value = VehicleMotion.MOVING
+            updater.state.value = UpdateState.Available(manifest)
+            val vm = viewModel()
+            val requests = installRequestsOf(vm)
+            vm.onAction(SettingsAction.DownloadUpdate)
+            advanceUntilIdle()
+
+            motion.value = VehicleMotion.PARKED
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            assertEquals(0, requests.size)
+        }
+
+    @Test
     fun `a verified download without the one-tap update waits for a tap`() =
         runTest(dispatcher) {
             val vm = viewModel()
@@ -1294,6 +1348,12 @@ class SettingsViewModelTest {
         advanceUntilIdle()
         return requests
     }
+
+    // The one-tap update's first step on [manifest].
+    private fun downloadStep(
+        grantDeclined: Boolean = false,
+        downloadOnly: Boolean = false,
+    ) = UpdateStep.Download(manifest.versionName, manifest.apk.size, grantDeclined, downloadOnly)
 
     private fun installingWithConfirmation() =
         UpdateState.Installing(manifest, sessionId = SESSION_ID, confirmation = FakeInstallConfirmation())

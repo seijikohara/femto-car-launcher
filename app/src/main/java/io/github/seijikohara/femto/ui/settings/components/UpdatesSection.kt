@@ -190,7 +190,11 @@ private fun UpdateStepRow(
     is UpdateStep.Download -> {
         ActionRow(
             title = updateTitle(step.versionName),
-            onClick = { onAction(SettingsAction.StartUpdate) },
+            onClick = {
+                onAction(
+                    if (step.downloadOnly) SettingsAction.DownloadUpdate else SettingsAction.StartUpdate,
+                )
+            },
             modifier = modifier,
             summary =
                 if (step.grantDeclined) {
@@ -381,7 +385,7 @@ private fun UpdatesSectionAvailablePreview() =
             status = UpdateStatus.Checked(PreviewAttempt),
             canCheck = true,
             availableVersion = PreviewOffer,
-            step = UpdateStep.Download(PREVIEW_VERSION, PREVIEW_APK_BYTES, grantDeclined = false),
+            step = UpdateStep.Download(PREVIEW_VERSION, PREVIEW_APK_BYTES, grantDeclined = false, downloadOnly = false),
             autoCheck = true,
             updatedTo = null,
             updateOffered = true,

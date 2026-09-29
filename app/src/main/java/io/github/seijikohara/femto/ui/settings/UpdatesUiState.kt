@@ -89,20 +89,26 @@ internal sealed interface AvailableVersion {
  * carry `blockedWhileMoving`: a local gate (AGENTS.md#driving-lockout) that
  * holds them while a fix shows the vehicle moving, so the dialog never pops up
  * over navigation. Checks and downloads are never gated; they put nothing on
- * screen. Every step a tap on which asks for the "Install unknown apps" access
- * carries `grantDeclined`: the last such tap sent the user to that access,
- * and they came back without turning it on.
+ * screen. Under the same gate, [Download]'s tap only downloads
+ * (`downloadOnly`). Every step a tap on which asks for the "Install unknown
+ * apps" access carries `grantDeclined`: the last such tap sent the user to
+ * that access, and they came back without turning it on.
  */
 internal sealed interface UpdateStep {
     /**
      * Download the offered build, then install it; [sizeBytes] is shown before
      * the transfer starts. The tap asks for the "Install unknown apps" access
-     * first when it is missing, hence `grantDeclined`.
+     * first when it is missing, hence `grantDeclined`. While a fix shows the
+     * vehicle moving, [downloadOnly]: the tap starts a plain download and asks
+     * for nothing, so Android's access screen never opens while driving. The
+     * access and the install wait for the [Install] step's tap once parked, and
+     * no decline describes a tap that asks for no access.
      */
     data class Download(
         val versionName: String,
         val sizeBytes: Long,
         val grantDeclined: Boolean,
+        val downloadOnly: Boolean,
     ) : UpdateStep
 
     /** The download under way; [fraction] runs 0..1 over its size. The row takes no tap meanwhile. */
@@ -207,7 +213,8 @@ internal fun updatesUiState(
                     UpdateStep.Download(
                         state.manifest.versionName,
                         state.manifest.apk.size,
-                        grantDeclined = installGrantDeclined,
+                        grantDeclined = installGrantDeclined && !installBlocked,
+                        downloadOnly = installBlocked,
                     )
                 }
 

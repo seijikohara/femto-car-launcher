@@ -71,7 +71,10 @@ internal fun rememberInstallGrant(
  * [SettingsAction.InstallUpdate], and [SettingsAction.StartUpdate], whose
  * download reaches [onAction] only once the access is on. The access is asked
  * for at the tap, never a minute later when the download lands, and a download
- * the install could not follow never starts. A declined access reaches
+ * the install could not follow never starts. While a fix shows the vehicle
+ * moving, the row's tap is a plain [SettingsAction.DownloadUpdate] instead,
+ * which passes straight through: the access screen never opens while driving,
+ * and the install step's tap asks for it once parked. A declined access reaches
  * [onAction] as [SettingsAction.InstallGrantDeclined]; one that cannot be
  * given runs [onUnavailable]. With [startUpdate] (Settings opened by the
  * dashboard's update prompt), the one-tap update starts on entry the same way,

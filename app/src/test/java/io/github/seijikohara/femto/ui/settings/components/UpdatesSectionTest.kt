@@ -58,7 +58,7 @@ class UpdatesSectionTest {
 
     @Test
     fun `the available version row names the offered version and its size`() {
-        setSection(offered(UpdateStep.Download(VERSION, APK_BYTES, grantDeclined = false)))
+        setSection(offered(UpdateStep.Download(VERSION, APK_BYTES, grantDeclined = false, downloadOnly = false)))
 
         val summary = context.getString(R.string.settings_updates_available_summary, VERSION, size)
         rule.onNodeWithText(context.getString(R.string.settings_updates_available)).assertExists()
@@ -94,7 +94,7 @@ class UpdatesSectionTest {
 
     @Test
     fun `the update row offers the download with its size and starts the one-tap update`() {
-        setSection(offered(UpdateStep.Download(VERSION, APK_BYTES, grantDeclined = false)))
+        setSection(offered(UpdateStep.Download(VERSION, APK_BYTES, grantDeclined = false, downloadOnly = false)))
 
         rule.onNodeWithText(context.getString(R.string.settings_updates_update_download_desc, size)).assertExists()
         rule.onNodeWithText(updateTitle).performClick()
@@ -104,7 +104,7 @@ class UpdatesSectionTest {
 
     @Test
     fun `a declined access on the one-tap update says why, and the row still starts it`() {
-        setSection(offered(UpdateStep.Download(VERSION, APK_BYTES, grantDeclined = true)))
+        setSection(offered(UpdateStep.Download(VERSION, APK_BYTES, grantDeclined = true, downloadOnly = false)))
 
         // Nothing has downloaded yet, so the copy says the update did not start.
         rule.onNodeWithText(context.getString(R.string.settings_updates_update_grant_declined)).assertExists()
@@ -198,7 +198,7 @@ class UpdatesSectionTest {
 
     @Test
     fun `the section reports being on screen, so the offers it shows count as seen`() {
-        setSection(offered(UpdateStep.Download(VERSION, APK_BYTES, grantDeclined = false)))
+        setSection(offered(UpdateStep.Download(VERSION, APK_BYTES, grantDeclined = false, downloadOnly = false)))
 
         assertEquals(listOf<SettingsAction>(SettingsAction.UpdatesShown), shows())
     }

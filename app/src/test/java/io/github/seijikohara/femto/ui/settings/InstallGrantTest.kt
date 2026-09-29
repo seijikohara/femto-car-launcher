@@ -14,8 +14,14 @@ import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.core.app.ActivityOptionsCompat
 import androidx.test.core.app.ApplicationProvider
+import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
+import io.github.seijikohara.femto.ui.settings.components.UpdatesSection
+import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,8 +38,9 @@ import kotlin.test.assertTrue
  * through it: the install tap, and the one-tap update, whose download starts
  * only once the access is on, from the row's tap and from the dashboard
  * prompt's "Update" alike, so the access screen never opens a minute later,
- * when the download lands. The access and the device policy are Robolectric's
- * shadows of the platform's own checks.
+ * when the download lands. While a fix shows the vehicle moving, the row's tap
+ * only downloads and opens no access screen. The access and the device policy
+ * are Robolectric's shadows of the platform's own checks.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -47,6 +54,12 @@ class InstallGrantTest {
     private lateinit var installUpdate: () -> Unit
     private val forwarded = mutableListOf<SettingsAction>()
     private lateinit var routeAction: (SettingsAction) -> Unit
+    private val registryOwner =
+        object : ActivityResultRegistryOwner {
+            override val activityResultRegistry: ActivityResultRegistry = registry
+        }
+    private val offer = fakeUpdateManifest(versionCode = 26092501)
+    private val updateTitle = context.getString(R.string.settings_updates_update, offer.versionName)
 
     private enum class Outcome { INSTALL, GRANT_DECLINED, UNAVAILABLE }
 
@@ -250,14 +263,37 @@ class InstallGrantTest {
         assertTrue(registry.launched.isEmpty())
     }
 
+    // --- The update row's tap --------------------------------------------------------
+
+    @Test
+    fun `while moving, a tap on the update row only downloads and opens no access screen`() {
+        setAccess(on = false)
+        setUpdateRow(downloadOnly = true)
+
+        rule.onNodeWithText(updateTitle).performClick()
+
+        assertEquals(listOf<SettingsAction>(SettingsAction.DownloadUpdate), tapped())
+        assertTrue(registry.launched.isEmpty())
+    }
+
+    @Test
+    fun `while parked, a tap on the update row asks for the access first, then starts the one-tap update`() {
+        setAccess(on = false)
+        setUpdateRow(downloadOnly = false)
+        rule.onNodeWithText(updateTitle).performClick()
+        assertEquals(emptyList(), tapped())
+
+        setAccess(on = true)
+        rule.runOnIdle { registry.dispatchResult(registry.lastRequestCode, Activity.RESULT_OK, null) }
+
+        assertEquals(listOf<SettingsAction>(SettingsAction.StartUpdate), tapped())
+    }
+
     private fun setAccess(on: Boolean) = shadowOf(context.packageManager).setCanRequestPackageInstalls(on)
 
     private fun setRoute() {
-        val owner = object : ActivityResultRegistryOwner {
-            override val activityResultRegistry: ActivityResultRegistry = registry
-        }
         rule.setContent {
-            CompositionLocalProvider(LocalActivityResultRegistryOwner provides owner) {
+            CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
                 installUpdate =
                     rememberInstallGrant(
                         onGrant = { outcomes += Outcome.INSTALL },
@@ -272,11 +308,8 @@ class InstallGrantTest {
     // The Settings route's action wiring; [startUpdate] is Settings opened by
     // the dashboard's update prompt.
     private fun setActions(startUpdate: Boolean = false) {
-        val owner = object : ActivityResultRegistryOwner {
-            override val activityResultRegistry: ActivityResultRegistry = registry
-        }
         rule.setContent {
-            CompositionLocalProvider(LocalActivityResultRegistryOwner provides owner) {
+            CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
                 routeAction =
                     rememberInstallGrantedActions(
                         onAction = { forwarded += it },
@@ -287,6 +320,32 @@ class InstallGrantTest {
         }
         rule.waitForIdle()
     }
+
+    // The Updates section's "Update to …" row on an offer, wired to the Settings
+    // route's actions the way SettingsRoute wires it.
+    private fun setUpdateRow(downloadOnly: Boolean) {
+        val step =
+            UpdateStep.Download(offer.versionName, offer.apk.size, grantDeclined = false, downloadOnly = downloadOnly)
+        rule.setContent {
+            CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
+                FemtoTheme {
+                    UpdatesSection(
+                        uiState = SettingsUiState.Initial.copy(updates = UpdatesUiState.Initial.copy(step = step)),
+                        onAction =
+                            rememberInstallGrantedActions(
+                                onAction = { forwarded += it },
+                                onUnavailable = { outcomes += Outcome.UNAVAILABLE },
+                            ),
+                        onOpenDocument = {},
+                    )
+                }
+            }
+        }
+        rule.waitForIdle()
+    }
+
+    // What the row's tap forwarded, apart from the section's report of coming on screen.
+    private fun tapped() = forwarded.filterNot { it == SettingsAction.UpdatesShown }
 
     // Records each launch instead of starting an activity, or fails it the way
     // the platform does when no activity answers the intent.
