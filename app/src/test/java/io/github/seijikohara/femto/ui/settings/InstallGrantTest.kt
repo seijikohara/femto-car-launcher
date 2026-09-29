@@ -253,6 +253,30 @@ class InstallGrantTest {
     }
 
     @Test
+    fun `the one-tap update's install goes through the access and on with its token`() {
+        setAccess(on = false)
+        setActions()
+        rule.runOnIdle { routeAction(SettingsAction.InstallOneTapUpdate(token = 7)) }
+        assertEquals(emptyList(), forwarded)
+
+        setAccess(on = true)
+        rule.runOnIdle { registry.dispatchResult(registry.lastRequestCode, Activity.RESULT_OK, null) }
+
+        assertEquals(listOf<SettingsAction>(SettingsAction.InstallOneTapUpdate(token = 7)), forwarded)
+    }
+
+    @Test
+    fun `the one-tap update's install with the access on goes on at once with its token`() {
+        setAccess(on = true)
+        setActions()
+
+        rule.runOnIdle { routeAction(SettingsAction.InstallOneTapUpdate(token = 7)) }
+
+        assertEquals(listOf<SettingsAction>(SettingsAction.InstallOneTapUpdate(token = 7)), forwarded)
+        assertTrue(registry.launched.isEmpty())
+    }
+
+    @Test
     fun `every other action passes straight through`() {
         setAccess(on = false)
         setActions()

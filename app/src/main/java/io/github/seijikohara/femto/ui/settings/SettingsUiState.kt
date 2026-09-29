@@ -471,6 +471,20 @@ internal sealed interface SettingsAction {
      */
     data object InstallUpdate : SettingsAction
 
+    /**
+     * The one-tap update's own install: [InstallUpdate]'s install, asked for by
+     * its [StartUpdate] once the download is verified
+     * (SettingsViewModel.installRequests). `SettingsRoute` sends it back the way
+     * it sends an install tap, through the "Install unknown apps" access, with
+     * the [token] it came with. The install goes ahead only while that token
+     * holds: [UpdatesHidden] voids it. A request the screen acts on after the
+     * section has left the screen, back from the access screen or late,
+     * installs nothing, and the row keeps its install step for a tap.
+     */
+    data class InstallOneTapUpdate(
+        val token: Int,
+    ) : SettingsAction
+
     /** The user came back from the "Install unknown apps" access without turning it on. */
     data object InstallGrantDeclined : SettingsAction
 

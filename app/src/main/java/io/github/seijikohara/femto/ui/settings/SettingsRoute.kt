@@ -75,9 +75,10 @@ internal fun SettingsRoute(
             onUnavailable = { onOpenDocument(SettingsDocument.RELEASE_PAGE) },
             startUpdate = startUpdate,
         )
-    // The one-tap update installs its verified download exactly as the install
-    // tap does, the "Install unknown apps" round trip included.
-    InstallRequestsEffect(requests = viewModel.installRequests, onRequest = { onAction(SettingsAction.InstallUpdate) })
+    // The one-tap update installs its verified download the way the install tap
+    // does, the "Install unknown apps" round trip included, and hands its token
+    // back with it.
+    InstallRequestsEffect(requests = viewModel.installRequests, onRequest = onAction)
     SettingsScreen(
         uiState = uiState,
         onAction = onAction,

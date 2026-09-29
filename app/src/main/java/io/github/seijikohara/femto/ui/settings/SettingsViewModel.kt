@@ -217,7 +217,9 @@ internal class SettingsViewModel(
     // The one-tap update's "install when ready" mark, held as the coroutine that
     // acts on it (installOnceDownloaded). StartUpdate sets it; it is gone once it
     // has acted, and once the Updates section leaves the screen (UpdatesHidden),
-    // so an install never starts by itself later or elsewhere.
+    // so an install never starts by itself later or elsewhere. Once it has asked
+    // for the install, the token of that request (oneTapToken) carries the same
+    // guard to the install itself.
     private var installWhenReady: Job? = null
 
     // While the Updates section is on screen, every offer it shows counts as
@@ -225,16 +227,23 @@ internal class SettingsViewModel(
     // stops it taking new offers.
     private var offersSeen: Job? = null
 
-    private val mutableInstallRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    // The token of the one-tap update's install request while that install may
+    // still go ahead (see SettingsAction.InstallOneTapUpdate), null otherwise:
+    // UpdatesHidden voids it, and the install uses it up.
+    private var oneTapToken: Int? = null
+    private var lastOneTapToken = 0
+
+    private val mutableInstallRequests = MutableSharedFlow<SettingsAction.InstallOneTapUpdate>(extraBufferCapacity = 1)
 
     /**
-     * Requests to start the install the way a tap on the "Update to …" row
-     * starts it: through the "Install unknown apps" access, which only the UI
-     * can open (rememberInstallGrantedActions). The one-tap update makes one once its
-     * download is verified, and only while the Updates section is on screen:
-     * collect it only while the screen is started (InstallRequestsEffect).
+     * The one-tap update's install, for the screen to run the way a tap on the
+     * install step runs it: through the "Install unknown apps" access, which
+     * only the UI can open (rememberInstallGrantedActions), and back here with
+     * the token it carries. The one-tap update makes one once its download is
+     * verified, and only while the Updates section is on screen: collect it
+     * only while the screen is started (InstallRequestsEffect).
      */
-    val installRequests: SharedFlow<Unit> = mutableInstallRequests.asSharedFlow()
+    val installRequests: SharedFlow<SettingsAction.InstallOneTapUpdate> = mutableInstallRequests.asSharedFlow()
 
     // Folded in here rather than into the store combine above, which already holds
     // kotlinx's five-flow typed overload.
@@ -532,6 +541,7 @@ internal class SettingsViewModel(
                 SettingsAction.UpdatesHidden -> {
                     offersSeen?.cancel()
                     installWhenReady?.cancel()
+                    oneTapToken = null
                 }
 
                 SettingsAction.InstallUpdate -> {
@@ -546,6 +556,17 @@ internal class SettingsViewModel(
                     // confirmation again when it arrives, reading the same source
                     // through the same function.
                     if (motion.currentOrUnknown() != VehicleMotion.MOVING) updater.install()
+                }
+
+                is SettingsAction.InstallOneTapUpdate -> {
+                    // Sent only once the access is on, like InstallUpdate.
+                    installGrantDeclined.value = false
+                    // InstallUpdate's motion gate, then the token, read last: the
+                    // section can leave while the motion is read.
+                    if (motion.currentOrUnknown() != VehicleMotion.MOVING && oneTapToken == action.token) {
+                        oneTapToken = null
+                        updater.install()
+                    }
                 }
 
                 SettingsAction.InstallGrantDeclined -> {
@@ -621,6 +642,7 @@ internal class SettingsViewModel(
     // prompt just opened on a verified build can settle before its collector
     // starts. It can wait only while the Updates section is on screen, which is
     // all the mark lives; the motion is read after the wait, just before asking.
+    // The request carries a new token, which the install it comes back as needs.
     private suspend fun installOnceDownloaded() {
         val downloaded =
             updater.state
@@ -628,8 +650,12 @@ internal class SettingsViewModel(
                 .firstOrNull { it !is UpdateState.Available && it !is UpdateState.Downloading } is UpdateState.Ready
         if (!downloaded) return
         mutableInstallRequests.subscriptionCount.first { it > 0 }
-        if (motion.currentOrUnknown() != VehicleMotion.MOVING) mutableInstallRequests.tryEmit(Unit)
+        if (motion.currentOrUnknown() != VehicleMotion.MOVING) {
+            mutableInstallRequests.tryEmit(SettingsAction.InstallOneTapUpdate(newOneTapToken()))
+        }
     }
+
+    private fun newOneTapToken(): Int = (++lastOneTapToken).also { oneTapToken = it }
 }
 
 internal class SettingsViewModelFactory(

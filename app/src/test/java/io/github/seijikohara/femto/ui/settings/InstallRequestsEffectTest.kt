@@ -17,9 +17,9 @@ import kotlin.test.assertEquals
 /**
  * The one-tap update's install requests run the install as a tap does, and
  * the effect collects them only while the screen is started. What keeps a
- * request from being made once the screen has stopped is the ViewModel's side
- * (UpdatesHidden on ON_STOP ends the mark; see SettingsViewModelTest), not
- * this effect.
+ * request from being made, or from installing, once the screen has stopped is
+ * the ViewModel's side (UpdatesHidden on ON_STOP ends the mark and voids the
+ * request's token; see SettingsViewModelTest), not this effect.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])

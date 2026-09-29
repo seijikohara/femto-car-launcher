@@ -1184,6 +1184,54 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `the install the one-tap update asks for goes ahead while the section stays on screen`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            val requests = startedOneTapUpdate(vm)
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            vm.onAction(requests.single())
+            advanceUntilIdle()
+
+            assertEquals(1, updater.installs)
+        }
+
+    @Test
+    fun `the install the one-tap update asks for installs nothing once the section has left`() =
+        runTest(dispatcher) {
+            // The screen runs the request only after the section left: back from
+            // the "Install unknown apps" screen, or late.
+            val vm = viewModel()
+            val requests = startedOneTapUpdate(vm)
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.UpdatesHidden)
+            vm.onAction(requests.single())
+            advanceUntilIdle()
+
+            assertEquals(0, updater.installs)
+        }
+
+    @Test
+    fun `a tap on the install step still installs once the one-tap update's install lapsed`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            val requests = startedOneTapUpdate(vm)
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+            vm.onAction(SettingsAction.UpdatesHidden)
+            vm.onAction(requests.single())
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.InstallUpdate)
+            advanceUntilIdle()
+
+            assertEquals(1, updater.installs)
+        }
+
+    @Test
     fun `a verified download without the one-tap update waits for a tap`() =
         runTest(dispatcher) {
             val vm = viewModel()
@@ -1350,14 +1398,16 @@ class SettingsViewModelTest {
 
     // Every install request [vm] makes from now on. Collected unconfined, so a
     // request lands at once: advanceUntilIdle does not wait for background work.
-    private fun TestScope.installRequestsOf(vm: SettingsViewModel): List<Unit> =
-        mutableListOf<Unit>().also { requests ->
+    private fun TestScope.installRequestsOf(vm: SettingsViewModel): List<SettingsAction.InstallOneTapUpdate> =
+        mutableListOf<SettingsAction.InstallOneTapUpdate>().also { requests ->
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.installRequests.toList(requests) }
         }
 
     // Starts the one-tap update on an offer and lets its download begin; returns
     // the install requests [vm] makes from then on.
-    private fun TestScope.startedOneTapUpdate(vm: SettingsViewModel = viewModel()): List<Unit> {
+    private fun TestScope.startedOneTapUpdate(
+        vm: SettingsViewModel = viewModel(),
+    ): List<SettingsAction.InstallOneTapUpdate> {
         val requests = installRequestsOf(vm)
         updater.state.value = UpdateState.Available(manifest)
         vm.onAction(SettingsAction.StartUpdate)

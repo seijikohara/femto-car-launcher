@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
@@ -66,9 +67,10 @@ internal fun rememberInstallGrant(
 }
 
 /**
- * [onAction], with the two Updates actions that end in an install routed
- * through the "Install unknown apps" access first ([rememberInstallGrant]):
- * [SettingsAction.InstallUpdate], and [SettingsAction.StartUpdate], whose
+ * [onAction], with the Updates actions that end in an install routed through
+ * the "Install unknown apps" access first ([rememberInstallGrant]):
+ * [SettingsAction.InstallUpdate]; [SettingsAction.InstallOneTapUpdate], which
+ * goes on with the token it came with; and [SettingsAction.StartUpdate], whose
  * download reaches [onAction] only once the access is on. The access is asked
  * for at the tap, never a minute later when the download lands, and a download
  * the install could not follow never starts. While a fix shows the vehicle
@@ -99,13 +101,36 @@ internal fun rememberInstallGrantedActions(
             onDecline = { latestOnAction(SettingsAction.InstallGrantDeclined) },
             onUnavailable = onUnavailable,
         )
+    // The one-tap update's install goes on with the token it came with. Held
+    // in memory only: one lost to a recreation while the access screen is up
+    // goes nowhere, and the install step waits for a tap.
+    val pendingOneTapInstall = remember { mutableStateOf<SettingsAction.InstallOneTapUpdate?>(null) }
+    val oneTapInstall =
+        rememberInstallGrant(
+            onGrant = { pendingOneTapInstall.value?.let(latestOnAction) },
+            onDecline = { latestOnAction(SettingsAction.InstallGrantDeclined) },
+            onUnavailable = onUnavailable,
+        )
     LaunchedEffect(startUpdate) { if (startUpdate) update() }
-    return remember(install, update) {
+    return remember(install, update, oneTapInstall) {
         { action ->
             when (action) {
-                SettingsAction.InstallUpdate -> install()
-                SettingsAction.StartUpdate -> update()
-                else -> latestOnAction(action)
+                SettingsAction.InstallUpdate -> {
+                    install()
+                }
+
+                SettingsAction.StartUpdate -> {
+                    update()
+                }
+
+                is SettingsAction.InstallOneTapUpdate -> {
+                    pendingOneTapInstall.value = action
+                    oneTapInstall()
+                }
+
+                else -> {
+                    latestOnAction(action)
+                }
             }
         }
     }
@@ -143,18 +168,18 @@ private fun Context.installsBlockedByPolicy(): Boolean =
  * started: the one-tap update's install, started the way an install tap starts
  * it (route it through [rememberInstallGrantedActions]). The effect collects
  * only while started. The ViewModel holds a request until a collector arrives;
- * what keeps an install from starting later or elsewhere is the mark behind
- * the request, which ends when the Updates section stops (UpdatesHidden on
- * ON_STOP).
+ * what keeps an install from starting later or elsewhere is the ViewModel's
+ * side: the mark behind the request, and the token it carries, both of which
+ * end when the Updates section stops (UpdatesHidden on ON_STOP).
  */
 @Composable
-internal fun InstallRequestsEffect(
-    requests: Flow<Unit>,
-    onRequest: () -> Unit,
+internal fun <T> InstallRequestsEffect(
+    requests: Flow<T>,
+    onRequest: (T) -> Unit,
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val latestOnRequest by rememberUpdatedState(onRequest)
     LaunchedEffect(requests, lifecycleOwner) {
-        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) { requests.collect { latestOnRequest() } }
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) { requests.collect { latestOnRequest(it) } }
     }
 }
