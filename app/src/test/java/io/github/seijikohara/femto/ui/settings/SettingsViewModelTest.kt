@@ -1249,6 +1249,24 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `leaving the Updates section still lands the record of an offer it showed`() =
+        runTest(dispatcher) {
+            // The section leaves while the record's write is under way.
+            updater.state.value = UpdateState.Available(manifest)
+            val write = updateStore.gatePromptedWrites()
+            val vm = viewModel()
+            vm.onAction(SettingsAction.UpdatesShown)
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.UpdatesHidden)
+            advanceUntilIdle()
+            write.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(manifest.versionCode, updateStore.current.promptedVersionCode)
+        }
+
+    @Test
     fun `CheckForUpdates asks the updater to check, whatever the motion`() =
         runTest(dispatcher) {
             motion.value = VehicleMotion.MOVING

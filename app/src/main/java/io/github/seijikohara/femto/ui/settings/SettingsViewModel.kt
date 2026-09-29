@@ -34,6 +34,7 @@ import io.github.seijikohara.femto.data.update.offeredManifestOrNull
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -221,7 +222,7 @@ internal class SettingsViewModel(
 
     // While the Updates section is on screen, every offer it shows counts as
     // seen (recordOffersSeen): UpdatesShown starts the record, UpdatesHidden
-    // ends it.
+    // stops it taking new offers.
     private var offersSeen: Job? = null
 
     private val mutableInstallRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -596,13 +597,16 @@ internal class SettingsViewModel(
 
     // Every offer the Updates section shows, from the state its "Available
     // version" row reads, is recorded as prompted: the dashboard's prompt never
-    // asks about an update the user has already read about here.
+    // asks about an update the user has already read about here. Leaving the
+    // section cancels the collection, but never a write already under way: the
+    // offer was on screen, and a DataStore write cancelled midway records
+    // nothing.
     private suspend fun recordOffersSeen() =
         updater.state
             .catchAsDefault(TAG, "offers seen", UpdateState.Disabled)
             .mapNotNull { it.offeredManifestOrNull()?.versionCode }
             .distinctUntilChanged()
-            .collect { updatePreferences.recordPrompted(it) }
+            .collect { withContext(NonCancellable) { updatePreferences.recordPrompted(it) } }
 
     // The one-tap update's second half: wait for the download it started to
     // settle. A verified file is then installed as a tap on the row installs it,
