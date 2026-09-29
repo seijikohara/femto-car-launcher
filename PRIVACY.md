@@ -72,10 +72,11 @@ font downloads and update checks carry none:
   the actual file to `release-assets.githubusercontent.com`. This check runs
   automatically at most once a day while the app is running — turn it off
   in **Settings → Updates** — and again whenever you tap "Check for updates"
-  or "Download update" there. Each check sends only the request information
-  any web request carries: the device's IP address and a User-Agent naming
-  the app and its version. The update file itself, about 45 MB, downloads
-  only when you tap "Download update".
+  or "Update to …" there, or "Update" on the dashboard's update prompt. Each
+  check sends only the request information any web request carries: the
+  device's IP address and a User-Agent naming the app and its version. The
+  update file itself, about 45 MB, downloads only when you tap "Update to …"
+  or the prompt's "Update".
 
 Voice input uses the device's built-in speech recognizer. On devices with Google
 services this may transmit audio to Google for recognition, outside the app's
