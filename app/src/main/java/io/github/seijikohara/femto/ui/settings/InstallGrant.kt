@@ -136,11 +136,13 @@ private fun Context.installsBlockedByPolicy(): Boolean =
     } == true
 
 /**
- * Runs [onRequest] for each of [requests] that arrives while this screen is
+ * Runs [onRequest] for each of [requests] collected while this screen is
  * started: the one-tap update's install, started the way an install tap starts
- * it (route it through [rememberInstallGrantedActions]). A request that arrives
- * while the screen is stopped, behind another app say, is dropped rather than
- * kept, so an install never starts by itself later or elsewhere.
+ * it (route it through [rememberInstallGrantedActions]). The effect collects
+ * only while started. The ViewModel holds a request until a collector arrives;
+ * what keeps an install from starting later or elsewhere is the mark behind
+ * the request, which ends when the Updates section stops (UpdatesHidden on
+ * ON_STOP).
  */
 @Composable
 internal fun InstallRequestsEffect(

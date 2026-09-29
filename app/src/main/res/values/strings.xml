@@ -495,6 +495,8 @@
     <!-- Handed to Android's installer, before its confirmation comes up. -->
     <string name="settings_updates_update_installing">Installing…</string>
     <string name="settings_updates_install_grant_declined">Installs from this app are off, so the update was not installed. Tap to allow them.</string>
+    <!-- The same decline at the one-tap update's first step, before anything downloads -->
+    <string name="settings_updates_update_grant_declined">Installs from this app are off, so the update did not start. Tap to allow them.</string>
     <!-- Named apart from "Update to …": Android shows no progress once the install is
          accepted, and an "Update" label would invite a second acceptance. -->
     <string name="settings_updates_show_install_dialog">Show the install dialog again</string>

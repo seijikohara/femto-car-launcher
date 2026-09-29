@@ -106,7 +106,8 @@ class UpdatesSectionTest {
     fun `a declined access on the one-tap update says why, and the row still starts it`() {
         setSection(offered(UpdateStep.Download(VERSION, APK_BYTES, grantDeclined = true)))
 
-        rule.onNodeWithText(context.getString(R.string.settings_updates_install_grant_declined)).assertExists()
+        // Nothing has downloaded yet, so the copy says the update did not start.
+        rule.onNodeWithText(context.getString(R.string.settings_updates_update_grant_declined)).assertExists()
         rule.onNodeWithText(updateTitle).performClick()
 
         assertEquals(listOf<SettingsAction>(SettingsAction.StartUpdate), tapActions())

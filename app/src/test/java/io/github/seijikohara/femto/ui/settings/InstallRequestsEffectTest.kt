@@ -15,10 +15,11 @@ import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 
 /**
- * The one-tap update's install requests reach the install only while the
- * screen is in front of the user. One made while it is stopped (behind
- * another app, say) is dropped for good, so an install never starts by itself
- * later or elsewhere.
+ * The one-tap update's install requests run the install as a tap does, and
+ * the effect collects them only while the screen is started. What keeps a
+ * request from being made once the screen has stopped is the ViewModel's side
+ * (UpdatesHidden on ON_STOP ends the mark; see SettingsViewModelTest), not
+ * this effect.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -49,12 +50,15 @@ class InstallRequestsEffectTest {
     }
 
     @Test
-    fun `a request while the screen is stopped is dropped, not kept for later`() {
+    fun `the effect collects only while the screen is started`() {
+        assertEquals(1, requests.subscriptionCount.value)
+
         rule.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.CREATED) }
-        rule.runOnIdle { requests.tryEmit(Unit) }
+        rule.waitForIdle()
+        assertEquals(0, requests.subscriptionCount.value)
+
         rule.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.RESUMED) }
         rule.waitForIdle()
-
-        assertEquals(0, installs)
+        assertEquals(1, requests.subscriptionCount.value)
     }
 }

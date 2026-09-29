@@ -1094,6 +1094,25 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `leaving the Updates section ends a request still waiting for the screen`() =
+        runTest(dispatcher) {
+            // What keeps an install from starting later or elsewhere: UpdatesHidden,
+            // sent on ON_STOP, ends the mark even while its request waits for a
+            // collector, so the screen coming back finds nothing to run.
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            val vm = viewModel()
+            vm.onAction(SettingsAction.StartUpdate)
+            advanceUntilIdle()
+            vm.onAction(SettingsAction.UpdatesHidden)
+            advanceUntilIdle()
+
+            val requests = installRequestsOf(vm)
+            advanceUntilIdle()
+
+            assertEquals(0, requests.size)
+        }
+
+    @Test
     fun `the one-tap update asks for the install only once`() =
         runTest(dispatcher) {
             val requests = startedOneTapUpdate()

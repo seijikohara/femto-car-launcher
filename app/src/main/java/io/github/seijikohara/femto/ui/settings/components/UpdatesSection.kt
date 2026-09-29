@@ -47,7 +47,10 @@ import kotlin.math.roundToInt
 // check, the one step the updater offers next, the daily check, and the
 // release page as the manual path. See AppearanceSection's header comment on
 // why there is no title / reset wiring here. Opening the section starts
-// nothing by itself: every step waits for a tap.
+// nothing by itself (the dashboard prompt's "Update" starts the one-tap update
+// through SettingsRoute). Each step starts with a tap, except the one-tap
+// update's install, which follows its verified download while the section
+// stays on screen.
 @Composable
 internal fun UpdatesSection(
     uiState: SettingsUiState,
@@ -190,10 +193,12 @@ private fun UpdateStepRow(
             onClick = { onAction(SettingsAction.StartUpdate) },
             modifier = modifier,
             summary =
-                grantAwareSummary(
-                    summary = stringResource(R.string.settings_updates_update_download_desc, fileSize(step.sizeBytes)),
-                    grantDeclined = step.grantDeclined,
-                ),
+                if (step.grantDeclined) {
+                    // Nothing has downloaded yet, so the copy says the update did not start.
+                    stringResource(R.string.settings_updates_update_grant_declined)
+                } else {
+                    stringResource(R.string.settings_updates_update_download_desc, fileSize(step.sizeBytes))
+                },
             // The decline is an outcome, so it is announced like the check row's.
             summaryLiveRegion = step.grantDeclined,
             icon = Lucide.Download,
@@ -295,20 +300,12 @@ private fun InstallStepRow(
         title = title,
         onClick = onClick,
         modifier = modifier,
-        summary = grantAwareSummary(summary = summary, grantDeclined = grantDeclined),
+        summary = if (grantDeclined) stringResource(R.string.settings_updates_install_grant_declined) else summary,
         // The decline is an outcome, so it is announced like the check row's.
         summaryLiveRegion = grantDeclined || announceSummary,
         icon = Lucide.PackageCheck,
     )
 }
-
-// A step's summary, or, after a trip to the "Install unknown apps" access that
-// came back without it, why nothing happened. A tap sends the user there again.
-@Composable
-private fun grantAwareSummary(
-    summary: String,
-    grantDeclined: Boolean,
-): String = if (grantDeclined) stringResource(R.string.settings_updates_install_grant_declined) else summary
 
 // The one-tap update row's title, through every stage.
 @Composable
