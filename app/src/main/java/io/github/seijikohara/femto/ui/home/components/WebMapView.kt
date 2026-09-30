@@ -982,11 +982,13 @@ internal fun WebMapView(
     }
 }
 
-// Terminal LIVE-map state (repeated renderer deaths, or a fatal bridge event):
-// a static notice pointing back at the Settings Map section. Deliberately NOT an
-// automatic fallback to another backend — an earlier auto-downgrade misfired on
-// healthy devices and silently overrode the user's chosen backend, so the user
-// stays in control here.
+// A failed LIVE-map state (repeated renderer deaths on screen, or a fatal bridge
+// event): a static notice pointing back at the Settings Map section until the
+// map comes back — through a retry, a corrected setting, or, after a renderer
+// give-up, a return to the launcher once its settle period has passed.
+// Deliberately NOT an automatic fallback to another backend — an earlier
+// auto-downgrade misfired on healthy devices and silently overrode the user's
+// chosen backend, so the user stays in control here.
 @Composable
 private fun LiveMapNotice(
     @StringRes titleRes: Int,

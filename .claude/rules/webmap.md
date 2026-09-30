@@ -123,7 +123,10 @@ style setting, or the app theme on Auto), by different mechanisms:
 the OSM page swaps or recolours its style through `setStyleUrl`
 while the page lives, whereas Google's `colorScheme` is a
 construction-time `MapOptions` value, so `WebMapView` keys the
-WebView on `effectiveGoogleDark` and a flip rebuilds the Google page.
+WebView on the context it built the page for (`googleDark`) and a
+flip rebuilds the Google page: at once on screen, while behind
+another app the page keeps its context and the return rebuilds it
+once (each rebuild is a billed map load).
 A Map ID's cloud style overrides the scheme only if a dark-mode style
 is associated with it in the Cloud console (a 2025 addition); the
 Map ID hint in Settings says so.
