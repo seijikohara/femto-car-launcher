@@ -435,8 +435,33 @@ internal sealed interface SettingsAction {
     /** Check this channel's release feed now. */
     data object CheckForUpdates : SettingsAction
 
-    /** Download the offered update, or retry one whose failure still names its offer. */
+    /**
+     * Retry the download of an offer whose failure still names it, or start the
+     * download of an offer while a fix shows the vehicle moving (the one-tap
+     * update row's tap then; see UpdateStep.Download). A plain download: its
+     * verified file waits for a tap, unlike [StartUpdate]'s.
+     */
     data object DownloadUpdate : SettingsAction
+
+    /**
+     * The one-tap update: download the offered build, then install it once
+     * verified, the way [InstallUpdate] installs it, while the Updates section
+     * is still on screen and no fix shows the vehicle moving. A build already
+     * downloaded installs at once. `SettingsRoute` first sends the user to the
+     * "Install unknown apps" grant when it is missing, so the download starts
+     * only once the install can follow. The row sends it only while no fix
+     * shows the vehicle moving; its tap while moving is a [DownloadUpdate].
+     */
+    data object StartUpdate : SettingsAction
+
+    /**
+     * The Updates section came on screen: while it stays there, every offer it
+     * shows counts as seen, and the dashboard's update prompt never asks about it.
+     */
+    data object UpdatesShown : SettingsAction
+
+    /** The Updates section left the screen: a one-tap update under way no longer installs by itself. */
+    data object UpdatesHidden : SettingsAction
 
     /**
      * Hand the verified update to the system installer, or show its pending
@@ -445,6 +470,20 @@ internal sealed interface SettingsAction {
      * when it is missing.
      */
     data object InstallUpdate : SettingsAction
+
+    /**
+     * The one-tap update's own install: [InstallUpdate]'s install, asked for by
+     * its [StartUpdate] once the download is verified
+     * (SettingsViewModel.installRequests). `SettingsRoute` sends it back the way
+     * it sends an install tap, through the "Install unknown apps" access, with
+     * the [token] it came with. The install goes ahead only while that token
+     * holds: [UpdatesHidden] voids it. A request the screen acts on after the
+     * section has left the screen, back from the access screen or late,
+     * installs nothing, and the row keeps its install step for a tap.
+     */
+    data class InstallOneTapUpdate(
+        val token: Int,
+    ) : SettingsAction
 
     /** The user came back from the "Install unknown apps" access without turning it on. */
     data object InstallGrantDeclined : SettingsAction

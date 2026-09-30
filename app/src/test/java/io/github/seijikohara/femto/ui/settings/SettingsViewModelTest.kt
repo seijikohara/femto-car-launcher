@@ -47,9 +47,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -661,10 +663,11 @@ class SettingsViewModelTest {
     // --- Updates ---------------------------------------------------------------
 
     @Test
-    fun `a build that never checks shows the disabled status and offers no step`() =
+    fun `a build that never checks shows the disabled status, no available version and no step`() =
         runTest(dispatcher) {
             val updates = updatesFor(UpdateState.Disabled)
             assertEquals(UpdateStatus.Disabled, updates.status)
+            assertNull(updates.availableVersion)
             assertNull(updates.step)
         }
 
@@ -673,18 +676,15 @@ class SettingsViewModelTest {
         runTest(dispatcher) {
             updateStore.setLastCheckAttemptAt(ATTEMPT_MS)
             assertEquals(
-                UpdateStatus.Idle(Instant.ofEpochMilli(ATTEMPT_MS)),
+                UpdateStatus.Checked(Instant.ofEpochMilli(ATTEMPT_MS)),
                 updatesFor(UpdateState.Idle(lastAttemptAt = null)).status,
             )
         }
 
     @Test
-    fun `Idle without a recorded attempt shows none`() =
+    fun `Idle without a recorded attempt has never checked`() =
         runTest(dispatcher) {
-            assertEquals(
-                UpdateStatus.Idle(lastAttemptAt = null),
-                updatesFor(UpdateState.Idle(lastAttemptAt = null)).status,
-            )
+            assertEquals(UpdateStatus.NeverChecked, updatesFor(UpdateState.Idle(lastAttemptAt = null)).status)
         }
 
     @Test
@@ -696,53 +696,104 @@ class SettingsViewModelTest {
         }
 
     @Test
-    fun `UpToDate carries the persisted last attempt`() =
+    fun `the check row reports the last check, never what it found`() =
         runTest(dispatcher) {
+            // The offer lives only in the "Available version" row.
             updateStore.setLastCheckAttemptAt(ATTEMPT_MS)
+            listOf(
+                UpdateState.UpToDate,
+                UpdateState.Available(manifest),
+                UpdateState.Downloading(manifest, fraction = 0.5f),
+                UpdateState.Ready(manifest, File("update.apk")),
+                installingWithConfirmation(),
+            ).forEach { state ->
+                assertEquals(
+                    UpdateStatus.Checked(Instant.ofEpochMilli(ATTEMPT_MS)),
+                    updatesFor(state).status,
+                    "status for $state",
+                )
+            }
+        }
+
+    @Test
+    fun `a result whose attempt the store lost shows no time rather than never checked`() =
+        runTest(dispatcher) {
+            // A result means a check ran; only its time is unknown.
+            assertEquals(UpdateStatus.Checked(lastAttemptAt = null), updatesFor(UpdateState.UpToDate).status)
+        }
+
+    @Test
+    fun `the available version row names the offer wherever the state carries one`() =
+        runTest(dispatcher) {
+            val offered = AvailableVersion.Offered(manifest.versionName, manifest.apk.size)
+            listOf(
+                UpdateState.Available(manifest),
+                UpdateState.Downloading(manifest, fraction = 0.5f),
+                UpdateState.Ready(manifest, File("update.apk")),
+                UpdateState.Installing(manifest, sessionId = SESSION_ID),
+                installingWithConfirmation(),
+                UpdateState.Failed(UpdateFailure.NETWORK, manifest),
+            ).forEach { state ->
+                assertEquals(offered, updatesFor(state).availableVersion, "availableVersion for $state")
+            }
+        }
+
+    @Test
+    fun `the available version row says up to date only after a check found nothing newer`() =
+        runTest(dispatcher) {
+            mapOf(
+                UpdateState.UpToDate to AvailableVersion.UpToDate,
+                UpdateState.Idle(lastAttemptAt = null) to null,
+                UpdateState.Checking to null,
+                UpdateState.Failed(UpdateFailure.NETWORK, manifest = null) to null,
+            ).forEach { (state, availableVersion) ->
+                assertEquals(availableVersion, updatesFor(state).availableVersion, "availableVersion for $state")
+            }
+        }
+
+    @Test
+    fun `Available offers the one-tap update at the manifest's size before it starts`() =
+        runTest(dispatcher) {
             assertEquals(
-                UpdateStatus.UpToDate(Instant.ofEpochMilli(ATTEMPT_MS)),
-                updatesFor(UpdateState.UpToDate).status,
+                downloadStep(),
+                updatesFor(UpdateState.Available(manifest)).step,
             )
         }
 
     @Test
-    fun `Available offers the download at the manifest's size before it starts`() =
+    fun `Downloading reports its fraction in the update step`() =
         runTest(dispatcher) {
-            val updates = updatesFor(UpdateState.Available(manifest))
-            assertEquals(UpdateStatus.Available(manifest.versionName), updates.status)
-            assertEquals(UpdateStep.Download(manifest.apk.size), updates.step)
-        }
-
-    @Test
-    fun `Downloading reports its fraction and offers no step`() =
-        runTest(dispatcher) {
-            val updates = updatesFor(UpdateState.Downloading(manifest, fraction = 0.42f))
-            assertEquals(UpdateStatus.Downloading(manifest.versionName, 0.42f), updates.status)
-            assertNull(updates.step)
+            assertEquals(
+                UpdateStep.Downloading(manifest.versionName, fraction = 0.42f),
+                updatesFor(UpdateState.Downloading(manifest, fraction = 0.42f)).step,
+            )
         }
 
     @Test
     fun `Ready offers the install`() =
         runTest(dispatcher) {
-            val updates = updatesFor(UpdateState.Ready(manifest, File("update.apk")))
-            assertEquals(UpdateStatus.Ready(manifest.versionName), updates.status)
-            assertEquals(UpdateStep.Install(blockedWhileMoving = false, grantDeclined = false), updates.step)
+            assertEquals(
+                UpdateStep.Install(manifest.versionName, blockedWhileMoving = false, grantDeclined = false),
+                updatesFor(UpdateState.Ready(manifest, File("update.apk"))).step,
+            )
         }
 
     @Test
-    fun `Installing before the confirmation arrives offers no step`() =
+    fun `Installing before the confirmation arrives reports the hand-off`() =
         runTest(dispatcher) {
-            val updates = updatesFor(UpdateState.Installing(manifest, sessionId = SESSION_ID))
-            assertEquals(UpdateStatus.Installing(manifest.versionName), updates.status)
-            assertNull(updates.step)
+            assertEquals(
+                UpdateStep.Installing(manifest.versionName),
+                updatesFor(UpdateState.Installing(manifest, sessionId = SESSION_ID)).step,
+            )
         }
 
     @Test
     fun `Installing with a kept confirmation offers the install dialog again`() =
         runTest(dispatcher) {
-            val updates = updatesFor(installingWithConfirmation())
-            assertEquals(UpdateStatus.Installing(manifest.versionName), updates.status)
-            assertEquals(UpdateStep.ShowInstallDialog(blockedWhileMoving = false, grantDeclined = false), updates.step)
+            assertEquals(
+                UpdateStep.ShowInstallDialog(blockedWhileMoving = false, grantDeclined = false),
+                updatesFor(installingWithConfirmation()).step,
+            )
         }
 
     @Test
@@ -802,6 +853,29 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `a declined install grant marks the one-tap update step until the update starts`() =
+        runTest(dispatcher) {
+            // StartUpdate reaches the ViewModel only once the access is on.
+            updater.state.value = UpdateState.Available(manifest)
+            val vm = viewModel()
+            backgroundScope.launch { vm.uiState.collect { } }
+
+            vm.onAction(SettingsAction.InstallGrantDeclined)
+            advanceUntilIdle()
+            assertEquals(
+                downloadStep(grantDeclined = true),
+                vm.uiState.value.updates.step,
+            )
+
+            vm.onAction(SettingsAction.StartUpdate)
+            advanceUntilIdle()
+            assertEquals(
+                downloadStep(),
+                vm.uiState.value.updates.step,
+            )
+        }
+
+    @Test
     fun `a declined install grant marks the install step until an install goes ahead`() =
         runTest(dispatcher) {
             updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
@@ -811,14 +885,14 @@ class SettingsViewModelTest {
             vm.onAction(SettingsAction.InstallGrantDeclined)
             advanceUntilIdle()
             assertEquals(
-                UpdateStep.Install(blockedWhileMoving = false, grantDeclined = true),
+                UpdateStep.Install(manifest.versionName, blockedWhileMoving = false, grantDeclined = true),
                 vm.uiState.value.updates.step,
             )
 
             vm.onAction(SettingsAction.InstallUpdate)
             advanceUntilIdle()
             assertEquals(
-                UpdateStep.Install(blockedWhileMoving = false, grantDeclined = false),
+                UpdateStep.Install(manifest.versionName, blockedWhileMoving = false, grantDeclined = false),
                 vm.uiState.value.updates.step,
             )
         }
@@ -858,7 +932,7 @@ class SettingsViewModelTest {
         runTest(dispatcher) {
             motion.value = VehicleMotion.MOVING
             assertEquals(
-                UpdateStep.Install(blockedWhileMoving = true, grantDeclined = false),
+                UpdateStep.Install(manifest.versionName, blockedWhileMoving = true, grantDeclined = false),
                 updatesFor(UpdateState.Ready(manifest, File("update.apk"))).step,
             )
         }
@@ -874,11 +948,47 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `a fix showing the vehicle moving makes the update row's tap a plain download`() =
+        runTest(dispatcher) {
+            motion.value = VehicleMotion.MOVING
+            assertEquals(
+                downloadStep(downloadOnly = true),
+                updatesFor(UpdateState.Available(manifest)).step,
+            )
+        }
+
+    @Test
+    fun `no fix leaves the update row's tap the whole one-tap update`() =
+        runTest(dispatcher) {
+            motion.value = VehicleMotion.UNKNOWN
+            assertEquals(
+                downloadStep(),
+                updatesFor(UpdateState.Available(manifest)).step,
+            )
+        }
+
+    @Test
+    fun `while moving, the update row drops a declined access, since its tap asks for none`() =
+        runTest(dispatcher) {
+            updater.state.value = UpdateState.Available(manifest)
+            val vm = viewModel()
+            backgroundScope.launch { vm.uiState.collect { } }
+            vm.onAction(SettingsAction.InstallGrantDeclined)
+            motion.value = VehicleMotion.MOVING
+            advanceUntilIdle()
+
+            assertEquals(
+                downloadStep(downloadOnly = true),
+                vm.uiState.value.updates.step,
+            )
+        }
+
+    @Test
     fun `no fix leaves the install step open`() =
         runTest(dispatcher) {
             motion.value = VehicleMotion.UNKNOWN
             assertEquals(
-                UpdateStep.Install(blockedWhileMoving = false, grantDeclined = false),
+                UpdateStep.Install(manifest.versionName, blockedWhileMoving = false, grantDeclined = false),
                 updatesFor(UpdateState.Ready(manifest, File("update.apk"))).step,
             )
         }
@@ -910,6 +1020,298 @@ class SettingsViewModelTest {
             viewModel().onAction(SettingsAction.InstallUpdate)
             advanceUntilIdle()
             assertEquals(0, updater.installs)
+        }
+
+    // --- One-tap update --------------------------------------------------------
+
+    @Test
+    fun `StartUpdate downloads the offer`() =
+        runTest(dispatcher) {
+            updater.state.value = UpdateState.Available(manifest)
+            viewModel().onAction(SettingsAction.StartUpdate)
+            advanceUntilIdle()
+            assertEquals(1, updater.downloads)
+        }
+
+    @Test
+    fun `the one-tap update asks for the install once its download lands while parked`() =
+        runTest(dispatcher) {
+            val requests = startedOneTapUpdate()
+
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            assertEquals(1, requests.size)
+        }
+
+    @Test
+    fun `the one-tap update asks for the install without a fix, as the tap would`() =
+        runTest(dispatcher) {
+            motion.value = VehicleMotion.UNKNOWN
+            val requests = startedOneTapUpdate()
+
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            assertEquals(1, requests.size)
+        }
+
+    @Test
+    fun `a download that lands while moving stops the one-tap update for good`() =
+        runTest(dispatcher) {
+            val requests = startedOneTapUpdate()
+
+            motion.value = VehicleMotion.MOVING
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+            // Stopping later must not pop the install up by itself: the row
+            // waits for a tap.
+            motion.value = VehicleMotion.PARKED
+            advanceUntilIdle()
+
+            assertEquals(0, requests.size)
+        }
+
+    @Test
+    fun `a failed download ends the one-tap update`() =
+        runTest(dispatcher) {
+            val requests = startedOneTapUpdate()
+
+            updater.state.value = UpdateState.Failed(UpdateFailure.NETWORK, manifest)
+            advanceUntilIdle()
+            // A retry is a plain download: its verified file waits for a tap.
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            assertEquals(0, requests.size)
+        }
+
+    @Test
+    fun `leaving the Updates section ends the one-tap update`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            val requests = startedOneTapUpdate(vm)
+
+            vm.onAction(SettingsAction.UpdatesHidden)
+            advanceUntilIdle()
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            assertEquals(0, requests.size)
+        }
+
+    @Test
+    fun `the one-tap update installs a build already downloaded at once`() =
+        runTest(dispatcher) {
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            val vm = viewModel()
+            val requests = installRequestsOf(vm)
+
+            vm.onAction(SettingsAction.StartUpdate)
+            advanceUntilIdle()
+
+            assertEquals(1, requests.size)
+        }
+
+    @Test
+    fun `an install request waits for the screen to start collecting`() =
+        runTest(dispatcher) {
+            // Settings opened by the dashboard's prompt on a build already
+            // downloaded: the verdict can land before the screen collects.
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            val vm = viewModel()
+            vm.onAction(SettingsAction.StartUpdate)
+            advanceUntilIdle()
+
+            val requests = installRequestsOf(vm)
+            advanceUntilIdle()
+
+            assertEquals(1, requests.size)
+        }
+
+    @Test
+    fun `leaving the Updates section ends a request still waiting for the screen`() =
+        runTest(dispatcher) {
+            // What keeps an install from starting later or elsewhere: UpdatesHidden,
+            // sent on ON_STOP, ends the mark even while its request waits for a
+            // collector, so the screen coming back finds nothing to run.
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            val vm = viewModel()
+            vm.onAction(SettingsAction.StartUpdate)
+            advanceUntilIdle()
+            vm.onAction(SettingsAction.UpdatesHidden)
+            advanceUntilIdle()
+
+            val requests = installRequestsOf(vm)
+            advanceUntilIdle()
+
+            assertEquals(0, requests.size)
+        }
+
+    @Test
+    fun `the one-tap update asks for the install only once`() =
+        runTest(dispatcher) {
+            val requests = startedOneTapUpdate()
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            // The install went ahead and came back declined: the verified file
+            // is offered again, for a tap.
+            updater.state.value = UpdateState.Installing(manifest, sessionId = SESSION_ID)
+            advanceUntilIdle()
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            assertEquals(1, requests.size)
+        }
+
+    @Test
+    fun `a download the update row starts while moving asks for no install once it lands`() =
+        runTest(dispatcher) {
+            // The row's tap while moving is a plain download: no mark follows it.
+            motion.value = VehicleMotion.MOVING
+            updater.state.value = UpdateState.Available(manifest)
+            val vm = viewModel()
+            val requests = installRequestsOf(vm)
+            vm.onAction(SettingsAction.DownloadUpdate)
+            advanceUntilIdle()
+
+            motion.value = VehicleMotion.PARKED
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            assertEquals(0, requests.size)
+        }
+
+    @Test
+    fun `the install the one-tap update asks for goes ahead while the section stays on screen`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            val requests = startedOneTapUpdate(vm)
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            vm.onAction(requests.single())
+            advanceUntilIdle()
+
+            assertEquals(1, updater.installs)
+        }
+
+    @Test
+    fun `the install the one-tap update asks for installs nothing once the section has left`() =
+        runTest(dispatcher) {
+            // The screen runs the request only after the section left: back from
+            // the "Install unknown apps" screen, or late.
+            val vm = viewModel()
+            val requests = startedOneTapUpdate(vm)
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.UpdatesHidden)
+            vm.onAction(requests.single())
+            advanceUntilIdle()
+
+            assertEquals(0, updater.installs)
+        }
+
+    @Test
+    fun `a tap on the install step still installs once the one-tap update's install lapsed`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            val requests = startedOneTapUpdate(vm)
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+            vm.onAction(SettingsAction.UpdatesHidden)
+            vm.onAction(requests.single())
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.InstallUpdate)
+            advanceUntilIdle()
+
+            assertEquals(1, updater.installs)
+        }
+
+    @Test
+    fun `a verified download without the one-tap update waits for a tap`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            val requests = installRequestsOf(vm)
+
+            updater.state.value = UpdateState.Ready(manifest, File("update.apk"))
+            advanceUntilIdle()
+
+            assertEquals(0, requests.size)
+        }
+
+    // --- Offers seen in Settings ------------------------------------------------
+
+    @Test
+    fun `an offer the Updates section shows counts as prompted`() =
+        runTest(dispatcher) {
+            // The dashboard's prompt then never asks about what the user read here.
+            updater.state.value = UpdateState.Available(manifest)
+            val vm = viewModel()
+
+            vm.onAction(SettingsAction.UpdatesShown)
+            advanceUntilIdle()
+
+            assertEquals(manifest.versionCode, updateStore.current.promptedVersionCode)
+        }
+
+    @Test
+    fun `an offer found while the Updates section shows counts as prompted`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.UpdatesShown)
+            advanceUntilIdle()
+
+            updater.state.value = UpdateState.Available(manifest)
+            advanceUntilIdle()
+
+            assertEquals(manifest.versionCode, updateStore.current.promptedVersionCode)
+        }
+
+    @Test
+    fun `an offer the Updates section never showed is not recorded`() =
+        runTest(dispatcher) {
+            viewModel()
+            updater.state.value = UpdateState.Available(manifest)
+            advanceUntilIdle()
+
+            assertNull(updateStore.current.promptedVersionCode)
+        }
+
+    @Test
+    fun `an offer found after the Updates section left is not recorded`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.UpdatesShown)
+            advanceUntilIdle()
+            vm.onAction(SettingsAction.UpdatesHidden)
+            advanceUntilIdle()
+
+            updater.state.value = UpdateState.Available(manifest)
+            advanceUntilIdle()
+
+            assertNull(updateStore.current.promptedVersionCode)
+        }
+
+    @Test
+    fun `leaving the Updates section still lands the record of an offer it showed`() =
+        runTest(dispatcher) {
+            // The section leaves while the record's write is under way.
+            updater.state.value = UpdateState.Available(manifest)
+            val write = updateStore.gatePromptedWrites()
+            val vm = viewModel()
+            vm.onAction(SettingsAction.UpdatesShown)
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.UpdatesHidden)
+            advanceUntilIdle()
+            write.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(manifest.versionCode, updateStore.current.promptedVersionCode)
         }
 
     @Test
@@ -993,6 +1395,33 @@ class SettingsViewModelTest {
         advanceUntilIdle()
         return vm.uiState.value.updates
     }
+
+    // Every install request [vm] makes from now on. Collected unconfined, so a
+    // request lands at once: advanceUntilIdle does not wait for background work.
+    private fun TestScope.installRequestsOf(vm: SettingsViewModel): List<SettingsAction.InstallOneTapUpdate> =
+        mutableListOf<SettingsAction.InstallOneTapUpdate>().also { requests ->
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.installRequests.toList(requests) }
+        }
+
+    // Starts the one-tap update on an offer and lets its download begin; returns
+    // the install requests [vm] makes from then on.
+    private fun TestScope.startedOneTapUpdate(
+        vm: SettingsViewModel = viewModel(),
+    ): List<SettingsAction.InstallOneTapUpdate> {
+        val requests = installRequestsOf(vm)
+        updater.state.value = UpdateState.Available(manifest)
+        vm.onAction(SettingsAction.StartUpdate)
+        advanceUntilIdle()
+        updater.state.value = UpdateState.Downloading(manifest, fraction = 0.5f)
+        advanceUntilIdle()
+        return requests
+    }
+
+    // The one-tap update's first step on [manifest].
+    private fun downloadStep(
+        grantDeclined: Boolean = false,
+        downloadOnly: Boolean = false,
+    ) = UpdateStep.Download(manifest.versionName, manifest.apk.size, grantDeclined, downloadOnly)
 
     private fun installingWithConfirmation() =
         UpdateState.Installing(manifest, sessionId = SESSION_ID, confirmation = FakeInstallConfirmation())

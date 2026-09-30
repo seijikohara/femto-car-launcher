@@ -13,11 +13,15 @@ import kotlinx.coroutines.flow.update
 /**
  * In-memory [UpdateSettingsStore]: every setter mutates a [MutableStateFlow]
  * synchronously, so a test sees the write with no DataStore IO. Like the real
- * store, [resetToDefaults] restores only the auto-check setting.
+ * store, [resetToDefaults] restores only the auto-check setting, and
+ * [recordPrompted] never lowers the record.
  *
  * [dropsAttemptWrites] models a store that loses the attempt record (a full
  * disk, a corrupted file). [gateReads] makes each read take its snapshot and
  * then wait, so two readers can be held on the same stale snapshot.
+ * [gatePromptedWrites] holds each [recordPrompted] write until released, the
+ * way a DataStore write takes a while, so a test can act while one is under
+ * way.
  */
 internal class FakeUpdateSettingsStore(
     initial: UpdateSettings = UpdateSettings.Default,
@@ -25,6 +29,7 @@ internal class FakeUpdateSettingsStore(
 ) : UpdateSettingsStore {
     private val state = MutableStateFlow(initial)
     private var readGate: CompletableDeferred<Unit>? = null
+    private var promptedWriteGate: CompletableDeferred<Unit>? = null
 
     override val settings: Flow<UpdateSettings> =
         flow {
@@ -41,6 +46,8 @@ internal class FakeUpdateSettingsStore(
 
     fun gateReads(): CompletableDeferred<Unit> = CompletableDeferred<Unit>().also { readGate = it }
 
+    fun gatePromptedWrites(): CompletableDeferred<Unit> = CompletableDeferred<Unit>().also { promptedWriteGate = it }
+
     override suspend fun setAutoCheck(value: Boolean) = state.update { it.copy(autoCheck = value) }
 
     override suspend fun setLastCheckAttemptAt(epochMs: Long) {
@@ -51,6 +58,11 @@ internal class FakeUpdateSettingsStore(
         state.update { it.copy(pendingInstallVersionCode = versionCode) }
 
     override suspend fun setOffer(manifest: UpdateManifest?) = state.update { it.copy(offer = manifest) }
+
+    override suspend fun recordPrompted(versionCode: Int) {
+        promptedWriteGate?.await()
+        state.update { it.copy(promptedVersionCode = maxOf(versionCode, it.promptedVersionCode ?: versionCode)) }
+    }
 
     override suspend fun resetToDefaults() = state.update { it.copy(autoCheck = UpdateSettings.Default.autoCheck) }
 }

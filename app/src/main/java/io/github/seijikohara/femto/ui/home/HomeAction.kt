@@ -54,6 +54,24 @@ internal sealed interface HomeAction {
 
     data object OpenSettings : HomeAction
 
+    /**
+     * The update prompt's "Later" (or its dismissal) for build [versionCode]:
+     * the prompt never asks about it again, while the dock's dot and Settings
+     * keep offering it.
+     */
+    data class UpdateLater(
+        val versionCode: Int,
+    ) : HomeAction
+
+    /**
+     * The update prompt's "Update" for build [versionCode]: the prompt never
+     * asks about it again, and Settings opens on Updates to start the one-tap
+     * update there.
+     */
+    data class UpdateNow(
+        val versionCode: Int,
+    ) : HomeAction
+
     /** Open the licences and credits screen (a tap on the map or weather credit). */
     data object OpenLicenses : HomeAction
 

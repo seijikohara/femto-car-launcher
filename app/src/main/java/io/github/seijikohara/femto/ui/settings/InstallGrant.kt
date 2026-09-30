@@ -10,25 +10,31 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.getSystemService
 import androidx.core.net.toUri
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import io.github.seijikohara.femto.data.common.hasInstallUnknownAppsAccess
+import kotlinx.coroutines.flow.Flow
 
 private const val TAG = "InstallGrant"
 
 /**
- * An install tap, routed through Android's "Install unknown apps" access
+ * A tap that needs Android's "Install unknown apps" access, routed through it
  * (Decision 11 of the in-app updater plan).
  *
- * - With the access on, [onInstall] runs at once.
+ * - With the access on, [onGrant] runs at once.
  * - Without it, this app's access screen opens first. On the way back,
- *   [onInstall] runs if the access is now on, and [onGrantDecline] runs if
- *   it is not. The access is read again rather than taken from the result
- *   code: the intent documents no output, and OEM Settings builds differ.
+ *   [onGrant] runs if the access is now on, and [onDecline] runs if it is
+ *   not. The access is read again rather than taken from the result code:
+ *   the intent documents no output, and OEM Settings builds differ.
  * - Where the access cannot be given there, [onUnavailable] runs instead:
  *   a device policy pins it off, or no screen answers the intent on a
  *   locked-down ROM.
@@ -36,25 +42,95 @@ private const val TAG = "InstallGrant"
  * Returns the action to run for the tap.
  */
 @Composable
-internal fun rememberInstallUpdate(
-    onInstall: () -> Unit,
-    onGrantDecline: () -> Unit,
+internal fun rememberInstallGrant(
+    onGrant: () -> Unit,
+    onDecline: () -> Unit,
     onUnavailable: () -> Unit,
 ): () -> Unit {
     val context = LocalContext.current
-    val latestOnInstall by rememberUpdatedState(onInstall)
-    val latestOnGrantDecline by rememberUpdatedState(onGrantDecline)
+    val latestOnGrant by rememberUpdatedState(onGrant)
+    val latestOnDecline by rememberUpdatedState(onDecline)
     val latestOnUnavailable by rememberUpdatedState(onUnavailable)
     val grantLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            if (context.hasInstallUnknownAppsAccess()) latestOnInstall() else latestOnGrantDecline()
+            if (context.hasInstallUnknownAppsAccess()) latestOnGrant() else latestOnDecline()
         }
     return remember(context, grantLauncher) {
         {
             when {
-                context.hasInstallUnknownAppsAccess() -> latestOnInstall()
+                context.hasInstallUnknownAppsAccess() -> latestOnGrant()
                 !requestInstallGrant(context, grantLauncher) -> latestOnUnavailable()
                 else -> Unit
+            }
+        }
+    }
+}
+
+/**
+ * [onAction], with the Updates actions that end in an install routed through
+ * the "Install unknown apps" access first ([rememberInstallGrant]):
+ * [SettingsAction.InstallUpdate]; [SettingsAction.InstallOneTapUpdate], which
+ * goes on with the token it came with; and [SettingsAction.StartUpdate], whose
+ * download reaches [onAction] only once the access is on. The access is asked
+ * for at the tap, never a minute later when the download lands, and a download
+ * the install could not follow never starts. While a fix shows the vehicle
+ * moving, the row's tap is a plain [SettingsAction.DownloadUpdate] instead,
+ * which passes straight through: the access screen never opens while driving,
+ * and the install step's tap asks for it once parked. A declined access reaches
+ * [onAction] as [SettingsAction.InstallGrantDeclined]; one that cannot be
+ * given runs [onUnavailable]. With [startUpdate] (Settings opened by the
+ * dashboard's update prompt), the one-tap update starts on entry the same way,
+ * once per opening.
+ */
+@Composable
+internal fun rememberInstallGrantedActions(
+    onAction: (SettingsAction) -> Unit,
+    onUnavailable: () -> Unit,
+    startUpdate: Boolean = false,
+): (SettingsAction) -> Unit {
+    val latestOnAction by rememberUpdatedState(onAction)
+    val install =
+        rememberInstallGrant(
+            onGrant = { latestOnAction(SettingsAction.InstallUpdate) },
+            onDecline = { latestOnAction(SettingsAction.InstallGrantDeclined) },
+            onUnavailable = onUnavailable,
+        )
+    val update =
+        rememberInstallGrant(
+            onGrant = { latestOnAction(SettingsAction.StartUpdate) },
+            onDecline = { latestOnAction(SettingsAction.InstallGrantDeclined) },
+            onUnavailable = onUnavailable,
+        )
+    // The one-tap update's install goes on with the token it came with. Held
+    // in memory only: one lost to a recreation while the access screen is up
+    // goes nowhere, and the install step waits for a tap.
+    val pendingOneTapInstall = remember { mutableStateOf<SettingsAction.InstallOneTapUpdate?>(null) }
+    val oneTapInstall =
+        rememberInstallGrant(
+            onGrant = { pendingOneTapInstall.value?.let(latestOnAction) },
+            onDecline = { latestOnAction(SettingsAction.InstallGrantDeclined) },
+            onUnavailable = onUnavailable,
+        )
+    LaunchedEffect(startUpdate) { if (startUpdate) update() }
+    return remember(install, update, oneTapInstall) {
+        { action ->
+            when (action) {
+                SettingsAction.InstallUpdate -> {
+                    install()
+                }
+
+                SettingsAction.StartUpdate -> {
+                    update()
+                }
+
+                is SettingsAction.InstallOneTapUpdate -> {
+                    pendingOneTapInstall.value = action
+                    oneTapInstall()
+                }
+
+                else -> {
+                    latestOnAction(action)
+                }
             }
         }
     }
@@ -86,3 +162,24 @@ private fun Context.installsBlockedByPolicy(): Boolean =
         users.hasUserRestriction(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES) ||
             users.hasUserRestriction(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES_GLOBALLY)
     } == true
+
+/**
+ * Runs [onRequest] for each of [requests] collected while this screen is
+ * started: the one-tap update's install, started the way an install tap starts
+ * it (route it through [rememberInstallGrantedActions]). The effect collects
+ * only while started. The ViewModel holds a request until a collector arrives;
+ * what keeps an install from starting later or elsewhere is the ViewModel's
+ * side: the mark behind the request, and the token it carries, both of which
+ * end when the Updates section stops (UpdatesHidden on ON_STOP).
+ */
+@Composable
+internal fun <T> InstallRequestsEffect(
+    requests: Flow<T>,
+    onRequest: (T) -> Unit,
+) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val latestOnRequest by rememberUpdatedState(onRequest)
+    LaunchedEffect(requests, lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) { requests.collect { latestOnRequest(it) } }
+    }
+}

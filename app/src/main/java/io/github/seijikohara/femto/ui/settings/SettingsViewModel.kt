@@ -30,12 +30,22 @@ import io.github.seijikohara.femto.data.update.UpdatePreferences
 import io.github.seijikohara.femto.data.update.UpdateRepository
 import io.github.seijikohara.femto.data.update.UpdateSettingsStore
 import io.github.seijikohara.femto.data.update.UpdateState
+import io.github.seijikohara.femto.data.update.offeredManifestOrNull
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -203,6 +213,37 @@ internal class SettingsViewModel(
             )
         }.onStart { emit(UpdatesUiState.Initial) }
             .catchAsDefault(TAG, "updates", UpdatesUiState.Initial)
+
+    // The one-tap update's "install when ready" mark, held as the coroutine that
+    // acts on it (installOnceDownloaded). StartUpdate sets it; it is gone once it
+    // has acted, and once the Updates section leaves the screen (UpdatesHidden),
+    // so an install never starts by itself later or elsewhere. Once it has asked
+    // for the install, the token of that request (oneTapToken) carries the same
+    // guard to the install itself.
+    private var installWhenReady: Job? = null
+
+    // While the Updates section is on screen, every offer it shows counts as
+    // seen (recordOffersSeen): UpdatesShown starts the record, UpdatesHidden
+    // stops it taking new offers.
+    private var offersSeen: Job? = null
+
+    // The token of the one-tap update's install request while that install may
+    // still go ahead (see SettingsAction.InstallOneTapUpdate), null otherwise:
+    // UpdatesHidden voids it, and the install uses it up.
+    private var oneTapToken: Int? = null
+    private var lastOneTapToken = 0
+
+    private val mutableInstallRequests = MutableSharedFlow<SettingsAction.InstallOneTapUpdate>(extraBufferCapacity = 1)
+
+    /**
+     * The one-tap update's install, for the screen to run the way a tap on the
+     * install step runs it: through the "Install unknown apps" access, which
+     * only the UI can open (rememberInstallGrantedActions), and back here with
+     * the token it carries. The one-tap update makes one once its download is
+     * verified, and only while the Updates section is on screen: collect it
+     * only while the screen is started (InstallRequestsEffect).
+     */
+    val installRequests: SharedFlow<SettingsAction.InstallOneTapUpdate> = mutableInstallRequests.asSharedFlow()
 
     // Folded in here rather than into the store combine above, which already holds
     // kotlinx's five-flow typed overload.
@@ -480,6 +521,29 @@ internal class SettingsViewModel(
                     updater.download()
                 }
 
+                SettingsAction.StartUpdate -> {
+                    // SettingsRoute sends this only once the access is on, so a
+                    // decline no longer describes the update row.
+                    installGrantDeclined.value = false
+                    // The mark reads the updater's latest state, so no outcome of
+                    // the download slips past it. A build already downloaded is not
+                    // claimed again; the mark acts on it at once.
+                    installWhenReady?.cancel()
+                    installWhenReady = viewModelScope.launch { installOnceDownloaded() }
+                    updater.download()
+                }
+
+                SettingsAction.UpdatesShown -> {
+                    offersSeen?.cancel()
+                    offersSeen = viewModelScope.launch { recordOffersSeen() }
+                }
+
+                SettingsAction.UpdatesHidden -> {
+                    offersSeen?.cancel()
+                    installWhenReady?.cancel()
+                    oneTapToken = null
+                }
+
                 SettingsAction.InstallUpdate -> {
                     // SettingsRoute sends this only once the access is on, so a
                     // decline no longer describes the install row.
@@ -492,6 +556,17 @@ internal class SettingsViewModel(
                     // confirmation again when it arrives, reading the same source
                     // through the same function.
                     if (motion.currentOrUnknown() != VehicleMotion.MOVING) updater.install()
+                }
+
+                is SettingsAction.InstallOneTapUpdate -> {
+                    // Sent only once the access is on, like InstallUpdate.
+                    installGrantDeclined.value = false
+                    // InstallUpdate's motion gate, then the token, read last: the
+                    // section can leave while the motion is read.
+                    if (motion.currentOrUnknown() != VehicleMotion.MOVING && oneTapToken == action.token) {
+                        oneTapToken = null
+                        updater.install()
+                    }
                 }
 
                 SettingsAction.InstallGrantDeclined -> {
@@ -540,6 +615,47 @@ internal class SettingsViewModel(
             }
         }
     }
+
+    // Every offer the Updates section shows, from the state its "Available
+    // version" row reads, is recorded as prompted: the dashboard's prompt never
+    // asks about an update the user has already read about here. Leaving the
+    // section cancels the collection, but never a write already under way: the
+    // offer was on screen, and a DataStore write cancelled midway records
+    // nothing.
+    private suspend fun recordOffersSeen() =
+        updater.state
+            .catchAsDefault(TAG, "offers seen", UpdateState.Disabled)
+            .mapNotNull { it.offeredManifestOrNull()?.versionCode }
+            .distinctUntilChanged()
+            .collect { withContext(NonCancellable) { updatePreferences.recordPrompted(it) } }
+
+    // The one-tap update's second half: wait for the download it started to
+    // settle. A verified file is then installed as a tap on the row installs it,
+    // unless a fix shows the vehicle moving: then the chain stops, and the row
+    // waits for a tap once parked, since a dialog that pops up later by itself
+    // could meet the car pulling away (the updater holds its confirmation back
+    // for the same reason). Any other outcome ends the chain too: a failed
+    // download, or no newer build after all. A failing updater reads as no
+    // download, like the rest of the section.
+    //
+    // The request waits for the screen to collect it: a sheet the dashboard's
+    // prompt just opened on a verified build can settle before its collector
+    // starts. It can wait only while the Updates section is on screen, which is
+    // all the mark lives; the motion is read after the wait, just before asking.
+    // The request carries a new token, which the install it comes back as needs.
+    private suspend fun installOnceDownloaded() {
+        val downloaded =
+            updater.state
+                .catchAsDefault(TAG, "one-tap update", UpdateState.Disabled)
+                .firstOrNull { it !is UpdateState.Available && it !is UpdateState.Downloading } is UpdateState.Ready
+        if (!downloaded) return
+        mutableInstallRequests.subscriptionCount.first { it > 0 }
+        if (motion.currentOrUnknown() != VehicleMotion.MOVING) {
+            mutableInstallRequests.tryEmit(SettingsAction.InstallOneTapUpdate(newOneTapToken()))
+        }
+    }
+
+    private fun newOneTapToken(): Int = (++lastOneTapToken).also { oneTapToken = it }
 }
 
 internal class SettingsViewModelFactory(

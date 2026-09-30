@@ -5,6 +5,7 @@ import android.content.Intent
 import android.location.Location
 import android.location.LocationManager
 import app.cash.turbine.test
+import io.github.seijikohara.femto.data.common.UI_SUBSCRIPTION_GRACE_MS
 import io.github.seijikohara.femto.data.dock.DockNavId
 import io.github.seijikohara.femto.data.dock.DockStatusId
 import io.github.seijikohara.femto.data.location.MIN_MOVING_SPEED_MS
@@ -13,7 +14,11 @@ import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.SPECTRUM_BAND_COUNT
 import io.github.seijikohara.femto.data.update.UpdateFailure
+import io.github.seijikohara.femto.data.update.UpdateManifest
+import io.github.seijikohara.femto.data.update.UpdateSettings
 import io.github.seijikohara.femto.data.update.UpdateState
+import io.github.seijikohara.femto.data.weather.WeatherSnapshot
+import io.github.seijikohara.femto.testfixtures.FakeUpdateSettingsStore
 import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
 import io.github.seijikohara.femto.testfixtures.fakeLocation
@@ -25,7 +30,11 @@ import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
 import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -33,6 +42,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -48,6 +59,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -327,7 +339,7 @@ class HomeViewModelTest {
         runTest {
             stubViewModel().assertEvent(
                 action = HomeAction.OpenSettings,
-                expected = HomeEvent.OpenInAppSettings,
+                expected = HomeEvent.OpenInAppSettings(),
             )
         }
 
@@ -573,6 +585,259 @@ class HomeViewModelTest {
             assertFalse(state.updateBadge)
         }
 
+    // --- Update prompt -----------------------------------------------------------
+    //
+    // The prompt waits for UPDATE_PROMPT_PARKED_DWELL_MS of unbroken PARKED, so
+    // these run on virtual time with a receiver fixing once a second (see
+    // promptViewModel) and judge the prompt only once the dwell is over:
+    // otherwise a test for any other gate would pass on the dwell alone.
+
+    @Test
+    fun `the update prompt asks about an available update once the vehicle has been parked for the dwell`() =
+        runTest {
+            assertEquals(UPDATE, promptAfterDwell(promptViewModel(update = UpdateState.Available(UPDATE))))
+        }
+
+    @Test
+    fun `the update prompt waits out a stop a second shorter than the dwell`() =
+        runTest {
+            // Most traffic-light stops are shorter than the dwell.
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE))
+            watch(viewModel)
+
+            at(UPDATE_PROMPT_PARKED_DWELL_MS - 1_000)
+
+            assertNull(viewModel.updatePrompt.value)
+        }
+
+    @Test
+    fun `the dot shows at once while the prompt waits for the dwell`() =
+        runTest {
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE))
+            watch(viewModel)
+            runCurrent()
+
+            assertTrue(viewModel.uiState.value.updateBadge)
+            assertNull(viewModel.updatePrompt.value)
+        }
+
+    @Test
+    fun `a MOVING reading 30 s into the dwell starts the count over`() =
+        runTest {
+            val trip = MutableStateFlow(fakeTripState(currentSpeedMs = 0.0))
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), tripState = trip)
+            watch(viewModel)
+
+            at(30_000)
+            trip.value = fakeTripState(currentSpeedMs = MIN_MOVING_SPEED_MS + 10.0)
+            at(31_000)
+            trip.value = fakeTripState(currentSpeedMs = 0.0)
+            at(UPDATE_PROMPT_PARKED_DWELL_MS)
+            assertNull(viewModel.updatePrompt.value)
+
+            at(31_000 + UPDATE_PROMPT_PARKED_DWELL_MS)
+            assertEquals(UPDATE, viewModel.updatePrompt.value)
+        }
+
+    @Test
+    fun `an UNKNOWN reading 30 s into the dwell starts the count over`() =
+        runTest {
+            // The receiver goes quiet after its fix at 20 s, so the parked verdict
+            // ages out to UNKNOWN at 30 s; fixes resume at 31 s.
+            val fixes = liveGpsFixes(silentSeconds = 21L..30L)
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), fixes = fixes)
+            watch(viewModel)
+
+            at(UPDATE_PROMPT_PARKED_DWELL_MS)
+            assertNull(viewModel.updatePrompt.value)
+
+            at(31_000 + UPDATE_PROMPT_PARKED_DWELL_MS)
+            assertEquals(UPDATE, viewModel.updatePrompt.value)
+        }
+
+    @Test
+    fun `a prompt left on screen never comes back stale when the dashboard returns`() =
+        runTest {
+            // Weather that answers the first subscription only, the way a forecast
+            // can take seconds after a drive: the dashboard's combined state waits
+            // on it, so a prompt held there would show whatever it last was.
+            var weatherSubscriptions = 0
+            val weather =
+                flow {
+                    if (weatherSubscriptions++ == 0) emit(fakeWeatherSnapshot())
+                    awaitCancellation()
+                }
+            val trip = MutableStateFlow(fakeTripState(currentSpeedMs = 0.0))
+            val viewModel =
+                promptViewModel(update = UpdateState.Available(UPDATE), tripState = trip, weather = weather)
+            val onScreen = watch(viewModel)
+            at(UPDATE_PROMPT_PARKED_DWELL_MS)
+            assertEquals(UPDATE, viewModel.updatePrompt.value)
+
+            // Another app takes the screen for longer than the subscription grace,
+            // and the vehicle moves off meanwhile.
+            onScreen.cancel()
+            at(currentTime + UI_SUBSCRIPTION_GRACE_MS + 1_000)
+            trip.value = fakeTripState(currentSpeedMs = MIN_MOVING_SPEED_MS + 10.0)
+            watch(viewModel)
+            runCurrent()
+
+            assertNull(viewModel.updatePrompt.value)
+        }
+
+    @Test
+    fun `a prompt left on screen is gone when the dashboard returns a second later, before any new fix`() =
+        runTest {
+            // The receiver goes quiet once the dashboard leaves at 60 s: the
+            // vehicle can move off with no fix yet to say so.
+            val fixes = liveGpsFixes(silentSeconds = 61L..Long.MAX_VALUE)
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), fixes = fixes)
+            val onScreen = watch(viewModel)
+            at(UPDATE_PROMPT_PARKED_DWELL_MS)
+            assertEquals(UPDATE, viewModel.updatePrompt.value)
+
+            onScreen.cancel()
+            at(UPDATE_PROMPT_PARKED_DWELL_MS + 1_000)
+            watch(viewModel)
+            runCurrent()
+
+            assertNull(viewModel.updatePrompt.value)
+        }
+
+    @Test
+    fun `the update prompt asks about a verified download too`() =
+        runTest {
+            val ready = UpdateState.Ready(UPDATE, File("update.apk"))
+            assertEquals(UPDATE, promptAfterDwell(promptViewModel(update = ready)))
+        }
+
+    @Test
+    fun `the update prompt leaves an update under way, a failed one and none at all to Settings`() =
+        runTest {
+            listOf(
+                UpdateState.Downloading(UPDATE, fraction = 0.5f),
+                UpdateState.Installing(UPDATE, sessionId = 7),
+                UpdateState.Failed(UpdateFailure.NETWORK, UPDATE),
+                UpdateState.UpToDate,
+            ).forEach { state ->
+                assertNull(promptAfterDwell(promptViewModel(update = state)), "prompt for $state")
+            }
+        }
+
+    @Test
+    fun `the update prompt waits while a fix shows the vehicle moving`() =
+        runTest {
+            val moving = fakeTripState(currentSpeedMs = MIN_MOVING_SPEED_MS + 10.0)
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), tripState = flowOf(moving))
+            assertNull(promptAfterDwell(viewModel))
+        }
+
+    @Test
+    fun `the update prompt waits without a fix`() =
+        runTest {
+            // Fail-closed, like the dock's dot: no fix never counts as parked.
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), fixes = flowOf(null))
+            assertNull(promptAfterDwell(viewModel))
+        }
+
+    @Test
+    fun `the update prompt waits on a stale GPS fix`() =
+        runTest {
+            val seed = liveGpsFix().apply { elapsedRealtimeNanos = BADGE_NOW - STALE_FIX_AGE_NANOS }
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), fixes = flowOf(seed))
+            assertNull(promptAfterDwell(viewModel))
+        }
+
+    @Test
+    fun `a recorded version, asked about before or shown in Settings, is not asked about again`() =
+        runTest {
+            val store = FakeUpdateSettingsStore(UpdateSettings.Default.copy(promptedVersionCode = UPDATE.versionCode))
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), store = store)
+            assertNull(promptAfterDwell(viewModel))
+        }
+
+    @Test
+    fun `a build newer than the recorded one is asked about`() =
+        runTest {
+            val store =
+                FakeUpdateSettingsStore(UpdateSettings.Default.copy(promptedVersionCode = UPDATE.versionCode - 1))
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), store = store)
+            assertEquals(UPDATE, promptAfterDwell(viewModel))
+        }
+
+    @Test
+    fun `Later records the version, closes the prompt and keeps the dot`() =
+        runTest {
+            val store = FakeUpdateSettingsStore()
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), store = store)
+            promptAfterDwell(viewModel)
+
+            viewModel.onAction(HomeAction.UpdateLater(UPDATE.versionCode))
+            runCurrent()
+
+            assertEquals(UPDATE.versionCode, store.current.promptedVersionCode)
+            assertNull(viewModel.updatePrompt.value)
+            assertTrue(viewModel.uiState.value.updateBadge)
+        }
+
+    @Test
+    fun `a failing update store fails open and still asks`() =
+        runTest {
+            // A broken store may ask again after a restart; within the process,
+            // the answers kept in memory still hold.
+            val broken = flow<UpdateSettings> { throw IllegalStateException("update store broke") }
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), settings = broken)
+            assertEquals(UPDATE, promptAfterDwell(viewModel))
+        }
+
+    @Test
+    fun `an answer closes the prompt even when the store loses its record`() =
+        runTest {
+            // A full or damaged disk must not leave a dialog that no answer closes.
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), record = {})
+            promptAfterDwell(viewModel)
+
+            viewModel.onAction(HomeAction.UpdateLater(UPDATE.versionCode))
+            runCurrent()
+
+            assertNull(viewModel.updatePrompt.value)
+        }
+
+    @Test
+    fun `Update records the version and opens Settings to start the one-tap update`() =
+        runTest {
+            val store = FakeUpdateSettingsStore()
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), store = store)
+            viewModel.events.test {
+                viewModel.onAction(HomeAction.UpdateNow(UPDATE.versionCode))
+                assertEquals(HomeEvent.OpenInAppSettings(startUpdate = true), awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+            runCurrent()
+
+            assertEquals(UPDATE.versionCode, store.current.promptedVersionCode)
+        }
+
+    @Test
+    fun `the prompt closes unrecorded once the vehicle moves, and asks again after the next full dwell`() =
+        runTest {
+            val store = FakeUpdateSettingsStore()
+            val trip = MutableStateFlow(fakeTripState(currentSpeedMs = 0.0))
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), store = store, tripState = trip)
+            assertEquals(UPDATE, promptAfterDwell(viewModel))
+
+            trip.value = fakeTripState(currentSpeedMs = MIN_MOVING_SPEED_MS + 10.0)
+            runCurrent()
+            assertNull(viewModel.updatePrompt.value)
+            assertNull(store.current.promptedVersionCode)
+
+            trip.value = fakeTripState(currentSpeedMs = 0.0)
+            runCurrent()
+            assertNull(viewModel.updatePrompt.value)
+            at(currentTime + UPDATE_PROMPT_PARKED_DWELL_MS)
+            assertEquals(UPDATE, viewModel.updatePrompt.value)
+        }
+
     // Subscribes (WhileUiSubscribed runs the combine only while collected) and
     // returns the state once every source has emitted. The clock stays put: a
     // parked verdict ages out after LOCATION_STALE_THRESHOLD_MS without a new
@@ -601,6 +866,74 @@ class HomeViewModelTest {
             tripStateFlow = flowOf(tripState),
             updateStateFlow = flowOf(update),
             nowElapsedRealtimeNanos = { BADGE_NOW },
+        )
+
+    // Subscribes the way the dashboard does, to its combined state and to the
+    // update prompt; cancel the job to take the dashboard off screen.
+    private fun TestScope.watch(viewModel: HomeViewModel): Job =
+        backgroundScope.launch {
+            launch { viewModel.uiState.collect { } }
+            launch { viewModel.updatePrompt.collect { } }
+        }
+
+    // Watches, lets a full dwell pass on the virtual clock, and returns the
+    // prompt then.
+    private fun TestScope.promptAfterDwell(viewModel: HomeViewModel): UpdateManifest? {
+        watch(viewModel)
+        runCurrent()
+        advanceTimeBy(UPDATE_PROMPT_PARKED_DWELL_MS)
+        runCurrent()
+        return viewModel.updatePrompt.value
+    }
+
+    // Runs the virtual clock to [timeMs] since the test started.
+    private fun TestScope.at(timeMs: Long) {
+        advanceTimeBy(timeMs - currentTime)
+        runCurrent()
+    }
+
+    // The boot clock, read off the virtual one, so each fix is judged live.
+    private fun TestScope.virtualNowNanos(): Long = BADGE_NOW + currentTime * 1_000_000
+
+    // A GPS receiver fixing once a second on the virtual clock, silent in the
+    // [silentSeconds] since the test started.
+    private fun TestScope.liveGpsFixes(silentSeconds: LongRange = LongRange.EMPTY): Flow<Location?> =
+        flow {
+            while (true) {
+                if (currentTime / 1_000 !in silentSeconds) {
+                    emit(
+                        fakeLocation(provider = LocationManager.GPS_PROVIDER, elapsedRealtimeNanos = virtualNowNanos()),
+                    )
+                }
+                delay(1_000)
+            }
+        }
+
+    // badgeViewModel's sources, plus the updater's own store (the record the
+    // prompt reads and its answers write), on the virtual clock: [fixes]
+    // defaults to a receiver fixing once a second, since a single fix ages out
+    // long before the dwell ends.
+    private fun TestScope.promptViewModel(
+        update: UpdateState,
+        fixes: Flow<Location?> = liveGpsFixes(),
+        tripState: Flow<TripState> = flowOf(fakeTripState(currentSpeedMs = 0.0)),
+        weather: Flow<WeatherSnapshot?> = flowOf(fakeWeatherSnapshot()),
+        store: FakeUpdateSettingsStore = FakeUpdateSettingsStore(),
+        settings: Flow<UpdateSettings> = store.settings,
+        record: suspend (Int) -> Unit = store::recordPrompted,
+    ): HomeViewModel =
+        HomeViewModel(
+            locationFlow = fixes,
+            addressFlow = flowOf(fakeAddress()),
+            weatherFlow = weather,
+            musicStateFlow = flowOf(MusicCardState.Playing(fakeNowPlaying())),
+            calendarFlow = flowOf(fakeCalendarSnapshot()),
+            systemStatusFlow = flowOf(fakeSystemStatus()),
+            tripStateFlow = tripState,
+            updateStateFlow = flowOf(update),
+            updateSettingsFlow = settings,
+            recordUpdatePrompted = record,
+            nowElapsedRealtimeNanos = { virtualNowNanos() },
         )
 
     private fun liveGpsFix(): Location =

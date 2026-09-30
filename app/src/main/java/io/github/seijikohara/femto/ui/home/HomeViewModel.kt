@@ -17,6 +17,7 @@ import io.github.seijikohara.femto.data.calendar.CalendarRepository
 import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.clock.ClockRepository
 import io.github.seijikohara.femto.data.common.WhileUiSubscribed
+import io.github.seijikohara.femto.data.common.WhileUiSubscribedFresh
 import io.github.seijikohara.femto.data.common.catchAsDefault
 import io.github.seijikohara.femto.data.common.femtoUserAgent
 import io.github.seijikohara.femto.data.display.DisplayPreferences
@@ -30,20 +31,26 @@ import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.location.vehicleMotionFlow
+import io.github.seijikohara.femto.data.location.withParkedDwell
 import io.github.seijikohara.femto.data.music.AudioSpectrumRepository
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.MusicSessionRepository
 import io.github.seijikohara.femto.data.system.SystemStatus
 import io.github.seijikohara.femto.data.system.SystemStatusRepository
+import io.github.seijikohara.femto.data.update.UpdateManifest
+import io.github.seijikohara.femto.data.update.UpdatePreferences
 import io.github.seijikohara.femto.data.update.UpdateRepository
+import io.github.seijikohara.femto.data.update.UpdateSettings
 import io.github.seijikohara.femto.data.update.UpdateState
 import io.github.seijikohara.femto.data.update.offersUpdate
+import io.github.seijikohara.femto.data.update.promptedFor
 import io.github.seijikohara.femto.data.weather.MetNorwayApi
 import io.github.seijikohara.femto.data.weather.WeatherRepository
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -53,6 +60,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import okhttp3.Cache
 import okhttp3.OkHttpClient
 import java.io.File
@@ -71,9 +80,14 @@ internal class HomeViewModel(
     // offline->online reload (see WebMapView). Defaults to always-online so previews
     // and tests that do not exercise recovery are unaffected.
     private val onlineFlow: Flow<Boolean> = flowOf(true),
-    // The updater's state; drives the dock's update badge. Defaults to a build that
-    // never checks, so previews and tests that do not exercise the badge are unaffected.
+    // The updater's state; drives the dock's update badge and the update prompt.
+    // Defaults to a build that never checks, so previews and tests that do not
+    // exercise either are unaffected.
     private val updateStateFlow: Flow<UpdateState> = flowOf(UpdateState.Disabled),
+    // The updater's store: the prompt reads which build it has asked about
+    // (UpdateSettings.promptedVersionCode) and records each answer.
+    private val updateSettingsFlow: Flow<UpdateSettings> = flowOf(UpdateSettings.Default),
+    private val recordUpdatePrompted: suspend (Int) -> Unit = {},
     // The boot clock the motion gate judges a fix's age against; tests pin it,
     // because Robolectric's clock starts at zero.
     private val nowElapsedRealtimeNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
@@ -84,6 +98,13 @@ internal class HomeViewModel(
     private val spectrumEnabledFlow: Flow<Boolean> = flowOf(false),
     private val spectrumBandsFor: (Flow<Boolean>) -> Flow<FloatArray?> = { flowOf(null) },
 ) : ViewModel() {
+    // The builds the update prompt has been answered about in this process. The
+    // prompt closes on the answer itself, not on the store's write: a slow disk
+    // would hold it open after the tap, and a full or damaged one would never
+    // close it (the updater keeps its daily gate in memory for the same
+    // reason). The store carries the answers to later processes.
+    private val answeredVersionCodes = MutableStateFlow(emptySet<Int>())
+
     // The dock's update dot: an update is on offer and a live GPS fix shows the
     // vehicle parked (fail-closed; see VehicleMotion). The motion is judged as
     // each GPS fix or trip update arrives, never as other cards update, and a
@@ -141,6 +162,42 @@ internal class HomeViewModel(
                 updateBadge = core.updateBadge,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, HomeUiState.Initial)
+
+    /**
+     * The build the dashboard's update prompt asks about, or null: an offer
+     * waiting for its first step (to download, or to install the verified
+     * file), once a live GPS fix has shown the vehicle parked for
+     * [UPDATE_PROMPT_PARKED_DWELL_MS] without a break (fail-closed; see
+     * VehicleMotion), that the prompt has not asked about and the Updates
+     * section has not shown (promptedFor, or an answer earlier in this
+     * process). A verdict that leaves PARKED closes it at once, unrecorded, to
+     * ask again after the next full dwell.
+     *
+     * Its own state, apart from [uiState], and shared with
+     * [WhileUiSubscribedFresh]: a dashboard that comes back, even a second
+     * later, starts from no prompt and judges the motion afresh, so leaving
+     * the dashboard, or a rotation, starts the dwell over. Held in [uiState],
+     * the prompt it left would show again until every dashboard source had
+     * spoken, even while the vehicle moves.
+     */
+    val updatePrompt: StateFlow<UpdateManifest?> =
+        combine(
+            updateStateFlow,
+            // Caught on its own, and failing open: a broken store may ask again
+            // after a restart, while the answers kept in this process hold.
+            updateSettingsFlow.catchAsDefault(TAG, "update settings", UpdateSettings.Default),
+            answeredVersionCodes,
+            vehicleMotionFlow(locationFlow, tripStateFlow, nowElapsedRealtimeNanos)
+                .withParkedDwell(UPDATE_PROMPT_PARKED_DWELL_MS),
+        ) { state, settings, answered, reading ->
+            state.promptableOfferOrNull()?.takeIf { offer ->
+                reading.parkedThroughDwell &&
+                    offer.versionCode !in answered &&
+                    !settings.promptedFor(offer.versionCode)
+            }
+        }.distinctUntilChanged()
+            .catchAsDefault(TAG, "update prompt", null)
+            .stateIn(viewModelScope, WhileUiSubscribedFresh, null)
 
     // Spectrum levels for the music card's spectrum background, or null while
     // the visualization is off / unavailable. Kept OUT of HomeUiState: the
@@ -242,7 +299,16 @@ internal class HomeViewModel(
             }
 
             HomeAction.OpenSettings -> {
-                mutableEvents.tryEmit(HomeEvent.OpenInAppSettings)
+                mutableEvents.tryEmit(HomeEvent.OpenInAppSettings())
+            }
+
+            is HomeAction.UpdateLater -> {
+                answerUpdatePrompt(action.versionCode)
+            }
+
+            is HomeAction.UpdateNow -> {
+                answerUpdatePrompt(action.versionCode)
+                mutableEvents.tryEmit(HomeEvent.OpenInAppSettings(startUpdate = true))
             }
 
             HomeAction.OpenLicenses -> {
@@ -282,6 +348,13 @@ internal class HomeViewModel(
             }
         }
     }
+
+    // Either answer settles the prompt for build [versionCode]: it closes at
+    // once, and never asks about the build again, in this process or a later one.
+    private fun answerUpdatePrompt(versionCode: Int) {
+        answeredVersionCodes.update { it + versionCode }
+        viewModelScope.launch { recordUpdatePrompted(versionCode) }
+    }
 }
 
 // File-private holder that groups the first five slots (four sources and the
@@ -294,6 +367,30 @@ private data class CoreSignals(
     val music: MusicCardState,
     val updateBadge: Boolean,
 )
+
+/**
+ * How long the vehicle must read PARKED without a break before the
+ * dashboard's update prompt asks. Most traffic-light stops are shorter, and a
+ * car parked at its destination stays longer, so the prompt meets a driver who
+ * has arrived rather than one about to pull away. The dock's dot does not wait.
+ *
+ * A known consequence: with the location "minimum distance" setting above 0,
+ * fixes stop while the car stands still, PARKED ages out after
+ * LOCATION_STALE_THRESHOLD_MS, and the prompt never reaches the dwell. The dot
+ * (while fixes last) and Settings still offer the update. Internal so tests
+ * probe both sides of the dwell.
+ */
+internal const val UPDATE_PROMPT_PARKED_DWELL_MS = 60_000L
+
+// The offer the update prompt may ask about: one still waiting for the user's
+// first step, to download it or to install the verified file. An update under
+// way has already been acted on, and a failed one is Settings' to explain.
+private fun UpdateState.promptableOfferOrNull(): UpdateManifest? =
+    when (this) {
+        is UpdateState.Available -> manifest
+        is UpdateState.Ready -> manifest
+        else -> null
+    }
 
 // Shared HTTP disk cache size. A forecast response is ~50 KB and Nominatim
 // answers are tiny, so 5 MiB holds days of both with headroom.
@@ -358,6 +455,7 @@ internal class HomeViewModelFactory(
         val systemStatus = SystemStatusRepository(application, locationFlow)
         val apps = AppsRepository(application)
         val displayPreferences = DisplayPreferences(application)
+        val updatePreferences = UpdatePreferences(application)
 
         @Suppress("UNCHECKED_CAST")
         return HomeViewModel(
@@ -374,6 +472,8 @@ internal class HomeViewModelFactory(
             // observe() resolves the updater off the main thread, so neither the
             // cold start nor the first frame waits for it.
             updateStateFlow = UpdateRepository.observe(application) { it.state },
+            updateSettingsFlow = updatePreferences.settings,
+            recordUpdatePrompted = updatePreferences::recordPrompted,
             sendMusicCommand = music::send,
             resumeLastMusicSession = music::dispatchPlayMediaKey,
             resetTrip = locationGraph::resetTrip,

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
@@ -28,7 +29,6 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
  * previews do not capture, so [SettingsScreen]'s own @PreviewLightDark covers the
  * settings content.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SettingsSheet(
     onOpenNotificationAccess: () -> Unit,
@@ -40,11 +40,51 @@ internal fun SettingsSheet(
     onDismiss: () -> Unit,
     fullscreen: Boolean,
     modifier: Modifier = Modifier,
+    // Opened by the dashboard's update prompt: the sheet opens fully expanded
+    // (see SettingsSheetFrame) and SettingsRoute starts the update.
+    startUpdate: Boolean = false,
+) = SettingsSheetFrame(
+    onDismiss = onDismiss,
+    fullscreen = fullscreen,
+    modifier = modifier,
+    openExpanded = startUpdate,
+) {
+    SettingsRoute(
+        onBack = onDismiss,
+        onOpenNotificationAccess = onOpenNotificationAccess,
+        onOpenSystemSettings = onOpenSystemSettings,
+        onOpenFontPicker = onOpenFontPicker,
+        onOpenDiagnostics = onOpenDiagnostics,
+        onOpenLicenses = onOpenLicenses,
+        onOpenDocument = onOpenDocument,
+        startUpdate = startUpdate,
+    )
+}
+
+/**
+ * The sheet [SettingsSheet] shows [content] in: full width, and as tall as
+ * [FemtoDimens.SettingsSheetHeightFraction] of the window.
+ *
+ * [openExpanded] skips the partly expanded state the sheet otherwise opens
+ * to. Partly expanded, the sheet shows only its top half on a landscape head
+ * unit, so when the dashboard's update prompt opens the sheet to start an
+ * update, the "Update to" row the user just triggered, and its progress,
+ * would sit below the fold.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SettingsSheetFrame(
+    onDismiss: () -> Unit,
+    fullscreen: Boolean,
+    modifier: Modifier = Modifier,
+    openExpanded: Boolean = false,
+    content: @Composable () -> Unit,
 ) {
     val sheetHeight = rememberSheetHeight(FemtoDimens.SettingsSheetHeightFraction)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = modifier,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = openExpanded),
         // Fill the head unit's full width. Material 3 caps a bottom sheet at 640dp
         // by default, which on a wide head unit would keep the settings content
         // below the master-detail breakpoint and render single-pane — defeating the
@@ -58,15 +98,7 @@ internal fun SettingsSheet(
                     .fillMaxWidth()
                     .height(sheetHeight),
         ) {
-            SettingsRoute(
-                onBack = onDismiss,
-                onOpenNotificationAccess = onOpenNotificationAccess,
-                onOpenSystemSettings = onOpenSystemSettings,
-                onOpenFontPicker = onOpenFontPicker,
-                onOpenDiagnostics = onOpenDiagnostics,
-                onOpenLicenses = onOpenLicenses,
-                onOpenDocument = onOpenDocument,
-            )
+            content()
         }
     }
 }

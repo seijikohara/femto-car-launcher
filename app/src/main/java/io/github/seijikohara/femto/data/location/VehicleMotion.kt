@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalCoroutinesApi::class) // transformLatest in vehicleMotionFlow.
+@file:OptIn(ExperimentalCoroutinesApi::class) // transformLatest in vehicleMotionFlow and withParkedDwell.
 
 package io.github.seijikohara.femto.data.location
 
@@ -111,6 +111,34 @@ internal fun vehicleMotionFlow(
                 emit(VehicleMotion.UNKNOWN)
             }
         }.distinctUntilChanged()
+
+/**
+ * A motion verdict, and whether it has read [VehicleMotion.PARKED] without a
+ * break for the dwell [withParkedDwell] was asked for.
+ */
+internal data class MotionDwell(
+    val motion: VehicleMotion,
+    val parkedThroughDwell: Boolean,
+)
+
+/**
+ * Each verdict of this flow as it comes, and once it has read
+ * [VehicleMotion.PARKED] for [dwellMs] without a break, the same verdict marked
+ * as having dwelled. Any other verdict, a single MOVING or UNKNOWN reading,
+ * starts the count over; a verdict flow emits on change ([vehicleMotionFlow]),
+ * so a steady PARKED keeps counting. Measured on the coroutine clock, the one
+ * [vehicleMotionFlow] ages a parked verdict with: monotonic on the device and
+ * virtual in tests, never the wall clock, which an AI box can boot with wrong
+ * until NTP sets it.
+ */
+internal fun Flow<VehicleMotion>.withParkedDwell(dwellMs: Long): Flow<MotionDwell> =
+    transformLatest { motion ->
+        emit(MotionDwell(motion, parkedThroughDwell = false))
+        if (motion == VehicleMotion.PARKED) {
+            delay(dwellMs)
+            emit(MotionDwell(motion, parkedThroughDwell = true))
+        }
+    }
 
 /**
  * The verdict this flow gives now, or [VehicleMotion.UNKNOWN] when it gives
