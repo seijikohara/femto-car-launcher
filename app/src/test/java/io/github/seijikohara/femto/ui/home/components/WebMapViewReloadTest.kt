@@ -185,6 +185,22 @@ class WebMapViewReloadTest {
         assertEquals(1, pages().size, "the failure after the data came back reloads on the first step")
     }
 
+    // The page's own no-tile fatal can land a frame before its first tile: the
+    // notice already stands, so that tile must neither restart the backoff nor
+    // clear the failure on record.
+    @Test fun `a first tile right behind the page's own fatal changes nothing`() {
+        showMap()
+        failPages(1)
+        send("fatal", NetworkFailure)
+        send("tile", "openmaptiles")
+        settle()
+        assertEquals(NetworkFailure, MapRuntimeSignals.lastFailureOrNull()?.detail, "the failure stays on record")
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        assertEquals(0, pages().size, "the backoff kept its step")
+        advanceBy(liveReloadRetryDelayMs(1) - liveReloadRetryDelayMs(0))
+        assertEquals(1, pages().size)
+    }
+
     // A page a reload replaced can still deliver a late event; like its late
     // fatal, it must never act on its successor.
     @Test fun `a first tile from a replaced page leaves the backoff alone`() {
@@ -487,11 +503,21 @@ class WebMapViewReloadTest {
         detail: String,
         page: WebView = page(),
     ) {
+        send(kind, detail, page)
+        settle()
+    }
+
+    // [report] without the frames after it, for events the page sends back to
+    // back, before the host has composed anything in between.
+    private fun send(
+        kind: String,
+        detail: String,
+        page: WebView = page(),
+    ) {
         val bridge = bridgeOf(page)
         bridge.javaClass
             .getMethod("onMapEvent", String::class.java, String::class.java)
             .invoke(bridge, kind, detail)
-        settle()
     }
 
     private fun reportFatal(

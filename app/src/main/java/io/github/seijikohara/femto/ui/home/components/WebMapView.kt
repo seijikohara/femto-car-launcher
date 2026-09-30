@@ -500,11 +500,17 @@ internal fun WebMapView(
     // every composition so it acts on the current retry state: a live page
     // outlives some of it (a new custom style URL re-keys retryAttempts
     // without rebuilding the page), and state captured when the page was
-    // built would be written where no one reads it.
+    // built would be written where no one reads it. A tile right behind the
+    // page's own fatal (its no-tile grace ran out a moment before) changes
+    // nothing: the notice already stands, and the retry keeps its step and
+    // the diagnostics their failure.
     val onPageData by rememberUpdatedState {
-        retryAttempts.intValue = 0
-        pageFromReturnReload[0] = false
-        MapRuntimeSignals.recordDataArrived()
+        if (!liveInitFailed) {
+            Log.i(TAG, "LIVE map data arrived")
+            retryAttempts.intValue = 0
+            pageFromReturnReload[0] = false
+            MapRuntimeSignals.recordDataArrived()
+        }
     }
     // A page's `fatal`: the notice, and the retry the reload effect derives
     // from it. Re-bound on every composition like onPageData, and for the same
@@ -745,10 +751,7 @@ internal fun WebMapView(
                                 "tile" -> {
                                     if (!googleMapsBackend) {
                                         mainHandler.post {
-                                            if (livePage[0] === this@apply) {
-                                                Log.i(TAG, "LIVE map data arrived")
-                                                onPageData()
-                                            }
+                                            if (livePage[0] === this@apply) onPageData()
                                         }
                                     }
                                 }
