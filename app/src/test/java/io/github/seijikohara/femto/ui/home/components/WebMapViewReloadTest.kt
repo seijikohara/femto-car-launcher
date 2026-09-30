@@ -361,6 +361,28 @@ class WebMapViewReloadTest {
         assertEquals(0, pages().size, "the notice replaces the page")
     }
 
+    // A custom style saved for OSM is not the Google page's state: a flip onto
+    // or off it must leave a failed Google page alone while hidden, where a
+    // fresh page would be a billed map load no one sees.
+    @Test fun `a flip across a saved OSM custom style leaves a failed Google page alone while hidden`() {
+        val config =
+            GoogleMapsConfig.copy(
+                style = MapStyleSetting.LIGHT,
+                schemeLight = MapColorScheme.CUSTOM,
+                customStyleUrl = FIRST_STYLE_URL,
+            )
+        showMap(config = config)
+        reportFatal(GoogleAuthFailure)
+        setLifecycle(Lifecycle.State.CREATED)
+        setMapConfig(config.copy(style = MapStyleSetting.DARK))
+        advanceBy(TEN_MINUTES_MS)
+        assertEquals(0, pages().size, "no page while hidden")
+        setLifecycle(Lifecycle.State.RESUMED)
+        val returned = page()
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        assertSame(returned, page(), "exactly one page on the return")
+    }
+
     @Test fun `a late fatal from a replaced page leaves its successor alone`() {
         showMap()
         val replaced = page()

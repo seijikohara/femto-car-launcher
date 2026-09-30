@@ -213,8 +213,15 @@ internal fun WebMapView(
     // so the failure state below keys on the URL the CUSTOM scheme is actually
     // loading, exactly like the tile-host override: the correction gets a fresh
     // page at once instead of waiting out the retry ladder. Blank whenever no
-    // custom style is active, so nothing else is disturbed.
-    val effectiveCustomStyleUrl = (styleRef as? MapStyleRef.Hosted)?.takeIf { it.custom }?.url.orEmpty()
+    // custom style is active, so nothing else is disturbed, and OSM-only like
+    // the override: on Google, a flip onto or off a scheme saved as CUSTOM would
+    // otherwise clear a failure and load a fresh, billed page.
+    val effectiveCustomStyleUrl =
+        if (mapConfig.backend == MapBackend.OSM) {
+            (styleRef as? MapStyleRef.Hosted)?.takeIf { it.custom }?.url.orEmpty()
+        } else {
+            ""
+        }
     // Keyed on the override alone: the build default cannot change at runtime, and
     // the bridge getter reads the list from a background thread, so it must not be
     // re-allocated on every recomposition (one per location fix).
