@@ -57,6 +57,12 @@ import kotlin.math.roundToInt
 // control at a glance.
 private val BackIconSize = 28.dp
 
+// SettingRow's inset from the card's edge. Internal, so that content a section
+// draws under a row (the Updates section's progress bar) lines up with the
+// row's text.
+internal val SettingRowHorizontalInset = 20.dp
+internal val SettingRowVerticalInset = 12.dp
+
 @Composable
 internal fun Header(
     onBack: () -> Unit,
@@ -352,6 +358,8 @@ internal fun SliderRow(
 }
 
 // A navigation row: links out to a system screen, marked with an external glyph.
+// A row whose action stays in the app (checking for or downloading an update)
+// passes a glyph of its own, so the row never promises a jump it does not make.
 @Composable
 internal fun ActionRow(
     title: String,
@@ -359,13 +367,14 @@ internal fun ActionRow(
     modifier: Modifier = Modifier,
     summary: String? = null,
     summaryLiveRegion: Boolean = false,
+    icon: ImageVector = Lucide.ExternalLink,
 ) = SettingRow(
     title = title,
     summary = summary,
     summaryLiveRegion = summaryLiveRegion,
     modifier = modifier.clickable(onClick = onClick),
 ) {
-    TrailingIcon(Lucide.ExternalLink)
+    TrailingIcon(icon)
 }
 
 // A destructive row: resetting a group of settings to their defaults. Tapping
@@ -447,7 +456,7 @@ internal fun SettingRow(
         modifier
             .fillMaxWidth()
             .heightIn(min = FemtoDimens.MinTouchTarget)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = SettingRowHorizontalInset, vertical = SettingRowVerticalInset),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(16.dp),
 ) {

@@ -26,6 +26,11 @@ internal data class HomeUiState(
     // (see WebMapView); starts true so the initial dashboard assumes connectivity
     // until the connectivity flow reports otherwise.
     val online: Boolean,
+    // Whether the dock's Settings button carries the update dot: an update is on
+    // offer and a live GPS fix shows the vehicle parked (VehicleMotion.PARKED).
+    // Fail-closed: no fix, a cached fix and a network fix never count as parked,
+    // because the trip speed reads zero until live GPS fixes set it.
+    val updateBadge: Boolean,
 ) {
     companion object {
         val Initial: HomeUiState =
@@ -38,6 +43,7 @@ internal data class HomeUiState(
                 systemStatus = SystemStatus.Initial,
                 tripState = TripState.Initial,
                 online = true,
+                updateBadge = false,
             )
     }
 }

@@ -20,4 +20,11 @@ internal enum class SettingsDocument {
      * person attaching a billing account can read them before doing so.
      */
     GOOGLE_MAPS_PLATFORM_TERMS,
+
+    /**
+     * This build's channel's latest release page: the manual update path, for
+     * when the in-app one cannot finish (no network path to the APK, a device
+     * that refuses the install grant).
+     */
+    RELEASE_PAGE,
 }

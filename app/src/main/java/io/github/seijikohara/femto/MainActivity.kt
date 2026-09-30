@@ -52,6 +52,9 @@ import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.hasCoarseLocationPermission
 import io.github.seijikohara.femto.data.location.hasFineLocationPermission
 import io.github.seijikohara.femto.data.system.SystemPermissionSignals
+import io.github.seijikohara.femto.data.update.UpdateChannel
+import io.github.seijikohara.femto.data.update.dismissUpdateNotification
+import io.github.seijikohara.femto.data.update.releasePageUrl
 import io.github.seijikohara.femto.ui.assistant.AssistantOption
 import io.github.seijikohara.femto.ui.assistant.AssistantSheet
 import io.github.seijikohara.femto.ui.common.ModalSheetHost
@@ -227,6 +230,18 @@ class MainActivity : ComponentActivity() {
                 // maximize panel inside the dashboard, not a sheet.
                 var showAssistant by rememberSaveable { mutableStateOf(false) }
                 var showSettings by rememberSaveable { mutableStateOf(false) }
+                // Whether the open settings sheet came from the update prompt's
+                // "Update": it opens on Updates and starts the one-tap update
+                // there. Kept out of the saved state, so a recreated activity
+                // reopens the sheet without starting the update a second time.
+                var settingsStartsUpdate by remember { mutableStateOf(false) }
+                // The modal sheets and the update prompt render in their own windows,
+                // which do not inherit the Activity's immersive flags; pass the
+                // fullscreen choice so each re-applies it to its window (see
+                // ImmersiveSheetEffect). The app launcher is no longer a sheet — it
+                // is a maximize panel inside the dashboard (see DashboardOverlays /
+                // AppDrawerPanelHost).
+                val fullscreen = settings.fullscreen == FullscreenSetting.ON
                 // The font picker opens over settings for one slot at a time; null = closed.
                 var fontPickerSlot by rememberSaveable { mutableStateOf<FontSlot?>(null) }
                 // Diagnostics opens over settings, like the font picker.
@@ -285,17 +300,17 @@ class MainActivity : ComponentActivity() {
                             event = event,
                             display = settings,
                             setShowAssistant = { showAssistant = it },
-                            setShowSettings = { showSettings = it },
+                            openSettings = { startUpdate ->
+                                settingsStartsUpdate = startUpdate
+                                showSettings = true
+                            },
                             setShowLicenses = { showLicenses = it },
                         )
                     },
+                    sheetOpen =
+                        showAssistant || showSettings || fontPickerSlot != null || showDiagnostics || showLicenses,
+                    fullscreen = fullscreen,
                 )
-                // The modal sheets render in their own windows, which do not inherit
-                // the Activity's immersive flags; pass the fullscreen choice so each
-                // re-applies it to its window (see ImmersiveSheetEffect). The app
-                // launcher is no longer a sheet — it is a maximize panel inside the
-                // dashboard (see DashboardOverlays / AppDrawerPanelHost).
-                val fullscreen = settings.fullscreen == FullscreenSetting.ON
                 // Every sheet is hosted at the platform density so adjusting UI scale
                 // or font size cannot rebuild the open sheet's window — see
                 // ModalSheetHost.
@@ -324,6 +339,7 @@ class MainActivity : ComponentActivity() {
                             onOpenDocument = ::openSettingsDocument,
                             onDismiss = { showSettings = false },
                             fullscreen = fullscreen,
+                            startUpdate = settingsStartsUpdate,
                         )
                     }
                     fontPickerSlot?.let { slot ->
@@ -348,6 +364,15 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    // Back on screen, by a notification tap, Home or a relaunch Android allowed:
+    // the "Updated to …" notification has done its job. onResume, not onCreate,
+    // because a return that reuses the running launcher resumes it without
+    // creating it; the call is one cancel, so a cold start stays lean.
+    override fun onResume() {
+        super.onResume()
+        dismissUpdateNotification()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -410,7 +435,7 @@ class MainActivity : ComponentActivity() {
         event: HomeEvent,
         display: DisplaySettings,
         setShowAssistant: (Boolean) -> Unit,
-        setShowSettings: (Boolean) -> Unit,
+        openSettings: (startUpdate: Boolean) -> Unit,
         setShowLicenses: (Boolean) -> Unit,
     ) {
         when (event) {
@@ -440,8 +465,10 @@ class MainActivity : ComponentActivity() {
                 openNotificationListenerSettings()
             }
 
-            HomeEvent.OpenInAppSettings -> {
-                setShowSettings(true)
+            // The one way the dashboard opens settings: the dock's Settings
+            // button, and the update prompt's "Update" with startUpdate.
+            is HomeEvent.OpenInAppSettings -> {
+                openSettings(event.startUpdate)
             }
 
             HomeEvent.OpenLicenses -> {
@@ -545,6 +572,7 @@ class MainActivity : ComponentActivity() {
                 SettingsDocument.PRIVACY_POLICY -> PRIVACY_POLICY_URL
                 SettingsDocument.TERMS -> TERMS_URL
                 SettingsDocument.GOOGLE_MAPS_PLATFORM_TERMS -> GOOGLE_MAPS_PLATFORM_TERMS_URL
+                SettingsDocument.RELEASE_PAGE -> ReleasePageUrl
             }
         val intent =
             Intent(Intent.ACTION_VIEW, url.toUri())
@@ -729,3 +757,11 @@ private const val TERMS_URL = "https://github.com/seijikohara/femto-car-launcher
 // who attaches a billing account can read the restrictions that bind their use
 // of the key before entering it.
 private const val GOOGLE_MAPS_PLATFORM_TERMS_URL = "https://cloud.google.com/maps-platform/terms"
+
+// This build's channel's latest release page (Settings -> Updates -> Open release
+// page), derived from the feed the updater reads so that a fork or a test feed
+// sends the manual path to the same releases as the in-app one. A getter, not a
+// stored value: the file's other members load with onCreate, and this one waits
+// for the tap.
+private val ReleasePageUrl: String
+    get() = releasePageUrl(BuildConfig.UPDATE_FEED_BASE_URL, UpdateChannel.fromFlavorOrNull(BuildConfig.FLAVOR))

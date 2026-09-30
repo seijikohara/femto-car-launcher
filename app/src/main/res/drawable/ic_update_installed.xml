@@ -1,0 +1,15 @@
+<!--
+  Notification small icon for the post-update notice. A check in a circle,
+  white on transparent so the system can tint it. The path is AOSP's
+  ic_check_circle_24px (Apache License 2.0).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFFFF">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12.0,2.0C6.48,2.0 2.0,6.48 2.0,12.0s4.48,10.0 10.0,10.0 10.0,-4.48 10.0,-10.0S17.52,2.0 12.0,2.0zm-2.0,15.0l-5.0,-5.0 1.41,-1.41L10.0,14.17l7.59,-7.59L19.0,8.0l-9.0,9.0z" />
+</vector>

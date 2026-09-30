@@ -10,9 +10,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import io.github.seijikohara.femto.testfixtures.FakeLifecycleOwner
 import io.github.seijikohara.femto.testfixtures.NetworkFailureDetails
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
@@ -40,7 +39,7 @@ class WebMapViewReloadTest {
     @get:Rule
     val rule = createAndroidComposeRule<ComponentActivity>()
 
-    private val host = TestLifecycleOwner()
+    private val host = FakeLifecycleOwner()
     private val online = mutableStateOf(true)
 
     @Test fun `a network failure while visible reloads after the backoff`() {
@@ -161,7 +160,7 @@ class WebMapViewReloadTest {
 
     private fun showMap(onlineAtStart: Boolean = true) {
         online.value = onlineAtStart
-        host.registry.currentState = Lifecycle.State.RESUMED
+        host.moveTo(Lifecycle.State.RESUMED)
         rule.mainClock.autoAdvance = false
         rule.setContent {
             CompositionLocalProvider(LocalLifecycleOwner provides host) {
@@ -195,7 +194,7 @@ class WebMapViewReloadTest {
     }
 
     private fun setLifecycle(state: Lifecycle.State) {
-        host.registry.currentState = state
+        host.moveTo(state)
         settle()
     }
 
@@ -218,11 +217,6 @@ class WebMapViewReloadTest {
             rule.mainClock.advanceTimeByFrame()
         }
         shadowOf(Looper.getMainLooper()).idle()
-    }
-
-    private class TestLifecycleOwner : LifecycleOwner {
-        val registry = LifecycleRegistry(this)
-        override val lifecycle: Lifecycle get() = registry
     }
 }
 

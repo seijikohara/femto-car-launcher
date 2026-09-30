@@ -26,5 +26,6 @@ internal enum class SettingsCategoryId(
     MAP(R.string.settings_section_map, SettingsSectionId.MAP),
     LOCATION(R.string.settings_section_location, SettingsSectionId.LOCATION),
     PANELS(R.string.settings_section_panels, SettingsSectionId.PANELS),
+    UPDATES(R.string.settings_section_updates, SettingsSectionId.UPDATES),
     SYSTEM(R.string.settings_group_system, null),
 }

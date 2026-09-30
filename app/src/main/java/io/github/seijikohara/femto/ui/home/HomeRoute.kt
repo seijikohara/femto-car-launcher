@@ -38,11 +38,14 @@ internal fun HomeRoute(
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
     motionTier: MotionTier = MotionTier.STANDARD,
+    sheetOpen: Boolean = false,
+    fullscreen: Boolean = false,
 ) {
     val context = LocalContext.current
     val viewModel: HomeViewModel =
         viewModel(factory = HomeViewModelFactory(context.applicationContext as Application))
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val updatePrompt by viewModel.updatePrompt.collectAsStateWithLifecycle()
     val currentOnEvent by rememberUpdatedState(onEvent)
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event -> currentOnEvent(event) }
@@ -66,5 +69,8 @@ internal fun HomeRoute(
         musicShowArt = musicShowArt,
         spectrum = viewModel.audioSpectrum,
         motionTier = motionTier,
+        updatePrompt = updatePrompt,
+        sheetOpen = sheetOpen,
+        fullscreen = fullscreen,
     )
 }

@@ -18,7 +18,10 @@ import io.github.seijikohara.femto.data.fonts.FontSlot
  * Settings entry point: binds [SettingsViewModel], collects its state, and
  * forwards persisted changes to the VM. Host-level navigation / system intents (back, the
  * notification-access screen, the OS settings root) flow up to [MainActivity] via
- * the callbacks so this route owns no Activity concerns.
+ * the callbacks so this route owns no Activity concerns beyond the two round
+ * trips whose results feed an action back into the VM: the RECORD_AUDIO prompt
+ * and the "Install unknown apps" grant ([rememberInstallGrantedActions]), which
+ * the install tap, the one-tap update and its install request all go through.
  */
 @Composable
 internal fun SettingsRoute(
@@ -30,6 +33,9 @@ internal fun SettingsRoute(
     onOpenLicenses: () -> Unit,
     onOpenDocument: (SettingsDocument) -> Unit,
     modifier: Modifier = Modifier,
+    // Opened by the dashboard's update prompt: open on Updates and start the
+    // one-tap update there.
+    startUpdate: Boolean = false,
 ) {
     val context = LocalContext.current
     val viewModel: SettingsViewModel =
@@ -50,7 +56,7 @@ internal fun SettingsRoute(
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestPermission(),
         ) { viewModel.onAction(SettingsAction.SetMusicSpectrum(true)) }
-    val onAction: (SettingsAction) -> Unit = { action ->
+    val viewModelAction: (SettingsAction) -> Unit = { action ->
         when {
             action is SettingsAction.SetMusicSpectrum && action.value && !context.hasRecordAudioPermission() -> {
                 recordAudioLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -61,6 +67,18 @@ internal fun SettingsRoute(
             }
         }
     }
+    // Where the grant cannot be given here, the release page is the manual
+    // path that is left.
+    val onAction =
+        rememberInstallGrantedActions(
+            onAction = viewModelAction,
+            onUnavailable = { onOpenDocument(SettingsDocument.RELEASE_PAGE) },
+            startUpdate = startUpdate,
+        )
+    // The one-tap update installs its verified download the way the install tap
+    // does, the "Install unknown apps" round trip included, and hands its token
+    // back with it.
+    InstallRequestsEffect(requests = viewModel.installRequests, onRequest = onAction)
     SettingsScreen(
         uiState = uiState,
         onAction = onAction,
@@ -72,5 +90,6 @@ internal fun SettingsRoute(
         onOpenLicenses = onOpenLicenses,
         onOpenDocument = onOpenDocument,
         modifier = modifier,
+        initialCategory = SettingsCategoryId.UPDATES.takeIf { startUpdate },
     )
 }

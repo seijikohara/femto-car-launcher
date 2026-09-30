@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.data.weather
 
 import android.util.Log
+import io.github.seijikohara.femto.data.common.HTTP_TOO_MANY_REQUESTS
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -17,9 +18,6 @@ private const val TAG = "MetNorwayApi"
 // The "complete" product carries ultraviolet_index_clear_sky; the "compact" one
 // drops it. The weather card surfaces UV, so complete is the contract.
 private const val FORECAST_PATH = "/weatherapi/locationforecast/2.0/complete"
-
-// HttpURLConnection predates RFC 6585 and has no constant for 429.
-private const val HTTP_TOO_MANY_REQUESTS = 429
 
 // MET allows at most four decimals (more returns 403/400), and full-precision
 // GPS jitter would give every fix its own URL, defeating the HTTP cache. %.4f

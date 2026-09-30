@@ -58,6 +58,57 @@ report should quote.
   the box's own "boot-up app" or auto-start setting to launch Femto Car
   Launcher (or Femto Nightly) when the box starts.
 
+## Updating
+
+The app checks its own channel for a newer build — stable checks the latest
+stable release, nightly checks the rolling nightly — so you don't need to
+repeat the sideloading steps above for every new version.
+
+- **Automatic check.** At most once a day while the app is running, the app
+  looks for a newer build. Turn this off with the "Check automatically"
+  switch under **Settings → Updates**.
+- **Manual check.** Tap **Check for updates** under **Settings → Updates** at
+  any time. The **Available version** row shows what the check found: the
+  newer version and its download size, or "Up to date".
+- **Update.** When a newer build is available, tap **Update to …** under
+  **Settings → Updates**. One tap downloads the update (about 45 MB),
+  checks it, and then Android asks you to confirm the install. Some devices
+  then add a security-scan prompt of their own; continue past it to finish
+  the install. Leaving that prompt cancels the install, and tapping
+  **Update to …** again starts over. The first time, Android asks you to
+  allow installs from Femto Car Launcher (or Femto Nightly) before anything
+  downloads; while driving, it asks when you install instead. If you leave
+  **Settings → Updates** before Android asks you to confirm — or switch to
+  another app, or the screen turns off — the downloaded update waits there:
+  tap **Update to …** again to install it.
+  After the install, the launcher comes back on its own when Android allows
+  it. Otherwise, tap the "Updated to …" notification or open the launcher
+  again — press Home if it is your home screen.
+- **When an update is found.** The dashboard asks once about each new
+  version, after the vehicle has been parked for a minute with a live GPS
+  fix, so a stop at a traffic light seldom brings it up. **Update** opens
+  **Settings → Updates** and starts the update there. **Later** (or Back)
+  means the dashboard does not ask about that version again; the dot on
+  the dock's Settings button and **Settings → Updates** keep offering it. A
+  version you have already seen under **Settings → Updates** is not asked
+  about. If the vehicle starts moving before you answer, or you switch to
+  another app, the question closes and comes back once the vehicle has been
+  parked for a minute again.
+- **While driving.** Install is unavailable while the vehicle is known to be
+  moving, so tapping **Update to …** then only downloads the update. If a
+  download finishes while the vehicle moves, the update waits: tap
+  **Update to …** again once you have stopped. If the vehicle starts
+  moving before Android's confirmation appears, the confirmation waits until
+  you tap **Show the install dialog again** under **Settings → Updates**; a
+  confirmation already on screen stays there until you answer it. Checking
+  and downloading are not affected.
+- **Where to look.** A dot on the dock's Settings button shows an update is
+  waiting, while the vehicle is parked with a live GPS fix. The same dot
+  shows on **Settings → Updates**, which is where to check if the Settings
+  button is hidden from your dock.
+
+A copy you build from source does not check for updates.
+
 ## Optional: Google Maps provider
 
 To enable the optional paid map provider under **Settings → Map**, enter a

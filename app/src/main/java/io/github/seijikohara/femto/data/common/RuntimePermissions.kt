@@ -6,7 +6,8 @@ import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 
 /**
- * Cross-domain checks for the runtime-grant permissions the launcher requests.
+ * Cross-domain checks for the runtime-grant permissions the launcher requests,
+ * plus the one special access it needs ([hasInstallUnknownAppsAccess]).
  *
  * These sit in `data/common` (not any single domain) because music, system, and
  * diagnostics all consult them; the location-specific fine/coarse checks stay in
@@ -54,3 +55,12 @@ internal fun Context.hasBluetoothConnectPermission(): Boolean =
         this,
         Manifest.permission.BLUETOOTH_CONNECT,
     ) == PackageManager.PERMISSION_GRANTED
+
+/**
+ * The "Install unknown apps" access the in-app updater installs with. Unlike
+ * the grants above, this is special access, not a runtime permission: the user
+ * turns it on in this app's system settings screen. Without it, the platform
+ * stops an install at a dialog of its own. This is the one place the check
+ * lives: both the Settings install step and the diagnostics call it.
+ */
+internal fun Context.hasInstallUnknownAppsAccess(): Boolean = packageManager.canRequestPackageInstalls()

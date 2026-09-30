@@ -1,7 +1,6 @@
 package io.github.seijikohara.femto.data.diagnostics
 
 import android.app.ActivityManager
-import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
@@ -10,6 +9,8 @@ import android.content.pm.PermissionInfo
 import android.os.PowerManager
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.getSystemService
+import io.github.seijikohara.femto.data.common.hasInstallUnknownAppsAccess
+import io.github.seijikohara.femto.data.common.holdsHomeRole
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -35,6 +36,18 @@ internal fun permissionRowsFrom(
             )
         }.sortedWith(compareByDescending<PermissionRow> { it.dangerous }.thenBy { it.name })
 
+/**
+ * The "Install unknown apps" special access the updater installs with (the
+ * permission row only shows the manifest grant, never this user toggle). INFO,
+ * not a verdict: Install asks for the grant when it is missing, so "not
+ * allowed" is the normal state until the first update.
+ */
+internal fun installUnknownAppsFact(allowed: Boolean): DiagnosticFact =
+    DiagnosticFact(
+        "Install unknown apps",
+        FactValue.Status(if (allowed) "allowed" else "not allowed", FactHealth.INFO),
+    )
+
 /** Collects the PERMISSIONS diagnostics section. */
 internal class PermissionFactsCollector(
     private val context: Context,
@@ -56,6 +69,7 @@ internal class PermissionFactsCollector(
                     listOf(
                         notificationListenerFact(),
                         homeRoleFact(),
+                        installUnknownAppsFact(context.hasInstallUnknownAppsAccess()),
                         batteryOptimizationFact(),
                         notificationsFact(),
                         backgroundFact(),
@@ -86,7 +100,7 @@ internal class PermissionFactsCollector(
     // role (the user keeps their stock launcher), unlike an AI box or head
     // unit where holding it is the whole point of the app.
     private fun homeRoleFact(): DiagnosticFact {
-        val held = context.getSystemService<RoleManager>()?.isRoleHeld(RoleManager.ROLE_HOME) == true
+        val held = context.holdsHomeRole()
         val defaultPackage =
             context.packageManager
                 .resolveActivity(

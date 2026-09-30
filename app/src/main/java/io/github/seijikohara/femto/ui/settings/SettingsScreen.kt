@@ -32,6 +32,7 @@ import io.github.seijikohara.femto.ui.settings.components.SettingsCategoryDetail
 import io.github.seijikohara.femto.ui.settings.components.SettingsCategoryList
 import io.github.seijikohara.femto.ui.settings.components.SystemSection
 import io.github.seijikohara.femto.ui.settings.components.UnitsSection
+import io.github.seijikohara.femto.ui.settings.components.UpdatesSection
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
@@ -66,6 +67,9 @@ internal fun SettingsScreen(
     onOpenLicenses: () -> Unit,
     onOpenDocument: (SettingsDocument) -> Unit,
     modifier: Modifier = Modifier,
+    // The category to open on, with its detail showing in the narrow layout;
+    // null opens on the category list (the first category, wide).
+    initialCategory: SettingsCategoryId? = null,
 ) = Surface(
     modifier = modifier.fillMaxSize(),
     // Hosted in the settings bottom sheet: match the M3 sheet container colour so the
@@ -95,11 +99,16 @@ internal fun SettingsScreen(
         // Hoisted here (not the ViewModel): which category is showing is pure
         // navigation state, not a persisted setting. rememberSaveable keeps it
         // across rotation the same way the old per-section expand flags did.
-        var selectedId by rememberSaveable { mutableStateOf(SettingsCategoryId.entries.first()) }
+        var selectedId by rememberSaveable { mutableStateOf(initialCategory ?: SettingsCategoryId.entries.first()) }
         // Narrow list-detail only — whether the detail view covers the list.
         // Meaningless in the wide layout, where the rail and detail pane are
         // always both visible side by side.
-        var showDetail by rememberSaveable { mutableStateOf(false) }
+        var showDetail by rememberSaveable { mutableStateOf(initialCategory != null) }
+        // The Updates entry carries the dock's update dot whenever an update is
+        // on offer. Unlike the dock's, this one is not motion-gated: the person is
+        // already in Settings, where the section itself holds the steps that
+        // must wait.
+        val badged = if (uiState.updates.updateOffered) setOf(SettingsCategoryId.UPDATES) else emptySet()
 
         BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f)) {
             if (maxWidth >= SettingsWidePaneBreakpoint) {
@@ -108,12 +117,14 @@ internal fun SettingsScreen(
                     selectedId = selectedId,
                     onSelect = { selectedId = it },
                     onAction = onAction,
+                    badged = badged,
                 )
             } else {
                 SettingsNarrowPane(
                     entries = entries,
                     selectedId = selectedId,
                     showDetail = showDetail,
+                    badged = badged,
                     onSelect = {
                         selectedId = it
                         showDetail = true
@@ -129,7 +140,7 @@ internal fun SettingsScreen(
 // The wide shape: a fixed-width category rail beside a detail pane filling
 // the rest of the row, both spanning the full available height so each
 // scrolls independently of the other (and of the rail's own scroll, if the
-// 7 categories ever outgrow it).
+// categories ever outgrow it).
 @Composable
 private fun SettingsWidePane(
     entries: List<SettingsCategoryEntry>,
@@ -137,6 +148,7 @@ private fun SettingsWidePane(
     onSelect: (SettingsCategoryId) -> Unit,
     onAction: (SettingsAction) -> Unit,
     modifier: Modifier = Modifier,
+    badged: Set<SettingsCategoryId> = emptySet(),
 ) = Row(
     modifier = modifier.fillMaxSize(),
     horizontalArrangement = Arrangement.spacedBy(FemtoDimens.ScreenPadding),
@@ -145,6 +157,7 @@ private fun SettingsWidePane(
         selectedId = selectedId,
         onSelect = onSelect,
         modifier = Modifier.width(SettingsRailWidth).fillMaxHeight(),
+        badged = badged,
     )
     val selected = entries.first { it.id == selectedId }
     SettingsCategoryDetail(
@@ -167,6 +180,7 @@ private fun SettingsNarrowPane(
     onBack: () -> Unit,
     onAction: (SettingsAction) -> Unit,
     modifier: Modifier = Modifier,
+    badged: Set<SettingsCategoryId> = emptySet(),
 ) = Box(modifier = modifier.fillMaxSize()) {
     if (showDetail) {
         val selected = entries.first { it.id == selectedId }
@@ -182,6 +196,7 @@ private fun SettingsNarrowPane(
             selectedId = selectedId,
             onSelect = onSelect,
             modifier = Modifier.fillMaxSize(),
+            badged = badged,
         )
     }
 }
@@ -227,6 +242,9 @@ private fun settingsCategoryEntries(
         },
         SettingsCategoryEntry(SettingsCategoryId.PANELS) {
             PanelsSection(uiState = uiState, onAction = onAction, onOpenSystemSettings = onOpenSystemSettings)
+        },
+        SettingsCategoryEntry(SettingsCategoryId.UPDATES) {
+            UpdatesSection(uiState = uiState, onAction = onAction, onOpenDocument = onOpenDocument)
         },
         SettingsCategoryEntry(SettingsCategoryId.SYSTEM) {
             SystemSection(

@@ -12,14 +12,14 @@ import androidx.core.view.WindowInsetsControllerCompat
 
 /**
  * Hide the system bars on the host [ModalBottomSheet][androidx.compose.material3.ModalBottomSheet]'s
- * own window while [fullscreen] is on. A modal sheet renders in a separate window
- * that does not inherit the Activity's immersive flags, so without this the
- * launcher's fullscreen visibly drops — the status / navigation bars reappear —
- * for as long as a sheet is open (`MainActivity.applyFullscreen` only governs the
- * Activity window). Mirrors the Activity's transient-swipe behaviour so a swipe
- * still reveals the bars and they auto-hide again.
+ * or dialog's own window while [fullscreen] is on. A modal sheet or dialog renders
+ * in a separate window that does not inherit the Activity's immersive flags, so
+ * without this the launcher's fullscreen visibly drops — the status / navigation
+ * bars reappear — for as long as it is open (`MainActivity.applyFullscreen` only
+ * governs the Activity window). Mirrors the Activity's transient-swipe behaviour
+ * so a swipe still reveals the bars and they auto-hide again.
  *
- * Call from inside the sheet's content lambda so [LocalView] resolves to the sheet
+ * Call from inside the sheet's or dialog's content so [LocalView] resolves to its
  * window. A no-op when [fullscreen] is off, or when no sheet/dialog window is found
  * (e.g. a preview).
  */

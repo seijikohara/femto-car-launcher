@@ -497,6 +497,7 @@ private fun DashboardContent(
         glassConfig = glassConfig,
         dockConfig = dockConfig,
         motionTier = motionTier,
+        updateBadge = uiState.updateBadge,
         modifier =
             when (dockPosition) {
                 DockPosition.BOTTOM, DockPosition.TOP -> {

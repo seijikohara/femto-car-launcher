@@ -6,6 +6,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.mutablePreferencesOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -79,6 +80,29 @@ class PreferencesSupportTest {
 
             assertEquals(true, read[key])
         }
+
+    // --- setOrRemove -----------------------------------------------------------
+
+    @Test
+    fun `setOrRemove stores a present value`() {
+        val key = longPreferencesKey("at")
+        val prefs = mutablePreferencesOf()
+
+        prefs.setOrRemove(key, 42L)
+
+        assertEquals(42L, prefs[key])
+    }
+
+    @Test
+    fun `setOrRemove drops the key for a null value`() {
+        // An absent optional is an absent key, never a stored sentinel.
+        val key = longPreferencesKey("at")
+        val prefs = mutablePreferencesOf(key to 42L)
+
+        prefs.setOrRemove(key, null)
+
+        assertFalse(prefs.contains(key))
+    }
 
     // --- editOrLog -------------------------------------------------------------
 

@@ -106,6 +106,10 @@ internal data class SettingsUiState(
     // calendars found" (hiding the grant affordance) when access is actually
     // denied; CalendarCatalog emits the real value on subscription.
     val hasCalendarAccess: Boolean = false,
+    // The Updates section, derived from the updater and its own store (see
+    // updatesUiState); defaulted on the field like trackExport, since the store
+    // combine builds the rest of the state before it is folded in.
+    val updates: UpdatesUiState = UpdatesUiState.Initial,
 ) {
     companion object {
         // Seeded from the persistence defaults so the default values live in one
@@ -428,7 +432,71 @@ internal sealed interface SettingsAction {
         val hidden: Boolean,
     ) : SettingsAction
 
-    /** Restore every display + font + location + calendar setting to its default value. */
+    /** Check this channel's release feed now. */
+    data object CheckForUpdates : SettingsAction
+
+    /**
+     * Retry the download of an offer whose failure still names it, or start the
+     * download of an offer while a fix shows the vehicle moving (the one-tap
+     * update row's tap then; see UpdateStep.Download). A plain download: its
+     * verified file waits for a tap, unlike [StartUpdate]'s.
+     */
+    data object DownloadUpdate : SettingsAction
+
+    /**
+     * The one-tap update: download the offered build, then install it once
+     * verified, the way [InstallUpdate] installs it, while the Updates section
+     * is still on screen and no fix shows the vehicle moving. A build already
+     * downloaded installs at once. `SettingsRoute` first sends the user to the
+     * "Install unknown apps" grant when it is missing, so the download starts
+     * only once the install can follow. The row sends it only while no fix
+     * shows the vehicle moving; its tap while moving is a [DownloadUpdate].
+     */
+    data object StartUpdate : SettingsAction
+
+    /**
+     * The Updates section came on screen: while it stays there, every offer it
+     * shows counts as seen, and the dashboard's update prompt never asks about it.
+     */
+    data object UpdatesShown : SettingsAction
+
+    /** The Updates section left the screen: a one-tap update under way no longer installs by itself. */
+    data object UpdatesHidden : SettingsAction
+
+    /**
+     * Hand the verified update to the system installer, or show its pending
+     * confirmation again. Ignored while a fix shows the vehicle moving.
+     * `SettingsRoute` first sends the user to the "Install unknown apps" grant
+     * when it is missing.
+     */
+    data object InstallUpdate : SettingsAction
+
+    /**
+     * The one-tap update's own install: [InstallUpdate]'s install, asked for by
+     * its [StartUpdate] once the download is verified
+     * (SettingsViewModel.installRequests). `SettingsRoute` sends it back the way
+     * it sends an install tap, through the "Install unknown apps" access, with
+     * the [token] it came with. The install goes ahead only while that token
+     * holds: [UpdatesHidden] voids it. A request the screen acts on after the
+     * section has left the screen, back from the access screen or late,
+     * installs nothing, and the row keeps its install step for a tap.
+     */
+    data class InstallOneTapUpdate(
+        val token: Int,
+    ) : SettingsAction
+
+    /** The user came back from the "Install unknown apps" access without turning it on. */
+    data object InstallGrantDeclined : SettingsAction
+
+    /** Turn the daily automatic check on or off. */
+    data class SetUpdateAutoCheck(
+        val value: Boolean,
+    ) : SettingsAction
+
+    /** The "Updated to …" notice has been shown; stop reporting it. */
+    data object AcknowledgeUpdatedTo : SettingsAction
+
+    /** Restore every display + font + location + calendar + update setting to its default value. */
     data object ResetToDefaults : SettingsAction
 
     /** Restore only [sectionId]'s own settings (and any store it owns) to their default value. */

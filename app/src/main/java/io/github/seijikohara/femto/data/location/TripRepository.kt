@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNot
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -228,7 +229,7 @@ internal class TripRepository(
             val fixes: Flow<TripSignal> =
                 locationFlow
                     .filterNotNull()
-                    .filterNot { it.provider == LocationManager.NETWORK_PROVIDER }
+                    .filter { it.isGpsFix() }
                     .filterNot { arrivedStale(it) }
                     .map { TripSignal.Fix(it) }
             val resets: Flow<TripSignal> = resetSignals.map { TripSignal.Reset }
@@ -522,6 +523,12 @@ internal fun interface TripFixTap {
         tripId: Long,
     )
 }
+
+// The trip math's provider rule (class KDoc): GPS fixes, test providers
+// included, never a NETWORK_PROVIDER position, which jumps tens to hundreds of
+// metres between updates. Top-level so the motion verdict (vehicleMotionFlow)
+// judges the same fixes (SSOT for the rule).
+internal fun Location.isGpsFix(): Boolean = provider != LocationManager.NETWORK_PROVIDER
 
 // ~1.8 km/h — below this the device is treated as stationary. Top-level so the
 // speed overlay's snap-to-zero shares the same definition of "stationary" as
