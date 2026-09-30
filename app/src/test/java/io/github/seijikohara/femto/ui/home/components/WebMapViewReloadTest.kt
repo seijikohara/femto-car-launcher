@@ -292,6 +292,17 @@ class WebMapViewReloadTest {
         assertNotSame(dead, page(), "one rebuild on the return")
     }
 
+    // A lone kill behind another app is the system reclaiming memory, and
+    // nothing rebuilds while hidden, so it cannot be part of a crash loop.
+    @Test fun `a renderer kill while hidden does not count toward the give-up`() {
+        showMap()
+        killRenderer(page())
+        setLifecycle(Lifecycle.State.CREATED)
+        killRenderer(page())
+        setLifecycle(Lifecycle.State.RESUMED)
+        assertEquals(1, pages().size, "the map is rebuilt, not given up")
+    }
+
     @Test fun `a Google light-dark flip while visible rebuilds at once`() {
         showMap(config = GoogleMapsConfig.copy(style = MapStyleSetting.LIGHT))
         val light = page()

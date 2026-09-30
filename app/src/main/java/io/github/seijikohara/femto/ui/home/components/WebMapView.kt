@@ -121,7 +121,7 @@ import kotlinx.coroutines.delay
  * OOM victim on weak head-unit GPUs). Death is a fact reported by the system, not
  * a heuristic like the removed context-loss / readiness signals, so reacting to
  * it cannot misfire on a healthy map. The reaction stays inside the WebView: the
- * first death rebuilds it in place; repeated deaths within
+ * first death rebuilds it in place; repeated deaths on screen within
  * [RENDERER_DEATH_WINDOW_MS] stop the rebuild loop and show a static notice that
  * points back at the Settings Map section. The persisted backend is never rewritten.
  * Like the reloads, a rebuild waits for the launcher to be on screen, and a return
@@ -242,9 +242,9 @@ internal fun WebMapView(
     var rendererRebuildDue by remember { mutableStateOf(false) }
     // Renderer containment waits for the launcher like the reloads do
     // (liveReloadStep): a rebuild behind another app loads a page no one sees
-    // (on Google, a billed map load), and a rebuilt page killed there again
-    // would trip the give-up with no one watching. So a death's rebuild runs
-    // while the launcher is on screen, and at once on its return. A return
+    // (on Google, a billed map load), and there the system is likely to kill
+    // it again to reclaim memory. So a death's rebuild runs while the launcher
+    // is on screen, and at once on its return. A return
     // also lifts a give-up that tripped at least RENDERER_GIVE_UP_SETTLE_MS
     // ago, so one bad stretch does not leave the map stopped until the app
     // restarts; staying on screen never lifts it, because this effect restarts
@@ -623,10 +623,17 @@ internal fun WebMapView(
                             (view.parent as? ViewGroup)?.removeView(view)
                             view.destroy()
                             lastRendererDeath = description
-                            val now = SystemClock.elapsedRealtime()
-                            rendererDeathsMs.removeAll { now - it > RENDERER_DEATH_WINDOW_MS }
-                            rendererDeathsMs += now
-                            if (rendererDeathsMs.size >= MAX_RENDERER_DEATHS) {
+                            // A kill behind another app is the system reclaiming
+                            // memory, and nothing rebuilds while hidden, so it
+                            // cannot loop: only deaths on screen feed the
+                            // crash-loop count.
+                            val onScreen = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+                            if (onScreen) {
+                                val now = SystemClock.elapsedRealtime()
+                                rendererDeathsMs.removeAll { now - it > RENDERER_DEATH_WINDOW_MS }
+                                rendererDeathsMs += now
+                            }
+                            if (onScreen && rendererDeathsMs.size >= MAX_RENDERER_DEATHS) {
                                 rendererGaveUp = true
                             } else {
                                 rendererRebuildDue = true
@@ -1285,8 +1292,9 @@ internal const val MAX_LIVE_RELOAD_RETRIES = 6
 private const val STYLE_PUSH_DEBOUNCE_MS = 150L
 
 // One renderer death rebuilds the WebView silently (a lone death is usually the
-// system reclaiming memory, not a fault in the map); a second death inside this
-// window means a crash loop, so the rebuild stops and the notice shows instead.
+// system reclaiming memory, not a fault in the map); a second death on screen
+// inside this window means a crash loop, so the rebuild stops and the notice
+// shows instead. A death while the launcher is hidden is never counted.
 private const val RENDERER_DEATH_WINDOW_MS = 5 * 60_000L
 private const val MAX_RENDERER_DEATHS = 2
 
@@ -1295,5 +1303,6 @@ private const val MAX_RENDERER_DEATHS = 2
 // of the window and the crash-loop rule judges afresh. A map that still crashes
 // then needs two new deaths inside the window to give up again, so a genuine
 // crash loop costs at most two rebuilds per return, while a give-up tripped by
-// an unlucky pair of kills does not outlast the next return after the window.
+// an unlucky pair of kills on screen does not outlast the next return after the
+// window.
 internal const val RENDERER_GIVE_UP_SETTLE_MS = RENDERER_DEATH_WINDOW_MS
