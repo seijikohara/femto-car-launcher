@@ -325,6 +325,49 @@ class WebMapViewReloadTest {
         assertEquals("DARK", colorSchemeOf(page()))
     }
 
+    // Like the return reload's page, a page rebuilt at the return was built on
+    // the network the launcher came back to: a reconnect edge that reaches the
+    // map after it must not reload it again (on Google, a second billed load).
+    @Test fun `a reconnect seen just after the return's renderer rebuild does not reload again`() {
+        showMap(onlineAtStart = false)
+        setLifecycle(Lifecycle.State.CREATED)
+        killRenderer(page())
+        setLifecycle(Lifecycle.State.RESUMED)
+        val rebuilt = page()
+        setOnline(true)
+        advanceBy(TEN_MINUTES_MS)
+        assertSame(rebuilt, page(), "the rebuild at the return covered the reconnect")
+    }
+
+    @Test fun `a reconnect seen just after the return's Google light-dark rebuild does not reload again`() {
+        showMap(onlineAtStart = false, config = GoogleMapsConfig.copy(style = MapStyleSetting.LIGHT))
+        setLifecycle(Lifecycle.State.CREATED)
+        setMapConfig(GoogleMapsConfig.copy(style = MapStyleSetting.DARK))
+        setLifecycle(Lifecycle.State.RESUMED)
+        val rebuilt = page()
+        setOnline(true)
+        advanceBy(TEN_MINUTES_MS)
+        assertSame(rebuilt, page(), "the rebuild at the return covered the reconnect")
+    }
+
+    // Only a rebuild at the return claims the edge: one on screen is like any
+    // other page.
+    @Test fun `a reconnect after a renderer rebuild on screen still reloads`() {
+        showMap(onlineAtStart = false)
+        killRenderer(page())
+        val rebuilt = page()
+        setOnline(true)
+        assertNotSame(rebuilt, page())
+    }
+
+    @Test fun `a reconnect after a Google light-dark rebuild on screen still reloads`() {
+        showMap(onlineAtStart = false, config = GoogleMapsConfig.copy(style = MapStyleSetting.LIGHT))
+        setMapConfig(GoogleMapsConfig.copy(style = MapStyleSetting.DARK))
+        val rebuilt = page()
+        setOnline(true)
+        assertNotSame(rebuilt, page())
+    }
+
     @Test fun `a renderer give-up lifts on a return once the settle period has passed`() {
         showMap()
         killRenderer(page())

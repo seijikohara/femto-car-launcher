@@ -200,12 +200,13 @@ internal fun WebMapView(
     // is excluded here so a theme change never reloads the OSM page. The
     // rebuild is a billed map load, so behind another app it waits: the page
     // keeps the context it was built for, and the return rebuilds it once,
-    // like the reloads do (liveReloadStep). The holder records the value each
-    // applied composition used, so it is the page's own while hidden.
+    // like the reloads do (liveReloadStep). The holders record what each
+    // applied composition used, so the built value is the page's own while
+    // hidden (see the SideEffect beside the reload effect).
     val effectiveGoogleDark = mapConfig.backend == MapBackend.GOOGLEMAPS && isDark
     val builtGoogleDark = remember { booleanArrayOf(effectiveGoogleDark) }
+    val googleFlipHeld = remember { booleanArrayOf(false) }
     val googleDark = if (started) effectiveGoogleDark else builtGoogleDark[0]
-    SideEffect { builtGoogleDark[0] = googleDark }
     // The tile host is OSM-only state by the same logic: an override typed while
     // Google Maps is active must not reload the Google page.
     val effectiveTileHostOverride = if (mapConfig.backend == MapBackend.OSM) mapConfig.tileHostOverride else ""
@@ -238,36 +239,11 @@ internal fun WebMapView(
     var lastRendererDeath by remember { mutableStateOf<String?>(null) }
     val rendererDeathsMs = remember { mutableListOf<Long>() }
     val crashedViews = remember { mutableSetOf<WebView>() }
-    // A death's rebuild, due until the launcher is on screen.
+    // A death's rebuild, due until the launcher is on screen (the renderer
+    // effect beside the reload effect), and whether the death came while the
+    // launcher was hidden, so that the rebuild runs at the return.
     var rendererRebuildDue by remember { mutableStateOf(false) }
-    // Renderer containment waits for the launcher like the reloads do
-    // (liveReloadStep): a rebuild behind another app loads a page no one sees
-    // (on Google, a billed map load), and there the system is likely to kill
-    // it again to reclaim memory. So a death's rebuild runs while the launcher
-    // is on screen, and at once on its return. A return
-    // also lifts a give-up that tripped at least RENDERER_GIVE_UP_SETTLE_MS
-    // ago, so one bad stretch does not leave the map stopped until the app
-    // restarts; staying on screen never lifts it, because this effect restarts
-    // only on a lifecycle change or a death's rebuild.
-    LaunchedEffect(started, rendererRebuildDue) {
-        when {
-            !started -> {}
-
-            rendererRebuildDue -> {
-                rendererRebuildDue = false
-                rendererGeneration++
-            }
-
-            // The last recorded death is the one that tripped the give-up.
-            rendererGaveUp &&
-                SystemClock.elapsedRealtime() - rendererDeathsMs.last() >= RENDERER_GIVE_UP_SETTLE_MS -> {
-                Log.i(TAG, "LIVE map renderer give-up lifted")
-                rendererGaveUp = false
-                rendererDeathsMs.clear()
-                rendererGeneration++
-            }
-        }
-    }
+    val rendererRebuildOnReturn = remember { booleanArrayOf(false) }
 
     // Connectivity-recovery reload. The map's data — the OSM tiles and their TileJSON,
     // sprite, glyphs and hosted styles, or the Google Maps script — comes from the
@@ -322,10 +298,10 @@ internal fun WebMapView(
     // waits while the launcher is hidden. A drop back offline withdraws it: a
     // reload then would only fail.
     var reconnectPending by remember { mutableStateOf(false) }
-    // Whether the page on screen came from the reload at the launcher's return
-    // (see liveReloadStep). A drop offline ends it: an edge after that is new.
-    // So does the page's first tile (onPageData): a page that has drawn is
-    // like any other.
+    // Whether the page on screen was built at the launcher's return, by the
+    // return reload or by a rebuild held while hidden (see liveReloadStep). A
+    // drop offline ends it: an edge after that is new. So does the page's first
+    // tile (onPageData): a page that has drawn is like any other.
     val pageFromReturnReload = remember { booleanArrayOf(false) }
     val wasOnline = remember { booleanArrayOf(online) }
     LaunchedEffect(online) {
@@ -473,6 +449,47 @@ internal fun WebMapView(
                 reloadGeneration++
             }
         }
+    }
+    // Renderer containment waits for the launcher like the reloads do
+    // (liveReloadStep): a rebuild behind another app loads a page no one sees
+    // (on Google, a billed map load), and there the system is likely to kill
+    // it again to reclaim memory. So a death's rebuild runs while the launcher
+    // is on screen, and at once on its return; a page rebuilt at the return
+    // claims the late reconnect edge exactly like the return reload's page
+    // (pageFromReturnReload). A return also lifts a give-up that tripped at
+    // least RENDERER_GIVE_UP_SETTLE_MS ago, so one bad stretch does not leave
+    // the map stopped until the app restarts; staying on screen never lifts
+    // it, because this effect restarts only on a lifecycle change or a
+    // death's rebuild.
+    LaunchedEffect(started, rendererRebuildDue) {
+        when {
+            !started -> {}
+
+            rendererRebuildDue -> {
+                rendererRebuildDue = false
+                if (rendererRebuildOnReturn[0]) pageFromReturnReload[0] = true
+                rendererRebuildOnReturn[0] = false
+                rendererGeneration++
+            }
+
+            // The last recorded death is the one that tripped the give-up.
+            rendererGaveUp &&
+                SystemClock.elapsedRealtime() - rendererDeathsMs.last() >= RENDERER_GIVE_UP_SETTLE_MS -> {
+                Log.i(TAG, "LIVE map renderer give-up lifted")
+                rendererGaveUp = false
+                rendererDeathsMs.clear()
+                rendererGeneration++
+            }
+        }
+    }
+    // Records the Google light/dark context each applied composition used
+    // (googleDark). A flip held while hidden rebuilds the page at the return,
+    // and that page claims the late reconnect edge exactly like the return
+    // reload's page (pageFromReturnReload).
+    SideEffect {
+        if (googleFlipHeld[0] && googleDark != builtGoogleDark[0]) pageFromReturnReload[0] = true
+        googleFlipHeld[0] = googleDark != effectiveGoogleDark
+        builtGoogleDark[0] = googleDark
     }
     // The page's success signal (its first tile, see the `tile` bridge event):
     // the map has its data, so the next failure is a new one. It restarts the
@@ -637,6 +654,7 @@ internal fun WebMapView(
                                 rendererGaveUp = true
                             } else {
                                 rendererRebuildDue = true
+                                rendererRebuildOnReturn[0] = !onScreen
                             }
                             return true
                         }
@@ -1184,9 +1202,9 @@ internal sealed interface LiveReloadStep {
 // The dashboard collects its state with the lifecycle, so an edge that came
 // behind another app reaches this composable only once the launcher is back —
 // seconds after the return reload rebuilt the page on the restored network.
-// While the page on screen is that return reload's and has neither failed
-// nor drawn its first tile ([pageFromReturnReload]), such an edge reloads
-// nothing more.
+// While the page on screen was built at the return (by that reload, or by a
+// rebuild held while hidden) and has neither failed nor drawn its first tile
+// ([pageFromReturnReload]), such an edge reloads nothing more.
 internal fun liveReloadStep(
     started: Boolean,
     reconnectPending: Boolean,
