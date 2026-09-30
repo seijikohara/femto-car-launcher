@@ -22,6 +22,7 @@ import io.github.seijikohara.femto.data.map.MapRuntimeSignals
 import io.github.seijikohara.femto.testfixtures.BoundedFailureDetails
 import io.github.seijikohara.femto.testfixtures.FakeLifecycleOwner
 import io.github.seijikohara.femto.testfixtures.NetworkFailureDetails
+import io.github.seijikohara.femto.testfixtures.styleLoadRejectedDetail
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
@@ -414,7 +415,7 @@ class WebMapViewReloadTest {
         val live = page()
         setMapConfig(customStyleConfig(SECOND_STYLE_URL))
         assertSame(live, page(), "the new style loads in the live page")
-        reportFatal("style-load-rejected: AJAXError: Not Found (404): $SECOND_STYLE_URL")
+        reportFatal(styleLoadRejectedDetail(SECOND_STYLE_URL))
         assertEquals(0, pages().size, "the notice replaces the page")
         rule.onNodeWithText(rule.activity.getString(R.string.map_custom_style_failed)).assertExists()
         advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
@@ -427,7 +428,7 @@ class WebMapViewReloadTest {
         val live = page()
         setMapConfig(config.copy(style = MapStyleSetting.DARK))
         assertSame(live, page(), "the flip restyles the live page")
-        reportFatal("style-load-rejected: AJAXError: Not Found (404): $FIRST_STYLE_URL")
+        reportFatal(styleLoadRejectedDetail(FIRST_STYLE_URL))
         assertEquals(0, pages().size, "the notice replaces the page")
     }
 
