@@ -76,9 +76,10 @@ internal class HomeViewModel(
     private val calendarFlow: Flow<CalendarSnapshot?>,
     private val systemStatusFlow: Flow<SystemStatus>,
     private val tripStateFlow: Flow<TripState>,
-    // Whether the device currently has validated internet; drives the live map's
-    // offline->online reload (see WebMapView). Defaults to always-online so previews
-    // and tests that do not exercise recovery are unaffected.
+    // Whether the default network has validated internet
+    // (SystemStatusRepository.onlineFlow); drives the live map's offline->online
+    // reload (see WebMapView). Defaults to always-online so previews and tests that
+    // do not exercise recovery are unaffected.
     private val onlineFlow: Flow<Boolean> = flowOf(true),
     // The updater's state; drives the dock's update badge and the update prompt.
     // Defaults to a build that never checks, so previews and tests that do not

@@ -151,7 +151,7 @@ class SystemStatusRepositoryTest {
                 // Drive the repository's own NetworkCallback the way the framework
                 // would, with a real validated WIFI capability set.
                 val callback = registeredNetworkCallback(shadowConnectivity)
-                callback.onCapabilitiesChanged(WIFI_NETWORK, validatedWifiCapabilities())
+                callback.onCapabilitiesChanged(WIFI_NETWORK, networkCapabilities())
 
                 assertTrue(awaitItem().wifiConnected)
                 cancelAndIgnoreRemainingEvents()
@@ -171,7 +171,7 @@ class SystemStatusRepositoryTest {
                 assertEquals(0, awaitItem().wifiSignalLevel)
 
                 val callback = registeredNetworkCallback(shadowConnectivity)
-                callback.onCapabilitiesChanged(WIFI_NETWORK, validatedWifiCapabilities(rssiDbm = -66))
+                callback.onCapabilitiesChanged(WIFI_NETWORK, networkCapabilities(rssiDbm = -66))
 
                 assertEquals(3, awaitItem().wifiSignalLevel)
                 cancelAndIgnoreRemainingEvents()
@@ -179,7 +179,7 @@ class SystemStatusRepositoryTest {
         }
 
     @Test
-    fun `onlineFlow reports online when a validated network becomes available`() =
+    fun `onlineFlow reports online when the default network has validated internet`() =
         runTest {
             val connectivity = application.getSystemService<ConnectivityManager>()!!
             val shadowConnectivity = shadowOf(connectivity)
@@ -191,7 +191,7 @@ class SystemStatusRepositoryTest {
                 assertFalse(awaitItem())
 
                 val callback = registeredNetworkCallback(shadowConnectivity)
-                callback.onAvailable(WIFI_NETWORK)
+                callback.becomesDefault(WIFI_NETWORK, networkCapabilities())
 
                 assertTrue(awaitItem())
                 cancelAndIgnoreRemainingEvents()
@@ -199,7 +199,7 @@ class SystemStatusRepositoryTest {
         }
 
     @Test
-    fun `onlineFlow returns to offline when the last validated network is lost`() =
+    fun `onlineFlow returns to offline when the default network is lost`() =
         runTest {
             val connectivity = application.getSystemService<ConnectivityManager>()!!
             val shadowConnectivity = shadowOf(connectivity)
@@ -209,12 +209,87 @@ class SystemStatusRepositoryTest {
                 assertFalse(awaitItem())
 
                 val callback = registeredNetworkCallback(shadowConnectivity)
-                callback.onAvailable(WIFI_NETWORK)
+                callback.becomesDefault(WIFI_NETWORK, networkCapabilities())
                 assertTrue(awaitItem())
 
-                // Losing the only validated network empties the tracked set, so the
-                // flow returns offline and a later reconnect is a fresh recovery edge.
+                // A default-network callback hears onLost only when no network takes
+                // over, so the flow returns offline and a later reconnect is a fresh
+                // recovery edge.
                 callback.onLost(WIFI_NETWORK)
+                assertFalse(awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `onlineFlow reads a default network without validated internet as offline`() =
+        runTest {
+            val connectivity = application.getSystemService<ConnectivityManager>()!!
+            val shadowConnectivity = shadowOf(connectivity)
+            shadowConnectivity.clearAllNetworks()
+
+            repository().onlineFlow().test {
+                assertFalse(awaitItem())
+
+                // Connected but not validated: a captive portal, or a router with no
+                // upstream.
+                val callback = registeredNetworkCallback(shadowConnectivity)
+                callback.becomesDefault(WIFI_NETWORK, networkCapabilities(validated = false))
+
+                expectNoEvents()
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `onlineFlow goes offline when the default network loses validation`() =
+        runTest {
+            val connectivity = application.getSystemService<ConnectivityManager>()!!
+            val shadowConnectivity = shadowOf(connectivity)
+            shadowConnectivity.clearAllNetworks()
+
+            repository().onlineFlow().test {
+                assertFalse(awaitItem())
+
+                val callback = registeredNetworkCallback(shadowConnectivity)
+                callback.becomesDefault(WIFI_NETWORK, networkCapabilities())
+                assertTrue(awaitItem())
+
+                // Still the default network, so it is not lost; only its capabilities
+                // change.
+                callback.onCapabilitiesChanged(WIFI_NETWORK, networkCapabilities(validated = false))
+                assertFalse(awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    // A handover with a validated default in place throughout must never read
+    // as an offline->online edge: the map reloads on every such edge.
+    @Test
+    fun `onlineFlow stays online through a Wi-Fi to cellular handover`() =
+        runTest {
+            val connectivity = application.getSystemService<ConnectivityManager>()!!
+            val shadowConnectivity = shadowOf(connectivity)
+            shadowConnectivity.clearAllNetworks()
+
+            repository().onlineFlow().test {
+                assertFalse(awaitItem())
+
+                val callback = registeredNetworkCallback(shadowConnectivity)
+                callback.becomesDefault(WIFI_NETWORK, networkCapabilities())
+                assertTrue(awaitItem())
+
+                // The Wi-Fi drops and the validated cellular network takes over as the
+                // default: the callback hears the new default and nothing about the
+                // old one, which is no longer the network it tracks.
+                callback.becomesDefault(
+                    CELLULAR_NETWORK,
+                    networkCapabilities(NetworkCapabilities.TRANSPORT_CELLULAR),
+                )
+                expectNoEvents()
+
+                // The cellular default then goes with nothing to replace it.
+                callback.onLost(CELLULAR_NETWORK)
                 assertFalse(awaitItem())
                 cancelAndIgnoreRemainingEvents()
             }
@@ -230,7 +305,7 @@ class SystemStatusRepositoryTest {
             // an online cold start must emit true first, not a false the map would treat
             // as an offline->online recovery and needlessly reload on.
             val activeNetwork = connectivity.activeNetwork!!
-            shadowConnectivity.setNetworkCapabilities(activeNetwork, validatedWifiCapabilities())
+            shadowConnectivity.setNetworkCapabilities(activeNetwork, networkCapabilities())
 
             repository().onlineFlow().test {
                 assertTrue(awaitItem())
@@ -479,13 +554,19 @@ class SystemStatusRepositoryTest {
             putExtra(BatteryManager.EXTRA_PLUGGED, plugged)
         }
 
-    private fun validatedWifiCapabilities(rssiDbm: Int? = null): NetworkCapabilities =
+    // A network of [transport] with internet, validated unless [validated] is
+    // false (a captive portal, a router with no upstream).
+    private fun networkCapabilities(
+        transport: Int = NetworkCapabilities.TRANSPORT_WIFI,
+        validated: Boolean = true,
+        rssiDbm: Int? = null,
+    ): NetworkCapabilities =
         ShadowNetworkCapabilities.newInstance().apply {
-            shadowOf(this).addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            shadowOf(this).addTransportType(transport)
             // INTERNET + VALIDATED = real reachable internet: wifiFlow's VALIDATED check
-            // and onlineFlow's INTERNET+VALIDATED seed both read this as online.
+            // and onlineFlow's INTERNET+VALIDATED check both read this as online.
             shadowOf(this).addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-            shadowOf(this).addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            if (validated) shadowOf(this).addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
             // NetworkCapabilities.setSignalStrength(int) is hidden in the public SDK
             // but present at runtime under Robolectric; reflection is the only way to
             // seed a non-unspecified RSSI so wifiLevelFrom reads it.
@@ -496,7 +577,18 @@ class SystemStatusRepositoryTest {
             }
         }
 
+    // A new default network as a default-network callback hears it: onAvailable,
+    // then at once its capabilities (see NetworkCallback.onAvailable).
+    private fun ConnectivityManager.NetworkCallback.becomesDefault(
+        network: Network,
+        capabilities: NetworkCapabilities,
+    ) {
+        onAvailable(network)
+        onCapabilitiesChanged(network, capabilities)
+    }
+
     private companion object {
         val WIFI_NETWORK: Network = ShadowNetwork.newInstance(1)
+        val CELLULAR_NETWORK: Network = ShadowNetwork.newInstance(2)
     }
 }
