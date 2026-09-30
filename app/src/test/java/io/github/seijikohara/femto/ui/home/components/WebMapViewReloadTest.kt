@@ -10,10 +10,13 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.seijikohara.femto.BuildConfig
+import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.MapBackend
+import io.github.seijikohara.femto.data.display.MapColorScheme
 import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.map.MapRuntimeSignals
 import io.github.seijikohara.femto.testfixtures.BoundedFailureDetails
@@ -334,6 +337,40 @@ class WebMapViewReloadTest {
         assertEquals(0, pages().size, "only a return lifts it")
     }
 
+    // A custom style changes inside the live page, while the failure state
+    // re-keys on its URL: the page's fatal must reach the new state.
+    @Test fun `a refused custom style after its URL changed on a live page shows the notice`() {
+        showMap(config = customStyleConfig(FIRST_STYLE_URL))
+        val live = page()
+        setMapConfig(customStyleConfig(SECOND_STYLE_URL))
+        assertSame(live, page(), "the new style loads in the live page")
+        reportFatal("style-load-rejected: AJAXError: Not Found (404): $SECOND_STYLE_URL")
+        assertEquals(0, pages().size, "the notice replaces the page")
+        rule.onNodeWithText(rule.activity.getString(R.string.map_custom_style_failed)).assertExists()
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        assertEquals(1, pages().size, "and the retry reloads it")
+    }
+
+    @Test fun `a refused custom style after a flip onto it on a live page shows the notice`() {
+        val config = customStyleConfig(FIRST_STYLE_URL).copy(schemeLight = MapColorScheme.ACCENT)
+        showMap(config = config.copy(style = MapStyleSetting.LIGHT))
+        val live = page()
+        setMapConfig(config.copy(style = MapStyleSetting.DARK))
+        assertSame(live, page(), "the flip restyles the live page")
+        reportFatal("style-load-rejected: AJAXError: Not Found (404): $FIRST_STYLE_URL")
+        assertEquals(0, pages().size, "the notice replaces the page")
+    }
+
+    @Test fun `a late fatal from a replaced page leaves its successor alone`() {
+        showMap()
+        val replaced = page()
+        reportFatal(NetworkFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        val successor = page()
+        reportFatal(NetworkFailure, page = replaced)
+        assertSame(successor, page())
+    }
+
     private fun showMap(
         onlineAtStart: Boolean = true,
         config: MapConfig = MapConfig(),
@@ -477,6 +514,18 @@ private val RendererCrash =
 private val GoogleAuthFailure = BoundedFailureDetails.first()
 private val GoogleMapsConfig = MapConfig(backend = MapBackend.GOOGLEMAPS, googleMapsApiKey = "test-key")
 private const val OVERRIDE_TILE_HOST = "https://tiles.example.test"
+
+// Both schemes on the user's hosted style, in the light context.
+private fun customStyleConfig(url: String) =
+    MapConfig(
+        style = MapStyleSetting.LIGHT,
+        schemeLight = MapColorScheme.CUSTOM,
+        schemeDark = MapColorScheme.CUSTOM,
+        customStyleUrl = url,
+    )
+
+private const val FIRST_STYLE_URL = "https://styles.example.test/first/style.json"
+private const val SECOND_STYLE_URL = "https://styles.example.test/second/style.json"
 
 // Enough failed pages in a row to put the backoff at its cap.
 private const val OUTAGE_STEPS = 5

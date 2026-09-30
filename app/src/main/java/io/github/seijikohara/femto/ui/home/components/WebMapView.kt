@@ -351,9 +351,10 @@ internal fun WebMapView(
             effectiveTileHostOverride,
         ) { mutableStateOf(false) }
 
-    // Set by a `fatal` bridge event (see the KDoc): the page itself determined it
-    // can never render, so a blank "working" map would be a lie. Like the
-    // renderer-death notice, this only informs — the persisted backend is untouched.
+    // Set by a `fatal` bridge event (see the KDoc), through onPageFatal: the page
+    // itself determined it can never render, so a blank "working" map would be a
+    // lie. Like the renderer-death notice, this only informs — the persisted
+    // backend is untouched.
     // Keyed on backend AND the active backend's BYO credentials so a fatal from one
     // backend does not suppress the other's page, and re-entering a corrected
     // key / Map ID clears a prior failure. reloadGeneration is a key too, so a
@@ -480,6 +481,16 @@ internal fun WebMapView(
         retryAttempts.intValue = 0
         pageFromReturnReload[0] = false
         MapRuntimeSignals.recordDataArrived()
+    }
+    // A page's `fatal`: the notice, and the retry the reload effect derives
+    // from it. Re-bound on every composition like onPageData, and for the same
+    // reason: the failure state re-keys on the URL a custom style loads, which
+    // a live page changes in place (a new URL, or a light/dark flip onto or
+    // off a custom scheme), so state captured when the page was built would
+    // take the fatal where no one reads it.
+    val onPageFatal by rememberUpdatedState { detail: String ->
+        lastFatalDetail = detail
+        liveInitFailed = true
     }
 
     // A page that cannot render gives way to the notice. A dead page whose
@@ -725,10 +736,11 @@ internal fun WebMapView(
                                     // blank; the log tail alone is bounded and drops
                                     // the line once enough logging follows it.
                                     MapRuntimeSignals.recordFailure(detail, SystemClock.elapsedRealtime())
-                                    // Bridge calls arrive on a background thread.
+                                    // Bridge calls arrive on a background thread. A
+                                    // replaced page's late fatal never reaches its
+                                    // successor (livePage).
                                     mainHandler.post {
-                                        lastFatalDetail = detail
-                                        liveInitFailed = true
+                                        if (livePage[0] === this@apply) onPageFatal(detail)
                                     }
                                 }
 
