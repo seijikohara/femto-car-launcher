@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -123,6 +124,8 @@ import kotlinx.coroutines.delay
  * first death rebuilds it in place; repeated deaths within
  * [RENDERER_DEATH_WINDOW_MS] stop the rebuild loop and show a static notice that
  * points back at the Settings Map section. The persisted backend is never rewritten.
+ * Like the reloads, a rebuild waits for the launcher to be on screen, and a return
+ * to the launcher at least [RENDERER_GIVE_UP_SETTLE_MS] after the give-up lifts it.
  *
  * [ON_START][androidx.lifecycle.Lifecycle.Event.ON_START] resumes the WebView and
  * nudges the map to re-measure/repaint; the WebView is paused only on ON_STOP (a
@@ -182,11 +185,27 @@ internal fun WebMapView(
     // rebuild the WebView rather than push into the live page.
     val effectiveGoogleRendering =
         if (mapConfig.backend == MapBackend.GOOGLEMAPS) mapConfig.googleMapsRendering else GoogleMapsRendering.AUTO
+    // Whether the launcher is on screen (the host lifecycle at STARTED or above).
+    // The reloads and rebuilds below wait for it: a reload behind another app
+    // rebuilds a WebView no one sees, and on Google every reload after the map
+    // object exists is a billed map load.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val lifecycleState = lifecycleOwner.lifecycle.currentStateAsState()
+    val started by remember(lifecycleState) {
+        derivedStateOf { lifecycleState.value.isAtLeast(Lifecycle.State.STARTED) }
+    }
     // Google's colour scheme is likewise fixed at construction (MapOptions
     // .colorScheme), so the map follows the light/dark context the way the OSM
     // backend's style push does only by rebuilding the WebView on a flip. OSM
-    // is excluded here so a theme change never reloads the OSM page.
+    // is excluded here so a theme change never reloads the OSM page. The
+    // rebuild is a billed map load, so behind another app it waits: the page
+    // keeps the context it was built for, and the return rebuilds it once,
+    // like the reloads do (liveReloadStep). The holder records the value each
+    // applied composition used, so it is the page's own while hidden.
     val effectiveGoogleDark = mapConfig.backend == MapBackend.GOOGLEMAPS && isDark
+    val builtGoogleDark = remember { booleanArrayOf(effectiveGoogleDark) }
+    val googleDark = if (started) effectiveGoogleDark else builtGoogleDark[0]
+    SideEffect { builtGoogleDark[0] = googleDark }
     // The tile host is OSM-only state by the same logic: an override typed while
     // Google Maps is active must not reload the Google page.
     val effectiveTileHostOverride = if (mapConfig.backend == MapBackend.OSM) mapConfig.tileHostOverride else ""
@@ -212,6 +231,36 @@ internal fun WebMapView(
     var lastRendererDeath by remember { mutableStateOf<String?>(null) }
     val rendererDeathsMs = remember { mutableListOf<Long>() }
     val crashedViews = remember { mutableSetOf<WebView>() }
+    // A death's rebuild, due until the launcher is on screen.
+    var rendererRebuildDue by remember { mutableStateOf(false) }
+    // Renderer containment waits for the launcher like the reloads do
+    // (liveReloadStep): a rebuild behind another app loads a page no one sees
+    // (on Google, a billed map load), and a rebuilt page killed there again
+    // would trip the give-up with no one watching. So a death's rebuild runs
+    // while the launcher is on screen, and at once on its return. A return
+    // also lifts a give-up that tripped at least RENDERER_GIVE_UP_SETTLE_MS
+    // ago, so one bad stretch does not leave the map stopped until the app
+    // restarts; staying on screen never lifts it, because this effect restarts
+    // only on a lifecycle change or a death's rebuild.
+    LaunchedEffect(started, rendererRebuildDue) {
+        when {
+            !started -> {}
+
+            rendererRebuildDue -> {
+                rendererRebuildDue = false
+                rendererGeneration++
+            }
+
+            // The last recorded death is the one that tripped the give-up.
+            rendererGaveUp &&
+                SystemClock.elapsedRealtime() - rendererDeathsMs.last() >= RENDERER_GIVE_UP_SETTLE_MS -> {
+                Log.i(TAG, "LIVE map renderer give-up lifted")
+                rendererGaveUp = false
+                rendererDeathsMs.clear()
+                rendererGeneration++
+            }
+        }
+    }
 
     // Connectivity-recovery reload. The map's data — the OSM tiles and their TileJSON,
     // sprite, glyphs and hosted styles, or the Google Maps script — comes from the
@@ -243,7 +292,7 @@ internal fun WebMapView(
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
-            effectiveGoogleDark,
+            googleDark,
             effectiveTileHostOverride,
             effectiveCustomStyleUrl,
         ) {
@@ -262,15 +311,6 @@ internal fun WebMapView(
     // otherwise the page keeps the host it loaded with and the rotation never
     // reaches the next one.
     val tileHostRotation = remember(tileHosts) { mutableIntStateOf(0) }
-    // Whether the launcher is on screen (the host lifecycle at STARTED or above).
-    // The reload effect below waits for it: a reload behind another app rebuilds
-    // a WebView no one sees, and on Google every reload after the map object
-    // exists is a billed map load.
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val lifecycleState = lifecycleOwner.lifecycle.currentStateAsState()
-    val started by remember(lifecycleState) {
-        derivedStateOf { lifecycleState.value.isAtLeast(Lifecycle.State.STARTED) }
-    }
     // An offline->online edge asks the reload effect for one reload, which
     // waits while the launcher is hidden. A drop back offline withdraws it: a
     // reload then would only fail.
@@ -307,7 +347,7 @@ internal fun WebMapView(
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
-            effectiveGoogleDark,
+            googleDark,
             effectiveTileHostOverride,
         ) { mutableStateOf(false) }
 
@@ -326,7 +366,7 @@ internal fun WebMapView(
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
-            effectiveGoogleDark,
+            googleDark,
             effectiveTileHostOverride,
             effectiveCustomStyleUrl,
         ) {
@@ -339,7 +379,7 @@ internal fun WebMapView(
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
-            effectiveGoogleDark,
+            googleDark,
             effectiveTileHostOverride,
             effectiveCustomStyleUrl,
         ) {
@@ -442,23 +482,32 @@ internal fun WebMapView(
         MapRuntimeSignals.recordDataArrived()
     }
 
-    if (rendererGaveUp || liveInitFailed || googleMapsKeyMissing) {
-        val notice =
-            liveMapNoticeText(
-                rendererGaveUp = rendererGaveUp,
-                googleMapsKeyMissing = googleMapsKeyMissing,
-                googleMapsBackend = googleMapsBackend,
-                customStyleActive = effectiveCustomStyleUrl.isNotBlank(),
-                fatalDetail = lastFatalDetail.takeIf { liveInitFailed },
-            )
+    // A page that cannot render gives way to the notice. A dead page whose
+    // rebuild waits for the launcher (the renderer effect) leaves an empty map
+    // region instead: it must leave the composition at once, since any call on
+    // it can crash.
+    val noticeShown = rendererGaveUp || liveInitFailed || googleMapsKeyMissing
+    if (noticeShown || rendererRebuildDue) {
         Box(modifier = modifier) {
-            ExposedMapRegion(mapConfig = mapConfig) {
-                LiveMapNotice(
-                    titleRes = notice.title,
-                    hintRes = notice.hint,
-                    // Why it failed is debugging detail, not driver-facing content.
-                    reason = (if (rendererGaveUp) lastRendererDeath else lastFatalDetail).takeIf { BuildConfig.DEBUG },
-                )
+            if (noticeShown) {
+                val notice =
+                    liveMapNoticeText(
+                        rendererGaveUp = rendererGaveUp,
+                        googleMapsKeyMissing = googleMapsKeyMissing,
+                        googleMapsBackend = googleMapsBackend,
+                        customStyleActive = effectiveCustomStyleUrl.isNotBlank(),
+                        fatalDetail = lastFatalDetail.takeIf { liveInitFailed },
+                    )
+                ExposedMapRegion(mapConfig = mapConfig) {
+                    LiveMapNotice(
+                        titleRes = notice.title,
+                        hintRes = notice.hint,
+                        // Why it failed is debugging detail, not driver-facing content.
+                        reason = (if (rendererGaveUp) lastRendererDeath else lastFatalDetail).takeIf {
+                            BuildConfig.DEBUG
+                        },
+                    )
+                }
             }
         }
         return
@@ -479,7 +528,7 @@ internal fun WebMapView(
             effectiveGoogleKey,
             effectiveGoogleMapId,
             effectiveGoogleRendering,
-            effectiveGoogleDark,
+            googleDark,
             effectiveTileHostOverride,
         ) {
             val assetLoader =
@@ -562,7 +611,7 @@ internal fun WebMapView(
                             if (rendererDeathsMs.size >= MAX_RENDERER_DEATHS) {
                                 rendererGaveUp = true
                             } else {
-                                rendererGeneration++
+                                rendererRebuildDue = true
                             }
                             return true
                         }
@@ -616,10 +665,10 @@ internal fun WebMapView(
 
                         // Read synchronously by the googlemaps backend module before map
                         // initialisation: the light/dark context as a ColorScheme name.
-                        // Construction-time only, hence effectiveGoogleDark among the
-                        // WebView keys.
+                        // Construction-time only, hence googleDark among the WebView
+                        // keys, and the page reads the same held value its key names.
                         @JavascriptInterface
-                        fun googleMapsColorScheme(): String = if (isDark) "DARK" else "LIGHT"
+                        fun googleMapsColorScheme(): String = if (googleDark) "DARK" else "LIGHT"
 
                         @JavascriptInterface
                         fun onMapEvent(
@@ -1221,3 +1270,11 @@ private const val STYLE_PUSH_DEBOUNCE_MS = 150L
 // window means a crash loop, so the rebuild stops and the notice shows instead.
 private const val RENDERER_DEATH_WINDOW_MS = 5 * 60_000L
 private const val MAX_RENDERER_DEATHS = 2
+
+// How long the renderer give-up holds before a return to the launcher may lift
+// it: the crash-loop window itself, so the deaths that tripped it have aged out
+// of the window and the crash-loop rule judges afresh. A map that still crashes
+// then needs two new deaths inside the window to give up again, so a genuine
+// crash loop costs at most two rebuilds per return, while a give-up tripped by
+// an unlucky pair of kills does not outlast the next return after the window.
+internal const val RENDERER_GIVE_UP_SETTLE_MS = RENDERER_DEATH_WINDOW_MS

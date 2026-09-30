@@ -4,6 +4,7 @@ import android.location.Location
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
@@ -13,6 +14,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.data.display.MapBackend
+import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.map.MapRuntimeSignals
 import io.github.seijikohara.femto.testfixtures.BoundedFailureDetails
 import io.github.seijikohara.femto.testfixtures.FakeLifecycleOwner
@@ -24,6 +26,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowSystemClock
+import java.time.Duration
 import kotlin.test.assertEquals
 import kotlin.test.assertNotSame
 import kotlin.test.assertNull
@@ -265,6 +269,71 @@ class WebMapViewReloadTest {
         assertNull(MapRuntimeSignals.lastFailureOrNull())
     }
 
+    @Test fun `a renderer death while visible rebuilds at once`() {
+        showMap()
+        val dead = page()
+        killRenderer(dead)
+        assertNotSame(dead, page())
+    }
+
+    // A rebuild behind another app loads a page no one sees, and a rebuilt
+    // page killed there again would trip the crash-loop give-up unwatched.
+    @Test fun `a renderer death while hidden rebuilds on the return, not before`() {
+        showMap()
+        val dead = page()
+        setLifecycle(Lifecycle.State.CREATED)
+        killRenderer(dead)
+        advanceBy(TEN_MINUTES_MS)
+        assertEquals(0, pages().size, "no rebuild while hidden")
+        setLifecycle(Lifecycle.State.RESUMED)
+        assertNotSame(dead, page(), "one rebuild on the return")
+    }
+
+    @Test fun `a Google light-dark flip while visible rebuilds at once`() {
+        showMap(config = GoogleMapsConfig.copy(style = MapStyleSetting.LIGHT))
+        val light = page()
+        setMapConfig(GoogleMapsConfig.copy(style = MapStyleSetting.DARK))
+        assertNotSame(light, page())
+        assertEquals("DARK", colorSchemeOf(page()))
+    }
+
+    // Google fixes its colour scheme at construction, so a flip rebuilds the
+    // page: a billed map load, which must wait until someone can see it.
+    @Test fun `a Google light-dark flip while hidden rebuilds on the return, not before`() {
+        showMap(config = GoogleMapsConfig.copy(style = MapStyleSetting.LIGHT))
+        val light = page()
+        setLifecycle(Lifecycle.State.CREATED)
+        setMapConfig(GoogleMapsConfig.copy(style = MapStyleSetting.DARK))
+        advanceBy(TEN_MINUTES_MS)
+        assertSame(light, page(), "no rebuild while hidden")
+        setLifecycle(Lifecycle.State.RESUMED)
+        assertNotSame(light, page(), "one rebuild on the return")
+        assertEquals("DARK", colorSchemeOf(page()))
+    }
+
+    @Test fun `a renderer give-up lifts on a return once the settle period has passed`() {
+        showMap()
+        killRenderer(page())
+        killRenderer(page())
+        assertEquals(0, pages().size, "a second death inside the window gives up")
+        setLifecycle(Lifecycle.State.CREATED)
+        advanceSystemClock(RENDERER_GIVE_UP_SETTLE_MS - MARGIN_MS)
+        setLifecycle(Lifecycle.State.RESUMED)
+        assertEquals(0, pages().size, "a return before the settle period keeps the notice")
+        setLifecycle(Lifecycle.State.CREATED)
+        advanceSystemClock(2 * MARGIN_MS)
+        setLifecycle(Lifecycle.State.RESUMED)
+        assertEquals(1, pages().size, "a return after it rebuilds the map")
+    }
+
+    @Test fun `a renderer give-up stays while the launcher stays on screen`() {
+        showMap()
+        killRenderer(page())
+        killRenderer(page())
+        advanceSystemClock(RENDERER_GIVE_UP_SETTLE_MS + MARGIN_MS)
+        assertEquals(0, pages().size, "only a return lifts it")
+    }
+
     private fun showMap(
         onlineAtStart: Boolean = true,
         config: MapConfig = MapConfig(),
@@ -330,9 +399,35 @@ class WebMapViewReloadTest {
         }
 
     // The tile host [page] loads with, read through its bridge getter.
-    private fun tileHostOf(page: WebView): String {
+    private fun tileHostOf(page: WebView): String = bridgeGetter(page, "tileHost")
+
+    // The colour scheme a Google [page] is built with, read the same way.
+    private fun colorSchemeOf(page: WebView): String = bridgeGetter(page, "googleMapsColorScheme")
+
+    private fun bridgeGetter(
+        page: WebView,
+        name: String,
+    ): String {
         val bridge = bridgeOf(page)
-        return bridge.javaClass.getMethod("tileHost").invoke(bridge) as String
+        return bridge.javaClass.getMethod(name).invoke(bridge) as String
+    }
+
+    // A renderer death as the platform reports it, through the page's client.
+    private fun killRenderer(page: WebView) {
+        shadowOf(page).webViewClient.onRenderProcessGone(page, RendererCrash)
+        settle()
+    }
+
+    // The clock renderer containment reads (SystemClock); the compose test
+    // clock does not move it.
+    private fun advanceSystemClock(ms: Long) {
+        ShadowSystemClock.advanceBy(Duration.ofMillis(ms))
+        settle()
+    }
+
+    private fun setMapConfig(config: MapConfig) {
+        mapConfig.value = config
+        settle()
     }
 
     private fun setLifecycle(state: Lifecycle.State) {
@@ -370,6 +465,13 @@ private fun View.webViews(): List<WebView> =
     }
 
 private val NetworkFailure = NetworkFailureDetails.first()
+
+private val RendererCrash =
+    object : RenderProcessGoneDetail() {
+        override fun didCrash() = true
+
+        override fun rendererPriorityAtExit() = 0
+    }
 
 // A rejected Google key: a bounded failure, retried only within the budget.
 private val GoogleAuthFailure = BoundedFailureDetails.first()
