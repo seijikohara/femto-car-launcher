@@ -68,6 +68,10 @@ import java.io.File
 
 private const val TAG = "HomeViewModel"
 
+// The connectivity reading the dashboard assumes before the first one arrives
+// (see HomeViewModel.online).
+private const val ASSUMED_ONLINE = true
+
 internal class HomeViewModel(
     private val locationFlow: Flow<Location?>,
     private val addressFlow: Flow<ShortAddress?>,
@@ -77,9 +81,9 @@ internal class HomeViewModel(
     private val systemStatusFlow: Flow<SystemStatus>,
     private val tripStateFlow: Flow<TripState>,
     // Whether the default network has validated internet
-    // (SystemStatusRepository.onlineFlow); drives the live map's offline->online
-    // reload (see WebMapView). Defaults to always-online so previews and tests that
-    // do not exercise recovery are unaffected.
+    // (SystemStatusRepository.onlineFlow); backs [online]. Defaults to
+    // always-online so previews and tests that do not exercise recovery are
+    // unaffected.
     private val onlineFlow: Flow<Boolean> = flowOf(true),
     // The updater's state; drives the dock's update badge and the update prompt.
     // Defaults to a build that never checks, so previews and tests that do not
@@ -123,7 +127,7 @@ internal class HomeViewModel(
             .distinctUntilChanged()
             .catchAsDefault(TAG, "update badge", false)
 
-    // Kotlin's typed combine overloads cover at most 5 flows. Stage the nine
+    // Kotlin's typed combine overloads cover at most 5 flows. Stage the eight
     // sources through a typed intermediate (CoreSignals) so the compiler enforces
     // arity and per-slot types end-to-end: a future reorder fails to compile
     // instead of silently mismapping a positional values[i] cast.
@@ -149,8 +153,7 @@ internal class HomeViewModel(
             calendarFlow.catchAsDefault(TAG, "calendar", HomeUiState.Initial.calendar),
             systemStatusFlow.catchAsDefault(TAG, "system status", HomeUiState.Initial.systemStatus),
             tripStateFlow.catchAsDefault(TAG, "trip state", HomeUiState.Initial.tripState),
-            onlineFlow.catchAsDefault(TAG, "connectivity", HomeUiState.Initial.online),
-        ) { core, calendar, systemStatus, tripState, online ->
+        ) { core, calendar, systemStatus, tripState ->
             HomeUiState(
                 location = core.location,
                 address = core.address,
@@ -159,10 +162,24 @@ internal class HomeViewModel(
                 calendar = calendar,
                 systemStatus = systemStatus,
                 tripState = tripState,
-                online = online,
                 updateBadge = core.updateBadge,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, HomeUiState.Initial)
+
+    /**
+     * Whether the default network has validated internet, for the live map's
+     * offline->online reload (WebMapView). Its own state, apart from [uiState]:
+     * the combine emits only once every source has, so after a return the
+     * reading would reach the map only when the slowest source spoke again,
+     * seconds after the page the return reload built, which a late
+     * offline->online edge then reloads a second time. Starts online, so a
+     * dashboard that has not heard yet never shows the map a false
+     * offline->online edge.
+     */
+    val online: StateFlow<Boolean> =
+        onlineFlow
+            .catchAsDefault(TAG, "connectivity", ASSUMED_ONLINE)
+            .stateIn(viewModelScope, WhileUiSubscribed, ASSUMED_ONLINE)
 
     /**
      * The build the dashboard's update prompt asks about, or null: an offer

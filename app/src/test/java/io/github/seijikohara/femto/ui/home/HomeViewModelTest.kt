@@ -90,9 +90,6 @@ class HomeViewModelTest {
             val calendar = fakeCalendarSnapshot()
             val systemStatus = fakeSystemStatus()
             val tripState = fakeTripState()
-            // Distinct from HomeUiState.Initial.online (true) so the assertion pins
-            // this field to its own flow rather than the default.
-            val online = false
             val viewModel =
                 HomeViewModel(
                     locationFlow = flowOf(location),
@@ -102,7 +99,6 @@ class HomeViewModelTest {
                     calendarFlow = flowOf(calendar),
                     systemStatusFlow = flowOf(systemStatus),
                     tripStateFlow = flowOf(tripState),
-                    onlineFlow = flowOf(online),
                 )
             viewModel.uiState.test {
                 val state = awaitItem()
@@ -113,9 +109,33 @@ class HomeViewModelTest {
                 assertEquals(calendar, state.calendar)
                 assertEquals(systemStatus, state.systemStatus)
                 assertEquals(tripState, state.tripState)
-                assertEquals(online, state.online)
                 cancelAndIgnoreRemainingEvents()
             }
+        }
+
+    // The map's reconnect must not wait for the rest of the dashboard: held back
+    // until every source emits again after a return, it reaches the map after
+    // the page the return reload built, which then reloads a second time.
+    @Test
+    fun `the online reading reaches the map while another dashboard source has not emitted`() =
+        runTest {
+            val viewModel =
+                HomeViewModel(
+                    locationFlow = flowOf(fakeLocation()),
+                    addressFlow = flowOf(fakeAddress()),
+                    weatherFlow = flowOf(fakeWeatherSnapshot()),
+                    musicStateFlow = flowOf(MusicCardState.Playing(fakeNowPlaying())),
+                    // A source still loading, like a slow calendar query.
+                    calendarFlow = flow { awaitCancellation() },
+                    systemStatusFlow = flowOf(fakeSystemStatus()),
+                    tripStateFlow = flowOf(fakeTripState()),
+                    onlineFlow = flowOf(false),
+                )
+            backgroundScope.launch { viewModel.uiState.collect {} }
+            backgroundScope.launch { viewModel.online.collect {} }
+            runCurrent()
+            assertEquals(HomeUiState.Initial, viewModel.uiState.value, "the dashboard state still waits")
+            assertFalse(viewModel.online.value)
         }
 
     @Test
