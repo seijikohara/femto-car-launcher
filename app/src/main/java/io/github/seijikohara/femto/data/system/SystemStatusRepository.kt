@@ -114,11 +114,13 @@ internal class SystemStatusRepository(
      * upstream. Transport-agnostic on purpose, unlike [wifiFlow] / [cellularFlow],
      * which report per-transport dock state.
      *
-     * Exists for the live map: the map WebView fetches its map data from the network,
-     * so a page opened offline cannot render and cannot recover on its own. The host
-     * reloads the page on the offline->online edge this flow reports (at once, or on
-     * the launcher's return when it is hidden); its retry backoff covers data that
-     * returns with no such edge. WebMapView owns both.
+     * Two consumers read it. The live map: the map WebView fetches its map data from
+     * the network, so a page opened offline cannot render and cannot recover on its
+     * own. The host reloads the page on the offline->online edge this flow reports (at
+     * once, or on the launcher's return when it is hidden); its retry backoff covers
+     * data that returns with no such edge. WebMapView owns both. And the updater's
+     * automatic check (UpdateRepository): it runs only while this reads `true`, judged
+     * again on every clock tick and every change of this flow.
      *
      * It follows the default network, the one the map's requests actually use,
      * rather than any validated one. A handover (Wi-Fi out of range, cellular taking
