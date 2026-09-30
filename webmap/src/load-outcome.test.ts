@@ -11,6 +11,8 @@ import { TERRAIN_SOURCE_ID } from "./style";
 const TILE_HOST = "https://tiles.openfreemap.org";
 // The bundled styles' vector source, served by the tile host.
 const VECTOR_SOURCE_ID = "openmaptiles";
+// The success signal the first tile of a style sends the host.
+const DATA_ARRIVED = `tile=${VECTOR_SOURCE_ID}`;
 const GRACE_MS = 10_000;
 // The first error a page opened without data logs: the vector source's
 // TileJSON fetch, which MapLibre never repeats. Status 0: no response.
@@ -133,13 +135,40 @@ describe("createNoTileWatchdog", () => {
         expect(h.events).toEqual([`fatal=tile-host-unreachable: ${TILEJSON_FORBIDDEN}`]);
     });
 
-    it("stays silent when a tile arrives within the grace", () => {
+    it("reports no fatal when a tile arrives within the grace", () => {
         const h = noTileHarness();
         h.watchdog.onError(TILEJSON_FAILURE, 0);
         h.advance(GRACE_MS / 2);
         h.watchdog.onTile(VECTOR_SOURCE_ID);
         h.advance(GRACE_MS);
+        expect(h.events).toEqual([DATA_ARRIVED]);
+    });
+
+    it("reports the first tile of the style to the host once", () => {
+        // The host's success signal: it restarts the retry backoff on it, so
+        // a tile per request would be noise.
+        const h = noTileHarness();
+        h.watchdog.onTile(VECTOR_SOURCE_ID);
+        h.watchdog.onTile(VECTOR_SOURCE_ID);
+        // The bundled light style's relief raster, also from the tile host.
+        h.watchdog.onTile("ne2_shaded");
+        expect(h.events).toEqual([DATA_ARRIVED]);
+    });
+
+    it("does not report a terrain DEM tile as the page's data", () => {
+        // The DEM host answering says nothing about the tile host.
+        const h = noTileHarness();
+        h.watchdog.onTile(TERRAIN_SOURCE_ID);
         expect(h.events).toEqual([]);
+    });
+
+    it("reports the first tile of a swapped-in style again", () => {
+        // A swap is judged like a fresh page, and so is its data.
+        const h = noTileHarness();
+        h.watchdog.onTile(VECTOR_SOURCE_ID);
+        h.watchdog.onStyleSwap();
+        h.watchdog.onTile(VECTOR_SOURCE_ID);
+        expect(h.events).toEqual([DATA_ARRIVED, DATA_ARRIVED]);
     });
 
     it("does not count a terrain DEM tile as the tile host answering", () => {
@@ -163,7 +192,10 @@ describe("createNoTileWatchdog", () => {
         h.watchdog.onError(TILEJSON_FAILURE, 0);
         h.watchdog.onTile(TERRAIN_SOURCE_ID);
         h.advance(GRACE_MS);
-        expect(h.events).toEqual([`fatal=tile-host-unreachable: ${TILEJSON_FAILURE}`]);
+        expect(h.events).toEqual([
+            DATA_ARRIVED,
+            `fatal=tile-host-unreachable: ${TILEJSON_FAILURE}`,
+        ]);
     });
 
     it("retires a timer armed for the replaced style", () => {
@@ -186,7 +218,7 @@ describe("createNoTileWatchdog", () => {
         h.watchdog.onTile(VECTOR_SOURCE_ID);
         h.watchdog.onError(`AJAXError: Failed to fetch (0): ${TILE_HOST}/planet/1/0/0.pbf`, 0);
         h.advance(GRACE_MS);
-        expect(h.events).toEqual([]);
+        expect(h.events).toEqual([DATA_ARRIVED]);
     });
 
     it("arms once per page", () => {

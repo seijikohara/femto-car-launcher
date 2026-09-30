@@ -11,6 +11,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import io.github.seijikohara.femto.BuildConfig
+import io.github.seijikohara.femto.data.display.MapBackend
+import io.github.seijikohara.femto.data.map.MapRuntimeSignals
+import io.github.seijikohara.femto.testfixtures.BoundedFailureDetails
 import io.github.seijikohara.femto.testfixtures.FakeLifecycleOwner
 import io.github.seijikohara.femto.testfixtures.NetworkFailureDetails
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -22,16 +26,18 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertNotSame
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 
 /**
  * Wiring tests for [WebMapView]'s reload schedule: a failed page reloads on
  * the backoff while the launcher is visible, never while it is hidden, and
  * once at once on its return; an offline->online edge that arrives while
- * hidden reloads on the return too. The page is the real WebMapView over a
- * Robolectric WebView: a fatal arrives through the registered `femtoBridge`
- * the way the page sends it, the failure notice replaces the WebView, and a
- * reload shows as a new WebView instance.
+ * hidden reloads on the return too; the OSM page's first tile restarts the
+ * backoff. The page is the real WebMapView over a Robolectric WebView: an
+ * event arrives through the registered `femtoBridge` the way the page sends
+ * it, the failure notice replaces the WebView, and a reload shows as a new
+ * WebView instance.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -41,6 +47,7 @@ class WebMapViewReloadTest {
 
     private val host = FakeLifecycleOwner()
     private val online = mutableStateOf(true)
+    private val mapConfig = mutableStateOf(MapConfig())
 
     @Test fun `a network failure while visible reloads after the backoff`() {
         showMap()
@@ -158,8 +165,112 @@ class WebMapViewReloadTest {
         assertEquals(1, pages().size, "the reconnect reloads the failed page at once")
     }
 
-    private fun showMap(onlineAtStart: Boolean = true) {
+    // After a long outage the backoff sits at its cap; the page's data coming
+    // back must bring the next, unrelated failure down to the first step.
+    @Test fun `a first tile restarts the backoff`() {
+        showMap()
+        failPages(OUTAGE_STEPS)
+        reportTile()
+        reportFatal(NetworkFailure)
+        advanceBy(liveReloadRetryDelayMs(0) - MARGIN_MS)
+        assertEquals(0, pages().size)
+        advanceBy(2 * MARGIN_MS)
+        assertEquals(1, pages().size, "the failure after the data came back reloads on the first step")
+    }
+
+    // A page a reload replaced can still deliver a late event; like its late
+    // fatal, it must never act on its successor.
+    @Test fun `a first tile from a replaced page leaves the backoff alone`() {
+        showMap()
+        val replaced = page()
+        reportFatal(NetworkFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        reportTile(page = replaced)
+        reportFatal(NetworkFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        assertEquals(0, pages().size, "the backoff kept its second step")
+        advanceBy(liveReloadRetryDelayMs(1) - liveReloadRetryDelayMs(0))
+        assertEquals(1, pages().size)
+    }
+
+    // Google's tile events can fire on a page that then reports a rejected
+    // key; a reset there would turn the bounded, billed retries into an
+    // endless billed loop.
+    @Test fun `a tile from a Google page leaves the backoff alone`() {
+        showMap(config = GoogleMapsConfig)
+        reportFatal(GoogleAuthFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        reportTile()
+        reportFatal(GoogleAuthFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        assertEquals(0, pages().size, "the billed retries kept their count")
+        advanceBy(liveReloadRetryDelayMs(1) - liveReloadRetryDelayMs(0))
+        assertEquals(1, pages().size)
+    }
+
+    @Test fun `a first tile ends the return reload's claim on a later reconnect`() {
+        showMap(onlineAtStart = false)
+        reportFatal(NetworkFailure)
+        setLifecycle(Lifecycle.State.CREATED)
+        setLifecycle(Lifecycle.State.RESUMED)
+        val returned = page()
+        reportTile()
+        setOnline(true)
+        assertNotSame(returned, page(), "a page that has drawn reloads on a reconnect like any other")
+    }
+
+    // Two hosts: the return reload moved to the second; a reconnect it
+    // covered must not send the next reload back to the host that page holds.
+    @Test fun `a reconnect a return reload covered keeps the tile host rotation`() {
+        showMap(onlineAtStart = false, config = MapConfig(tileHostOverride = OVERRIDE_TILE_HOST))
+        val hosts = mapTileHosts(OVERRIDE_TILE_HOST, BuildConfig.MAP_TILE_HOST)
+        assertEquals(2, hosts.size, "the override and the build default")
+        assertEquals(hosts[0], tileHostOf(page()))
+        reportFatal(NetworkFailure)
+        setLifecycle(Lifecycle.State.CREATED)
+        setLifecycle(Lifecycle.State.RESUMED)
+        val returned = page()
+        assertEquals(hosts[1], tileHostOf(returned))
+        setOnline(true)
+        assertSame(returned, page(), "the return reload covered the reconnect")
+        reportFatal(NetworkFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        assertEquals(hosts[0], tileHostOf(page()), "the next reload moves on from the host that failed")
+    }
+
+    // OSM sends `ready` once its style has loaded, which a page without data
+    // does too, so only the first tile may clear the diagnostics' record.
+    @Test fun `an OSM ready leaves the diagnostics' last failure standing`() {
+        showMap()
+        reportFatal(NetworkFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        reportReady()
+        assertEquals(NetworkFailure, MapRuntimeSignals.lastFailureOrNull()?.detail)
+    }
+
+    @Test fun `a first tile clears the diagnostics' last failure`() {
+        showMap()
+        reportFatal(NetworkFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        reportTile()
+        assertNull(MapRuntimeSignals.lastFailureOrNull())
+    }
+
+    // The Google page's `ready` is its first `tilesloaded`: tiles, not a style.
+    @Test fun `a Google ready still clears the diagnostics' last failure`() {
+        showMap(config = GoogleMapsConfig)
+        reportFatal(GoogleAuthFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        reportReady()
+        assertNull(MapRuntimeSignals.lastFailureOrNull())
+    }
+
+    private fun showMap(
+        onlineAtStart: Boolean = true,
+        config: MapConfig = MapConfig(),
+    ) {
         online.value = onlineAtStart
+        mapConfig.value = config
         host.moveTo(Lifecycle.State.RESUMED)
         rule.mainClock.autoAdvance = false
         rule.setContent {
@@ -167,7 +278,7 @@ class WebMapViewReloadTest {
                 FemtoTheme {
                     WebMapView(
                         location = Location("test"),
-                        mapConfig = MapConfig(),
+                        mapConfig = mapConfig.value,
                         onTap = {},
                         online = online.value,
                     )
@@ -183,14 +294,45 @@ class WebMapViewReloadTest {
 
     private fun page(): WebView = pages().single()
 
-    // A `fatal` as the page sends it: through the bridge object the host
-    // registered on the current WebView.
-    private fun reportFatal(detail: String) {
-        val bridge = shadowOf(page()).getJavascriptInterface("femtoBridge")
+    // The bridge object the host registered on [page], as the page script
+    // reaches it.
+    private fun bridgeOf(page: WebView): Any = shadowOf(page).getJavascriptInterface("femtoBridge")
+
+    // An event as the page sends it: through the bridge of [page], the one on
+    // screen unless a test replays a page a reload replaced.
+    private fun report(
+        kind: String,
+        detail: String,
+        page: WebView = page(),
+    ) {
+        val bridge = bridgeOf(page)
         bridge.javaClass
             .getMethod("onMapEvent", String::class.java, String::class.java)
-            .invoke(bridge, "fatal", detail)
+            .invoke(bridge, kind, detail)
         settle()
+    }
+
+    private fun reportFatal(
+        detail: String,
+        page: WebView = page(),
+    ) = report("fatal", detail, page)
+
+    // The OSM page's success signal: the first tile of its style.
+    private fun reportTile(page: WebView = page()) = report("tile", "openmaptiles", page)
+
+    private fun reportReady() = report("ready", "test renderer")
+
+    // Fails [steps] pages in a row, each reloaded once its backoff step passes.
+    private fun failPages(steps: Int) =
+        repeat(steps) { attempt ->
+            reportFatal(NetworkFailure)
+            advanceBy(liveReloadRetryDelayMs(attempt) + MARGIN_MS)
+        }
+
+    // The tile host [page] loads with, read through its bridge getter.
+    private fun tileHostOf(page: WebView): String {
+        val bridge = bridgeOf(page)
+        return bridge.javaClass.getMethod("tileHost").invoke(bridge) as String
     }
 
     private fun setLifecycle(state: Lifecycle.State) {
@@ -228,6 +370,14 @@ private fun View.webViews(): List<WebView> =
     }
 
 private val NetworkFailure = NetworkFailureDetails.first()
+
+// A rejected Google key: a bounded failure, retried only within the budget.
+private val GoogleAuthFailure = BoundedFailureDetails.first()
+private val GoogleMapsConfig = MapConfig(backend = MapBackend.GOOGLEMAPS, googleMapsApiKey = "test-key")
+private const val OVERRIDE_TILE_HOST = "https://tiles.example.test"
+
+// Enough failed pages in a row to put the backoff at its cap.
+private const val OUTAGE_STEPS = 5
 private const val TEN_MINUTES_MS = 10 * 60_000L
 
 // Wide enough to cover the frames each settle() runs, far below any backoff step.

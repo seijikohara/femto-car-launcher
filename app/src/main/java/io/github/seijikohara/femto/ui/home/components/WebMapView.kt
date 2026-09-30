@@ -88,16 +88,18 @@ import kotlinx.coroutines.delay
  * notice below rather than a silent blank map.
  *
  * The page reports into the host over a one-method [JavascriptInterface] bridge
- * (`window.femtoBridge.onMapEvent(kind, detail)`). Five kinds exist: `ready` for
+ * (`window.femtoBridge.onMapEvent(kind, detail)`). The kinds: `ready` for
  * the first frame the backend actually painted (recorded in
  * [MapRuntimeSignals] for the MAP diagnostics section, which otherwise could not
- * tell a working map from one that failed silently), `error`
+ * tell a working map from one that failed silently), `tile` for the OSM page's
+ * first tile of its current style (its success signal), `error`
  * for transient resource failures (tile / style / DEM fetch — logged, never UI,
  * because the removed auto-downgrade misfired on exactly such ambiguous signals),
  * `fatal` for definitive never-going-to-render facts about the page (no WebGL
  * context, a missing BYO credential, map construction threw, or the page's map
- * data never arrived), `follow` for camera-follow state flips,
- * and `bearing` (throttled) for the compass overlay. A `fatal` swaps the
+ * data never arrived), `follow` for camera-follow state flips, `frames` for the
+ * page's own frame cadence (diagnostics), and `bearing` (throttled) for the
+ * compass overlay. A `fatal` swaps the
  * permanently-blank WebView for a static notice (centred in the exposed map
  * region, clear of the floating cards) that names the cause, pointing back at
  * the Settings Map section where a setting can fix it — same posture as
@@ -109,6 +111,8 @@ import kotlinx.coroutines.delay
  * validated, a configuration failure (a refused request, an exception once
  * the map library loaded) retries within a small budget, and the
  * non-self-healing notices (missing credential, renderer give-up) never retry.
+ * The OSM page's `tile` restarts the backoff, so the failure after an outage
+ * starts at the short first step again.
  *
  * Renderer-death containment is the one exception to "do nothing": without an
  * [android.webkit.WebViewClient.onRenderProcessGone] override the platform kills
@@ -231,13 +235,8 @@ internal fun WebMapView(
     // remembers): it steps the backoff, and spends the bounded budget of the
     // failures that have one. Deliberately NOT keyed on reloadGeneration — each
     // retry bumps that — so the count survives its own reloads; a
-    // backend/credential change or a connectivity edge resets it.
-    //
-    // The count also selects the OSM tile host the rebuilt page reads
-    // (`tileHost()` walks [tileHosts] by attempt), so every write here must be
-    // paired with a reloadGeneration bump in the same non-suspending block —
-    // otherwise the page keeps the host it loaded with and the rotation never
-    // reaches the next one.
+    // backend/credential change, a connectivity edge, or the page's first tile
+    // (its success signal, see onPageData) resets it.
     val retryAttempts =
         remember(
             mapConfig.backend,
@@ -250,6 +249,19 @@ internal fun WebMapView(
         ) {
             mutableIntStateOf(0)
         }
+    // Which of [tileHosts] the next page loads from: `tileHost()` walks the
+    // list by it. Its own count, apart from the backoff step, because the two
+    // restart at different times: a success signal or a reconnect the return
+    // reload covered restarts the step, yet the page on screen still holds the
+    // host it loaded with, so the next reload must move on from there — or a
+    // two-host setup would load the same host twice in a row. A new host list
+    // starts over at its first host (the override).
+    //
+    // The page reads the host once, at load, so every write here must be
+    // paired with a reloadGeneration bump in the same non-suspending block —
+    // otherwise the page keeps the host it loaded with and the rotation never
+    // reaches the next one.
+    val tileHostRotation = remember(tileHosts) { mutableIntStateOf(0) }
     // Whether the launcher is on screen (the host lifecycle at STARTED or above).
     // The reload effect below waits for it: a reload behind another app rebuilds
     // a WebView no one sees, and on Google every reload after the map object
@@ -265,6 +277,8 @@ internal fun WebMapView(
     var reconnectPending by remember { mutableStateOf(false) }
     // Whether the page on screen came from the reload at the launcher's return
     // (see liveReloadStep). A drop offline ends it: an edge after that is new.
+    // So does the page's first tile (onPageData): a page that has drawn is
+    // like any other.
     val pageFromReturnReload = remember { booleanArrayOf(false) }
     val wasOnline = remember { booleanArrayOf(online) }
     LaunchedEffect(online) {
@@ -334,6 +348,12 @@ internal fun WebMapView(
     // Bridge callbacks arrive on a WebView-managed background thread; Compose
     // state writes must land on the main thread.
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
+    // The WebView whose page is on screen, or null while a notice shows (set
+    // by the effect beside the WebView below). A page a reload or rebuild
+    // replaced can still deliver a late bridge event, and it must never act on
+    // its successor's state; a bridge handler posted to the main thread checks
+    // its own view against this first.
+    val livePage = remember { arrayOfNulls<WebView>(1) }
 
     // A blank key with the Google Maps backend is a configuration error that will
     // never self-heal at runtime — show the notice immediately so the map area is
@@ -348,9 +368,8 @@ internal fun WebMapView(
     // that stayed validated; the edge only makes recovery faster. The
     // non-self-healing notices (missing credential, renderer give-up) never
     // retry. Each retry also advances the OSM tile host the rebuilt page reads
-    // (tileHost() below walks the list by attempt), so an unreachable override
-    // falls back to the default host on the next attempt instead of being
-    // reloaded forever.
+    // (tileHostRotation), so an unreachable override falls back to the default
+    // host on the next attempt instead of being reloaded forever.
     val retryDelayMs =
         lastFatalDetail
             ?.takeIf { liveInitFailed && !rendererGaveUp && !googleMapsKeyMissing }
@@ -385,8 +404,12 @@ internal fun WebMapView(
                 // A connectivity edge is a new world: restart the backoff short,
                 // and give a bounded failure that spent its budget fresh attempts.
                 retryAttempts.intValue = 0
+                // Only a reload starts the host rotation over. The page a
+                // covered reconnect leaves on screen keeps the host it loaded
+                // with, so the rotation stays where that page left it.
                 if (step == LiveReloadStep.Reconnect) {
                     Log.i(TAG, "LIVE map reload: back online")
+                    tileHostRotation.intValue = 0
                     reloadGeneration++
                 }
             }
@@ -396,11 +419,27 @@ internal fun WebMapView(
                 reloadHeld[0] = false
                 pageFromReturnReload[0] = step.onReturn
                 retryAttempts.intValue++
+                tileHostRotation.intValue++
                 val cause = if (step.onReturn) "on return" else "backoff"
                 Log.i(TAG, "LIVE map reload: retry ${retryAttempts.intValue} ($cause)")
                 reloadGeneration++
             }
         }
+    }
+    // The page's success signal (its first tile, see the `tile` bridge event):
+    // the map has its data, so the next failure is a new one. It restarts the
+    // backoff, which an outage leaves at its cap, and ends the return reload's
+    // claim on a later reconnect (pageFromReturnReload), which would otherwise
+    // absorb an edge long after the page it describes has drawn. The host
+    // rotation stays: the page on screen still holds its host. Re-bound on
+    // every composition so it acts on the current retry state: a live page
+    // outlives some of it (a new custom style URL re-keys retryAttempts
+    // without rebuilding the page), and state captured when the page was
+    // built would be written where no one reads it.
+    val onPageData by rememberUpdatedState {
+        retryAttempts.intValue = 0
+        pageFromReturnReload[0] = false
+        MapRuntimeSignals.recordDataArrived()
     }
 
     if (rendererGaveUp || liveInitFailed || googleMapsKeyMissing) {
@@ -541,10 +580,10 @@ internal fun WebMapView(
                         // Read synchronously by the osm backend module before map
                         // initialisation: the origin that serves tiles, styles, sprites
                         // and glyphs — the user's override when set, else the build
-                        // default — walked by retry attempt so a dead host gives way
-                        // to the next on the following reload (tileHostForAttempt).
+                        // default — walked by the host rotation so a dead host gives
+                        // way to the next on the following reload (tileHostAt).
                         @JavascriptInterface
-                        fun tileHost(): String = tileHostForAttempt(tileHosts, retryAttempts.intValue)
+                        fun tileHost(): String = tileHostAt(tileHosts, tileHostRotation.intValue)
 
                         // The raster-DEM TileJSON the page injects while the Terrain
                         // switch is on; a build-time endpoint (MAP_TERRAIN_TILEJSON_URL).
@@ -591,9 +630,35 @@ internal fun WebMapView(
                                 // The backend painted its first frame. Recorded for
                                 // the MAP diagnostics section, which otherwise cannot
                                 // tell a working map from one that failed silently —
-                                // onPageFinished only proves the script ran.
+                                // onPageFinished only proves the script ran. Google's
+                                // `ready` is its first tilesloaded, so its data is in;
+                                // the OSM page sends `ready` once its style has
+                                // loaded, which a page without data does too (a
+                                // failed TileJSON counts as loaded), so its data is
+                                // `tile`'s to report.
                                 "ready" -> {
                                     MapRuntimeSignals.recordRendered(detail)
+                                    if (googleMapsBackend) MapRuntimeSignals.recordDataArrived()
+                                }
+
+                                // The OSM page's success signal: the first tile of
+                                // its current style arrived (webmap/src/load-outcome.ts).
+                                // Never `ready`, for the reason above. Honoured from
+                                // the OSM page only: a Google page's tile events can
+                                // fire on a page that then reports a rejected key,
+                                // and a reset there would turn its bounded retries,
+                                // each one a billed map load, into an endless billed
+                                // loop. A replaced page's late signal is dropped
+                                // (livePage).
+                                "tile" -> {
+                                    if (!googleMapsBackend) {
+                                        mainHandler.post {
+                                            if (livePage[0] === this@apply) {
+                                                Log.i(TAG, "LIVE map data arrived")
+                                                onPageData()
+                                            }
+                                        }
+                                    }
                                 }
 
                                 // Transient by definition (tile / style / DEM
@@ -755,6 +820,13 @@ internal fun WebMapView(
                 null,
             )
         }
+    }
+
+    // Marks this page as the one on screen for the bridge's staleness check
+    // (livePage); a replaced page's disposal runs before its successor's start.
+    DisposableEffect(webView) {
+        livePage[0] = webView
+        onDispose { livePage[0] = null }
     }
 
     DisposableEffect(lifecycleOwner, webView) {
@@ -926,15 +998,16 @@ internal fun mapTileHosts(
         .filter { it.isNotBlank() }
         .distinct()
 
-// The host the page loads with on a given auto-retry attempt: the list is walked
-// round-robin, so an unreachable override gives way to the default on the next
-// reload and a refunded budget starts over at the override. Empty (a build that
-// blanked MAP_TILE_HOST with no override set) yields no host, and the page falls
-// back to the upstream origin its styles are written against.
-internal fun tileHostForAttempt(
+// The host the page loads with at a given point of WebMapView's host rotation:
+// the list is walked round-robin, so an unreachable override gives way to the
+// default on the next reload and a reconnect's reload starts over at the
+// override. Empty (a build that blanked MAP_TILE_HOST with no override set)
+// yields no host, and the page falls back to the upstream origin its styles are
+// written against.
+internal fun tileHostAt(
     hosts: List<String>,
-    attempt: Int,
-): String = if (hosts.isEmpty()) "" else hosts[attempt % hosts.size]
+    rotation: Int,
+): String = if (hosts.isEmpty()) "" else hosts[rotation % hosts.size]
 
 // Page URL for the active map backend: one entry page, selected by the
 // ?backend= query parameter (the value set mirrors webmap/src/backend-name.ts,
@@ -1036,8 +1109,9 @@ internal sealed interface LiveReloadStep {
 // The dashboard collects its state with the lifecycle, so an edge that came
 // behind another app reaches this composable only once the launcher is back —
 // seconds after the return reload rebuilt the page on the restored network.
-// While the page on screen is that return reload's and has not failed
-// ([pageFromReturnReload]), such an edge reloads nothing more.
+// While the page on screen is that return reload's and has neither failed
+// nor drawn its first tile ([pageFromReturnReload]), such an edge reloads
+// nothing more.
 internal fun liveReloadStep(
     started: Boolean,
     reconnectPending: Boolean,

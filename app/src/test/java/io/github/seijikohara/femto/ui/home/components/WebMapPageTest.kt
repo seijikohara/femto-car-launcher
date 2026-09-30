@@ -82,14 +82,14 @@ class WebMapPageTest {
 
     @Test fun `retries walk the host list round-robin`() {
         val hosts = listOf("a", "b")
-        assertEquals("a", tileHostForAttempt(hosts, 0))
-        assertEquals("b", tileHostForAttempt(hosts, 1))
-        assertEquals("a", tileHostForAttempt(hosts, 2))
-        assertEquals("only", tileHostForAttempt(listOf("only"), 5))
+        assertEquals("a", tileHostAt(hosts, 0))
+        assertEquals("b", tileHostAt(hosts, 1))
+        assertEquals("a", tileHostAt(hosts, 2))
+        assertEquals("only", tileHostAt(listOf("only"), 5))
         // A build that blanked MAP_TILE_HOST with no override leaves no host to
         // walk; the page falls back to the upstream origin rather than crashing
         // the modulo.
-        assertEquals("", tileHostForAttempt(emptyList(), 0))
+        assertEquals("", tileHostAt(emptyList(), 0))
     }
 
     @Test fun `live reload retry backoff doubles then caps at a minute`() {

@@ -60,7 +60,11 @@ the next host when there is one; `liveReloadRetryDelayMsOrNull` in
 `WebMapView.kt` owns the retry policy. Errors after a tile of the
 current style has arrived stay log-only, never UI; a style swap
 starts the judgement afresh, because it can re-create the vector
-source and fetch its TileJSON again.
+source and fetch its TileJSON again. That first tile of each style is
+also the OSM page's success signal, `tile`, on which the host
+restarts its retry backoff — never `ready`, which a page without data
+sends too. The Google page reports none (the reason sits beside the
+emitter in `src/load-outcome.ts`).
 
 The fatal's kind tells the host whether a reload can help. The page
 classifies every load failure in `src/load-outcome.ts`:
