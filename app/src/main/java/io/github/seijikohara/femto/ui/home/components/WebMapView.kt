@@ -633,14 +633,21 @@ internal fun WebMapView(
                         }
 
                         // Returning true claims the renderer death; the default kills
-                        // the whole launcher process. The dead view must be detached
-                        // and destroyed here — any other call on it can crash.
+                        // the whole launcher process.
                         override fun onRenderProcessGone(
                             view: WebView,
                             detail: RenderProcessGoneDetail,
+                        ): Boolean = onRendererGone(view, crashed = detail.didCrash())
+
+                        // The containment itself, apart from the platform's detail
+                        // object (which apps may not construct), so tests can report
+                        // a death. The dead view must be detached and destroyed here
+                        // — any other call on it can crash.
+                        fun onRendererGone(
+                            view: WebView,
+                            crashed: Boolean,
                         ): Boolean {
-                            val description =
-                                if (detail.didCrash()) "renderer crashed" else "renderer killed by the system"
+                            val description = if (crashed) "renderer crashed" else "renderer killed by the system"
                             Log.e(TAG, "WebView $description; containing")
                             crashedViews += view
                             (view.parent as? ViewGroup)?.removeView(view)

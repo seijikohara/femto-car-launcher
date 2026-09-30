@@ -4,7 +4,6 @@ import android.location.Location
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
-import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
@@ -554,7 +553,12 @@ class WebMapViewReloadTest {
 
     // A renderer death as the platform reports it, through the page's client.
     private fun killRenderer(page: WebView) {
-        shadowOf(page).webViewClient.onRenderProcessGone(page, RendererCrash)
+        // Reached past onRenderProcessGone, whose detail object apps may not
+        // construct.
+        val client = shadowOf(page).webViewClient
+        client.javaClass
+            .getMethod("onRendererGone", WebView::class.java, Boolean::class.javaPrimitiveType)
+            .invoke(client, page, true)
         settle()
     }
 
@@ -605,13 +609,6 @@ private fun View.webViews(): List<WebView> =
     }
 
 private val NetworkFailure = NetworkFailureDetails.first()
-
-private val RendererCrash =
-    object : RenderProcessGoneDetail() {
-        override fun didCrash() = true
-
-        override fun rendererPriorityAtExit() = 0
-    }
 
 // A rejected Google key: a bounded failure, retried only within the budget.
 private val GoogleAuthFailure = BoundedFailureDetails.first()
