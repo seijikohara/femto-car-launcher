@@ -302,10 +302,14 @@ internal fun WebMapView(
     // Whether the page on screen was built at the launcher's return, by the
     // return reload or by a rebuild held while hidden (see liveReloadStep). A
     // drop offline ends it: an edge after that is new. So does the page's first
-    // tile (onPageData): a page that has drawn is like any other.
+    // tile (onPageData): a page that has drawn is like any other. A page built
+    // at a return the launcher made still offline claims nothing (each claim
+    // below is gated on `online`, and the return's reading clears an older
+    // claim here): no restored network stood behind it, so a later reconnect
+    // is a genuine one and reloads at once.
     val pageFromReturnReload = remember { booleanArrayOf(false) }
     val wasOnline = remember { booleanArrayOf(online) }
-    LaunchedEffect(online) {
+    LaunchedEffect(online, started) {
         if (online && !wasOnline[0]) reconnectPending = true
         if (!online) {
             reconnectPending = false
@@ -449,7 +453,7 @@ internal fun WebMapView(
                     return@LaunchedEffect
                 }
                 reloadHeld[0] = false
-                pageFromReturnReload[0] = step.onReturn
+                pageFromReturnReload[0] = step.onReturn && online
                 retryAttempts.intValue++
                 tileHostRotation.intValue++
                 val cause = if (step.onReturn) "on return" else "backoff"
@@ -475,7 +479,7 @@ internal fun WebMapView(
 
             rendererRebuildDue -> {
                 rendererRebuildDue = false
-                if (rendererRebuildOnReturn[0]) pageFromReturnReload[0] = true
+                if (rendererRebuildOnReturn[0] && online) pageFromReturnReload[0] = true
                 rendererRebuildOnReturn[0] = false
                 rendererGeneration++
             }
@@ -495,7 +499,7 @@ internal fun WebMapView(
     // and that page claims the late reconnect edge exactly like the return
     // reload's page (pageFromReturnReload).
     SideEffect {
-        if (googleFlipHeld[0] && googleDark != builtGoogleDark[0]) pageFromReturnReload[0] = true
+        if (googleFlipHeld[0] && googleDark != builtGoogleDark[0] && online) pageFromReturnReload[0] = true
         googleFlipHeld[0] = googleDark != effectiveGoogleDark
         builtGoogleDark[0] = googleDark
     }

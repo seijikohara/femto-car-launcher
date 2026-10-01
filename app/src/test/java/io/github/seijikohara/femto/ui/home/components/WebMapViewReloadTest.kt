@@ -166,19 +166,31 @@ class WebMapViewReloadTest {
         assertSame(first, page())
     }
 
-    // The dashboard collects its state with the lifecycle, so a reconnect that
-    // happened behind another app reaches the map only after the return —
-    // seconds after the return reload has already rebuilt the page.
-    @Test fun `a reconnect seen just after the return reload does not reload again`() {
+    // A launcher hidden while offline comes back to a network that returned
+    // meanwhile: the fresh reading and the return land before one frame, and
+    // the return reload already runs on that network, so the offline->online
+    // edge the same return brings must not reload it again.
+    @Test fun `a return to a restored network reloads the failed page once`() {
         showMap(onlineAtStart = false)
         reportFatal(NetworkFailure)
         setLifecycle(Lifecycle.State.CREATED)
         advanceBy(TEN_MINUTES_MS)
-        setLifecycle(Lifecycle.State.RESUMED)
-        val reloaded = page()
-        setOnline(true)
+        returnWith(online = true)
+        assertEquals(1, pagesOver(RETURN_FRAMES).size, "one page built at the return")
+    }
+
+    // A launcher that comes back still offline has no restored network for
+    // its return reload to have used, so a later reconnect is a new one.
+    @Test fun `a reconnect after returning while still offline reloads at once`() {
+        showMap(onlineAtStart = false)
+        reportFatal(NetworkFailure)
+        setLifecycle(Lifecycle.State.CREATED)
         advanceBy(TEN_MINUTES_MS)
-        assertSame(reloaded, page(), "the return reload already covered the reconnect")
+        returnWith(online = false)
+        settle()
+        val returned = page()
+        setOnline(true)
+        assertNotSame(returned, page(), "the reconnect reloads the page at once")
     }
 
     @Test fun `a return-reloaded page that fails again still reloads at once on a reconnect`() {
@@ -262,20 +274,17 @@ class WebMapViewReloadTest {
         assertNotSame(returned, page(), "a page that has drawn reloads on a reconnect like any other")
     }
 
-    // Two hosts: the return reload moved to the second; a reconnect it
-    // covered must not send the next reload back to the host that page holds.
-    @Test fun `a reconnect a return reload covered keeps the tile host rotation`() {
-        showMap(onlineAtStart = false, config = MapConfig(tileHostOverride = OVERRIDE_TILE_HOST))
+    // Two hosts: a retry moved to the second; the success signal restarts the
+    // backoff step but must not send the next reload back to the host that
+    // page holds.
+    @Test fun `a first tile restarts the backoff but keeps the tile host rotation`() {
+        showMap(config = MapConfig(tileHostOverride = OVERRIDE_TILE_HOST))
         val hosts = mapTileHosts(OVERRIDE_TILE_HOST, BuildConfig.MAP_TILE_HOST)
         assertEquals(2, hosts.size, "the override and the build default")
         assertEquals(hosts[0], tileHostOf(page()))
-        reportFatal(NetworkFailure)
-        setLifecycle(Lifecycle.State.CREATED)
-        setLifecycle(Lifecycle.State.RESUMED)
-        val returned = page()
-        assertEquals(hosts[1], tileHostOf(returned))
-        setOnline(true)
-        assertSame(returned, page(), "the return reload covered the reconnect")
+        failPages(1)
+        assertEquals(hosts[1], tileHostOf(page()))
+        reportTile()
         reportFatal(NetworkFailure)
         advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
         assertEquals(hosts[0], tileHostOf(page()), "the next reload moves on from the host that failed")
@@ -362,28 +371,46 @@ class WebMapViewReloadTest {
     }
 
     // Like the return reload's page, a page rebuilt at the return was built on
-    // the network the launcher came back to: a reconnect edge that reaches the
-    // map after it must not reload it again (on Google, a second billed load).
-    @Test fun `a reconnect seen just after the return's renderer rebuild does not reload again`() {
+    // the network the launcher came back to: the offline->online edge the same
+    // return brings must not reload it again (on Google, a second billed load).
+    @Test fun `a return to a restored network builds the renderer rebuild once`() {
         showMap(onlineAtStart = false)
         setLifecycle(Lifecycle.State.CREATED)
         killRenderer(page())
-        setLifecycle(Lifecycle.State.RESUMED)
-        val rebuilt = page()
-        setOnline(true)
-        advanceBy(TEN_MINUTES_MS)
-        assertSame(rebuilt, page(), "the rebuild at the return covered the reconnect")
+        returnWith(online = true)
+        assertEquals(1, pagesOver(RETURN_FRAMES).size, "one page built at the return")
     }
 
-    @Test fun `a reconnect seen just after the return's Google light-dark rebuild does not reload again`() {
+    @Test fun `a return to a restored network builds the Google light-dark rebuild once`() {
         showMap(onlineAtStart = false, config = GoogleMapsConfig.copy(style = MapStyleSetting.LIGHT))
         setLifecycle(Lifecycle.State.CREATED)
         setMapConfig(GoogleMapsConfig.copy(style = MapStyleSetting.DARK))
-        setLifecycle(Lifecycle.State.RESUMED)
+        returnWith(online = true)
+        assertEquals(1, pagesOver(RETURN_FRAMES).size, "one page built at the return")
+    }
+
+    // Returning still offline, the page rebuilt at the return claims nothing:
+    // a later reconnect is a new one.
+    @Test fun `a reconnect after returning offline reloads the renderer rebuild`() {
+        showMap(onlineAtStart = false)
+        setLifecycle(Lifecycle.State.CREATED)
+        killRenderer(page())
+        returnWith(online = false)
+        settle()
         val rebuilt = page()
         setOnline(true)
-        advanceBy(TEN_MINUTES_MS)
-        assertSame(rebuilt, page(), "the rebuild at the return covered the reconnect")
+        assertNotSame(rebuilt, page())
+    }
+
+    @Test fun `a reconnect after returning offline reloads the Google light-dark rebuild`() {
+        showMap(onlineAtStart = false, config = GoogleMapsConfig.copy(style = MapStyleSetting.LIGHT))
+        setLifecycle(Lifecycle.State.CREATED)
+        setMapConfig(GoogleMapsConfig.copy(style = MapStyleSetting.DARK))
+        returnWith(online = false)
+        settle()
+        val rebuilt = page()
+        setOnline(true)
+        assertNotSame(rebuilt, page())
     }
 
     // Only a rebuild at the return claims the edge: one on screen is like any
@@ -596,6 +623,25 @@ class WebMapViewReloadTest {
         settle()
     }
 
+    // Returns to the launcher as a device does: the connectivity reading the
+    // dashboard collects again on ON_START and the return itself both land
+    // before the first frame composes either.
+    private fun returnWith(online: Boolean) {
+        this.online.value = online
+        host.moveTo(Lifecycle.State.RESUMED)
+    }
+
+    // Every page on screen over [frames] frames, one frame at a time, so a page
+    // built and replaced inside one settle still counts.
+    private fun pagesOver(frames: Int): Set<WebView> =
+        (1..frames)
+            .flatMap {
+                shadowOf(Looper.getMainLooper()).idle()
+                rule.mainClock.advanceTimeByFrame()
+                shadowOf(Looper.getMainLooper()).idle()
+                pages()
+            }.toSet()
+
     private fun setOnline(value: Boolean) {
         online.value = value
         settle()
@@ -651,6 +697,9 @@ private const val TEN_MINUTES_MS = 10 * 60_000L
 // Wide enough to cover the frames each settle() runs, far below any backoff step.
 private const val MARGIN_MS = 500L
 private const val SETTLE_FRAMES = 3
+
+// Frames enough for a return's effects and the reloads they start to settle.
+private const val RETURN_FRAMES = 10
 
 // The compose test clock's frame, and half of it.
 private const val FRAME_MS = 16L
