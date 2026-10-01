@@ -385,16 +385,16 @@ class WebMapViewReloadTest {
     @Test fun `a reconnect reaching a loading page restarts the backoff and keeps the host rotation`() {
         showMap(config = MapConfig(tileHostOverride = OVERRIDE_TILE_HOST))
         val hosts = mapTileHosts(OVERRIDE_TILE_HOST, BuildConfig.MAP_TILE_HOST)
-        failPages(2)
+        failPages(1)
         val loading = page()
-        assertEquals(hosts[0], tileHostOf(loading))
+        assertEquals(hosts[1], tileHostOf(loading))
         setOnline(false)
         setOnline(true)
         assertSame(loading, page(), "the loading page is kept")
         reportFatal(NetworkFailure)
         advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
         assertEquals(1, pages().size, "the backoff restarted at its first step")
-        assertEquals(hosts[1], tileHostOf(page()), "the rotation moved on from the kept page")
+        assertEquals(hosts[0], tileHostOf(page()), "the rotation moved on from the kept page")
     }
 
     @Test fun `a reconnect reaching a loaded page reloads it`() {
