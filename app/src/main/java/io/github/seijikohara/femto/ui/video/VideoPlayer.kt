@@ -16,20 +16,32 @@ import kotlinx.coroutines.flow.StateFlow
 private const val TAG = "VideoPlayer"
 
 /**
+ * Where the UI draws the picture: the surface side of [VideoPlayer], and all
+ * of it the UI sees. Playback stays the ViewModel's to drive.
+ */
+internal interface VideoSurfaceHost {
+    /** The picture's width-to-height ratio once the file reports it, or null before then. */
+    val videoAspectRatio: StateFlow<Float?>
+
+    /** Draw the picture into [view]. */
+    fun attach(view: TextureView)
+
+    /** Stop drawing into [view]; playback and its audio go on. */
+    fun detach(view: TextureView)
+}
+
+/**
  * The video window's player, owned by [VideoViewModel] so playback outlives
  * the composition: the dashboard leaving the screen detaches the surface
- * ([detach]) and the audio keeps playing. [ExoVideoPlayer] is the production
+ * ([VideoSurfaceHost.detach]) and the audio keeps playing. [ExoVideoPlayer] is the production
  * implementation; tests substitute an in-memory fake. Every call runs on the
  * main thread.
  */
-internal interface VideoPlayer {
+internal interface VideoPlayer : VideoSurfaceHost {
     val isPlaying: StateFlow<Boolean>
 
     /** Whether the loaded file failed to play (unreadable, or a format the device cannot decode). */
     val failed: StateFlow<Boolean>
-
-    /** The picture's width-to-height ratio once the file reports it, or null before then. */
-    val videoAspectRatio: StateFlow<Float?>
 
     /** Load [uri] (a content URI), paused, in place of anything loaded before. */
     fun load(uri: String)
@@ -40,12 +52,6 @@ internal interface VideoPlayer {
 
     /** Stop playback and free the decoders; the next [load] starts afresh. */
     fun stop()
-
-    /** Draw the picture into [view]. */
-    fun attach(view: TextureView)
-
-    /** Stop drawing into [view]; playback and its audio go on. */
-    fun detach(view: TextureView)
 
     fun release()
 }

@@ -57,8 +57,8 @@ internal class VideoViewModel(
     // play, say) still loads it again: the store alone would not change.
     private val picks = MutableStateFlow(0)
 
-    /** Where the UI attaches and detaches the player's surface. */
-    val surfaceHost: VideoPlayer get() = player
+    /** Where the UI attaches and detaches the player's surface; nothing more of the player. */
+    val surfaceHost: VideoSurfaceHost get() = player
 
     val uiState: StateFlow<VideoUiState> =
         combine(

@@ -25,7 +25,7 @@ import androidx.lifecycle.compose.currentStateAsState
  */
 @Composable
 internal fun VideoSurface(
-    host: VideoPlayer,
+    host: VideoSurfaceHost,
     modifier: Modifier = Modifier,
 ) {
     val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
