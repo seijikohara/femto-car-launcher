@@ -158,6 +158,19 @@ class UpdatePreferencesTest {
         }
 
     @Test
+    fun `clearing below a version drops only an older skip`() =
+        runTest {
+            val store = clearedStore()
+            store.setSkippedVersionCode(SKIPPED)
+
+            store.clearSkipBelow(SKIPPED)
+            assertEquals(SKIPPED, store.settings.first().skippedVersionCode)
+
+            store.clearSkipBelow(SKIPPED + 1)
+            assertNull(store.settings.first().skippedVersionCode)
+        }
+
+    @Test
     fun `nothing is prompted without a record`() {
         assertFalse(UpdateSettings.Default.promptedFor(PROMPTED))
     }

@@ -1580,6 +1580,28 @@ class UpdateRepositoryTest {
         }
 
     @Test
+    fun `a skip of the newer build tapped while its offer is recorded survives`() =
+        runTest {
+            val repository = availableRepository()
+            repository.skip()
+            runCurrent()
+            val newest = fakeUpdateManifest(NEWER + 1)
+            feed.latestResult = FeedResult.Found(newest)
+            // The check's record of the newer offer reads the store and then
+            // waits, holding the old skip it read.
+            val gate = store.gateReads()
+            repository.checkNow()
+            runCurrent()
+
+            repository.skip()
+            runCurrent()
+            gate.complete(Unit)
+            runCurrent()
+
+            assertEquals(newest.versionCode, store.current.skippedVersionCode)
+        }
+
+    @Test
     fun `a check that finds the skipped build again keeps the skip`() =
         runTest {
             val repository = availableRepository()

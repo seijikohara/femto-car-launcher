@@ -623,13 +623,7 @@ internal class UpdateRepository internal constructor(
         if (!outcome.isResting()) return
         val offer = outcome.offerOrNull()
         store.setOffer(offer)
-        if (offer != null && store.settings
-                .first()
-                .skippedVersionCode
-                ?.let { it < offer.versionCode } == true
-        ) {
-            store.setSkippedVersionCode(null)
-        }
+        offer?.let { store.clearSkipBelow(it.versionCode) }
     }
 
     // A quiet check behind a verified download replaces it only with a strictly

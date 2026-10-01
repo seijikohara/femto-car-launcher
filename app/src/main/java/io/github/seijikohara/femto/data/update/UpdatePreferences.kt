@@ -130,6 +130,12 @@ internal interface UpdateSettingsStore {
     /** Record the versionCode of the build the user skipped; null clears the record. */
     suspend fun setSkippedVersionCode(versionCode: Int?)
 
+    /**
+     * Clear a skip of a build older than [versionCode]; a skip of that build
+     * or a newer one stays.
+     */
+    suspend fun clearSkipBelow(versionCode: Int)
+
     /** Record the versionCode of a build refused as signed with another key; null clears the record. */
     suspend fun setRefusedVersionCode(versionCode: Int?)
 
@@ -186,6 +192,14 @@ internal class UpdatePreferences(
 
     override suspend fun setSkippedVersionCode(versionCode: Int?) {
         context.updateDataStore.editOrLog(TAG) { it.setOrRemove(SKIPPED_KEY, versionCode) }
+    }
+
+    // Read and written in one edit, so a skip of the newer build recorded
+    // meanwhile is never cleared by a read that predates it.
+    override suspend fun clearSkipBelow(versionCode: Int) {
+        context.updateDataStore.editOrLog(TAG) { prefs ->
+            if (prefs[SKIPPED_KEY]?.let { it < versionCode } == true) prefs.remove(SKIPPED_KEY)
+        }
     }
 
     override suspend fun setRefusedVersionCode(versionCode: Int?) {
