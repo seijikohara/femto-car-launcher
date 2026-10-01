@@ -277,6 +277,26 @@ class WebMapViewReloadTest {
         assertEquals(NetworkFailure, MapRuntimeSignals.lastFailureOrNull()?.detail)
     }
 
+    // A Google page a reload replaced can still deliver its `ready`; it says
+    // nothing about the page on screen, whose failure must stay on record.
+    @Test fun `a late Google ready from a replaced page leaves the last failure on record`() {
+        showMap(config = GoogleMapsConfig)
+        val replaced = page()
+        reportFatal(GoogleAuthFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        reportFatal(NetworkFailure)
+        report("ready", "test renderer", page = replaced)
+        assertEquals(NetworkFailure, MapRuntimeSignals.lastFailureOrNull()?.detail)
+    }
+
+    @Test fun `a Google ready right behind the page's own fatal leaves the last failure on record`() {
+        showMap(config = GoogleMapsConfig)
+        send("fatal", GoogleAuthFailure)
+        send("ready", "test renderer")
+        settle()
+        assertEquals(GoogleAuthFailure, MapRuntimeSignals.lastFailureOrNull()?.detail)
+    }
+
     @Test fun `a first tile clears the diagnostics' last failure`() {
         showMap()
         reportFatal(NetworkFailure)

@@ -490,6 +490,12 @@ internal fun WebMapView(
             MapRuntimeSignals.recordDataArrived()
         }
     }
+    // A Google page's `ready` (its first tilesloaded): its data is in, so the
+    // diagnostics' last failure clears, unless the page has already reported
+    // its fatal. The retry state stays: a Google page sends no success signal.
+    val onGoogleData by rememberUpdatedState {
+        if (!liveInitFailed) MapRuntimeSignals.recordDataArrived()
+    }
     // A page's `fatal`: the notice, and the retry the reload effect derives
     // from it. Re-bound on every composition like onPageData, and for the same
     // reason: the failure state re-keys on the URL a custom style loads, which
@@ -665,7 +671,13 @@ internal fun WebMapView(
                                 // `tile`'s to report.
                                 "ready" -> {
                                     MapRuntimeSignals.recordRendered(detail)
-                                    if (googleMapsBackend) MapRuntimeSignals.recordDataArrived()
+                                    // Like `tile`: only the page on screen, and only
+                                    // while it has not failed, may clear a failure.
+                                    if (googleMapsBackend) {
+                                        mainHandler.post {
+                                            if (livePage[0] === this@apply) onGoogleData()
+                                        }
+                                    }
                                 }
 
                                 // The OSM page's success signal: the first tile of
