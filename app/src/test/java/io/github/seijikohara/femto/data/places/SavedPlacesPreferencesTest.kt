@@ -57,11 +57,17 @@ class SavedPlacesPreferencesTest {
             store.add("Office", PlaceTarget.Query("Office"))
             store.add("Home", PlaceTarget.Query("Home"))
             store.add("Gym", PlaceTarget.Query("Gym"))
-            val issued = store.places.first().map { it.id }.toSet()
+            val issued = store.places
+                .first()
+                .map { it.id }
+                .toSet()
 
             // Delete a middle and the newest place: the list's largest id plus
             // one would then hand out an id issued before.
-            store.places.first().drop(1).forEach { store.delete(it.id) }
+            store.places
+                .first()
+                .drop(1)
+                .forEach { store.delete(it.id) }
             store.add("Park", PlaceTarget.Query("Park"))
 
             val park = store.places.first().single { it.label == "Park" }
