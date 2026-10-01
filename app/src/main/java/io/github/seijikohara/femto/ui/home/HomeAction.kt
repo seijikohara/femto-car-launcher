@@ -4,6 +4,7 @@ import android.content.ComponentName
 import io.github.seijikohara.femto.data.dock.DockNavId
 import io.github.seijikohara.femto.data.dock.DockStatusId
 import io.github.seijikohara.femto.data.music.MusicCommand
+import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
 
 internal sealed interface HomeAction {
@@ -13,7 +14,28 @@ internal sealed interface HomeAction {
 
     data object OpenAppDrawer : HomeAction
 
+    /**
+     * Open the maps app at the current position: the map's own tap and the
+     * destination panel's header link.
+     */
     data object OpenMaps : HomeAction
+
+    /**
+     * The dock's Navigation button: open the destination panel. Handled at the
+     * dashboard overlay layer (DashboardContent intercepts it, as it does
+     * [OpenAppDrawer]); a no-op if it ever reaches the ViewModel.
+     */
+    data object OpenDestinations : HomeAction
+
+    /**
+     * Hand [target] to the user's navigation app: the destination panel's
+     * Navigate (a typed or dictated query) or a tap on a saved place. [label]
+     * names the pin a saved point drops; a query ignores it.
+     */
+    data class Navigate(
+        val target: PlaceTarget,
+        val label: String = "",
+    ) : HomeAction
 
     data object ConnectMusicPlayer : HomeAction
 

@@ -51,6 +51,8 @@ import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.hasCoarseLocationPermission
 import io.github.seijikohara.femto.data.location.hasFineLocationPermission
+import io.github.seijikohara.femto.data.places.PlaceTarget
+import io.github.seijikohara.femto.data.places.geoHandoffUri
 import io.github.seijikohara.femto.data.system.SystemPermissionSignals
 import io.github.seijikohara.femto.data.update.UpdateChannel
 import io.github.seijikohara.femto.data.update.dismissUpdateNotification
@@ -451,6 +453,10 @@ class MainActivity : ComponentActivity() {
                 launchGeo(event.latitude, event.longitude)
             }
 
+            is HomeEvent.LaunchDestination -> {
+                launchDestination(event.target, event.label)
+            }
+
             is HomeEvent.AdjustMapZoom -> {
                 // Atomic in the store: rapid taps must not recompute from the
                 // composition's display snapshot and lose steps.
@@ -599,6 +605,20 @@ class MainActivity : ComponentActivity() {
         // the position — no provider or package is hard-coded.
         val intent =
             Intent(Intent.ACTION_VIEW, "geo:$latitude,$longitude?z=$MAPS_ZOOM_LEVEL".toUri())
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        tryStartActivity(intent)
+    }
+
+    // The destination panel's hand-off: the same package-agnostic geo: intent
+    // as launchGeo, carrying a query or a labelled point (geoHandoffUri). A
+    // device without a geo: handler is a silent no-op, and tryStartActivity
+    // logs only the action, never the destination.
+    private fun launchDestination(
+        target: PlaceTarget,
+        label: String,
+    ) {
+        val intent =
+            Intent(Intent.ACTION_VIEW, geoHandoffUri(target, label).toUri())
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         tryStartActivity(intent)
     }
