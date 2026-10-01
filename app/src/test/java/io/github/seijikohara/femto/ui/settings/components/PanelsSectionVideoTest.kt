@@ -93,6 +93,13 @@ class PanelsSectionVideoTest {
     }
 
     @Test
+    fun `the file row says when a picked file could not be kept`() {
+        setSection(enabled.copy(file = VideoFileSummary.Named("parked.mkv"), pickFailed = true))
+
+        rule.onNodeWithText("The app couldn't keep access to that file. Pick another.").assertExists()
+    }
+
+    @Test
     fun `turning the gate off asks first and does nothing on cancel`() {
         setSection(enabled)
 

@@ -57,6 +57,10 @@ internal class VideoViewModel(
     // play, say) still loads it again: the store alone would not change.
     private val picks = MutableStateFlow(0)
 
+    // Whether the last pick could not be kept (adoptSource refused it); the
+    // next pick clears it.
+    private val pickFailed = MutableStateFlow(false)
+
     /** Where the UI attaches and detaches the player's surface; nothing more of the player. */
     val surfaceHost: VideoSurfaceHost get() = player
 
@@ -66,11 +70,13 @@ internal class VideoViewModel(
             loaded,
             player.isPlaying,
             player.failed,
-        ) { settings, isLoaded, playing, failed ->
+            pickFailed,
+        ) { settings, isLoaded, playing, failed, refused ->
             VideoUiState(
                 windowEnabled = settings.windowEnabled,
                 fileReady = isLoaded && !failed,
                 playing = playing,
+                pickFailed = refused,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, VideoUiState.Off)
 
@@ -103,7 +109,9 @@ internal class VideoViewModel(
 
             is VideoAction.FilePicked -> {
                 viewModelScope.launch {
-                    if (withContext(ioDispatcher) { store.adoptSource(action.uri, grants) }) picks.update { it + 1 }
+                    pickFailed.value = false
+                    val kept = withContext(ioDispatcher) { store.adoptSource(action.uri, grants) }
+                    if (kept) picks.update { it + 1 } else pickFailed.value = true
                 }
             }
 

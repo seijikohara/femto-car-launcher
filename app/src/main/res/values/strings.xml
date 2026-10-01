@@ -154,6 +154,7 @@
     <string name="video_pause">Pause</string>
     <string name="video_expand">Open the video player</string>
     <string name="video_close">Close the video window</string>
+    <string name="video_pick_failed">The app couldn\'t keep access to that file. Pick another.</string>
 
     <!-- Dashboard footer: navigation -->
     <string name="nav_phone">Phone</string>

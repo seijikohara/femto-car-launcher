@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.ui.home.components
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -87,10 +88,27 @@ internal fun VideoWindow(
                 modifier = Modifier.align(Alignment.BottomEnd),
             )
         } else {
-            PickVideoPrompt(modifier = Modifier.align(Alignment.Center))
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                PickVideoPrompt()
+                if (state.pickFailed) PickFailedLine(modifier = Modifier.padding(horizontal = FemtoDimens.CardPadding))
+            }
         }
     }
 }
+
+/** Why the last pick did not take: its provider refused a lasting read grant. */
+@Composable
+internal fun PickFailedLine(modifier: Modifier = Modifier) =
+    Text(
+        text = stringResource(R.string.video_pick_failed),
+        style = MaterialTheme.typography.cardCtaHint(),
+        color = MaterialTheme.colorScheme.error,
+        textAlign = TextAlign.Center,
+        modifier = modifier,
+    )
 
 /**
  * The picture, or in its place the line that says why it is hidden. A hidden

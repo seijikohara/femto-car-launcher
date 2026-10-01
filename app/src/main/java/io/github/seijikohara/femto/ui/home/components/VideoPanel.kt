@@ -99,6 +99,7 @@ internal fun VideoPanel(
                     },
                 )
             }
+            if (state.pickFailed) PickFailedLine(modifier = Modifier.fillMaxWidth())
             // The largest 16:9 frame the remaining space holds, centred.
             BoxWithConstraints(
                 modifier = Modifier.fillMaxWidth().weight(1f),

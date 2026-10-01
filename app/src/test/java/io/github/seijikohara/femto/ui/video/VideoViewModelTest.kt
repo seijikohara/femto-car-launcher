@@ -144,6 +144,37 @@ class VideoViewModelTest {
         }
 
     @Test
+    fun `a file whose grant the provider refuses says so and keeps the current file`() =
+        runTest(dispatcher) {
+            enableWith(FILE)
+            val refusing = FakeVideoSourceGrants(held = setOf(FILE), grantable = setOf(FILE))
+            val viewModel = viewModel(grants = refusing)
+            subscribe(viewModel)
+
+            viewModel.onAction(VideoAction.FilePicked(OTHER_FILE))
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.pickFailed)
+            assertEquals(FILE, player.loaded)
+        }
+
+    @Test
+    fun `a pick that is kept clears the refusal`() =
+        runTest(dispatcher) {
+            enableWith(FILE)
+            val refusing = FakeVideoSourceGrants(held = setOf(FILE), grantable = setOf(FILE))
+            val viewModel = viewModel(grants = refusing)
+            subscribe(viewModel)
+            viewModel.onAction(VideoAction.FilePicked(OTHER_FILE))
+            advanceUntilIdle()
+
+            viewModel.onAction(VideoAction.FilePicked(FILE))
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.pickFailed)
+        }
+
+    @Test
     fun `picking the same file again after a failure loads it again`() =
         runTest(dispatcher) {
             enableWith(FILE)
@@ -286,7 +317,7 @@ class VideoViewModelTest {
         store.setSourceUri(uri)
     }
 
-    private fun viewModel() =
+    private fun viewModel(grants: FakeVideoSourceGrants = this.grants) =
         VideoViewModel(
             store = store,
             grants = grants,

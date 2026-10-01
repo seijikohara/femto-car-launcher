@@ -171,7 +171,24 @@ class VideoWindowTest {
         hiddenLine().assertCountEquals(1)
     }
 
+    @Test
+    fun `a refused pick says so in the window`() {
+        setDashboard(fakeVideoUiState(fileReady = false, pickFailed = true))
+
+        rule.onNodeWithText(PICK_FAILED).assertExists()
+    }
+
+    @Test
+    fun `a refused pick says so in the panel`() {
+        setDashboard(fakeVideoUiState(pickFailed = true))
+        rule.onNodeWithContentDescription("Open the video player").performClick()
+
+        rule.onNodeWithText(PICK_FAILED).assertExists()
+    }
+
     private companion object {
+        const val PICK_FAILED = "The app couldn't keep access to that file. Pick another."
+
         const val SURFACE_TAG = "videoSurface"
         const val HIDDEN_LINE = "Picture hidden while driving · Audio keeps playing"
     }

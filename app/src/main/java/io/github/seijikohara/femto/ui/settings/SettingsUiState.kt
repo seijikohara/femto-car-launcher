@@ -185,6 +185,8 @@ internal data class VideoSettingsUi(
     val windowEnabled: Boolean,
     val hidePictureWhileDriving: Boolean,
     val file: VideoFileSummary,
+    /** The last file picked here could not be kept: its provider refused a lasting read grant. */
+    val pickFailed: Boolean = false,
 ) {
     companion object {
         val Initial =

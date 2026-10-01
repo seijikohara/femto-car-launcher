@@ -123,6 +123,10 @@ internal class SettingsViewModel(
     // happened.
     private val installGrantDeclined = MutableStateFlow(false)
 
+    // VM-local like the export progress: whether the last video file picked
+    // here could not be kept (adoptSource refused it), until the next pick.
+    private val videoPickFailed = MutableStateFlow(false)
+
     private val storeState: Flow<SettingsUiState> =
         combine(
             displayPreferences.settings,
@@ -262,15 +266,17 @@ internal class SettingsViewModel(
     // named only while its read grant holds, so a row that cannot name it
     // says it can no longer be opened.
     private val video: Flow<VideoSettingsUi> =
-        videoPreferences.settings
-            .catchAsDefault(TAG, "video settings", VideoSettings.Default)
-            .map { settings ->
-                VideoSettingsUi(
-                    windowEnabled = settings.windowEnabled,
-                    hidePictureWhileDriving = settings.hidePictureWhileDriving,
-                    file = settings.sourceUri?.let { videoFileSummary(it) } ?: VideoFileSummary.None,
-                )
-            }.distinctUntilChanged()
+        combine(
+            videoPreferences.settings.catchAsDefault(TAG, "video settings", VideoSettings.Default),
+            videoPickFailed,
+        ) { settings, pickFailed ->
+            VideoSettingsUi(
+                windowEnabled = settings.windowEnabled,
+                hidePictureWhileDriving = settings.hidePictureWhileDriving,
+                file = settings.sourceUri?.let { videoFileSummary(it) } ?: VideoFileSummary.None,
+                pickFailed = pickFailed,
+            )
+        }.distinctUntilChanged()
 
     // Folded in here rather than into the store combine above, which already holds
     // kotlinx's five-flow typed overload.
@@ -555,7 +561,9 @@ internal class SettingsViewModel(
                 }
 
                 is SettingsAction.SetVideoFile -> {
-                    withContext(ioDispatcher) { videoPreferences.adoptSource(action.uri, videoGrants) }
+                    videoPickFailed.value = false
+                    videoPickFailed.value =
+                        !withContext(ioDispatcher) { videoPreferences.adoptSource(action.uri, videoGrants) }
                 }
 
                 SettingsAction.CheckForUpdates -> {

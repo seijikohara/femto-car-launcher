@@ -76,6 +76,20 @@ class SettingsViewModelVideoTest {
         }
 
     @Test
+    fun `a file whose grant the provider refuses says so`() =
+        runTest(dispatcher) {
+            val refusing = FakeVideoSourceGrants(grantable = emptySet())
+            val vm = viewModel(grants = refusing)
+            subscribe(vm)
+
+            vm.onAction(SettingsAction.SetVideoFile(FILE))
+            advanceUntilIdle()
+
+            assertEquals(true, vm.uiState.value.video.pickFailed)
+            assertEquals(null, videoStore.current.sourceUri)
+        }
+
+    @Test
     fun `the state mirrors the video switches`() =
         runTest(dispatcher) {
             videoStore.setWindowEnabled(true)
@@ -148,7 +162,7 @@ class SettingsViewModelVideoTest {
         advanceUntilIdle()
     }
 
-    private fun viewModel() =
+    private fun viewModel(grants: FakeVideoSourceGrants = this.grants) =
         SettingsViewModel(
             FakeDisplaySettingsStore(),
             FakeFontSelectionStore(),

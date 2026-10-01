@@ -6,9 +6,11 @@ import io.github.seijikohara.femto.ui.video.VideoUiState
 internal fun fakeVideoUiState(
     fileReady: Boolean = true,
     playing: Boolean = false,
+    pickFailed: Boolean = false,
 ): VideoUiState =
     VideoUiState(
         windowEnabled = true,
         fileReady = fileReady,
         playing = playing,
+        pickFailed = pickFailed,
     )

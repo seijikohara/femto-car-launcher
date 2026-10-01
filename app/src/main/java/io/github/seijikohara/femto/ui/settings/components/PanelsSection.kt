@@ -111,7 +111,13 @@ internal fun PanelsSection(
         Column {
             ActionRow(
                 title = stringResource(R.string.settings_video_file),
-                summary = videoFileSummary(uiState.video.file),
+                summary =
+                    if (uiState.video.pickFailed) {
+                        stringResource(R.string.video_pick_failed)
+                    } else {
+                        videoFileSummary(uiState.video.file)
+                    },
+                summaryLiveRegion = uiState.video.pickFailed,
                 onClick = pickVideo,
                 icon = Lucide.FolderOpen,
             )
