@@ -3,20 +3,23 @@ package io.github.seijikohara.femto.data.diagnostics
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.location.LocationSettings
 import io.github.seijikohara.femto.data.update.UpdateSettings
+import io.github.seijikohara.femto.data.video.VideoSettings
 import org.junit.Test
 import java.lang.reflect.Modifier
 import kotlin.test.assertEquals
 
 /**
  * Completeness drift guard for the SETTINGS dump: every [DisplaySettings],
- * [LocationSettings] and [UpdateSettings] field must surface as a fact, so a
+ * [LocationSettings], [UpdateSettings] and [VideoSettings] field must surface
+ * as a fact, so a
  * field added without a matching fact is caught here instead of silently
  * vanishing from every diagnostics report — the same guard
  * [io.github.seijikohara.femto.data.display.SettingsSectionIdTest] applies to
  * section keys.
  *
- * [propertyToFactLabel], [locationPropertyToFactLabel] and
- * [updatePropertyToFactLabel] are the bridges: facts that fold several fields
+ * [propertyToFactLabel], [locationPropertyToFactLabel],
+ * [updatePropertyToFactLabel] and [videoPropertyToFactLabel] are the bridges:
+ * facts that fold several fields
  * into one row (e.g. the light/dark map schemes) repeat the label. Reflection
  * over the data class's declared properties (Java reflection — kotlin-reflect
  * is not on the classpath) is the authoritative set each bridge is checked
@@ -41,6 +44,13 @@ class SettingsFactsCompletenessTest {
             "pendingInstallVersionCode" to "Update pending install",
             "offer" to "Update offer",
             "promptedVersionCode" to "Update prompted",
+        )
+
+    private val videoPropertyToFactLabel: Map<String, String> =
+        mapOf(
+            "windowEnabled" to "Video window",
+            "hidePictureWhileDriving" to "Video hide picture while driving",
+            "sourceUri" to "Video file",
         )
 
     private val propertyToFactLabel: Map<String, String> =
@@ -128,6 +138,26 @@ class SettingsFactsCompletenessTest {
         val emittedLabels = updateSettingsFacts(UpdateSettings.Default).map { it.label }.toSet()
 
         assertEquals(updatePropertyToFactLabel.values.toSet(), emittedLabels)
+    }
+
+    @Test
+    fun `every VideoSettings property is mapped to a settings fact`() {
+        assertEquals(declaredProperties(VideoSettings::class.java), videoPropertyToFactLabel.keys)
+    }
+
+    @Test
+    fun `the collector emits every mapped video fact label`() {
+        val emittedLabels = videoSettingsFacts(VideoSettings.Default).map { it.label }.toSet()
+
+        assertEquals(videoPropertyToFactLabel.values.toSet(), emittedLabels)
+    }
+
+    @Test
+    fun `the video file renders as set or not set, never its URI`() {
+        val uri = "content://com.example.documents/document/video%3A42"
+        val file = videoSettingsFacts(VideoSettings.Default.copy(sourceUri = uri)).single { it.label == "Video file" }
+
+        assertEquals(FactValue.Text("set"), file.value)
     }
 
     private fun declaredProperties(type: Class<*>): Set<String> =
