@@ -66,12 +66,14 @@ internal interface VideoPlayer : VideoSurfaceHost {
  */
 internal class ExoVideoPlayer(
     context: Context,
+    // Builds the media3 player on the first load; tests pass a recording one.
+    private val newPlayer: (Context) -> Player = ::newExoPlayer,
 ) : VideoPlayer {
     private val appContext = context.applicationContext
     private val playing = MutableStateFlow(false)
     private val failure = MutableStateFlow(false)
     private val aspectRatio = MutableStateFlow<Float?>(null)
-    private var player: ExoPlayer? = null
+    private var player: Player? = null
     private var surface: TextureView? = null
 
     override val isPlaying: StateFlow<Boolean> = playing
@@ -104,14 +106,22 @@ internal class ExoVideoPlayer(
     override fun load(uri: String) {
         failure.value = false
         aspectRatio.value = null
-        (player ?: newPlayer().also { player = it }).run {
+        (player ?: newPlayer(appContext).apply(::adopt).also { player = it }).run {
+            // A player that played a file to its end keeps playWhenReady set,
+            // and would start the next file by itself.
+            playWhenReady = false
             setMediaItem(MediaItem.fromUri(uri))
             prepare()
         }
     }
 
+    // At the end of the file, play() alone only sets playWhenReady and
+    // nothing plays: start the file over, as a player's Play button does.
     override fun play() {
-        player?.play()
+        player?.run {
+            if (playbackState == Player.STATE_ENDED) seekToDefaultPosition()
+            play()
+        }
     }
 
     override fun pause() {
@@ -141,13 +151,19 @@ internal class ExoVideoPlayer(
 
     override fun release() = stop()
 
-    // Media usage with focus handling: playing the video pauses other media
-    // (the music app the dashboard's card follows), and a call or another
-    // player taking focus pauses the video. Unplugging headphones pauses it
-    // too, as any media player would.
-    private fun newPlayer(): ExoPlayer =
-        ExoPlayer
-            .Builder(appContext)
+    private fun adopt(newPlayer: Player) {
+        newPlayer.addListener(listener)
+        surface?.let(newPlayer::setVideoTextureView)
+    }
+}
+
+// Media usage with focus handling: playing the video pauses other media (the
+// music app the dashboard's card follows), and a call or another player taking
+// focus pauses the video. Unplugging headphones pauses it too, as any media
+// player would.
+private fun newExoPlayer(context: Context): Player =
+    ExoPlayer
+        .Builder(context)
             .setAudioAttributes(
                 AudioAttributes
                     .Builder()
@@ -158,8 +174,3 @@ internal class ExoVideoPlayer(
                 true,
             ).setHandleAudioBecomingNoisy(true)
             .build()
-            .apply {
-                addListener(listener)
-                surface?.let(::setVideoTextureView)
-            }
-}
