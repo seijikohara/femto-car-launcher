@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Effective date: 2026-09-26**
+**Effective date: 2026-10-01**
 
 Femto Car Launcher ("the app") is an Android home launcher. This policy explains
 what data the app accesses, why, and who it is shared with. The app does **not**
@@ -12,8 +12,9 @@ contain advertising or analytics SDKs, and does **not** sell personal data.
 | --- | --- | --- |
 | **Precise / approximate location** | Show the map, the current address, local weather, and trip distance | Yes — see "Third parties" below |
 | **Recorded trip track** (position, speed, bearing, altitude) | Draw the trip visualization and export a GPX file when you ask for one | No — stored on the device only, and excluded from backup (see "Backup") |
+| **Saved places** (a name with a search text or a position) | Hand a destination to your navigation app in one tap | No — stored on the device only, and excluded from backup (see "Backup") |
 | **Calendar events** (read only) | Show upcoming events on the dashboard | No |
-| **Microphone** | Voice assistant input and the optional music spectrum visualization | The app does not store or transmit audio; voice input is handled by the device's speech recognizer (see below) |
+| **Microphone** | Voice assistant input, dictating a destination in the destination panel, and the optional music spectrum visualization | The app does not store or transmit audio; voice input is handled by the device's speech recognizer (see below) |
 | **Installed apps** (launcher app list) | Show and launch installed apps | No |
 | **Phone/cellular state** | Show the signal-strength indicator | No |
 | **Media playback metadata** | Show the now-playing card | No |
@@ -24,14 +25,19 @@ of it is written to disk or transmitted. Location coordinates are transmitted, t
 the third-party services listed below, to render the map, the address, and the
 weather.
 
-The one thing the app writes to disk is the recorded trip track. While trip
-recording is on — it is on by default and can be turned off in **Settings →
-Location** — the app stores each position fix, with its speed, bearing, and
-altitude, in a database on the device. That history is kept for 90 days by
-default; **Settings → Location** offers 30 days, 90 days, a year, or no limit,
-and older points are deleted automatically. The history never leaves the device
-on its own: it is excluded from backup and device transfer, and it is sent
-nowhere. Exporting a trip as a GPX file writes it to the location you choose.
+Two kinds of personal data are written to disk: the recorded trip track and
+the places you save in the destination panel. While trip recording is on — it
+is on by default and can be turned off in **Settings → Location** — the app
+stores each position fix, with its speed, bearing, and altitude, in a database
+on the device. That history is kept for 90 days by default; **Settings →
+Location** offers 30 days, 90 days, a year, or no limit, and older points are
+deleted automatically. The history never leaves the device on its own: it is
+excluded from backup and device transfer, and it is sent nowhere. Exporting a
+trip as a GPX file writes it to the location you choose.
+
+Places you save in the destination panel (a name with a search text or a
+position) are stored on the device only, excluded from backup and device
+transfer, and passed only to the navigation app you hand one to.
 
 ## Third parties
 
@@ -99,9 +105,9 @@ control.
 ## Backup
 
 Android Auto Backup may copy app settings to your Google account. Location-related
-settings and the recorded trip track are **excluded** from backup and device
-transfer, so neither your position history nor your location settings is copied
-off the device.
+settings, the recorded trip track, and the places saved in the destination panel
+are **excluded** from backup and device transfer, so none of your position
+history, your location settings, or your saved places is copied off the device.
 
 Your Google Maps Platform API key, if you enter one, lives in the app settings and
 is therefore **included** in both that backup and a device-to-device transfer.
