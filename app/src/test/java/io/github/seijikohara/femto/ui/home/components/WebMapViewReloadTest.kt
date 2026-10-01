@@ -555,10 +555,7 @@ class WebMapViewReloadTest {
     private fun killRenderer(page: WebView) {
         // Reached past onRenderProcessGone, whose detail object apps may not
         // construct.
-        val client = shadowOf(page).webViewClient
-        client.javaClass
-            .getMethod("onRendererGone", WebView::class.java, Boolean::class.javaPrimitiveType)
-            .invoke(client, page, true)
+        (shadowOf(page).webViewClient as LiveMapWebViewClient).onRendererGone(page, crashed = true)
         settle()
     }
 

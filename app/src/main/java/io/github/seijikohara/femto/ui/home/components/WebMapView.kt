@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.location.Location
 import android.os.Handler
@@ -590,68 +591,14 @@ internal fun WebMapView(
                 // agent, so hosts that sniff for Chrome keep serving.
                 settings.userAgentString = settings.userAgentString + " " + femtoUserAgent
                 webViewClient =
-                    object : WebViewClientCompat() {
-                        // A tap on an attribution link (MapLibre's control under a
-                        // custom style, or Google's in-page credits) must not
-                        // navigate this WebView off the map page — it would sit on
-                        // a web page until the next reload. Anything that is not
-                        // the page's own appassets origin goes to the system
-                        // browser; a device without one simply ignores the tap.
-                        override fun shouldOverrideUrlLoading(
-                            view: WebView,
-                            request: WebResourceRequest,
-                        ): Boolean {
-                            if (request.url.host == APPASSETS_HOST) return false
-                            // Only a person's tap on a web link in the main frame
-                            // reaches the browser; a navigation a page script starts
-                            // on its own, a subframe, or any other scheme is dropped.
-                            if (request.isForMainFrame && request.hasGesture() &&
-                                request.url.scheme in BROWSER_SCHEMES
-                            ) {
-                                runCatching {
-                                    context.startActivity(
-                                        Intent(Intent.ACTION_VIEW, request.url).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                                    )
-                                }.onFailure { Log.w(TAG, "No activity for ${request.url.scheme}: link") }
-                            }
-                            return true
-                        }
-
-                        override fun shouldInterceptRequest(
-                            view: WebView,
-                            request: WebResourceRequest,
-                        ): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
-
-                        // The page script is a module (deferred), but module scripts
-                        // execute before the load event, so by onPageFinished the
-                        // bridge functions are registered.
-                        override fun onPageFinished(
-                            view: WebView,
-                            url: String,
-                        ) {
-                            pageReady.value = true
-                        }
-
-                        // Returning true claims the renderer death; the default kills
-                        // the whole launcher process.
-                        override fun onRenderProcessGone(
-                            view: WebView,
-                            detail: RenderProcessGoneDetail,
-                        ): Boolean = onRendererGone(view, crashed = detail.didCrash())
-
-                        // The containment itself, apart from the platform's detail
-                        // object (which apps may not construct), so tests can report
-                        // a death. The dead view must be detached and destroyed here
-                        // — any other call on it can crash.
-                        fun onRendererGone(
-                            view: WebView,
-                            crashed: Boolean,
-                        ): Boolean {
+                    LiveMapWebViewClient(
+                        context = context,
+                        assetLoader = assetLoader,
+                        onPageLoaded = { pageReady.value = true },
+                        onRendererDeath = { view, crashed ->
                             val description = if (crashed) "renderer crashed" else "renderer killed by the system"
-                            Log.e(TAG, "WebView $description; containing")
+                            Log.e(TAG, "WebView $description; contained")
                             crashedViews += view
-                            (view.parent as? ViewGroup)?.removeView(view)
-                            view.destroy()
                             lastRendererDeath = description
                             // A kill behind another app is the system reclaiming
                             // memory, and nothing rebuilds while hidden, so it
@@ -669,9 +616,8 @@ internal fun WebMapView(
                                 rendererRebuildDue = true
                                 rendererRebuildOnReturn[0] = !onScreen
                             }
-                            return true
-                        }
-                    }
+                        },
+                    )
                 // JS -> Kotlin error channel; registered per WebView instance so a
                 // post-crash rebuild (rendererGeneration bump) re-registers it on
                 // the fresh view. Kept minimal on purpose: one method, primitive
@@ -986,6 +932,68 @@ internal fun WebMapView(
                 onClick = onOpenLicenses,
             )
         }
+    }
+}
+
+// The live map page's WebView client. [onPageLoaded] runs once the page script
+// has run (module scripts execute before the load event, so the bridge
+// functions are registered by then); [onRendererDeath] receives a renderer
+// death after the dead view has been detached and destroyed.
+internal class LiveMapWebViewClient(
+    private val context: Context,
+    private val assetLoader: WebViewAssetLoader,
+    private val onPageLoaded: () -> Unit,
+    private val onRendererDeath: (view: WebView, crashed: Boolean) -> Unit,
+) : WebViewClientCompat() {
+    // A tap on an attribution link (MapLibre's control under a custom style,
+    // or Google's in-page credits) must not navigate this WebView off the map
+    // page — it would sit on a web page until the next reload. Anything that
+    // is not the page's own appassets origin goes to the system browser; a
+    // device without one simply ignores the tap.
+    override fun shouldOverrideUrlLoading(
+        view: WebView,
+        request: WebResourceRequest,
+    ): Boolean {
+        if (request.url.host == APPASSETS_HOST) return false
+        // Only a person's tap on a web link in the main frame reaches the
+        // browser; a navigation a page script starts on its own, a subframe,
+        // or any other scheme is dropped.
+        if (request.isForMainFrame && request.hasGesture() && request.url.scheme in BROWSER_SCHEMES) {
+            runCatching {
+                context.startActivity(Intent(Intent.ACTION_VIEW, request.url).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }.onFailure { Log.w(TAG, "No activity for ${request.url.scheme}: link") }
+        }
+        return true
+    }
+
+    override fun shouldInterceptRequest(
+        view: WebView,
+        request: WebResourceRequest,
+    ): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
+
+    override fun onPageFinished(
+        view: WebView,
+        url: String,
+    ) = onPageLoaded()
+
+    // Returning true claims the renderer death; the default kills the whole
+    // launcher process.
+    override fun onRenderProcessGone(
+        view: WebView,
+        detail: RenderProcessGoneDetail,
+    ): Boolean = onRendererGone(view, crashed = detail.didCrash())
+
+    // The containment itself, apart from the platform's detail object (which
+    // apps may not construct), so tests can report a death. The dead view must
+    // be detached and destroyed here — any other call on it can crash.
+    internal fun onRendererGone(
+        view: WebView,
+        crashed: Boolean,
+    ): Boolean {
+        (view.parent as? ViewGroup)?.removeView(view)
+        view.destroy()
+        onRendererDeath(view, crashed)
+        return true
     }
 }
 
