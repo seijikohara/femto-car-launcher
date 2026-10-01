@@ -490,6 +490,8 @@ internal fun WebMapView(
                 Log.i(TAG, "LIVE map renderer give-up lifted")
                 rendererGaveUp = false
                 rendererDeathsMs.clear()
+                // The page this builds is the return's, like a rebuild's.
+                if (online) pageFromReturnReload[0] = true
                 rendererGeneration++
             }
         }

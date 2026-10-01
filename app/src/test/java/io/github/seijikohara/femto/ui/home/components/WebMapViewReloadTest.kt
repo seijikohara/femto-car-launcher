@@ -446,6 +446,16 @@ class WebMapViewReloadTest {
         assertEquals(1, pages().size, "a return after it rebuilds the map")
     }
 
+    @Test fun `a return to a restored network builds the lifted give-up's page once`() {
+        showMap(onlineAtStart = false)
+        killRenderer(page())
+        killRenderer(page())
+        setLifecycle(Lifecycle.State.CREATED)
+        advanceSystemClock(RENDERER_GIVE_UP_SETTLE_MS + MARGIN_MS)
+        returnWith(online = true)
+        assertEquals(1, pagesOver(RETURN_FRAMES).size, "one page built at the return")
+    }
+
     @Test fun `a renderer give-up stays while the launcher stays on screen`() {
         showMap()
         killRenderer(page())
