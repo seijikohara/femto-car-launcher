@@ -3,7 +3,7 @@
 // the Google Maps page (camera.ts and marker-motion.ts) and its detached zoom
 // step. The test environment has no DOM, so the chevron element is a stub.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import { LAYOUT_REFLOW_MS } from "./camera";
+import { DETACHED_ZOOM_STEP_MOTION, LAYOUT_REFLOW_MS } from "./camera";
 import { createFollowEngine, type FollowCameraOpts } from "./follow-camera";
 
 const FIX = { lat: 35.681, lon: 139.767 };
@@ -21,6 +21,8 @@ function setup() {
         },
         classList: { remove: vi.fn(), toggle: vi.fn(), contains: () => false },
         querySelector: () => null,
+        // The detached-mode clone (geoMarkerElement).
+        cloneNode: () => ({ removeAttribute: vi.fn(), style: {} }),
     };
     const listeners = new Map<string, (ev: { originalEvent?: unknown }) => void>();
     const map = {
@@ -96,5 +98,21 @@ describe("the OSM follow engine", () => {
         page.push({ lat: FIX.lat + 1e-4, lon: FIX.lon }, 0);
         expect(page.marker.style.transition).toBe("");
         expect(page.map.eases.at(-1)?.duration).toBe(LAYOUT_REFLOW_MS + 40);
+    });
+
+    it("zooms a detached map about the padded centre, where the chevron was", () => {
+        // MapLibre keeps the camera padding the follow eases set, and a zoom
+        // with no centre zooms about the padded centre: the Google page's
+        // detached zoom step matches this.
+        const page = setup();
+        page.push(FIX);
+        page.gesture("dragstart");
+        page.push(FIX, 0.428, 17);
+        expect(page.map.eases.at(-1)).toEqual({
+            zoom: 17,
+            duration: DETACHED_ZOOM_STEP_MOTION.durationMs,
+            easing: DETACHED_ZOOM_STEP_MOTION.easing,
+            essential: true,
+        });
     });
 });

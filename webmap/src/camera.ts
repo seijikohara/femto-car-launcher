@@ -98,8 +98,9 @@ export interface CameraMotion {
 // The one-shot camera moves, shared by both backends' follow machines so the
 // two maps move alike. A re-follow eases the camera home in one continuous
 // transition; a north-up flip re-orients while following; a pushed zoom step
-// while detached (the host's +/- button) applies around the free camera's
-// own centre.
+// while detached (the host's +/- button) zooms the free camera about the
+// chevron's spot — the padded centre on the OSM map, the anchor at the spot
+// on the Google map.
 export const REFOLLOW_MOTION: CameraMotion = { durationMs: 600, easing: defaultEase };
 export const ORIENTATION_FLIP_MOTION: CameraMotion = { durationMs: 400, easing: defaultEase };
 export const DETACHED_ZOOM_STEP_MOTION: CameraMotion = { durationMs: 250, easing: defaultEase };

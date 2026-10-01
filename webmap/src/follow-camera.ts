@@ -139,7 +139,8 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
             leftSafe: number;
         } | null,
         // The zoom last pushed by the host; a change while detached is the
-        // user's +/- button, applied to the free camera around its own centre.
+        // user's +/- button, applied to the free camera about its padded
+        // centre (where the chevron was).
         lastPushedZoom: 0,
     };
 
@@ -323,7 +324,8 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
                 // Detached (free pan): the camera stays the user's, the
                 // geo-anchored marker tracks the fixes — except a pushed ZOOM
                 // change is the user's +/- button, applied to the free camera
-                // around its own centre.
+                // about its padded centre: easeTo keeps the padding the follow
+                // eases set, so the zoom pivots where the chevron was.
                 syncGeoMarker();
                 if (previousZoom > 0 && state.lastPushedZoom !== previousZoom) {
                     map.easeTo({

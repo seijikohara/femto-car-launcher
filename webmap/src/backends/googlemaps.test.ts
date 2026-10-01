@@ -635,6 +635,33 @@ describe("the Google Maps page", () => {
         expect(page.map.heading).toBe(0);
     });
 
+    it.each([
+        ["VECTOR", 55],
+        ["VECTOR", 0],
+        ["RASTER", 0],
+    ])(
+        "zooms a %s map (tilt %d°) about the chevron's spot while detached",
+        async (rendering, tilt) => {
+            // The OSM map's detached zoom step keeps its camera padding, so it
+            // zooms about the padded centre, where the chevron was; this map
+            // must zoom about the same spot.
+            const page = await boot(rendering, rendering);
+            push(page.win, FIX, 90, { tilt });
+            page.run(50);
+            page.map.fire("dragstart");
+            const spot = screenOf(page.map, FIX);
+            push(page.win, FIX, 90, { tilt, zoom: 17 });
+            const drift = Array.from({ length: 20 }, () => {
+                page.advance(16);
+                const at = screenOf(page.map, FIX);
+                return Math.hypot(at.x - spot.x, at.y - spot.y);
+            });
+            expect(page.map.zoom).toBe(17);
+            expect(Math.max(...drift)).toBeLessThan(1e-6);
+            expect(spot.x).toBeCloseTo(-MX * W, 6);
+        },
+    );
+
     it("still detects a user zoom while following a turn", async () => {
         const page = await boot("VECTOR", "VECTOR");
         push(page.win, FIX, 90);

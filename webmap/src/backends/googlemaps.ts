@@ -598,31 +598,29 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // first frame would jump. The heading read back is the travel heading the
     // map shows: its own heading plus the yaw it carries at that offset and
     // tilt, which viewFor takes off again.
-    const glide = createCameraGlide({
-        current: (owned) => {
-            const zoom = liveMap.getZoom() ?? 0;
-            const tilt = liveMap.getTilt() ?? 0;
-            const offsetX = owned.offsetX ?? state.spot.x * window.innerWidth;
-            const offsetY = owned.offsetY ?? state.spot.y * window.innerHeight;
-            const mapHeading = liveMap.getHeading() ?? 0;
-            const heading = state.isVector
-                ? normalizeBearing(mapHeading + lensYawDeg(state.lens, offsetX, owned.tilt ?? tilt))
-                : mapHeading;
-            const { view } = viewFor({
-                zoom: owned.zoom ?? zoom,
-                heading: owned.heading ?? heading,
-                tilt: owned.tilt ?? tilt,
-                offsetX,
-                offsetY,
-            });
-            const center = liveMap.getCenter();
-            const anchor = center
-                ? anchorAt({ lat: center.lat(), lng: center.lng() }, view)
-                : { lat: 0, lng: 0 };
-            return { ...anchor, zoom, heading, tilt, offsetX, offsetY };
-        },
-        apply: moveCam,
-    });
+    function readPose(owned: Partial<CameraPose>): CameraPose {
+        const zoom = liveMap.getZoom() ?? 0;
+        const tilt = liveMap.getTilt() ?? 0;
+        const offsetX = owned.offsetX ?? state.spot.x * window.innerWidth;
+        const offsetY = owned.offsetY ?? state.spot.y * window.innerHeight;
+        const mapHeading = liveMap.getHeading() ?? 0;
+        const heading = state.isVector
+            ? normalizeBearing(mapHeading + lensYawDeg(state.lens, offsetX, owned.tilt ?? tilt))
+            : mapHeading;
+        const { view } = viewFor({
+            zoom: owned.zoom ?? zoom,
+            heading: owned.heading ?? heading,
+            tilt: owned.tilt ?? tilt,
+            offsetX,
+            offsetY,
+        });
+        const center = liveMap.getCenter();
+        const anchor = center
+            ? anchorAt({ lat: center.lat(), lng: center.lng() }, view)
+            : { lat: 0, lng: 0 };
+        return { ...anchor, zoom, heading, tilt, offsetX, offsetY };
+    }
+    const glide = createCameraGlide({ current: readPose, apply: moveCam });
 
     // Measure the tilted vector map's perspective (lens.ts) from the camera
     // the map is rendering: project the camera target and two ground points
@@ -963,12 +961,19 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         state.lastFix = fix;
 
         if (!state.following) {
-            // Detached (free pan): leave the camera centre where the user
-            // panned, but a pushed zoom change is the host's +/- button (head
-            // units have no multitouch, so the zoom buttons are mandatory) —
-            // apply it around the free camera's own centre.
+            // Detached (free pan): leave the camera where the user panned,
+            // but a pushed zoom change is the host's +/- button (head units
+            // have no multitouch, so the zoom buttons are mandatory) — apply
+            // it about the chevron's spot, as the OSM map zooms about its
+            // padded centre: the glide holds the location under that spot
+            // as its anchor while the zoom changes, so moveCam derives every
+            // frame's centre around it (the chevron itself stays hidden).
             if (previousZoom > 0 && state.lastPushedZoom !== previousZoom) {
-                glide.to({ zoom: state.lastPushedZoom }, DETACHED_ZOOM_STEP_MOTION);
+                const here = readPose({});
+                glide.to(
+                    { lat: here.lat, lng: here.lng, zoom: state.lastPushedZoom },
+                    DETACHED_ZOOM_STEP_MOTION,
+                );
             }
             return;
         }

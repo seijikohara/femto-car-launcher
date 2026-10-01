@@ -171,6 +171,10 @@ policy:
   (`followMotion`'s `reflowRemainingMs`, `markerTransitionStep`,
   `MarkerTransition.remainingMs`), so the chevron and the camera land
   together on both maps.
+- A detached zoom step (the host's +/- button) zooms about the
+  chevron's spot on both maps: MapLibre's `easeTo` keeps the padding
+  and zooms about the padded centre; the Google glide holds the
+  location under the spot as its anchor while the zoom changes.
 
 ## Toolchain split
 
