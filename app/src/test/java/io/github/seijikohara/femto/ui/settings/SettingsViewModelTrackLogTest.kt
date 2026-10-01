@@ -12,6 +12,8 @@ import io.github.seijikohara.femto.testfixtures.FakeLocationSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeTrackLogPort
 import io.github.seijikohara.femto.testfixtures.FakeUpdateSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeUpdaterPort
+import io.github.seijikohara.femto.testfixtures.FakeVideoSettingsStore
+import io.github.seijikohara.femto.testfixtures.FakeVideoSourceGrants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -61,6 +63,9 @@ class SettingsViewModelTrackLogTest {
             updater = FakeUpdaterPort(),
             updatePreferences = FakeUpdateSettingsStore(),
             motion = flowOf(VehicleMotion.PARKED),
+            videoPreferences = FakeVideoSettingsStore(),
+            videoGrants = FakeVideoSourceGrants(),
+            ioDispatcher = dispatcher,
         )
 
     @Test

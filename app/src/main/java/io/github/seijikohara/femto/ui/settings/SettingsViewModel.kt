@@ -31,7 +31,14 @@ import io.github.seijikohara.femto.data.update.UpdateRepository
 import io.github.seijikohara.femto.data.update.UpdateSettingsStore
 import io.github.seijikohara.femto.data.update.UpdateState
 import io.github.seijikohara.femto.data.update.offeredManifestOrNull
+import io.github.seijikohara.femto.data.video.ContentResolverVideoSourceGrants
+import io.github.seijikohara.femto.data.video.VideoPreferences
+import io.github.seijikohara.femto.data.video.VideoSettings
+import io.github.seijikohara.femto.data.video.VideoSettingsStore
+import io.github.seijikohara.femto.data.video.VideoSourceGrants
+import io.github.seijikohara.femto.data.video.adoptSource
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -44,6 +51,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onStart
@@ -99,6 +107,11 @@ internal class SettingsViewModel(
     // What the latest fix says about the vehicle, emitted on change
     // (vehicleMotionFlow); gates the install steps.
     private val motion: Flow<VehicleMotion>,
+    private val videoPreferences: VideoSettingsStore,
+    private val videoGrants: VideoSourceGrants,
+    // The video grants cross into the document's provider, a Binder call that
+    // can block; tests pass their own dispatcher.
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     // VM-local export progress folded into the derived UiState below; every
     // other UiState field mirrors a persisted store, the updater's state aside.
@@ -245,11 +258,31 @@ internal class SettingsViewModel(
      */
     val installRequests: SharedFlow<SettingsAction.InstallOneTapUpdate> = mutableInstallRequests.asSharedFlow()
 
+    // The video rows: both switches, and the picked file by name. A file is
+    // named only while its read grant holds, so a row that cannot name it
+    // says it can no longer be opened.
+    private val video: Flow<VideoSettingsUi> =
+        videoPreferences.settings
+            .catchAsDefault(TAG, "video settings", VideoSettings.Default)
+            .map { settings ->
+                VideoSettingsUi(
+                    windowEnabled = settings.windowEnabled,
+                    hidePictureWhileDriving = settings.hidePictureWhileDriving,
+                    file = settings.sourceUri?.let { videoFileSummary(it) } ?: VideoFileSummary.None,
+                )
+            }.distinctUntilChanged()
+
     // Folded in here rather than into the store combine above, which already holds
     // kotlinx's five-flow typed overload.
     val uiState: StateFlow<SettingsUiState> =
-        combine(storeState, trackExportState, dockStatusVisible, updates) { state, export, statusVisible, update ->
-            state.copy(trackExport = export, dockStatusVisible = statusVisible, updates = update)
+        combine(
+            storeState,
+            trackExportState,
+            dockStatusVisible,
+            updates,
+            video,
+        ) { state, export, statusVisible, update, videoRows ->
+            state.copy(trackExport = export, dockStatusVisible = statusVisible, updates = update, video = videoRows)
         }.stateIn(viewModelScope, WhileUiSubscribed, SettingsUiState.Initial)
 
     fun onAction(action: SettingsAction) {
@@ -513,6 +546,18 @@ internal class SettingsViewModel(
                     calendarPreferences.setCalendarHidden(action.id, action.hidden)
                 }
 
+                is SettingsAction.SetVideoWindow -> {
+                    videoPreferences.setWindowEnabled(action.value)
+                }
+
+                is SettingsAction.SetVideoHidePicture -> {
+                    videoPreferences.setHidePictureWhileDriving(action.value)
+                }
+
+                is SettingsAction.SetVideoFile -> {
+                    withContext(ioDispatcher) { videoPreferences.adoptSource(action.uri, videoGrants) }
+                }
+
                 SettingsAction.CheckForUpdates -> {
                     updater.checkNow()
                 }
@@ -587,6 +632,7 @@ internal class SettingsViewModel(
                     fontPreferences.resetToDefaults()
                     calendarPreferences.resetToDefaults()
                     updatePreferences.resetToDefaults()
+                    videoPreferences.resetToDefaults()
                 }
 
                 is SettingsAction.ResetSection -> {
@@ -598,7 +644,10 @@ internal class SettingsViewModel(
 
                         SettingsSectionId.LOCATION -> locationPreferences.resetToDefaults()
 
-                        SettingsSectionId.PANELS -> calendarPreferences.resetToDefaults()
+                        SettingsSectionId.PANELS -> {
+                            calendarPreferences.resetToDefaults()
+                            videoPreferences.resetToDefaults()
+                        }
 
                         SettingsSectionId.UPDATES -> updatePreferences.resetToDefaults()
 
@@ -656,6 +705,11 @@ internal class SettingsViewModel(
     }
 
     private fun newOneTapToken(): Int = (++lastOneTapToken).also { oneTapToken = it }
+
+    private suspend fun videoFileSummary(uri: String): VideoFileSummary =
+        withContext(ioDispatcher) { videoGrants.displayNameOrNull(uri) }
+            ?.let(VideoFileSummary::Named)
+            ?: VideoFileSummary.Unavailable
 }
 
 internal class SettingsViewModelFactory(
@@ -681,6 +735,8 @@ internal class SettingsViewModelFactory(
             // The dashboard's own location pipeline: one GPS registration shared
             // with the sheet's host, not a second one for this screen.
             motion = locationGraph.vehicleMotion(),
+            videoPreferences = VideoPreferences(application),
+            videoGrants = ContentResolverVideoSourceGrants(application),
         ) as T
     }
 
