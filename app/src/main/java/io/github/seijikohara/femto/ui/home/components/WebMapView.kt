@@ -282,10 +282,10 @@ internal fun WebMapView(
     // Which of [tileHosts] the next page loads from: `tileHost()` walks the
     // list by it. Its own count, apart from the backoff step, because the two
     // restart at different times: a success signal or a reconnect that reaches
-    // a page still loading restarts the step, yet the page on screen still holds the
-    // host it loaded with, so the next reload must move on from there — or a
-    // two-host setup would load the same host twice in a row. A new host list
-    // starts over at its first host (the override).
+    // a page still loading restarts the step, yet the page on screen still
+    // holds the host it loaded with, so the next reload must move on from
+    // there — or a two-host setup would load the same host twice in a row. A
+    // new host list starts over at its first host (the override).
     //
     // The page reads the host once, at load, so every write here must be
     // paired with a reloadGeneration bump in the same non-suspending block —
@@ -475,14 +475,14 @@ internal fun WebMapView(
     }
     // The page's success signal (its first tile, see the `tile` bridge event):
     // the map has its data, so the next failure is a new one. It restarts the
-    // backoff, which an outage leaves at its cap. The host rotation stays: the page on screen still holds its host. Re-bound on
-    // every composition so it acts on the current retry state: a live page
-    // outlives some of it (a new custom style URL re-keys retryAttempts
-    // without rebuilding the page), and state captured when the page was
-    // built would be written where no one reads it. A tile right behind the
-    // page's own fatal (its no-tile grace ran out a moment before) changes
-    // nothing: the notice already stands, and the retry keeps its step and
-    // the diagnostics their failure.
+    // backoff, which an outage leaves at its cap. The host rotation stays: the
+    // page on screen still holds its host. Re-bound on every composition so it
+    // acts on the current retry state: a live page outlives some of it (a new
+    // custom style URL re-keys retryAttempts without rebuilding the page), and
+    // state captured when the page was built would be written where no one
+    // reads it. A tile right behind the page's own fatal (its no-tile grace
+    // ran out a moment before) changes nothing: the notice already stands, and
+    // the retry keeps its step and the diagnostics their failure.
     val onPageData by rememberUpdatedState {
         if (!liveInitFailed) {
             Log.i(TAG, "LIVE map data arrived")
