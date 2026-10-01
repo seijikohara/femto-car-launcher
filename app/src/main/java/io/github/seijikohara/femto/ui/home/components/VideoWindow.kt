@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -157,7 +156,7 @@ internal fun VideoPlayButton(
     icon = if (playing) Lucide.Pause else Lucide.Play,
     description = stringResource(if (playing) R.string.video_pause else R.string.video_play),
     onClick = { onAction(VideoAction.TogglePlayback) },
-    modifier = modifier.glassChrome(RoundedCornerShape(14.dp), hazeState, glassConfig),
+    modifier = modifier.glassChrome(PanelIconButtonShape, hazeState, glassConfig),
 )
 
 // The window's whole face when there is no playable file: one target, so the
