@@ -27,12 +27,15 @@
 // the chevron's screen offset in its pose and the page derives the camera
 // centre from it every frame with flat Web Mercator math (cameraCenterFor in
 // camera-glide.ts); a rotation or zoom therefore pivots on the chevron, as on
-// the OSM map. The missing padding costs two things. A tilted vector map's
-// perspective always converges on the viewport centre, so the chevron sits
-// on the centre line there (googleMarkerSpot in style.ts) — beside it, the
-// road ahead would lean toward the centre. And tilt is not modelled in the
-// centre math, so on a tilted map the location sits under the chevron only
-// approximately (exactly on a raster or flat map).
+// the OSM map. A tilted vector map needs more than the flat math: its
+// perspective converges on the viewport centre, which would lean the road
+// ahead toward a chevron beside the centre and miss the fix by tens of px
+// vertically. The page measures that perspective through Google's own
+// projection (an OverlayView's MapCanvasProjection, which needs no Map ID)
+// and corrects both — a yaw bias on the map heading and the exact ground
+// offset under the chevron (lens.ts) — so the chevron keeps the OSM spot.
+// Until the measurement exists, or when it is implausible, the chevron falls
+// back to the vertical centre line with no yaw (googleMarkerSpot in style.ts).
 //
 // This backend does NOT use the shared follow-camera engine: Google's camera
 // API is immediate (moveCamera has no easing, and there is no easeTo), so the
@@ -59,13 +62,20 @@ import {
     isRealPosition,
     LAYOUT_REFLOW_MS,
     LOCATION_STALE_THRESHOLD_MS,
+    normalizeBearing,
     ORIENTATION_FLIP_MOTION,
     REFLOW_MOTION,
     REFOLLOW_MOTION,
     smoothedBearing,
     spotMotion,
 } from "../camera";
-import { anchorAt, type CameraPose, cameraCenterFor, createCameraGlide } from "../camera-glide";
+import {
+    anchorAt,
+    type CameraPose,
+    type CameraView,
+    cameraCenterFor,
+    createCameraGlide,
+} from "../camera-glide";
 import {
     chevronHandles,
     chevronReachPx,
@@ -74,10 +84,17 @@ import {
     startStaleTicker,
 } from "../chevron";
 import { ScriptLoadError } from "../load-outcome";
+import {
+    calibrateLens,
+    type LensCalibration,
+    lensGroundOffset,
+    lensProbeDistancePx,
+    lensYawDeg,
+} from "../lens";
 import { createMarkerTransition } from "../marker-motion";
 // The self-marker placement (style.ts is the SSOT, shared with the OSM
 // backend): where the chevron sits to clear the side cards and the bottom
-// overlay, and where a tilted vector map needs it instead.
+// overlay, and where a tilted vector map falls back to without its lens.
 import { googleMarkerSpot, type MarkerSpot } from "../style";
 
 // The Google Maps bridge extends the base femtoBridge with googleMapsApiKey()
@@ -145,8 +162,22 @@ interface GMMap {
 interface GMTrafficLayer {
     setMap(map: GMMap | null): void;
 }
+// google.maps.MapCanvasProjection, as an OverlayView exposes it from draw()
+// on: where a location lands in the map's container, in px. On a tilted
+// vector map this is the perspective the map renders with (its visible
+// region is a trapezoid there), which is what the lens measures.
+interface GMMapCanvasProjection {
+    fromLatLngToContainerPixel(latLng: GMLatLng): { x: number; y: number } | null;
+}
+// google.maps.OverlayView: subclassed for its draw() hook and projection
+// only — the lens probe draws nothing.
+interface GMOverlayView {
+    setMap(map: GMMap | null): void;
+    getProjection(): GMMapCanvasProjection | null | undefined;
+}
 interface GMMapsLibrary {
     Map: new (el: HTMLElement, opts: Record<string, unknown>) => GMMap;
+    OverlayView: new () => GMOverlayView;
     TrafficLayer: new () => GMTrafficLayer;
 }
 
@@ -305,6 +336,17 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // hidden (detached) or not yet placed, when a new spot takes no glide
         // of its own (see spotMotion).
         spotShown: false,
+        // The tilted vector map's measured perspective (lens.ts); null until
+        // the first measurement and whenever one is implausible, when the
+        // chevron falls back to the centre line with no yaw.
+        lens: null as LensCalibration | null,
+        // The camera the lens was last measured at (tilt, zoom, viewport):
+        // the perspective only changes with these, so draw() re-measures
+        // only when one of them moved.
+        lensKey: "",
+        // The yaw bias (lens.ts) in the heading last sent to the map: the
+        // compass adds it back to report the travel heading.
+        lensYaw: 0,
         // tilt is used only on a VECTOR map; a raster map ignores it.
         // markerPos / bottomSafe / rightSafe / leftSafe are the host's
         // safe-zone fractions, kept so a re-follow (easeHome) reproduces the
@@ -467,31 +509,49 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // Traffic layer is created once and toggled on/off via setMap (memoized).
     state.trafficLayer = new mapsLib.TrafficLayer();
 
+    // The view a pose shows the map at: the zoom, the MAP heading, and the
+    // chevron's offset as the flat ground offset the centre math takes —
+    // plus the lens's yaw bias inside that heading. On a tilted vector map
+    // the lens (lens.ts) turns the map past the pose's travel heading by the
+    // yaw, so the direction of travel runs straight up through a chevron
+    // beside the centre, and solves the ground point under the chevron
+    // through the measured perspective, so the fix lands exactly there; with
+    // no lens, on a flat map and on a raster map the view is the pose itself
+    // (a raster map stays north-up whatever the pose carries). A field the
+    // pose leaves out is what the map shows (the heading and tilt) or the
+    // chevron's spot (the offset).
+    function viewFor(pose: Partial<CameraPose>): { view: CameraView; yaw: number } {
+        const zoom = pose.zoom ?? liveMap.getZoom() ?? 0;
+        const offsetX = pose.offsetX ?? state.spot.x * window.innerWidth;
+        const offsetY = pose.offsetY ?? state.spot.y * window.innerHeight;
+        if (!state.isVector) return { view: { zoom, heading: 0, offsetX, offsetY }, yaw: 0 };
+        const tilt = pose.tilt ?? liveMap.getTilt() ?? 0;
+        const yaw = lensYawDeg(state.lens, offsetX, tilt);
+        const ground = lensGroundOffset(state.lens, offsetX, offsetY, tilt);
+        const heading =
+            pose.heading !== undefined
+                ? normalizeBearing(pose.heading - yaw)
+                : (liveMap.getHeading() ?? 0);
+        return { view: { zoom, heading, offsetX: ground.x, offsetY: ground.y }, yaw };
+    }
+
     // One immediate camera move — the glide's per-frame step, and the jump.
     // A pose that carries the anchor sends the camera centre that shows the
     // anchor at the pose's chevron offset, at the zoom and heading this same
-    // move sets (cameraCenterFor), so every frame keeps the fix under the
-    // chevron while the heading and zoom glide. Opens the gesture-suppression
-    // window of each property the move changes (see GESTURE_SUPPRESS_MS), so
-    // the camera-change events this call fires are ignored by the gesture
-    // detacher. The tilt window also opens on a zoom change: a vector map
-    // clamps tilt by zoom, so a zoom step can move the tilt without this page
-    // having asked for a new one. heading/tilt are vector-only (a raster map
-    // reinterprets them and stops positioning).
+    // move sets (cameraCenterFor through viewFor), so every frame keeps the
+    // fix under the chevron while the heading and zoom glide. Opens the
+    // gesture-suppression window of each property the move changes (see
+    // GESTURE_SUPPRESS_MS), so the camera-change events this call fires are
+    // ignored by the gesture detacher. The tilt window also opens on a zoom
+    // change: a vector map clamps tilt by zoom, so a zoom step can move the
+    // tilt without this page having asked for a new one. heading/tilt are
+    // vector-only (a raster map reinterprets them and stops positioning).
     function moveCam(pose: Partial<CameraPose>): void {
         const now = Date.now();
         const opts: GMCameraOptions = {};
+        const { view, yaw } = viewFor(pose);
         if (pose.lat !== undefined && pose.lng !== undefined) {
-            opts.center = cameraCenterFor(
-                { lat: pose.lat, lng: pose.lng },
-                {
-                    zoom: pose.zoom ?? liveMap.getZoom() ?? 0,
-                    // A raster map stays north-up whatever the pose carries.
-                    heading: state.isVector ? (pose.heading ?? liveMap.getHeading() ?? 0) : 0,
-                    offsetX: pose.offsetX ?? state.spot.x * window.innerWidth,
-                    offsetY: pose.offsetY ?? state.spot.y * window.innerHeight,
-                },
-            );
+            opts.center = cameraCenterFor({ lat: pose.lat, lng: pose.lng }, view);
         }
         // lastSet records only what is SENT: a heading/tilt the raster phase
         // never passed on must count as a change once the map turns vector,
@@ -504,11 +564,13 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         if (zoomChanged) state.programmaticUntil.zoom = now + GESTURE_SUPPRESS_MS;
         if (state.isVector) {
             if (pose.heading !== undefined) {
-                opts.heading = pose.heading;
-                if (pose.heading !== state.lastSet.heading) {
+                opts.heading = view.heading;
+                // Before moveCamera: its heading_changed reports the compass.
+                state.lensYaw = yaw;
+                if (view.heading !== state.lastSet.heading) {
                     state.programmaticUntil.heading = now + GESTURE_SUPPRESS_MS;
                 }
-                state.lastSet.heading = pose.heading;
+                state.lastSet.heading = view.heading;
             }
             if (zoomChanged || (pose.tilt !== undefined && pose.tilt !== state.lastSet.tilt)) {
                 state.programmaticUntil.tilt = now + GESTURE_SUPPRESS_MS;
@@ -527,46 +589,115 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // map shows a camera centre; its pose is the location under the
     // chevron's spot (anchorAt, against state.spot), so a re-follow after a
     // pan eases that location to the fix, pivoting on the chevron as drawn,
-    // as MapLibre's padded easeTo does. The location is read at the zoom,
-    // heading and offset the glide starts from — the owned ones where it has
-    // them — because moveCam derives the first frame's centre from exactly
-    // those: read at a clamped zoom (Google caps it at the map type's
-    // ceiling) while the glide starts from the zoom it asked for, the first
-    // frame would jump.
+    // as MapLibre's padded easeTo does. The location is read through the view
+    // the glide starts from — the owned zoom, heading, tilt and offset where
+    // it has them — because moveCam derives the first frame's centre from
+    // exactly that view: read at a clamped zoom (Google caps it at the map
+    // type's ceiling) while the glide starts from the zoom it asked for, the
+    // first frame would jump. The heading read back is the travel heading the
+    // map shows: its own heading plus the yaw it carries at that offset and
+    // tilt, which viewFor takes off again.
     const glide = createCameraGlide({
         current: (owned) => {
             const zoom = liveMap.getZoom() ?? 0;
-            const heading = liveMap.getHeading() ?? 0;
+            const tilt = liveMap.getTilt() ?? 0;
             const offsetX = owned.offsetX ?? state.spot.x * window.innerWidth;
             const offsetY = owned.offsetY ?? state.spot.y * window.innerHeight;
+            const mapHeading = liveMap.getHeading() ?? 0;
+            const heading = state.isVector
+                ? normalizeBearing(mapHeading + lensYawDeg(state.lens, offsetX, owned.tilt ?? tilt))
+                : mapHeading;
+            const { view } = viewFor({
+                zoom: owned.zoom ?? zoom,
+                heading: owned.heading ?? heading,
+                tilt: owned.tilt ?? tilt,
+                offsetX,
+                offsetY,
+            });
             const center = liveMap.getCenter();
             const anchor = center
-                ? anchorAt(
-                      { lat: center.lat(), lng: center.lng() },
-                      {
-                          zoom: owned.zoom ?? zoom,
-                          heading: state.isVector ? (owned.heading ?? heading) : 0,
-                          offsetX,
-                          offsetY,
-                      },
-                  )
+                ? anchorAt({ lat: center.lat(), lng: center.lng() }, view)
                 : { lat: 0, lng: 0 };
-            return { ...anchor, zoom, heading, tilt: liveMap.getTilt() ?? 0, offsetX, offsetY };
+            return { ...anchor, zoom, heading, tilt, offsetX, offsetY };
         },
         apply: moveCam,
     });
 
+    // Measure the tilted vector map's perspective (lens.ts) from the camera
+    // the map is rendering: project the camera target and two ground points
+    // ahead of and behind it along the map heading, and solve for the focal
+    // length and distance. Called from the probe overlay's draw(), which the
+    // map runs as it renders a moved camera; re-measures only when the tilt,
+    // the zoom or the viewport moved, since nothing else changes the
+    // perspective. At tilt 0 there is nothing to measure and the lens is
+    // unused, so the last measurement is kept for the next tilt.
+    function measureLens(projection: GMMapCanvasProjection | null | undefined): void {
+        if (!state.isVector || !projection) return;
+        const center = liveMap.getCenter();
+        const tilt = liveMap.getTilt() ?? 0;
+        const zoom = liveMap.getZoom() ?? 0;
+        const height = window.innerHeight;
+        const measuredAt = `${tilt}|${zoom}|${window.innerWidth}|${height}`;
+        if (!center || measuredAt === state.lensKey) return;
+        state.lensKey = measuredAt;
+        if (!(tilt > 0)) return;
+        const target = { lat: center.lat(), lng: center.lng() };
+        const d = lensProbeDistancePx(height);
+        const heading = liveMap.getHeading() ?? 0;
+        const probeAt = (offsetY: number) =>
+            projection.fromLatLngToContainerPixel(
+                anchorAt(target, { zoom, heading, offsetX: 0, offsetY }),
+            );
+        const at = projection.fromLatLngToContainerPixel(target);
+        const ahead = probeAt(-d);
+        const behind = probeAt(d);
+        setLens(
+            at && ahead && behind
+                ? calibrateLens({
+                      tiltDeg: tilt,
+                      probeDistancePx: d,
+                      aheadUpPx: at.y - ahead.y,
+                      behindDownPx: behind.y - at.y,
+                      viewportHeightPx: height,
+                  })
+                : null,
+        );
+    }
+
+    // A lens that appears or goes away moves the chevron between the OSM
+    // spot and the centre-line fallback (googleMarkerSpot): re-place it at
+    // once, the chevron and the camera gliding together (spotMotion), rather
+    // than waiting for the next fix — a parked car may not send one.
+    function setLens(next: LensCalibration | null): void {
+        const changed = (next === null) !== (state.lens === null);
+        state.lens = next;
+        if (changed && state.following && state.lastFix) easeHome(REFLOW_MOTION);
+    }
+
+    // The lens probe: an overlay that draws nothing and only reads the
+    // projection the map renders with. OverlayView needs no Map ID, unlike
+    // WebGLOverlayView, so the lens works on every vector map.
+    class LensProbe extends mapsLib.OverlayView {
+        onAdd(): void {}
+        draw(): void {
+            measureLens(this.getProjection());
+        }
+        onRemove(): void {}
+    }
+    new LensProbe().setMap(liveMap);
+
     // Pin the chevron at its spot (googleMarkerSpot: clear of the side cards
     // and dropped per markerPos, or on the centre line of a tilted vector
-    // map) and glide the camera to hold the fix under it — the OSM
-    // `markerEl.left/top` + camera `padding` parity, done without a native
-    // padding API: the pose carries the fix as its anchor plus the chevron's
-    // offset, and moveCam derives the camera centre from both every frame.
-    // [mapBearing] is the map's bearing (0 for a raster map).
+    // map whose lens is not measured) and glide the camera to hold the fix
+    // under it — the OSM `markerEl.left/top` + camera `padding` parity, done
+    // without a native padding API: the pose carries the fix as its anchor
+    // plus the chevron's offset, and moveCam derives the camera centre (and
+    // the lens's yaw) from both every frame. [mapBearing] is the follow
+    // bearing (followOrientation; 0 for a raster map), before the yaw.
     //
     // The camera snaps (null) or glides per [pushMotion], refined by
-    // spotMotion: a chevron that moves on screen — a layout reflow, the map
-    // tilting to or from 0°, the rendering-mode resolve — glides with the
+    // spotMotion: a chevron that moves on screen — a layout reflow, the lens
+    // arriving or going, the rendering-mode resolve — glides with the
     // reflow motion, its CSS transition in lockstep with the camera; on a fix
     // the chevron stays put and the camera eases the ground underneath it. A
     // fix that arrives during such a glide finishes the chevron's remaining
@@ -584,6 +715,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             tiltDeg: fix.tilt,
             widthPx: width,
             reachPx: chevronReach,
+            lensMeasured: state.lens !== null,
         });
         const poseAt = (at: MarkerSpot): CameraPose => ({
             lat: fix.lat,
@@ -710,10 +842,12 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // starts raster and resolves to vector at its first tilesloaded (the AUTO
     // rendering choice with a vector-configured Map ID) needs the listener
     // in place by then — registering it only for a vector start left that
-    // map's compass frozen at north.
+    // map's compass frozen at north. The compass reads the travel heading
+    // (north-up: north), so the lens's yaw bias comes back off the map's own
+    // heading here.
     const reportBearing = createBearingReporter(report);
     liveMap.addListener("heading_changed", () => {
-        reportBearing(liveMap.getHeading() ?? 0);
+        reportBearing(normalizeBearing((liveMap.getHeading() ?? 0) + state.lensYaw));
         if (Date.now() > state.programmaticUntil.heading) {
             userTookCamera();
             armRefollow();

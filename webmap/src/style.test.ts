@@ -439,11 +439,21 @@ describe("googleMarkerSpot", () => {
     // A head-unit-sized page: 853 px wide, right-hand cards reserving 42.8%
     // of it, and a ripple 32 px in radius.
     const layout = { markerPos: 70, bottomSafe: 0.1, rightSafe: 0.428, leftSafe: 0 };
-    const tilted = { vector: true, tiltDeg: 55, widthPx: 853, reachPx: 32 };
+    // The fallback placement: a tilted vector map whose lens (lens.ts) is not
+    // measured yet.
+    const tilted = { vector: true, tiltDeg: 55, widthPx: 853, reachPx: 32, lensMeasured: false };
 
-    it("centres the marker on a tilted vector map, over the perspective's vanishing point", () => {
-        // The road ahead then runs straight up through the chevron instead of
-        // leaning toward the centre, where Google's perspective converges.
+    it("takes the OSM placement on a tilted vector map once its lens is measured", () => {
+        // The lens's yaw bias then turns the road ahead vertical through the
+        // chevron wherever it sits, as MapLibre's camera padding does.
+        expect(googleMarkerSpot(layout, { ...tilted, lensMeasured: true })).toEqual(
+            markerSpot(layout),
+        );
+    });
+
+    it("centres the marker on an unmeasured tilted vector map, over the vanishing point", () => {
+        // Without the lens the road ahead runs straight up only on the
+        // centre line, where Google's perspective converges.
         expect(googleMarkerSpot(layout, tilted)).toEqual({ x: 0, y: markerDrop(70, 0.1) });
     });
 

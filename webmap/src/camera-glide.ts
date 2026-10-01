@@ -93,8 +93,9 @@ function worldOffset(view: CameraView): { dx: number; dy: number } {
 }
 
 // The camera centre that shows [anchor] at the view's screen offset. Flat
-// math: a tilted map's perspective is not modelled, so there the anchor sits
-// at the offset only approximately (exactly on a flat map).
+// math, exact on a flat map; on a tilted map the caller passes the ground
+// offset under the chevron (lens.ts's lensGroundOffset) as the offset, which
+// makes it exact there too.
 export function cameraCenterFor(anchor: LatLng, view: CameraView): LatLng {
     const d = worldOffset(view);
     return { lat: latAt(worldY(anchor.lat) - d.dy), lng: lngAt(worldX(anchor.lng) - d.dx) };

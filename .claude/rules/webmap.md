@@ -148,12 +148,24 @@ policy:
   centre — and derives the centre every frame, so a rotation or zoom
   pivots on the chevron as on the OSM map.
 - The Maps JS API has no camera padding, so a tilted Google vector
-  map's perspective converges on the viewport centre: the chevron
-  sits on the vertical centre line there, clamped clear of the side
-  cards (`googleMarkerSpot`). A chevron that changes spot glides in
-  lockstep with the camera (`spotMotion`) with the reflow motion both
-  backends use; as with any reflow, a fix that arrives during that
-  glide finishes the remaining chevron move at once.
+  map's perspective converges on the viewport centre. The page
+  measures that perspective instead of assuming it: `src/lens.ts`,
+  fed by an `OverlayView`'s `MapCanvasProjection` (no Map ID
+  needed), recovers the focal length and camera distance from two
+  probe points and derives a yaw bias δ on the map heading — so the
+  direction of travel runs straight up through the chevron at the
+  OSM spot (`markerSpot`) — and the exact ground offset under the
+  chevron. δ is Google's stand-in for camera padding, not a heading
+  rule: `followOrientation` stays the one follow-heading source, and
+  the backend adds δ only where it talks to the map (`moveCamera`,
+  the glide's read-back, the compass, which reports the travel
+  heading). Never hard-code a field of view. Until the lens is
+  measured, or when the measurement is implausible, the chevron falls
+  back to the vertical centre line with no yaw, clamped clear of the
+  side cards (`googleMarkerSpot`). A chevron that changes spot glides
+  in lockstep with the camera (`spotMotion`) with the reflow motion
+  both backends use; as with any reflow, a fix that arrives during
+  that glide finishes the remaining chevron move at once.
 
 ## Toolchain split
 

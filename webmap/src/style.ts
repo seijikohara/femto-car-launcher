@@ -170,19 +170,24 @@ export interface MarkerView {
     widthPx: number;
     // How far the chevron reaches from its centre (its ripple), in px.
     reachPx: number;
+    // The page has measured the map's perspective (lens.ts), so the lens's
+    // yaw bias can stand in for the camera padding Google lacks.
+    lensMeasured: boolean;
 }
 
-// The Google Maps placement. Google has no camera padding, so a tilted
-// vector map's perspective always converges on the viewport centre: a
-// chevron beside the centre sees the road ahead lean toward it. There the
-// chevron sits on the vertical centre line, clamped so its reach stays
-// inside the exposed strip between the side safe areas (a strip narrower
-// than the reach takes it at its middle); the drop is markerDrop's. A raster
-// map and a flat (0°) vector map have no perspective and take the OSM
-// placement.
+// The Google Maps placement: the OSM placement, which the lens (lens.ts)
+// makes exact on a tilted vector map by turning the map heading so the road
+// ahead runs straight up through the chevron. Until the lens is measured (or
+// when its measurement is implausible) a tilted vector map's perspective
+// converges on the viewport centre with nothing to correct it — a chevron
+// beside the centre would see the road ahead lean toward it — so the chevron
+// falls back to the vertical centre line, clamped so its reach stays inside
+// the exposed strip between the side safe areas (a strip narrower than the
+// reach takes it at its middle); the drop is markerDrop's. A raster map and a
+// flat (0°) vector map have no perspective and need no lens.
 export function googleMarkerSpot(layout: MarkerLayout, view: MarkerView): MarkerSpot {
     const spot = markerSpot(layout);
-    if (!view.vector || !(view.tiltDeg > 0)) return spot;
+    if (!view.vector || !(view.tiltDeg > 0) || view.lensMeasured) return spot;
     const reach = view.widthPx > 0 ? view.reachPx / view.widthPx : 0;
     const lo = Math.max(0, layout.leftSafe || 0) + reach - 0.5;
     const hi = 0.5 - Math.max(0, layout.rightSafe || 0) - reach;
