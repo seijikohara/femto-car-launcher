@@ -112,7 +112,10 @@ class WebMapViewReloadTest {
         // The backoff starts in the frame that composes the fatal, one frame on.
         val backoffEnds = rule.mainClock.currentTime + FRAME_MS + liveReloadRetryDelayMs(0)
         reportFatal(NetworkFailure)
-        rule.mainClock.advanceTimeBy(backoffEnds - HALF_FRAME_MS - rule.mainClock.currentTime, ignoreFrameDuration = true)
+        rule.mainClock.advanceTimeBy(
+            backoffEnds - HALF_FRAME_MS - rule.mainClock.currentTime,
+            ignoreFrameDuration = true,
+        )
         host.moveTo(Lifecycle.State.CREATED)
         rule.mainClock.advanceTimeBy(FRAME_MS, ignoreFrameDuration = true)
         settle()
