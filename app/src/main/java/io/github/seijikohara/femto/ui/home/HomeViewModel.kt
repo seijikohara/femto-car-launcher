@@ -84,7 +84,7 @@ internal class HomeViewModel(
     // (SystemStatusRepository.onlineFlow); backs [online]. Defaults to
     // always-online so previews and tests that do not exercise recovery are
     // unaffected.
-    private val onlineFlow: Flow<Boolean> = flowOf(true),
+    private val onlineFlow: Flow<Boolean> = flowOf(ASSUMED_ONLINE),
     // The updater's state; drives the dock's update badge and the update prompt.
     // Defaults to a build that never checks, so previews and tests that do not
     // exercise either are unaffected.
