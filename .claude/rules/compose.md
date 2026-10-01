@@ -26,7 +26,12 @@ convention wins.
     testable in isolation.
   - `<Area>ViewModel` exposes `StateFlow<UiState>` and a single
     `fun onAction(action: Action)`; never expose mutable state or
-    lifecycle-aware fields.
+    lifecycle-aware fields. It may expose an additional
+    purpose-named `StateFlow` beside `UiState` when a signal must not
+    wait for the `UiState` aggregation or must not replay stale —
+    `HomeViewModel.online` (the map's reconnect reading) and
+    `HomeViewModel.updatePrompt` (never shown stale) — shared with a
+    policy from `data/common/FlowSharing.kt`.
 - Trivial stateless screens need only `<Area>Screen.kt` (`Route`
   and `Screen` collapsed into one Composable); promote to the
   three-Composable shape on the first state addition.

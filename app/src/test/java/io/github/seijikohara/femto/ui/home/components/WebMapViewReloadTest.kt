@@ -9,10 +9,19 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import io.github.seijikohara.femto.BuildConfig
+import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.display.MapBackend
+import io.github.seijikohara.femto.data.display.MapColorScheme
+import io.github.seijikohara.femto.data.display.MapStyleSetting
+import io.github.seijikohara.femto.data.map.MapRuntimeSignals
+import io.github.seijikohara.femto.testfixtures.BoundedFailureDetails
 import io.github.seijikohara.femto.testfixtures.FakeLifecycleOwner
 import io.github.seijikohara.femto.testfixtures.NetworkFailureDetails
+import io.github.seijikohara.femto.testfixtures.styleLoadRejectedDetail
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
 import org.junit.Test
@@ -20,18 +29,22 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowSystemClock
+import java.time.Duration
 import kotlin.test.assertEquals
 import kotlin.test.assertNotSame
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 
 /**
  * Wiring tests for [WebMapView]'s reload schedule: a failed page reloads on
  * the backoff while the launcher is visible, never while it is hidden, and
  * once at once on its return; an offline->online edge that arrives while
- * hidden reloads on the return too. The page is the real WebMapView over a
- * Robolectric WebView: a fatal arrives through the registered `femtoBridge`
- * the way the page sends it, the failure notice replaces the WebView, and a
- * reload shows as a new WebView instance.
+ * hidden reloads on the return too; the OSM page's first tile restarts the
+ * backoff. The page is the real WebMapView over a Robolectric WebView: an
+ * event arrives through the registered `femtoBridge` the way the page sends
+ * it, the failure notice replaces the WebView, and a reload shows as a new
+ * WebView instance.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -41,6 +54,7 @@ class WebMapViewReloadTest {
 
     private val host = FakeLifecycleOwner()
     private val online = mutableStateOf(true)
+    private val mapConfig = mutableStateOf(MapConfig())
 
     @Test fun `a network failure while visible reloads after the backoff`() {
         showMap()
@@ -91,6 +105,26 @@ class WebMapViewReloadTest {
         assertEquals(1, pages().size)
     }
 
+    // The backoff delay is not frame-bound: it can run out after the hide and
+    // before any composition has seen it.
+    @Test fun `a backoff that runs out just after the hide waits for the return`() {
+        showMap()
+        // The backoff starts in the frame that composes the fatal, one frame on.
+        val backoffEnds = rule.mainClock.currentTime + FRAME_MS + liveReloadRetryDelayMs(0)
+        reportFatal(NetworkFailure)
+        rule.mainClock.advanceTimeBy(
+            backoffEnds - HALF_FRAME_MS - rule.mainClock.currentTime,
+            ignoreFrameDuration = true,
+        )
+        host.moveTo(Lifecycle.State.CREATED)
+        rule.mainClock.advanceTimeBy(FRAME_MS, ignoreFrameDuration = true)
+        settle()
+        advanceBy(TEN_MINUTES_MS)
+        assertEquals(0, pages().size, "no reload while hidden")
+        setLifecycle(Lifecycle.State.RESUMED)
+        assertEquals(1, pages().size, "one reload on the return")
+    }
+
     @Test fun `a failure reported while hidden reloads on the return, not before`() {
         showMap()
         setLifecycle(Lifecycle.State.CREATED)
@@ -107,6 +141,7 @@ class WebMapViewReloadTest {
     @Test fun `a reconnect while visible reloads at once`() {
         showMap(onlineAtStart = false)
         val first = page()
+        markLoaded(first)
         setOnline(true)
         assertNotSame(first, page())
     }
@@ -114,6 +149,7 @@ class WebMapViewReloadTest {
     @Test fun `a reconnect while hidden reloads on the return, not before`() {
         showMap(onlineAtStart = false)
         val first = page()
+        markLoaded(first)
         setLifecycle(Lifecycle.State.CREATED)
         setOnline(true)
         advanceBy(TEN_MINUTES_MS)
@@ -132,19 +168,17 @@ class WebMapViewReloadTest {
         assertSame(first, page())
     }
 
-    // The dashboard collects its state with the lifecycle, so a reconnect that
-    // happened behind another app reaches the map only after the return —
-    // seconds after the return reload has already rebuilt the page.
-    @Test fun `a reconnect seen just after the return reload does not reload again`() {
+    // A launcher hidden while offline comes back to a network that returned
+    // meanwhile: the fresh reading and the return land before one frame, and
+    // the return reload already runs on that network, so the offline->online
+    // edge the same return brings must not reload it again.
+    @Test fun `a return to a restored network reloads the failed page once`() {
         showMap(onlineAtStart = false)
         reportFatal(NetworkFailure)
         setLifecycle(Lifecycle.State.CREATED)
         advanceBy(TEN_MINUTES_MS)
-        setLifecycle(Lifecycle.State.RESUMED)
-        val reloaded = page()
-        setOnline(true)
-        advanceBy(TEN_MINUTES_MS)
-        assertSame(reloaded, page(), "the return reload already covered the reconnect")
+        returnWith(online = true)
+        assertEquals(1, pagesOver(RETURN_FRAMES).size, "one page built at the return")
     }
 
     @Test fun `a return-reloaded page that fails again still reloads at once on a reconnect`() {
@@ -158,8 +192,334 @@ class WebMapViewReloadTest {
         assertEquals(1, pages().size, "the reconnect reloads the failed page at once")
     }
 
-    private fun showMap(onlineAtStart: Boolean = true) {
+    // After a long outage the backoff sits at its cap; the page's data coming
+    // back must bring the next, unrelated failure down to the first step.
+    @Test fun `a first tile restarts the backoff`() {
+        showMap()
+        failPages(OUTAGE_STEPS)
+        reportTile()
+        reportFatal(NetworkFailure)
+        advanceBy(liveReloadRetryDelayMs(0) - MARGIN_MS)
+        assertEquals(0, pages().size)
+        advanceBy(2 * MARGIN_MS)
+        assertEquals(1, pages().size, "the failure after the data came back reloads on the first step")
+    }
+
+    // The page's own no-tile fatal can land a frame before its first tile: the
+    // notice already stands, so that tile must neither restart the backoff nor
+    // clear the failure on record.
+    @Test fun `a first tile right behind the page's own fatal changes nothing`() {
+        showMap()
+        failPages(1)
+        send("fatal", NetworkFailure)
+        send("tile", "openmaptiles")
+        settle()
+        assertEquals(NetworkFailure, MapRuntimeSignals.lastFailureOrNull()?.detail, "the failure stays on record")
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        assertEquals(0, pages().size, "the backoff kept its step")
+        advanceBy(liveReloadRetryDelayMs(1) - liveReloadRetryDelayMs(0))
+        assertEquals(1, pages().size)
+    }
+
+    // A page a reload replaced can still deliver a late event; like its late
+    // fatal, it must never act on its successor.
+    @Test fun `a first tile from a replaced page leaves the backoff alone`() {
+        showMap()
+        val replaced = page()
+        reportFatal(NetworkFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        reportTile(page = replaced)
+        reportFatal(NetworkFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        assertEquals(0, pages().size, "the backoff kept its second step")
+        advanceBy(liveReloadRetryDelayMs(1) - liveReloadRetryDelayMs(0))
+        assertEquals(1, pages().size)
+    }
+
+    // Google's tile events can fire on a page that then reports a rejected
+    // key; a reset there would turn the bounded, billed retries into an
+    // endless billed loop.
+    @Test fun `a tile from a Google page leaves the backoff alone`() {
+        showMap(config = GoogleMapsConfig)
+        reportFatal(GoogleAuthFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        reportTile()
+        reportFatal(GoogleAuthFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        assertEquals(0, pages().size, "the billed retries kept their count")
+        advanceBy(liveReloadRetryDelayMs(1) - liveReloadRetryDelayMs(0))
+        assertEquals(1, pages().size)
+    }
+
+    // Two hosts: a retry moved to the second; the success signal restarts the
+    // backoff step but must not send the next reload back to the host that
+    // page holds.
+    @Test fun `a first tile restarts the backoff but keeps the tile host rotation`() {
+        showMap(config = MapConfig(tileHostOverride = OVERRIDE_TILE_HOST))
+        val hosts = mapTileHosts(OVERRIDE_TILE_HOST, BuildConfig.MAP_TILE_HOST)
+        assertEquals(2, hosts.size, "the override and the build default")
+        assertEquals(hosts[0], tileHostOf(page()))
+        failPages(1)
+        assertEquals(hosts[1], tileHostOf(page()))
+        reportTile()
+        reportFatal(NetworkFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        assertEquals(hosts[0], tileHostOf(page()), "the next reload moves on from the host that failed")
+    }
+
+    // OSM sends `ready` once its style has loaded, which a page without data
+    // does too, so only the first tile may clear the diagnostics' record.
+    @Test fun `an OSM ready leaves the diagnostics' last failure standing`() {
+        showMap()
+        reportFatal(NetworkFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        reportReady()
+        assertEquals(NetworkFailure, MapRuntimeSignals.lastFailureOrNull()?.detail)
+    }
+
+    // A Google page a reload replaced can still deliver its `ready`; it says
+    // nothing about the page on screen, whose failure must stay on record.
+    @Test fun `a late Google ready from a replaced page leaves the last failure on record`() {
+        showMap(config = GoogleMapsConfig)
+        val replaced = page()
+        reportFatal(GoogleAuthFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        reportFatal(NetworkFailure)
+        report("ready", "test renderer", page = replaced)
+        assertEquals(NetworkFailure, MapRuntimeSignals.lastFailureOrNull()?.detail)
+    }
+
+    @Test fun `a Google ready right behind the page's own fatal leaves the last failure on record`() {
+        showMap(config = GoogleMapsConfig)
+        send("fatal", GoogleAuthFailure)
+        send("ready", "test renderer")
+        settle()
+        assertEquals(GoogleAuthFailure, MapRuntimeSignals.lastFailureOrNull()?.detail)
+    }
+
+    @Test fun `a first tile clears the diagnostics' last failure`() {
+        showMap()
+        reportFatal(NetworkFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        reportTile()
+        assertNull(MapRuntimeSignals.lastFailureOrNull())
+    }
+
+    // The Google page's `ready` is its first `tilesloaded`: tiles, not a style.
+    @Test fun `a Google ready still clears the diagnostics' last failure`() {
+        showMap(config = GoogleMapsConfig)
+        reportFatal(GoogleAuthFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        reportReady()
+        assertNull(MapRuntimeSignals.lastFailureOrNull())
+    }
+
+    @Test fun `a renderer death while visible rebuilds at once`() {
+        showMap()
+        val dead = page()
+        killRenderer(dead)
+        assertNotSame(dead, page())
+    }
+
+    // A rebuild behind another app loads a page no one sees, and a rebuilt
+    // page killed there again would trip the crash-loop give-up unwatched.
+    @Test fun `a renderer death while hidden rebuilds on the return, not before`() {
+        showMap()
+        val dead = page()
+        setLifecycle(Lifecycle.State.CREATED)
+        killRenderer(dead)
+        advanceBy(TEN_MINUTES_MS)
+        assertEquals(0, pages().size, "no rebuild while hidden")
+        setLifecycle(Lifecycle.State.RESUMED)
+        assertNotSame(dead, page(), "one rebuild on the return")
+    }
+
+    // A lone kill behind another app is the system reclaiming memory, and
+    // nothing rebuilds while hidden, so it cannot be part of a crash loop.
+    @Test fun `a renderer kill while hidden does not count toward the give-up`() {
+        showMap()
+        killRenderer(page())
+        setLifecycle(Lifecycle.State.CREATED)
+        killRenderer(page())
+        setLifecycle(Lifecycle.State.RESUMED)
+        assertEquals(1, pages().size, "the map is rebuilt, not given up")
+    }
+
+    @Test fun `a Google light-dark flip while visible rebuilds at once`() {
+        showMap(config = GoogleMapsConfig.copy(style = MapStyleSetting.LIGHT))
+        val light = page()
+        setMapConfig(GoogleMapsConfig.copy(style = MapStyleSetting.DARK))
+        assertNotSame(light, page())
+        assertEquals("DARK", colorSchemeOf(page()))
+    }
+
+    // Google fixes its colour scheme at construction, so a flip rebuilds the
+    // page: a billed map load, which must wait until someone can see it.
+    @Test fun `a Google light-dark flip while hidden rebuilds on the return, not before`() {
+        showMap(config = GoogleMapsConfig.copy(style = MapStyleSetting.LIGHT))
+        val light = page()
+        setLifecycle(Lifecycle.State.CREATED)
+        setMapConfig(GoogleMapsConfig.copy(style = MapStyleSetting.DARK))
+        advanceBy(TEN_MINUTES_MS)
+        assertSame(light, page(), "no rebuild while hidden")
+        setLifecycle(Lifecycle.State.RESUMED)
+        assertNotSame(light, page(), "one rebuild on the return")
+        assertEquals("DARK", colorSchemeOf(page()))
+    }
+
+    // A page rebuilt at the return is still loading on the network the launcher
+    // came back to: the offline->online edge the same return brings must not
+    // reload it again (on Google, a second billed load).
+    @Test fun `a return to a restored network builds the renderer rebuild once`() {
+        showMap(onlineAtStart = false)
+        setLifecycle(Lifecycle.State.CREATED)
+        killRenderer(page())
+        returnWith(online = true)
+        assertEquals(1, pagesOver(RETURN_FRAMES).size, "one page built at the return")
+    }
+
+    @Test fun `a return to a restored network builds the Google light-dark rebuild once`() {
+        showMap(onlineAtStart = false, config = GoogleMapsConfig.copy(style = MapStyleSetting.LIGHT))
+        setLifecycle(Lifecycle.State.CREATED)
+        setMapConfig(GoogleMapsConfig.copy(style = MapStyleSetting.DARK))
+        returnWith(online = true)
+        assertEquals(1, pagesOver(RETURN_FRAMES).size, "one page built at the return")
+    }
+
+    // The fresh reading can land frames after the return (the upstream
+    // restarts after a long hide): the flip's page is still loading on the
+    // restored network then, so the edge must not build a second one.
+    @Test fun `a late reading after a Google light-dark rebuild at the return builds one page`() {
+        showMap(onlineAtStart = false, config = GoogleMapsConfig.copy(style = MapStyleSetting.LIGHT))
+        setLifecycle(Lifecycle.State.CREATED)
+        setMapConfig(GoogleMapsConfig.copy(style = MapStyleSetting.DARK))
+        returnWith(online = false)
+        val beforeReading = pagesOver(2)
+        online.value = true
+        val afterReading = pagesOver(RETURN_FRAMES)
+        assertEquals(1, (beforeReading + afterReading).size, "one page built at the return")
+    }
+
+    // A loading page already fetches on the network as it is now: the edge
+    // reloads nothing, yet starts the backoff short and keeps the rotation.
+    @Test fun `a reconnect reaching a loading page restarts the backoff and keeps the host rotation`() {
+        showMap(config = MapConfig(tileHostOverride = OVERRIDE_TILE_HOST))
+        val hosts = mapTileHosts(OVERRIDE_TILE_HOST, BuildConfig.MAP_TILE_HOST)
+        failPages(1)
+        val loading = page()
+        assertEquals(hosts[1], tileHostOf(loading))
+        setOnline(false)
+        setOnline(true)
+        assertSame(loading, page(), "the loading page is kept")
+        reportFatal(NetworkFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        assertEquals(1, pages().size, "the backoff restarted at its first step")
+        assertEquals(hosts[0], tileHostOf(page()), "the rotation moved on from the kept page")
+    }
+
+    @Test fun `a reconnect reaching a loaded page reloads it`() {
+        showMap(onlineAtStart = false)
+        val loaded = page()
+        markLoaded(loaded)
+        setOnline(true)
+        assertNotSame(loaded, page())
+    }
+
+    @Test fun `a renderer give-up lifts on a return once the settle period has passed`() {
+        showMap()
+        killRenderer(page())
+        killRenderer(page())
+        assertEquals(0, pages().size, "a second death inside the window gives up")
+        setLifecycle(Lifecycle.State.CREATED)
+        advanceSystemClock(RENDERER_GIVE_UP_SETTLE_MS - MARGIN_MS)
+        setLifecycle(Lifecycle.State.RESUMED)
+        assertEquals(0, pages().size, "a return before the settle period keeps the notice")
+        setLifecycle(Lifecycle.State.CREATED)
+        advanceSystemClock(2 * MARGIN_MS)
+        setLifecycle(Lifecycle.State.RESUMED)
+        assertEquals(1, pages().size, "a return after it rebuilds the map")
+    }
+
+    @Test fun `a return to a restored network builds the lifted give-up's page once`() {
+        showMap(onlineAtStart = false)
+        killRenderer(page())
+        killRenderer(page())
+        setLifecycle(Lifecycle.State.CREATED)
+        advanceSystemClock(RENDERER_GIVE_UP_SETTLE_MS + MARGIN_MS)
+        returnWith(online = true)
+        assertEquals(1, pagesOver(RETURN_FRAMES).size, "one page built at the return")
+    }
+
+    @Test fun `a renderer give-up stays while the launcher stays on screen`() {
+        showMap()
+        killRenderer(page())
+        killRenderer(page())
+        advanceSystemClock(RENDERER_GIVE_UP_SETTLE_MS + MARGIN_MS)
+        assertEquals(0, pages().size, "only a return lifts it")
+    }
+
+    // A custom style changes inside the live page, while the failure state
+    // re-keys on its URL: the page's fatal must reach the new state.
+    @Test fun `a refused custom style after its URL changed on a live page shows the notice`() {
+        showMap(config = customStyleConfig(FIRST_STYLE_URL))
+        val live = page()
+        setMapConfig(customStyleConfig(SECOND_STYLE_URL))
+        assertSame(live, page(), "the new style loads in the live page")
+        reportFatal(styleLoadRejectedDetail(SECOND_STYLE_URL))
+        assertEquals(0, pages().size, "the notice replaces the page")
+        rule.onNodeWithText(rule.activity.getString(R.string.map_custom_style_failed)).assertExists()
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        assertEquals(1, pages().size, "and the retry reloads it")
+    }
+
+    @Test fun `a refused custom style after a flip onto it on a live page shows the notice`() {
+        val config = customStyleConfig(FIRST_STYLE_URL).copy(schemeLight = MapColorScheme.ACCENT)
+        showMap(config = config.copy(style = MapStyleSetting.LIGHT))
+        val live = page()
+        setMapConfig(config.copy(style = MapStyleSetting.DARK))
+        assertSame(live, page(), "the flip restyles the live page")
+        reportFatal(styleLoadRejectedDetail(FIRST_STYLE_URL))
+        assertEquals(0, pages().size, "the notice replaces the page")
+    }
+
+    // A custom style saved for OSM is not the Google page's state: a flip onto
+    // or off it must leave a failed Google page alone while hidden, where a
+    // fresh page would be a billed map load no one sees.
+    @Test fun `a flip across a saved OSM custom style leaves a failed Google page alone while hidden`() {
+        val config =
+            GoogleMapsConfig.copy(
+                style = MapStyleSetting.LIGHT,
+                schemeLight = MapColorScheme.CUSTOM,
+                customStyleUrl = FIRST_STYLE_URL,
+            )
+        showMap(config = config)
+        reportFatal(GoogleAuthFailure)
+        setLifecycle(Lifecycle.State.CREATED)
+        setMapConfig(config.copy(style = MapStyleSetting.DARK))
+        advanceBy(TEN_MINUTES_MS)
+        assertEquals(0, pages().size, "no page while hidden")
+        setLifecycle(Lifecycle.State.RESUMED)
+        val returned = page()
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        assertSame(returned, page(), "exactly one page on the return")
+    }
+
+    @Test fun `a late fatal from a replaced page leaves its successor alone`() {
+        showMap()
+        val replaced = page()
+        reportFatal(NetworkFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        val successor = page()
+        reportFatal(NetworkFailure, page = replaced)
+        assertSame(successor, page())
+    }
+
+    private fun showMap(
+        onlineAtStart: Boolean = true,
+        config: MapConfig = MapConfig(),
+    ) {
         online.value = onlineAtStart
+        mapConfig.value = config
         host.moveTo(Lifecycle.State.RESUMED)
         rule.mainClock.autoAdvance = false
         rule.setContent {
@@ -167,7 +527,7 @@ class WebMapViewReloadTest {
                 FemtoTheme {
                     WebMapView(
                         location = Location("test"),
-                        mapConfig = MapConfig(),
+                        mapConfig = mapConfig.value,
                         onTap = {},
                         online = online.value,
                     )
@@ -183,18 +543,113 @@ class WebMapViewReloadTest {
 
     private fun page(): WebView = pages().single()
 
-    // A `fatal` as the page sends it: through the bridge object the host
-    // registered on the current WebView.
-    private fun reportFatal(detail: String) {
-        val bridge = shadowOf(page()).getJavascriptInterface("femtoBridge")
+    // The bridge object the host registered on [page], as the page script
+    // reaches it.
+    private fun bridgeOf(page: WebView): Any = shadowOf(page).getJavascriptInterface("femtoBridge")
+
+    // An event as the page sends it: through the bridge of [page], the one on
+    // screen unless a test replays a page a reload replaced.
+    private fun report(
+        kind: String,
+        detail: String,
+        page: WebView = page(),
+    ) {
+        send(kind, detail, page)
+        settle()
+    }
+
+    // [report] without the frames after it, for events the page sends back to
+    // back, before the host has composed anything in between.
+    private fun send(
+        kind: String,
+        detail: String,
+        page: WebView = page(),
+    ) {
+        val bridge = bridgeOf(page)
         bridge.javaClass
             .getMethod("onMapEvent", String::class.java, String::class.java)
-            .invoke(bridge, "fatal", detail)
+            .invoke(bridge, kind, detail)
+    }
+
+    private fun reportFatal(
+        detail: String,
+        page: WebView = page(),
+    ) = report("fatal", detail, page)
+
+    // The OSM page's success signal: the first tile of its style.
+    private fun reportTile(page: WebView = page()) = report("tile", "openmaptiles", page)
+
+    private fun reportReady() = report("ready", "test renderer")
+
+    // Fails [steps] pages in a row, each reloaded once its backoff step passes.
+    private fun failPages(steps: Int) =
+        repeat(steps) { attempt ->
+            reportFatal(NetworkFailure)
+            advanceBy(liveReloadRetryDelayMs(attempt) + MARGIN_MS)
+        }
+
+    // The tile host [page] loads with, read through its bridge getter.
+    private fun tileHostOf(page: WebView): String = bridgeGetter(page, "tileHost")
+
+    // The colour scheme a Google [page] is built with, read the same way.
+    private fun colorSchemeOf(page: WebView): String = bridgeGetter(page, "googleMapsColorScheme")
+
+    private fun bridgeGetter(
+        page: WebView,
+        name: String,
+    ): String {
+        val bridge = bridgeOf(page)
+        return bridge.javaClass.getMethod(name).invoke(bridge) as String
+    }
+
+    // A renderer death as the platform reports it, through the page's client.
+    private fun killRenderer(page: WebView) {
+        // Reached past onRenderProcessGone, whose detail object apps may not
+        // construct.
+        (shadowOf(page).webViewClient as LiveMapWebViewClient).onRendererGone(page, crashed = true)
+        settle()
+    }
+
+    // The clock renderer containment reads (SystemClock); the compose test
+    // clock does not move it.
+    private fun advanceSystemClock(ms: Long) {
+        ShadowSystemClock.advanceBy(Duration.ofMillis(ms))
+        settle()
+    }
+
+    private fun setMapConfig(config: MapConfig) {
+        mapConfig.value = config
         settle()
     }
 
     private fun setLifecycle(state: Lifecycle.State) {
         host.moveTo(state)
+        settle()
+    }
+
+    // Returns to the launcher as a device does: the connectivity reading the
+    // dashboard collects again on ON_START and the return itself both land
+    // before the first frame composes either.
+    private fun returnWith(online: Boolean) {
+        this.online.value = online
+        host.moveTo(Lifecycle.State.RESUMED)
+    }
+
+    // Every page on screen over [frames] frames, one frame at a time, so a page
+    // built and replaced inside one settle still counts.
+    private fun pagesOver(frames: Int): Set<WebView> =
+        (1..frames)
+            .flatMap {
+                shadowOf(Looper.getMainLooper()).idle()
+                rule.mainClock.advanceTimeByFrame()
+                shadowOf(Looper.getMainLooper()).idle()
+                pages()
+            }.toSet()
+
+    // The page script has run (onPageFinished), which Robolectric's WebView
+    // never reports by itself.
+    private fun markLoaded(page: WebView) {
+        (shadowOf(page).webViewClient as LiveMapWebViewClient).onPageFinished(page, shadowOf(page).lastLoadedUrl)
         settle()
     }
 
@@ -228,8 +683,35 @@ private fun View.webViews(): List<WebView> =
     }
 
 private val NetworkFailure = NetworkFailureDetails.first()
+
+// A rejected Google key: a bounded failure, retried only within the budget.
+private val GoogleAuthFailure = BoundedFailureDetails.first()
+private val GoogleMapsConfig = MapConfig(backend = MapBackend.GOOGLEMAPS, googleMapsApiKey = "test-key")
+private const val OVERRIDE_TILE_HOST = "https://tiles.example.test"
+
+// Both schemes on the user's hosted style, in the light context.
+private fun customStyleConfig(url: String) =
+    MapConfig(
+        style = MapStyleSetting.LIGHT,
+        schemeLight = MapColorScheme.CUSTOM,
+        schemeDark = MapColorScheme.CUSTOM,
+        customStyleUrl = url,
+    )
+
+private const val FIRST_STYLE_URL = "https://styles.example.test/first/style.json"
+private const val SECOND_STYLE_URL = "https://styles.example.test/second/style.json"
+
+// Enough failed pages in a row to put the backoff at its cap.
+private const val OUTAGE_STEPS = 5
 private const val TEN_MINUTES_MS = 10 * 60_000L
 
 // Wide enough to cover the frames each settle() runs, far below any backoff step.
 private const val MARGIN_MS = 500L
 private const val SETTLE_FRAMES = 3
+
+// Frames enough for a return's effects and the reloads they start to settle.
+private const val RETURN_FRAMES = 10
+
+// The compose test clock's frame, and half of it.
+private const val FRAME_MS = 16L
+private const val HALF_FRAME_MS = FRAME_MS / 2
