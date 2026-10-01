@@ -43,7 +43,8 @@ internal const val VIDEO_ASPECT_RATIO = 16f / 9f
 /**
  * The dashboard's small video window (issue #390), a 16:9 glass frame over the
  * map. With no playable file it is one "Pick a video" target. With one, it
- * shows the picture through [surface] while [VideoUiState.pictureVisible], and
+ * shows the picture through [surface] while [pictureVisible] (the motion
+ * gate's verdict), and
  * otherwise no frame at all, only a line saying why; the play / pause button
  * stays either way, since the audio does. A tap anywhere else opens the full
  * panel ([onExpand]).
@@ -51,6 +52,7 @@ internal const val VIDEO_ASPECT_RATIO = 16f / 9f
 @Composable
 internal fun VideoWindow(
     state: VideoUiState,
+    pictureVisible: Boolean,
     onAction: (VideoAction) -> Unit,
     onExpand: () -> Unit,
     surface: @Composable (Modifier) -> Unit,
@@ -76,7 +78,7 @@ internal fun VideoWindow(
                 ),
     ) {
         if (state.fileReady) {
-            VideoPicture(state = state, surface = surface, modifier = Modifier.fillMaxSize())
+            VideoPicture(pictureVisible = pictureVisible, surface = surface, modifier = Modifier.fillMaxSize())
             VideoPlayButton(
                 playing = state.playing,
                 onAction = onAction,
@@ -98,11 +100,11 @@ internal fun VideoWindow(
  */
 @Composable
 internal fun VideoPicture(
-    state: VideoUiState,
+    pictureVisible: Boolean,
     surface: @Composable (Modifier) -> Unit,
     modifier: Modifier = Modifier,
 ) = Box(modifier = modifier, contentAlignment = Alignment.Center) {
-    if (state.pictureVisible) {
+    if (pictureVisible) {
         surface(Modifier.fillMaxSize())
     } else {
         Text(
@@ -168,7 +170,8 @@ internal fun PickVideoPrompt(modifier: Modifier = Modifier) =
 private fun VideoWindowHiddenPreview() =
     FemtoTheme {
         VideoWindow(
-            state = VideoUiState(windowEnabled = true, fileReady = true, pictureVisible = false, playing = true),
+            state = VideoUiState(windowEnabled = true, fileReady = true, playing = true),
+            pictureVisible = false,
             onAction = {},
             onExpand = {},
             surface = {},
@@ -181,6 +184,7 @@ private fun VideoWindowNoFilePreview() =
     FemtoTheme {
         VideoWindow(
             state = VideoUiState.Off.copy(windowEnabled = true),
+            pictureVisible = false,
             onAction = {},
             onExpand = {},
             surface = {},

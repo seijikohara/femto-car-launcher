@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.CreationExtras
+import io.github.seijikohara.femto.data.common.UI_SUBSCRIPTION_GRACE_MS
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.video.VIDEO_PICTURE_STOP_DWELL_MS
 import io.github.seijikohara.femto.testfixtures.FakeVideoPlayer
@@ -12,6 +13,8 @@ import io.github.seijikohara.femto.testfixtures.FakeVideoSourceGrants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -198,13 +201,36 @@ class VideoViewModelTest {
             viewModel.onAction(VideoAction.TogglePlayback)
             advanceTimeBy(VIDEO_PICTURE_STOP_DWELL_MS)
             runCurrent()
-            assertTrue(viewModel.uiState.value.pictureVisible)
+            assertTrue(viewModel.pictureVisible.value)
 
             motion.value = VehicleMotion.MOVING
             runCurrent()
 
-            assertFalse(viewModel.uiState.value.pictureVisible)
+            assertFalse(viewModel.pictureVisible.value)
             assertTrue(viewModel.uiState.value.playing)
+        }
+
+    @Test
+    fun `a dashboard coming back while moving never starts from a visible picture`() =
+        runTest(dispatcher) {
+            enableWith(FILE)
+            motion.value = VehicleMotion.PARKED
+            val viewModel = viewModel()
+            val watcher = backgroundScope.launch { viewModel.pictureVisible.collect {} }
+            advanceTimeBy(VIDEO_PICTURE_STOP_DWELL_MS)
+            runCurrent()
+            assertTrue(viewModel.pictureVisible.value)
+
+            // The launcher leaves the screen, the car drives off, and the
+            // launcher comes back: the first value the surface sees must be
+            // hidden, or it would attach and draw a frame while moving.
+            watcher.cancel()
+            advanceTimeBy(UI_SUBSCRIPTION_GRACE_MS + 1)
+            motion.value = VehicleMotion.MOVING
+            val first = async { viewModel.pictureVisible.first() }
+            runCurrent()
+
+            assertFalse(first.await())
         }
 
     @Test
@@ -216,7 +242,7 @@ class VideoViewModelTest {
             val viewModel = viewModel()
             subscribe(viewModel)
 
-            assertTrue(viewModel.uiState.value.pictureVisible)
+            assertTrue(viewModel.pictureVisible.value)
         }
 
     @Test
@@ -271,6 +297,7 @@ class VideoViewModelTest {
 
     private fun TestScope.subscribe(viewModel: VideoViewModel) {
         backgroundScope.launch { viewModel.uiState.collect {} }
+        backgroundScope.launch { viewModel.pictureVisible.collect {} }
         runCurrent()
     }
 

@@ -58,6 +58,7 @@ internal fun HomeScreen(
     // The video window (VideoViewModel's state), its events, and the player's
     // surface; see DashboardScaffold.
     video: VideoUiState = VideoUiState.Off,
+    videoPictureVisible: Boolean = false,
     onVideoAction: (VideoAction) -> Unit = {},
     videoSurface: @Composable (Modifier) -> Unit = {},
 ) = Surface(
@@ -84,6 +85,7 @@ internal fun HomeScreen(
         spectrum = spectrum,
         motionTier = motionTier,
         video = video,
+        videoPictureVisible = videoPictureVisible,
         onVideoAction = onVideoAction,
         videoSurface = videoSurface,
     )

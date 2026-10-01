@@ -49,6 +49,7 @@ import io.github.seijikohara.femto.ui.video.VideoUiState
 @Composable
 internal fun VideoPanel(
     state: VideoUiState,
+    pictureVisible: Boolean,
     onAction: (VideoAction) -> Unit,
     onCollapse: () -> Unit,
     surface: @Composable (Modifier) -> Unit,
@@ -110,7 +111,7 @@ internal fun VideoPanel(
                     )
                 if (state.fileReady) {
                     Box(modifier = frame.clip(MaterialTheme.shapes.medium)) {
-                        VideoPicture(state = state, surface = surface, modifier = Modifier.fillMaxSize())
+                        VideoPicture(pictureVisible = pictureVisible, surface = surface, modifier = Modifier.fillMaxSize())
                         VideoPlayButton(
                             playing = state.playing,
                             onAction = onAction,
@@ -138,7 +139,8 @@ internal fun VideoPanel(
 private fun VideoPanelPreview() =
     FemtoTheme {
         VideoPanel(
-            state = VideoUiState(windowEnabled = true, fileReady = true, pictureVisible = false, playing = true),
+            state = VideoUiState(windowEnabled = true, fileReady = true, playing = true),
+            pictureVisible = false,
             onAction = {},
             onCollapse = {},
             surface = {},

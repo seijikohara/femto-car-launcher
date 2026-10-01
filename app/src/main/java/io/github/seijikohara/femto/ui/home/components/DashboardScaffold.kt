@@ -189,6 +189,8 @@ internal fun DashboardScaffold(
     // surface. Off by default, so every caller that does not show it lays out
     // as before.
     video: VideoUiState = VideoUiState.Off,
+    // The motion gate's verdict for the video picture (VideoViewModel.pictureVisible).
+    videoPictureVisible: Boolean = false,
     onVideoAction: (VideoAction) -> Unit = {},
     videoSurface: @Composable (Modifier) -> Unit = {},
 ) = DashboardContent(
@@ -216,6 +218,7 @@ internal fun DashboardScaffold(
     clock = clock,
     mapSurface = mapSurface,
     video = video,
+    videoPictureVisible = videoPictureVisible,
     onVideoAction = onVideoAction,
     videoSurface = videoSurface,
 )
@@ -250,6 +253,7 @@ private fun DashboardContent(
     // draw the self-marker where the WebView would (see MapPanel.mapSurface).
     mapSurface: (@Composable (Location, MapConfig) -> Unit)? = null,
     video: VideoUiState = VideoUiState.Off,
+    videoPictureVisible: Boolean = false,
     onVideoAction: (VideoAction) -> Unit = {},
     videoSurface: @Composable (Modifier) -> Unit = {},
 ) = BoxWithConstraints(modifier = modifier) {
@@ -502,6 +506,7 @@ private fun DashboardContent(
         onExpandTrip = { tripExpanded = true },
         onCloseTrip = { tripExpanded = false },
         video = video,
+        videoPictureVisible = videoPictureVisible,
         onVideoAction = onVideoAction,
         videoSurface = videoSurface,
         videoExpanded = videoExpanded,
@@ -603,6 +608,7 @@ private fun DashboardOverlays(
     onExpandTrip: () -> Unit,
     onCloseTrip: () -> Unit,
     video: VideoUiState,
+    videoPictureVisible: Boolean,
     onVideoAction: (VideoAction) -> Unit,
     videoSurface: @Composable (Modifier) -> Unit,
     videoExpanded: Boolean,
@@ -832,6 +838,7 @@ private fun DashboardOverlays(
                 }
             VideoWindow(
                 state = video,
+                pictureVisible = videoPictureVisible,
                 onAction = onVideoAction,
                 onExpand = onExpandVideo,
                 surface = videoSurface,
@@ -978,6 +985,7 @@ private fun DashboardOverlays(
         ) {
             VideoPanel(
                 state = video,
+                pictureVisible = videoPictureVisible,
                 onAction = onVideoAction,
                 onCollapse = onCloseVideo,
                 surface = videoSurface,

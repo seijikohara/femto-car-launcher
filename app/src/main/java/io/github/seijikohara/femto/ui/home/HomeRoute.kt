@@ -62,6 +62,7 @@ internal fun HomeRoute(
     val videoViewModel: VideoViewModel =
         viewModel(factory = VideoViewModelFactory(context.applicationContext as Application))
     val video by videoViewModel.uiState.collectAsStateWithLifecycle()
+    val videoPictureVisible by videoViewModel.pictureVisible.collectAsStateWithLifecycle()
     val pickVideo = rememberVideoPicker { uri -> videoViewModel.onAction(VideoAction.FilePicked(uri)) }
     val onVideoAction: (VideoAction) -> Unit = { action ->
         if (action == VideoAction.PickFile) pickVideo() else videoViewModel.onAction(action)
@@ -93,6 +94,7 @@ internal fun HomeRoute(
         sheetOpen = sheetOpen,
         fullscreen = fullscreen,
         video = video,
+        videoPictureVisible = videoPictureVisible,
         onVideoAction = onVideoAction,
         videoSurface = videoSurface,
     )

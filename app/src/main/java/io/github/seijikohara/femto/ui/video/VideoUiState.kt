@@ -5,14 +5,13 @@ package io.github.seijikohara.femto.ui.video
  *
  * [fileReady] is false with no picked file, a file whose read grant is gone,
  * or one the player could not open: the window then asks for a file.
- * [pictureVisible] is the motion gate's verdict (videoPictureVisibleFlow);
- * while it is false the window draws no frame at all, and [playing] (the
- * audio) is unaffected.
+ * [playing] is the audio's state. The motion gate's verdict is not part of
+ * this state: it travels on its own flow ([VideoViewModel.pictureVisible]),
+ * shared so that it never replays a stale "visible".
  */
 internal data class VideoUiState(
     val windowEnabled: Boolean,
     val fileReady: Boolean,
-    val pictureVisible: Boolean,
     val playing: Boolean,
 ) {
     companion object {
@@ -20,7 +19,6 @@ internal data class VideoUiState(
             VideoUiState(
                 windowEnabled = false,
                 fileReady = false,
-                pictureVisible = false,
                 playing = false,
             )
     }

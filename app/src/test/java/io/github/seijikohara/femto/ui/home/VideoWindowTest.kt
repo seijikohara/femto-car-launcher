@@ -46,7 +46,10 @@ class VideoWindowTest {
 
     private val actions = mutableListOf<VideoAction>()
 
-    private fun setDashboard(video: VideoUiState) {
+    private fun setDashboard(
+        video: VideoUiState,
+        pictureVisible: Boolean = true,
+    ) {
         actions.clear()
         rule.setContent {
             FemtoTheme {
@@ -64,6 +67,7 @@ class VideoWindowTest {
                     clock = DashboardFixtures.fixedClock,
                     mapSurface = { _, _ -> Box(Modifier.fillMaxSize()) },
                     video = video,
+                    videoPictureVisible = pictureVisible,
                     onVideoAction = { actions += it },
                     videoSurface = { modifier -> Box(modifier.testTag(SURFACE_TAG)) },
                 )
@@ -95,7 +99,7 @@ class VideoWindowTest {
 
     @Test
     fun `a hidden picture draws no frame and says why`() {
-        setDashboard(fakeVideoUiState(pictureVisible = false, playing = true))
+        setDashboard(fakeVideoUiState(playing = true), pictureVisible = false)
 
         hiddenLine().assertCountEquals(1)
         picture().assertCountEquals(0)
@@ -103,7 +107,7 @@ class VideoWindowTest {
 
     @Test
     fun `a visible picture draws the surface`() {
-        setDashboard(fakeVideoUiState(pictureVisible = true))
+        setDashboard(fakeVideoUiState(), pictureVisible = true)
 
         picture().assertCountEquals(1)
         hiddenLine().assertCountEquals(0)
@@ -157,7 +161,7 @@ class VideoWindowTest {
 
     @Test
     fun `the panel keeps the picture hidden while driving`() {
-        setDashboard(fakeVideoUiState(pictureVisible = false))
+        setDashboard(fakeVideoUiState(), pictureVisible = false)
         rule.onNodeWithContentDescription("Open the video player").performClick()
 
         // The panel stands in for the window while it is open, so the one

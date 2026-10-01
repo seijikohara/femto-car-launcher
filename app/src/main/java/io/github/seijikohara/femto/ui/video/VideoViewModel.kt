@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.seijikohara.femto.data.common.WhileUiSubscribed
+import io.github.seijikohara.femto.data.common.WhileUiSubscribedFresh
 import io.github.seijikohara.femto.data.common.catchAsDefault
 import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.VehicleMotion
@@ -62,18 +63,29 @@ internal class VideoViewModel(
     val uiState: StateFlow<VideoUiState> =
         combine(
             store.settings.catchAsDefault(TAG, "video settings", VideoSettings.Default),
-            videoPictureVisibleFlow(motion, store.settings.map { it.hidePictureWhileDriving }),
             loaded,
             player.isPlaying,
             player.failed,
-        ) { settings, pictureVisible, isLoaded, playing, failed ->
+        ) { settings, isLoaded, playing, failed ->
             VideoUiState(
                 windowEnabled = settings.windowEnabled,
                 fileReady = isLoaded && !failed,
-                pictureVisible = pictureVisible,
                 playing = playing,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, VideoUiState.Off)
+
+    /**
+     * Whether the picture may show (videoPictureVisibleFlow), apart from
+     * [uiState] and shared with [WhileUiSubscribedFresh]: a dashboard that
+     * comes back starts from hidden and judges the motion afresh. Held in
+     * [uiState], whose grace replays the last value, a launcher returning
+     * while the vehicle moves would attach the surface and draw a frame
+     * before the gate spoke again. [uiState] keeps its grace, so a rotation
+     * does not drop the window state an open panel depends on.
+     */
+    val pictureVisible: StateFlow<Boolean> =
+        videoPictureVisibleFlow(motion, store.settings.map { it.hidePictureWhileDriving })
+            .stateIn(viewModelScope, WhileUiSubscribedFresh, false)
 
     init {
         viewModelScope.launch { followStore() }
