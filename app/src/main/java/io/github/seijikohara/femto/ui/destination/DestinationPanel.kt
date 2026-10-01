@@ -49,6 +49,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.common.hasRecordAudioPermission
+import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlace
 import io.github.seijikohara.femto.data.voice.VoiceState
@@ -72,7 +73,7 @@ internal const val DESTINATION_QUERY_TEST_TAG = "destination-query"
  * ([onOpenMaps]); the body sets a destination and hands it to whichever app
  * handles `geo:` ([onNavigate]).
  *
- * Text entry, saving and deleting are stopped-only ([DestinationUiState.stationary]):
+ * Text entry, saving and deleting are off while moving ([DestinationUiState.typingAllowed]):
  * while moving the field and those controls disable, and a line says typing
  * waits for a stop. The mic and the saved places work in every motion state,
  * so a driver can still set a destination without typing.
@@ -120,7 +121,7 @@ internal fun DestinationPanel(
     val places: @Composable (Modifier) -> Unit = { placesModifier ->
         SavedPlaces(
             places = uiState.places,
-            stationary = uiState.stationary,
+            typingAllowed = uiState.typingAllowed,
             onNavigate = onNavigate,
             onDelete = { onAction(DestinationAction.DeletePlace(it)) },
             modifier = placesModifier,
@@ -172,7 +173,7 @@ private fun DestinationEntry(
         OutlinedTextField(
             value = uiState.query,
             onValueChange = { onAction(DestinationAction.QueryChanged(it)) },
-            enabled = uiState.stationary,
+            enabled = uiState.typingAllowed,
             modifier =
                 Modifier
                     .weight(1f)
@@ -198,7 +199,7 @@ private fun DestinationEntry(
             MicButton(listening = uiState.voice is VoiceState.Listening, onClick = onMicTap)
         }
     }
-    StatusLine(voice = uiState.voice, stationary = uiState.stationary)
+    StatusLine(voice = uiState.voice, typingAllowed = uiState.typingAllowed)
     Button(
         onClick = navigate,
         enabled = query.isNotEmpty(),
@@ -220,7 +221,7 @@ private fun DestinationEntry(
     ) {
         FilledTonalButton(
             onClick = { onAction(DestinationAction.SaveQuery) },
-            enabled = uiState.stationary && query.isNotEmpty(),
+            enabled = uiState.typingAllowed && query.isNotEmpty(),
             modifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget),
         ) {
             Text(text = stringResource(R.string.destination_save_query))
@@ -229,7 +230,7 @@ private fun DestinationEntry(
             onClick = {
                 currentPoint?.let { onAction(DestinationAction.SaveCurrentLocation(it, currentAddress)) }
             },
-            enabled = uiState.stationary && currentPoint != null,
+            enabled = uiState.typingAllowed && currentPoint != null,
             modifier = Modifier.weight(2f).heightIn(min = FemtoDimens.MinTouchTarget),
         ) {
             Text(text = stringResource(R.string.destination_save_location))
@@ -242,7 +243,7 @@ private fun DestinationEntry(
 @Composable
 private fun StatusLine(
     voice: VoiceState,
-    stationary: Boolean,
+    typingAllowed: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val text =
@@ -257,7 +258,7 @@ private fun StatusLine(
                 stringResource(voice.messageRes)
             }
 
-            !stationary -> {
+            !typingAllowed -> {
                 stringResource(R.string.destination_moving_hint)
             }
 
@@ -298,7 +299,7 @@ private fun MicButton(
 @Composable
 private fun SavedPlaces(
     places: List<SavedPlace>,
-    stationary: Boolean,
+    typingAllowed: Boolean,
     onNavigate: (target: PlaceTarget, label: String) -> Unit,
     onDelete: (Long) -> Unit,
     modifier: Modifier = Modifier,
@@ -322,7 +323,7 @@ private fun SavedPlaces(
             items(places, key = { it.id }) { place ->
                 SavedPlaceRow(
                     place = place,
-                    showDelete = stationary,
+                    showDelete = typingAllowed,
                     onNavigate = { onNavigate(place.target, place.label) },
                     onDelete = { onDelete(place.id) },
                 )
@@ -444,7 +445,7 @@ internal fun DestinationPanelHost(
 private fun DestinationPanelStoppedPreview() {
     FemtoTheme {
         DestinationPanel(
-            uiState = PreviewState.copy(stationary = true, query = "Central Station"),
+            uiState = PreviewState.copy(motion = VehicleMotion.PARKED, query = "Central Station"),
             currentPoint = PlaceTarget.Point(35.681236, 139.767125),
             currentAddress = "1-9-1 Marunouchi",
             onAction = {},
@@ -484,5 +485,5 @@ private val PreviewState =
                 SavedPlace(1L, "Office", PlaceTarget.Query("1st & Pike, Seattle")),
                 SavedPlace(2L, "Home", PlaceTarget.Point(35.681236, 139.767125)),
             ),
-        stationary = false,
+        motion = VehicleMotion.MOVING,
     )

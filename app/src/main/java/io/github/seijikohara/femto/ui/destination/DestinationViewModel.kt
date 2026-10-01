@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.seijikohara.femto.data.common.WhileUiSubscribed
 import io.github.seijikohara.femto.data.location.LocationGraph
+import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlacesPreferences
 import io.github.seijikohara.femto.data.places.SavedPlacesStore
@@ -18,7 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -26,7 +27,7 @@ import java.util.Locale
 /**
  * Drives the destination panel: the query (typed, or dictated through
  * [speech]), the saved places in [placesStore], and the motion gate from
- * [stationaryFlow].
+ * [motionFlow] (see [DestinationUiState.typingAllowed]).
  *
  * The gate lives here rather than only in the UI, so a stale tap or a
  * keyboard that stays up as the vehicle pulls away cannot type, save or
@@ -37,19 +38,26 @@ import java.util.Locale
  */
 internal class DestinationViewModel(
     private val placesStore: SavedPlacesStore,
-    stationaryFlow: Flow<Boolean>,
+    motionFlow: Flow<VehicleMotion>,
     private val speech: SpeechInput,
 ) : ViewModel() {
     private val query = MutableStateFlow("")
 
     val uiState: StateFlow<DestinationUiState> =
-        combine(query, speech.state, placesStore.places, stationaryFlow.distinctUntilChanged()) {
+        combine(
+            query,
+            speech.state,
+            placesStore.places,
+            // Seeded so the panel never waits on a location stack that has not
+            // spoken; UNKNOWN fails open (see DestinationUiState.typingAllowed).
+            motionFlow.onStart { emit(VehicleMotion.UNKNOWN) }.distinctUntilChanged(),
+        ) {
             query,
             voice,
             places,
-            stationary,
+            motion,
             ->
-            DestinationUiState(query = query, voice = voice, places = places, stationary = stationary)
+            DestinationUiState(query = query, voice = voice, places = places, motion = motion)
         }.stateIn(viewModelScope, WhileUiSubscribed, DestinationUiState.Initial)
 
     init {
@@ -67,10 +75,10 @@ internal class DestinationViewModel(
     }
 
     fun onAction(action: DestinationAction) {
-        val stationary = uiState.value.stationary
+        val typingAllowed = uiState.value.typingAllowed
         when (action) {
             is DestinationAction.QueryChanged -> {
-                if (stationary) query.value = action.text
+                if (typingAllowed) query.value = action.text
             }
 
             DestinationAction.StartListening -> {
@@ -84,23 +92,19 @@ internal class DestinationViewModel(
             DestinationAction.SaveQuery -> {
                 query.value
                     .trim()
-                    .takeIf { stationary && it.isNotEmpty() }
+                    .takeIf { typingAllowed && it.isNotEmpty() }
                     ?.let { text -> save(label = text, target = PlaceTarget.Query(text)) }
             }
 
             is DestinationAction.SaveCurrentLocation -> {
-                if (stationary) {
-                    val label =
-                        query.value
-                            .trim()
-                            .ifEmpty { action.address.trim() }
-                            .ifEmpty { action.point.coordinateLabel() }
+                if (typingAllowed) {
+                    val label = action.address.trim().ifEmpty { action.point.coordinateLabel() }
                     save(label = label, target = action.point)
                 }
             }
 
             is DestinationAction.DeletePlace -> {
-                if (stationary) viewModelScope.launch { placesStore.delete(action.id) }
+                if (typingAllowed) viewModelScope.launch { placesStore.delete(action.id) }
             }
 
             DestinationAction.ClearQuery -> {
@@ -128,8 +132,8 @@ internal class DestinationViewModel(
 private fun PlaceTarget.Point.coordinateLabel(): String = String.format(Locale.ROOT, "%.5f, %.5f", latitude, longitude)
 
 /**
- * Wires the production store, the shared trip state's motion gate (the same
- * [LocationGraph] state the dashboard reads, so the two cannot disagree), and
+ * Wires the production store, the shared vehicle-motion verdict (the same
+ * [LocationGraph] pipeline the dashboard and the updater read), and
  * the platform recognizer.
  */
 internal val DestinationViewModelFactory =
@@ -139,7 +143,7 @@ internal val DestinationViewModelFactory =
                 checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
             DestinationViewModel(
                 placesStore = SavedPlacesPreferences(application),
-                stationaryFlow = LocationGraph.get(application).tripState.map { it.stationary },
+                motionFlow = LocationGraph.get(application).vehicleMotion(),
                 speech = VoiceRecognizer(application),
             )
         }

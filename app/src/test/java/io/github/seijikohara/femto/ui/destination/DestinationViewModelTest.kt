@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.destination
 
+import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlace
 import io.github.seijikohara.femto.data.voice.VoiceState
@@ -8,7 +9,9 @@ import io.github.seijikohara.femto.testfixtures.FakeSpeechInput
 import io.github.seijikohara.femto.testfixtures.fakeSavedPlace
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -24,7 +27,7 @@ import kotlin.test.assertEquals
 class DestinationViewModelTest {
     private var store = FakeSavedPlacesStore()
     private val speech = FakeSpeechInput()
-    private val stationary = MutableStateFlow(true)
+    private val motion = MutableStateFlow(VehicleMotion.PARKED)
 
     @Before
     fun setUp() {
@@ -38,8 +41,11 @@ class DestinationViewModelTest {
 
     // uiState is shared WhileUiSubscribed, and the gate reads its current
     // value, so every test holds a subscriber the way the panel does.
-    private fun TestScope.subscribedViewModel(saved: List<SavedPlace> = emptyList()): DestinationViewModel =
-        DestinationViewModel(FakeSavedPlacesStore(saved).also { store = it }, stationary, speech).also { viewModel ->
+    private fun TestScope.subscribedViewModel(
+        saved: List<SavedPlace> = emptyList(),
+        motionFlow: Flow<VehicleMotion> = motion,
+    ): DestinationViewModel =
+        DestinationViewModel(FakeSavedPlacesStore(saved).also { store = it }, motionFlow, speech).also { viewModel ->
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         }
 
@@ -54,24 +60,56 @@ class DestinationViewModelTest {
     @Test
     fun typing_is_ignored_while_moving() =
         runTest {
-            stationary.value = false
+            motion.value = VehicleMotion.MOVING
             val viewModel = subscribedViewModel()
             viewModel.onAction(DestinationAction.QueryChanged("Airport"))
             assertEquals("", viewModel.uiState.value.query)
         }
 
     @Test
+    fun typing_is_allowed_when_the_motion_is_unknown() =
+        runTest {
+            // Fail-open on purpose: a phone without a fix or the location
+            // permission reads UNKNOWN for good, and voice plus saved places
+            // alone would leave it no way to enter a new destination.
+            motion.value = VehicleMotion.UNKNOWN
+            val viewModel = subscribedViewModel()
+            viewModel.onAction(DestinationAction.QueryChanged("Airport"))
+            assertEquals("Airport", viewModel.uiState.value.query)
+        }
+
+    @Test
+    fun typing_is_allowed_before_the_motion_verdict_arrives() =
+        runTest {
+            val viewModel = subscribedViewModel(motionFlow = emptyFlow())
+            viewModel.onAction(DestinationAction.QueryChanged("Airport"))
+            assertEquals("Airport", viewModel.uiState.value.query)
+        }
+
+    @Test
+    fun saving_and_deleting_are_allowed_when_the_motion_is_unknown() =
+        runTest {
+            motion.value = VehicleMotion.UNKNOWN
+            val place = fakeSavedPlace(id = 1L)
+            val viewModel = subscribedViewModel(saved = listOf(place))
+            viewModel.onAction(DestinationAction.QueryChanged("Airport"))
+            viewModel.onAction(DestinationAction.SaveQuery)
+            viewModel.onAction(DestinationAction.DeletePlace(place.id))
+            assertEquals(listOf("Airport"), store.current.map { it.label })
+        }
+
+    @Test
     fun ui_state_reports_the_motion_gate() =
         runTest {
             val viewModel = subscribedViewModel()
-            stationary.value = false
-            assertEquals(false, viewModel.uiState.value.stationary)
+            motion.value = VehicleMotion.MOVING
+            assertEquals(false, viewModel.uiState.value.typingAllowed)
         }
 
     @Test
     fun a_voice_result_fills_the_query_while_moving_and_rearms_the_recognizer() =
         runTest {
-            stationary.value = false
+            motion.value = VehicleMotion.MOVING
             val viewModel = subscribedViewModel()
             speech.mutableState.value = VoiceState.Result("Central Station")
             assertEquals("Central Station", viewModel.uiState.value.query)
@@ -90,7 +128,7 @@ class DestinationViewModelTest {
     @Test
     fun listening_starts_and_stops_in_any_motion_state() =
         runTest {
-            stationary.value = false
+            motion.value = VehicleMotion.MOVING
             val viewModel = subscribedViewModel()
             viewModel.onAction(DestinationAction.StartListening)
             viewModel.onAction(DestinationAction.StopListening)
@@ -114,7 +152,7 @@ class DestinationViewModelTest {
         runTest {
             val viewModel = subscribedViewModel()
             viewModel.onAction(DestinationAction.QueryChanged("Airport"))
-            stationary.value = false
+            motion.value = VehicleMotion.MOVING
             viewModel.onAction(DestinationAction.SaveQuery)
             assertEquals(emptyList(), store.current)
         }
@@ -138,14 +176,25 @@ class DestinationViewModelTest {
         }
 
     @Test
-    fun save_current_location_prefers_a_typed_label_over_the_address() =
+    fun save_current_location_never_takes_the_typed_query_as_its_label() =
         runTest {
+            // A query left over from a search would otherwise name the
+            // parking spot after somewhere else ("Airport").
             val viewModel = subscribedViewModel()
-            viewModel.onAction(DestinationAction.QueryChanged("Home"))
+            viewModel.onAction(DestinationAction.QueryChanged("Airport"))
             viewModel.onAction(
                 DestinationAction.SaveCurrentLocation(PlaceTarget.Point(1.0, 2.0), address = "1-9-1 Marunouchi"),
             )
-            assertEquals(listOf("Home"), store.current.map { it.label })
+            assertEquals(listOf("1-9-1 Marunouchi"), store.current.map { it.label })
+        }
+
+    @Test
+    fun save_current_location_without_an_address_ignores_the_typed_query() =
+        runTest {
+            val viewModel = subscribedViewModel()
+            viewModel.onAction(DestinationAction.QueryChanged("Airport"))
+            viewModel.onAction(DestinationAction.SaveCurrentLocation(PlaceTarget.Point(1.0, 2.0), address = " "))
+            assertEquals(listOf("1.00000, 2.00000"), store.current.map { it.label })
         }
 
     @Test
@@ -159,7 +208,7 @@ class DestinationViewModelTest {
     @Test
     fun save_current_location_is_ignored_while_moving() =
         runTest {
-            stationary.value = false
+            motion.value = VehicleMotion.MOVING
             val viewModel = subscribedViewModel()
             viewModel.onAction(DestinationAction.SaveCurrentLocation(PlaceTarget.Point(1.0, 2.0), address = "Here"))
             assertEquals(emptyList(), store.current)
@@ -178,7 +227,7 @@ class DestinationViewModelTest {
     @Test
     fun delete_is_ignored_while_moving() =
         runTest {
-            stationary.value = false
+            motion.value = VehicleMotion.MOVING
             val place = fakeSavedPlace()
             val viewModel = subscribedViewModel(saved = listOf(place))
             viewModel.onAction(DestinationAction.DeletePlace(place.id))
@@ -190,7 +239,7 @@ class DestinationViewModelTest {
         runTest {
             val viewModel = subscribedViewModel()
             viewModel.onAction(DestinationAction.QueryChanged("Airport"))
-            stationary.value = false
+            motion.value = VehicleMotion.MOVING
             viewModel.onAction(DestinationAction.ClearQuery)
             assertEquals("", viewModel.uiState.value.query)
         }

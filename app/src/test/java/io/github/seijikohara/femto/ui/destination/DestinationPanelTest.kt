@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.voice.VoiceState
 import io.github.seijikohara.femto.testfixtures.fakeSavedPlace
@@ -56,7 +57,7 @@ class DestinationPanelTest {
                         query = query,
                         voice = VoiceState.Idle,
                         places = listOf(office, home),
-                        stationary = stationary,
+                        motion = if (stationary) VehicleMotion.PARKED else VehicleMotion.MOVING,
                     ),
                 currentPoint = currentPoint,
                 currentAddress = "1-9-1 Marunouchi",
