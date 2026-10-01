@@ -91,7 +91,10 @@ internal class DestinationViewModel(
             is DestinationAction.SaveCurrentLocation -> {
                 if (stationary) {
                     val label =
-                        query.value.trim().ifEmpty { action.address.trim() }.ifEmpty { action.point.coordinateLabel() }
+                        query.value
+                            .trim()
+                            .ifEmpty { action.address.trim() }
+                            .ifEmpty { action.point.coordinateLabel() }
                     save(label = label, target = action.point)
                 }
             }
@@ -122,8 +125,7 @@ internal class DestinationViewModel(
 
 // Five decimals (about 1 m) names a place without an address; Locale.ROOT
 // keeps the separator a dot in every locale, matching the hand-off URI.
-private fun PlaceTarget.Point.coordinateLabel(): String =
-    String.format(Locale.ROOT, "%.5f, %.5f", latitude, longitude)
+private fun PlaceTarget.Point.coordinateLabel(): String = String.format(Locale.ROOT, "%.5f, %.5f", latitude, longitude)
 
 /**
  * Wires the production store, the shared trip state's motion gate (the same

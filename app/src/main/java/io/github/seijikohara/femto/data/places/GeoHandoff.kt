@@ -28,7 +28,11 @@ internal fun geoHandoffUri(
 
         is PlaceTarget.Point -> {
             val position = "${coordinate(target.latitude)},${coordinate(target.longitude)}"
-            val pinLabel = label.trim().takeIf { it.isNotEmpty() }?.let { "(${percentEncode(it)})" }.orEmpty()
+            val pinLabel = label
+                .trim()
+                .takeIf { it.isNotEmpty() }
+                ?.let { "(${percentEncode(it)})" }
+                .orEmpty()
             "geo:$position?q=$position$pinLabel"
         }
     }
