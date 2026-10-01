@@ -611,8 +611,9 @@ class MainActivity : ComponentActivity() {
 
     // The destination panel's hand-off: the same package-agnostic geo: intent
     // as launchGeo, carrying a query or a labelled point (geoHandoffUri). A
-    // device without a geo: handler is a silent no-op, and tryStartActivity
-    // logs only the action, never the destination.
+    // device without a geo: handler is a silent no-op; tryStartActivity logs
+    // only the action and the exception class (launchFailureLogLine), because
+    // the platform's exception message embeds the Intent and its destination.
     private fun launchDestination(
         target: PlaceTarget,
         label: String,
@@ -711,16 +712,18 @@ class MainActivity : ComponentActivity() {
      * [ActivityNotFoundException] (the head unit has no app for the target) and
      * [SecurityException] (the target activity is non-exported or
      * permission-guarded — common on OEM head units). Other failures propagate.
+     * The log line names only the target and the exception class
+     * ([launchFailureLogLine]): the Intent may carry a destination.
      */
     private fun tryStartActivity(intent: Intent): Boolean =
         try {
             startActivity(intent)
             true
         } catch (e: ActivityNotFoundException) {
-            Log.w(TAG, "no handler for ${intent.component?.flattenToShortString() ?: intent.action}", e)
+            Log.w(TAG, launchFailureLogLine("no handler for", intent, e))
             false
         } catch (e: SecurityException) {
-            Log.w(TAG, "not permitted to launch ${intent.component?.flattenToShortString() ?: intent.action}", e)
+            Log.w(TAG, launchFailureLogLine("not permitted to launch", intent, e))
             false
         }
 
@@ -754,6 +757,20 @@ private fun isProbablyEmulator(): Boolean =
         Build.BRAND.startsWith("generic")
 
 private const val TAG = "MainActivity"
+
+/**
+ * Return the WARN line for a launch [failure]: [prefix], the target (component
+ * or action), and the exception's class name only. Never the message or the
+ * throwable: ActivityNotFoundException's message embeds the Intent, whose data
+ * keeps an opaque `geo:` URI's coordinates, query and label, and the
+ * diagnostics report collects the app's WARN lines into a report the user
+ * shares.
+ */
+internal fun launchFailureLogLine(
+    prefix: String,
+    intent: Intent,
+    failure: Exception,
+): String = "$prefix ${intent.component?.flattenToShortString() ?: intent.action}: ${failure.javaClass.simpleName}"
 
 // Upper bound on how long the splash may wait for the first font resolution
 // (see the fontsReady field). Far above a disk resolve, far below a painful
