@@ -484,6 +484,7 @@
     <string name="settings_updates_failed_verify">The download did not match the published update and was deleted.</string>
     <string name="settings_updates_failed_install_conflict">This update is signed with a different key, so it cannot replace the installed app.</string>
     <string name="settings_updates_failed_install_blocked">This device blocks app installs, so the update cannot be installed here.</string>
+    <string name="settings_updates_failed_developer_verification">Android could not verify this app\'s developer, so the update was not installed. Try again with a connection, or install it from the release page.</string>
     <string name="settings_updates_failed_other">The update could not be completed.</string>
     <!-- The one-tap update row, through every stage; %1$s = the offered version name -->
     <string name="settings_updates_update">Update to %1$s</string>

@@ -5,24 +5,33 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
+import android.os.Build
 import android.util.Log
 import androidx.core.content.IntentCompat
+import io.github.seijikohara.femto.data.common.finishAsync
+import kotlinx.coroutines.Job
 
 private const val TAG = "InstallStatusReceiver"
 
-/** The platform's verdicts on install sessions, as [InstallStatusReceiver] reports them; [UpdateRepository] acts on them. */
+/**
+ * The platform's verdicts on install sessions, as [InstallStatusReceiver]
+ * reports them; [UpdateRepository] acts on them. Each returns the work the
+ * verdict started (its records written, its confirmation shown), or null when
+ * it started none, so the receiver can hold its broadcast until that work is
+ * done.
+ */
 internal interface InstallVerdicts {
     fun onConfirmationRequested(
         sessionId: Int,
         confirmation: InstallConfirmation,
-    )
+    ): Job?
 
-    fun onInstallCancelled(sessionId: Int)
+    fun onInstallCancelled(sessionId: Int): Job?
 
     fun onInstallFailed(
         sessionId: Int,
         reason: UpdateFailure,
-    )
+    ): Job?
 }
 
 /** What one [PackageInstaller.EXTRA_STATUS] means for the updater. */
@@ -45,18 +54,46 @@ internal sealed interface InstallOutcome {
 /**
  * The outcome of [status]. A conflict is an APK signed with another key; a
  * block is a device policy or a verifier; a storage failure is a full disk.
- * Every other failure, including a status a later platform adds, is
- * [UpdateFailure.OTHER].
+ * An abort is the user's decline, unless [developerVerificationFailed]: then
+ * Android's developer verification blocked the install. Every other failure,
+ * including a status a later platform adds, is [UpdateFailure.OTHER].
  */
-internal fun installOutcomeOf(status: Int): InstallOutcome =
+internal fun installOutcomeOf(
+    status: Int,
+    developerVerificationFailed: Boolean = false,
+): InstallOutcome =
     when (status) {
-        PackageInstaller.STATUS_PENDING_USER_ACTION -> InstallOutcome.NeedsConfirmation
-        PackageInstaller.STATUS_SUCCESS -> InstallOutcome.Installed
-        PackageInstaller.STATUS_FAILURE_ABORTED -> InstallOutcome.Declined
-        PackageInstaller.STATUS_FAILURE_CONFLICT -> InstallOutcome.Refused(UpdateFailure.INSTALL_CONFLICT)
-        PackageInstaller.STATUS_FAILURE_BLOCKED -> InstallOutcome.Refused(UpdateFailure.INSTALL_BLOCKED)
-        PackageInstaller.STATUS_FAILURE_STORAGE -> InstallOutcome.Refused(UpdateFailure.STORAGE)
-        else -> InstallOutcome.Refused(UpdateFailure.OTHER)
+        PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+            InstallOutcome.NeedsConfirmation
+        }
+
+        PackageInstaller.STATUS_SUCCESS -> {
+            InstallOutcome.Installed
+        }
+
+        PackageInstaller.STATUS_FAILURE_ABORTED if developerVerificationFailed -> {
+            InstallOutcome.Refused(UpdateFailure.DEVELOPER_VERIFICATION)
+        }
+
+        PackageInstaller.STATUS_FAILURE_ABORTED -> {
+            InstallOutcome.Declined
+        }
+
+        PackageInstaller.STATUS_FAILURE_CONFLICT -> {
+            InstallOutcome.Refused(UpdateFailure.INSTALL_CONFLICT)
+        }
+
+        PackageInstaller.STATUS_FAILURE_BLOCKED -> {
+            InstallOutcome.Refused(UpdateFailure.INSTALL_BLOCKED)
+        }
+
+        PackageInstaller.STATUS_FAILURE_STORAGE -> {
+            InstallOutcome.Refused(UpdateFailure.STORAGE)
+        }
+
+        else -> {
+            InstallOutcome.Refused(UpdateFailure.OTHER)
+        }
     }
 
 /**
@@ -68,7 +105,10 @@ internal class InstallStatusReceiver : BroadcastReceiver() {
     override fun onReceive(
         context: Context,
         intent: Intent,
-    ) = deliverInstallStatus(context.applicationContext, intent, UpdateRepository.get(context))
+    ) {
+        val app = context.applicationContext
+        finishAsync(TAG) { deliverInstallStatus(app, intent, UpdateRepository.get(app)) }
+    }
 
     companion object {
         /**
@@ -92,10 +132,12 @@ internal class InstallStatusReceiver : BroadcastReceiver() {
 }
 
 /**
- * Report the status in [intent] to [verdicts]. Separate from the receiver, so
- * tests can pass their own [verdicts] instead of the app-wide repository.
+ * Report the status in [intent] to [verdicts], and return once the work the
+ * verdict started is done: the receiver holds its broadcast until then.
+ * Separate from the receiver, so tests can pass their own [verdicts] instead
+ * of the app-wide repository.
  */
-internal fun deliverInstallStatus(
+internal suspend fun deliverInstallStatus(
     context: Context,
     intent: Intent,
     verdicts: InstallVerdicts,
@@ -105,24 +147,40 @@ internal fun deliverInstallStatus(
     // The platform's own detail (which certificate, which policy) goes to the
     // log only: the UI phrases the outcome.
     Log.i(TAG, "session $sessionId: status $status (${intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)})")
-    when (val outcome = installOutcomeOf(status)) {
-        InstallOutcome.NeedsConfirmation -> requestConfirmation(context, intent, sessionId, verdicts)
-        InstallOutcome.Installed -> Unit
-        InstallOutcome.Declined -> verdicts.onInstallCancelled(sessionId)
-        is InstallOutcome.Refused -> verdicts.onInstallFailed(sessionId, outcome.reason)
-    }
+    val work =
+        when (val outcome = installOutcomeOf(status, intent.developerVerificationFailed())) {
+            InstallOutcome.NeedsConfirmation -> requestConfirmation(context, intent, sessionId, verdicts)
+            InstallOutcome.Installed -> null
+            InstallOutcome.Declined -> verdicts.onInstallCancelled(sessionId)
+            is InstallOutcome.Refused -> verdicts.onInstallFailed(sessionId, outcome.reason)
+        }
+    work?.join()
 }
+
+// From Android 16 QPR2 (API 36.1), an install that Android's developer
+// verification blocks fails as STATUS_FAILURE_ABORTED, the user's decline,
+// but with EXTRA_DEVELOPER_VERIFICATION_FAILURE_REASON, which a decline never
+// carries (PackageInstaller reference). Earlier releases verify no developer,
+// so the extra is not read there.
+private fun Intent.developerVerificationFailed(): Boolean =
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
+        Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1 &&
+        hasExtra(PackageInstaller.EXTRA_DEVELOPER_VERIFICATION_FAILURE_REASON)
 
 // A request that carries no intent to show leaves nothing the user could
 // confirm: the attempt fails, and a retry starts a new session.
+// A `when`, not an elvis chain: a confirmation verdict that starts no work
+// returns null, and must not fall through to a failure.
 private fun requestConfirmation(
     context: Context,
     intent: Intent,
     sessionId: Int,
     verdicts: InstallVerdicts,
-) = confirmationOrNull(context, intent)
-    ?.let { verdicts.onConfirmationRequested(sessionId, it) }
-    ?: verdicts.onInstallFailed(sessionId, UpdateFailure.OTHER)
+): Job? =
+    when (val confirmation = confirmationOrNull(context, intent)) {
+        null -> verdicts.onInstallFailed(sessionId, UpdateFailure.OTHER)
+        else -> verdicts.onConfirmationRequested(sessionId, confirmation)
+    }
 
 // IntentCompat, not the platform's typed getParcelableExtra: on Android 13
 // (this app's floor, and what the AI boxes run) the typed call can throw

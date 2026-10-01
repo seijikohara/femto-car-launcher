@@ -233,6 +233,15 @@ class UpdatesSectionTest {
     }
 
     @Test
+    fun `a developer-verification failure says what blocked the install`() {
+        setSection(UpdatesUiState.Initial.copy(status = UpdateStatus.Failed(UpdateFailure.DEVELOPER_VERIFICATION)))
+
+        rule
+            .onNodeWithText(context.getString(R.string.settings_updates_failed_developer_verification))
+            .assertExists()
+    }
+
+    @Test
     fun `the check row sends a check while one can start`() {
         setSection(UpdatesUiState.Initial.copy(status = UpdateStatus.Checked(lastAttemptAt = null), canCheck = true))
 

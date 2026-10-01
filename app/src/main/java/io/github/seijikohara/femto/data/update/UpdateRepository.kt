@@ -96,6 +96,12 @@ internal enum class UpdateFailure {
      */
     INSTALL_BLOCKED,
 
+    /**
+     * Android's developer verification blocked the install: the developer
+     * could not be verified, or the verifier could not be reached.
+     */
+    DEVELOPER_VERIFICATION,
+
     /** Anything else, e.g. the platform could not take the file at all. */
     OTHER,
 }
@@ -345,17 +351,19 @@ internal class UpdateRepository internal constructor(
     override fun onConfirmationRequested(
         sessionId: Int,
         confirmation: InstallConfirmation,
-    ) {
+    ): Job? {
         val kept = claim { current -> current.installingOrNull(sessionId)?.copy(confirmation = confirmation) }
-        if (kept != null) {
+        return if (kept != null) {
             scope.launch { presentUnlessMoving(sessionId, confirmation) }
         } else {
             Log.w(TAG, "ignored a confirmation for session $sessionId")
+            null
         }
     }
 
     /** The user declined session [sessionId]'s install, or it was abandoned: offer the same verified file again. */
-    override fun onInstallCancelled(sessionId: Int) = settleInstall(sessionId) { UpdateState.Ready(it, stagedApk) }
+    override fun onInstallCancelled(sessionId: Int): Job? =
+        settleInstall(sessionId) { UpdateState.Ready(it, stagedApk) }
 
     /**
      * The platform refused session [sessionId]'s install for [reason]. The
@@ -370,15 +378,16 @@ internal class UpdateRepository internal constructor(
     override fun onInstallFailed(
         sessionId: Int,
         reason: UpdateFailure,
-    ) = when (reason) {
-        UpdateFailure.INSTALL_CONFLICT -> {
-            settleInstall(sessionId, cleanUp = ::refuse) { UpdateState.Failed(reason, manifest = null) }
-        }
+    ): Job? =
+        when (reason) {
+            UpdateFailure.INSTALL_CONFLICT -> {
+                settleInstall(sessionId, cleanUp = ::refuse) { UpdateState.Failed(reason, manifest = null) }
+            }
 
-        else -> {
-            settleInstall(sessionId) { UpdateState.Failed(reason, it, staged = true) }
+            else -> {
+                settleInstall(sessionId) { UpdateState.Failed(reason, it, staged = true) }
+            }
         }
-    }
 
     /**
      * Delete the verified download that waits for the user (see
@@ -819,7 +828,7 @@ internal class UpdateRepository internal constructor(
     // long ago, so a re-show is never held off for longer than the guard. The
     // mark is taken by one compare-and-set before the show, so of an arriving
     // confirmation's first show and a racing tap to show it again, one wins.
-    private fun present(
+    private suspend fun present(
         sessionId: Int,
         confirmation: InstallConfirmation,
     ) {
@@ -839,14 +848,16 @@ internal class UpdateRepository internal constructor(
     // disabled, for one) would leave the session waiting until the platform
     // expires it days later, and the attempt waiting with it. So the attempt
     // fails as blocked, and the session is abandoned.
-    private fun show(
+    // The failure's records are written before this returns, so a receiver
+    // that waits for the confirmation waits for them too.
+    private suspend fun show(
         sessionId: Int,
         confirmation: InstallConfirmation,
     ) {
         if (confirmation.show()) return
         settleInstall(sessionId, cleanUp = { abandon(sessionId) }) {
             UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, it, staged = true)
-        }
+        }?.join()
     }
 
     private suspend fun abandon(sessionId: Int) {
@@ -864,10 +875,10 @@ internal class UpdateRepository internal constructor(
         sessionId: Int,
         cleanUp: suspend (UpdateManifest) -> Unit = {},
         next: (UpdateManifest) -> UpdateState,
-    ) {
-        val settled = claim { current -> current.installingOrNull(sessionId)?.let { next(it.manifest) } } ?: return
+    ): Job? {
+        val settled = claim { current -> current.installingOrNull(sessionId)?.let { next(it.manifest) } } ?: return null
         val manifest = (settled.from as UpdateState.Installing).manifest
-        scope.launch {
+        return scope.launch {
             withContext(ioDispatcher) { cleanUp(manifest) }
             recordOffer(settled.to)
             syncPendingRecord()

@@ -14,6 +14,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.common.finishAsync
 import io.github.seijikohara.femto.data.common.holdsHomeRole
 
 private const val TAG = "PackageReplacedReceiver"
@@ -73,13 +74,18 @@ internal class PackageReplacedReceiver : BroadcastReceiver() {
         intent: Intent,
     ) {
         if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
-        val mayNotify =
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
-                PackageManager.PERMISSION_GRANTED
-        val after = afterUpdateAction(context.holdsHomeRole(), mayNotify)
-        if (after.notify) notifyUpdated(context)
-        if (after.openLauncher) openHome(context)
+        val app = context.applicationContext
+        finishAsync(TAG) { comeBack(app) }
     }
+}
+
+private fun comeBack(context: Context) {
+    val mayNotify =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+    val after = afterUpdateAction(context.holdsHomeRole(), mayNotify)
+    if (after.notify) notifyUpdated(context)
+    if (after.openLauncher) openHome(context)
 }
 
 // The HOME intent, limited to this package, rather than the launcher's own
