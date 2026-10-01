@@ -9,6 +9,8 @@ import org.robolectric.shadow.api.Shadow
 import org.robolectric.shadows.ShadowBroadcastPendingResult
 import org.robolectric.util.ReflectionHelpers
 import org.robolectric.util.ReflectionHelpers.ClassParameter
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 
 // Generous next to RECEIVER_WORK_BUDGET_MS: the work runs on a real
@@ -20,13 +22,25 @@ private const val FINISH_WAIT_SECONDS = 30L
  * Deliver [intent] to this receiver the way the platform does, with a pending
  * result that goAsync() can take, and return once the receiver has called
  * finish() on it, or at once when it did not go async. Calling onReceive
- * alone gives goAsync() nothing to return.
- * A receiver that never finishes fails the test with a TimeoutException.
+ * alone gives goAsync() nothing to return. A receiver that never finishes
+ * fails the test with a TimeoutException.
  */
 internal fun BroadcastReceiver.receiveAndAwaitFinish(
     context: Context,
     intent: Intent,
 ) {
+    receive(context, intent).get(FINISH_WAIT_SECONDS, TimeUnit.SECONDS)
+}
+
+/**
+ * [receiveAndAwaitFinish] without the wait: the returned future completes
+ * once the receiver calls finish(), and is complete at once when it did not
+ * go async.
+ */
+internal fun BroadcastReceiver.receive(
+    context: Context,
+    intent: Intent,
+): Future<*> {
     val pending =
         ReflectionHelpers.callStaticMethod<BroadcastReceiver.PendingResult>(
             ShadowBroadcastPendingResult::class.java,
@@ -44,7 +58,9 @@ internal fun BroadcastReceiver.receiveAndAwaitFinish(
     onReceive(context, intent)
     // A receiver that did not go async is finished by the platform as soon
     // as onReceive returns.
-    if (shadowOf(this).wentAsync()) {
-        Shadow.extract<ShadowBroadcastPendingResult>(pending).future.get(FINISH_WAIT_SECONDS, TimeUnit.SECONDS)
+    return if (shadowOf(this).wentAsync()) {
+        Shadow.extract<ShadowBroadcastPendingResult>(pending).future
+    } else {
+        CompletableFuture.completedFuture(Unit)
     }
 }

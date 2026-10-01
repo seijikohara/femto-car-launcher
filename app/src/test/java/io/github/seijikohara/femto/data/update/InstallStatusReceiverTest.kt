@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.testfixtures.FakeInstallVerdicts
 import io.github.seijikohara.femto.testfixtures.ReceivedVerdict
+import io.github.seijikohara.femto.testfixtures.receive
 import io.github.seijikohara.femto.testfixtures.receiveAndAwaitFinish
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -20,6 +21,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLog
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
@@ -147,15 +149,59 @@ class InstallStatusReceiverTest {
     fun `the receiver finishes its broadcast once the status is delivered`() {
         // Returns only once the receiver has called finish(); a receiver that
         // never does fails here.
-        InstallStatusReceiver().receiveAndAwaitFinish(app, statusIntent(PackageInstaller.STATUS_SUCCESS))
+        InstallStatusReceiver { verdicts }.receiveAndAwaitFinish(
+            app,
+            statusIntent(PackageInstaller.STATUS_FAILURE_ABORTED),
+        )
+
+        assertEquals(listOf<ReceivedVerdict>(ReceivedVerdict.Cancelled(SESSION)), verdicts.received)
+    }
+
+    @Test
+    fun `the receiver holds its broadcast until the verdict's work is done`() {
+        val work = Job()
+        val receiver = InstallStatusReceiver { FakeInstallVerdicts(work) }
+
+        val finished = receiver.receive(app, statusIntent(PackageInstaller.STATUS_FAILURE_ABORTED))
+        assertFalse(finished.isDone)
+
+        work.complete()
+        finished.get(30, TimeUnit.SECONDS)
     }
 
     @Test
     fun `an abort the developer verification caused fails as such, not as a decline`() {
         assertEquals(
-            InstallOutcome.Refused(UpdateFailure.DEVELOPER_VERIFICATION),
-            installOutcomeOf(PackageInstaller.STATUS_FAILURE_ABORTED, developerVerificationFailed = true),
+            InstallOutcome.Refused(UpdateFailure.DEVELOPER_VERIFICATION_BLOCKED),
+            installOutcomeOf(
+                PackageInstaller.STATUS_FAILURE_ABORTED,
+                developerVerificationFailure = UpdateFailure.DEVELOPER_VERIFICATION_BLOCKED,
+            ),
         )
+    }
+
+    @Test
+    fun `a verification that needed a connection fails as offline`() {
+        assertEquals(
+            UpdateFailure.DEVELOPER_VERIFICATION_OFFLINE,
+            developerVerificationFailureOf(PackageInstaller.DEVELOPER_VERIFICATION_FAILED_REASON_NETWORK_UNAVAILABLE),
+        )
+    }
+
+    @Test
+    fun `a developer the verifier blocked, or an unknown reason, fails as blocked`() {
+        // A reason a later release adds is no connection problem either.
+        listOf(
+            PackageInstaller.DEVELOPER_VERIFICATION_FAILED_REASON_DEVELOPER_BLOCKED,
+            PackageInstaller.DEVELOPER_VERIFICATION_FAILED_REASON_UNKNOWN,
+            Int.MAX_VALUE,
+        ).forEach { reason ->
+            assertEquals(
+                UpdateFailure.DEVELOPER_VERIFICATION_BLOCKED,
+                developerVerificationFailureOf(reason),
+                "reason $reason",
+            )
+        }
     }
 
     @Test

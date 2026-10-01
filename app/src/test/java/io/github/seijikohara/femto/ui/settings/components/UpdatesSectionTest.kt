@@ -233,11 +233,24 @@ class UpdatesSectionTest {
     }
 
     @Test
-    fun `a developer-verification failure says what blocked the install`() {
-        setSection(UpdatesUiState.Initial.copy(status = UpdateStatus.Failed(UpdateFailure.DEVELOPER_VERIFICATION)))
+    fun `a developer verification that needed a connection says to try again online`() {
+        setSection(
+            UpdatesUiState.Initial.copy(status = UpdateStatus.Failed(UpdateFailure.DEVELOPER_VERIFICATION_OFFLINE)),
+        )
 
         rule
-            .onNodeWithText(context.getString(R.string.settings_updates_failed_developer_verification))
+            .onNodeWithText(context.getString(R.string.settings_updates_failed_developer_verification_offline))
+            .assertExists()
+    }
+
+    @Test
+    fun `a developer verification that blocked the update says so`() {
+        setSection(
+            UpdatesUiState.Initial.copy(status = UpdateStatus.Failed(UpdateFailure.DEVELOPER_VERIFICATION_BLOCKED)),
+        )
+
+        rule
+            .onNodeWithText(context.getString(R.string.settings_updates_failed_developer_verification_blocked))
             .assertExists()
     }
 

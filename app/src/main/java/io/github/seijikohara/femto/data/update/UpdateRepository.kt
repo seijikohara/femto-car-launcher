@@ -97,10 +97,17 @@ internal enum class UpdateFailure {
     INSTALL_BLOCKED,
 
     /**
-     * Android's developer verification blocked the install: the developer
-     * could not be verified, or the verifier could not be reached.
+     * Android's developer verification needed a connection it did not have,
+     * so the install did not go ahead; a retry online may pass.
      */
-    DEVELOPER_VERIFICATION,
+    DEVELOPER_VERIFICATION_OFFLINE,
+
+    /**
+     * Android's developer verification blocked the install: the developer
+     * could not be verified, or the verifier failed for a reason it did not
+     * name.
+     */
+    DEVELOPER_VERIFICATION_BLOCKED,
 
     /** Anything else, e.g. the platform could not take the file at all. */
     OTHER,

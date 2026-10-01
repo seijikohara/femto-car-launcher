@@ -54,13 +54,14 @@ internal sealed interface InstallOutcome {
 /**
  * The outcome of [status]. A conflict is an APK signed with another key; a
  * block is a device policy or a verifier; a storage failure is a full disk.
- * An abort is the user's decline, unless [developerVerificationFailed]: then
- * Android's developer verification blocked the install. Every other failure,
+ * An abort is the user's decline, unless [developerVerificationFailure]
+ * names why Android's developer verification stopped the install: then it
+ * is that failure. Every other failure,
  * including a status a later platform adds, is [UpdateFailure.OTHER].
  */
 internal fun installOutcomeOf(
     status: Int,
-    developerVerificationFailed: Boolean = false,
+    developerVerificationFailure: UpdateFailure? = null,
 ): InstallOutcome =
     when (status) {
         PackageInstaller.STATUS_PENDING_USER_ACTION -> {
@@ -71,8 +72,8 @@ internal fun installOutcomeOf(
             InstallOutcome.Installed
         }
 
-        PackageInstaller.STATUS_FAILURE_ABORTED if developerVerificationFailed -> {
-            InstallOutcome.Refused(UpdateFailure.DEVELOPER_VERIFICATION)
+        PackageInstaller.STATUS_FAILURE_ABORTED if developerVerificationFailure != null -> {
+            InstallOutcome.Refused(developerVerificationFailure)
         }
 
         PackageInstaller.STATUS_FAILURE_ABORTED -> {
@@ -99,15 +100,19 @@ internal fun installOutcomeOf(
 /**
  * Receives the platform's status for every install session the updater
  * commits. Not exported: the platform's own broadcasts still reach it, and
- * [pendingIntent] addresses it explicitly.
+ * [pendingIntent] addresses it explicitly. [verdictsFor] is the app's updater;
+ * tests pass their own, since the platform builds the receiver through the
+ * no-argument constructor the default yields.
  */
-internal class InstallStatusReceiver : BroadcastReceiver() {
+internal class InstallStatusReceiver(
+    private val verdictsFor: (Context) -> InstallVerdicts = UpdateRepository::get,
+) : BroadcastReceiver() {
     override fun onReceive(
         context: Context,
         intent: Intent,
     ) {
         val app = context.applicationContext
-        finishAsync(TAG) { deliverInstallStatus(app, intent, UpdateRepository.get(app)) }
+        finishAsync(TAG) { deliverInstallStatus(app, intent, verdictsFor(app)) }
     }
 
     companion object {
@@ -148,7 +153,7 @@ internal suspend fun deliverInstallStatus(
     // log only: the UI phrases the outcome.
     Log.i(TAG, "session $sessionId: status $status (${intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)})")
     val work =
-        when (val outcome = installOutcomeOf(status, intent.developerVerificationFailed())) {
+        when (val outcome = installOutcomeOf(status, intent.developerVerificationFailureOrNull())) {
             InstallOutcome.NeedsConfirmation -> requestConfirmation(context, intent, sessionId, verdicts)
             InstallOutcome.Installed -> null
             InstallOutcome.Declined -> verdicts.onInstallCancelled(sessionId)
@@ -157,15 +162,38 @@ internal suspend fun deliverInstallStatus(
     work?.join()
 }
 
+/**
+ * The failure for a developer-verification [reason]
+ * (EXTRA_DEVELOPER_VERIFICATION_FAILURE_REASON). Only a missing connection has
+ * a remedy the user can apply; a blocked developer, an unknown reason, and a
+ * reason a later release adds all read as blocked.
+ */
+internal fun developerVerificationFailureOf(reason: Int): UpdateFailure =
+    if (reason == PackageInstaller.DEVELOPER_VERIFICATION_FAILED_REASON_NETWORK_UNAVAILABLE) {
+        UpdateFailure.DEVELOPER_VERIFICATION_OFFLINE
+    } else {
+        UpdateFailure.DEVELOPER_VERIFICATION_BLOCKED
+    }
+
 // From Android 16 QPR2 (API 36.1), an install that Android's developer
 // verification blocks fails as STATUS_FAILURE_ABORTED, the user's decline,
 // but with EXTRA_DEVELOPER_VERIFICATION_FAILURE_REASON, which a decline never
 // carries (PackageInstaller reference). Earlier releases verify no developer,
 // so the extra is not read there.
-private fun Intent.developerVerificationFailed(): Boolean =
-    Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
+private fun Intent.developerVerificationFailureOrNull(): UpdateFailure? =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
         Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1 &&
         hasExtra(PackageInstaller.EXTRA_DEVELOPER_VERIFICATION_FAILURE_REASON)
+    ) {
+        developerVerificationFailureOf(
+            getIntExtra(
+                PackageInstaller.EXTRA_DEVELOPER_VERIFICATION_FAILURE_REASON,
+                PackageInstaller.DEVELOPER_VERIFICATION_FAILED_REASON_UNKNOWN,
+            ),
+        )
+    } else {
+        null
+    }
 
 // A request that carries no intent to show leaves nothing the user could
 // confirm: the attempt fails, and a retry starts a new session.

@@ -375,7 +375,8 @@ private fun failureText(reason: UpdateFailure): Int =
         UpdateFailure.VERIFY -> R.string.settings_updates_failed_verify
         UpdateFailure.INSTALL_CONFLICT -> R.string.settings_updates_failed_install_conflict
         UpdateFailure.INSTALL_BLOCKED -> R.string.settings_updates_failed_install_blocked
-        UpdateFailure.DEVELOPER_VERIFICATION -> R.string.settings_updates_failed_developer_verification
+        UpdateFailure.DEVELOPER_VERIFICATION_OFFLINE -> R.string.settings_updates_failed_developer_verification_offline
+        UpdateFailure.DEVELOPER_VERIFICATION_BLOCKED -> R.string.settings_updates_failed_developer_verification_blocked
         UpdateFailure.OTHER -> R.string.settings_updates_failed_other
     }
 
