@@ -37,9 +37,10 @@ internal fun geoHandoffUri(
         }
     }
 
-// Six decimals is about 0.1 m, finer than any fix. A fixed format keeps a
-// small value out of scientific notation ("1.0E-4"), and Locale.ROOT keeps the
-// decimal separator a dot on devices set to a comma-decimal locale.
+// The one coordinate formatter of every geo: URI the app builds. Six decimals
+// is about 0.1 m, finer than any fix. A fixed format keeps a small value out
+// of scientific notation ("1.0E-4"), and Locale.ROOT keeps the decimal
+// separator a dot on devices set to a comma-decimal locale.
 private fun coordinate(value: Double): String = String.format(Locale.ROOT, "%.6f", value)
 
 private const val UNRESERVED = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
@@ -50,3 +51,14 @@ private fun percentEncode(text: String): String =
         val char = code.toChar()
         if (code < 0x80 && char in UNRESERVED) char.toString() else "%%%02X".format(Locale.ROOT, code)
     }
+
+/**
+ * Return the `geo:` URI that opens the user's maps app centred on a position
+ * at [zoom] (the dashboard's "open maps here"). Its coordinates share
+ * [geoHandoffUri]'s formatter.
+ */
+internal fun geoCentreUri(
+    latitude: Double,
+    longitude: Double,
+    zoom: Int,
+): String = "geo:${coordinate(latitude)},${coordinate(longitude)}?z=$zoom"

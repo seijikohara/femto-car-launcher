@@ -52,6 +52,7 @@ import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.hasCoarseLocationPermission
 import io.github.seijikohara.femto.data.location.hasFineLocationPermission
 import io.github.seijikohara.femto.data.places.PlaceTarget
+import io.github.seijikohara.femto.data.places.geoCentreUri
 import io.github.seijikohara.femto.data.places.geoHandoffUri
 import io.github.seijikohara.femto.data.system.SystemPermissionSignals
 import io.github.seijikohara.femto.data.update.UpdateChannel
@@ -604,7 +605,7 @@ class MainActivity : ComponentActivity() {
         // A bare geo: URI lets whichever maps app the user has elected resolve
         // the position — no provider or package is hard-coded.
         val intent =
-            Intent(Intent.ACTION_VIEW, "geo:$latitude,$longitude?z=$MAPS_ZOOM_LEVEL".toUri())
+            Intent(Intent.ACTION_VIEW, geoCentreUri(latitude, longitude, MAPS_ZOOM_LEVEL).toUri())
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         tryStartActivity(intent)
     }

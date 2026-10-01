@@ -81,4 +81,18 @@ class GeoHandoffUriTest {
             Locale.setDefault(saved)
         }
     }
+
+    @Test
+    fun centre_uri_keeps_small_coordinates_out_of_scientific_notation() =
+        assertEquals(
+            "geo:-0.000100,0.000500?z=15",
+            geoCentreUri(latitude = -0.0001, longitude = 0.0005, zoom = 15),
+        )
+
+    @Test
+    fun centre_uri_shares_the_hand_off_coordinate_format() =
+        assertEquals(
+            "geo:35.681236,139.767125?z=15",
+            geoCentreUri(latitude = 35.681236, longitude = 139.767125, zoom = 15),
+        )
 }
