@@ -9,7 +9,9 @@ import io.github.seijikohara.femto.testfixtures.FakeClock
 import io.github.seijikohara.femto.testfixtures.FakeInstallConfirmation
 import io.github.seijikohara.femto.testfixtures.FakeUpdateFeed
 import io.github.seijikohara.femto.testfixtures.FakeUpdateSettingsStore
+import io.github.seijikohara.femto.testfixtures.HeldDispatcher
 import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
@@ -1515,6 +1517,27 @@ class UpdateRepositoryTest {
         }
 
     @Test
+    fun `a download tapped right after a discard waits for the deletion`() =
+        runTest {
+            val io = HeldDispatcher()
+            val repository = readyRepository(ioDispatcher = io)
+            // The discard's deletion and the download's look at the staged file
+            // are both IO; run them newest first, as a busy IO pool may.
+            io.hold = true
+
+            repository.discard()
+            repository.download()
+            runCurrent()
+            io.releaseNewestFirst()
+            runCurrent()
+
+            // Without the wait, the download would take the doomed file as
+            // already staged, and offer an install of a file that is gone.
+            assertTrue(assertIs<UpdateState.Ready>(repository.state.value).file.exists())
+            assertEquals(2, feed.downloads.size)
+        }
+
+    @Test
     fun `discard leaves a download that is not staged alone`() =
         runTest {
             val repository = availableRepository()
@@ -1725,6 +1748,7 @@ class UpdateRepositoryTest {
         enabled: Boolean = true,
         installer: ApkInstaller = this@UpdateRepositoryTest.installer,
         store: UpdateSettingsStore = this@UpdateRepositoryTest.store,
+        ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
     ): UpdateRepository =
         UpdateRepository(
             feed = feed,
@@ -1739,7 +1763,7 @@ class UpdateRepositoryTest {
             clock = clock,
             scope = backgroundScope,
             stagingDir = stagingDir,
-            ioDispatcher = StandardTestDispatcher(testScheduler),
+            ioDispatcher = ioDispatcher,
         )
 
     // A repository whose start-up reconciliation has run.
@@ -1748,15 +1772,18 @@ class UpdateRepositoryTest {
         channel: UpdateChannel = UpdateChannel.STABLE,
         installer: ApkInstaller = this@UpdateRepositoryTest.installer,
         store: UpdateSettingsStore = this@UpdateRepositoryTest.store,
+        ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
     ): UpdateRepository =
-        repository(currentVersionCode, channel, installer = installer, store = store).also { runCurrent() }
+        repository(currentVersionCode, channel, installer = installer, store = store, ioDispatcher = ioDispatcher)
+            .also { runCurrent() }
 
     // A started repository whose check (at NOW) found [manifest].
     private fun TestScope.availableRepository(
         manifest: UpdateManifest = newer,
         installer: ApkInstaller = this@UpdateRepositoryTest.installer,
+        ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
     ): UpdateRepository =
-        startedRepository(installer = installer).also { repository ->
+        startedRepository(installer = installer, ioDispatcher = ioDispatcher).also { repository ->
             feed.latestResult = FeedResult.Found(manifest)
             repository.checkNow()
             runCurrent()
@@ -1766,8 +1793,9 @@ class UpdateRepositoryTest {
     // real check and download path.
     private fun TestScope.readyRepository(
         installer: ApkInstaller = this@UpdateRepositoryTest.installer,
+        ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
     ): UpdateRepository =
-        availableRepository(installer = installer).also { repository ->
+        availableRepository(installer = installer, ioDispatcher = ioDispatcher).also { repository ->
             repository.download()
             runCurrent()
         }
