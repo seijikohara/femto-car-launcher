@@ -45,6 +45,3 @@ internal sealed interface VideoAction {
     /** Close the window: turn "Video window" off and stop playback. */
     data object Close : VideoAction
 }
-
-/** The document types the system file picker offers for the video window. */
-internal val VideoPickerMimeTypes: Array<String> = arrayOf("video/*")

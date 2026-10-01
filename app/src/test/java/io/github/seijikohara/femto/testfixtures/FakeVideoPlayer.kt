@@ -9,7 +9,8 @@ import kotlinx.coroutines.flow.StateFlow
  * In-memory [VideoPlayer]: records what the ViewModel asked of it. [loaded] is
  * the file the player holds (null once stopped), [playing] mirrors play / pause,
  * and [fail] stages a playback error the way a file the decoder cannot open
- * reports one.
+ * reports one. [attached] is the surface the UI attached and has not
+ * detached.
  */
 internal class FakeVideoPlayer : VideoPlayer {
     private val playing = MutableStateFlow(false)
@@ -17,6 +18,11 @@ internal class FakeVideoPlayer : VideoPlayer {
 
     override val isPlaying: StateFlow<Boolean> = playing
     override val failed: StateFlow<Boolean> = failure
+    override val videoAspectRatio: StateFlow<Float?> = MutableStateFlow(null)
+
+    /** The surface the picture is drawn into now, or null. */
+    var attached: TextureView? = null
+        private set
 
     var loaded: String? = null
         private set
@@ -47,9 +53,13 @@ internal class FakeVideoPlayer : VideoPlayer {
         playing.value = false
     }
 
-    override fun attach(view: TextureView) = Unit
+    override fun attach(view: TextureView) {
+        attached = view
+    }
 
-    override fun detach(view: TextureView) = Unit
+    override fun detach(view: TextureView) {
+        if (attached === view) attached = null
+    }
 
     override fun release() {
         stop()

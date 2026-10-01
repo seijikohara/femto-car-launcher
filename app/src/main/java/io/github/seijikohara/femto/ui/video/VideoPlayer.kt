@@ -8,6 +8,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,9 @@ internal interface VideoPlayer {
 
     /** Whether the loaded file failed to play (unreadable, or a format the device cannot decode). */
     val failed: StateFlow<Boolean>
+
+    /** The picture's width-to-height ratio once the file reports it, or null before then. */
+    val videoAspectRatio: StateFlow<Float?>
 
     /** Load [uri] (a content URI), paused, in place of anything loaded before. */
     fun load(uri: String)
@@ -60,16 +64,27 @@ internal class ExoVideoPlayer(
     private val appContext = context.applicationContext
     private val playing = MutableStateFlow(false)
     private val failure = MutableStateFlow(false)
+    private val aspectRatio = MutableStateFlow<Float?>(null)
     private var player: ExoPlayer? = null
     private var surface: TextureView? = null
 
     override val isPlaying: StateFlow<Boolean> = playing
     override val failed: StateFlow<Boolean> = failure
+    override val videoAspectRatio: StateFlow<Float?> = aspectRatio
 
     private val listener =
         object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 playing.value = isPlaying
+            }
+
+            // A TextureView stretches the picture to its own bounds, so the
+            // surface sizes itself to this ratio. Unknown sizes report zero.
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                aspectRatio.value =
+                    videoSize
+                        .takeIf { it.width > 0 && it.height > 0 }
+                        ?.let { it.width * it.pixelWidthHeightRatio / it.height }
             }
 
             // The error code name only: the message and cause can carry the
@@ -82,6 +97,7 @@ internal class ExoVideoPlayer(
 
     override fun load(uri: String) {
         failure.value = false
+        aspectRatio.value = null
         (player ?: newPlayer().also { player = it }).run {
             setMediaItem(MediaItem.fromUri(uri))
             prepare()
@@ -104,6 +120,7 @@ internal class ExoVideoPlayer(
         player = null
         playing.value = false
         failure.value = false
+        aspectRatio.value = null
     }
 
     override fun attach(view: TextureView) {
