@@ -49,6 +49,16 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!--
+        media3-exoplayer's library manifest requests WAKE_LOCK for its
+        setWakeMode, which the video window never calls; remove the merged
+        entry so a dependency cannot add a permission the audit log does not
+        list.
+    -->
+    <uses-permission
+        android:name="android.permission.WAKE_LOCK"
+        tools:node="remove" />
+
+    <!--
         Declare microphone hardware as optional so Play does not implicitly
         hard-require it (requesting RECORD_AUDIO above otherwise implies
         required=true). Head units without a mic must still see and install

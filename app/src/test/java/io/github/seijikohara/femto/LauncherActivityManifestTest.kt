@@ -2,12 +2,14 @@ package io.github.seijikohara.femto
 
 import android.content.ComponentName
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -51,5 +53,24 @@ class LauncherActivityManifestTest {
     @Test
     fun `the launcher keeps a single task`() {
         assertEquals(ActivityInfo.LAUNCH_SINGLE_TASK, activityInfo.launchMode)
+    }
+
+    // media3-exoplayer's own manifest asks for WAKE_LOCK, which only its
+    // setWakeMode needs. The video window never calls it, and the audit log in
+    // .claude/rules/permissions.md lists every permission the APK requests, so
+    // the manifest removes the merged entry instead of growing the list.
+    @Test
+    fun `no library merges in the wake lock permission`() {
+        val requested =
+            ApplicationProvider
+                .getApplicationContext<android.content.Context>()
+                .let { context ->
+                    context.packageManager
+                        .getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS)
+                        .requestedPermissions
+                        .orEmpty()
+                        .toList()
+                }
+        assertFalse(android.Manifest.permission.WAKE_LOCK in requested, "WAKE_LOCK merged in: $requested")
     }
 }
