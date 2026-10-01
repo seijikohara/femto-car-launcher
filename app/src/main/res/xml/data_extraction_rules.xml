@@ -2,8 +2,8 @@
 <!--
    Auto Backup / device-transfer rules (API 31+).
    Everything is backed up by default; location-related settings are excluded so
-   they are never copied off-device, and so is the updater's bookkeeping, which
-   describes only this install. The DataStore preference files live under the
+   they are never copied off-device, and so are the saved places and the
+   updater's bookkeeping, which describes only this install. The DataStore preference files live under the
    "file" domain at datastore/<name>.preferences_pb.
 -->
 <data-extraction-rules>
@@ -14,6 +14,8 @@
         <exclude domain="database" path="track_log.db" />
         <!-- update_preferences is the updater's bookkeeping about this install, none of it portable: a restored pending-install record would make a fresh install announce an update it never made, a restored check time would hold off the first automatic check for up to a day, and a restored offer describes the old install's build. -->
         <exclude domain="file" path="datastore/update_preferences.preferences_pb" />
+        <!-- saved_places holds the destination panel's saved places: labels with addresses or coordinates the user chose to keep. That is location data, and the privacy policy promises it stays on the device. -->
+        <exclude domain="file" path="datastore/saved_places.preferences_pb" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="datastore/location_preferences.preferences_pb" />
@@ -21,5 +23,7 @@
         <exclude domain="database" path="track_log.db" />
         <!-- The updater's bookkeeping describes this install, not the new device's (see cloud-backup). -->
         <exclude domain="file" path="datastore/update_preferences.preferences_pb" />
+        <!-- Saved places stay on this device (see cloud-backup). -->
+        <exclude domain="file" path="datastore/saved_places.preferences_pb" />
     </device-transfer>
 </data-extraction-rules>
