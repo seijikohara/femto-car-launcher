@@ -661,7 +661,7 @@ internal class SettingsViewModel(
                         SettingsSectionId.UNITS,
                         SettingsSectionId.MAP,
                         -> {
-                            Unit
+                            // No store beyond DisplayPreferences.
                         }
                     }
                 }

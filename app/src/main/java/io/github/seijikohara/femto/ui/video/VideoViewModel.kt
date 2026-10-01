@@ -85,9 +85,8 @@ internal class VideoViewModel(
                 if (player.isPlaying.value) player.pause() else player.play()
             }
 
-            // The host launches the picker; nothing to do here.
             VideoAction.PickFile -> {
-                Unit
+                // The host launches the picker; nothing to do here.
             }
 
             is VideoAction.FilePicked -> {
