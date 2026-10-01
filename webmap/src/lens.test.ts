@@ -3,6 +3,7 @@ import {
     calibrateLens,
     type LensCalibration,
     lensGroundOffset,
+    lensMoved,
     lensProbeDistancePx,
     lensYawDeg,
 } from "./lens";
@@ -188,5 +189,26 @@ describe("lensYawDeg", () => {
     it("is 0 while uncalibrated and on a flat map", () => {
         expect(lensYawDeg(null, -180, 55)).toBe(0);
         expect(lensYawDeg({ focalPx: 900, distancePx: 900 }, -180, 0)).toBe(0);
+    });
+});
+
+describe("lensMoved", () => {
+    const lens = { focalPx: 900, distancePx: 900 };
+
+    it("ignores a re-measurement that moves neither the yaw nor the anchor visibly", () => {
+        const again = { focalPx: 900.01, distancePx: 900.01 };
+        expect(lensMoved(lens, again, -180, 110, 55)).toBe(false);
+        expect(lensMoved(null, null, -180, 110, 55)).toBe(false);
+    });
+
+    it("reports a lens that appears, goes, or changes the picture", () => {
+        expect(lensMoved(null, lens, -180, 110, 55)).toBe(true);
+        expect(lensMoved(lens, null, -180, 110, 55)).toBe(true);
+        // A viewport resize: the focal length scales with the height.
+        expect(lensMoved(lens, { focalPx: 700, distancePx: 700 }, -180, 110, 55)).toBe(true);
+    });
+
+    it("never reports a change on a flat map, where the lens is unused", () => {
+        expect(lensMoved(null, lens, -180, 110, 0)).toBe(false);
     });
 });

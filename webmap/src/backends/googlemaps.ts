@@ -85,6 +85,7 @@ import {
     calibrateLens,
     type LensCalibration,
     lensGroundOffset,
+    lensMoved,
     lensProbeDistancePx,
     lensYawDeg,
 } from "../lens";
@@ -515,6 +516,17 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // Traffic layer is created once and toggled on/off via setMap (memoized).
     state.trafficLayer = new mapsLib.TrafficLayer();
 
+    // The tilt the lens corrects for when the page asks for [requested]:
+    // the tilt the map actually shows once Google has clamped the request (a
+    // vector map's tilt ceiling drops at low zoom). The map showing less than
+    // the page last sent is that clamp; otherwise the requested tilt stands,
+    // since it is what this very move is about to show.
+    function shownTilt(requested: number): number {
+        const shown = liveMap.getTilt() ?? 0;
+        const sent = state.lastSet.tilt;
+        return sent !== null && shown < sent ? Math.min(requested, shown) : requested;
+    }
+
     // The view a pose shows the map at: the zoom, the MAP heading, and the
     // chevron's offset as the flat ground offset the centre math takes —
     // plus the lens's yaw bias inside that heading. On a tilted vector map
@@ -531,7 +543,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         const offsetX = pose.offsetX ?? state.spot.x * window.innerWidth;
         const offsetY = pose.offsetY ?? state.spot.y * window.innerHeight;
         if (!state.isVector) return { view: { zoom, heading: 0, offsetX, offsetY }, yaw: 0 };
-        const tilt = pose.tilt ?? liveMap.getTilt() ?? 0;
+        const tilt = shownTilt(pose.tilt ?? liveMap.getTilt() ?? 0);
         const yaw = lensYawDeg(state.lens, offsetX, tilt);
         const ground = lensGroundOffset(state.lens, offsetX, offsetY, tilt);
         const heading =
@@ -610,7 +622,9 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         const offsetY = owned.offsetY ?? state.spot.y * window.innerHeight;
         const mapHeading = liveMap.getHeading() ?? 0;
         const heading = state.isVector
-            ? normalizeBearing(mapHeading + lensYawDeg(state.lens, offsetX, owned.tilt ?? tilt))
+            ? normalizeBearing(
+                  mapHeading + lensYawDeg(state.lens, offsetX, shownTilt(owned.tilt ?? tilt)),
+              )
             : mapHeading;
         const { view } = viewFor({
             zoom: owned.zoom ?? zoom,
@@ -675,13 +689,22 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         );
     }
 
-    // A lens that appears or goes away changes the yaw and the anchor under
-    // the chevron: re-place the camera at once with the reflow motion rather
-    // than waiting for the next fix — a parked car may not send one.
+    // A lens that appears, goes, or is re-measured differently (a viewport
+    // resize) changes the yaw and the anchor under the chevron: re-place the
+    // camera at once with the reflow motion rather than waiting for the next
+    // fix — a parked car may not send one. The same camera measured again
+    // changes nothing visible and leaves the camera alone (lensMoved).
     function setLens(next: LensCalibration | null): void {
-        const changed = (next === null) !== (state.lens === null);
+        const previous = state.lens;
         state.lens = next;
-        if (changed && state.following && state.lastFix) easeHome(REFLOW_MOTION);
+        const moved = lensMoved(
+            previous,
+            next,
+            state.spot.x * window.innerWidth,
+            state.spot.y * window.innerHeight,
+            liveMap.getTilt() ?? 0,
+        );
+        if (moved && state.following && state.lastFix) easeHome(REFLOW_MOTION);
     }
 
     // The lens probe, an overlay that draws nothing and only reads the

@@ -94,6 +94,8 @@ const fake = vi.hoisted(() => {
         renderingType = "VECTOR";
         // The map type's zoom ceiling: Google clamps a requested zoom to it.
         maxZoom = Number.POSITIVE_INFINITY;
+        // The vector tilt ceiling at the zoom: Google clamps a requested tilt.
+        maxTilt = Number.POSITIVE_INFINITY;
         readonly moves: CameraOptions[] = [];
         readonly options: Record<string, unknown>;
         readonly overlays: FakeOverlayView[] = [];
@@ -111,8 +113,10 @@ const fake = vi.hoisted(() => {
                 this.heading = camera.heading;
                 this.fire("heading_changed");
             }
-            if (camera.tilt !== undefined && camera.tilt !== this.tilt) {
-                this.tilt = camera.tilt;
+            const tilt =
+                camera.tilt === undefined ? undefined : Math.min(camera.tilt, this.maxTilt);
+            if (tilt !== undefined && tilt !== this.tilt) {
+                this.tilt = tilt;
                 this.fire("tilt_changed");
             }
         }
@@ -530,6 +534,33 @@ describe("the Google Maps page", () => {
         page.advance(LAYOUT_REFLOW_MS - 200);
         const at = screenOf(page.map, next);
         expect(Math.hypot(at.x, at.y - DROP * H)).toBeLessThan(1e-6);
+    });
+
+    it("re-places the camera when a viewport resize changes the lens, without a fix", async () => {
+        const page = await boot("VECTOR", "VECTOR");
+        push(page.win, FIX, 90);
+        page.run(50);
+        // An orientation change or a split screen: the map re-renders at the
+        // new size, the lens is re-measured, and the parked car sends no fix.
+        const win = page.win as unknown as { innerWidth: number; innerHeight: number };
+        win.innerWidth = 700;
+        win.innerHeight = 380;
+        page.run(30);
+        const at = screenOf(page.map, FIX);
+        expect(Math.hypot(at.x + MX * 700, at.y - DROP * 380)).toBeLessThan(1e-6);
+        expect(leanPx(page.map, FIX, 90)).toBeLessThan(1e-6);
+    });
+
+    it("corrects for the tilt the map shows when Google clamps the requested one", async () => {
+        const page = await boot("VECTOR", "VECTOR");
+        page.map.maxTilt = 40;
+        push(page.win, FIX, 90);
+        page.run(50);
+        expect(page.map.tilt).toBe(40);
+        const at = screenOf(page.map, FIX);
+        expect(Math.hypot(at.x + MX * W, at.y - DROP * H)).toBeLessThan(1e-6);
+        expect(leanPx(page.map, FIX, 90)).toBeLessThan(1e-6);
+        expect(lastCompass()).toBe("90.0");
     });
 
     it("measures the lens through the WebGL overlay on a map with a Map ID", async () => {

@@ -115,6 +115,31 @@ export function lensGroundOffset(
     };
 }
 
+// How far a re-measured lens must move the picture before the page re-places
+// the camera without waiting for a fix: well under what an eye notices, well
+// over the float noise of measuring the same camera again.
+export const LENS_REPLACE_YAW_DEG = 0.05;
+export const LENS_REPLACE_OFFSET_PX = 0.5;
+
+// Whether swapping lens [before] for [after] visibly changes the yaw or the
+// ground offset for a chevron at screen offset ([offsetXPx], [offsetYPx]) at
+// [tiltDeg]: a lens that appears or goes, or a re-measurement after a
+// viewport resize, but not the same camera measured again.
+export function lensMoved(
+    before: LensCalibration | null,
+    after: LensCalibration | null,
+    offsetXPx: number,
+    offsetYPx: number,
+    tiltDeg: number,
+): boolean {
+    const yaw = Math.abs(
+        lensYawDeg(after, offsetXPx, tiltDeg) - lensYawDeg(before, offsetXPx, tiltDeg),
+    );
+    const a = lensGroundOffset(before, offsetXPx, offsetYPx, tiltDeg);
+    const b = lensGroundOffset(after, offsetXPx, offsetYPx, tiltDeg);
+    return yaw > LENS_REPLACE_YAW_DEG || Math.hypot(b.x - a.x, b.y - a.y) > LENS_REPLACE_OFFSET_PX;
+}
+
 // The yaw bias δ, in degrees, with the sign of [offsetXPx]: the map turns to
 // the travel heading minus δ, which points the direction of travel δ
 // clockwise of the camera's forward axis — the one direction whose vanishing

@@ -161,7 +161,11 @@ policy:
   rule: `followOrientation` stays the one follow-heading source, and
   the backend adds δ only where it talks to the map (`moveCamera`,
   the glide's read-back, the compass, which reports the travel
-  heading). Never hard-code a field of view. Both maps place the
+  heading). The lens corrects for the tilt the map shows, not the
+  tilt requested, wherever Google clamps it, and a re-measurement
+  that visibly moves δ or the anchor (`lensMoved`; a viewport resize,
+  say) re-places the camera with the reflow motion without waiting
+  for a fix. Never hard-code a field of view. Both maps place the
   chevron by the one rule (`markerSpot`): until the lens is measured,
   or when the measurement is implausible, the Google chevron stays at
   that spot with no yaw and the flat offset (the road leans until the
