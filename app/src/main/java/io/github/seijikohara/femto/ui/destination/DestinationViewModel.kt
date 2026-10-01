@@ -82,6 +82,9 @@ internal class DestinationViewModel(
             }
 
             DestinationAction.StartListening -> {
+                // Some engines silently ignore the next start after an error
+                // unless the recognizer is cancelled first (VoiceRecognizer.reset).
+                if (speech.state.value is VoiceState.Failed) speech.reset()
                 speech.start()
             }
 

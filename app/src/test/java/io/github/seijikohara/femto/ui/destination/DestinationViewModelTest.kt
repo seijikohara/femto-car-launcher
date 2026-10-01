@@ -255,4 +255,23 @@ class DestinationViewModelTest {
             assertEquals(listOf("start", "reset"), speech.calls)
             assertEquals(VoiceState.Idle, viewModel.uiState.value.voice)
         }
+
+    @Test
+    fun listening_after_a_failure_resets_the_recognizer_first() =
+        runTest {
+            val viewModel = subscribedViewModel()
+            speech.mutableState.value = VoiceState.Failed(messageRes = 0)
+            viewModel.onAction(DestinationAction.StartListening)
+            // Some engines silently ignore startListening() after onError
+            // unless cancelled first.
+            assertEquals(listOf("reset", "start"), speech.calls)
+        }
+
+    @Test
+    fun listening_from_idle_starts_without_a_reset() =
+        runTest {
+            val viewModel = subscribedViewModel()
+            viewModel.onAction(DestinationAction.StartListening)
+            assertEquals(listOf("start"), speech.calls)
+        }
 }
