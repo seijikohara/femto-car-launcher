@@ -81,10 +81,14 @@ internal class VideoViewModel(
 
     fun onAction(action: VideoAction) {
         when (action) {
-            VideoAction.TogglePlayback -> if (player.isPlaying.value) player.pause() else player.play()
+            VideoAction.TogglePlayback -> {
+                if (player.isPlaying.value) player.pause() else player.play()
+            }
 
             // The host launches the picker; nothing to do here.
-            VideoAction.PickFile -> Unit
+            VideoAction.PickFile -> {
+                Unit
+            }
 
             is VideoAction.FilePicked -> {
                 viewModelScope.launch {
