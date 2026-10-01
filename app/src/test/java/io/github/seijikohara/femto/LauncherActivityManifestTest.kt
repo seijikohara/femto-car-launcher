@@ -55,10 +55,11 @@ class LauncherActivityManifestTest {
         assertEquals(ActivityInfo.LAUNCH_SINGLE_TASK, activityInfo.launchMode)
     }
 
-    // media3-exoplayer's own manifest asks for WAKE_LOCK, which only its
-    // setWakeMode needs. The video window never calls it, and the audit log in
-    // .claude/rules/permissions.md lists every permission the APK requests, so
-    // the manifest removes the merged entry instead of growing the list.
+    // media3-exoplayer's own manifest asks for WAKE_LOCK: left to its
+    // defaults, the player enables a local wake lock for its stuck-playback
+    // detection. The video window opts out (WAKE_MODE_NONE), and the audit log
+    // in .claude/rules/permissions.md lists every permission the APK requests,
+    // so the manifest removes the merged entry instead of growing the list.
     @Test
     fun `no library merges in the wake lock permission`() {
         val requested =

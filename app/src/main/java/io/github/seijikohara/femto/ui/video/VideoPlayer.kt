@@ -160,7 +160,10 @@ internal class ExoVideoPlayer(
 // Media usage with focus handling: playing the video pauses other media (the
 // music app the dashboard's card follows), and a call or another player taking
 // focus pauses the video. Unplugging headphones pauses it too, as any media
-// player would.
+// player would. No wake lock: left to its defaults the player enables a local
+// one for its stuck-playback detection, which needs the WAKE_LOCK permission
+// the manifest removes. Playback then relies on the device staying awake, as an
+// in-car display does while it is on; a device that sleeps may stop it.
 private fun newExoPlayer(context: Context): Player =
     ExoPlayer
         .Builder(context)
@@ -173,4 +176,5 @@ private fun newExoPlayer(context: Context): Player =
                 // handleAudioFocus: a Java parameter, so it cannot be named.
                 true,
             ).setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_NONE)
             .build()

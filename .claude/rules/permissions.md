@@ -35,8 +35,10 @@ Permission discipline for femto-car-launcher's `AndroidManifest.xml`.
 
 A permission a library's manifest merges in is part of the APK too, so
 it either joins the audit log or is removed in `AndroidManifest.xml` with
-`tools:node="remove"`. Removed today: `WAKE_LOCK` (merged by
-`media3-exoplayer` for its `setWakeMode`, which the app never calls).
+`tools:node="remove"`. Removed today: `WAKE_LOCK`, merged by
+`media3-exoplayer`. Left to its defaults, the player enables a local
+wake lock for its stuck-playback detection; the video window opts out
+with `setWakeMode(C.WAKE_MODE_NONE)` (`ExoVideoPlayer`).
 
 ## Adding a new permission (procedure)
 
