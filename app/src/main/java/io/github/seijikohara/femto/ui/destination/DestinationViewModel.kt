@@ -89,6 +89,12 @@ internal class DestinationViewModel(
                 speech.stop()
             }
 
+            DestinationAction.CancelListening -> {
+                // reset() cancels the engine; stop() would still deliver a
+                // final result that could refill the query after a hand-off.
+                speech.reset()
+            }
+
             DestinationAction.SaveQuery -> {
                 query.value
                     .trim()

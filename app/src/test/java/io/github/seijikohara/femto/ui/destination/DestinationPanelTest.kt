@@ -178,7 +178,7 @@ class DestinationPanelTest {
     }
 
     @Test
-    fun closing_the_panel_stops_the_recognizer() {
+    fun closing_the_panel_cancels_the_recognizer() {
         var shown by mutableStateOf(true)
         rule.setContent {
             FemtoTheme {
@@ -210,7 +210,46 @@ class DestinationPanelTest {
         rule.waitForIdle()
 
         // A mic left listening behind a closed panel would keep the microphone
-        // open with nothing on screen to show it.
-        assertEquals(listOf<DestinationAction>(DestinationAction.StopListening), actions)
+        // open with nothing on screen to show it, and a stop would still
+        // deliver a late result into the next open's query.
+        assertEquals(listOf<DestinationAction>(DestinationAction.CancelListening), actions)
+    }
+
+    @Test
+    fun a_saved_place_hand_off_cancels_recognition_before_the_launch() {
+        val order = mutableListOf<String>()
+        rule.setContent {
+            FemtoTheme {
+                DestinationPanel(
+                    uiState =
+                        DestinationUiState(
+                            query = "",
+                            voice = VoiceState.Listening(partial = "Cen"),
+                            places = listOf(home),
+                            motion = VehicleMotion.MOVING,
+                        ),
+                    currentPoint = null,
+                    currentAddress = "",
+                    onAction = { order += it.toString() },
+                    onMicTap = {},
+                    onNavigate = { _, label -> order += "navigate $label" },
+                    onOpenMaps = {},
+                    onClose = {},
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        rule.onNodeWithText("Home").performClick()
+        // The launch can pause the activity before the panel's exit disposes
+        // it, so the cancel must come first.
+        assertEquals(listOf(DestinationAction.CancelListening.toString(), "navigate Home"), order)
+    }
+
+    @Test
+    fun a_query_hand_off_cancels_recognition_before_the_launch() {
+        setPanel(stationary = true, query = "Central Station")
+        rule.onNodeWithText("Navigate").performScrollTo().performClick()
+        assertEquals(listOf<DestinationAction>(DestinationAction.CancelListening), actions)
+        assertEquals(listOf<Pair<PlaceTarget, String>>(PlaceTarget.Query("Central Station") to ""), handoffs)
     }
 }

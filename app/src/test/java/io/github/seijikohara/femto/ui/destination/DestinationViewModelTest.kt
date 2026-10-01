@@ -243,4 +243,16 @@ class DestinationViewModelTest {
             viewModel.onAction(DestinationAction.ClearQuery)
             assertEquals("", viewModel.uiState.value.query)
         }
+
+    @Test
+    fun cancel_listening_resets_the_recognizer_so_a_late_result_is_discarded() =
+        runTest {
+            val viewModel = subscribedViewModel()
+            viewModel.onAction(DestinationAction.StartListening)
+            viewModel.onAction(DestinationAction.CancelListening)
+            // reset() cancels the engine: unlike stop(), it requests no final
+            // result that could refill the query after a hand-off.
+            assertEquals(listOf("start", "reset"), speech.calls)
+            assertEquals(VoiceState.Idle, viewModel.uiState.value.voice)
+        }
 }

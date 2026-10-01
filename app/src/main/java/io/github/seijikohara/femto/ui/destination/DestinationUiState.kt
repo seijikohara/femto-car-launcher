@@ -53,6 +53,13 @@ internal sealed interface DestinationAction {
 
     data object StopListening : DestinationAction
 
+    /**
+     * Cancel recognition and discard any pending result: a hand-off and a
+     * closing panel use it, so a late transcript can neither refill the query
+     * nor leave the microphone open behind another app.
+     */
+    data object CancelListening : DestinationAction
+
     /** Keep the current query as a saved place labelled with it; not while moving. */
     data object SaveQuery : DestinationAction
 

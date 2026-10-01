@@ -106,11 +106,18 @@ internal fun DestinationPanel(
     hazeState = hazeState,
     glassConfig = glassConfig,
 ) {
-    // Closing the panel (or the panel leaving composition any other way) stops
-    // a mic still listening: nothing on screen would show the microphone open.
+    // Closing the panel (or the panel leaving composition any other way)
+    // cancels a mic still listening: nothing on screen would show the
+    // microphone open, and a late result must not refill the next open.
     val currentOnAction by rememberUpdatedState(onAction)
     DisposableEffect(Unit) {
-        onDispose { currentOnAction(DestinationAction.StopListening) }
+        onDispose { currentOnAction(DestinationAction.CancelListening) }
+    }
+    // Every hand-off cancels recognition first: the launch can pause the
+    // activity before the panel's exit animation disposes it.
+    val handOff: (PlaceTarget, String) -> Unit = { target, label ->
+        onAction(DestinationAction.CancelListening)
+        onNavigate(target, label)
     }
     // Read off the BoxWithConstraints receiver here: inside the layouts below
     // the outer receiver is out of reach (see CalendarPanel).
@@ -122,7 +129,7 @@ internal fun DestinationPanel(
             currentAddress = currentAddress,
             onAction = onAction,
             onMicTap = onMicTap,
-            onNavigate = onNavigate,
+            onNavigate = handOff,
             modifier = entryModifier,
         )
     }
@@ -130,7 +137,7 @@ internal fun DestinationPanel(
         SavedPlaces(
             places = uiState.places,
             typingAllowed = uiState.typingAllowed,
-            onNavigate = onNavigate,
+            onNavigate = handOff,
             onDelete = { onAction(DestinationAction.DeletePlace(it)) },
             modifier = placesModifier,
         )
@@ -401,8 +408,9 @@ private fun SavedPlaceRow(
  * Binds [DestinationViewModel] to [DestinationPanel] and owns the
  * RECORD_AUDIO request, the same way the assistant sheet does: the mic asks
  * for the permission on its first tap, never at startup, and a denial leaves
- * the typed and saved paths in place. A hand-off clears the query and closes
- * the panel, as the apps panel closes on a launch.
+ * the typed and saved paths in place. A hand-off (recognition already
+ * cancelled by the panel) clears the query and closes the panel, as the apps
+ * panel closes on a launch.
  */
 @Composable
 internal fun DestinationPanelHost(

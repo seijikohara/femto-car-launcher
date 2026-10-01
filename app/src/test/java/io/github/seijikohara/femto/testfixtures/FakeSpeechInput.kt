@@ -15,6 +15,9 @@ internal class FakeSpeechInput(
     val mutableState = MutableStateFlow(initial)
     override val state: StateFlow<VoiceState> = mutableState
 
+    /** Every control call in order ("start", "stop", "reset", "destroy"). */
+    val calls = mutableListOf<String>()
+
     var starts = 0
         private set
     var stops = 0
@@ -26,19 +29,23 @@ internal class FakeSpeechInput(
 
     override fun start() {
         starts++
+        calls += "start"
         mutableState.value = VoiceState.Listening(partial = "")
     }
 
     override fun stop() {
         stops++
+        calls += "stop"
     }
 
     override fun reset() {
         resets++
+        calls += "reset"
         mutableState.value = VoiceState.Idle
     }
 
     override fun destroy() {
         destroys++
+        calls += "destroy"
     }
 }
