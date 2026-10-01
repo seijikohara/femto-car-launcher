@@ -13,7 +13,7 @@ private val VideoPickerMimeTypes: Array<String> = arrayOf("video/*")
 
 /**
  * Return an action that opens the system file picker on video documents and
- * hands the picked document's URI to [onPicked]. The picker is the only route
+ * hands the picked document's URI to [onPick]. The picker is the only route
  * to a file: it reaches USB storage on a head unit without any storage
  * permission, and the URI it returns carries a read grant the store keeps
  * (adoptSource). Backing out of the picker picks nothing. A device without a
@@ -21,10 +21,10 @@ private val VideoPickerMimeTypes: Array<String> = arrayOf("video/*")
  * nothing rather than crash the launcher.
  */
 @Composable
-internal fun rememberVideoPicker(onPicked: (String) -> Unit): () -> Unit {
+internal fun rememberVideoPicker(onPick: (String) -> Unit): () -> Unit {
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            uri?.let { onPicked(it.toString()) }
+            uri?.let { onPick(it.toString()) }
         }
     return {
         runCatching { launcher.launch(VideoPickerMimeTypes) }

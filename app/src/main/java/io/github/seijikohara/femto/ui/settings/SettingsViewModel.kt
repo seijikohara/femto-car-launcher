@@ -51,8 +51,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
@@ -640,21 +640,29 @@ internal class SettingsViewModel(
                     // The section's own DisplayPreferences keys are already cleared
                     // above; only add the other-store reset a section additionally owns.
                     when (action.sectionId) {
-                        SettingsSectionId.APPEARANCE -> fontPreferences.resetToDefaults()
+                        SettingsSectionId.APPEARANCE -> {
+                            fontPreferences.resetToDefaults()
+                        }
 
-                        SettingsSectionId.LOCATION -> locationPreferences.resetToDefaults()
+                        SettingsSectionId.LOCATION -> {
+                            locationPreferences.resetToDefaults()
+                        }
 
                         SettingsSectionId.PANELS -> {
                             calendarPreferences.resetToDefaults()
                             videoPreferences.resetToDefaults()
                         }
 
-                        SettingsSectionId.UPDATES -> updatePreferences.resetToDefaults()
+                        SettingsSectionId.UPDATES -> {
+                            updatePreferences.resetToDefaults()
+                        }
 
                         SettingsSectionId.SCREEN,
                         SettingsSectionId.UNITS,
                         SettingsSectionId.MAP,
-                        -> Unit
+                        -> {
+                            Unit
+                        }
                     }
                 }
 
