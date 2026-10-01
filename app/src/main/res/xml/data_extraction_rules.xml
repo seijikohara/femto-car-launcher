@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
    Auto Backup / device-transfer rules (API 31+).
-   Everything is backed up by default; location-related settings are excluded so
-   they are never copied off-device, and so are the saved places and the
-   updater's bookkeeping, which describes only this install. The DataStore preference files live under the
-   "file" domain at datastore/<name>.preferences_pb.
+   Everything is backed up by default, with three exclusions: location-related
+   settings and the destination panel's saved places, so no location data is
+   ever copied off-device; and the updater's bookkeeping, which describes only
+   this install. The DataStore preference files live under the "file" domain at
+   datastore/<name>.preferences_pb.
 -->
 <data-extraction-rules>
     <cloud-backup>
