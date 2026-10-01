@@ -401,6 +401,12 @@ internal class UpdateRepository internal constructor(
      * [discardableOrNull]) and return to the plain offer, which stays. Nothing
      * of the download is restored at the next start, and the pending-install
      * record goes with it. A download under way cannot be discarded.
+     *
+     * A confirmation an earlier process left on screen still installs if the
+     * user accepts it after this: the platform's session holds its own copy
+     * of the APK. With the record gone, though, the successor process does
+     * not announce "Updated to …"; only the post-install notification does.
+     * The same holds for [skip], which discards a staged download too.
      */
     fun discard() {
         val discarded = claim { current -> current.discardableOrNull()?.let { UpdateState.Available(it) } } ?: return
@@ -751,12 +757,9 @@ internal class UpdateRepository internal constructor(
             attempt?.sessionId?.let { id -> platformCall("committing session $id") { installer.commit(id) } } == true
         if (!committed) {
             // The verified file stays staged, so a retry needs no transfer.
-            claim { current ->
-                UpdateState.Failed(UpdateFailure.OTHER, manifest, staged = true).takeIf {
-                    current ==
-                        (attempt ?: installing)
-                }
-            }
+            val expected = attempt ?: installing
+            val failed = UpdateState.Failed(UpdateFailure.OTHER, manifest, staged = true)
+            claim { current -> failed.takeIf { current == expected } }
             syncPendingRecord()
         }
     }

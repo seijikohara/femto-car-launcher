@@ -175,8 +175,9 @@ internal class HomeViewModel(
      * [UPDATE_PROMPT_PARKED_DWELL_MS] without a break (fail-closed; see
      * VehicleMotion), that the prompt has not asked about, the Updates
      * section has not shown (promptedFor, or an answer earlier in this
-     * process), and the user has not skipped (skipped). A verdict that leaves PARKED closes it at once, unrecorded, to
-     * ask again after the next full dwell.
+     * process), and the user has not skipped (skipped). A verdict that
+     * leaves PARKED closes it at once, unrecorded, to ask again after the
+     * next full dwell.
      *
      * Its own state, apart from [uiState], and shared with
      * [WhileUiSubscribedFresh]: a dashboard that comes back, even a second

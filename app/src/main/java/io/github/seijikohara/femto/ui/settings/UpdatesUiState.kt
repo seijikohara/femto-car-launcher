@@ -30,12 +30,18 @@ internal data class UpdatesUiState(
     val step: UpdateStep?,
     /** Whether the "Discard download" row shows: a verified download is staged and waits for no installer. */
     val canDiscard: Boolean,
-    /** Whether the "Skip this version" row shows: a build is on offer, waits for no transfer or installer, and is not skipped. */
+    /**
+     * Whether the "Skip this version" row shows: a build is on offer, waits
+     * for no transfer or installer, and is not skipped.
+     */
     val canSkip: Boolean,
     val autoCheck: Boolean,
     /** The version this process was updated to, until the section acknowledges it; null otherwise. */
     val updatedTo: String?,
-    /** Whether an update waits and is not skipped (UpdateState.offersUpdate, the dock badge's rule); the category list's dot. */
+    /**
+     * Whether an update waits and is not skipped (UpdateState.offersUpdate,
+     * the dock badge's rule); the category list's dot.
+     */
     val updateOffered: Boolean,
 ) {
     companion object {
