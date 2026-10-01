@@ -167,8 +167,25 @@ describe("createNoTileWatchdog", () => {
         const h = noTileHarness();
         h.watchdog.onTile(VECTOR_SOURCE_ID);
         h.watchdog.onStyleSwap();
+        h.watchdog.onStyleApplied();
         h.watchdog.onTile(VECTOR_SOURCE_ID);
         expect(h.events).toEqual([DATA_ARRIVED, DATA_ARRIVED]);
+    });
+
+    it("ignores a tile of the outgoing style before the new one is applied", () => {
+        // The swap call comes before the deferred setStyle; a tile still in
+        // flight for the outgoing style says nothing about the new one.
+        const h = noTileHarness();
+        h.watchdog.onTile(VECTOR_SOURCE_ID);
+        h.watchdog.onStyleSwap();
+        h.watchdog.onTile(VECTOR_SOURCE_ID);
+        expect(h.events).toEqual([DATA_ARRIVED]);
+        h.watchdog.onError(TILEJSON_FAILURE, 0);
+        h.advance(GRACE_MS);
+        expect(h.events).toEqual([
+            DATA_ARRIVED,
+            `fatal=tile-host-unreachable: ${TILEJSON_FAILURE}`,
+        ]);
     });
 
     it("does not count a terrain DEM tile as the tile host answering", () => {

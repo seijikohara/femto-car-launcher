@@ -192,6 +192,8 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
                             terrainUrl: terrainUrl,
                         }),
                 });
+                // Only from here do tiles belong to the swapped-in style.
+                noTileWatchdog.onStyleApplied();
             }
         }
 

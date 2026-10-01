@@ -60,6 +60,11 @@ export interface NoTileWatchdog {
     // the replaced style prove nothing, and a timer armed for that style has
     // nothing left to judge.
     onStyleSwap(): void;
+    // The swapped-in style is now set on the map. setStyleUrl defers the
+    // actual setStyle past a render, so tiles between onStyleSwap and this
+    // call still belong to the outgoing style: they neither stand the
+    // watchdog down nor report the new style's data.
+    onStyleApplied(): void;
 }
 
 // An unreachable tile host does NOT fail the style load: the bundled styles
@@ -99,6 +104,9 @@ export function createNoTileWatchdog(deps: {
     // in vite.config.ts and no-let.js).
     const state = {
         tileArrived: false,
+        // Set by a style swap until the new style is set on the map: tiles
+        // meanwhile are the outgoing style's.
+        swapPending: false,
         // Bumped by every style swap, retiring the timers armed before it.
         generation: 0,
         evidence: null as GateEvidence | null,
@@ -122,15 +130,25 @@ export function createNoTileWatchdog(deps: {
             }, deps.graceMs);
         },
         onTile(sourceId: string): void {
-            if (state.tileArrived || deps.ignoredSourceIds.includes(sourceId)) return;
+            if (
+                state.swapPending ||
+                state.tileArrived ||
+                deps.ignoredSourceIds.includes(sourceId)
+            ) {
+                return;
+            }
             state.tileArrived = true;
             deps.reporter.log(`first tile of the style (${sourceId})`);
             deps.reporter.report("tile", sourceId);
         },
         onStyleSwap(): void {
             state.tileArrived = false;
+            state.swapPending = true;
             state.generation += 1;
             state.evidence = null;
+        },
+        onStyleApplied(): void {
+            state.swapPending = false;
         },
     };
 }
