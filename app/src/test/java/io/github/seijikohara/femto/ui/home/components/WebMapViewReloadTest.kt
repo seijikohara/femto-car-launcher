@@ -105,6 +105,23 @@ class WebMapViewReloadTest {
         assertEquals(1, pages().size)
     }
 
+    // The backoff delay is not frame-bound: it can run out after the hide and
+    // before any composition has seen it.
+    @Test fun `a backoff that runs out just after the hide waits for the return`() {
+        showMap()
+        // The backoff starts in the frame that composes the fatal, one frame on.
+        val backoffEnds = rule.mainClock.currentTime + FRAME_MS + liveReloadRetryDelayMs(0)
+        reportFatal(NetworkFailure)
+        rule.mainClock.advanceTimeBy(backoffEnds - HALF_FRAME_MS - rule.mainClock.currentTime, ignoreFrameDuration = true)
+        host.moveTo(Lifecycle.State.CREATED)
+        rule.mainClock.advanceTimeBy(FRAME_MS, ignoreFrameDuration = true)
+        settle()
+        advanceBy(TEN_MINUTES_MS)
+        assertEquals(0, pages().size, "no reload while hidden")
+        setLifecycle(Lifecycle.State.RESUMED)
+        assertEquals(1, pages().size, "one reload on the return")
+    }
+
     @Test fun `a failure reported while hidden reloads on the return, not before`() {
         showMap()
         setLifecycle(Lifecycle.State.CREATED)
@@ -631,3 +648,7 @@ private const val TEN_MINUTES_MS = 10 * 60_000L
 // Wide enough to cover the frames each settle() runs, far below any backoff step.
 private const val MARGIN_MS = 500L
 private const val SETTLE_FRAMES = 3
+
+// The compose test clock's frame, and half of it.
+private const val FRAME_MS = 16L
+private const val HALF_FRAME_MS = FRAME_MS / 2

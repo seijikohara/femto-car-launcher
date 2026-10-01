@@ -441,6 +441,13 @@ internal fun WebMapView(
 
             is LiveReloadStep.Retry -> {
                 delay(step.delayMs)
+                // The delay is not frame-bound, so it can run out after the
+                // launcher has gone behind another app but before a composition
+                // has seen it: hold the reload for the return instead.
+                if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                    reloadHeld[0] = true
+                    return@LaunchedEffect
+                }
                 reloadHeld[0] = false
                 pageFromReturnReload[0] = step.onReturn
                 retryAttempts.intValue++
