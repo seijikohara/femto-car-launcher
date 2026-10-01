@@ -201,13 +201,12 @@ internal fun WebMapView(
     // is excluded here so a theme change never reloads the OSM page. The
     // rebuild is a billed map load, so behind another app it waits: the page
     // keeps the context it was built for, and the return rebuilds it once,
-    // like the reloads do (liveReloadStep). The holders record what each
-    // applied composition used, so the built value is the page's own while
-    // hidden (see the SideEffect beside the reload effect).
+    // like the reloads do (liveReloadStep). The holder records the value each
+    // applied composition used, so it is the page's own while hidden.
     val effectiveGoogleDark = mapConfig.backend == MapBackend.GOOGLEMAPS && isDark
     val builtGoogleDark = remember { booleanArrayOf(effectiveGoogleDark) }
-    val googleFlipHeld = remember { booleanArrayOf(false) }
     val googleDark = if (started) effectiveGoogleDark else builtGoogleDark[0]
+    SideEffect { builtGoogleDark[0] = googleDark }
     // The tile host is OSM-only state by the same logic: an override typed while
     // Google Maps is active must not reload the Google page.
     val effectiveTileHostOverride = if (mapConfig.backend == MapBackend.OSM) mapConfig.tileHostOverride else ""
@@ -241,10 +240,8 @@ internal fun WebMapView(
     val rendererDeathsMs = remember { mutableListOf<Long>() }
     val crashedViews = remember { mutableSetOf<WebView>() }
     // A death's rebuild, due until the launcher is on screen (the renderer
-    // effect beside the reload effect), and whether the death came while the
-    // launcher was hidden, so that the rebuild runs at the return.
+    // effect beside the reload effect).
     var rendererRebuildDue by remember { mutableStateOf(false) }
-    val rendererRebuildOnReturn = remember { booleanArrayOf(false) }
 
     // Connectivity-recovery reload. The map's data — the OSM tiles and their TileJSON,
     // sprite, glyphs and hosted styles, or the Google Maps script — comes from the
@@ -284,8 +281,8 @@ internal fun WebMapView(
         }
     // Which of [tileHosts] the next page loads from: `tileHost()` walks the
     // list by it. Its own count, apart from the backoff step, because the two
-    // restart at different times: a success signal or a reconnect the return
-    // reload covered restarts the step, yet the page on screen still holds the
+    // restart at different times: a success signal or a reconnect that reaches
+    // a page still loading restarts the step, yet the page on screen still holds the
     // host it loaded with, so the next reload must move on from there — or a
     // two-host setup would load the same host twice in a row. A new host list
     // starts over at its first host (the override).
@@ -299,22 +296,10 @@ internal fun WebMapView(
     // waits while the launcher is hidden. A drop back offline withdraws it: a
     // reload then would only fail.
     var reconnectPending by remember { mutableStateOf(false) }
-    // Whether the page on screen was built at the launcher's return, by the
-    // return reload or by a rebuild held while hidden (see liveReloadStep). A
-    // drop offline ends it: an edge after that is new. So does the page's first
-    // tile (onPageData): a page that has drawn is like any other. A page built
-    // at a return the launcher made still offline claims nothing (each claim
-    // below is gated on `online`, and the return's reading clears an older
-    // claim here): no restored network stood behind it, so a later reconnect
-    // is a genuine one and reloads at once.
-    val pageFromReturnReload = remember { booleanArrayOf(false) }
     val wasOnline = remember { booleanArrayOf(online) }
-    LaunchedEffect(online, started) {
+    LaunchedEffect(online) {
         if (online && !wasOnline[0]) reconnectPending = true
-        if (!online) {
-            reconnectPending = false
-            pageFromReturnReload[0] = false
-        }
+        if (!online) reconnectPending = false
         wasOnline[0] = online
     }
 
@@ -415,7 +400,7 @@ internal fun WebMapView(
                 reconnectPending = reconnectPending,
                 retryDelayMs = retryDelayMs,
                 heldWhileHidden = reloadHeld[0],
-                pageFromReturnReload = pageFromReturnReload[0] && !liveInitFailed,
+                pageLoading = !liveInitFailed && !pageReady.value,
             )
         when (step) {
             LiveReloadStep.None -> {
@@ -429,13 +414,12 @@ internal fun WebMapView(
             LiveReloadStep.Reconnect, LiveReloadStep.CoveredReconnect -> {
                 reloadHeld[0] = false
                 reconnectPending = false
-                pageFromReturnReload[0] = false
                 // A connectivity edge is a new world: restart the backoff short,
                 // and give a bounded failure that spent its budget fresh attempts.
                 retryAttempts.intValue = 0
-                // Only a reload starts the host rotation over. The page a
-                // covered reconnect leaves on screen keeps the host it loaded
-                // with, so the rotation stays where that page left it.
+                // Only a reload starts the host rotation over. The loading
+                // page a covered reconnect leaves on screen keeps the host it
+                // loaded with, so the rotation stays where that page left it.
                 if (step == LiveReloadStep.Reconnect) {
                     Log.i(TAG, "LIVE map reload: back online")
                     tileHostRotation.intValue = 0
@@ -453,7 +437,6 @@ internal fun WebMapView(
                     return@LaunchedEffect
                 }
                 reloadHeld[0] = false
-                pageFromReturnReload[0] = step.onReturn && online
                 retryAttempts.intValue++
                 tileHostRotation.intValue++
                 val cause = if (step.onReturn) "on return" else "backoff"
@@ -466,21 +449,17 @@ internal fun WebMapView(
     // (liveReloadStep): a rebuild behind another app loads a page no one sees
     // (on Google, a billed map load), and there the system is likely to kill
     // it again to reclaim memory. So a death's rebuild runs while the launcher
-    // is on screen, and at once on its return; a page rebuilt at the return
-    // claims the late reconnect edge exactly like the return reload's page
-    // (pageFromReturnReload). A return also lifts a give-up that tripped at
-    // least RENDERER_GIVE_UP_SETTLE_MS ago, so one bad stretch does not leave
-    // the map stopped until the app restarts; staying on screen never lifts
-    // it, because this effect restarts only on a lifecycle change or a
-    // death's rebuild.
+    // is on screen, and at once on its return. A return also lifts a give-up
+    // that tripped at least RENDERER_GIVE_UP_SETTLE_MS ago, so one bad stretch
+    // does not leave the map stopped until the app restarts; staying on screen
+    // never lifts it, because this effect restarts only on a lifecycle change
+    // or a death's rebuild.
     LaunchedEffect(started, rendererRebuildDue) {
         when {
             !started -> {}
 
             rendererRebuildDue -> {
                 rendererRebuildDue = false
-                if (rendererRebuildOnReturn[0] && online) pageFromReturnReload[0] = true
-                rendererRebuildOnReturn[0] = false
                 rendererGeneration++
             }
 
@@ -490,27 +469,13 @@ internal fun WebMapView(
                 Log.i(TAG, "LIVE map renderer give-up lifted")
                 rendererGaveUp = false
                 rendererDeathsMs.clear()
-                // The page this builds is the return's, like a rebuild's.
-                if (online) pageFromReturnReload[0] = true
                 rendererGeneration++
             }
         }
     }
-    // Records the Google light/dark context each applied composition used
-    // (googleDark). A flip held while hidden rebuilds the page at the return,
-    // and that page claims the late reconnect edge exactly like the return
-    // reload's page (pageFromReturnReload).
-    SideEffect {
-        if (googleFlipHeld[0] && googleDark != builtGoogleDark[0] && online) pageFromReturnReload[0] = true
-        googleFlipHeld[0] = googleDark != effectiveGoogleDark
-        builtGoogleDark[0] = googleDark
-    }
     // The page's success signal (its first tile, see the `tile` bridge event):
     // the map has its data, so the next failure is a new one. It restarts the
-    // backoff, which an outage leaves at its cap, and ends the return reload's
-    // claim on a later reconnect (pageFromReturnReload), which would otherwise
-    // absorb an edge long after the page it describes has drawn. The host
-    // rotation stays: the page on screen still holds its host. Re-bound on
+    // backoff, which an outage leaves at its cap. The host rotation stays: the page on screen still holds its host. Re-bound on
     // every composition so it acts on the current retry state: a live page
     // outlives some of it (a new custom style URL re-keys retryAttempts
     // without rebuilding the page), and state captured when the page was
@@ -522,7 +487,6 @@ internal fun WebMapView(
         if (!liveInitFailed) {
             Log.i(TAG, "LIVE map data arrived")
             retryAttempts.intValue = 0
-            pageFromReturnReload[0] = false
             MapRuntimeSignals.recordDataArrived()
         }
     }
@@ -627,7 +591,6 @@ internal fun WebMapView(
                                 rendererGaveUp = true
                             } else {
                                 rendererRebuildDue = true
-                                rendererRebuildOnReturn[0] = !onScreen
                             }
                         },
                     )
@@ -1212,8 +1175,8 @@ internal sealed interface LiveReloadStep {
     // Reload for an offline->online edge, at once, restarting the backoff.
     data object Reconnect : LiveReloadStep
 
-    // An offline->online edge the reload at the launcher's return already
-    // covered: restart the backoff, reload nothing.
+    // An offline->online edge that reaches a page still loading: restart the
+    // backoff, reload nothing.
     data object CoveredReconnect : LiveReloadStep
 
     // Retry the failed page after [delayMs]; [onReturn] for the reload that
@@ -1232,22 +1195,25 @@ internal sealed interface LiveReloadStep {
 // the backoff resumes from the next attempt. A reconnect wins over a retry:
 // it reloads just the same and also restarts the backoff.
 //
-// The dashboard collects its state with the lifecycle, so an edge that came
-// behind another app reaches this composable only once the launcher is back —
-// seconds after the return reload rebuilt the page on the restored network.
-// While the page on screen was built at the return (by that reload, or by a
-// rebuild held while hidden) and has neither failed nor drawn its first tile
-// ([pageFromReturnReload]), such an edge reloads nothing more.
+// An edge that reaches a page still loading ([pageLoading]: neither failed nor
+// past onPageFinished) reloads nothing: that page's fetches already go out on
+// the network as it is now. This covers a page built at the launcher's return
+// (a return reload, a rebuild held while hidden) however late the reading
+// that brings the edge arrives, and since it asks only about the page on
+// screen now, no state can outlive the page it describes. The accepted cost:
+// an edge inside the loading window of a page built while truly offline is
+// skipped; that page recovers through its own fatal and the backoff's first
+// step.
 internal fun liveReloadStep(
     started: Boolean,
     reconnectPending: Boolean,
     retryDelayMs: Long?,
     heldWhileHidden: Boolean,
-    pageFromReturnReload: Boolean,
+    pageLoading: Boolean,
 ): LiveReloadStep =
     when {
         reconnectPending && !started -> LiveReloadStep.Held
-        reconnectPending && pageFromReturnReload -> LiveReloadStep.CoveredReconnect
+        reconnectPending && pageLoading -> LiveReloadStep.CoveredReconnect
         reconnectPending -> LiveReloadStep.Reconnect
         retryDelayMs == null -> LiveReloadStep.None
         !started -> LiveReloadStep.Held
