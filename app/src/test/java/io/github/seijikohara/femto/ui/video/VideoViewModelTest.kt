@@ -12,8 +12,8 @@ import io.github.seijikohara.femto.testfixtures.FakeVideoSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeVideoSourceGrants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher

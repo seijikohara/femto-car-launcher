@@ -167,14 +167,14 @@ internal class ExoVideoPlayer(
 private fun newExoPlayer(context: Context): Player =
     ExoPlayer
         .Builder(context)
-            .setAudioAttributes(
-                AudioAttributes
-                    .Builder()
-                    .setUsage(C.USAGE_MEDIA)
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-                    .build(),
-                // handleAudioFocus: a Java parameter, so it cannot be named.
-                true,
-            ).setHandleAudioBecomingNoisy(true)
-            .setWakeMode(C.WAKE_MODE_NONE)
-            .build()
+        .setAudioAttributes(
+            AudioAttributes
+                .Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                .build(),
+            // handleAudioFocus: a Java parameter, so it cannot be named.
+            true,
+        ).setHandleAudioBecomingNoisy(true)
+        .setWakeMode(C.WAKE_MODE_NONE)
+        .build()

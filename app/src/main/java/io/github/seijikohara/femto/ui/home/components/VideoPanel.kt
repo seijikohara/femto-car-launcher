@@ -112,7 +112,11 @@ internal fun VideoPanel(
                     )
                 if (state.fileReady) {
                     Box(modifier = frame.clip(MaterialTheme.shapes.medium)) {
-                        VideoPicture(pictureVisible = pictureVisible, surface = surface, modifier = Modifier.fillMaxSize())
+                        VideoPicture(
+                            pictureVisible = pictureVisible,
+                            surface = surface,
+                            modifier = Modifier.fillMaxSize(),
+                        )
                         VideoPlayButton(
                             playing = state.playing,
                             onAction = onAction,
