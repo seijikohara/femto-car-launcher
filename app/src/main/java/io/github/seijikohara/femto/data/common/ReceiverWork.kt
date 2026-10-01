@@ -14,7 +14,12 @@ import kotlin.coroutines.cancellation.CancellationException
  * How long a receiver's work may run under goAsync(). A receiver may take
  * about 10 seconds, the time between goAsync() and finish() included, before
  * the system calls the app unresponsive (BroadcastReceiver#goAsync). The work
- * gets less, so finish() always lands inside that limit.
+ * gets less, so finish() always lands inside that limit. The budget cancels
+ * only the wait: work the receiver joined (the updater's record writes) runs
+ * on in its own scope on purpose, since a record write cancelled halfway is
+ * worse than one finished after the broadcast, and the launcher's process
+ * normally outlives the broadcast; the budget only keeps a stuck write from
+ * holding the broadcast into an ANR.
  */
 internal const val RECEIVER_WORK_BUDGET_MS = 8_000L
 
