@@ -1680,6 +1680,21 @@ class UpdateRepositoryTest {
         }
 
     @Test
+    fun `a check that runs before the conflict's cleanup does not offer the refused build`() =
+        runTest {
+            val repository = installingRepository()
+            feed.latestResult = FeedResult.Found(newer)
+
+            // The conflict settles at once; its file and store cleanup runs
+            // later, and the check gets in first.
+            repository.onInstallFailed(SESSION, UpdateFailure.INSTALL_CONFLICT)
+            repository.checkNow()
+            runCurrent()
+
+            assertEquals(UpdateState.UpToDate, repository.state.value)
+        }
+
+    @Test
     fun `a refused build is not offered again after a restart`() =
         runTest {
             installingRepository().onInstallFailed(SESSION, UpdateFailure.INSTALL_CONFLICT)

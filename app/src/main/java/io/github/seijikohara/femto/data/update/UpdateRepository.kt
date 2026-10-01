@@ -388,7 +388,13 @@ internal class UpdateRepository internal constructor(
     ): Job? =
         when (reason) {
             UpdateFailure.INSTALL_CONFLICT -> {
-                settleInstall(sessionId, cleanUp = ::refuse) { UpdateState.Failed(reason, manifest = null) }
+                // The refusal is noted in memory before the failure is published:
+                // a resting state invites a check, and the check must already
+                // pass the refused build over. Only the IO waits for cleanUp.
+                settleInstall(sessionId, cleanUp = { refuse() }) { manifest ->
+                    noteRefused(manifest)
+                    UpdateState.Failed(reason, manifest = null)
+                }
             }
 
             else -> {
@@ -901,11 +907,14 @@ internal class UpdateRepository internal constructor(
             syncPendingRecord()
         }
 
-    // A build signed with another key: its file goes, and its versionCode is
-    // recorded, in memory first, so a check that starts meanwhile already
-    // passes it over.
-    private suspend fun refuse(manifest: UpdateManifest) {
+    // The in-memory half of a refusal, which every check reads (isNewer).
+    private fun noteRefused(manifest: UpdateManifest) {
         refusedVersionCode = maxOf(manifest.versionCode, refusedVersionCode ?: 0)
+    }
+
+    // A build signed with another key, already noted in memory (noteRefused):
+    // its file goes, and the refusal is persisted for later processes.
+    private suspend fun refuse() {
         clearStaged()
         store.setRefusedVersionCode(refusedVersionCode)
     }
