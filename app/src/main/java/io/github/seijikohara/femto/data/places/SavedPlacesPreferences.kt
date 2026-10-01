@@ -30,7 +30,8 @@ internal data class SavedPlace(
  */
 internal const val SAVED_PLACES_STORE_NAME = "saved_places"
 
-private val Context.savedPlacesDataStore: DataStore<Preferences> by
+// Internal (not private): SavedPlacesPreferencesTest seeds and clears the raw store.
+internal val Context.savedPlacesDataStore: DataStore<Preferences> by
     preferencesDataStore(name = SAVED_PLACES_STORE_NAME)
 
 // ignoreUnknownKeys: a later build may add fields, and a downgrade must still
@@ -64,29 +65,43 @@ internal class SavedPlacesPreferences(
     override val places: Flow<List<SavedPlace>> =
         context.savedPlacesDataStore.data
             .catchIoAsDefaults(TAG)
-            .map { prefs -> prefs[PLACES_KEY]?.let(::storedPlacesOrEmpty).orEmpty() }
+            .map { prefs -> prefs.placesOrNull().orEmpty() }
 
     // The id comes from a counter kept beside the list rather than from the
     // list's largest id, so deleting the newest place never frees its id for
     // the next one: a tap on a row on its way out cannot hit a different place.
+    // An unreadable list skips the write (see placesOrNull).
     override suspend fun add(
         label: String,
         target: PlaceTarget,
     ) {
         context.savedPlacesDataStore.editOrLog(TAG) { prefs ->
-            val current = prefs[PLACES_KEY]?.let(::storedPlacesOrEmpty).orEmpty()
-            val id = maxOf(prefs[NEXT_ID_KEY] ?: 1L, (current.maxOfOrNull { it.id } ?: 0L) + 1)
-            prefs[PLACES_KEY] = PlacesJson.encodeToString(current + SavedPlace(id, label, target))
-            prefs[NEXT_ID_KEY] = id + 1
+            prefs.placesOrNull()?.let { current ->
+                val id = maxOf(prefs[NEXT_ID_KEY] ?: 1L, (current.maxOfOrNull { it.id } ?: 0L) + 1)
+                prefs[PLACES_KEY] = PlacesJson.encodeToString(current + SavedPlace(id, label, target))
+                prefs[NEXT_ID_KEY] = id + 1
+            }
         }
     }
 
     override suspend fun delete(id: Long) {
         context.savedPlacesDataStore.editOrLog(TAG) { prefs ->
-            val current = prefs[PLACES_KEY]?.let(::storedPlacesOrEmpty).orEmpty()
-            prefs[PLACES_KEY] = PlacesJson.encodeToString(current.filterNot { it.id == id })
+            prefs.placesOrNull()?.let { current ->
+                prefs[PLACES_KEY] = PlacesJson.encodeToString(current.filterNot { it.id == id })
+            }
         }
     }
+
+    // The stored list, empty when none is stored, or null when one is stored
+    // that this build cannot read (damaged, or a place type from a newer
+    // build). The panel then shows no places, and add and delete leave the
+    // value alone rather than replace it: a downgrade must not wipe what a
+    // newer build saved.
+    private fun Preferences.placesOrNull(): List<SavedPlace>? =
+        when (val json = this[PLACES_KEY]) {
+            null -> emptyList()
+            else -> storedPlacesOrNull(json)
+        }
 
     private companion object {
         val PLACES_KEY = stringPreferencesKey("saved_places")
@@ -94,10 +109,8 @@ internal class SavedPlacesPreferences(
     }
 }
 
-// An unreadable list (damaged, or written in a shape this build cannot read)
-// reads as none rather than crashing the panel. The log names the failure
-// only: the stored text is location data.
-private fun storedPlacesOrEmpty(json: String): List<SavedPlace> =
+// The log names the failure class only: the stored text is location data.
+private fun storedPlacesOrNull(json: String): List<SavedPlace>? =
     runCatching { PlacesJson.decodeFromString<List<SavedPlace>>(json) }
         .onFailure { Log.w(TAG, "saved places unreadable: ${it.javaClass.simpleName}") }
-        .getOrDefault(emptyList())
+        .getOrNull()
