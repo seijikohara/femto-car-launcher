@@ -150,8 +150,10 @@ policy:
 - The Maps JS API has no camera padding, so a tilted Google vector
   map's perspective converges on the viewport centre. The page
   measures that perspective instead of assuming it: `src/lens.ts`,
-  fed by an `OverlayView`'s `MapCanvasProjection` (no Map ID
-  needed), recovers the focal length and camera distance from two
+  fed by a `WebGLOverlayView`'s coordinate transformer (the camera
+  matrix the map draws with; Google allows the overlay only on a
+  vector map with a Map ID) or, without a Map ID, by an
+  `OverlayView`'s `MapCanvasProjection`, recovers the focal length and camera distance from two
   probe points and derives a yaw bias δ on the map heading — so the
   direction of travel runs straight up through the chevron at the
   OSM spot (`markerSpot`) — and the exact ground offset under the

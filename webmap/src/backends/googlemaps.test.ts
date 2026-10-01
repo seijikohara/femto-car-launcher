@@ -28,9 +28,10 @@ const fake = vi.hoisted(() => {
         tilt?: number;
     }
     const maps: FakeMap[] = [];
-    // The test's camera: the vertical field of view, and whether the
-    // projection ignores the tilt (an implausible one the page must refuse).
-    const optics = { fovyDeg: 30, flat: false };
+    // The test's camera: the vertical field of view, and whether the 2D
+    // MapCanvasProjection ignores the tilt (an implausible reading the page
+    // must refuse) while the map itself still draws in perspective.
+    const optics = { fovyDeg: 30, flatCanvas: false };
     // google.maps.OverlayView: the page subclasses it and reads the
     // projection in draw(), which the map calls as it renders.
     class FakeOverlayView {
@@ -43,10 +44,33 @@ const fake = vi.hoisted(() => {
         }
         getProjection(): { fromLatLngToContainerPixel(latLng: LatLng): { x: number; y: number } } {
             const host = this.host as FakeMap;
-            return { fromLatLngToContainerPixel: (latLng) => host.project(latLng) };
+            return {
+                fromLatLngToContainerPixel: (latLng) => host.project(latLng, !optics.flatCanvas),
+            };
         }
         onAdd(): void {}
         draw(): void {}
+        onRemove(): void {}
+    }
+    // google.maps.WebGLOverlayView: Google adds one only to a map with a Map
+    // ID; onDraw gets the transformer whose fromLatLngAltitude is the MVP
+    // matrix (column-major) of a frame at that point, whose translation
+    // column is the point's clip position.
+    class FakeWebGLOverlayView {
+        redrawRequests = 0;
+        setMap(map: FakeMap | null): void {
+            if (!map || !map.options.mapId) return;
+            map.webglOverlays.push(this);
+            this.onAdd();
+            this.onContextRestored({ gl: {} });
+        }
+        requestRedraw(): void {
+            this.redrawRequests += 1;
+        }
+        onAdd(): void {}
+        onContextRestored(_options: unknown): void {}
+        onDraw(_options: unknown): void {}
+        onContextLost(): void {}
         onRemove(): void {}
     }
     class FakeMap {
@@ -73,6 +97,7 @@ const fake = vi.hoisted(() => {
         readonly moves: CameraOptions[] = [];
         readonly options: Record<string, unknown>;
         readonly overlays: FakeOverlayView[] = [];
+        readonly webglOverlays: FakeWebGLOverlayView[] = [];
         private readonly listeners = new Map<string, Listener[]>();
         constructor(_el: unknown, options: Record<string, unknown>) {
             this.options = options;
@@ -94,12 +119,36 @@ const fake = vi.hoisted(() => {
         // A rendered frame: the overlays redraw against the camera it shows.
         render(): void {
             for (const overlay of this.overlays) overlay.draw();
+            const { width, height } = FakeMap.viewport();
+            const transformer = {
+                fromLatLngAltitude: (at: LatLng & { altitude?: number }) => {
+                    const px = this.project(at, true);
+                    // Any positive w: the page must divide it out.
+                    const w = 1.7;
+                    const m = new Float64Array(16);
+                    m[12] = ((2 * px.x) / width - 1) * w;
+                    m[13] = (1 - (2 * px.y) / height) * w;
+                    m[15] = w;
+                    return m;
+                },
+                getCameraParams: () => {
+                    const { lat, lng } = this.center;
+                    return {
+                        center: { lat: () => lat, lng: () => lng },
+                        heading: this.heading,
+                        tilt: this.tilt,
+                        zoom: this.zoom,
+                    };
+                },
+            };
+            for (const overlay of this.webglOverlays) overlay.onDraw({ gl: {}, transformer });
         }
         // Where [loc] lands in the container, in px: flat Web Mercator turned
         // by the heading, then seen through the pinhole camera at the tilt,
         // whose focal length and distance both follow from the field of view
         // (so tilt 0 is the flat map). A raster map is flat and north-up.
-        project(loc: LatLng): { x: number; y: number } {
+        // Without [perspective] the tilt is ignored.
+        project(loc: LatLng, perspective = true): { x: number; y: number } {
             const { width, height } = FakeMap.viewport();
             const vector = this.renderingType === "VECTOR";
             const worldPx = 256 * 2 ** this.zoom;
@@ -111,7 +160,7 @@ const fake = vi.hoisted(() => {
             const x = Math.cos(th) * east + Math.sin(th) * south;
             const forward = Math.sin(th) * east - Math.cos(th) * south;
             const tilt = ((vector ? this.tilt : 0) * Math.PI) / 180;
-            if (optics.flat || tilt === 0) return { x: width / 2 + x, y: height / 2 - forward };
+            if (!perspective || tilt === 0) return { x: width / 2 + x, y: height / 2 - forward };
             const focal = height / 2 / Math.tan((optics.fovyDeg * Math.PI) / 360);
             const depth = focal + forward * Math.sin(tilt);
             return {
@@ -163,7 +212,7 @@ const fake = vi.hoisted(() => {
     class FakeTrafficLayer {
         setMap(): void {}
     }
-    return { FakeMap, FakeOverlayView, FakeTrafficLayer, optics, maps };
+    return { FakeMap, FakeOverlayView, FakeTrafficLayer, FakeWebGLOverlayView, optics, maps };
 });
 
 type FakeMap = InstanceType<typeof fake.FakeMap>;
@@ -173,6 +222,7 @@ vi.mock("@googlemaps/js-api-loader", () => ({
     importLibrary: vi.fn(async () => ({
         Map: fake.FakeMap,
         OverlayView: fake.FakeOverlayView,
+        WebGLOverlayView: fake.FakeWebGLOverlayView,
         TrafficLayer: fake.FakeTrafficLayer,
     })),
 }));
@@ -278,6 +328,8 @@ function push(
 }
 
 interface BootOptions {
+    // The Cloud Map ID the host passes; "" for none.
+    mapId?: string;
     width?: number;
     height?: number;
 }
@@ -288,7 +340,7 @@ interface BootOptions {
 async function boot(
     rendering: string,
     renderingType: string,
-    { width = W, height = H }: BootOptions = {},
+    { mapId = "map-id", width = W, height = H }: BootOptions = {},
 ) {
     const path = { setAttribute: vi.fn(), getAttribute: () => null };
     const marker = {
@@ -309,7 +361,7 @@ async function boot(
         femtoBridge: {
             onMapEvent: vi.fn(),
             googleMapsApiKey: () => "key",
-            googleMapsMapId: () => "map-id",
+            googleMapsMapId: () => mapId,
             googleMapsRendering: () => rendering,
             googleMapsColorScheme: () => "LIGHT",
         },
@@ -364,7 +416,7 @@ beforeEach(() => {
     vi.setSystemTime(1_000_000);
     fake.maps.length = 0;
     fake.optics.fovyDeg = 30;
-    fake.optics.flat = false;
+    fake.optics.flatCanvas = false;
     reporter.report.mockClear();
 });
 
@@ -480,9 +532,35 @@ describe("the Google Maps page", () => {
         expect(Math.hypot(at.x, at.y - DROP * H)).toBeLessThan(1e-6);
     });
 
-    it("keeps the OSM spot with no yaw when the projection shows no perspective", async () => {
-        fake.optics.flat = true;
+    it("measures the lens through the WebGL overlay on a map with a Map ID", async () => {
+        // The 2D projection shows no perspective here; the transformer does.
+        fake.optics.flatCanvas = true;
         const page = await boot("VECTOR", "VECTOR");
+        push(page.win, FIX, 90);
+        page.run(50);
+        const at = screenOf(page.map, FIX);
+        expect(Math.hypot(at.x + MX * W, at.y - DROP * H)).toBeLessThan(1e-6);
+        expect(leanPx(page.map, FIX, 90)).toBeLessThan(1e-6);
+        // The WebGL overlay is the measurement, it draws nothing, and it asks
+        // for no frames beyond the ones the map renders.
+        expect(page.map.webglOverlays).toHaveLength(1);
+        expect(page.map.overlays).toHaveLength(0);
+        expect(page.map.webglOverlays[0].redrawRequests).toBe(0);
+    });
+
+    it("measures the lens through the OverlayView projection without a Map ID", async () => {
+        const page = await boot("VECTOR", "VECTOR", { mapId: "" });
+        push(page.win, FIX, 90);
+        page.run(50);
+        const at = screenOf(page.map, FIX);
+        expect(Math.hypot(at.x + MX * W, at.y - DROP * H)).toBeLessThan(1e-6);
+        expect(leanPx(page.map, FIX, 90)).toBeLessThan(1e-6);
+        expect(page.map.overlays).toHaveLength(1);
+    });
+
+    it("keeps the OSM spot with no yaw when the projection shows no perspective", async () => {
+        fake.optics.flatCanvas = true;
+        const page = await boot("VECTOR", "VECTOR", { mapId: "" });
         push(page.win, FIX, 90);
         page.run(50);
         expect(page.marker.style.left).toBe(`${(0.5 - MX) * 100}%`);

@@ -31,9 +31,10 @@
 // perspective converges on the viewport centre, which would lean the road
 // ahead toward a chevron beside the centre and miss the fix by tens of px
 // vertically. The page measures that perspective through Google's own
-// projection (an OverlayView's MapCanvasProjection, which needs no Map ID)
-// and corrects both — a yaw bias on the map heading and the exact ground
-// offset under the chevron (lens.ts) — so the chevron keeps the OSM spot
+// camera (a WebGLOverlayView's coordinate transformer on a map with a Map ID,
+// else an OverlayView's MapCanvasProjection) and corrects both — a yaw bias
+// on the map heading and the exact ground offset under the chevron
+// (lens.ts) — so the chevron keeps the OSM spot
 // (markerSpot in style.ts). Until the measurement exists, or when it is
 // implausible, the chevron stays at that spot with no yaw and the flat offset:
 // the road ahead leans toward the centre until the lens is measured.
@@ -171,9 +172,22 @@ interface GMOverlayView {
     setMap(map: GMMap | null): void;
     getProjection(): GMMapCanvasProjection | null | undefined;
 }
+// google.maps.WebGLOverlayView's draw options: only the transformer is read.
+// fromLatLngAltitude returns the column-major MVP matrix of a frame at the
+// point; getCameraParams the camera that matrix was built for.
+interface GMWebGLDrawOptions {
+    transformer: {
+        fromLatLngAltitude(at: GMLatLng & { altitude: number }): Float64Array;
+        getCameraParams(): { center: GMLatLngObj; heading: number; tilt: number; zoom: number };
+    };
+}
+interface GMWebGLOverlayView {
+    setMap(map: GMMap | null): void;
+}
 interface GMMapsLibrary {
     Map: new (el: HTMLElement, opts: Record<string, unknown>) => GMMap;
     OverlayView: new () => GMOverlayView;
+    WebGLOverlayView: new () => GMWebGLOverlayView;
     TrafficLayer: new () => GMTrafficLayer;
 }
 
@@ -336,10 +350,9 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // the first measurement and whenever one is implausible, when the
         // chevron falls back to the centre line with no yaw.
         lens: null as LensCalibration | null,
-        // The camera the lens was last measured at (tilt, zoom, viewport):
-        // the perspective only changes with these, so draw() re-measures
-        // only when one of them moved.
-        lensKey: "",
+        // The camera the lens was last measured at: the perspective only
+        // changes with these, so a probe re-measures only when one moved.
+        lensAt: { tilt: Number.NaN, zoom: Number.NaN, width: 0, height: 0 },
         // The yaw bias (lens.ts) in the heading last sent to the map: the
         // compass adds it back to report the travel heading.
         lensYaw: 0,
@@ -616,30 +629,37 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
 
     // Measure the tilted vector map's perspective (lens.ts) from the camera
     // the map is rendering: project the camera target and two ground points
-    // ahead of and behind it along the map heading, and solve for the focal
-    // length and distance. Called from the probe overlay's draw(), which the
-    // map runs as it renders a moved camera; re-measures only when the tilt,
-    // the zoom or the viewport moved, since nothing else changes the
-    // perspective. At tilt 0 there is nothing to measure and the lens is
+    // ahead of and behind it along the map heading through [project], and
+    // solve for the focal length and distance. Called from a probe overlay's
+    // draw hook, which the map runs as it renders; re-measures only when the
+    // tilt, the zoom or the viewport moved, since nothing else changes the
+    // perspective (so a frame that changes none of them costs a few
+    // comparisons). At tilt 0 there is nothing to measure and the lens is
     // unused, so the last measurement is kept for the next tilt.
-    function measureLens(projection: GMMapCanvasProjection | null | undefined): void {
-        if (!state.isVector || !projection) return;
-        const center = liveMap.getCenter();
-        const tilt = liveMap.getTilt() ?? 0;
-        const zoom = liveMap.getZoom() ?? 0;
+    function measureLens(
+        camera: { center: GMLatLngObj; heading: number; tilt: number; zoom: number },
+        project: (at: GMLatLng) => { x: number; y: number } | null,
+    ): void {
+        if (!state.isVector) return;
+        const { tilt, zoom, heading } = camera;
+        const width = window.innerWidth;
         const height = window.innerHeight;
-        const measuredAt = `${tilt}|${zoom}|${window.innerWidth}|${height}`;
-        if (!center || measuredAt === state.lensKey) return;
-        state.lensKey = measuredAt;
+        const last = state.lensAt;
+        if (
+            last.tilt === tilt &&
+            last.zoom === zoom &&
+            last.width === width &&
+            last.height === height
+        ) {
+            return;
+        }
+        state.lensAt = { tilt, zoom, width, height };
         if (!(tilt > 0)) return;
-        const target = { lat: center.lat(), lng: center.lng() };
+        const target = { lat: camera.center.lat(), lng: camera.center.lng() };
         const d = lensProbeDistancePx(height);
-        const heading = liveMap.getHeading() ?? 0;
         const probeAt = (offsetY: number) =>
-            projection.fromLatLngToContainerPixel(
-                anchorAt(target, { zoom, heading, offsetX: 0, offsetY }),
-            );
-        const at = projection.fromLatLngToContainerPixel(target);
+            project(anchorAt(target, { zoom, heading, offsetX: 0, offsetY }));
+        const at = project(target);
         const ahead = probeAt(-d);
         const behind = probeAt(d);
         setLens(
@@ -664,21 +684,62 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         if (changed && state.following && state.lastFix) easeHome(REFLOW_MOTION);
     }
 
-    // The lens probe: an overlay that draws nothing and only reads the
-    // projection the map renders with. OverlayView needs no Map ID, unlike
-    // WebGLOverlayView, so the lens works on every vector map.
-    class LensProbe extends mapsLib.OverlayView {
-        onAdd(): void {}
-        draw(): void {
-            measureLens(this.getProjection());
+    // The lens probe, an overlay that draws nothing and only reads the
+    // camera the map renders with. On a map with a Map ID it is a
+    // WebGLOverlayView: its transformer is the documented camera matrix the
+    // map itself draws with (fromLatLngAltitude returns the MVP matrix of a
+    // frame at a point; that matrix's translation column is the point's clip
+    // position). WebGLOverlayView may only be added to a vector map with a
+    // Map ID, so a map without one falls back to an OverlayView, whose
+    // MapCanvasProjection needs no Map ID; its perspective on a tilted map is
+    // implied by the reference rather than stated, and calibrateLens refuses
+    // a flat reading. Neither probe asks for a redraw: the map renders a
+    // frame whenever the camera moves, which is when the lens can change.
+    if (mapId !== "") {
+        class WebGLLensProbe extends mapsLib.WebGLOverlayView {
+            onAdd(): void {}
+            onContextRestored(): void {}
+            onDraw({ transformer }: GMWebGLDrawOptions): void {
+                measureLens(transformer.getCameraParams(), (at) => {
+                    const m = transformer.fromLatLngAltitude({ ...at, altitude: 0 });
+                    const w = m[15];
+                    if (!(w > 0)) return null;
+                    return {
+                        x: ((m[12] / w + 1) / 2) * window.innerWidth,
+                        y: ((1 - m[13] / w) / 2) * window.innerHeight,
+                    };
+                });
+            }
+            onContextLost(): void {}
+            onRemove(): void {}
         }
-        onRemove(): void {}
+        new WebGLLensProbe().setMap(liveMap);
+    } else {
+        class LensProbe extends mapsLib.OverlayView {
+            onAdd(): void {}
+            draw(): void {
+                const projection = this.getProjection();
+                const center = liveMap.getCenter();
+                if (!projection || !center) return;
+                measureLens(
+                    {
+                        center,
+                        heading: liveMap.getHeading() ?? 0,
+                        tilt: liveMap.getTilt() ?? 0,
+                        zoom: liveMap.getZoom() ?? 0,
+                    },
+                    (at) => projection.fromLatLngToContainerPixel(at),
+                );
+            }
+            onRemove(): void {}
+        }
+        new LensProbe().setMap(liveMap);
     }
-    new LensProbe().setMap(liveMap);
 
     // Pin the chevron at its spot (markerSpot: clear of the side cards and
-    // dropped per markerPos) and glide the camera to hold the fix under it — the OSM `markerEl.left/top` + camera `padding` parity, done
-    // without a native padding API: the pose carries the fix as its anchor
+    // dropped per markerPos) and glide the camera to hold the fix under it —
+    // the OSM `markerEl.left/top` + camera `padding` parity, done without a
+    // native padding API: the pose carries the fix as its anchor
     // plus the chevron's offset, and moveCam derives the camera centre (and
     // the lens's yaw) from both every frame. [mapBearing] is the follow
     // bearing (followOrientation; 0 for a raster map), before the yaw.
