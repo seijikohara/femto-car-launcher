@@ -159,12 +159,13 @@ policy:
   rule: `followOrientation` stays the one follow-heading source, and
   the backend adds δ only where it talks to the map (`moveCamera`,
   the glide's read-back, the compass, which reports the travel
-  heading). Never hard-code a field of view. Until the lens is
-  measured, or when the measurement is implausible, the chevron falls
-  back to the vertical centre line with no yaw, clamped clear of the
-  side cards (`googleMarkerSpot`). A chevron that changes spot glides
-  in lockstep with the camera (`spotMotion`) with the reflow motion
-  both backends use.
+  heading). Never hard-code a field of view. Both maps place the
+  chevron by the one rule (`markerSpot`): until the lens is measured,
+  or when the measurement is implausible, the Google chevron stays at
+  that spot with no yaw and the flat offset (the road leans until the
+  lens is measured) — never on the centre line. A chevron that changes
+  spot glides in lockstep with the camera (`spotMotion`) with the
+  reflow motion both backends use.
 - A fix that arrives while the chevron still glides to a new spot (a
   reflow, or a Google spot move) leaves the chevron's transition
   armed and moves the camera over the time it has left

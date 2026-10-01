@@ -290,8 +290,6 @@ async function boot(
     renderingType: string,
     { width = W, height = H }: BootOptions = {},
 ) {
-    const ripple = { part: "ripple" };
-    const arrow = { part: "svg" };
     const path = { setAttribute: vi.fn(), getAttribute: () => null };
     const marker = {
         style: {
@@ -303,8 +301,7 @@ async function boot(
             setProperty: vi.fn(),
         },
         classList: { remove: vi.fn(), toggle: vi.fn(), contains: () => false },
-        querySelector: (selector: string) =>
-            ({ ".ripple": ripple, svg: arrow, path })[selector] ?? null,
+        querySelector: (selector: string) => (selector === "path" ? path : null),
     };
     const win = {
         innerWidth: width,
@@ -327,10 +324,6 @@ async function boot(
             getContext: () => ({ getExtension: () => null, getParameter: () => "fake" }),
         }),
     });
-    // index.html's sizes: the 64 px ripple and the 34 px arrow.
-    vi.stubGlobal("getComputedStyle", (el: { part?: string }) => ({
-        width: el.part === "ripple" ? "64px" : "34px",
-    }));
     vi.stubGlobal("requestAnimationFrame", (callback: (now: number) => void) => {
         frames.push(callback);
         return frames.length;
@@ -449,50 +442,50 @@ describe("the Google Maps page", () => {
         expect(page.map.heading).toBeLessThan(110);
     });
 
-    it("places the chevron on the centre line with no yaw until the lens is measured", async () => {
+    it("keeps the chevron at the OSM spot with no yaw until the lens is measured", async () => {
         const page = await boot("VECTOR", "VECTOR");
         push(page.win, FIX, 90);
         // No frame has rendered, so nothing has been measured yet: the
-        // chevron takes the centre line, where the perspective needs no
-        // yaw, and the map turns to the travel heading itself.
-        expect(page.marker.style.left).toBe("50%");
+        // chevron still takes the OSM spot, and the map turns to the travel
+        // heading itself (the road ahead leans until the lens is measured).
+        expect(page.marker.style.left).toBe(`${(0.5 - MX) * 100}%`);
         expect(page.map.heading).toBe(90);
-        expect(screenOf(page.map, FIX).x).toBeCloseTo(0, 6);
-        // The first frame measures it; the chevron and the camera then glide
-        // to the OSM spot together.
+        expect(leanPx(page.map, FIX, 90)).toBeGreaterThan(1);
+        // The first frame measures it, and the camera glides to the lens's
+        // yaw and exact anchor without waiting for the next fix.
         page.advance(16);
         expect(page.marker.style.left).toBe(`${(0.5 - MX) * 100}%`);
-        expect(page.marker.style.transition).toContain(`${LAYOUT_REFLOW_MS}ms linear`);
         page.run(30);
         const at = screenOf(page.map, FIX);
         expect(Math.hypot(at.x + MX * W, at.y - DROP * H)).toBeLessThan(1e-6);
+        expect(leanPx(page.map, FIX, 90)).toBeLessThan(1e-6);
         expect(reporter.report).not.toHaveBeenCalledWith("follow", false);
     });
 
     it("lands the chevron and the camera together when a fix arrives mid-glide", async () => {
         const page = await boot("VECTOR", "VECTOR");
         push(page.win, FIX, 90);
-        // The first frame measures the lens: the chevron starts its glide
-        // from the centre line to the OSM spot.
-        page.advance(16);
+        page.run(50);
+        // The cards go away: the chevron glides to the centre line.
+        push(page.win, FIX, 90, { rightSafe: 0 });
         page.advance(200);
         const next = aheadOf(FIX, 90, 10);
-        push(page.win, next, 90);
+        push(page.win, next, 90, { rightSafe: 0 });
         // The chevron keeps gliding; the camera moves over the ~60 ms the
-        // glide has left rather than the 216 ms since the last fix, so the
+        // glide has left rather than the 200 ms since the last fix, so the
         // two land together.
         expect(page.marker.style.transition).toContain(`${LAYOUT_REFLOW_MS}ms linear`);
         page.advance(LAYOUT_REFLOW_MS - 200);
         const at = screenOf(page.map, next);
-        expect(Math.hypot(at.x + MX * W, at.y - DROP * H)).toBeLessThan(1e-6);
+        expect(Math.hypot(at.x, at.y - DROP * H)).toBeLessThan(1e-6);
     });
 
-    it("keeps the centre-line fallback when the projection shows no perspective", async () => {
+    it("keeps the OSM spot with no yaw when the projection shows no perspective", async () => {
         fake.optics.flat = true;
         const page = await boot("VECTOR", "VECTOR");
         push(page.win, FIX, 90);
         page.run(50);
-        expect(page.marker.style.left).toBe("50%");
+        expect(page.marker.style.left).toBe(`${(0.5 - MX) * 100}%`);
         expect(page.map.heading).toBe(90);
     });
 
@@ -542,21 +535,18 @@ describe("the Google Maps page", () => {
         expect(reporter.report).not.toHaveBeenCalledWith("follow", false);
     });
 
-    it("resolves a vector request that renders raster: a snap under the chevron, then a glide", async () => {
+    it("resolves a vector request that renders raster: a snap under the chevron", async () => {
         const page = await boot("VECTOR", "RASTER");
         push(page.win, FIX, 45);
-        expect(page.marker.style.left).toBe("50%");
+        expect(page.marker.style.left).toBe(`${(0.5 - MX) * 100}%`);
         page.map.moves.length = 0;
         page.map.fire("tilesloaded");
-        // The snap: the fix under the chevron where it still is, north-up,
-        // with no heading or tilt sent to the raster map.
+        // The snap: the fix under the chevron, north-up, with no heading or
+        // tilt sent to the raster map; the chevron stays where it is.
         const snapped = screenOf(page.map, FIX);
-        expect(snapped.x).toBeCloseTo(0, 6);
+        expect(snapped.x).toBeCloseTo(-MX * W, 6);
         expect(snapped.y).toBeCloseTo(DROP * H, 6);
         expect(page.marker.style.left).toBe(`${(0.5 - MX) * 100}%`);
-        expect(page.marker.style.transition).toContain(`${LAYOUT_REFLOW_MS}ms linear`);
-        page.advance(LAYOUT_REFLOW_MS / 2);
-        expect(screenOf(page.map, FIX).x).toBeCloseTo((-MX * W) / 2, 6);
         page.run(20);
         expect(screenOf(page.map, FIX).x).toBeCloseTo(-MX * W, 6);
         expect(page.map.moves.every((m) => m.heading === undefined && m.tilt === undefined)).toBe(
@@ -564,7 +554,7 @@ describe("the Google Maps page", () => {
         );
     });
 
-    it("resolves an AUTO map that renders vector: heading and tilt snap, then the chevron glides", async () => {
+    it("resolves an AUTO map that renders vector: heading and tilt snap, then the lens glides", async () => {
         const page = await boot("AUTO", "VECTOR");
         push(page.win, FIX, 45);
         // Placed as a raster map first: beside the cards, north-up.
@@ -574,15 +564,11 @@ describe("the Google Maps page", () => {
         );
         page.map.moves.length = 0;
         page.map.fire("tilesloaded");
-        // The snap holds the fix beside the cards, where the chevron still
-        // is — only roughly, as the lens is not measured yet.
         expect(page.map.moves[0]).toMatchObject({ heading: 45, tilt: 55 });
-        expect(screenOf(page.map, FIX).x / (-MX * W)).toBeCloseTo(1, 0);
-        // Unmeasured, the tilted map takes the centre line first; the first
-        // rendered frame measures the lens and the chevron glides back.
-        expect(page.marker.style.left).toBe("50%");
-        page.run(50);
+        // The chevron keeps the OSM spot; the first rendered frame measures
+        // the lens, and the camera glides to its yaw and exact anchor.
         expect(page.marker.style.left).toBe(`${(0.5 - MX) * 100}%`);
+        page.run(50);
         const at = screenOf(page.map, FIX);
         expect(Math.hypot(at.x + MX * W, at.y - DROP * H)).toBeLessThan(1e-6);
         expect(leanPx(page.map, FIX, 45)).toBeLessThan(1e-6);

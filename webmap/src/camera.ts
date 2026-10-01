@@ -323,9 +323,8 @@ export interface SpotPlan {
 }
 
 // The Google Maps page's refinement of followMotion for the chevron's spot
-// (googleMarkerSpot in style.ts), which also moves without a layout reflow —
-// the lens measurement arriving or going, the map tilting to or from 0°
-// without one, the rendering-mode resolve. [shown] is where
+// (markerSpot in style.ts), which can also move with a push that is not a
+// pure reflow — a layout change that lands with a moved fix. [shown] is where
 // the chevron is on screen now, null while it is hidden or not yet placed: it
 // then appears at [next] with no glide of its own. A chevron that moves
 // glides with REFLOW_MOTION, the marker's CSS transition and the camera in

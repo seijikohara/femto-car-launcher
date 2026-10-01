@@ -33,9 +33,10 @@
 // vertically. The page measures that perspective through Google's own
 // projection (an OverlayView's MapCanvasProjection, which needs no Map ID)
 // and corrects both — a yaw bias on the map heading and the exact ground
-// offset under the chevron (lens.ts) — so the chevron keeps the OSM spot.
-// Until the measurement exists, or when it is implausible, the chevron falls
-// back to the vertical centre line with no yaw (googleMarkerSpot in style.ts).
+// offset under the chevron (lens.ts) — so the chevron keeps the OSM spot
+// (markerSpot in style.ts). Until the measurement exists, or when it is
+// implausible, the chevron stays at that spot with no yaw and the flat offset:
+// the road ahead leans toward the centre until the lens is measured.
 //
 // This backend does NOT use the shared follow-camera engine: Google's camera
 // API is immediate (moveCamera has no easing, and there is no easeTo), so the
@@ -77,13 +78,7 @@ import {
     cameraCenterFor,
     createCameraGlide,
 } from "../camera-glide";
-import {
-    chevronHandles,
-    chevronReachPx,
-    setChevronColor,
-    setChevronTransform,
-    startStaleTicker,
-} from "../chevron";
+import { chevronHandles, setChevronColor, setChevronTransform, startStaleTicker } from "../chevron";
 import { ScriptLoadError } from "../load-outcome";
 import {
     calibrateLens,
@@ -95,8 +90,8 @@ import {
 import { createMarkerTransition } from "../marker-motion";
 // The self-marker placement (style.ts is the SSOT, shared with the OSM
 // backend): where the chevron sits to clear the side cards and the bottom
-// overlay, and where a tilted vector map falls back to without its lens.
-import { googleMarkerSpot, type MarkerSpot } from "../style";
+// overlay.
+import { type MarkerSpot, markerSpot } from "../style";
 
 // The Google Maps bridge extends the base femtoBridge with googleMapsApiKey()
 // and googleMapsMapId(), present only when the host has wired up the Google
@@ -325,7 +320,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             number | null
         >,
         // Where the chevron is placed, as fractions of the viewport
-        // (googleMarkerSpot): its left/top, and — MapLibre's padding
+        // (markerSpot): its left/top, and — MapLibre's padding
         // analogue — the spot a read-back measures the camera against
         // wherever the glide does not own the offset (see the glide's
         // current()). That is after the user took the camera: the chevron is
@@ -367,9 +362,6 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
 
     const chevron = chevronHandles();
     const markerEl = chevron.el;
-    // The chevron's reach (its ripple) that googleMarkerSpot keeps clear of
-    // the side cards; fixed by the page's CSS, so read once.
-    const chevronReach = chevronReachPx(chevron);
     // Lockstep control for a layout reflow — see isPaddingOnlyReflow and
     // marker-motion.ts; the same arrangement as the shared follow engine.
     const markerTransition = createMarkerTransition(markerEl, LAYOUT_REFLOW_MS);
@@ -663,9 +655,8 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         );
     }
 
-    // A lens that appears or goes away moves the chevron between the OSM
-    // spot and the centre-line fallback (googleMarkerSpot): re-place it at
-    // once, the chevron and the camera gliding together (spotMotion), rather
+    // A lens that appears or goes away changes the yaw and the anchor under
+    // the chevron: re-place the camera at once with the reflow motion rather
     // than waiting for the next fix — a parked car may not send one.
     function setLens(next: LensCalibration | null): void {
         const changed = (next === null) !== (state.lens === null);
@@ -685,18 +676,16 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     }
     new LensProbe().setMap(liveMap);
 
-    // Pin the chevron at its spot (googleMarkerSpot: clear of the side cards
-    // and dropped per markerPos, or on the centre line of a tilted vector
-    // map whose lens is not measured) and glide the camera to hold the fix
-    // under it — the OSM `markerEl.left/top` + camera `padding` parity, done
+    // Pin the chevron at its spot (markerSpot: clear of the side cards and
+    // dropped per markerPos) and glide the camera to hold the fix under it — the OSM `markerEl.left/top` + camera `padding` parity, done
     // without a native padding API: the pose carries the fix as its anchor
     // plus the chevron's offset, and moveCam derives the camera centre (and
     // the lens's yaw) from both every frame. [mapBearing] is the follow
     // bearing (followOrientation; 0 for a raster map), before the yaw.
     //
     // The camera snaps (null) or glides per [pushMotion], refined by
-    // spotMotion: a chevron that moves on screen — a layout reflow, the lens
-    // arriving or going, the rendering-mode resolve — glides with the
+    // spotMotion: a chevron that moves on screen — a layout reflow, or a
+    // layout change that lands with a moved fix — glides with the
     // reflow motion, its CSS transition in lockstep with the camera; on a fix
     // the chevron stays put and the camera eases the ground underneath it. A
     // fix that arrives during such a glide leaves the chevron gliding and
@@ -710,13 +699,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     ): void {
         const width = window.innerWidth;
         const height = window.innerHeight;
-        const spot = googleMarkerSpot(fix, {
-            vector: state.isVector,
-            tiltDeg: fix.tilt,
-            widthPx: width,
-            reachPx: chevronReach,
-            lensMeasured: state.lens !== null,
-        });
+        const spot = markerSpot(fix);
         const poseAt = (at: MarkerSpot): CameraPose => ({
             lat: fix.lat,
             lng: fix.lng,
@@ -885,10 +868,9 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // easeHome re-issues a camera move + chevron sync for the resolved
         // mode — as a snap: on the downgrade the raster map has ignored every
         // placement so far (they carried heading/tilt) and still sits at the
-        // construction centre, which an ease would fly in from. The chevron's
-        // spot changes with the mode on a tilted map (googleMarkerSpot), so
-        // the snap lands with the fix under the chevron where it is, and the
-        // two then glide to the new spot together (spotMotion).
+        // construction centre, which an ease would fly in from. The chevron
+        // keeps its spot in either mode, so the snap lands with the fix under
+        // it.
         const resolved = liveMap.getRenderingType();
         log(`renderingType=${resolved}`);
         const resolvedVector = resolved === "VECTOR";
