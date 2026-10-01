@@ -33,6 +33,10 @@ and older points are deleted automatically. The history never leaves the device
 on its own: it is excluded from backup and device transfer, and it is sent
 nowhere. Exporting a trip as a GPX file writes it to the location you choose.
 
+Places you save in the destination panel (a name with a search text or a
+position) are stored on the device only, excluded from backup and device
+transfer, and passed only to the navigation app you hand one to.
+
 ## Third parties
 
 The app contacts the following services, each governed by its own privacy
