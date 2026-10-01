@@ -84,6 +84,7 @@ import { ScriptLoadError } from "../load-outcome";
 import {
     calibrateLens,
     type LensCalibration,
+    lensFovyDeg,
     lensGroundOffset,
     lensMoved,
     lensProbeDistancePx,
@@ -357,6 +358,9 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // The yaw bias (lens.ts) in the heading last sent to the map: the
         // compass adds it back to report the travel heading.
         lensYaw: 0,
+        // The lens state last reported to the host's diagnostics, so a
+        // re-measurement that changes nothing reports nothing.
+        lensReport: "",
         // tilt is used only on a VECTOR map; a raster map ignores it.
         // markerPos / bottomSafe / rightSafe / leftSafe are the host's
         // safe-zone fractions, kept so a re-follow (easeHome) reproduces the
@@ -651,6 +655,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // comparisons). At tilt 0 there is nothing to measure and the lens is
     // unused, so the last measurement is kept for the next tilt.
     function measureLens(
+        source: "webgl" | "canvas",
         camera: { center: GMLatLngObj; heading: number; tilt: number; zoom: number },
         project: (at: GMLatLng) => { x: number; y: number } | null,
     ): void {
@@ -676,7 +681,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         const at = project(target);
         const ahead = probeAt(-d);
         const behind = probeAt(d);
-        setLens(
+        const lens =
             at && ahead && behind
                 ? calibrateLens({
                       tiltDeg: tilt,
@@ -685,8 +690,17 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
                       behindDownPx: behind.y - at.y,
                       viewportHeightPx: height,
                   })
-                : null,
-        );
+                : null;
+        setLens(lens);
+        // The host's MAP diagnostics show whether the lens is measured, so an
+        // owner can tell on the device why the road does or does not lean.
+        const detail = lens
+            ? `measured,source=${source},fovy=${lensFovyDeg(lens, height).toFixed(1)}`
+            : `unmeasured,source=${source}`;
+        if (detail !== state.lensReport) {
+            state.lensReport = detail;
+            report("lens", detail);
+        }
     }
 
     // A lens that appears, goes, or is re-measured differently (a viewport
@@ -723,7 +737,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             onAdd(): void {}
             onContextRestored(): void {}
             onDraw({ transformer }: GMWebGLDrawOptions): void {
-                measureLens(transformer.getCameraParams(), (at) => {
+                measureLens("webgl", transformer.getCameraParams(), (at) => {
                     const m = transformer.fromLatLngAltitude({ ...at, altitude: 0 });
                     const w = m[15];
                     if (!(w > 0)) return null;
@@ -745,6 +759,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
                 const center = liveMap.getCenter();
                 if (!projection || !center) return;
                 measureLens(
+                    "canvas",
                     {
                         center,
                         heading: liveMap.getHeading() ?? 0,

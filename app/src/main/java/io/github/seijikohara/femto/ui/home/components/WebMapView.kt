@@ -632,6 +632,12 @@ internal fun WebMapView(
                                     MapRuntimeSignals.recordPageFrames(detail, SystemClock.elapsedRealtime())
                                 }
 
+                                // Whether the Google page measured its tilted map's
+                                // perspective, for the MAP diagnostics section.
+                                "lens" -> {
+                                    MapRuntimeSignals.recordGoogleLens(detail)
+                                }
+
                                 // Throttled camera bearing for the compass overlay.
                                 "bearing" -> {
                                     detail.toFloatOrNull()?.let { bearing ->

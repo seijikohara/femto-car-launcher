@@ -20,4 +20,24 @@ class MapRuntimeSignalsTest {
         assertNull(MapRuntimeSignals.pageFramesFrom("median=33,worst=66,samples=0", 0L))
         assertNull(MapRuntimeSignals.pageFramesFrom("median=x,worst=66,samples=30", 0L))
     }
+
+    @Test
+    fun `parses the page's lens report`() {
+        assertEquals(
+            MapRuntimeSignals.GoogleLens(measured = true, source = "webgl", fovyDeg = 27.3),
+            MapRuntimeSignals.googleLensFrom("measured,source=webgl,fovy=27.3"),
+        )
+        assertEquals(
+            MapRuntimeSignals.GoogleLens(measured = false, source = "canvas", fovyDeg = null),
+            MapRuntimeSignals.googleLensFrom("unmeasured,source=canvas"),
+        )
+    }
+
+    @Test
+    fun `rejects a malformed lens report so it cannot replace a good one`() {
+        assertNull(MapRuntimeSignals.googleLensFrom(""))
+        assertNull(MapRuntimeSignals.googleLensFrom("measured,source=webgl"))
+        assertNull(MapRuntimeSignals.googleLensFrom("measured,fovy=27.3"))
+        assertNull(MapRuntimeSignals.googleLensFrom("maybe,source=webgl,fovy=27.3"))
+    }
 }

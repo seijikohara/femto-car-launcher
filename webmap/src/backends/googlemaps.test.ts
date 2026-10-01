@@ -598,6 +598,36 @@ describe("the Google Maps page", () => {
         expect(page.map.heading).toBe(90);
     });
 
+    // What the page told the host's diagnostics about its lens.
+    function lensReports(): string[] {
+        return reporter.report.mock.calls
+            .filter(([kind]) => kind === "lens")
+            .map(([, detail]) => detail as string);
+    }
+
+    it("reports the measured lens, its source and field of view, to the diagnostics once", async () => {
+        fake.optics.fovyDeg = 27.3;
+        const page = await boot("VECTOR", "VECTOR");
+        push(page.win, FIX, 90);
+        page.run(50);
+        push(page.win, aheadOf(FIX, 90, 20), 90);
+        page.run(50);
+        expect(lensReports()).toEqual(["measured,source=webgl,fovy=27.3"]);
+    });
+
+    it("reports the 2D-projection lens without a Map ID, and an unmeasured one", async () => {
+        const measured = await boot("VECTOR", "VECTOR", { mapId: "" });
+        push(measured.win, FIX, 90);
+        measured.run(50);
+        expect(lensReports()).toEqual(["measured,source=canvas,fovy=30.0"]);
+        reporter.report.mockClear();
+        fake.optics.flatCanvas = true;
+        const flat = await boot("VECTOR", "VECTOR", { mapId: "" });
+        push(flat.win, FIX, 90);
+        flat.run(50);
+        expect(lensReports()).toEqual(["unmeasured,source=canvas"]);
+    });
+
     it("keeps the chevron beside the cards on a flat vector map", async () => {
         const page = await boot("VECTOR", "VECTOR");
         push(page.win, FIX, 90, { tilt: 0 });

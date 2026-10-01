@@ -64,9 +64,11 @@ declare global {
 // camera bearing for the compass overlay. `ready` marks the first frame the
 // backend actually painted — the host records it for the MAP diagnostics
 // section, which otherwise cannot tell a working map from one that failed
-// silently. No kind triggers a backend switch — the host keeps the chosen
-// backend (no auto-fallback).
-export type MapEventKind = "ready" | "fatal" | "error" | "follow" | "bearing" | "frames";
+// silently. "lens" = whether the Google page has measured its tilted map's
+// perspective (lens.ts), for the same section: "measured,source=<webgl|
+// canvas>,fovy=<deg>" or "unmeasured,source=<…>". No kind triggers a backend
+// switch — the host keeps the chosen backend (no auto-fallback).
+export type MapEventKind = "ready" | "fatal" | "error" | "follow" | "bearing" | "frames" | "lens";
 
 export interface PageReporter {
     // Diagnostic logging only (visible via chrome://inspect or the debug

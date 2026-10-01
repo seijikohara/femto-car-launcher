@@ -11,6 +11,7 @@ import io.github.seijikohara.femto.data.map.MapRuntimeSignals
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 // WebGL 2 maps onto OpenGL ES 3.0, so that is the floor below which the map
 // backends that need it cannot acquire a context. The Android 13 CDD mandates
@@ -75,11 +76,13 @@ internal fun mapFactsFrom(
     nowElapsedRealtimeMs: Long,
     webGlRenderer: String? = null,
     pageFrames: MapRuntimeSignals.PageFrames? = null,
+    googleLens: MapRuntimeSignals.GoogleLens? = null,
 ): List<DiagnosticFact> =
     buildList {
         add(webGl2Fact(glEsVersion, webGl2Need(backend, googleRendering, hasGoogleMapId)))
         add(webGlRendererFact(webGlRenderer))
         add(pageFramesFact(pageFrames, nowElapsedRealtimeMs))
+        if (backend == MapBackend.GOOGLEMAPS) add(googleLensFact(googleLens))
         add(lastFailureFact(lastFailure, nowElapsedRealtimeMs))
         if (failureCount > 1) {
             add(DiagnosticFact("Failures this session", FactValue.Text("$failureCount")))
@@ -184,6 +187,24 @@ private fun pageFramesFact(
 
 private const val PAGE_FRAME_WARNING_MS = 100
 
+// Whether the Google page measured its tilted map's perspective (webmap
+// lens.ts). Measured, the road ahead runs straight up through the chevron
+// beside the cards; unmeasured, the page keeps the chevron there with no
+// correction and the road leans — the row that tells an owner which on the
+// device. A raster or untilted map never reports, since it needs no lens.
+private fun googleLensFact(lens: MapRuntimeSignals.GoogleLens?): DiagnosticFact {
+    if (lens == null) return DiagnosticFact("Google lens", FactValue.Text("not reported (no tilted vector map yet)"))
+    val source = if (lens.source == "webgl") "WebGL overlay" else "2D projection"
+    return DiagnosticFact(
+        "Google lens",
+        if (lens.measured && lens.fovyDeg != null) {
+            FactValue.Status("measured ($source), fovy ${"%.1f".format(Locale.ROOT, lens.fovyDeg)}°", FactHealth.OK)
+        } else {
+            FactValue.Status("unmeasured ($source) — the road ahead leans", FactHealth.WARNING)
+        },
+    )
+}
+
 // deviceConfigurationInfo reports the version as "major.minor"; compare on the
 // same packed 0xMMMMmmmm encoding the platform uses for reqGlEsVersion.
 private fun glEsVersionCode(glEsVersion: String?): Int? {
@@ -222,6 +243,7 @@ internal class MapFactsCollector(
                     nowElapsedRealtimeMs = SystemClock.elapsedRealtime(),
                     webGlRenderer = MapRuntimeSignals.webGlRendererOrNull(),
                     pageFrames = MapRuntimeSignals.pageFramesOrNull(),
+                    googleLens = MapRuntimeSignals.googleLensOrNull(),
                 ),
             )
         }

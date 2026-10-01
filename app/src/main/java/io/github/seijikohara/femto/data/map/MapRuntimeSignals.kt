@@ -26,6 +26,21 @@ internal object MapRuntimeSignals {
     private val failureCount = AtomicInteger(0)
     private val webGlRenderer = AtomicReference<String?>(null)
     private val pageFrames = AtomicReference<PageFrames?>(null)
+    private val googleLens = AtomicReference<GoogleLens?>(null)
+
+    /**
+     * Whether the Google Maps page has measured its tilted vector map's
+     * perspective (webmap lens.ts), which keeps the road ahead vertical through
+     * the chevron beside the cards. [source] is the probe that measured it:
+     * "webgl" (the WebGL overlay's camera transformer, with a Map ID) or
+     * "canvas" (the 2D projection, without one); [fovyDeg] is the field of
+     * view the measurement implies, null while unmeasured.
+     */
+    data class GoogleLens(
+        val measured: Boolean,
+        val source: String,
+        val fovyDeg: Double?,
+    )
 
     /**
      * One burst of the map page's own frame intervals (bridge.ts
@@ -84,6 +99,32 @@ internal object MapRuntimeSignals {
     }
 
     fun pageFramesOrNull(): PageFrames? = pageFrames.get()
+
+    /**
+     * Record a `lens` event: "measured,source=<s>,fovy=<deg>" or
+     * "unmeasured,source=<s>"; anything else is ignored.
+     */
+    fun recordGoogleLens(detail: String) {
+        googleLensFrom(detail)?.let(googleLens::set)
+    }
+
+    fun googleLensOrNull(): GoogleLens? = googleLens.get()
+
+    internal fun googleLensFrom(detail: String): GoogleLens? {
+        val parts = detail.split(',')
+        val fields =
+            parts
+                .drop(1)
+                .mapNotNull { field ->
+                    field.substringBefore('=', "").takeIf { it.isNotEmpty() }?.let { it to field.substringAfter('=') }
+                }.toMap()
+        val source = fields["source"]?.takeIf { it.isNotEmpty() } ?: return null
+        return when (parts.first()) {
+            "measured" -> fields["fovy"]?.toDoubleOrNull()?.let { GoogleLens(measured = true, source, it) }
+            "unmeasured" -> GoogleLens(measured = false, source, fovyDeg = null)
+            else -> null
+        }
+    }
 
     internal fun pageFramesFrom(
         detail: String,

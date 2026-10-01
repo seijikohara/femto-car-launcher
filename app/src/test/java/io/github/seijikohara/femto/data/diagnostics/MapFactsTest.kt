@@ -18,6 +18,7 @@ class MapFactsTest {
         nowElapsedRealtimeMs: Long = 0L,
         webGlRenderer: String? = null,
         pageFrames: MapRuntimeSignals.PageFrames? = null,
+        googleLens: MapRuntimeSignals.GoogleLens? = null,
     ) = mapFactsFrom(
         glEsVersion,
         backend,
@@ -28,7 +29,40 @@ class MapFactsTest {
         nowElapsedRealtimeMs,
         webGlRenderer,
         pageFrames,
+        googleLens,
     )
+
+    @Test
+    fun `the Google lens row appears only on the Google backend`() {
+        assertTrue(facts(backend = MapBackend.OSM).none { it.label == "Google lens" })
+        assertEquals(
+            FactValue.Text("not reported (no tilted vector map yet)"),
+            facts(backend = MapBackend.GOOGLEMAPS).single { it.label == "Google lens" }.value,
+        )
+    }
+
+    @Test
+    fun `a measured Google lens reports its source and field of view`() {
+        val fact =
+            facts(
+                backend = MapBackend.GOOGLEMAPS,
+                googleLens = MapRuntimeSignals.GoogleLens(measured = true, source = "webgl", fovyDeg = 27.3),
+            ).single { it.label == "Google lens" }
+        assertEquals(FactValue.Status("measured (WebGL overlay), fovy 27.3°", FactHealth.OK), fact.value)
+    }
+
+    @Test
+    fun `an unmeasured Google lens warns that the road leans beside the cards`() {
+        val fact =
+            facts(
+                backend = MapBackend.GOOGLEMAPS,
+                googleLens = MapRuntimeSignals.GoogleLens(measured = false, source = "canvas", fovyDeg = null),
+            ).single { it.label == "Google lens" }
+        assertEquals(
+            FactValue.Status("unmeasured (2D projection) — the road ahead leans", FactHealth.WARNING),
+            fact.value,
+        )
+    }
 
     @Test
     fun `page frames read no sample until the page has reported one`() {

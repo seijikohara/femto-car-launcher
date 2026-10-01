@@ -83,12 +83,19 @@ export function calibrateLens(probe: LensProbe): LensCalibration | null {
     if (!(asymmetry > 0)) return null;
     const focalPx = (2 * Math.tan(theta)) / asymmetry;
     const distancePx = ((focalPx * d * Math.cos(theta)) / 2) * (1 / up + 1 / down);
-    const fovyDeg = (2 * Math.atan(probe.viewportHeightPx / 2 / focalPx)) / DEG;
     if (!Number.isFinite(focalPx) || !(distancePx > 0) || !Number.isFinite(distancePx)) {
         return null;
     }
+    const fovyDeg = lensFovyDeg({ focalPx, distancePx }, probe.viewportHeightPx);
     if (!(fovyDeg >= LENS_MIN_FOVY_DEG && fovyDeg <= LENS_MAX_FOVY_DEG)) return null;
     return { focalPx, distancePx };
+}
+
+// The vertical field of view, in degrees, a lens implies over a viewport
+// [viewportHeightPx] tall: what calibrateLens judges plausibility by, and
+// what the diagnostics report.
+export function lensFovyDeg(lens: LensCalibration, viewportHeightPx: number): number {
+    return (2 * Math.atan(viewportHeightPx / 2 / lens.focalPx)) / DEG;
 }
 
 // The flat-px offset (x right, y down, camera-aligned) of the ground point
