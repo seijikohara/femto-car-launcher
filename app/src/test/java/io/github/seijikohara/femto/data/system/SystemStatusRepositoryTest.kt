@@ -221,6 +221,61 @@ class SystemStatusRepositoryTest {
             }
         }
 
+    // An abrupt Wi-Fi teardown reported the default network lost before the
+    // validated cellular network took over (TBox-Mock-Play, Android 13): a gap
+    // that short must not read as an offline->online edge.
+    @Test
+    fun `onlineFlow stays online when the default network is replaced within the grace`() =
+        runTest {
+            val connectivity = application.getSystemService<ConnectivityManager>()!!
+            val shadowConnectivity = shadowOf(connectivity)
+            shadowConnectivity.clearAllNetworks()
+
+            repository().onlineFlow().test {
+                assertFalse(awaitItem())
+
+                val callback = registeredNetworkCallback(shadowConnectivity)
+                callback.becomesDefault(WIFI_NETWORK, networkCapabilities())
+                assertTrue(awaitItem())
+
+                callback.onLost(WIFI_NETWORK)
+                advanceTimeBy(SystemStatusRepository.ONLINE_LOSS_GRACE_MS / 2)
+                callback.becomesDefault(
+                    CELLULAR_NETWORK,
+                    networkCapabilities(NetworkCapabilities.TRANSPORT_CELLULAR),
+                )
+                advanceTimeBy(SystemStatusRepository.ONLINE_LOSS_GRACE_MS * 2)
+                expectNoEvents()
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `onlineFlow reports a loss only once it outlasts the grace`() =
+        runTest {
+            val connectivity = application.getSystemService<ConnectivityManager>()!!
+            val shadowConnectivity = shadowOf(connectivity)
+            shadowConnectivity.clearAllNetworks()
+
+            repository().onlineFlow().test {
+                assertFalse(awaitItem())
+
+                val callback = registeredNetworkCallback(shadowConnectivity)
+                callback.becomesDefault(WIFI_NETWORK, networkCapabilities())
+                assertTrue(awaitItem())
+
+                callback.onLost(WIFI_NETWORK)
+                advanceTimeBy(SystemStatusRepository.ONLINE_LOSS_GRACE_MS - 1)
+                expectNoEvents()
+                advanceTimeBy(2)
+                assertFalse(awaitItem())
+
+                callback.becomesDefault(WIFI_NETWORK, networkCapabilities())
+                assertTrue(awaitItem(), "a recovery reports at once")
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
     @Test
     fun `onlineFlow reads a default network without validated internet as offline`() =
         runTest {
