@@ -62,6 +62,7 @@ import {
     isRealPosition,
     LAYOUT_REFLOW_MS,
     LOCATION_STALE_THRESHOLD_MS,
+    markerTransitionStep,
     normalizeBearing,
     ORIENTATION_FLIP_MOTION,
     REFLOW_MOTION,
@@ -700,9 +701,10 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // arriving or going, the rendering-mode resolve — glides with the
     // reflow motion, its CSS transition in lockstep with the camera; on a fix
     // the chevron stays put and the camera eases the ground underneath it. A
-    // fix that arrives during such a glide finishes the chevron's remaining
-    // move at once while the camera catches up over the fix's segment — the
-    // reflow behaviour both backends share.
+    // fix that arrives during such a glide leaves the chevron gliding and
+    // moves the camera over the time the glide has left (followMotion,
+    // markerTransitionStep), so the two land together — the reflow behaviour
+    // both backends share.
     function placeFollowCamera(
         fix: NonNullable<typeof state.lastFix>,
         mapBearing: number,
@@ -730,7 +732,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         });
         const plan = spotMotion(state.spotShown ? state.spot : null, spot, pushMotion);
         if (plan.snapAt) glide.jump(poseAt(plan.snapAt));
-        markerTransition.setActive(plan.motion === REFLOW_MOTION);
+        markerTransition.apply(markerTransitionStep(plan.motion, markerTransition.remainingMs()));
         markerEl.style.left = `${(0.5 + spot.x) * 100}%`;
         markerEl.style.top = `${(0.5 + spot.y) * 100}%`;
         // Before the glide below reads the map back against it.
@@ -980,6 +982,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
                 lon: fix.lng,
             }),
             sinceLastFixMs,
+            reflowRemainingMs: markerTransition.remainingMs(),
         });
         state.firstCamera = false;
 

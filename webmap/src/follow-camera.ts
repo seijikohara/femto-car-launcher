@@ -21,8 +21,8 @@ import {
     isRealPosition,
     LAYOUT_REFLOW_MS,
     LOCATION_STALE_THRESHOLD_MS,
+    markerTransitionStep,
     ORIENTATION_FLIP_MOTION,
-    REFLOW_MOTION,
     REFOLLOW_MOTION,
     smoothedBearing,
 } from "./camera";
@@ -335,6 +335,7 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
                 }
                 return;
             }
+            const reflowRemainingMs = markerTransition.remainingMs();
             const motion = followMotion({
                 firstCamera: state.firstCamera,
                 signalGap,
@@ -350,13 +351,16 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
                     leftSafe: leftSafe || 0,
                 }),
                 sinceLastFixMs,
+                reflowRemainingMs,
             });
             state.firstCamera = false;
             // Lockstep: arm the marker's CSS transition on a reflow so its
-            // left/top write below glides instead of jumping; clear it
-            // otherwise so a real fix keeps snapping the screen-pinned marker
-            // while the camera eases the ground underneath it.
-            markerTransition.setActive(motion === REFLOW_MOTION);
+            // left/top write below glides instead of jumping; keep it while
+            // a reflow is still in flight, the camera finishing over the
+            // time it has left; clear it otherwise so a real fix keeps
+            // snapping the screen-pinned marker while the camera eases the
+            // ground underneath it.
+            markerTransition.apply(markerTransitionStep(motion, reflowRemainingMs));
             const spot = markerSpot({ markerPos, bottomSafe, rightSafe, leftSafe });
             markerEl.style.left = `${(0.5 + spot.x) * 100}%`;
             markerEl.style.top = `${(0.5 + spot.y) * 100}%`;

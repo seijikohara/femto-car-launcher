@@ -164,8 +164,13 @@ policy:
   back to the vertical centre line with no yaw, clamped clear of the
   side cards (`googleMarkerSpot`). A chevron that changes spot glides
   in lockstep with the camera (`spotMotion`) with the reflow motion
-  both backends use; as with any reflow, a fix that arrives during
-  that glide finishes the remaining chevron move at once.
+  both backends use.
+- A fix that arrives while the chevron still glides to a new spot (a
+  reflow, or a Google spot move) leaves the chevron's transition
+  armed and moves the camera over the time it has left
+  (`followMotion`'s `reflowRemainingMs`, `markerTransitionStep`,
+  `MarkerTransition.remainingMs`), so the chevron and the camera land
+  together on both maps.
 
 ## Toolchain split
 

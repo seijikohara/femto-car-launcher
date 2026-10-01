@@ -264,20 +264,51 @@ export interface FollowPush {
     reflow: boolean;
     // The measured interval since the previous push.
     sinceLastFixMs: number;
+    // How long the chevron's glide to a new spot (a reflow, or a Google
+    // spotMotion move) has left, from its CSS transition
+    // (MarkerTransition.remainingMs); 0 when none is in flight.
+    reflowRemainingMs: number;
 }
 
 // How the camera moves for one follow push, or null to snap — the one
 // decision both backends' follow machines make. A snap wins over a reflow: a
 // signal gap can arrive with a padding change and must still snap. A reflow
 // takes the marker-lockstep motion (the caller arms the marker's transition
-// on exactly that identity). Everything else is a cadence-matched linear
-// segment: back-to-back segments compose into one continuous glide instead
-// of fixed-duration cubic eases that restart (accelerate-decelerate) on
-// every fix.
+// on exactly that identity). A fix that arrives while the chevron still
+// glides to a new spot moves the camera over the time that glide has left,
+// with its linear curve: the camera's chevron offset then finishes in step
+// with the chevron's transition, which stays armed (markerTransitionStep),
+// instead of the chevron jumping ahead of a camera that catches up over the
+// fix's segment. Everything else is a cadence-matched linear segment:
+// back-to-back segments compose into one continuous glide instead of
+// fixed-duration cubic eases that restart (accelerate-decelerate) on every
+// fix.
 export function followMotion(push: FollowPush): CameraMotion | null {
     if (push.firstCamera || push.signalGap) return null;
     if (push.reflow) return REFLOW_MOTION;
+    if (push.reflowRemainingMs > 0) {
+        return { durationMs: push.reflowRemainingMs, easing: REFLOW_MOTION.easing };
+    }
     return { durationMs: easeDurationMs(push.sinceLastFixMs), easing: linearEase };
+}
+
+// What a camera move does to the chevron's CSS transition (marker-motion.ts),
+// given how long a chevron glide in flight has left: "arm" it for a new
+// glide (REFLOW_MOTION); "keep" it for a move that lands no later than the
+// glide does, so the chevron finishes its move while the camera finishes
+// its own; "clear" it otherwise — a snap, a plain fix, or a move that
+// outlasts the glide — so the chevron jumps to its spot at once.
+export type MarkerTransitionStep = "arm" | "keep" | "clear";
+
+export function markerTransitionStep(
+    motion: CameraMotion | null,
+    reflowRemainingMs: number,
+): MarkerTransitionStep {
+    if (motion === REFLOW_MOTION) return "arm";
+    if (motion !== null && reflowRemainingMs > 0 && motion.durationMs <= reflowRemainingMs) {
+        return "keep";
+    }
+    return "clear";
 }
 
 // How one placement of the Google Maps page's chevron moves the camera.
@@ -299,9 +330,9 @@ export interface SpotPlan {
 // glides with REFLOW_MOTION, the marker's CSS transition and the camera in
 // lockstep; a push that would snap first lands the camera with the fix under
 // the chevron where it still is, since a snap cannot carry the chevron with
-// it. As after any layout reflow, a fix that arrives during the glide
-// finishes the chevron's remaining move at once (it clears the transition),
-// and the camera catches up over that fix's segment.
+// it. As after any layout reflow, a fix that arrives during the glide keeps
+// the chevron gliding and moves the camera over the time the glide has left
+// (followMotion), so the two still land together.
 export function spotMotion(
     shown: MarkerSpot | null,
     next: MarkerSpot,

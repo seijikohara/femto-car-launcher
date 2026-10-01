@@ -469,6 +469,24 @@ describe("the Google Maps page", () => {
         expect(reporter.report).not.toHaveBeenCalledWith("follow", false);
     });
 
+    it("lands the chevron and the camera together when a fix arrives mid-glide", async () => {
+        const page = await boot("VECTOR", "VECTOR");
+        push(page.win, FIX, 90);
+        // The first frame measures the lens: the chevron starts its glide
+        // from the centre line to the OSM spot.
+        page.advance(16);
+        page.advance(200);
+        const next = aheadOf(FIX, 90, 10);
+        push(page.win, next, 90);
+        // The chevron keeps gliding; the camera moves over the ~60 ms the
+        // glide has left rather than the 216 ms since the last fix, so the
+        // two land together.
+        expect(page.marker.style.transition).toContain(`${LAYOUT_REFLOW_MS}ms linear`);
+        page.advance(LAYOUT_REFLOW_MS - 200);
+        const at = screenOf(page.map, next);
+        expect(Math.hypot(at.x + MX * W, at.y - DROP * H)).toBeLessThan(1e-6);
+    });
+
     it("keeps the centre-line fallback when the projection shows no perspective", async () => {
         fake.optics.flat = true;
         const page = await boot("VECTOR", "VECTOR");
