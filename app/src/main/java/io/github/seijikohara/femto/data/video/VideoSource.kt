@@ -34,9 +34,12 @@ internal interface VideoSourceGrants {
 
 /**
  * Keep [uri], a document the user just picked, as the video window's file:
- * its read grant is persisted first, then the record moves to it, then the
- * grant on the file it replaces is released. A grant that cannot be kept
- * leaves the current file in place and returns false.
+ * its read grant is persisted first, then the record moves to it, and only
+ * once the store reads back the new record is the grant on the file it
+ * replaces released. A grant that cannot be kept, or a write the store lost
+ * (its writes log and swallow failures), leaves the current file and its
+ * grant in place and returns false; the grant just taken is then let go, as
+ * nothing names its file.
  */
 internal suspend fun VideoSettingsStore.adoptSource(
     uri: String,
@@ -45,8 +48,13 @@ internal suspend fun VideoSettingsStore.adoptSource(
     val previous = settings.first().sourceUri
     if (!grants.take(uri)) return false
     setSourceUri(uri)
-    previous?.takeIf { it != uri }?.let(grants::release)
-    return true
+    val recorded = settings.first().sourceUri == uri
+    if (recorded) {
+        previous?.takeIf { it != uri }?.let(grants::release)
+    } else if (uri != previous) {
+        grants.release(uri)
+    }
+    return recorded
 }
 
 /** [VideoSourceGrants] over the app's [android.content.ContentResolver]. */

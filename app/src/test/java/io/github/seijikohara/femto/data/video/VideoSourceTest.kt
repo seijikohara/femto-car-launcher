@@ -56,6 +56,20 @@ class VideoSourceTest {
             assertEquals(setOf(FIRST), grants.held)
         }
 
+    @Test
+    fun `a lost write keeps the current file and its grant`() =
+        runTest {
+            val store = FakeVideoSettingsStore(VideoSettings.Default.copy(sourceUri = FIRST), dropsSourceWrites = true)
+            val grants = FakeVideoSourceGrants(held = setOf(FIRST))
+
+            assertFalse(store.adoptSource(SECOND, grants))
+
+            assertEquals(FIRST, store.current.sourceUri)
+            // The record still names the first file, so its grant stays, and
+            // the grant just taken on a file nothing names is let go.
+            assertEquals(setOf(FIRST), grants.held)
+        }
+
     private companion object {
         const val FIRST = "content://com.example.documents/document/video%3A1"
         const val SECOND = "content://com.example.documents/document/video%3A2"
