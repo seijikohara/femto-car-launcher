@@ -41,6 +41,7 @@ class SettingsFactsCompletenessTest {
             "pendingInstallVersionCode" to "Update pending install",
             "offer" to "Update offer",
             "promptedVersionCode" to "Update prompted",
+            "skippedVersionCode" to "Update skipped",
         )
 
     private val propertyToFactLabel: Map<String, String> =

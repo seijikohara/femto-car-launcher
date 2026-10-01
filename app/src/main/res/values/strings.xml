@@ -469,6 +469,8 @@
     <string name="settings_updates_available">Available version</string>
     <!-- %1$s = the offered version name, %2$s = its download size, e.g. "45.3 MB" -->
     <string name="settings_updates_available_summary">%1$s · %2$s</string>
+    <!-- The same, for the build the user skipped (Skip this version) -->
+    <string name="settings_updates_available_summary_skipped">%1$s · %2$s · Skipped</string>
     <string name="settings_updates_up_to_date">Up to date</string>
     <string name="settings_updates_check">Check for updates</string>
     <string name="settings_updates_status_disabled">This build does not check for updates.</string>
@@ -505,6 +507,11 @@
     <string name="settings_updates_retry">Retry</string>
     <!-- %1$s = the offered version name, %2$s = its download size, e.g. "45.3 MB" -->
     <string name="settings_updates_retry_desc">Version %1$s · %2$s</string>
+    <string name="settings_updates_discard">Discard download</string>
+    <string name="settings_updates_discard_desc">Deletes the downloaded file. The update stays on offer.</string>
+    <string name="settings_updates_skip">Skip this version</string>
+    <!-- %1$s = the offered version name -->
+    <string name="settings_updates_skip_desc">No more reminders about %1$s. A newer version is offered again.</string>
     <string name="settings_updates_auto_check">Check automatically</string>
     <string name="settings_updates_auto_check_desc">Look for a new version once a day. Nothing downloads until you ask.</string>
     <string name="settings_updates_release_page">Open release page</string>

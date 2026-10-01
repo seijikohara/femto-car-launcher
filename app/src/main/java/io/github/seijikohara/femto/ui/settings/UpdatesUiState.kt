@@ -4,9 +4,12 @@ import io.github.seijikohara.femto.data.update.DEFAULT_AUTO_CHECK
 import io.github.seijikohara.femto.data.update.UpdateFailure
 import io.github.seijikohara.femto.data.update.UpdateSettings
 import io.github.seijikohara.femto.data.update.UpdateState
+import io.github.seijikohara.femto.data.update.discardableOrNull
 import io.github.seijikohara.femto.data.update.isResting
 import io.github.seijikohara.femto.data.update.offeredManifestOrNull
 import io.github.seijikohara.femto.data.update.offersUpdate
+import io.github.seijikohara.femto.data.update.skippableOrNull
+import io.github.seijikohara.femto.data.update.skipped
 import java.time.Instant
 
 /**
@@ -25,10 +28,14 @@ internal data class UpdatesUiState(
     /** The "Available version" row; null hides it, until a check has found something to say. */
     val availableVersion: AvailableVersion?,
     val step: UpdateStep?,
+    /** Whether the "Discard download" row shows: a verified download is staged and waits for no installer. */
+    val canDiscard: Boolean,
+    /** Whether the "Skip this version" row shows: a build is on offer, waits for no transfer or installer, and is not skipped. */
+    val canSkip: Boolean,
     val autoCheck: Boolean,
     /** The version this process was updated to, until the section acknowledges it; null otherwise. */
     val updatedTo: String?,
-    /** Whether an update waits (UpdateState.offersUpdate, the dock badge's rule); the category list's dot. */
+    /** Whether an update waits and is not skipped (UpdateState.offersUpdate, the dock badge's rule); the category list's dot. */
     val updateOffered: Boolean,
 ) {
     companion object {
@@ -38,6 +45,8 @@ internal data class UpdatesUiState(
                 canCheck = false,
                 availableVersion = null,
                 step = null,
+                canDiscard = false,
+                canSkip = false,
                 autoCheck = DEFAULT_AUTO_CHECK,
                 updatedTo = null,
                 updateOffered = false,
@@ -73,10 +82,15 @@ internal sealed interface UpdateStatus {
 
 /** The "Available version" row: the newer build on offer, or a check's finding that there is none. */
 internal sealed interface AvailableVersion {
-    /** [sizeBytes] is the download's size, shown before anything moves. */
+    /**
+     * [sizeBytes] is the download's size, shown before anything moves.
+     * [skipped] marks the build the user skipped: still named here, honestly,
+     * though it raises no dot and no prompt.
+     */
     data class Offered(
         val versionName: String,
         val sizeBytes: Long,
+        val skipped: Boolean = false,
     ) : AvailableVersion
 
     data object UpToDate : AvailableVersion
@@ -205,7 +219,9 @@ internal fun updatesUiState(
             },
         canCheck = state.isResting(),
         availableVersion =
-            state.offeredManifestOrNull()?.let { AvailableVersion.Offered(it.versionName, it.apk.size) }
+            state.offeredManifestOrNull()?.let {
+                AvailableVersion.Offered(it.versionName, it.apk.size, skipped = settings.skipped(it.versionCode))
+            }
                 ?: AvailableVersion.UpToDate.takeIf { state == UpdateState.UpToDate },
         step =
             when (state) {
@@ -255,8 +271,10 @@ internal fun updatesUiState(
                     null
                 }
             },
+        canDiscard = state.discardableOrNull() != null,
+        canSkip = state.skippableOrNull()?.let { !settings.skipped(it.versionCode) } == true,
         autoCheck = settings.autoCheck,
         updatedTo = updatedTo,
-        updateOffered = state.offersUpdate(),
+        updateOffered = state.offersUpdate(settings),
     )
 }

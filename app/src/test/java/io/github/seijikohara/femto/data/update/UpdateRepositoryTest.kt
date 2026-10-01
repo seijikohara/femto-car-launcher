@@ -787,7 +787,7 @@ class UpdateRepositoryTest {
             repository.install()
             runCurrent()
 
-            assertEquals(UpdateState.Failed(UpdateFailure.OTHER, newer), repository.state.value)
+            assertEquals(UpdateState.Failed(UpdateFailure.OTHER, newer, staged = true), repository.state.value)
             assertEquals(emptyList(), installer.committed)
             assertNull(store.current.pendingInstallVersionCode)
         }
@@ -801,7 +801,7 @@ class UpdateRepositoryTest {
             repository.install()
             runCurrent()
 
-            assertEquals(UpdateState.Failed(UpdateFailure.OTHER, newer), repository.state.value)
+            assertEquals(UpdateState.Failed(UpdateFailure.OTHER, newer, staged = true), repository.state.value)
             assertNull(store.current.pendingInstallVersionCode)
         }
 
@@ -814,7 +814,10 @@ class UpdateRepositoryTest {
             repository.onInstallFailed(SESSION, UpdateFailure.INSTALL_BLOCKED)
             runCurrent()
 
-            assertEquals(UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer), repository.state.value)
+            assertEquals(
+                UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer, staged = true),
+                repository.state.value,
+            )
             assertNull(store.current.pendingInstallVersionCode)
             assertTrue(file.exists())
         }
@@ -1116,7 +1119,10 @@ class UpdateRepositoryTest {
             repository.onConfirmationRequested(SESSION, FakeInstallConfirmation(starts = false))
             runCurrent()
 
-            assertEquals(UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer), repository.state.value)
+            assertEquals(
+                UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer, staged = true),
+                repository.state.value,
+            )
             assertEquals(listOf(SESSION), installer.abandoned)
             assertNull(store.current.pendingInstallVersionCode)
         }
@@ -1134,7 +1140,10 @@ class UpdateRepositoryTest {
             repository.install()
             runCurrent()
 
-            assertEquals(UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer), repository.state.value)
+            assertEquals(
+                UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer, staged = true),
+                repository.state.value,
+            )
             assertEquals(listOf(SESSION), installer.abandoned)
         }
 
@@ -1398,7 +1407,10 @@ class UpdateRepositoryTest {
             val repository = installingRepository()
             repository.onConfirmationRequested(SESSION, FakeInstallConfirmation(starts = false))
             runCurrent()
-            assertEquals(UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer), repository.state.value)
+            assertEquals(
+                UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer, staged = true),
+                repository.state.value,
+            )
 
             val restarted = startedRepository()
 
@@ -1459,6 +1471,145 @@ class UpdateRepositoryTest {
             runCurrent()
 
             assertNull(store.current.offer)
+        }
+
+    // --- discard and skip -----------------------------------------------------
+
+    @Test
+    fun `discard deletes the verified download and returns to the offer`() =
+        runTest {
+            val repository = readyRepository()
+
+            repository.discard()
+            runCurrent()
+
+            assertEquals(UpdateState.Available(newer), repository.state.value)
+            assertFalse(stagingDir.exists())
+            assertEquals(newer, store.current.offer)
+        }
+
+    @Test
+    fun `a discarded download is not restored at the next start`() =
+        runTest {
+            readyRepository().discard()
+            runCurrent()
+
+            val restarted = startedRepository()
+
+            assertEquals(UpdateState.Available(newer), restarted.state.value)
+        }
+
+    @Test
+    fun `discard deletes the download a refused install kept and clears the pending record`() =
+        runTest {
+            val repository = installingRepository()
+            repository.onInstallFailed(SESSION, UpdateFailure.INSTALL_BLOCKED)
+            runCurrent()
+
+            repository.discard()
+            runCurrent()
+
+            assertEquals(UpdateState.Available(newer), repository.state.value)
+            assertFalse(stagingDir.exists())
+            assertNull(store.current.pendingInstallVersionCode)
+        }
+
+    @Test
+    fun `discard leaves a download that is not staged alone`() =
+        runTest {
+            val repository = availableRepository()
+            feed.downloadFailure = UpdateFailure.NETWORK
+            repository.download()
+            runCurrent()
+            val failed = repository.state.value
+
+            repository.discard()
+            runCurrent()
+
+            assertEquals(failed, repository.state.value)
+        }
+
+    @Test
+    fun `skip records the offered build as skipped and keeps the offer`() =
+        runTest {
+            val repository = availableRepository()
+
+            repository.skip()
+            runCurrent()
+
+            assertEquals(NEWER, store.current.skippedVersionCode)
+            assertEquals(UpdateState.Available(newer), repository.state.value)
+        }
+
+    @Test
+    fun `skip also discards a verified download of the build`() =
+        runTest {
+            val repository = readyRepository()
+
+            repository.skip()
+            runCurrent()
+
+            assertEquals(NEWER, store.current.skippedVersionCode)
+            assertEquals(UpdateState.Available(newer), repository.state.value)
+            assertFalse(stagingDir.exists())
+        }
+
+    @Test
+    fun `skip does nothing without an offer`() =
+        runTest {
+            val repository = startedRepository()
+
+            repository.skip()
+            runCurrent()
+
+            assertNull(store.current.skippedVersionCode)
+        }
+
+    @Test
+    fun `a newer build clears the skip`() =
+        runTest {
+            val repository = availableRepository()
+            repository.skip()
+            runCurrent()
+            feed.latestResult = FeedResult.Found(fakeUpdateManifest(NEWER + 1))
+
+            repository.checkNow()
+            runCurrent()
+
+            assertNull(store.current.skippedVersionCode)
+        }
+
+    @Test
+    fun `a check that finds the skipped build again keeps the skip`() =
+        runTest {
+            val repository = availableRepository()
+            repository.skip()
+            runCurrent()
+
+            repository.checkNow()
+            runCurrent()
+
+            assertEquals(NEWER, store.current.skippedVersionCode)
+        }
+
+    @Test
+    fun `the running build reaching a skipped build clears the skip at start`() =
+        runTest {
+            store.setSkippedVersionCode(NEWER)
+
+            startedRepository(currentVersionCode = NEWER)
+
+            assertNull(store.current.skippedVersionCode)
+        }
+
+    @Test
+    fun `a skip of a build the running one has not reached survives a restart`() =
+        runTest {
+            store.setSkippedVersionCode(NEWER)
+
+            startedRepository()
+
+            assertEquals(NEWER, store.current.skippedVersionCode)
         }
 
     // --- helpers ------------------------------------------------------------

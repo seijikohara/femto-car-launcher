@@ -71,13 +71,13 @@ class UpdateFactsTest {
     @Test
     fun `the settings dump spells out empty bookkeeping`() {
         assertEquals(
-            listOf("true", "never", "none", "none", "none"),
+            listOf("true", "never", "none", "none", "none", "none"),
             updateSettingsFacts(UpdateSettings.Default).map { (it.value as FactValue.Text).value },
         )
     }
 
     @Test
-    fun `the settings dump shows a pending install, the last attempt, the offer and the prompted version`() {
+    fun `the settings dump shows every bookkeeping record`() {
         val settings =
             UpdateSettings(
                 autoCheck = false,
@@ -85,6 +85,7 @@ class UpdateFactsTest {
                 pendingInstallVersionCode = 26092501,
                 offer = manifest,
                 promptedVersionCode = 26092501,
+                skippedVersionCode = 26092502,
             )
         assertEquals(
             listOf(
@@ -93,6 +94,7 @@ class UpdateFactsTest {
                 "26092501",
                 "${manifest.versionName} (26092501)",
                 "26092501",
+                "26092502",
             ),
             updateSettingsFacts(settings).map { (it.value as FactValue.Text).value },
         )

@@ -13,6 +13,7 @@ import io.github.seijikohara.femto.data.location.currentOrUnknown
 import io.github.seijikohara.femto.data.system.SystemStatusRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -153,10 +154,14 @@ internal sealed interface UpdateState {
     /**
      * [manifest] is set when the failure concerns a known offer, which
      * [UpdateRepository.download] can retry; null means only a new check helps.
+     * [staged] says the offer's verified download is still staged (an install
+     * the platform refused keeps it), so a retry needs no transfer and
+     * [UpdateRepository.discard] can delete it.
      */
     data class Failed(
         val reason: UpdateFailure,
         val manifest: UpdateManifest?,
+        val staged: Boolean = false,
     ) : UpdateState
 }
 
@@ -249,6 +254,11 @@ internal class UpdateRepository internal constructor(
 
     // Serialises the pending-install record's writes; see syncPendingRecord.
     private val pendingRecordLock = Mutex()
+
+    // Held while a download is staged or a discarded one deleted, so a
+    // download tapped right after a discard never finds the file the
+    // discard is about to delete (see launchDroppingStaged).
+    private val stagingLock = Mutex()
 
     // Declared last: the reconciliation may start on another thread before the
     // constructor returns, and it reads every field above. Checks join it, so
@@ -359,8 +369,36 @@ internal class UpdateRepository internal constructor(
         }
 
         else -> {
-            settleInstall(sessionId) { UpdateState.Failed(reason, it) }
+            settleInstall(sessionId) { UpdateState.Failed(reason, it, staged = true) }
         }
+    }
+
+    /**
+     * Delete the verified download that waits for the user (see
+     * [discardableOrNull]) and return to the plain offer, which stays. Nothing
+     * of the download is restored at the next start, and the pending-install
+     * record goes with it. A download under way cannot be discarded.
+     */
+    fun discard() {
+        val discarded = claim { current -> current.discardableOrNull()?.let { UpdateState.Available(it) } } ?: return
+        launchDroppingStaged(discarded.to)
+    }
+
+    /**
+     * Skip the offered build (see [skippableOrNull]): record its versionCode
+     * as skipped, so it raises no dock dot and no dashboard prompt, and
+     * discard a verified download of it. The offer stays, so Settings can
+     * still install it on request.
+     */
+    fun skip() {
+        val offer = _state.value.skippableOrNull() ?: return
+        val discarded = claim { current ->
+            current.discardableOrNull()?.takeIf { it == offer }?.let(UpdateState::Available)
+        }
+        // In the updater's scope, not the screen's: a DataStore write the
+        // section cancels when it leaves records nothing.
+        scope.launch { store.setSkippedVersionCode(offer.versionCode) }
+        discarded?.let { launchDroppingStaged(it.to) }
     }
 
     /** The UI has shown [updatedTo]; stop reporting it. */
@@ -375,6 +413,8 @@ internal class UpdateRepository internal constructor(
         val settings = store.settings.first()
         val pending = settings.pendingInstallVersionCode
         val installed = pending != null && currentVersionCode >= pending
+        // A skip of a build this one has reached has nothing left to hold back.
+        if (settings.skippedVersionCode?.let { it <= currentVersionCode } == true) store.setSkippedVersionCode(null)
         if (installed) {
             // The state is not Installing, so the sync clears the record.
             syncPendingRecord()
@@ -537,7 +577,7 @@ internal class UpdateRepository internal constructor(
                 quiet -> if (from is UpdateState.Idle) UpdateState.Idle(attemptAt) else from
 
                 // A check that failed says nothing about an offer already known.
-                result is FeedResult.Unavailable -> UpdateState.Failed(result.reason, from.offerOrNull())
+                result is FeedResult.Unavailable -> from.failedCheck(result.reason)
 
                 // No information is not a failure: nothing to offer, nothing broke.
                 else -> UpdateState.Idle(attemptAt)
@@ -554,8 +594,20 @@ internal class UpdateRepository internal constructor(
     // (Downloading, Ready, Installing) leaves the record on the offer it acts
     // on. The one deletion elsewhere is at start: a record the running build
     // has caught up with, or that this build cannot use (restoreOffer).
+    //
+    // A newer offer also ends the skip of an older build: it may carry the
+    // fix the user waited for, so it is offered as any other.
     private suspend fun recordOffer(outcome: UpdateState) {
-        if (outcome.isResting()) store.setOffer(outcome.offerOrNull())
+        if (!outcome.isResting()) return
+        val offer = outcome.offerOrNull()
+        store.setOffer(offer)
+        if (offer != null && store.settings
+                .first()
+                .skippedVersionCode
+                ?.let { it < offer.versionCode } == true
+        ) {
+            store.setSkippedVersionCode(null)
+        }
     }
 
     // A quiet check behind a verified download replaces it only with a strictly
@@ -611,20 +663,21 @@ internal class UpdateRepository internal constructor(
         }
     }
 
-    private suspend fun fetchVerified(manifest: UpdateManifest): UpdateState {
-        // A copy already staged for this very manifest — kept after a refused
-        // install — needs no second transfer; the hand-off checks its hash.
-        if (withContext(ioDispatcher) { isStaged(manifest) }) return UpdateState.Ready(manifest, stagedApk)
-        withContext(ioDispatcher) { clearStaged() }
-        val result =
-            feed.download(manifest.apk.url, stagedApk, manifest.apk.size) { fraction ->
-                reportProgress(manifest, fraction)
+    private suspend fun fetchVerified(manifest: UpdateManifest): UpdateState =
+        stagingLock.withLock {
+            // A copy already staged for this very manifest — kept after a refused
+            // install — needs no second transfer; the hand-off checks its hash.
+            if (withContext(ioDispatcher) { isStaged(manifest) }) return@withLock UpdateState.Ready(manifest, stagedApk)
+            withContext(ioDispatcher) { clearStaged() }
+            val result =
+                feed.download(manifest.apk.url, stagedApk, manifest.apk.size) { fraction ->
+                    reportProgress(manifest, fraction)
+                }
+            when (result) {
+                DownloadResult.Saved -> withContext(ioDispatcher) { verifyStaged(manifest) }
+                is DownloadResult.Failed -> UpdateState.Failed(result.reason, manifest)
             }
-        return when (result) {
-            DownloadResult.Saved -> withContext(ioDispatcher) { verifyStaged(manifest) }
-            is DownloadResult.Failed -> UpdateState.Failed(result.reason, manifest)
         }
-    }
 
     // The integrity gate, failing closed: only a file whose size and SHA-256
     // both equal the manifest's becomes Ready. A mismatch drops the offer too,
@@ -674,8 +727,12 @@ internal class UpdateRepository internal constructor(
         val committed =
             attempt?.sessionId?.let { id -> platformCall("committing session $id") { installer.commit(id) } } == true
         if (!committed) {
+            // The verified file stays staged, so a retry needs no transfer.
             claim { current ->
-                UpdateState.Failed(UpdateFailure.OTHER, manifest).takeIf { current == (attempt ?: installing) }
+                UpdateState.Failed(UpdateFailure.OTHER, manifest, staged = true).takeIf {
+                    current ==
+                        (attempt ?: installing)
+                }
             }
             syncPendingRecord()
         }
@@ -775,7 +832,7 @@ internal class UpdateRepository internal constructor(
     ) {
         if (confirmation.show()) return
         settleInstall(sessionId, cleanUp = { abandon(sessionId) }) {
-            UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, it)
+            UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, it, staged = true)
         }
     }
 
@@ -802,6 +859,18 @@ internal class UpdateRepository internal constructor(
             syncPendingRecord()
         }
     }
+
+    // Deletes the staged download after a discard published [offer], then
+    // brings the offer and pending records in line with it. Started
+    // undispatched, so the staging lock is taken before the caller returns: a
+    // download tapped on the offer right after waits for the deletion instead
+    // of finding the file about to go.
+    private fun launchDroppingStaged(offer: UpdateState.Available) =
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            stagingLock.withLock { withContext(ioDispatcher) { clearStaged() } }
+            recordOffer(offer)
+            syncPendingRecord()
+        }
 
     // The pending-install record follows the state: set while an install is in
     // the platform's hands, cleared once the attempt is over. Each write reads
@@ -968,12 +1037,50 @@ internal fun UpdateState.offeredManifestOrNull(): UpdateManifest? =
         UpdateState.Disabled, is UpdateState.Idle, UpdateState.Checking, UpdateState.UpToDate -> null
     }
 
-/** Whether this state names a newer build that is not installed yet ([offeredManifestOrNull]). */
-internal fun UpdateState.offersUpdate(): Boolean = offeredManifestOrNull() != null
+/**
+ * The build whose verified download is staged and waits for the user: one
+ * ready to install, or one an install failure kept. Null otherwise, a
+ * download under way and one in the installer's hands included. What
+ * [UpdateRepository.discard] deletes, and when Settings offers to.
+ */
+internal fun UpdateState.discardableOrNull(): UpdateManifest? =
+    when (this) {
+        is UpdateState.Ready -> manifest
+        is UpdateState.Failed -> manifest?.takeIf { staged }
+        else -> null
+    }
+
+/**
+ * The offered build waiting for the user's next step: available, verified, or
+ * failed while still known. Null otherwise: a download under way, or an
+ * install in the installer's hands, has a step of its own to finish first.
+ * What [UpdateRepository.skip] skips, and when Settings offers to.
+ */
+internal fun UpdateState.skippableOrNull(): UpdateManifest? =
+    when (this) {
+        is UpdateState.Available -> manifest
+        is UpdateState.Ready -> manifest
+        is UpdateState.Failed -> manifest
+        else -> null
+    }
+
+/**
+ * Whether this state names a newer build that is not installed yet
+ * ([offeredManifestOrNull]) and that the user has not skipped
+ * ([UpdateSettings.skipped]): the dock's dot and the Updates entry's dot in the
+ * Settings category list.
+ */
+internal fun UpdateState.offersUpdate(settings: UpdateSettings): Boolean =
+    offeredManifestOrNull()?.let { !settings.skipped(it.versionCode) } == true
 
 // The install attempt this state is, if it is the one on [sessionId].
 private fun UpdateState.installingOrNull(sessionId: Int): UpdateState.Installing? =
     (this as? UpdateState.Installing)?.takeIf { it.sessionId == sessionId }
+
+// A failed check from this state: the offer it knew stays, and so does the
+// download a refused install kept for it.
+private fun UpdateState.failedCheck(reason: UpdateFailure): UpdateState.Failed =
+    UpdateState.Failed(reason, offerOrNull(), staged = (this as? UpdateState.Failed)?.staged == true)
 
 // The offer a state carries: an available build, or one a failure still names.
 private fun UpdateState.offerOrNull(): UpdateManifest? =

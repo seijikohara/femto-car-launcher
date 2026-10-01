@@ -17,12 +17,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.LifecycleStartEffect
+import com.composables.icons.lucide.BellOff
 import com.composables.icons.lucide.CircleCheck
 import com.composables.icons.lucide.Download
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.PackageCheck
 import com.composables.icons.lucide.RefreshCw
 import com.composables.icons.lucide.RotateCw
+import com.composables.icons.lucide.Trash2
 import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.update.UpdateChannel
@@ -44,8 +46,9 @@ import java.time.Instant
 import kotlin.math.roundToInt
 
 // The Updates category's rows: the running build, the build on offer, the
-// check, the one step the updater offers next, the daily check, and the
-// release page as the manual path. See AppearanceSection's header comment on
+// check, the one step the updater offers next, discarding a staged download
+// and skipping the offered build, the daily check, and the release page as
+// the manual path. See AppearanceSection's header comment on
 // why there is no title / reset wiring here. Opening the section starts
 // nothing by itself (the dashboard prompt's "Update" starts the one-tap update
 // through SettingsRoute). Each step starts with a tap, except the one-tap
@@ -89,6 +92,23 @@ internal fun UpdatesSection(
         onCheck = { onAction(SettingsAction.CheckForUpdates) },
     )
     updates.step?.let { step -> UpdateStepRow(step = step, onAction = onAction) }
+    if (updates.canDiscard) {
+        ActionRow(
+            title = stringResource(R.string.settings_updates_discard),
+            onClick = { onAction(SettingsAction.DiscardUpdate) },
+            summary = stringResource(R.string.settings_updates_discard_desc),
+            icon = Lucide.Trash2,
+        )
+    }
+    // The offer always names its build, so the row reads it from there.
+    (updates.availableVersion as? AvailableVersion.Offered)?.takeIf { updates.canSkip }?.let { offered ->
+        ActionRow(
+            title = stringResource(R.string.settings_updates_skip),
+            onClick = { onAction(SettingsAction.SkipUpdate) },
+            summary = stringResource(R.string.settings_updates_skip_desc, offered.versionName),
+            icon = Lucide.BellOff,
+        )
+    }
     // A build that never checks has no daily check to switch.
     if (updates.status != UpdateStatus.Disabled) {
         SwitchRow(
@@ -136,7 +156,11 @@ private fun AvailableVersionRow(
         when (available) {
             is AvailableVersion.Offered -> {
                 stringResource(
-                    R.string.settings_updates_available_summary,
+                    if (available.skipped) {
+                        R.string.settings_updates_available_summary_skipped
+                    } else {
+                        R.string.settings_updates_available_summary
+                    },
                     available.versionName,
                     fileSize(available.sizeBytes),
                 )
@@ -386,9 +410,30 @@ private fun UpdatesSectionAvailablePreview() =
             canCheck = true,
             availableVersion = PreviewOffer,
             step = UpdateStep.Download(PREVIEW_VERSION, PREVIEW_APK_BYTES, grantDeclined = false, downloadOnly = false),
+            canDiscard = false,
+            canSkip = true,
             autoCheck = true,
             updatedTo = null,
             updateOffered = true,
+        ),
+    )
+
+// A skipped build: still named, and marked so; the update stays a deliberate
+// choice, and the skip row is gone.
+@PreviewLightDark
+@Composable
+private fun UpdatesSectionSkippedPreview() =
+    UpdatesSectionPreviewHost(
+        UpdatesUiState(
+            status = UpdateStatus.Checked(PreviewAttempt),
+            canCheck = true,
+            availableVersion = PreviewOffer.copy(skipped = true),
+            step = UpdateStep.Download(PREVIEW_VERSION, PREVIEW_APK_BYTES, grantDeclined = false, downloadOnly = false),
+            canDiscard = false,
+            canSkip = false,
+            autoCheck = true,
+            updatedTo = null,
+            updateOffered = false,
         ),
     )
 
@@ -402,6 +447,8 @@ private fun UpdatesSectionUpToDatePreview() =
             canCheck = true,
             availableVersion = AvailableVersion.UpToDate,
             step = null,
+            canDiscard = false,
+            canSkip = false,
             autoCheck = true,
             updatedTo = null,
             updateOffered = false,
@@ -418,6 +465,8 @@ private fun UpdatesSectionDownloadingPreview() =
             canCheck = false,
             availableVersion = PreviewOffer,
             step = UpdateStep.Downloading(PREVIEW_VERSION, fraction = 0.42f),
+            canDiscard = false,
+            canSkip = false,
             autoCheck = true,
             updatedTo = null,
             updateOffered = true,
@@ -435,6 +484,8 @@ private fun UpdatesSectionReadyWhileMovingPreview() =
             canCheck = false,
             availableVersion = PreviewOffer,
             step = UpdateStep.Install(PREVIEW_VERSION, blockedWhileMoving = true, grantDeclined = false),
+            canDiscard = true,
+            canSkip = true,
             autoCheck = true,
             updatedTo = "2026.09.24-1",
             updateOffered = true,
@@ -452,6 +503,8 @@ private fun UpdatesSectionGrantDeclinedPreview() =
             canCheck = false,
             availableVersion = PreviewOffer,
             step = UpdateStep.Install(PREVIEW_VERSION, blockedWhileMoving = false, grantDeclined = true),
+            canDiscard = true,
+            canSkip = true,
             autoCheck = true,
             updatedTo = null,
             updateOffered = true,
@@ -469,6 +522,8 @@ private fun UpdatesSectionFailedPreview() =
             canCheck = true,
             availableVersion = PreviewOffer,
             step = UpdateStep.Retry(PREVIEW_VERSION, PREVIEW_APK_BYTES),
+            canDiscard = false,
+            canSkip = true,
             autoCheck = false,
             updatedTo = null,
             updateOffered = true,
