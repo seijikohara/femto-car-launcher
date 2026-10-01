@@ -71,7 +71,7 @@ class UpdateFactsTest {
     @Test
     fun `the settings dump spells out empty bookkeeping`() {
         assertEquals(
-            listOf("true", "never", "none", "none", "none", "none"),
+            listOf("true", "never", "none", "none", "none", "none", "none"),
             updateSettingsFacts(UpdateSettings.Default).map { (it.value as FactValue.Text).value },
         )
     }
@@ -86,6 +86,7 @@ class UpdateFactsTest {
                 offer = manifest,
                 promptedVersionCode = 26092501,
                 skippedVersionCode = 26092502,
+                refusedVersionCode = 26092503,
             )
         assertEquals(
             listOf(
@@ -95,6 +96,7 @@ class UpdateFactsTest {
                 "${manifest.versionName} (26092501)",
                 "26092501",
                 "26092502",
+                "26092503",
             ),
             updateSettingsFacts(settings).map { (it.value as FactValue.Text).value },
         )

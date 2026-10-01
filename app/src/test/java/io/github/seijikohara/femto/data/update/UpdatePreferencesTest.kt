@@ -41,8 +41,12 @@ class UpdatePreferencesTest {
             store.setOffer(OFFER)
             store.recordPrompted(PROMPTED)
             store.setSkippedVersionCode(SKIPPED)
+            store.setRefusedVersionCode(REFUSED)
 
-            assertEquals(UpdateSettings(false, ATTEMPT_AT, PENDING, OFFER, PROMPTED, SKIPPED), store.settings.first())
+            assertEquals(
+                UpdateSettings(false, ATTEMPT_AT, PENDING, OFFER, PROMPTED, SKIPPED, REFUSED),
+                store.settings.first(),
+            )
         }
 
     @Test
@@ -112,11 +116,12 @@ class UpdatePreferencesTest {
             store.setOffer(OFFER)
             store.recordPrompted(PROMPTED)
             store.setSkippedVersionCode(SKIPPED)
+            store.setRefusedVersionCode(REFUSED)
 
             store.resetToDefaults()
 
             assertEquals(
-                UpdateSettings(DEFAULT_AUTO_CHECK, ATTEMPT_AT, PENDING, OFFER, PROMPTED, SKIPPED),
+                UpdateSettings(DEFAULT_AUTO_CHECK, ATTEMPT_AT, PENDING, OFFER, PROMPTED, SKIPPED, REFUSED),
                 store.settings.first(),
             )
         }
@@ -168,6 +173,7 @@ class UpdatePreferencesTest {
         const val PENDING = 26092402
         const val PROMPTED = 26092501
         const val SKIPPED = 26092601
+        const val REFUSED = 26092701
         val OFFER = fakeUpdateManifest(PENDING)
     }
 }

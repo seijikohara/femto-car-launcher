@@ -247,6 +247,12 @@ internal class UpdateRepository internal constructor(
     @Volatile
     private var recheckAtOnce = false
 
+    // The persisted refusal (UpdateSettings.refusedVersionCode), read at
+    // start and set on a conflict, so the checks that decide what is newer
+    // read it without a store read each.
+    @Volatile
+    private var refusedVersionCode: Int? = null
+
     // The confirmation that last went on screen; see CONFIRMATION_RESHOW_GUARD_MS.
     // Compared and set as one step (see present), so two callers racing to
     // show one confirmation put up one dialog.
@@ -356,16 +362,17 @@ internal class UpdateRepository internal constructor(
      * staged file stays, so a retry once the cause is gone needs no second
      * download. [UpdateFailure.INSTALL_CONFLICT] is the exception: an APK
      * signed with another key never installs over this one, so the file and
-     * its offer are deleted, the persisted one included. Neither a retry nor
-     * the next start offers that APK again; only a new check can offer a
-     * newer build.
+     * its offer are deleted, the persisted one included, and its versionCode
+     * is recorded as refused. Neither a retry, the next start nor a later
+     * check offers that build, or an older one, again; only a newer build is
+     * offered.
      */
     override fun onInstallFailed(
         sessionId: Int,
         reason: UpdateFailure,
     ) = when (reason) {
         UpdateFailure.INSTALL_CONFLICT -> {
-            settleInstall(sessionId, cleanUp = { clearStaged() }) { UpdateState.Failed(reason, manifest = null) }
+            settleInstall(sessionId, cleanUp = ::refuse) { UpdateState.Failed(reason, manifest = null) }
         }
 
         else -> {
@@ -413,8 +420,11 @@ internal class UpdateRepository internal constructor(
         val settings = store.settings.first()
         val pending = settings.pendingInstallVersionCode
         val installed = pending != null && currentVersionCode >= pending
-        // A skip of a build this one has reached has nothing left to hold back.
+        // A skip or a refusal of a build this one has reached has nothing left
+        // to hold back.
         if (settings.skippedVersionCode?.let { it <= currentVersionCode } == true) store.setSkippedVersionCode(null)
+        refusedVersionCode = settings.refusedVersionCode?.takeIf { it > currentVersionCode }
+        if (settings.refusedVersionCode != null && refusedVersionCode == null) store.setRefusedVersionCode(null)
         if (installed) {
             // The state is not Installing, so the sync clears the record.
             syncPendingRecord()
@@ -474,10 +484,13 @@ internal class UpdateRepository internal constructor(
         }
 
     // Whether this build may offer [this]: usable for its channel, and newer
-    // than the running build. A staged manifest and a persisted offer both pass
+    // (isNewer). A staged manifest and a persisted offer both pass
     // through it at start.
-    private fun UpdateManifest.isOffer(): Boolean =
-        isUsableFor(this@UpdateRepository.channel, feedBase) && versionCode > currentVersionCode
+    private fun UpdateManifest.isOffer(): Boolean = isUsableFor(this@UpdateRepository.channel, feedBase) && isNewer()
+
+    // Newer than the running build, and than a build refused as signed with
+    // another key: that build, or an older one, would only be refused again.
+    private fun UpdateManifest.isNewer(): Boolean = versionCode > maxOf(currentVersionCode, refusedVersionCode ?: 0)
 
     // The one place a state is claimed. [next] maps the current state to the
     // claim's successor, or to null where the action does not apply; the
@@ -567,7 +580,7 @@ internal class UpdateRepository internal constructor(
     ): UpdateState =
         usableManifestOrNull(result).let { manifest ->
             when {
-                manifest != null && manifest.versionCode > currentVersionCode -> UpdateState.Available(manifest)
+                manifest != null && manifest.isNewer() -> UpdateState.Available(manifest)
 
                 manifest != null -> UpdateState.UpToDate
 
@@ -648,7 +661,7 @@ internal class UpdateRepository internal constructor(
                 fetchVerified(offered)
             }
 
-            found.versionCode <= currentVersionCode -> {
+            !found.isNewer() -> {
                 UpdateState.UpToDate
             }
 
@@ -849,12 +862,13 @@ internal class UpdateRepository internal constructor(
     // receiver calls on the main thread).
     private fun settleInstall(
         sessionId: Int,
-        cleanUp: suspend () -> Unit = {},
+        cleanUp: suspend (UpdateManifest) -> Unit = {},
         next: (UpdateManifest) -> UpdateState,
     ) {
         val settled = claim { current -> current.installingOrNull(sessionId)?.let { next(it.manifest) } } ?: return
+        val manifest = (settled.from as UpdateState.Installing).manifest
         scope.launch {
-            withContext(ioDispatcher) { cleanUp() }
+            withContext(ioDispatcher) { cleanUp(manifest) }
             recordOffer(settled.to)
             syncPendingRecord()
         }
@@ -871,6 +885,15 @@ internal class UpdateRepository internal constructor(
             recordOffer(offer)
             syncPendingRecord()
         }
+
+    // A build signed with another key: its file goes, and its versionCode is
+    // recorded, in memory first, so a check that starts meanwhile already
+    // passes it over.
+    private suspend fun refuse(manifest: UpdateManifest) {
+        refusedVersionCode = maxOf(manifest.versionCode, refusedVersionCode ?: 0)
+        clearStaged()
+        store.setRefusedVersionCode(refusedVersionCode)
+    }
 
     // The pending-install record follows the state: set while an install is in
     // the platform's hands, cleared once the attempt is over. Each write reads

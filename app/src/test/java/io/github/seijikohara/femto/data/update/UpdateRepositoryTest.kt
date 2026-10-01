@@ -1612,6 +1612,89 @@ class UpdateRepositoryTest {
             assertEquals(NEWER, store.current.skippedVersionCode)
         }
 
+    @Test
+    fun `a signature conflict records the refused build`() =
+        runTest {
+            installingRepository().onInstallFailed(SESSION, UpdateFailure.INSTALL_CONFLICT)
+            runCurrent()
+
+            assertEquals(NEWER, store.current.refusedVersionCode)
+        }
+
+    @Test
+    fun `a check after a signature conflict does not offer the refused build again`() =
+        runTest {
+            val repository = installingRepository()
+            repository.onInstallFailed(SESSION, UpdateFailure.INSTALL_CONFLICT)
+            runCurrent()
+
+            repository.checkNow()
+            runCurrent()
+
+            assertEquals(UpdateState.UpToDate, repository.state.value)
+        }
+
+    @Test
+    fun `a refused build is not offered again after a restart`() =
+        runTest {
+            installingRepository().onInstallFailed(SESSION, UpdateFailure.INSTALL_CONFLICT)
+            runCurrent()
+            val restarted = startedRepository()
+
+            restarted.checkNow()
+            runCurrent()
+
+            assertEquals(UpdateState.UpToDate, restarted.state.value)
+        }
+
+    @Test
+    fun `a build older than the refused one is not offered either`() =
+        runTest {
+            store.setRefusedVersionCode(NEWER + 1)
+            feed.latestResult = FeedResult.Found(newer)
+            val repository = startedRepository()
+
+            repository.checkNow()
+            runCurrent()
+
+            assertEquals(UpdateState.UpToDate, repository.state.value)
+        }
+
+    @Test
+    fun `a build newer than the refused one is offered`() =
+        runTest {
+            store.setRefusedVersionCode(NEWER)
+            val newest = fakeUpdateManifest(NEWER + 1)
+            feed.latestResult = FeedResult.Found(newest)
+            val repository = startedRepository()
+
+            repository.checkNow()
+            runCurrent()
+
+            assertEquals(UpdateState.Available(newest), repository.state.value)
+        }
+
+    @Test
+    fun `a persisted offer of the refused build is dropped at start`() =
+        runTest {
+            store.setRefusedVersionCode(NEWER)
+            store.setOffer(newer)
+
+            val restarted = startedRepository()
+
+            assertEquals(UpdateState.Idle(lastAttemptAt = null), restarted.state.value)
+        }
+
+    @Test
+    fun `the running build reaching the refused one clears the record at start`() =
+        runTest {
+            store.setRefusedVersionCode(NEWER)
+
+            startedRepository(currentVersionCode = NEWER)
+
+            assertNull(store.current.refusedVersionCode)
+        }
+
     // --- helpers ------------------------------------------------------------
 
     private fun TestScope.repository(
