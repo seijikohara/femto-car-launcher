@@ -64,5 +64,16 @@ internal class FakeUpdateSettingsStore(
         state.update { it.copy(promptedVersionCode = maxOf(versionCode, it.promptedVersionCode ?: versionCode)) }
     }
 
+    override suspend fun setSkippedVersionCode(versionCode: Int?) =
+        state.update { it.copy(skippedVersionCode = versionCode) }
+
+    override suspend fun clearSkipBelow(versionCode: Int) =
+        state.update { settings ->
+            settings.copy(skippedVersionCode = settings.skippedVersionCode?.takeUnless { it < versionCode })
+        }
+
+    override suspend fun setRefusedVersionCode(versionCode: Int?) =
+        state.update { it.copy(refusedVersionCode = versionCode) }
+
     override suspend fun resetToDefaults() = state.update { it.copy(autoCheck = UpdateSettings.Default.autoCheck) }
 }

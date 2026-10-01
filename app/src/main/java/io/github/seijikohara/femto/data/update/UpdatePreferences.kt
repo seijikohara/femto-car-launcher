@@ -28,10 +28,11 @@ internal const val DEFAULT_AUTO_CHECK = true
  * What the updater persists: the user's auto-check choice, plus bookkeeping
  * that must outlive the process — the last check attempt, failed ones
  * included (the daily gate, and the UI's "last attempt"), the versionCode of
- * an install handed to the platform, the [offer] the last check found, and
- * the newest build the update prompt has asked about. A successful install
- * kills this process, so only the next start can reconcile the pending
- * install against the running version.
+ * an install handed to the platform, the [offer] the last check found, the
+ * newest build the update prompt has asked about, the build the user
+ * skipped, and a build refused as signed with another key. A successful
+ * install kills this process, so only the next start can reconcile the
+ * pending install against the running version.
  */
 internal data class UpdateSettings(
     val autoCheck: Boolean,
@@ -54,6 +55,22 @@ internal data class UpdateSettings(
      * already seen.
      */
     val promptedVersionCode: Int?,
+    /**
+     * The versionCode of the build the user chose to skip, or null. That build
+     * raises no dock dot and no dashboard prompt, while Settings still names it
+     * and still installs it on request. A newer build is offered as usual,
+     * because it may carry the fix the user waited for: the updater clears the
+     * record once it offers a newer build or the running build reaches it.
+     */
+    val skippedVersionCode: Int?,
+    /**
+     * The versionCode of a build the platform refused as signed with another
+     * key, or null. Such a build never installs over this one, so later checks
+     * offer only builds newer than it. Cleared once the running build reaches
+     * it. CI signs every build with one key, so this guards a future key
+     * change.
+     */
+    val refusedVersionCode: Int?,
 ) {
     companion object {
         val Default =
@@ -63,6 +80,8 @@ internal data class UpdateSettings(
                 pendingInstallVersionCode = null,
                 offer = null,
                 promptedVersionCode = null,
+                skippedVersionCode = null,
+                refusedVersionCode = null,
             )
     }
 }
@@ -75,6 +94,13 @@ internal data class UpdateSettings(
  */
 internal fun UpdateSettings.promptedFor(versionCode: Int): Boolean =
     promptedVersionCode?.let { it >= versionCode } == true
+
+/**
+ * Whether the user skipped the build [versionCode] (see
+ * [UpdateSettings.skippedVersionCode]). Only that very build: a newer one is
+ * not skipped.
+ */
+internal fun UpdateSettings.skipped(versionCode: Int): Boolean = skippedVersionCode == versionCode
 
 /**
  * Read/write surface for [UpdateSettings]. [UpdatePreferences] is the
@@ -101,6 +127,18 @@ internal interface UpdateSettingsStore {
      */
     suspend fun recordPrompted(versionCode: Int)
 
+    /** Record the versionCode of the build the user skipped; null clears the record. */
+    suspend fun setSkippedVersionCode(versionCode: Int?)
+
+    /**
+     * Clear a skip of a build older than [versionCode]; a skip of that build
+     * or a newer one stays.
+     */
+    suspend fun clearSkipBelow(versionCode: Int)
+
+    /** Record the versionCode of a build refused as signed with another key; null clears the record. */
+    suspend fun setRefusedVersionCode(versionCode: Int?)
+
     /** Restore the auto-check setting to its default; the bookkeeping is not a setting and stays. */
     suspend fun resetToDefaults()
 }
@@ -123,6 +161,8 @@ internal class UpdatePreferences(
                     pendingInstallVersionCode = prefs[PENDING_INSTALL_KEY],
                     offer = prefs[OFFER_KEY]?.let(::storedOfferOrNull),
                     promptedVersionCode = prefs[PROMPTED_KEY],
+                    skippedVersionCode = prefs[SKIPPED_KEY],
+                    refusedVersionCode = prefs[REFUSED_KEY],
                 )
             }
 
@@ -150,6 +190,22 @@ internal class UpdatePreferences(
         }
     }
 
+    override suspend fun setSkippedVersionCode(versionCode: Int?) {
+        context.updateDataStore.editOrLog(TAG) { it.setOrRemove(SKIPPED_KEY, versionCode) }
+    }
+
+    // Read and written in one edit, so a skip of the newer build recorded
+    // meanwhile is never cleared by a read that predates it.
+    override suspend fun clearSkipBelow(versionCode: Int) {
+        context.updateDataStore.editOrLog(TAG) { prefs ->
+            if (prefs[SKIPPED_KEY]?.let { it < versionCode } == true) prefs.remove(SKIPPED_KEY)
+        }
+    }
+
+    override suspend fun setRefusedVersionCode(versionCode: Int?) {
+        context.updateDataStore.editOrLog(TAG) { it.setOrRemove(REFUSED_KEY, versionCode) }
+    }
+
     // Only the setting's key: clearing the file would also drop a pending-install
     // record, and the successor of that install would then never announce itself.
     override suspend fun resetToDefaults() {
@@ -162,6 +218,8 @@ internal class UpdatePreferences(
         val PENDING_INSTALL_KEY = intPreferencesKey("update_pending_install_version_code")
         val OFFER_KEY = stringPreferencesKey("update_offer")
         val PROMPTED_KEY = intPreferencesKey("update_prompted_version_code")
+        val SKIPPED_KEY = intPreferencesKey("update_skipped_version_code")
+        val REFUSED_KEY = intPreferencesKey("update_refused_version_code")
     }
 }
 
