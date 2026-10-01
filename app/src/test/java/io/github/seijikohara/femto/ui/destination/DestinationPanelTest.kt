@@ -1,6 +1,9 @@
 package io.github.seijikohara.femto.ui.destination
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -172,5 +175,42 @@ class DestinationPanelTest {
         setPanel(stationary = false)
         rule.onNodeWithContentDescription("Open maps app").performClick()
         assertEquals(1, mapsOpens)
+    }
+
+    @Test
+    fun closing_the_panel_stops_the_recognizer() {
+        var shown by mutableStateOf(true)
+        rule.setContent {
+            FemtoTheme {
+                if (shown) {
+                    DestinationPanel(
+                        uiState =
+                            DestinationUiState(
+                                query = "",
+                                voice = VoiceState.Listening(partial = "Cen"),
+                                places = emptyList(),
+                                motion = VehicleMotion.MOVING,
+                            ),
+                        currentPoint = null,
+                        currentAddress = "",
+                        onAction = { actions += it },
+                        onMicTap = {},
+                        onNavigate = { _, _ -> },
+                        onOpenMaps = {},
+                        onClose = {},
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+        }
+        rule.waitForIdle()
+        assertEquals(emptyList(), actions)
+
+        shown = false
+        rule.waitForIdle()
+
+        // A mic left listening behind a closed panel would keep the microphone
+        // open with nothing on screen to show it.
+        assertEquals(listOf<DestinationAction>(DestinationAction.StopListening), actions)
     }
 }

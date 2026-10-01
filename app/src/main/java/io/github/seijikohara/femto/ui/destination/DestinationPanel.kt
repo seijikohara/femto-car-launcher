@@ -27,7 +27,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -104,6 +106,12 @@ internal fun DestinationPanel(
     hazeState = hazeState,
     glassConfig = glassConfig,
 ) {
+    // Closing the panel (or the panel leaving composition any other way) stops
+    // a mic still listening: nothing on screen would show the microphone open.
+    val currentOnAction by rememberUpdatedState(onAction)
+    DisposableEffect(Unit) {
+        onDispose { currentOnAction(DestinationAction.StopListening) }
+    }
     // Read off the BoxWithConstraints receiver here: inside the layouts below
     // the outer receiver is out of reach (see CalendarPanel).
     val portrait = maxHeight > maxWidth
