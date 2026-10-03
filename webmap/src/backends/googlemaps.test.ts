@@ -724,6 +724,38 @@ describe("the Google Maps page", () => {
         expect(reporter.report).not.toHaveBeenCalledWith("follow", false);
     });
 
+    it("keeps the ground moving when the lens arrives in the middle of a fix's glide", async () => {
+        // The first fix snaps; no frame has rendered, so the lens is not
+        // measured yet. The next fix arrives a second later and glides over
+        // that second; its first frame measures the lens. The lens must
+        // blend in over the rest of that glide, not finish the fix's move in
+        // a quarter second and leave the map standing until the next fix.
+        const page = await boot("VECTOR", "VECTOR");
+        push(page.win, FIX, 90);
+        vi.advanceTimersByTime(1_000);
+        const next = aheadOf(FIX, 90, 40);
+        push(page.win, next, 90);
+        const moved = Array.from({ length: 61 }, () => {
+            const was = { ...page.map.center };
+            page.advance(16);
+            const worldPx = 256 * 2 ** page.map.zoom;
+            const east = (page.map.center.lng - was.lng) * (worldPx / 360);
+            const north =
+                (fake.FakeMap.mercatorNorth(page.map.center.lat) -
+                    fake.FakeMap.mercatorNorth(was.lat)) *
+                worldPx;
+            return Math.hypot(east, north);
+        });
+        // The road alone moves the camera 40 px over the second (0.64 px a
+        // frame); no frame before the next fix may stand still.
+        expect(Math.min(...moved.slice(1))).toBeGreaterThan(0.2);
+        // The fix's glide, and the lens's blend with it, land at the second.
+        page.advance(32);
+        const at = screenOf(page.map, next);
+        expect(Math.hypot(at.x + MX * W, at.y - DROP * H)).toBeLessThan(1e-6);
+        expect(leanPx(page.map, next, 90)).toBeLessThan(1e-6);
+    });
+
     it.each([
         [1400, 360],
         [700, 600],

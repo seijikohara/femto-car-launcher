@@ -63,6 +63,7 @@ import {
     isPaddingOnlyReflow,
     isRealPosition,
     LAYOUT_REFLOW_MS,
+    linearEase,
     LOCATION_STALE_THRESHOLD_MS,
     markerTransitionStep,
     normalizeBearing,
@@ -836,20 +837,29 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         if (state.following) glideLens();
     }
 
-    // Glide the camera's lens correction to the newest generation with the
-    // reflow motion — the heading turns by the change in yaw and the anchor
-    // moves under the chevron frame by frame, as MapLibre glides a padding
-    // change. Only the map moves: the chevron keeps its spot, so its CSS
-    // transition and left/top stay untouched; a chevron glide already in
-    // flight sets the time instead, so the offset still lands with it. A fix
-    // that arrives meanwhile glides the rest of the way with its own motion,
-    // since every placement targets the newest generation.
+    // Glide the camera's lens correction to the newest lens with the reflow
+    // motion — the heading turns by the change in yaw and the anchor moves
+    // under the chevron frame by frame, as MapLibre glides a padding change.
+    // Only the map moves: the chevron keeps its spot, so its CSS transition
+    // and left/top stay untouched. A chevron glide already in flight sets the
+    // time instead, so the offset still lands with it, and a longer fix's
+    // glide in flight keeps its own time. A fix that arrives meanwhile glides
+    // the rest of the way with its own motion, since every placement targets
+    // the newest lens.
     function glideLens(): void {
         const fix = state.lastFix;
         if (!fix) return;
+        const lensMotion = reflowMotionWithin(markerTransition.remainingMs());
+        // A fix's glide still in flight sets a longer time: retargeting it to
+        // the same fix in the reflow's time would finish the fix's move early
+        // and leave the map standing until the next fix. Its cadence glide
+        // is linear, so the rest of it stays linear too.
+        const inFlightMs = glide.remainingMs();
         glide.to(
             followPose(fix, orientationFor(fix.heading).mapBearing, state.spot),
-            reflowMotionWithin(markerTransition.remainingMs()),
+            inFlightMs > lensMotion.durationMs
+                ? { durationMs: inFlightMs, easing: linearEase }
+                : lensMotion,
         );
     }
 

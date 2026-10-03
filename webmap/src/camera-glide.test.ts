@@ -329,6 +329,23 @@ describe("createCameraGlide", () => {
         expect(h.applied[1]?.zoom).toBe(13);
     });
 
+    it("reports the time the glide in flight has left, and 0 when none is", () => {
+        const h = harness();
+        expect(h.glide.remainingMs()).toBe(0);
+        h.glide.to(TARGET, SECOND);
+        expect(h.glide.remainingMs()).toBe(1_000);
+        h.tick(250);
+        expect(h.glide.remainingMs()).toBe(750);
+        h.tick(750);
+        expect(h.glide.remainingMs()).toBe(0);
+        h.glide.to(TARGET, SECOND);
+        h.glide.jump(TARGET);
+        expect(h.glide.remainingMs()).toBe(0);
+        h.glide.to({ ...TARGET, lng: 2 }, SECOND);
+        h.glide.release();
+        expect(h.glide.remainingMs()).toBe(0);
+    });
+
     it("release stops the running glide", () => {
         const h = harness();
         h.glide.to(TARGET, SECOND);
