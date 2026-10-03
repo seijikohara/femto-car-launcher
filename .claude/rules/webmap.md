@@ -148,12 +148,51 @@ policy:
   centre — and derives the centre every frame, so a rotation or zoom
   pivots on the chevron as on the OSM map.
 - The Maps JS API has no camera padding, so a tilted Google vector
-  map's perspective converges on the viewport centre: the chevron
-  sits on the vertical centre line there, clamped clear of the side
-  cards (`googleMarkerSpot`). A chevron that changes spot glides in
-  lockstep with the camera (`spotMotion`) with the reflow motion both
-  backends use; as with any reflow, a fix that arrives during that
-  glide finishes the remaining chevron move at once.
+  map's perspective converges on the viewport centre. The page
+  measures that perspective instead of assuming it: `src/lens.ts`,
+  fed by a `WebGLOverlayView`'s coordinate transformer (the camera
+  matrix the map draws with; Google allows the overlay only on a
+  vector map with a Map ID) or, without a Map ID, by an
+  `OverlayView`'s `MapCanvasProjection` — a probe added only once the
+  first `tilesloaded` confirms the map renders vector, for every
+  rendering choice (`syncLensProbe`) — recovers the focal
+  length and camera distance from two probe points. From them it
+  derives a yaw bias δ on the map heading, so the direction of travel
+  runs straight up through the chevron at the OSM spot
+  (`markerSpot`), and the exact ground offset under the chevron. δ is
+  Google's stand-in for camera padding, not a heading rule:
+  `followOrientation` stays the one follow-heading source, and the
+  backend adds δ only where it talks to the map (`moveCamera`, the
+  glide's read-back, the compass, which reports the travel heading).
+  The lens corrects for the tilt the map shows, not the tilt
+  requested, wherever Google clamps it (and works at the zoom the map
+  shows past its ceiling). A measurement that visibly moves δ or
+  the anchor (`lensMoved`: the lens appearing, a viewport resize) is a
+  new endpoint the glide blends to over the reflow motion (`lensGen`
+  in `CameraPose`), straight from the correction the map shows —
+  never through older measurements — and without waiting for a fix:
+  the heading and the anchor glide, the chevron and its CSS
+  transition stay put. The pose carries the chevron's offset as a
+  viewport fraction, as the CSS chevron's left/top are, so a resize
+  moves both at once; after a resize the anchor offset takes the new
+  lens at once (the fix stays under the chevron) and only the yaw
+  blends. Never hard-code a field of view. Both maps place the
+  chevron by the one rule (`markerSpot`): until the lens is measured,
+  or when the measurement is implausible, the Google chevron stays at
+  that spot with no yaw and the flat offset (the road leans until the
+  lens is measured) — never on the centre line. A chevron that changes
+  spot glides in lockstep with the camera (`spotMotion`) with the
+  reflow motion both backends use.
+- A fix that arrives while the chevron still glides to a new spot (a
+  reflow, or a Google spot move) leaves the chevron's transition
+  armed and moves the camera over the time it has left
+  (`followMotion`'s `reflowRemainingMs`, `markerTransitionStep`,
+  `MarkerTransition.remainingMs`), so the chevron and the camera land
+  together on both maps.
+- A detached zoom step (the host's +/- button) zooms about the
+  chevron's spot on both maps: MapLibre's `easeTo` keeps the padding
+  and zooms about the padded centre; the Google glide holds the
+  location under the spot as its anchor while the zoom changes.
 
 ## Toolchain split
 

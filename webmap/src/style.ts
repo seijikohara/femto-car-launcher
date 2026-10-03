@@ -159,37 +159,6 @@ export function markerSpot(layout: MarkerLayout): MarkerSpot {
     };
 }
 
-// What the Google Maps placement depends on besides the host's layout.
-export interface MarkerView {
-    // The map renders vector (it tilts); false for a raster map.
-    vector: boolean;
-    // The tilt the page asks the map for, standing in for the tilt it shows:
-    // Google lowers a vector map's tilt ceiling at low zoom but never to 0°,
-    // so a tilt above 0° is a tilted map.
-    tiltDeg: number;
-    widthPx: number;
-    // How far the chevron reaches from its centre (its ripple), in px.
-    reachPx: number;
-}
-
-// The Google Maps placement. Google has no camera padding, so a tilted
-// vector map's perspective always converges on the viewport centre: a
-// chevron beside the centre sees the road ahead lean toward it. There the
-// chevron sits on the vertical centre line, clamped so its reach stays
-// inside the exposed strip between the side safe areas (a strip narrower
-// than the reach takes it at its middle); the drop is markerDrop's. A raster
-// map and a flat (0°) vector map have no perspective and take the OSM
-// placement.
-export function googleMarkerSpot(layout: MarkerLayout, view: MarkerView): MarkerSpot {
-    const spot = markerSpot(layout);
-    if (!view.vector || !(view.tiltDeg > 0)) return spot;
-    const reach = view.widthPx > 0 ? view.reachPx / view.widthPx : 0;
-    const lo = Math.max(0, layout.leftSafe || 0) + reach - 0.5;
-    const hi = 0.5 - Math.max(0, layout.rightSafe || 0) - reach;
-    const x = lo <= hi ? Math.min(Math.max(0, lo), hi) : (lo + hi) / 2;
-    return { x, y: spot.y };
-}
-
 // The first vector source id in a style (the OpenMapTiles source), so 3D
 // buildings work across positron / the bundled dark.json without hard-coding.
 export function vectorSourceId(style: StyleSpecification): string | undefined {

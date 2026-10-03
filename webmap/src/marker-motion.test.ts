@@ -71,4 +71,20 @@ describe("createMarkerTransition", () => {
         vi.advanceTimersByTime(LAYOUT_REFLOW_MS);
         expect(marker.style.transition).toBe("");
     });
+
+    it("counts down the time an armed transition has left, and reads 0 once it is cleared", () => {
+        const marker = markerStub();
+        const transition = createMarkerTransition(marker, LAYOUT_REFLOW_MS);
+        expect(transition.remainingMs()).toBe(0);
+
+        transition.setActive(true);
+        vi.advanceTimersByTime(100);
+        expect(transition.remainingMs()).toBe(LAYOUT_REFLOW_MS - 100);
+        vi.advanceTimersByTime(LAYOUT_REFLOW_MS);
+        expect(transition.remainingMs()).toBe(0);
+
+        transition.setActive(true);
+        transition.setActive(false);
+        expect(transition.remainingMs()).toBe(0);
+    });
 });

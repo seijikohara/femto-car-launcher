@@ -35,13 +35,36 @@ export interface CameraView {
 }
 
 // The camera the glide moves: the anchor (lat/lng, the location that sits at
-// the chevron's spot) plus the view and the tilt. heading/tilt ride along for
-// a raster map too (the backend drops them before moveCamera).
-export interface CameraPose extends LatLng, CameraView {
+// the chevron's spot) plus the zoom, heading and tilt. heading/tilt ride along
+// for a raster map too (the backend drops them before moveCamera).
+// offsetX/offsetY are the chevron's offset from the viewport centre, in the
+// unit the backend's apply and current() use — the glide only interpolates
+// them: the Google page keeps them as fractions of the viewport, as the CSS
+// chevron's left/top are, so a resize moves both at once. lensGen is the rest
+// of Google's padding analogue: which measurement of the map's perspective
+// (lens.ts) corrects the heading and the anchor offset, a fraction blending
+// two — glided like the offset, as MapLibre glides its padding, so a new
+// measurement turns and re-centres the camera smoothly instead of in one
+// frame.
+export interface CameraPose extends LatLng {
+    zoom: number;
+    heading: number;
     tilt: number;
+    offsetX: number;
+    offsetY: number;
+    lensGen: number;
 }
 
-const POSE_KEYS = ["lat", "lng", "zoom", "heading", "tilt", "offsetX", "offsetY"] as const;
+const POSE_KEYS = [
+    "lat",
+    "lng",
+    "zoom",
+    "heading",
+    "tilt",
+    "offsetX",
+    "offsetY",
+    "lensGen",
+] as const;
 
 // Below this delta a field is applied as the target rather than interpolated.
 // After a release() a glide starts from the camera read back from the map,
@@ -93,8 +116,9 @@ function worldOffset(view: CameraView): { dx: number; dy: number } {
 }
 
 // The camera centre that shows [anchor] at the view's screen offset. Flat
-// math: a tilted map's perspective is not modelled, so there the anchor sits
-// at the offset only approximately (exactly on a flat map).
+// math, exact on a flat map; on a tilted map the caller passes the ground
+// offset under the chevron (lens.ts's lensGroundOffset) as the offset, which
+// makes it exact there too.
 export function cameraCenterFor(anchor: LatLng, view: CameraView): LatLng {
     const d = worldOffset(view);
     return { lat: latAt(worldY(anchor.lat) - d.dy), lng: lngAt(worldX(anchor.lng) - d.dx) };
@@ -176,6 +200,8 @@ export interface CameraGlide {
     // the unreachable target would re-set the field every frame, on every
     // push, and keep its gesture window open for as long as the car moves.
     release(): void;
+    // How long the glide in flight has left, in ms; 0 when none is.
+    remainingMs(): number;
 }
 
 export function createCameraGlide(deps: CameraGlideDeps): CameraGlide {
@@ -187,9 +213,10 @@ export function createCameraGlide(deps: CameraGlideDeps): CameraGlide {
     // release() advances the generation; a frame still queued from an
     // earlier glide sees the mismatch and does nothing. owned holds the
     // fields applied since the last release — see CameraGlide.release.
-    const state = { generation: 0, owned: {} as Partial<CameraPose> };
+    const state = { generation: 0, owned: {} as Partial<CameraPose>, endsAtMs: 0 };
     function cancel(): void {
         state.generation += 1;
+        state.endsAtMs = 0;
     }
     function apply(pose: Partial<CameraPose>): void {
         deps.apply(pose);
@@ -205,6 +232,7 @@ export function createCameraGlide(deps: CameraGlideDeps): CameraGlide {
             const generation = state.generation;
             const from = { ...deps.current(state.owned), ...state.owned };
             const startMs = now();
+            state.endsAtMs = startMs + motion.durationMs;
             const frame = (): void => {
                 if (generation !== state.generation) return;
                 const t = (now() - startMs) / motion.durationMs;
@@ -212,6 +240,7 @@ export function createCameraGlide(deps: CameraGlideDeps): CameraGlide {
                 // interpolation at t = 1, which floating point need not land
                 // exactly on it.
                 if (t >= 1) {
+                    state.endsAtMs = 0;
                     apply(target);
                     return;
                 }
@@ -227,6 +256,9 @@ export function createCameraGlide(deps: CameraGlideDeps): CameraGlide {
         release(): void {
             cancel();
             state.owned = {};
+        },
+        remainingMs(): number {
+            return state.endsAtMs > 0 ? Math.max(0, state.endsAtMs - now()) : 0;
         },
     };
 }

@@ -11,6 +11,7 @@ import {
     isPaddingOnlyReflow,
     isRealPosition,
     linearEase,
+    markerTransitionStep,
     MAX_EASE_MS,
     MAX_LATITUDE_DEG,
     MAX_LONGITUDE_DEG,
@@ -180,7 +181,13 @@ describe("followOrientation", () => {
 });
 
 describe("followMotion", () => {
-    const steady = { firstCamera: false, signalGap: false, reflow: false, sinceLastFixMs: 1_000 };
+    const steady = {
+        firstCamera: false,
+        signalGap: false,
+        reflow: false,
+        sinceLastFixMs: 1_000,
+        reflowRemainingMs: 0,
+    };
 
     it("snaps the first camera placement", () => {
         expect(followMotion({ ...steady, firstCamera: true })).toBeNull();
@@ -199,6 +206,39 @@ describe("followMotion", () => {
         expect(motion?.durationMs).toBe(easeDurationMs(250));
         expect(motion?.easing).toBe(linearEase);
     });
+
+    it("finishes a chevron glide still in flight together with the camera", () => {
+        // A fix 100 ms into a 260 ms reflow: the camera moves to it over the
+        // 160 ms the chevron's transition has left, linearly like the
+        // transition, so the two land together.
+        const motion = followMotion({ ...steady, sinceLastFixMs: 100, reflowRemainingMs: 160 });
+        expect(motion?.durationMs).toBe(160);
+        expect(motion?.easing).toBe(REFLOW_MOTION.easing);
+    });
+
+    it("still snaps across a signal gap and starts a new reflow afresh during a chevron glide", () => {
+        expect(followMotion({ ...steady, signalGap: true, reflowRemainingMs: 160 })).toBeNull();
+        expect(followMotion({ ...steady, reflow: true, reflowRemainingMs: 160 })).toBe(
+            REFLOW_MOTION,
+        );
+    });
+});
+
+describe("markerTransitionStep", () => {
+    it("arms the chevron's transition for a new chevron glide", () => {
+        expect(markerTransitionStep(REFLOW_MOTION, 0)).toBe("arm");
+        expect(markerTransitionStep(REFLOW_MOTION, 120)).toBe("arm");
+    });
+
+    it("keeps it armed for a camera move that lands with the glide in flight", () => {
+        expect(markerTransitionStep({ durationMs: 120, easing: linearEase }, 120)).toBe("keep");
+    });
+
+    it("clears it for a snap, a plain fix, and a move that outlasts the glide", () => {
+        expect(markerTransitionStep(null, 120)).toBe("clear");
+        expect(markerTransitionStep({ durationMs: 250, easing: linearEase }, 0)).toBe("clear");
+        expect(markerTransitionStep(ORIENTATION_FLIP_MOTION, 120)).toBe("clear");
+    });
 });
 
 describe("spotMotion", () => {
@@ -209,6 +249,7 @@ describe("spotMotion", () => {
         signalGap: false,
         reflow: false,
         sinceLastFixMs: 1_000,
+        reflowRemainingMs: 0,
     });
 
     it("places a chevron that is not on screen yet without a glide of its own", () => {

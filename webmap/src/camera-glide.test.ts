@@ -17,7 +17,16 @@ import {
     lerpPose,
 } from "./camera-glide";
 
-const REST: CameraPose = { lat: 0, lng: 0, zoom: 10, heading: 0, tilt: 0, offsetX: 0, offsetY: 0 };
+const REST: CameraPose = {
+    lat: 0,
+    lng: 0,
+    zoom: 10,
+    heading: 0,
+    tilt: 0,
+    offsetX: 0,
+    offsetY: 0,
+    lensGen: 0,
+};
 const SECOND: CameraMotion = { durationMs: 1_000, easing: linearEase };
 
 // A head-unit-like layout on a flat map: the chevron 183 px left of and
@@ -206,6 +215,7 @@ describe("createCameraGlide", () => {
         tilt: 0,
         offsetX: -100,
         offsetY: 40,
+        lensGen: 0,
     };
 
     it("eases from the map's current camera to the target over the duration", () => {
@@ -214,7 +224,16 @@ describe("createCameraGlide", () => {
         expect(h.applied).toEqual([]);
         h.tick(250);
         expect(h.applied).toEqual([
-            { lat: 0, lng: 0.25, zoom: 10.5, heading: 22.5, tilt: 0, offsetX: -25, offsetY: 10 },
+            {
+                lat: 0,
+                lng: 0.25,
+                zoom: 10.5,
+                heading: 22.5,
+                tilt: 0,
+                offsetX: -25,
+                offsetY: 10,
+                lensGen: 0,
+            },
         ]);
         h.tick(750);
         expect(h.applied[1]).toEqual(TARGET);
@@ -274,7 +293,16 @@ describe("createCameraGlide", () => {
         // Both glides have a frame queued; only the live one may apply.
         h.tick(500);
         expect(h.applied).toEqual([
-            { lat: 0, lng: 1, zoom: 11, heading: 45, tilt: 0, offsetX: -50, offsetY: 20 },
+            {
+                lat: 0,
+                lng: 1,
+                zoom: 11,
+                heading: 45,
+                tilt: 0,
+                offsetX: -50,
+                offsetY: 20,
+                lensGen: 0,
+            },
         ]);
     });
 
@@ -299,6 +327,23 @@ describe("createCameraGlide", () => {
         h.tick(500);
         expect(h.applied[1]?.lng).toBe(5.5);
         expect(h.applied[1]?.zoom).toBe(13);
+    });
+
+    it("reports the time the glide in flight has left, and 0 when none is", () => {
+        const h = harness();
+        expect(h.glide.remainingMs()).toBe(0);
+        h.glide.to(TARGET, SECOND);
+        expect(h.glide.remainingMs()).toBe(1_000);
+        h.tick(250);
+        expect(h.glide.remainingMs()).toBe(750);
+        h.tick(750);
+        expect(h.glide.remainingMs()).toBe(0);
+        h.glide.to(TARGET, SECOND);
+        h.glide.jump(TARGET);
+        expect(h.glide.remainingMs()).toBe(0);
+        h.glide.to({ ...TARGET, lng: 2 }, SECOND);
+        h.glide.release();
+        expect(h.glide.remainingMs()).toBe(0);
     });
 
     it("release stops the running glide", () => {
@@ -344,6 +389,7 @@ describe("createCameraGlide", () => {
             tilt: 55,
             offsetX: 0,
             offsetY: 75,
+            lensGen: 0,
         };
         h.glide.jump(home);
         [90, 90.8, 91.3, 90.9].reduce<number | null>((previous, raw) => {
@@ -373,7 +419,14 @@ describe("createCameraGlide", () => {
 
     it("pivots a north-up flip on the chevron: the fix never leaves it", () => {
         const h = harness();
-        const home: CameraPose = { ...TOKYO, zoom: 16, heading: 180, tilt: 0, ...CHEVRON };
+        const home: CameraPose = {
+            ...TOKYO,
+            zoom: 16,
+            heading: 180,
+            tilt: 0,
+            lensGen: 0,
+            ...CHEVRON,
+        };
         h.glide.jump({ ...home, heading: 0 });
         h.glide.to(home, ORIENTATION_FLIP_MOTION);
         Array.from({ length: 30 }).forEach(() => {
@@ -406,6 +459,7 @@ describe("createCameraGlide", () => {
             tilt: 45,
             offsetX: 0,
             offsetY: 75,
+            lensGen: 0,
         };
         h.glide.jump({ ...home, zoom: 14 });
         h.glide.to(home, SECOND);
@@ -427,7 +481,14 @@ describe("createCameraGlide", () => {
         const underChevron = anchorAt(pannedCenter, view);
         Object.assign(h.camera, { ...underChevron, ...view, tilt: 45 });
         h.glide.release();
-        const home: CameraPose = { ...TOKYO, zoom: 16, heading: 80, tilt: 45, ...CHEVRON };
+        const home: CameraPose = {
+            ...TOKYO,
+            zoom: 16,
+            heading: 80,
+            tilt: 45,
+            lensGen: 0,
+            ...CHEVRON,
+        };
         h.glide.to(home, REFOLLOW_MOTION);
         h.tick(1);
         // The first frame barely moves the camera off where the user left it.
@@ -446,7 +507,14 @@ describe("createCameraGlide", () => {
         // The marker's CSS transition runs linearly for LAYOUT_REFLOW_MS; the
         // camera's offset must track it frame by frame, the fix under both.
         const h = harness();
-        const home: CameraPose = { ...TOKYO, zoom: 16, heading: 30, tilt: 55, ...CHEVRON };
+        const home: CameraPose = {
+            ...TOKYO,
+            zoom: 16,
+            heading: 30,
+            tilt: 55,
+            lensGen: 0,
+            ...CHEVRON,
+        };
         h.glide.jump(home);
         h.glide.to({ ...home, offsetX: 0 }, REFLOW_MOTION);
         h.tick(REFLOW_MOTION.durationMs / 4);
