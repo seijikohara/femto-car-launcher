@@ -143,6 +143,21 @@
     <string name="music_repeat">Repeat</string>
     <string name="music_playing_next">Playing next</string>
 
+    <!-- Video window (issue #390). The hidden-picture line must never suggest
+         that the gate makes watching legal or safe; it says only what the
+         window does. -->
+    <string name="video_title">Video</string>
+    <string name="video_pick">Pick a video</string>
+    <string name="video_pick_another">Pick another video</string>
+    <string name="video_picture_hidden_playing">Picture hidden while driving · Audio keeps playing</string>
+    <string name="video_picture_hidden_paused">Picture hidden while driving</string>
+    <string name="video_play">Play</string>
+    <string name="video_pause">Pause</string>
+    <string name="video_expand">Open the video player</string>
+    <string name="video_close">Close the video window</string>
+    <string name="video_file_unavailable">The picked file can\'t be opened. Pick it again.</string>
+    <string name="video_pick_failed">The app couldn\'t keep access to that file. Pick another.</string>
+
     <!-- Dashboard footer: navigation -->
     <string name="nav_phone">Phone</string>
     <string name="nav_apps">Apps</string>
@@ -447,6 +462,15 @@
     <string name="settings_panel_music_album_desc">Show the album name on the music card and the full-screen player.</string>
     <string name="settings_group_panel_music_art">Cover art</string>
     <string name="settings_panel_music_art_desc">Show the album artwork on the music card and the full-screen player.</string>
+    <string name="settings_group_panel_video">Video window</string>
+    <string name="settings_panel_video_desc">Play a video file from this device in a small window over the map.</string>
+    <string name="settings_video_file">Video file</string>
+    <string name="settings_video_file_none">No file picked</string>
+    <string name="settings_video_hide_picture">Hide the picture while driving</string>
+    <string name="settings_video_hide_picture_desc">The picture shows only a few seconds after GPS reads the vehicle as stopped. Audio keeps playing.</string>
+    <string name="settings_video_show_picture_confirm_title">Show the picture while driving?</string>
+    <string name="settings_video_show_picture_confirm_message">Many places ban video the driver can see while driving, including when stopped at lights or in traffic. Some also require the engine to be off. This app can\'t tell whether your vehicle is parked. Turn this off only if the screen is out of the driver\'s view or local law allows it, and follow the law where you drive.</string>
+    <string name="settings_video_show_picture_confirm">Turn off</string>
     <string name="settings_visible_calendars">Visible calendars</string>
     <string name="settings_visible_calendars_all">All calendars</string>
     <string name="settings_visible_calendars_count">%1$d of %2$d shown</string>

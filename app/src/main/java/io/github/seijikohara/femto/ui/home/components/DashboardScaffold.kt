@@ -36,8 +36,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
@@ -57,6 +59,8 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.video.VideoAction
+import io.github.seijikohara.femto.ui.video.VideoUiState
 import kotlinx.coroutines.flow.StateFlow
 import java.time.Clock
 
@@ -181,6 +185,14 @@ internal fun DashboardScaffold(
     // pass a still capture that also needs the MapConfig placement inputs, to
     // draw the self-marker where the WebView would (see MapPanel.mapSurface).
     mapSurface: (@Composable (Location, MapConfig) -> Unit)? = null,
+    // The video window (issue #390): its state, its events, and the player's
+    // surface. Off by default, so every caller that does not show it lays out
+    // as before.
+    video: VideoUiState = VideoUiState.Off,
+    // The motion gate's verdict for the video picture (VideoViewModel.pictureVisible).
+    videoPictureVisible: Boolean = false,
+    onVideoAction: (VideoAction) -> Unit = {},
+    videoSurface: @Composable (Modifier) -> Unit = {},
 ) = DashboardContent(
     uiState = uiState,
     is24Hour = is24Hour,
@@ -205,6 +217,10 @@ internal fun DashboardScaffold(
     motionTier = motionTier,
     clock = clock,
     mapSurface = mapSurface,
+    video = video,
+    videoPictureVisible = videoPictureVisible,
+    onVideoAction = onVideoAction,
+    videoSurface = videoSurface,
 )
 
 // The full-screen dashboard body: the map fills the viewport as the background
@@ -236,6 +252,10 @@ private fun DashboardContent(
     // pass a still capture that also needs the MapConfig placement inputs, to
     // draw the self-marker where the WebView would (see MapPanel.mapSurface).
     mapSurface: (@Composable (Location, MapConfig) -> Unit)? = null,
+    video: VideoUiState = VideoUiState.Off,
+    videoPictureVisible: Boolean = false,
+    onVideoAction: (VideoAction) -> Unit = {},
+    videoSurface: @Composable (Modifier) -> Unit = {},
 ) = BoxWithConstraints(modifier = modifier) {
     val compact = maxHeight < CompactHeightBreakpoint || maxWidth < CompactWidthBreakpoint
     val portrait = maxHeight > maxWidth
@@ -280,6 +300,7 @@ private fun DashboardContent(
     var calendarExpanded by rememberSaveable { mutableStateOf(false) }
     var weatherExpanded by rememberSaveable { mutableStateOf(false) }
     var tripExpanded by rememberSaveable { mutableStateOf(false) }
+    var videoExpanded by rememberSaveable { mutableStateOf(false) }
     // Auto-collapse when a panel's backing data disappears (session ended,
     // permission revoked mid-session, cold cache) so a dead panel never strands
     // over the map. The trip panel needs no gate: its ViewModel always has
@@ -297,6 +318,11 @@ private fun DashboardContent(
     LaunchedEffect(hasWeather) {
         if (!hasWeather) weatherExpanded = false
     }
+    // The video panel stands in for the window, so it goes when the window
+    // does (turned off in Settings, or closed).
+    LaunchedEffect(video.windowEnabled) {
+        if (!video.windowEnabled) videoExpanded = false
+    }
     // The apps panel is the only one reachable while another panel is open —
     // the dock stays operable — so opening it collapses whatever is underneath,
     // mirroring how the old drawer sheet covered everything.
@@ -306,6 +332,7 @@ private fun DashboardContent(
             calendarExpanded = false
             weatherExpanded = false
             tripExpanded = false
+            videoExpanded = false
         }
     }
     // A tap outside an open panel's body dismisses it, matching the modal
@@ -316,6 +343,7 @@ private fun DashboardContent(
             calendarExpanded -> ({ calendarExpanded = false })
             weatherExpanded -> ({ weatherExpanded = false })
             tripExpanded -> ({ tripExpanded = false })
+            videoExpanded -> ({ videoExpanded = false })
             appsExpanded -> ({ appsExpanded = false })
             else -> null
         }
@@ -477,6 +505,13 @@ private fun DashboardContent(
         tripExpanded = tripExpanded,
         onExpandTrip = { tripExpanded = true },
         onCloseTrip = { tripExpanded = false },
+        video = video,
+        videoPictureVisible = videoPictureVisible,
+        onVideoAction = onVideoAction,
+        videoSurface = videoSurface,
+        videoExpanded = videoExpanded,
+        onExpandVideo = { videoExpanded = true },
+        onCloseVideo = { videoExpanded = false },
         appsExpanded = appsExpanded,
         onCloseApps = { appsExpanded = false },
         dismissOpenPanel = dismissOpenPanel,
@@ -572,6 +607,13 @@ private fun DashboardOverlays(
     tripExpanded: Boolean,
     onExpandTrip: () -> Unit,
     onCloseTrip: () -> Unit,
+    video: VideoUiState,
+    videoPictureVisible: Boolean,
+    onVideoAction: (VideoAction) -> Unit,
+    videoSurface: @Composable (Modifier) -> Unit,
+    videoExpanded: Boolean,
+    onExpandVideo: () -> Unit,
+    onCloseVideo: () -> Unit,
     appsExpanded: Boolean,
     onCloseApps: () -> Unit,
     // Non-null while any panel is open: the inner outside-tap catcher's action.
@@ -602,13 +644,23 @@ private fun DashboardOverlays(
     LaunchedEffect(expandedWeather) {
         if (expandedWeather != null) panelWeather = expandedWeather
     }
+    // The video panel's last state while the window was on: closing turns the
+    // window off and empties the file in one step, and the exit fade would
+    // otherwise show "Pick a video" in the panel the user just closed.
+    var panelVideo by remember { mutableStateOf(video) }
+    LaunchedEffect(video) {
+        if (video.windowEnabled) panelVideo = video
+    }
 
     // LEFT driver side mirrors the dashboard start <-> end: the cards, clock, and speed
     // reserve move to the left; the map controls (opposite the cards) move to the
     // right. Each site below reduces to its current RIGHT expression when !mirror.
     val mirror = driverSide == DriverSide.LEFT
+    // The clock's measured size: the video window sits beside it when the top
+    // row has room, and below it otherwise (videoWindowPlacement).
+    var clockSize by remember { mutableStateOf(IntSize.Zero) }
 
-    Box(modifier = modifier) {
+    BoxWithConstraints(modifier = modifier) {
         // Map controls render only when the map does (a fix exists). The compass pins
         // to the top corner opposite the cards; the control column to the mid edge
         // opposite the cards — both flip with the driver side.
@@ -618,7 +670,11 @@ private fun DashboardOverlays(
                 onTap = { onAction(HomeAction.ToggleMapNorthUp) },
                 hazeState = hazeState,
                 glassConfig = glassConfig,
-                modifier = Modifier.align(if (mirror) Alignment.TopEnd else Alignment.TopStart).padding(outerPad),
+                modifier =
+                    Modifier
+                        .align(if (mirror) Alignment.TopEnd else Alignment.TopStart)
+                        .padding(outerPad)
+                        .testTag(DashboardTags.COMPASS),
             )
             MapControlColumn(
                 showLocate = true,
@@ -631,7 +687,8 @@ private fun DashboardOverlays(
                 modifier =
                     Modifier
                         .align(if (mirror) Alignment.CenterEnd else Alignment.CenterStart)
-                        .padding(if (mirror) PaddingValues(end = outerPad) else PaddingValues(start = outerPad)),
+                        .padding(if (mirror) PaddingValues(end = outerPad) else PaddingValues(start = outerPad))
+                        .testTag(DashboardTags.MAP_CONTROLS),
             )
         }
 
@@ -661,7 +718,8 @@ private fun DashboardOverlays(
                             horizontal = if (landscapeCards) floatingCardWidth + cardGap else outerPad,
                             top = outerPad,
                         ),
-                    ),
+                    ).onSizeChanged { clockSize = it }
+                    .testTag(DashboardTags.CLOCK),
         )
 
         // Speed overlay centred in the exposed map area above the dock, held clear of
@@ -709,7 +767,10 @@ private fun DashboardOverlays(
                 glassConfig = glassConfig,
                 motionTier = motionTier,
                 onExpand = onExpandTrip,
-                modifier = Modifier.onSizeChanged { onOverlayHeightChange(it.height) },
+                modifier =
+                    Modifier
+                        .onSizeChanged { onOverlayHeightChange(it.height) }
+                        .testTag(DashboardTags.SPEED),
             )
         }
 
@@ -737,6 +798,7 @@ private fun DashboardOverlays(
                 modifier =
                     if (bottomCards) {
                         Modifier
+                            .testTag(DashboardTags.CARDS)
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
                             .height(bottomCardBand)
@@ -747,6 +809,7 @@ private fun DashboardOverlays(
                         // the map keeps the opposite side. Mirrors to the start edge on
                         // a LEFT driver side.
                         Modifier
+                            .testTag(DashboardTags.CARDS)
                             .align(if (mirror) Alignment.TopStart else Alignment.TopEnd)
                             .width(floatingCardWidth)
                             .heightIn(max = CardClusterMaxHeight)
@@ -760,6 +823,45 @@ private fun DashboardOverlays(
                                 ),
                             )
                     },
+            )
+        }
+
+        // The video window: on the map, on the side opposite the cards, beside
+        // the compass and control column (which own the outer edge), at the
+        // top. The open panel stands in for it, so one surface at a time
+        // draws the picture.
+        if (video.windowEnabled && !videoExpanded) {
+            val placement =
+                with(LocalDensity.current) {
+                    videoWindowPlacement(
+                        overlayWidth = maxWidth,
+                        mapAreaWidth = if (landscapeCards) maxWidth - floatingCardWidth else maxWidth,
+                        outerPad = outerPad,
+                        gap = cardGap,
+                        clockInset = if (landscapeCards) floatingCardWidth + cardGap else outerPad,
+                        clockWidth = clockSize.width.toDp(),
+                        clockHeight = clockSize.height.toDp(),
+                    )
+                }
+            VideoWindow(
+                state = video,
+                pictureVisible = videoPictureVisible,
+                onAction = onVideoAction,
+                onExpand = onExpandVideo,
+                surface = videoSurface,
+                hazeState = hazeState,
+                glassConfig = glassConfig,
+                modifier =
+                    Modifier
+                        .align(if (mirror) Alignment.TopEnd else Alignment.TopStart)
+                        .padding(
+                            if (mirror) {
+                                PaddingValues(end = placement.start, top = placement.top)
+                            } else {
+                                PaddingValues(start = placement.start, top = placement.top)
+                            },
+                        ).width(placement.width)
+                        .testTag(DashboardTags.VIDEO_WINDOW),
             )
         }
 
@@ -882,6 +984,24 @@ private fun DashboardOverlays(
             )
         }
 
+        AnimatedVisibility(
+            visible = videoExpanded && video.windowEnabled,
+            enter = Motion.panelEnter(motionTier),
+            exit = Motion.panelExit(motionTier),
+            modifier = Modifier.fillMaxSize().padding(outerPad),
+        ) {
+            VideoPanel(
+                state = if (video.windowEnabled) video else panelVideo,
+                pictureVisible = videoPictureVisible,
+                onAction = onVideoAction,
+                onCollapse = onCloseVideo,
+                surface = videoSurface,
+                hazeState = hazeState,
+                glassConfig = glassConfig,
+                modifier = Modifier.fillMaxSize().testTag(DashboardTags.VIDEO_PANEL),
+            )
+        }
+
         // The app launcher, opened by the dock's APPS button (see the parent's
         // OpenAppDrawer interception). Unlike the data-backed panels it needs no
         // "has data" gate: an empty app list renders its own "No apps" state.
@@ -917,6 +1037,61 @@ private fun cardSideInset(
     } else {
         PaddingValues(end = horizontal, top = top, bottom = bottom)
     }
+
+/**
+ * Test tags on the dashboard's overlays, so layout tests can check that the
+ * video window keeps clear of each of them.
+ */
+internal object DashboardTags {
+    const val COMPASS = "dashboard-compass"
+    const val MAP_CONTROLS = "dashboard-map-controls"
+    const val CLOCK = "dashboard-clock"
+    const val SPEED = "dashboard-speed"
+    const val CARDS = "dashboard-cards"
+    const val VIDEO_WINDOW = "dashboard-video-window"
+    const val VIDEO_PANEL = "dashboard-video-panel"
+}
+
+// Where the video window sits, as insets from the top corner on the side
+// opposite the cards, and how wide it is.
+private data class VideoWindowPlacement(
+    val start: Dp,
+    val top: Dp,
+    val width: Dp,
+)
+
+// The window clears the outer column the compass and the map control column
+// share, so neither is covered whatever the height. It is about a third of the
+// map area's width (16:9 sets the height), between a floor that keeps its
+// 16 sp line and 64 dp button legible and a ceiling that keeps it small on a
+// wide panel, and never wider than the map area leaves beside that column. It
+// sits in the top row when that row has room beside the clock, which sits in
+// the top corner on the card side; otherwise it drops below the clock, which
+// keeps it in the upper part of the map, clear of the speed readout at the
+// bottom and of the self-marker the map places below centre.
+private fun videoWindowPlacement(
+    overlayWidth: Dp,
+    mapAreaWidth: Dp,
+    outerPad: Dp,
+    gap: Dp,
+    clockInset: Dp,
+    clockWidth: Dp,
+    clockHeight: Dp,
+): VideoWindowPlacement {
+    val start = outerPad + maxOf(MapCompassSize, MapControlsStripWidth) + gap
+    val width =
+        (mapAreaWidth * VIDEO_WINDOW_WIDTH_FRACTION)
+            .coerceIn(VideoWindowMinWidth, VideoWindowMaxWidth)
+            .coerceAtMost(mapAreaWidth - start - outerPad)
+    val topRowRoom = overlayWidth - clockInset - clockWidth - gap - start
+    val top = if (width <= topRowRoom) outerPad else outerPad + maxOf(clockHeight, MapCompassSize) + gap
+    return VideoWindowPlacement(start = start, top = top, width = width)
+}
+
+// The video window's width as a share of the map area, and its bounds.
+private const val VIDEO_WINDOW_WIDTH_FRACTION = 1f / 3f
+private val VideoWindowMinWidth: Dp = 240.dp
+private val VideoWindowMaxWidth: Dp = 480.dp
 
 // Margins that float the dock off its free edges by [margin] (a vertical rail's
 // inner edge faces the dashboard, where the overlay inset already opens the gap).

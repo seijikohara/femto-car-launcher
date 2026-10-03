@@ -24,6 +24,8 @@ import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.video.VideoAction
+import io.github.seijikohara.femto.ui.video.VideoUiState
 import kotlinx.coroutines.flow.StateFlow
 
 @Composable
@@ -53,6 +55,12 @@ internal fun HomeScreen(
     sheetOpen: Boolean = false,
     // The fullscreen choice, for the update prompt's own window.
     fullscreen: Boolean = false,
+    // The video window (VideoViewModel's state), its events, and the player's
+    // surface; see DashboardScaffold.
+    video: VideoUiState = VideoUiState.Off,
+    videoPictureVisible: Boolean = false,
+    onVideoAction: (VideoAction) -> Unit = {},
+    videoSurface: @Composable (Modifier) -> Unit = {},
 ) = Surface(
     modifier = modifier.fillMaxSize(),
     color = MaterialTheme.colorScheme.background,
@@ -76,6 +84,10 @@ internal fun HomeScreen(
         musicShowArt = musicShowArt,
         spectrum = spectrum,
         motionTier = motionTier,
+        video = video,
+        videoPictureVisible = videoPictureVisible,
+        onVideoAction = onVideoAction,
+        videoSurface = videoSurface,
     )
     // The update prompt waits while a sheet covers the dashboard. Over Settings
     // it could ask about the very offer the Updates section shows (and records

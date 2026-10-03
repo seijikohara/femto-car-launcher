@@ -26,6 +26,7 @@ import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
 import io.github.seijikohara.femto.data.location.TrackRetentionSetting
 import io.github.seijikohara.femto.data.location.TripAutoResetSetting
+import io.github.seijikohara.femto.data.video.VideoSettings
 
 /** State for the in-app settings screen: the persisted display + font choices. */
 internal data class SettingsUiState(
@@ -110,6 +111,9 @@ internal data class SettingsUiState(
     // updatesUiState); defaulted on the field like trackExport, since the store
     // combine builds the rest of the state before it is folded in.
     val updates: UpdatesUiState = UpdatesUiState.Initial,
+    // The Panels category's video rows, from the video store (see
+    // SettingsViewModel's video flow); defaulted on the field like updates.
+    val video: VideoSettingsUi = VideoSettingsUi.Initial,
 ) {
     companion object {
         // Seeded from the persistence defaults so the default values live in one
@@ -174,6 +178,37 @@ internal data class SettingsUiState(
                 mapCustomStyleUrl = DisplaySettings.Default.mapCustomStyleUrl,
             )
     }
+}
+
+/** The video window's rows in the Panels category (issue #390). */
+internal data class VideoSettingsUi(
+    val windowEnabled: Boolean,
+    val hidePictureWhileDriving: Boolean,
+    val file: VideoFileSummary,
+    /** The last file picked here could not be kept: its provider refused a lasting read grant. */
+    val pickFailed: Boolean = false,
+) {
+    companion object {
+        val Initial =
+            VideoSettingsUi(
+                windowEnabled = VideoSettings.Default.windowEnabled,
+                hidePictureWhileDriving = VideoSettings.Default.hidePictureWhileDriving,
+                file = VideoFileSummary.None,
+            )
+    }
+}
+
+/** What the "Video file" row says about the picked file. */
+internal sealed interface VideoFileSummary {
+    data object None : VideoFileSummary
+
+    /** A file the app can still open, by its display name. */
+    data class Named(
+        val name: String,
+    ) : VideoFileSummary
+
+    /** A file whose read grant is gone, or whose provider no longer answers. */
+    data object Unavailable : VideoFileSummary
 }
 
 /** Persisted-preference changes the settings screen reports up. */
@@ -430,6 +465,24 @@ internal sealed interface SettingsAction {
     data class SetCalendarHidden(
         val id: Long,
         val hidden: Boolean,
+    ) : SettingsAction
+
+    /** Turn the dashboard's video window on or off. */
+    data class SetVideoWindow(
+        val value: Boolean,
+    ) : SettingsAction
+
+    /**
+     * Turn the video picture's motion gate on or off. The Panels section sends
+     * false only after the user confirms its warning.
+     */
+    data class SetVideoHidePicture(
+        val value: Boolean,
+    ) : SettingsAction
+
+    /** Keep [uri], a document picked in the system file picker, as the video window's file. */
+    data class SetVideoFile(
+        val uri: String,
     ) : SettingsAction
 
     /** Check this channel's release feed now. */

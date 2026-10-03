@@ -1,6 +1,6 @@
 ---
 title: Glanceable panels
-summary: Weather, calendar, now playing, the clock and a status cluster — floating cards built for viewing distance, each expanding into a full-screen panel.
+summary: Weather, calendar, now playing, an optional video window, the clock and a status cluster — floating cards built for viewing distance, each expanding into a full-screen panel.
 order: 3
 ---
 
@@ -32,6 +32,22 @@ supports them. Cover art opens a full-screen player. Long titles scroll
 only while the vehicle is parked and truncate while moving. A spectrum
 visualisation renders on devices whose audio stack supports capture.
 
+## Video window
+
+An optional small 16:9 window over the map, on the side away from the
+cards, plays a video file picked from the device or attached USB storage
+with the system file picker. A tap opens a full-screen player, which also
+picks another file or closes the window. Playing the video pauses other
+media, and the audio keeps playing while the launcher is off screen.
+
+The picture is hidden unless GPS reads the vehicle as stopped on a live fix,
+and it returns only a few seconds after the vehicle stops; the audio keeps
+playing throughout. Many places ban video the driver can see while driving,
+including when stopped in traffic, and GPS cannot tell a parked vehicle from
+one stopped at a light, so the window is off by default. The picture gate
+can be turned off in Settings, after a warning, where the screen is out of
+the driver's view or local law allows it.
+
 ## Clock
 
 A self-updating clock that honours the system 12 / 24-hour preference,
@@ -47,4 +63,5 @@ with charging state, in the dock where the driver expects them.
 Every panel degrades instead of failing: a denied permission or an
 unavailable data source renders a reduced state, never an error screen.
 The calendar, weather and music cards can each be switched off entirely
-under Settings, and the map takes the space they leave.
+under Settings, and the map takes the space they leave. The video window is
+off until it is switched on there.

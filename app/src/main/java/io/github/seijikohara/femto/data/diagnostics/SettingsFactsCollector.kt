@@ -7,11 +7,13 @@ import io.github.seijikohara.femto.data.location.LocationPreferences
 import io.github.seijikohara.femto.data.location.LocationSettings
 import io.github.seijikohara.femto.data.update.UpdatePreferences
 import io.github.seijikohara.femto.data.update.UpdateSettings
+import io.github.seijikohara.femto.data.video.VideoPreferences
+import io.github.seijikohara.femto.data.video.VideoSettings
 import kotlinx.coroutines.flow.first
 
 /**
- * Dumps every [DisplaySettings], [LocationSettings] and [UpdateSettings]
- * field as SETTINGS facts. Labels stay English on the screen as well as in
+ * Dumps every [DisplaySettings], [LocationSettings], [UpdateSettings] and
+ * [VideoSettings] field as SETTINGS facts. Labels stay English on the screen as well as in
  * the report: the dump is a debug artifact shared verbatim with the
  * unlocalized Markdown report, where stable machine-greppable wording is the
  * contract. Secrets (tokens, API keys) render only as `set` / `not set` —
@@ -24,8 +26,12 @@ internal class SettingsFactsCollector(
         val display = DisplayPreferences(context).settings.first()
         val location = LocationPreferences(context).settings.first()
         val update = UpdatePreferences(context).settings.first()
+        val video = VideoPreferences(context).settings.first()
         return SectionPayload.Facts(
-            displaySettingsFacts(display) + locationSettingsFacts(location) + updateSettingsFacts(update),
+            displaySettingsFacts(display) +
+                locationSettingsFacts(location) +
+                updateSettingsFacts(update) +
+                videoSettingsFacts(video),
         )
     }
 }
@@ -103,6 +109,15 @@ internal fun updateSettingsFacts(update: UpdateSettings): List<DiagnosticFact> =
         entry("Update pending install", update.pendingInstallVersionCode?.toString() ?: "none"),
         entry("Update offer", update.offer?.let { "${it.versionName} (${it.versionCode})" } ?: "none"),
         entry("Update prompted", update.promptedVersionCode?.toString() ?: "none"),
+    )
+
+// The picked file renders as set / not set only: its URI names the user's file,
+// and the report is made to be shared.
+internal fun videoSettingsFacts(video: VideoSettings): List<DiagnosticFact> =
+    listOf(
+        entry("Video window", "${video.windowEnabled}"),
+        entry("Video hide picture while driving", "${video.hidePictureWhileDriving}"),
+        entry("Video file", video.sourceUri.orEmpty().secretLabel()),
     )
 
 private fun entry(
