@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertCountEquals
@@ -182,6 +183,29 @@ class VideoWindowTest {
     }
 
     @Test
+    fun `the closing panel fades out showing what it showed, not the pick prompt`() {
+        setDashboard(fakeVideoUiState(playing = true))
+        rule.onNodeWithContentDescription("Open the video player").performClick()
+        rule.waitForIdle()
+        // Hold the clock so the assertions land mid-fade.
+        rule.mainClock.autoAdvance = false
+
+        rule.onNodeWithContentDescription("Close the video window").performClick()
+        video = VideoUiState.Off
+        Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeByFrame()
+        rule.mainClock.advanceTimeByFrame()
+
+        rule.onAllNodesWithTag(DashboardTags.VIDEO_PANEL).assertCountEquals(1)
+        rule.onAllNodesWithText("Pick a video").assertCountEquals(0)
+        rule.onNodeWithContentDescription("Pause").assertExists()
+
+        // Falsifiability guard: the Off state did land, and the fade ends.
+        rule.mainClock.advanceTimeBy(PANEL_FADE_BOUND_MS)
+        rule.onAllNodesWithTag(DashboardTags.VIDEO_PANEL).assertCountEquals(0)
+    }
+
+    @Test
     fun `the panel collapses once the window reads off`() {
         setDashboard(fakeVideoUiState())
         rule.onNodeWithContentDescription("Open the video player").performClick()
@@ -254,6 +278,9 @@ class VideoWindowTest {
     }
 
     private companion object {
+        // Longer than any panel exit (Motion.panelExit).
+        const val PANEL_FADE_BOUND_MS = 2_000L
+
         const val UNAVAILABLE = "The picked file can't be opened. Pick it again."
         const val PICK_FAILED = "The app couldn't keep access to that file. Pick another."
 

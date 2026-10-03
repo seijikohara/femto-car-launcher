@@ -644,6 +644,13 @@ private fun DashboardOverlays(
     LaunchedEffect(expandedWeather) {
         if (expandedWeather != null) panelWeather = expandedWeather
     }
+    // The video panel's last state while the window was on: closing turns the
+    // window off and empties the file in one step, and the exit fade would
+    // otherwise show "Pick a video" in the panel the user just closed.
+    var panelVideo by remember { mutableStateOf(video) }
+    LaunchedEffect(video) {
+        if (video.windowEnabled) panelVideo = video
+    }
 
     // LEFT driver side mirrors the dashboard start <-> end: the cards, clock, and speed
     // reserve move to the left; the map controls (opposite the cards) move to the
@@ -984,7 +991,7 @@ private fun DashboardOverlays(
             modifier = Modifier.fillMaxSize().padding(outerPad),
         ) {
             VideoPanel(
-                state = video,
+                state = if (video.windowEnabled) video else panelVideo,
                 pictureVisible = videoPictureVisible,
                 onAction = onVideoAction,
                 onCollapse = onCloseVideo,
