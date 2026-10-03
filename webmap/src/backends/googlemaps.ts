@@ -961,12 +961,14 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     }
     const lensProbe = { attached: null as GMWebGLOverlayView | GMOverlayView | null };
 
-    // Keep a lens probe on the map exactly while it renders vector: only a
+    // Put a lens probe on the map once it is known to render vector: only a
     // vector map tilts, and WebGLOverlayView "may only be added to a vector
-    // map having a MapOptions.mapId" (the reference) — so never on a raster
-    // choice, on an AUTO map only once its first tilesloaded resolves it to
-    // vector, and off again should a vector request render raster. Called at
-    // init and at that resolve.
+    // map having a MapOptions.mapId" (the reference). Until the first
+    // tilesloaded, state.isVector is only what the page asked for — Google
+    // may still render raster — so the probe waits for that resolve, for
+    // every rendering choice, explicit VECTOR included; never on a raster
+    // map. Called only from the resolve (it also takes a probe off, should a
+    // later resolve ever find raster).
     function syncLensProbe(): void {
         if (state.isVector && !lensProbe.attached) {
             lensProbe.attached = mapId !== "" ? new WebGLLensProbe() : new CanvasLensProbe();
@@ -976,7 +978,6 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             lensProbe.attached = null;
         }
     }
-    syncLensProbe();
 
     // Pin the chevron at its spot (markerSpot: clear of the side cards and
     // dropped per markerPos) and glide the camera to hold the fix under it —
@@ -1194,9 +1195,11 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         if (state.isVector !== resolvedVector) {
             log(resolvedVector ? "resolved-to-vector" : "vector-fallback-to-raster");
             state.isVector = resolvedVector;
-            syncLensProbe();
             easeHome(null);
         }
+        // The rendering type is now authoritative, whether or not it
+        // changed: only now may a vector map take its lens probe.
+        syncLensProbe();
         if (!state.isVector) reportLens("unused");
         log("rendered");
         tilesListener.remove();

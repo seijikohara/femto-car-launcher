@@ -139,7 +139,16 @@ const fake = vi.hoisted(() => {
             }
         }
         // A rendered frame: the overlays redraw against the camera it shows.
+        // Whether the first frame has rendered: its tiles then load, and the
+        // map fires its first tilesloaded once that frame is drawn.
+        private rendered = false;
         render(): void {
+            const first = !this.rendered;
+            this.rendered = true;
+            this.drawOverlays();
+            if (first) this.fire("tilesloaded");
+        }
+        private drawOverlays(): void {
             for (const overlay of this.overlays) overlay.draw();
             const viewProjection = this.viewProjection();
             const transformer = {
@@ -910,24 +919,30 @@ describe("the Google Maps page", () => {
         },
     );
 
-    it("adds the WebGL probe to an AUTO map only once it resolves to vector", async () => {
-        const page = await boot("AUTO", "VECTOR");
-        push(page.win, FIX, 90);
-        page.run(5);
-        expect(fake.created.webgl).toBe(0);
-        page.map.fire("tilesloaded");
-        expect(page.map.webglOverlays).toHaveLength(1);
-        page.run(50);
-        const at = screenOf(page.map, FIX);
-        expect(Math.hypot(at.x + MX * W, at.y - DROP * H)).toBeLessThan(1e-6);
-        expect(leanPx(page.map, FIX, 90)).toBeLessThan(1e-6);
-    });
+    it.each(["AUTO", "VECTOR"])(
+        "adds the WebGL probe to a %s choice only once tilesloaded resolves it to vector",
+        async (rendering) => {
+            // getRenderingType() is the only authoritative answer, and the
+            // overlay is valid only on a vector map: even an explicit vector
+            // request waits for it.
+            const page = await boot(rendering, "VECTOR");
+            push(page.win, FIX, 90);
+            expect(fake.created.webgl).toBe(0);
+            page.map.fire("tilesloaded");
+            expect(fake.created.webgl).toBe(1);
+            expect(page.map.webglOverlays).toHaveLength(1);
+            page.run(50);
+            const at = screenOf(page.map, FIX);
+            expect(Math.hypot(at.x + MX * W, at.y - DROP * H)).toBeLessThan(1e-6);
+            expect(leanPx(page.map, FIX, 90)).toBeLessThan(1e-6);
+        },
+    );
 
-    it("takes the probe off a vector request that renders raster", async () => {
+    it("never adds the probe to a vector request that renders raster", async () => {
         const page = await boot("VECTOR", "RASTER");
-        expect(page.map.webglOverlays).toHaveLength(1);
         push(page.win, FIX, 45);
         page.map.fire("tilesloaded");
+        expect(fake.created.webgl).toBe(0);
         expect(page.map.webglOverlays).toHaveLength(0);
         page.run(20);
         expect(page.map.moves.every((m) => m.heading === undefined || m.heading === 45)).toBe(true);
