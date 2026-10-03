@@ -623,9 +623,10 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // change: a vector map clamps tilt by zoom, so a zoom step can move the
     // tilt without this page having asked for a new one. heading/tilt are
     // vector-only (a raster map reinterprets them and stops positioning).
-    // A move that first runs into a zoom or tilt ceiling is re-centred at
-    // once for what the map then shows (see shownValue), rather than leaving
-    // the chevron off its anchor until the next move — a snap may have none.
+    // A move that first runs into a zoom or tilt ceiling is re-centred (and,
+    // for a tilt, re-turned to that tilt's yaw) at once for what the map
+    // then shows (see shownValue), rather than leaving the chevron off its
+    // anchor and the road leaning until the next move — a snap may have none.
     function moveCam(pose: Partial<CameraPose>): void {
         const now = Date.now();
         const opts: GMCameraOptions = {};
@@ -664,15 +665,31 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         }
         liveMap.moveCamera(opts);
         if (opts.center && pose.lat !== undefined && pose.lng !== undefined) {
-            const settled = viewFor(pose).view;
+            const settled = viewFor(pose);
+            // A tilt clamp also changes the lens's yaw: the heading goes with
+            // the centre, or the road leans until the next move.
+            const turned = opts.heading !== undefined && settled.view.heading !== view.heading;
             if (
-                settled.zoom !== view.zoom ||
-                settled.offsetX !== view.offsetX ||
-                settled.offsetY !== view.offsetY
+                turned ||
+                settled.view.zoom !== view.zoom ||
+                settled.view.offsetX !== view.offsetX ||
+                settled.view.offsetY !== view.offsetY
             ) {
-                liveMap.moveCamera({
-                    center: cameraCenterFor({ lat: pose.lat, lng: pose.lng }, settled),
-                });
+                const recentre: GMCameraOptions = {
+                    center: cameraCenterFor({ lat: pose.lat, lng: pose.lng }, settled.view),
+                };
+                state.lensSent = {
+                    yawDeg: settled.yaw,
+                    x: settled.view.offsetX,
+                    y: settled.view.offsetY,
+                };
+                if (turned) {
+                    recentre.heading = settled.view.heading;
+                    state.lensYaw = settled.yaw;
+                    state.lastSet.heading = settled.view.heading;
+                    state.programmaticUntil.heading = now + GESTURE_SUPPRESS_MS;
+                }
+                liveMap.moveCamera(recentre);
             }
         }
     }

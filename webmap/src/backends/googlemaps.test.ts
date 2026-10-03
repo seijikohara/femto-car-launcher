@@ -111,8 +111,9 @@ const fake = vi.hoisted(() => {
         renderingType = "VECTOR";
         // The map type's zoom ceiling: Google clamps a requested zoom to it.
         maxZoom = Number.POSITIVE_INFINITY;
-        // The vector tilt ceiling at the zoom: Google clamps a requested tilt.
-        maxTilt = Number.POSITIVE_INFINITY;
+        // The vector tilt ceiling at a zoom: Google clamps a requested tilt,
+        // and lowers the tilt it shows when a zoom change lowers the ceiling.
+        maxTiltAt: (zoom: number) => number = () => Number.POSITIVE_INFINITY;
         readonly moves: CameraOptions[] = [];
         readonly options: Record<string, unknown>;
         readonly overlays: FakeOverlayView[] = [];
@@ -130,9 +131,8 @@ const fake = vi.hoisted(() => {
                 this.heading = camera.heading;
                 this.fire("heading_changed");
             }
-            const tilt =
-                camera.tilt === undefined ? undefined : Math.min(camera.tilt, this.maxTilt);
-            if (tilt !== undefined && tilt !== this.tilt) {
+            const tilt = Math.min(camera.tilt ?? this.tilt, this.maxTiltAt(this.zoom));
+            if (tilt !== this.tilt) {
                 this.tilt = tilt;
                 this.fire("tilt_changed");
             }
@@ -824,7 +824,7 @@ describe("the Google Maps page", () => {
 
     it("corrects for the tilt the map shows when Google clamps the requested one", async () => {
         const page = await boot("VECTOR", "VECTOR");
-        page.map.maxTilt = 40;
+        page.map.maxTiltAt = () => 40;
         push(page.win, FIX, 90);
         page.run(50);
         expect(page.map.tilt).toBe(40);
@@ -832,6 +832,26 @@ describe("the Google Maps page", () => {
         expect(Math.hypot(at.x + MX * W, at.y - DROP * H)).toBeLessThan(1e-6);
         expect(leanPx(page.map, FIX, 90)).toBeLessThan(1e-6);
         expect(lastCompass()).toBe("90.0");
+    });
+
+    it("re-sends the heading with the centre when the last frame of a zoom glide first meets the tilt ceiling", async () => {
+        // A zoom from 16 to 15 at 40°: the ceiling drops below 40° only at
+        // 15, so the glide's last frame is the first that Google clamps. That
+        // frame's re-centre must also turn the map to the yaw of the tilt it
+        // shows, or the road leans until the next move.
+        const page = await boot("VECTOR", "VECTOR");
+        page.map.maxTiltAt = (zoom) => (zoom <= 15 ? 30 : 45);
+        push(page.win, FIX, 90, { tilt: 40 });
+        page.run(50);
+        push(page.win, FIX, 90, { tilt: 40, zoom: 15 });
+        page.run(70);
+        expect(page.map.zoom).toBe(15);
+        expect(page.map.tilt).toBe(30);
+        const at = screenOf(page.map, FIX);
+        expect(Math.hypot(at.x + MX * W, at.y - DROP * H)).toBeLessThan(1e-6);
+        expect(leanPx(page.map, FIX, 90)).toBeLessThan(1e-6);
+        expect(lastCompass()).toBe("90.0");
+        expect(reporter.report).not.toHaveBeenCalledWith("follow", false);
     });
 
     it("measures the lens through the WebGL overlay on a map with a Map ID", async () => {
