@@ -724,6 +724,44 @@ describe("the Google Maps page", () => {
         expect(reporter.report).not.toHaveBeenCalledWith("follow", false);
     });
 
+    it.each([
+        [1400, 360],
+        [700, 600],
+        [853, 300],
+        [1200, 512],
+    ])(
+        "keeps the fix under the chevron on every frame after a resize to %d×%d",
+        async (width, height) => {
+            const page = await boot("VECTOR", "VECTOR");
+            push(page.win, FIX, 90);
+            page.run(50);
+            const win = page.win as unknown as { innerWidth: number; innerHeight: number };
+            win.innerWidth = width;
+            win.innerHeight = height;
+            // The map draws its first frame at the new size before the page
+            // can react (the browser resizes, then renders); the page measures
+            // the new lens in that frame and re-places the camera from the
+            // next one on. The chevron's CSS spot moved with the viewport at
+            // once, so the fix must be under it on every one of those frames
+            // while only the road's lean blends.
+            page.advance(16);
+            const turns: number[] = [];
+            const drift = Array.from({ length: 30 }, () => {
+                const was = page.map.heading;
+                page.advance(16);
+                turns.push(Math.abs(shortestBearingDelta(was, page.map.heading)));
+                const at = screenOf(page.map, FIX);
+                return Math.hypot(at.x + MX * width, at.y - DROP * height);
+            });
+            expect(Math.max(...drift)).toBeLessThan(1);
+            // The road's lean turns the map gradually, never in one frame.
+            expect(Math.max(...turns)).toBeLessThan(1);
+            expect(drift[drift.length - 1]).toBeLessThan(1e-6);
+            expect(leanPx(page.map, FIX, 90)).toBeLessThan(1e-6);
+            expect(page.marker.style.transition).toBe("");
+        },
+    );
+
     it("turns the map one way only when it re-follows after several resizes", async () => {
         // While detached the lens is re-measured at every new size; the
         // re-follow must glide from the correction the map shows straight to

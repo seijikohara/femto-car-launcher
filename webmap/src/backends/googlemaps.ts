@@ -372,7 +372,9 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // (camera-glide.ts), so a new measurement glides in instead of
         // turning the map in one frame, and straight from what the map
         // shows: never through an older measurement in between.
-        lensTo: { gen: 0, lens: null as LensCalibration | null },
+        // [lensTo.resized]: measured at another viewport size than the
+        // correction the blend starts from (see lensEffectAt).
+        lensTo: { gen: 0, lens: null as LensCalibration | null, resized: false },
         lensFrom: {
             gen: 0,
             lens: null as LensCalibration | null,
@@ -578,8 +580,11 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // chevron's spot (the offset).
     function viewFor(pose: Partial<CameraPose>): { view: CameraView; yaw: number } {
         const zoom = shownZoom(pose.zoom ?? liveMap.getZoom() ?? 0);
-        const offsetX = pose.offsetX ?? state.spot.x * window.innerWidth;
-        const offsetY = pose.offsetY ?? state.spot.y * window.innerHeight;
+        // The pose's offset is a fraction of the viewport (see CameraPose):
+        // in px at the size the map has now, so a resize moves it with the
+        // CSS chevron.
+        const offsetX = (pose.offsetX ?? state.spot.x) * window.innerWidth;
+        const offsetY = (pose.offsetY ?? state.spot.y) * window.innerHeight;
         if (!state.isVector) return { view: { zoom, heading: 0, offsetX, offsetY }, yaw: 0 };
         const tilt = shownTilt(pose.tilt ?? liveMap.getTilt() ?? 0);
         const lens = lensEffectAt(pose.lensGen ?? state.lensGen, offsetX, offsetY, tilt);
@@ -598,7 +603,12 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         const target = lensEffect(to.lens, offsetX, offsetY, tilt);
         if (gen >= to.gen) return target;
         const start = from.frozen ?? lensEffect(from.lens, offsetX, offsetY, tilt);
-        return mixLensEffect(start, target, (gen - from.gen) / (to.gen - from.gen));
+        const mixed = mixLensEffect(start, target, (gen - from.gen) / (to.gen - from.gen));
+        // After a resize the old correction describes a camera the map no
+        // longer has: the anchor offset takes the new lens at once, so the
+        // fix stays under the chevron, and only the yaw (the road's lean)
+        // blends.
+        return to.resized ? { ...mixed, x: target.x, y: target.y } : mixed;
     }
 
     // One immediate camera move — the glide's per-frame step, and the jump.
@@ -683,14 +693,19 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     function readPose(owned: Partial<CameraPose>): CameraPose {
         const zoom = liveMap.getZoom() ?? 0;
         const tilt = liveMap.getTilt() ?? 0;
-        const offsetX = owned.offsetX ?? state.spot.x * window.innerWidth;
-        const offsetY = owned.offsetY ?? state.spot.y * window.innerHeight;
+        const offsetX = owned.offsetX ?? state.spot.x;
+        const offsetY = owned.offsetY ?? state.spot.y;
         const mapHeading = liveMap.getHeading() ?? 0;
         const lensGen = owned.lensGen ?? state.lensGen;
         const heading = state.isVector
             ? normalizeBearing(
                   mapHeading +
-                      lensEffectAt(lensGen, offsetX, offsetY, shownTilt(owned.tilt ?? tilt)).yawDeg,
+                      lensEffectAt(
+                          lensGen,
+                          offsetX * window.innerWidth,
+                          offsetY * window.innerHeight,
+                          shownTilt(owned.tilt ?? tilt),
+                      ).yawDeg,
               )
             : mapHeading;
         const { view } = viewFor({
@@ -736,6 +751,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         ) {
             return;
         }
+        const resized = last.width > 0 && (last.width !== width || last.height !== height);
         state.lensAt = { tilt, zoom, width, height };
         if (!(tilt > 0)) {
             reportLens("unused");
@@ -758,7 +774,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
                       viewportHeightPx: height,
                   })
                 : null;
-        setLens(lens);
+        setLens(lens, resized);
         reportLens(
             lens
                 ? `measured,source=${source},fovy=${lensFovyDeg(lens, height).toFixed(1)}`
@@ -777,36 +793,46 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         report("lens", detail);
     }
 
-    // A lens that appears, goes, or is re-measured differently (a viewport
-    // resize) changes the yaw and the anchor under the chevron, so it becomes
-    // the new endpoint of a blend that starts from what the map shows now,
-    // and the camera glides there at once (glideLens) rather than waiting for
-    // the next fix — a parked car may not send one. The same camera measured
-    // again changes nothing visible (lensMoved) and replaces the newest lens
-    // in place, keeping its generation.
-    function setLens(next: LensCalibration | null): void {
-        const moved = lensMoved(
-            state.lensTo.lens,
-            next,
-            state.spot.x * window.innerWidth,
-            state.spot.y * window.innerHeight,
-            liveMap.getTilt() ?? 0,
-        );
+    // A lens that appears, goes, or is re-measured differently changes the
+    // yaw and the anchor under the chevron, so it becomes the new endpoint of
+    // a blend that starts from what the map shows now, and the camera glides
+    // there at once (glideLens) rather than waiting for the next fix — a
+    // parked car may not send one. The same camera measured again changes
+    // nothing visible (lensMoved) and replaces the newest lens in place,
+    // keeping its generation. A measurement at a new viewport size
+    // ([resized]) always starts a blend: the chevron's px spot moved with the
+    // viewport, so even an unchanged lens would turn the map in one frame,
+    // and a parked map has no other frame to pick up the new spot.
+    function setLens(next: LensCalibration | null, resized: boolean): void {
+        const moved =
+            resized ||
+            lensMoved(
+                state.lensTo.lens,
+                next,
+                state.spot.x * window.innerWidth,
+                state.spot.y * window.innerHeight,
+                liveMap.getTilt() ?? 0,
+            );
         if (!moved) {
             state.lensTo.lens = next;
             return;
         }
         const shown = state.lensGen;
-        // What the map shows becomes the blend's start: the newest lens when
-        // the map has reached it, the start itself when the map has not left
-        // it (a detached map is not re-placed), else, mid-blend, the
-        // correction last sent, frozen.
-        if (shown >= state.lensTo.gen) {
-            state.lensFrom = { gen: shown, lens: state.lensTo.lens, frozen: null };
-        } else if (shown > state.lensFrom.gen) {
+        // What the map shows becomes the blend's start: the correction last
+        // sent, frozen, after a resize (the old lens would give another yaw
+        // at the chevron's new px spot) or mid-blend; else the newest lens
+        // when the map has reached it, or the start itself when the map has
+        // not left it (a detached map is not re-placed).
+        if (resized || (shown < state.lensTo.gen && shown > state.lensFrom.gen)) {
             state.lensFrom = { gen: shown, lens: null, frozen: state.lensSent };
+        } else if (shown >= state.lensTo.gen) {
+            state.lensFrom = { gen: shown, lens: state.lensTo.lens, frozen: null };
         }
-        state.lensTo = { gen: Math.floor(Math.max(shown, state.lensTo.gen)) + 1, lens: next };
+        state.lensTo = {
+            gen: Math.floor(Math.max(shown, state.lensTo.gen)) + 1,
+            lens: next,
+            resized,
+        };
         if (state.following) glideLens();
     }
 
@@ -951,8 +977,8 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             // A raster map never tilts: a 0 here keeps the tilt the glide owns
             // equal to what the map shows, should the map resolve to vector.
             tilt: state.isVector ? fix.tilt : 0,
-            offsetX: at.x * window.innerWidth,
-            offsetY: at.y * window.innerHeight,
+            offsetX: at.x,
+            offsetY: at.y,
             lensGen: state.lensTo.gen,
         };
     }

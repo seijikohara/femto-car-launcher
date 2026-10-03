@@ -166,9 +166,15 @@ policy:
   tilt requested, wherever Google clamps it (and works at the zoom the
   map shows past its ceiling). A measurement that visibly moves δ or
   the anchor (`lensMoved`: the lens appearing, a viewport resize) is a
-  new lens generation the glide blends to over the reflow motion
-  (`lensGen` in `CameraPose`), without waiting for a fix: the heading
-  and the anchor glide, the chevron and its CSS transition stay put.
+  new endpoint the glide blends to over the reflow motion (`lensGen`
+  in `CameraPose`), straight from the correction the map shows —
+  never through older measurements — and without waiting for a fix:
+  the heading and the anchor glide, the chevron and its CSS
+  transition stay put. The pose carries the chevron's offset as a
+  viewport fraction, as the CSS chevron's left/top are, so a resize
+  moves both at once; after a resize the anchor offset takes the new
+  lens at once (the fix stays under the chevron) and only the yaw
+  blends.
   Never hard-code a field of view. Both maps place the
   chevron by the one rule (`markerSpot`): until the lens is measured,
   or when the measurement is implausible, the Google chevron stays at
