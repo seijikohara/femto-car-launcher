@@ -34,9 +34,15 @@ const fake = vi.hoisted(() => {
     const optics = { fovyDeg: 30, flatCanvas: false };
     // google.maps.OverlayView: the page subclasses it and reads the
     // projection in draw(), which the map calls as it renders.
+    // How many lens probes of each kind the page has constructed.
+    const created = { webgl: 0, canvas: 0 };
     class FakeOverlayView {
         private host: FakeMap | null = null;
+        constructor() {
+            created.canvas += 1;
+        }
         setMap(map: FakeMap | null): void {
+            this.host?.overlays.splice(this.host.overlays.indexOf(this), 1);
             this.host = map;
             if (!map) return;
             map.overlays.push(this);
@@ -58,8 +64,19 @@ const fake = vi.hoisted(() => {
     // column is the point's clip position.
     class FakeWebGLOverlayView {
         redrawRequests = 0;
+        private host: FakeMap | null = null;
+        constructor() {
+            created.webgl += 1;
+        }
         setMap(map: FakeMap | null): void {
-            if (!map || !map.options.mapId) return;
+            this.host?.webglOverlays.splice(this.host.webglOverlays.indexOf(this), 1);
+            this.host = map;
+            if (!map) return;
+            // The reference: it "may only be added to a vector map having a
+            // MapOptions.mapId".
+            if (!map.options.mapId || map.renderingType !== "VECTOR") {
+                throw new Error("WebGLOverlayView added to a map that is not vector with a Map ID");
+            }
             map.webglOverlays.push(this);
             this.onAdd();
             this.onContextRestored({ gl: {} });
@@ -216,7 +233,15 @@ const fake = vi.hoisted(() => {
     class FakeTrafficLayer {
         setMap(): void {}
     }
-    return { FakeMap, FakeOverlayView, FakeTrafficLayer, FakeWebGLOverlayView, optics, maps };
+    return {
+        FakeMap,
+        FakeOverlayView,
+        FakeTrafficLayer,
+        FakeWebGLOverlayView,
+        created,
+        optics,
+        maps,
+    };
 });
 
 type FakeMap = InstanceType<typeof fake.FakeMap>;
@@ -447,6 +472,8 @@ beforeEach(() => {
     });
     vi.setSystemTime(1_000_000);
     fake.maps.length = 0;
+    fake.created.webgl = 0;
+    fake.created.canvas = 0;
     fake.optics.fovyDeg = 30;
     fake.optics.flatCanvas = false;
     reporter.report.mockClear();
@@ -638,6 +665,48 @@ describe("the Google Maps page", () => {
         expect(page.map.webglOverlays).toHaveLength(1);
         expect(page.map.overlays).toHaveLength(0);
         expect(page.map.webglOverlays[0].redrawRequests).toBe(0);
+    });
+
+    it.each([
+        ["RASTER", "RASTER", "map-id"],
+        ["RASTER", "RASTER", ""],
+        ["AUTO", "RASTER", "map-id"],
+    ])(
+        "never adds a lens probe to a %s choice that renders %s (Map ID %j)",
+        async (rendering, renderingType, mapId) => {
+            const page = await boot(rendering, renderingType, { mapId });
+            push(page.win, FIX, 45);
+            page.run(5);
+            page.map.fire("tilesloaded");
+            page.run(20);
+            expect(fake.created.webgl).toBe(0);
+            expect(fake.created.canvas).toBe(0);
+            expect(page.map.webglOverlays).toHaveLength(0);
+            expect(page.map.overlays).toHaveLength(0);
+        },
+    );
+
+    it("adds the WebGL probe to an AUTO map only once it resolves to vector", async () => {
+        const page = await boot("AUTO", "VECTOR");
+        push(page.win, FIX, 90);
+        page.run(5);
+        expect(fake.created.webgl).toBe(0);
+        page.map.fire("tilesloaded");
+        expect(page.map.webglOverlays).toHaveLength(1);
+        page.run(50);
+        const at = screenOf(page.map, FIX);
+        expect(Math.hypot(at.x + MX * W, at.y - DROP * H)).toBeLessThan(1e-6);
+        expect(leanPx(page.map, FIX, 90)).toBeLessThan(1e-6);
+    });
+
+    it("takes the probe off a vector request that renders raster", async () => {
+        const page = await boot("VECTOR", "RASTER");
+        expect(page.map.webglOverlays).toHaveLength(1);
+        push(page.win, FIX, 45);
+        page.map.fire("tilesloaded");
+        expect(page.map.webglOverlays).toHaveLength(0);
+        page.run(20);
+        expect(page.map.moves.every((m) => m.heading === undefined || m.heading === 45)).toBe(true);
     });
 
     it("measures the lens through the OverlayView projection without a Map ID", async () => {

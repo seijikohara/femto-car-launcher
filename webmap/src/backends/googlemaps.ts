@@ -806,53 +806,65 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // WebGLOverlayView: its transformer is the documented camera matrix the
     // map itself draws with (fromLatLngAltitude returns the MVP matrix of a
     // frame at a point; that matrix's translation column is the point's clip
-    // position). WebGLOverlayView may only be added to a vector map with a
-    // Map ID, so a map without one falls back to an OverlayView, whose
+    // position). A map without a Map ID falls back to an OverlayView, whose
     // MapCanvasProjection needs no Map ID; its perspective on a tilted map is
     // implied by the reference rather than stated, and calibrateLens refuses
     // a flat reading. Neither probe asks for a redraw: the map renders a
     // frame whenever the camera moves, which is when the lens can change.
-    if (mapId !== "") {
-        class WebGLLensProbe extends mapsLib.WebGLOverlayView {
-            onAdd(): void {}
-            onContextRestored(): void {}
-            onDraw({ transformer }: GMWebGLDrawOptions): void {
-                measureLens("webgl", transformer.getCameraParams(), (at) => {
-                    const m = transformer.fromLatLngAltitude({ ...at, altitude: 0 });
-                    const w = m[15];
-                    if (!(w > 0)) return null;
-                    return {
-                        x: ((m[12] / w + 1) / 2) * window.innerWidth,
-                        y: ((1 - m[13] / w) / 2) * window.innerHeight,
-                    };
-                });
-            }
-            onContextLost(): void {}
-            onRemove(): void {}
+    class WebGLLensProbe extends mapsLib.WebGLOverlayView {
+        onAdd(): void {}
+        onContextRestored(): void {}
+        onDraw({ transformer }: GMWebGLDrawOptions): void {
+            measureLens("webgl", transformer.getCameraParams(), (at) => {
+                const m = transformer.fromLatLngAltitude({ ...at, altitude: 0 });
+                const w = m[15];
+                if (!(w > 0)) return null;
+                return {
+                    x: ((m[12] / w + 1) / 2) * window.innerWidth,
+                    y: ((1 - m[13] / w) / 2) * window.innerHeight,
+                };
+            });
         }
-        new WebGLLensProbe().setMap(liveMap);
-    } else {
-        class LensProbe extends mapsLib.OverlayView {
-            onAdd(): void {}
-            draw(): void {
-                const projection = this.getProjection();
-                const center = liveMap.getCenter();
-                if (!projection || !center) return;
-                measureLens(
-                    "canvas",
-                    {
-                        center,
-                        heading: liveMap.getHeading() ?? 0,
-                        tilt: liveMap.getTilt() ?? 0,
-                        zoom: liveMap.getZoom() ?? 0,
-                    },
-                    (at) => projection.fromLatLngToContainerPixel(at),
-                );
-            }
-            onRemove(): void {}
-        }
-        new LensProbe().setMap(liveMap);
+        onContextLost(): void {}
+        onRemove(): void {}
     }
+    class CanvasLensProbe extends mapsLib.OverlayView {
+        onAdd(): void {}
+        draw(): void {
+            const projection = this.getProjection();
+            const center = liveMap.getCenter();
+            if (!projection || !center) return;
+            measureLens(
+                "canvas",
+                {
+                    center,
+                    heading: liveMap.getHeading() ?? 0,
+                    tilt: liveMap.getTilt() ?? 0,
+                    zoom: liveMap.getZoom() ?? 0,
+                },
+                (at) => projection.fromLatLngToContainerPixel(at),
+            );
+        }
+        onRemove(): void {}
+    }
+    const lensProbe = { attached: null as GMWebGLOverlayView | GMOverlayView | null };
+
+    // Keep a lens probe on the map exactly while it renders vector: only a
+    // vector map tilts, and WebGLOverlayView "may only be added to a vector
+    // map having a MapOptions.mapId" (the reference) — so never on a raster
+    // choice, on an AUTO map only once its first tilesloaded resolves it to
+    // vector, and off again should a vector request render raster. Called at
+    // init and at that resolve.
+    function syncLensProbe(): void {
+        if (state.isVector && !lensProbe.attached) {
+            lensProbe.attached = mapId !== "" ? new WebGLLensProbe() : new CanvasLensProbe();
+            lensProbe.attached.setMap(liveMap);
+        } else if (!state.isVector && lensProbe.attached) {
+            lensProbe.attached.setMap(null);
+            lensProbe.attached = null;
+        }
+    }
+    syncLensProbe();
 
     // Pin the chevron at its spot (markerSpot: clear of the side cards and
     // dropped per markerPos) and glide the camera to hold the fix under it —
@@ -1070,6 +1082,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         if (state.isVector !== resolvedVector) {
             log(resolvedVector ? "resolved-to-vector" : "vector-fallback-to-raster");
             state.isVector = resolvedVector;
+            syncLensProbe();
             easeHome(null);
         }
         log("rendered");

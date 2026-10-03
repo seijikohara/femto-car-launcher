@@ -153,8 +153,9 @@ policy:
   fed by a `WebGLOverlayView`'s coordinate transformer (the camera
   matrix the map draws with; Google allows the overlay only on a
   vector map with a Map ID) or, without a Map ID, by an
-  `OverlayView`'s `MapCanvasProjection`, recovers the focal length and camera distance from two
-  probe points and derives a yaw bias δ on the map heading — so the
+  `OverlayView`'s `MapCanvasProjection` — a probe that rides only on
+  a map that renders vector (`syncLensProbe`) — recovers the focal
+  length and camera distance from two probe points and derives a yaw bias δ on the map heading — so the
   direction of travel runs straight up through the chevron at the
   OSM spot (`markerSpot`) — and the exact ground offset under the
   chevron. δ is Google's stand-in for camera padding, not a heading
