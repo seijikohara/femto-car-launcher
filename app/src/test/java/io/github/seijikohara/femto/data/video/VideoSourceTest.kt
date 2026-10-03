@@ -2,6 +2,9 @@ package io.github.seijikohara.femto.data.video
 
 import io.github.seijikohara.femto.testfixtures.FakeVideoSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeVideoSourceGrants
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -70,8 +73,31 @@ class VideoSourceTest {
             assertEquals(setOf(FIRST), grants.held)
         }
 
+    @Test
+    fun `two picks at once leave exactly the recorded file's grant held`() =
+        runTest {
+            val store = FakeVideoSettingsStore(VideoSettings.Default.copy(sourceUri = FIRST))
+            val grants = FakeVideoSourceGrants(held = setOf(FIRST))
+            // The dashboard's pick is still writing when Settings' pick starts.
+            val slowWrite = store.gateNextSourceWrite()
+            val dashboardPick = async { store.adoptSource(SECOND, grants) }
+            runCurrent()
+            val settingsPick = async { store.adoptSource(THIRD, grants) }
+            runCurrent()
+
+            slowWrite.complete(Unit)
+            advanceUntilIdle()
+            dashboardPick.await()
+            settingsPick.await()
+
+            // Every grant the app keeps names the recorded file: none is left
+            // orphaned to count against the persisted-grant limit.
+            assertEquals(setOfNotNull(store.current.sourceUri), grants.held)
+        }
+
     private companion object {
         const val FIRST = "content://com.example.documents/document/video%3A1"
         const val SECOND = "content://com.example.documents/document/video%3A2"
+        const val THIRD = "content://com.example.documents/document/video%3A3"
     }
 }

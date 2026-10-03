@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.testfixtures
 
 import io.github.seijikohara.femto.data.video.VideoSettings
 import io.github.seijikohara.femto.data.video.VideoSettingsStore
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -12,12 +13,15 @@ import kotlinx.coroutines.flow.update
  * store, [resetToDefaults] restores the two switches and keeps the picked file.
  * [dropsSourceWrites] models a store that loses the file record (a full disk,
  * a corrupted file): the write returns, and nothing changes.
+ * [gateNextSourceWrite] holds the next file write until released, the way a
+ * DataStore write takes a while, so a test can start a second write meanwhile.
  */
 internal class FakeVideoSettingsStore(
     initial: VideoSettings = VideoSettings.Default,
     private val dropsSourceWrites: Boolean = false,
 ) : VideoSettingsStore {
     private val state = MutableStateFlow(initial)
+    private var sourceWriteGate: CompletableDeferred<Unit>? = null
 
     override val settings: StateFlow<VideoSettings> = state
 
@@ -29,7 +33,11 @@ internal class FakeVideoSettingsStore(
     override suspend fun setHidePictureWhileDriving(value: Boolean) =
         state.update { it.copy(hidePictureWhileDriving = value) }
 
+    fun gateNextSourceWrite(): CompletableDeferred<Unit> =
+        CompletableDeferred<Unit>().also { sourceWriteGate = it }
+
     override suspend fun setSourceUri(value: String?) {
+        sourceWriteGate?.also { sourceWriteGate = null }?.await()
         if (!dropsSourceWrites) state.update { it.copy(sourceUri = value) }
     }
 

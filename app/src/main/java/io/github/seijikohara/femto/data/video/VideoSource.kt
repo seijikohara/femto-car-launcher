@@ -6,8 +6,17 @@ import android.provider.OpenableColumns
 import android.util.Log
 import androidx.core.net.toUri
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 private const val TAG = "VideoSource"
+
+// One lock for the whole process, not one per store or ViewModel: the
+// dashboard and Settings each build their own store and can both be adopting
+// a pick at once. Interleaved, each reads the same previous file, and the
+// grant of whichever write lands first is never released. Orphaned grants
+// count against the platform's limit on persisted URI grants.
+private val adoptionLock = Mutex()
 
 /**
  * The read grants the app keeps on picked video documents. A document picked
@@ -39,9 +48,14 @@ internal interface VideoSourceGrants {
  * replaces released. A grant that cannot be kept, or a write the store lost
  * (its writes log and swallow failures), leaves the current file and its
  * grant in place and returns false; the grant just taken is then let go, as
- * nothing names its file.
+ * nothing names its file. Adoptions run one at a time across the process.
  */
 internal suspend fun VideoSettingsStore.adoptSource(
+    uri: String,
+    grants: VideoSourceGrants,
+): Boolean = adoptionLock.withLock { adoptSourceLocked(uri, grants) }
+
+private suspend fun VideoSettingsStore.adoptSourceLocked(
     uri: String,
     grants: VideoSourceGrants,
 ): Boolean {
