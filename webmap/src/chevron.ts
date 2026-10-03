@@ -27,6 +27,33 @@ export function setChevronColor(chevron: ChevronHandles, color: string): void {
     chevron.el.style.setProperty("--marker-color", color);
 }
 
+// The chevron's inline style properties the follow machines write.
+export type ChevronStyleProperty = "left" | "top" | "transform" | "display" | "transition";
+
+// The value last written to each of them, per element.
+const writtenChevronStyles = new WeakMap<
+    HTMLElement,
+    Partial<Record<ChevronStyleProperty, string>>
+>();
+
+// Write one of the chevron's inline style properties, only when it changes:
+// both follow machines re-place, re-orient and re-show the chevron on every
+// fix, and a fix that leaves it where it is must not dirty its style each
+// time. Compared against the value last written here rather than read back,
+// since the browser may serialise a written value differently; so every
+// write of these properties on the chevron goes through here.
+export function setChevronStyle(
+    el: HTMLElement,
+    property: ChevronStyleProperty,
+    value: string,
+): void {
+    const written = writtenChevronStyles.get(el) ?? {};
+    if (written[property] === value) return;
+    written[property] = value;
+    writtenChevronStyles.set(el, written);
+    el.style[property] = value;
+}
+
 // Orient the chevron. turnDeg rotates it to the travel bearing (north-up
 // mode, and always on a Google raster map); perspective lays it onto the
 // tilted ground plane (the GL backends and the Google vector map — a raster
@@ -37,9 +64,13 @@ export function setChevronTransform(
     turnDeg: number,
     perspective: boolean,
 ): void {
-    el.style.transform = perspective
-        ? `translate(-50%, -50%) perspective(600px) rotateX(${tiltDeg}deg) rotateZ(${turnDeg}deg)`
-        : `translate(-50%, -50%) rotateZ(${turnDeg}deg)`;
+    setChevronStyle(
+        el,
+        "transform",
+        perspective
+            ? `translate(-50%, -50%) perspective(600px) rotateX(${tiltDeg}deg) rotateZ(${turnDeg}deg)`
+            : `translate(-50%, -50%) rotateZ(${turnDeg}deg)`,
+    );
 }
 
 // Build the geo-anchored clone element from the live chevron node, so the

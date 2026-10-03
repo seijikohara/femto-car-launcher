@@ -13,6 +13,7 @@
 // camera land together; the fix writes the same left/top for an unchanged
 // layout, which does not restart the running transition.
 import type { MarkerTransitionStep } from "./camera";
+import { setChevronStyle } from "./chevron";
 
 export interface MarkerTransition {
     // Arms (or clears) the CSS transition; call before writing the new
@@ -38,18 +39,22 @@ export function createMarkerTransition(el: HTMLElement, durationMs: number): Mar
         const thisGeneration = marker.generation;
         if (!active) {
             marker.endsAtMs = 0;
-            el.style.transition = "";
+            setChevronStyle(el, "transition", "");
             return;
         }
         marker.endsAtMs = Date.now() + durationMs;
-        el.style.transition = `left ${durationMs}ms linear, top ${durationMs}ms linear`;
+        setChevronStyle(
+            el,
+            "transition",
+            `left ${durationMs}ms linear, top ${durationMs}ms linear`,
+        );
         // Self-clearing: a reflow with no follow-up push (GPS momentarily
         // idle) must not leave the transition armed forever, where it would
         // silently animate some unrelated later left/top write.
         setTimeout(() => {
             if (thisGeneration !== marker.generation) return;
             marker.endsAtMs = 0;
-            el.style.transition = "";
+            setChevronStyle(el, "transition", "");
         }, durationMs);
     }
     return {

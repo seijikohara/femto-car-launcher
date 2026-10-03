@@ -80,7 +80,13 @@ import {
     cameraCenterFor,
     createCameraGlide,
 } from "../camera-glide";
-import { chevronHandles, setChevronColor, setChevronTransform, startStaleTicker } from "../chevron";
+import {
+    chevronHandles,
+    setChevronColor,
+    setChevronStyle,
+    setChevronTransform,
+    startStaleTicker,
+} from "../chevron";
 import { ScriptLoadError } from "../load-outcome";
 import {
     calibrateLens,
@@ -579,21 +585,27 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // (a raster map stays north-up whatever the pose carries). A field the
     // pose leaves out is what the map shows (the heading and tilt) or the
     // chevron's spot (the offset).
-    function viewFor(pose: Partial<CameraPose>): { view: CameraView; yaw: number } {
+    function viewFor(pose: Partial<CameraPose>): { view: CameraView; yaw: number; tilt: number } {
         const zoom = shownZoom(pose.zoom ?? liveMap.getZoom() ?? 0);
         // The pose's offset is a fraction of the viewport (see CameraPose):
         // in px at the size the map has now, so a resize moves it with the
         // CSS chevron.
         const offsetX = (pose.offsetX ?? state.spot.x) * window.innerWidth;
         const offsetY = (pose.offsetY ?? state.spot.y) * window.innerHeight;
-        if (!state.isVector) return { view: { zoom, heading: 0, offsetX, offsetY }, yaw: 0 };
+        if (!state.isVector) {
+            return { view: { zoom, heading: 0, offsetX, offsetY }, yaw: 0, tilt: 0 };
+        }
         const tilt = shownTilt(pose.tilt ?? liveMap.getTilt() ?? 0);
         const lens = lensEffectAt(pose.lensGen ?? state.lensGen, offsetX, offsetY, tilt);
         const heading =
             pose.heading !== undefined
                 ? normalizeBearing(pose.heading - lens.yawDeg)
                 : (liveMap.getHeading() ?? 0);
-        return { view: { zoom, heading, offsetX: lens.x, offsetY: lens.y }, yaw: lens.yawDeg };
+        return {
+            view: { zoom, heading, offsetX: lens.x, offsetY: lens.y },
+            yaw: lens.yawDeg,
+            tilt,
+        };
     }
 
     // The correction at lens generation [gen] (see state.lensTo): the newest
@@ -630,7 +642,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     function moveCam(pose: Partial<CameraPose>): void {
         const now = Date.now();
         const opts: GMCameraOptions = {};
-        const { view, yaw } = viewFor(pose);
+        const { view, yaw, tilt } = viewFor(pose);
         if (pose.lensGen !== undefined) state.lensGen = pose.lensGen;
         if (pose.lat !== undefined && pose.lng !== undefined) {
             opts.center = cameraCenterFor({ lat: pose.lat, lng: pose.lng }, view);
@@ -664,7 +676,13 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             }
         }
         liveMap.moveCamera(opts);
-        if (opts.center && pose.lat !== undefined && pose.lng !== undefined) {
+        // Only a move the map clamped shows another zoom or tilt than this
+        // view was worked out for: re-working it every frame would double
+        // the per-frame work for nothing.
+        const clamped =
+            (liveMap.getZoom() ?? view.zoom) !== view.zoom ||
+            (state.isVector && (liveMap.getTilt() ?? tilt) !== tilt);
+        if (clamped && opts.center && pose.lat !== undefined && pose.lng !== undefined) {
             const settled = viewFor(pose);
             // A tilt clamp also changes the lens's yaw: the heading goes with
             // the centre, or the road leans until the next move.
@@ -761,14 +779,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         const width = window.innerWidth;
         const height = window.innerHeight;
         const last = state.lensAt;
-        if (
-            last.tilt === tilt &&
-            last.zoom === zoom &&
-            last.width === width &&
-            last.height === height
-        ) {
-            return;
-        }
+        if (lensMeasuredFor(tilt, zoom)) return;
         const resized = last.width > 0 && (last.width !== width || last.height !== height);
         state.lensAt = { tilt, zoom, width, height };
         if (!(tilt > 0)) {
@@ -797,6 +808,18 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             lens
                 ? `measured,source=${source},fovy=${lensFovyDeg(lens, height).toFixed(1)}`
                 : `unmeasured,source=${source}`,
+        );
+    }
+
+    // Whether the lens was last measured at [tilt], [zoom] and the viewport
+    // the map has now: nothing else changes the perspective.
+    function lensMeasuredFor(tilt: number, zoom: number): boolean {
+        const last = state.lensAt;
+        return (
+            last.tilt === tilt &&
+            last.zoom === zoom &&
+            last.width === window.innerWidth &&
+            last.height === window.innerHeight
         );
     }
 
@@ -894,6 +917,10 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         onAdd(): void {}
         onContextRestored(): void {}
         onDraw({ transformer }: GMWebGLDrawOptions): void {
+            // Every rendered frame comes here; reading the camera allocates,
+            // and the lens can only have changed with the tilt, the zoom or
+            // the viewport.
+            if (lensMeasuredFor(liveMap.getTilt() ?? 0, liveMap.getZoom() ?? 0)) return;
             measureLens("webgl", transformer.getCameraParams(), (at) => {
                 const m = transformer.fromLatLngAltitude({ ...at, altitude: 0 });
                 const w = m[15];
@@ -976,8 +1003,8 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         const plan = spotMotion(state.spotShown ? state.spot : null, spot, pushMotion);
         if (plan.snapAt) glide.jump(poseAt(plan.snapAt));
         markerTransition.apply(markerTransitionStep(plan.motion, reflowRemainingMs));
-        markerEl.style.left = `${(0.5 + spot.x) * 100}%`;
-        markerEl.style.top = `${(0.5 + spot.y) * 100}%`;
+        setChevronStyle(markerEl, "left", `${(0.5 + spot.x) * 100}%`);
+        setChevronStyle(markerEl, "top", `${(0.5 + spot.y) * 100}%`);
         // Before the glide below reads the map back against it.
         state.spot = spot;
         state.spotShown = state.following;
@@ -1032,7 +1059,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         if (follow) {
             if (state.refollowTimer) clearTimeout(state.refollowTimer);
             state.refollowTimer = 0;
-            markerEl.style.display = "block";
+            setChevronStyle(markerEl, "display", "block");
             // Ease home in one continuous transition; the per-fix cadence
             // easing resumes from the next push.
             easeHome(REFOLLOW_MOTION);
@@ -1051,7 +1078,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             // while detached. A geo-anchored OverlayView (the only mapId-free,
             // non-deprecated route, materially more complex) is a documented
             // follow-up.
-            markerEl.style.display = "none";
+            setChevronStyle(markerEl, "display", "none");
             state.spotShown = false;
         }
     }
@@ -1266,7 +1293,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // the location under it, clear of the side cards — the OSM parity.
         const orientation = orientationFor(heading);
         syncChevron(fix.tilt, orientation.chevronTurn);
-        markerEl.style.display = "block";
+        setChevronStyle(markerEl, "display", "block");
         placeFollowCamera(fix, orientation.mapBearing, motion, reflowRemainingMs);
     };
 

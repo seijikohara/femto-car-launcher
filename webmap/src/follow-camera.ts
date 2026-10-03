@@ -31,6 +31,7 @@ import {
     type ChevronHandles,
     geoMarkerElement,
     setChevronColor,
+    setChevronStyle,
     setChevronTransform,
     startStaleTicker,
 } from "./chevron";
@@ -218,7 +219,7 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
             state.refollowTimer = 0;
             state.geoMarker?.remove();
             state.geoMarker = null;
-            markerEl.style.display = "block";
+            setChevronStyle(markerEl, "display", "block");
             // Ease home in one continuous transition; the per-fix cadence
             // easing resumes from the next push.
             easeHome(REFOLLOW_MOTION);
@@ -226,7 +227,7 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
             // The screen-fixed chevron points at arbitrary map while
             // detached; the geo-anchored clone tracks the real position
             // instead.
-            markerEl.style.display = "none";
+            setChevronStyle(markerEl, "display", "none");
             syncGeoMarker();
         }
     }
@@ -364,11 +365,11 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
             // ground underneath it.
             markerTransition.apply(markerTransitionStep(motion, reflowRemainingMs));
             const spot = markerSpot({ markerPos, bottomSafe, rightSafe, leftSafe });
-            markerEl.style.left = `${(0.5 + spot.x) * 100}%`;
-            markerEl.style.top = `${(0.5 + spot.y) * 100}%`;
+            setChevronStyle(markerEl, "left", `${(0.5 + spot.x) * 100}%`);
+            setChevronStyle(markerEl, "top", `${(0.5 + spot.y) * 100}%`);
             const orientation = orientationFor(heading);
             syncChevron(tilt || 0, orientation.chevronTurn);
-            markerEl.style.display = "block";
+            setChevronStyle(markerEl, "display", "block");
             const opts: FollowCameraOpts = {
                 center: [lon, lat],
                 bearing: orientation.mapBearing,

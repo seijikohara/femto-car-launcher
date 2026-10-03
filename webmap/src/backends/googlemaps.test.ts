@@ -34,8 +34,9 @@ const fake = vi.hoisted(() => {
     const optics = { fovyDeg: 30, flatCanvas: false };
     // google.maps.OverlayView: the page subclasses it and reads the
     // projection in draw(), which the map calls as it renders.
-    // How many lens probes of each kind the page has constructed.
-    const created = { webgl: 0, canvas: 0 };
+    // How many lens probes of each kind the page has constructed, and how
+    // often a probe read the WebGL camera.
+    const created = { webgl: 0, canvas: 0, cameraReads: 0 };
     class FakeOverlayView {
         private host: FakeMap | null = null;
         constructor() {
@@ -149,6 +150,7 @@ const fake = vi.hoisted(() => {
                 fromLatLngAltitude: (at: LatLng & { altitude?: number }) =>
                     Float64Array.from(FakeMap.multiply(viewProjection, this.model(at))),
                 getCameraParams: () => {
+                    created.cameraReads += 1;
                     const { lat, lng } = this.center;
                     return {
                         center: { lat: () => lat, lng: () => lng },
@@ -462,14 +464,32 @@ async function boot(
     { mapId = "map-id", width = W, height = H }: BootOptions = {},
 ) {
     const path = { setAttribute: vi.fn(), getAttribute: () => null };
+    // The chevron's inline style, recording every property written.
+    const styleWrites: string[] = [];
     const marker = {
-        style: {
-            left: "50%",
-            top: "50%",
-            transform: "",
-            transition: "",
-            display: "none",
-            setProperty: vi.fn(),
+        style: new Proxy(
+            {
+                left: "50%",
+                top: "50%",
+                transform: "",
+                transition: "",
+                display: "none",
+                setProperty: vi.fn(),
+            } as Record<string, unknown>,
+            {
+                set(target, property, value) {
+                    styleWrites.push(String(property));
+                    target[String(property)] = value;
+                    return true;
+                },
+            },
+        ) as unknown as {
+            left: string;
+            top: string;
+            transform: string;
+            transition: string;
+            display: string;
+            setProperty: (name: string, value: string) => void;
         },
         classList: { remove: vi.fn(), toggle: vi.fn(), contains: () => false },
         querySelector: (selector: string) => (selector === "path" ? path : null),
@@ -513,7 +533,7 @@ async function boot(
     const run = (count: number): void => {
         Array.from({ length: count }).forEach(() => advance(16));
     };
-    return { win, map, marker, advance, run };
+    return { win, map, marker, styleWrites, advance, run };
 }
 
 // Make Date.now advance by 1 ms on every call, as a real clock can between
@@ -548,6 +568,7 @@ beforeEach(() => {
     fake.maps.length = 0;
     fake.created.webgl = 0;
     fake.created.canvas = 0;
+    fake.created.cameraReads = 0;
     fake.optics.fovyDeg = 30;
     fake.optics.flatCanvas = false;
     reporter.report.mockClear();
@@ -1170,6 +1191,30 @@ describe("the Google Maps page", () => {
             expect(reporter.report).not.toHaveBeenCalledWith("follow", false);
         },
     );
+
+    it("leaves the chevron's style alone on a fix that does not move it", async () => {
+        // The chevron is re-placed and re-oriented on every fix; an unchanged
+        // spot, turn and transition must not dirty its style each time.
+        const page = await boot("VECTOR", "VECTOR");
+        push(page.win, FIX, 90);
+        page.run(50);
+        page.styleWrites.length = 0;
+        push(page.win, aheadOf(FIX, 90, 20), 90);
+        page.run(10);
+        expect(page.styleWrites).toEqual([]);
+    });
+
+    it("reads the WebGL camera for the lens only when the tilt, zoom or viewport changed", async () => {
+        const page = await boot("VECTOR", "VECTOR");
+        push(page.win, FIX, 90);
+        page.run(50);
+        fake.created.cameraReads = 0;
+        // A fix's glide renders a frame each time; none changes the tilt,
+        // the zoom or the viewport.
+        push(page.win, aheadOf(FIX, 90, 20), 90);
+        page.run(50);
+        expect(fake.created.cameraReads).toBe(0);
+    });
 
     it("still detects a user zoom while following a turn", async () => {
         const page = await boot("VECTOR", "VECTOR");

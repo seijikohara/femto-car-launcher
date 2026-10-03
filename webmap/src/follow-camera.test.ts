@@ -9,15 +9,34 @@ import { createFollowEngine, type FollowCameraOpts } from "./follow-camera";
 const FIX = { lat: 35.681, lon: 139.767 };
 
 function setup() {
+    // The chevron's inline style, recording every property written.
+    const styleWrites: string[] = [];
     const marker = {
-        style: {
-            left: "50%",
-            top: "50%",
-            transform: "",
-            transition: "",
-            display: "none",
-            setProperty: vi.fn(),
-            getPropertyValue: () => "",
+        style: new Proxy(
+            {
+                left: "50%",
+                top: "50%",
+                transform: "",
+                transition: "",
+                display: "none",
+                setProperty: vi.fn(),
+                getPropertyValue: () => "",
+            } as Record<string, unknown>,
+            {
+                set(target, property, value) {
+                    styleWrites.push(String(property));
+                    target[String(property)] = value;
+                    return true;
+                },
+            },
+        ) as unknown as {
+            left: string;
+            top: string;
+            transform: string;
+            transition: string;
+            display: string;
+            setProperty: (name: string, value: string) => void;
+            getPropertyValue: (name: string) => string;
         },
         classList: { remove: vi.fn(), toggle: vi.fn(), contains: () => false },
         querySelector: () => null,
@@ -56,7 +75,7 @@ function setup() {
     const push = (fix: { lat: number; lon: number }, rightSafe = 0.428, zoom = 16): void =>
         engine.updateCamera(fix.lat, fix.lon, 90, zoom, 55, 70, 0.1, rightSafe, 0, "#3367d6");
     const gesture = (type: string): void => listeners.get(type)?.({ originalEvent: {} });
-    return { engine, map, marker, push, gesture };
+    return { engine, map, marker, styleWrites, push, gesture };
 }
 
 beforeEach(() => {
@@ -98,6 +117,17 @@ describe("the OSM follow engine", () => {
         page.push({ lat: FIX.lat + 1e-4, lon: FIX.lon }, 0);
         expect(page.marker.style.transition).toBe("");
         expect(page.map.eases.at(-1)?.duration).toBe(LAYOUT_REFLOW_MS + 40);
+    });
+
+    it("leaves the chevron's style alone on a fix that does not move it", () => {
+        // develop wrote left, top, display, the turn and the transition on
+        // every fix; an unchanged chevron must not dirty its style each time.
+        const page = setup();
+        page.push(FIX);
+        vi.advanceTimersByTime(1_000);
+        page.styleWrites.length = 0;
+        page.push({ lat: FIX.lat + 1e-4, lon: FIX.lon });
+        expect(page.styleWrites).toEqual([]);
     });
 
     it("zooms a detached map about the padded centre, where the chevron was", () => {
