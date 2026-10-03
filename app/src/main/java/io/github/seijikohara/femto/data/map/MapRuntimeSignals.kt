@@ -119,15 +119,35 @@ internal object MapRuntimeSignals {
      * Record a `lens` event from map page [page] (the token
      * [recordMapPageLoad] gave it): "measured,source=<s>,fovy=<deg>",
      * "unmeasured,source=<s>" or "unused"; anything else is ignored, and so
-     * is a report from a page that is no longer the current one.
+     * is a report from a page that is no longer the current one. The
+     * current-page check and the write are one atomic update, so an old page
+     * that passed the check cannot land its write over the newer page's.
      */
     fun recordGoogleLens(
         detail: String,
         page: Long,
     ) {
-        if (page != currentPage.get()) return
-        googleLensFrom(detail)?.let { googleLens.set(page to it) }
+        val lens = googleLensFrom(detail) ?: return
+        googleLens.updateAndGet { stored -> replacedGoogleLens(stored, page, currentPage.get(), lens) }
     }
+
+    /**
+     * The stored lens report after [page] reports [lens], with [currentPage]
+     * the page current at the time: only the current page's report is
+     * stored, and never over a report from a newer page — whatever the
+     * current page looked like to the writer.
+     */
+    internal fun replacedGoogleLens(
+        stored: Pair<Long, GoogleLens>?,
+        page: Long,
+        currentPage: Long,
+        lens: GoogleLens,
+    ): Pair<Long, GoogleLens>? =
+        when {
+            page != currentPage -> stored
+            stored != null && stored.first > page -> stored
+            else -> page to lens
+        }
 
     /** The current page's lens state; null until that page has reported. */
     fun googleLensOrNull(): GoogleLens? = googleLens.get()?.takeIf { it.first == currentPage.get() }?.second

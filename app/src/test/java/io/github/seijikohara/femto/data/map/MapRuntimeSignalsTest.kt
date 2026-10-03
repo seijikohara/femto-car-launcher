@@ -63,6 +63,39 @@ class MapRuntimeSignalsTest {
     }
 
     @Test
+    fun `an old page that saw itself current never replaces the newer page's report`() {
+        // The interleaving: the old page passes its current-page check, the
+        // new page loads and stores its report, then the old page's write
+        // lands. Seen from the old page's write, the current page is still
+        // the old one; the newer page's report must survive it.
+        val unused = MapRuntimeSignals.GoogleLens(MapRuntimeSignals.LensStatus.UNUSED, source = null, fovyDeg = null)
+        val measured = MapRuntimeSignals.GoogleLens(
+            MapRuntimeSignals.LensStatus.MEASURED,
+            source = "webgl",
+            fovyDeg = 27.3,
+        )
+        val newer = 8L to unused
+        assertEquals(
+            newer,
+            MapRuntimeSignals.replacedGoogleLens(newer, page = 7L, currentPage = 7L, lens = measured),
+        )
+        // A report from a page that is not current changes nothing either.
+        assertEquals(
+            newer,
+            MapRuntimeSignals.replacedGoogleLens(newer, page = 7L, currentPage = 8L, lens = measured),
+        )
+        // The current page's own report replaces its earlier one, or none.
+        assertEquals(
+            8L to measured,
+            MapRuntimeSignals.replacedGoogleLens(newer, page = 8L, currentPage = 8L, lens = measured),
+        )
+        assertEquals(
+            8L to measured,
+            MapRuntimeSignals.replacedGoogleLens(null, page = 8L, currentPage = 8L, lens = measured),
+        )
+    }
+
+    @Test
     fun `rejects a malformed lens report so it cannot replace a good one`() {
         assertNull(MapRuntimeSignals.googleLensFrom(""))
         assertNull(MapRuntimeSignals.googleLensFrom("measured,source=webgl"))
