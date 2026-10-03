@@ -82,13 +82,14 @@ import {
 import { chevronHandles, setChevronColor, setChevronTransform, startStaleTicker } from "../chevron";
 import { ScriptLoadError } from "../load-outcome";
 import {
-    blendLensEffect,
     calibrateLens,
     type LensCalibration,
     type LensEffect,
+    lensEffect,
     lensFovyDeg,
     lensMoved,
     lensProbeDistancePx,
+    mixLensEffect,
 } from "../lens";
 import { createMarkerTransition } from "../marker-motion";
 // The self-marker placement (style.ts is the SSOT, shared with the OSM
@@ -359,20 +360,31 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // hidden (detached) or not yet placed, when a new spot takes no glide
         // of its own (see spotMotion).
         spotShown: false,
-        // The tilted vector map's measured perspectives (lens.ts), by
-        // generation: each measurement that visibly changes the correction
-        // (lensMoved) is a new generation, and generation 0 is none — no yaw
-        // and the flat offset, as while no measurement exists or the last
-        // one was implausible. A pose's lensGen picks the generation that
-        // corrects it, a fraction blending two (camera-glide.ts), so a new
-        // measurement glides in rather than turning the map in one frame.
-        lenses: new Map<number, LensCalibration | null>([[0, null]]),
-        // The newest generation: what every placement glides to.
-        lensLatest: 0,
-        // The generation the map shows (the last applied, see moveCam): a
-        // glide only ever moves up from it, so generations below it are
-        // dropped.
+        // The lens correction, between exactly two endpoints (see
+        // lensEffectAt). [lensTo] is the newest measurement of the tilted
+        // vector map's perspective (lens.ts) — null while none exists or the
+        // last one was implausible: no yaw and the flat offset — at
+        // generation [lensTo.gen], which every placement glides to.
+        // [lensFrom] is the correction the map showed when that measurement
+        // arrived, at generation [lensFrom.gen]: the previous measurement's
+        // lens when the map had reached it, else the correction moveCam last
+        // sent, frozen. A pose's lensGen between the two blends them
+        // (camera-glide.ts), so a new measurement glides in instead of
+        // turning the map in one frame, and straight from what the map
+        // shows: never through an older measurement in between.
+        lensTo: { gen: 0, lens: null as LensCalibration | null },
+        lensFrom: {
+            gen: 0,
+            lens: null as LensCalibration | null,
+            frozen: null as LensEffect | null,
+        },
+        // The generation the map shows (the last applied, see moveCam). Every
+        // placement targets lensTo.gen and the counter only rises, so the
+        // map never shows a generation below lensFrom.gen.
         lensGen: 0,
+        // The lens correction moveCam last sent: what lensFrom freezes when a
+        // measurement arrives in the middle of a blend.
+        lensSent: { yawDeg: 0, x: 0, y: 0 } as LensEffect,
         // The camera the lens was last measured at: the perspective only
         // changes with these, so a probe re-measures only when one moved.
         lensAt: { tilt: Number.NaN, zoom: Number.NaN, width: 0, height: 0 },
@@ -578,18 +590,15 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         return { view: { zoom, heading, offsetX: lens.x, offsetY: lens.y }, yaw: lens.yawDeg };
     }
 
-    // The correction lens generation [gen] makes (see state.lenses): a
-    // fraction blends the generations either side of it.
+    // The correction at lens generation [gen] (see state.lensTo): the newest
+    // lens's at or above lensTo.gen, lensFrom's at or below lensFrom.gen,
+    // and an even blend of the two in between.
     function lensEffectAt(gen: number, offsetX: number, offsetY: number, tilt: number): LensEffect {
-        const below = Math.floor(gen);
-        return blendLensEffect(
-            state.lenses.get(below) ?? null,
-            state.lenses.get(Math.ceil(gen)) ?? null,
-            gen - below,
-            offsetX,
-            offsetY,
-            tilt,
-        );
+        const { lensFrom: from, lensTo: to } = state;
+        const target = lensEffect(to.lens, offsetX, offsetY, tilt);
+        if (gen >= to.gen) return target;
+        const start = from.frozen ?? lensEffect(from.lens, offsetX, offsetY, tilt);
+        return mixLensEffect(start, target, (gen - from.gen) / (to.gen - from.gen));
     }
 
     // One immediate camera move — the glide's per-frame step, and the jump.
@@ -624,6 +633,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         }
         if (zoomChanged) state.programmaticUntil.zoom = now + GESTURE_SUPPRESS_MS;
         if (state.isVector) {
+            state.lensSent = { yawDeg: yaw, x: view.offsetX, y: view.offsetY };
             if (pose.heading !== undefined) {
                 opts.heading = view.heading;
                 // Before moveCamera: its heading_changed reports the compass.
@@ -769,28 +779,34 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
 
     // A lens that appears, goes, or is re-measured differently (a viewport
     // resize) changes the yaw and the anchor under the chevron, so it becomes
-    // a new generation and the camera glides its correction there at once
-    // (glideLens) rather than waiting for the next fix — a parked car may not
-    // send one. The same camera measured again changes nothing visible
-    // (lensMoved) and replaces the newest generation in place.
+    // the new endpoint of a blend that starts from what the map shows now,
+    // and the camera glides there at once (glideLens) rather than waiting for
+    // the next fix — a parked car may not send one. The same camera measured
+    // again changes nothing visible (lensMoved) and replaces the newest lens
+    // in place, keeping its generation.
     function setLens(next: LensCalibration | null): void {
         const moved = lensMoved(
-            state.lenses.get(state.lensLatest) ?? null,
+            state.lensTo.lens,
             next,
             state.spot.x * window.innerWidth,
             state.spot.y * window.innerHeight,
             liveMap.getTilt() ?? 0,
         );
         if (!moved) {
-            state.lenses.set(state.lensLatest, next);
+            state.lensTo.lens = next;
             return;
         }
-        state.lensLatest += 1;
-        state.lenses.set(state.lensLatest, next);
-        const shown = Math.floor(state.lensGen);
-        for (const gen of state.lenses.keys()) {
-            if (gen < shown) state.lenses.delete(gen);
+        const shown = state.lensGen;
+        // What the map shows becomes the blend's start: the newest lens when
+        // the map has reached it, the start itself when the map has not left
+        // it (a detached map is not re-placed), else, mid-blend, the
+        // correction last sent, frozen.
+        if (shown >= state.lensTo.gen) {
+            state.lensFrom = { gen: shown, lens: state.lensTo.lens, frozen: null };
+        } else if (shown > state.lensFrom.gen) {
+            state.lensFrom = { gen: shown, lens: null, frozen: state.lensSent };
         }
+        state.lensTo = { gen: Math.floor(Math.max(shown, state.lensTo.gen)) + 1, lens: next };
         if (state.following) glideLens();
     }
 
@@ -937,7 +953,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             tilt: state.isVector ? fix.tilt : 0,
             offsetX: at.x * window.innerWidth,
             offsetY: at.y * window.innerHeight,
-            lensGen: state.lensLatest,
+            lensGen: state.lensTo.gen,
         };
     }
 

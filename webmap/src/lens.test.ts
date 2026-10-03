@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
-    blendLensEffect,
     calibrateLens,
     type LensCalibration,
     lensGroundOffset,
@@ -8,6 +7,7 @@ import {
     lensProbeDistancePx,
     lensEffect,
     lensYawDeg,
+    mixLensEffect,
 } from "./lens";
 
 // A pinhole camera looking at the map centre, the model the lens must recover
@@ -215,20 +215,19 @@ describe("lensMoved", () => {
     });
 });
 
-describe("blendLensEffect", () => {
-    const a = { focalPx: 900, distancePx: 900 };
+describe("mixLensEffect", () => {
     const b = { focalPx: 700, distancePx: 650 };
+    const from = lensEffect(null, -180, 110, 55);
+    const to = lensEffect(b, -180, 110, 55);
 
-    it("is each lens's own correction at the ends", () => {
-        expect(blendLensEffect(a, b, 0, -180, 110, 55)).toEqual(lensEffect(a, -180, 110, 55));
-        expect(blendLensEffect(a, b, 1, -180, 110, 55)).toEqual(lensEffect(b, -180, 110, 55));
-        expect(blendLensEffect(null, b, 0, -180, 110, 55)).toEqual({ yawDeg: 0, x: -180, y: 110 });
+    it("is each correction itself at the ends", () => {
+        expect(mixLensEffect(from, to, 0)).toEqual(from);
+        expect(mixLensEffect(from, to, 1)).toEqual(to);
+        expect(from).toEqual({ yawDeg: 0, x: -180, y: 110 });
     });
 
     it("moves the yaw and the ground offset evenly in between", () => {
-        const from = lensEffect(null, -180, 110, 55);
-        const to = lensEffect(b, -180, 110, 55);
-        const mid = blendLensEffect(null, b, 0.25, -180, 110, 55);
+        const mid = mixLensEffect(from, to, 0.25);
         expect(mid.yawDeg).toBeCloseTo(from.yawDeg + (to.yawDeg - from.yawDeg) / 4, 12);
         expect(mid.x).toBeCloseTo(from.x + (to.x - from.x) / 4, 12);
         expect(mid.y).toBeCloseTo(from.y + (to.y - from.y) / 4, 12);

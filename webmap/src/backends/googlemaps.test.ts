@@ -397,10 +397,18 @@ function compassReports(): string[] {
 
 // Run [frames] frames, returning how far the map heading turned on each.
 function headingSteps(page: { map: FakeMap; advance(ms: number): void }, frames: number): number[] {
+    return signedHeadingSteps(page, frames).map(Math.abs);
+}
+
+// Run [frames] frames, returning the signed turn of the map heading on each.
+function signedHeadingSteps(
+    page: { map: FakeMap; advance(ms: number): void },
+    frames: number,
+): number[] {
     return Array.from({ length: frames }, () => {
         const was = page.map.heading;
         page.advance(16);
-        return Math.abs(shortestBearingDelta(was, page.map.heading));
+        return shortestBearingDelta(was, page.map.heading);
     });
 }
 
@@ -714,6 +722,34 @@ describe("the Google Maps page", () => {
         expect(leanPx(page.map, FIX, 90)).toBeLessThan(1e-6);
         expect(lastCompass()).toBe("90.0");
         expect(reporter.report).not.toHaveBeenCalledWith("follow", false);
+    });
+
+    it("turns the map one way only when it re-follows after several resizes", async () => {
+        // While detached the lens is re-measured at every new size; the
+        // re-follow must glide from the correction the map shows straight to
+        // the newest one, not through each size's lens in between (here the
+        // sizes' yaws go up, down, then up).
+        const page = await boot("VECTOR", "VECTOR");
+        push(page.win, FIX, 90);
+        page.run(50);
+        page.map.fire("dragstart");
+        const win = page.win as unknown as { innerWidth: number; innerHeight: number };
+        for (const [width, height] of [
+            [1400, 360],
+            [700, 600],
+            [1100, 420],
+        ]) {
+            win.innerWidth = width;
+            win.innerHeight = height;
+            page.run(3);
+        }
+        page.win.setFollow(true);
+        const steps = signedHeadingSteps(page, 50).filter((step) => Math.abs(step) > 1e-9);
+        expect(steps.length).toBeGreaterThan(0);
+        expect(steps.every((step) => Math.sign(step) === Math.sign(steps[0]))).toBe(true);
+        const at = screenOf(page.map, FIX);
+        expect(Math.hypot(at.x + MX * 1100, at.y - DROP * 420)).toBeLessThan(1e-6);
+        expect(leanPx(page.map, FIX, 90)).toBeLessThan(1e-6);
     });
 
     it("corrects for the tilt the map shows when Google clamps the requested one", async () => {

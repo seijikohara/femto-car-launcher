@@ -182,26 +182,17 @@ export function lensEffect(
     return { yawDeg: lensYawDeg(lens, offsetXPx, tiltDeg), x: ground.x, y: ground.y };
 }
 
-// The correction [t] of the way from lens [from] to lens [to]: how the
+// The correction [t] of the way from correction [from] to [to]: how the
 // camera moves to a new measurement (the lens appearing, a viewport resize)
 // instead of jumping its heading and centre in one frame. The yaw and the
 // ground offset move evenly, not the lens parameters: the uncalibrated flat
 // correction is no pinhole lens, so there are no parameters to blend from.
-export function blendLensEffect(
-    from: LensCalibration | null,
-    to: LensCalibration | null,
-    t: number,
-    offsetXPx: number,
-    offsetYPx: number,
-    tiltDeg: number,
-): LensEffect {
-    const a = lensEffect(from, offsetXPx, offsetYPx, tiltDeg);
-    if (t <= 0 || from === to) return a;
-    const b = lensEffect(to, offsetXPx, offsetYPx, tiltDeg);
-    if (t >= 1) return b;
+export function mixLensEffect(from: LensEffect, to: LensEffect, t: number): LensEffect {
+    if (t <= 0) return from;
+    if (t >= 1) return to;
     return {
-        yawDeg: a.yawDeg + (b.yawDeg - a.yawDeg) * t,
-        x: a.x + (b.x - a.x) * t,
-        y: a.y + (b.y - a.y) * t,
+        yawDeg: from.yawDeg + (to.yawDeg - from.yawDeg) * t,
+        x: from.x + (to.x - from.x) * t,
+        y: from.y + (to.y - from.y) * t,
     };
 }
