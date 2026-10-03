@@ -3,8 +3,8 @@ package io.github.seijikohara.femto.ui.video
 /**
  * State for the dashboard's video window and its full panel (issue #390).
  *
- * [fileReady] is false with no picked file, a file whose read grant is gone,
- * or one the player could not open: the window then asks for a file.
+ * [file] says whether there is a file to play ([VideoFileState]); without one
+ * the window asks for a file.
  * [playing] is the audio's state. [pickFailed] says the last file picked
  * could not be kept, because its provider refused a lasting read grant; the
  * file before it, if any, stays. The motion gate's verdict is not part of
@@ -13,18 +13,37 @@ package io.github.seijikohara.femto.ui.video
  */
 internal data class VideoUiState(
     val windowEnabled: Boolean,
-    val fileReady: Boolean,
+    val file: VideoFileState,
     val playing: Boolean,
     val pickFailed: Boolean = false,
 ) {
+    val fileReady: Boolean get() = file == VideoFileState.READY
+
     companion object {
         val Off =
             VideoUiState(
                 windowEnabled = false,
-                fileReady = false,
+                file = VideoFileState.NONE,
                 playing = false,
             )
     }
+}
+
+/** Whether the video window has a file to play. */
+internal enum class VideoFileState {
+    /** No file picked, or the window is off. */
+    NONE,
+
+    /** The picked file is loaded. */
+    READY,
+
+    /**
+     * A file is picked but cannot be opened: its read grant is gone (revoked,
+     * or the storage it lives on removed), or the player failed on it (deleted,
+     * unreadable, or a format the device cannot decode). The window says so
+     * before it asks for another file.
+     */
+    UNAVAILABLE,
 }
 
 /** Events the video window and panel report up. */

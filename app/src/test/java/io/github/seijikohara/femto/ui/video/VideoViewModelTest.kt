@@ -71,7 +71,7 @@ class VideoViewModelTest {
             subscribe(viewModel)
 
             assertEquals(FILE, player.loaded)
-            assertTrue(viewModel.uiState.value.fileReady)
+            assertEquals(VideoFileState.READY, viewModel.uiState.value.file)
             assertFalse(viewModel.uiState.value.playing)
         }
 
@@ -83,24 +83,24 @@ class VideoViewModelTest {
             subscribe(viewModel)
 
             assertTrue(viewModel.uiState.value.windowEnabled)
-            assertFalse(viewModel.uiState.value.fileReady)
+            assertEquals(VideoFileState.NONE, viewModel.uiState.value.file)
             assertNull(player.loaded)
         }
 
     @Test
-    fun `a file whose read grant is gone asks for a new one`() =
+    fun `a file whose read grant is gone reads as unavailable`() =
         runTest(dispatcher) {
             enableWith(FILE)
             grants.release(FILE)
             val viewModel = viewModel()
             subscribe(viewModel)
 
-            assertFalse(viewModel.uiState.value.fileReady)
+            assertEquals(VideoFileState.UNAVAILABLE, viewModel.uiState.value.file)
             assertNull(player.loaded)
         }
 
     @Test
-    fun `a file the player cannot open asks for a new one`() =
+    fun `a file the player cannot open reads as unavailable`() =
         runTest(dispatcher) {
             enableWith(FILE)
             val viewModel = viewModel()
@@ -109,7 +109,7 @@ class VideoViewModelTest {
             player.fail()
             runCurrent()
 
-            assertFalse(viewModel.uiState.value.fileReady)
+            assertEquals(VideoFileState.UNAVAILABLE, viewModel.uiState.value.file)
         }
 
     @Test
@@ -187,7 +187,7 @@ class VideoViewModelTest {
             advanceUntilIdle()
 
             assertEquals(2, player.loads)
-            assertTrue(viewModel.uiState.value.fileReady)
+            assertEquals(VideoFileState.READY, viewModel.uiState.value.file)
         }
 
     @Test

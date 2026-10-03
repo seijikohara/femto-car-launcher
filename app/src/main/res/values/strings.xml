@@ -154,6 +154,7 @@
     <string name="video_pause">Pause</string>
     <string name="video_expand">Open the video player</string>
     <string name="video_close">Close the video window</string>
+    <string name="video_file_unavailable">The picked file can\'t be opened. Pick it again.</string>
     <string name="video_pick_failed">The app couldn\'t keep access to that file. Pick another.</string>
 
     <!-- Dashboard footer: navigation -->
@@ -464,7 +465,6 @@
     <string name="settings_panel_video_desc">Play a video file from this device in a small window over the map.</string>
     <string name="settings_video_file">Video file</string>
     <string name="settings_video_file_none">No file picked</string>
-    <string name="settings_video_file_unavailable">The picked file can\'t be opened. Pick it again.</string>
     <string name="settings_video_hide_picture">Hide the picture while driving</string>
     <string name="settings_video_hide_picture_desc">The picture shows only a few seconds after GPS reads the vehicle as stopped. Audio keeps playing.</string>
     <string name="settings_video_show_picture_confirm_title">Show the picture while driving?</string>

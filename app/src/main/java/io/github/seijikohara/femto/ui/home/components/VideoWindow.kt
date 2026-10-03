@@ -35,6 +35,7 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.cardCta
 import io.github.seijikohara.femto.ui.theme.cardCtaHint
 import io.github.seijikohara.femto.ui.video.VideoAction
+import io.github.seijikohara.femto.ui.video.VideoFileState
 import io.github.seijikohara.femto.ui.video.VideoUiState
 
 /** The video window's and the video panel's shape: 16:9, the common video frame. */
@@ -42,7 +43,9 @@ internal const val VIDEO_ASPECT_RATIO = 16f / 9f
 
 /**
  * The dashboard's small video window (issue #390), a 16:9 glass frame over the
- * map. With no playable file it is one "Pick a video" target. With one, it
+ * map. With no playable file it is one "Pick a video" target, under a line
+ * saying why when a picked file cannot be opened or a pick was refused
+ * ([VideoNoticeLine]). With one, it
  * shows the picture through [surface] while [pictureVisible] (the motion
  * gate's verdict), and
  * otherwise no frame at all, only a line saying why; the play / pause button
@@ -91,18 +94,36 @@ internal fun VideoWindow(
                 modifier = Modifier.align(Alignment.Center),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                // One line at most: the window has room for one beside the
+                // prompt. A refused pick is the newer news, so it wins.
+                val notice =
+                    when {
+                        state.pickFailed -> R.string.video_pick_failed
+                        state.file == VideoFileState.UNAVAILABLE -> R.string.video_file_unavailable
+                        else -> null
+                    }
+                notice?.let {
+                    VideoNoticeLine(
+                        text = stringResource(it),
+                        modifier = Modifier.padding(horizontal = FemtoDimens.CardPadding),
+                    )
+                }
                 PickVideoPrompt()
-                if (state.pickFailed) PickFailedLine(modifier = Modifier.padding(horizontal = FemtoDimens.CardPadding))
             }
         }
     }
 }
 
-/** Why the last pick did not take: its provider refused a lasting read grant. */
+/**
+ * A line that says why there is nothing to play: the picked file cannot be
+ * opened, or the last pick could not be kept.
+ */
 @Composable
-internal fun PickFailedLine(modifier: Modifier = Modifier) =
-    Text(
-        text = stringResource(R.string.video_pick_failed),
+internal fun VideoNoticeLine(
+    text: String,
+    modifier: Modifier = Modifier,
+) = Text(
+        text = text,
         style = MaterialTheme.typography.cardCtaHint(),
         color = MaterialTheme.colorScheme.error,
         textAlign = TextAlign.Center,
@@ -187,7 +208,7 @@ internal fun PickVideoPrompt(modifier: Modifier = Modifier) =
 private fun VideoWindowHiddenPreview() =
     FemtoTheme {
         VideoWindow(
-            state = VideoUiState(windowEnabled = true, fileReady = true, playing = true),
+            state = VideoUiState(windowEnabled = true, file = VideoFileState.READY, playing = true),
             pictureVisible = false,
             onAction = {},
             onExpand = {},

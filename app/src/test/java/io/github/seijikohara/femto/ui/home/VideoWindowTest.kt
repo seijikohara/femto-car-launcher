@@ -2,10 +2,14 @@ package io.github.seijikohara.femto.ui.home
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -23,6 +27,7 @@ import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.video.VideoAction
+import io.github.seijikohara.femto.ui.video.VideoFileState
 import io.github.seijikohara.femto.ui.video.VideoUiState
 import org.junit.Rule
 import org.junit.Test
@@ -31,6 +36,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * The dashboard's video window and its full panel (issue #390): what each
@@ -46,11 +52,16 @@ class VideoWindowTest {
 
     private val actions = mutableListOf<VideoAction>()
 
+    // Held in snapshot state, so a test can move the window to a new state
+    // after it is on screen, the way the ViewModel's flow would.
+    private var video by mutableStateOf(VideoUiState.Off)
+
     private fun setDashboard(
-        video: VideoUiState,
+        initial: VideoUiState,
         pictureVisible: Boolean = true,
     ) {
         actions.clear()
+        video = initial
         rule.setContent {
             FemtoTheme {
                 DashboardScaffold(
@@ -89,7 +100,7 @@ class VideoWindowTest {
 
     @Test
     fun `a window with no file asks for one`() {
-        setDashboard(fakeVideoUiState(fileReady = false))
+        setDashboard(fakeVideoUiState(file = VideoFileState.NONE))
 
         rule.onNodeWithText("Pick a video").performClick()
 
@@ -173,7 +184,7 @@ class VideoWindowTest {
 
     @Test
     fun `a refused pick says so in the window`() {
-        setDashboard(fakeVideoUiState(fileReady = false, pickFailed = true))
+        setDashboard(fakeVideoUiState(file = VideoFileState.NONE, pickFailed = true))
 
         rule.onNodeWithText(PICK_FAILED).assertExists()
     }
@@ -186,7 +197,40 @@ class VideoWindowTest {
         rule.onNodeWithText(PICK_FAILED).assertExists()
     }
 
+    @Test
+    fun `an unavailable file says so above the pick action in the window`() {
+        setDashboard(fakeVideoUiState(file = VideoFileState.UNAVAILABLE))
+
+        val notice = rule.onNodeWithText(UNAVAILABLE, useUnmergedTree = true).getUnclippedBoundsInRoot()
+        val prompt = rule.onNodeWithText("Pick a video", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        assertTrue(notice.bottom <= prompt.top, "notice $notice is not above the prompt $prompt")
+
+        rule.onNodeWithText("Pick a video").performClick()
+        assertEquals(listOf<VideoAction>(VideoAction.PickFile), actions)
+    }
+
+    @Test
+    fun `a file that stops opening while the panel is open says so there`() {
+        setDashboard(fakeVideoUiState())
+        rule.onNodeWithContentDescription("Open the video player").performClick()
+
+        video = fakeVideoUiState(file = VideoFileState.UNAVAILABLE)
+        rule.waitForIdle()
+
+        rule.onNodeWithText(UNAVAILABLE).assertExists()
+        rule.onNodeWithText("Pick a video").performClick()
+        assertEquals(listOf<VideoAction>(VideoAction.PickFile), actions)
+    }
+
+    @Test
+    fun `a window with no file says nothing is wrong`() {
+        setDashboard(fakeVideoUiState(file = VideoFileState.NONE))
+
+        rule.onAllNodesWithText(UNAVAILABLE).assertCountEquals(0)
+    }
+
     private companion object {
+        const val UNAVAILABLE = "The picked file can't be opened. Pick it again."
         const val PICK_FAILED = "The app couldn't keep access to that file. Pick another."
 
         const val SURFACE_TAG = "videoSurface"

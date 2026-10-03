@@ -134,7 +134,7 @@ private fun videoFileSummary(file: VideoFileSummary): String =
     when (file) {
         VideoFileSummary.None -> stringResource(R.string.settings_video_file_none)
         is VideoFileSummary.Named -> file.name
-        VideoFileSummary.Unavailable -> stringResource(R.string.settings_video_file_unavailable)
+        VideoFileSummary.Unavailable -> stringResource(R.string.video_file_unavailable)
     }
 
 // The video picture's motion gate. Turning it on takes effect at once;

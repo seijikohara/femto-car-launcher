@@ -35,6 +35,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.eyebrow
 import io.github.seijikohara.femto.ui.video.VideoAction
+import io.github.seijikohara.femto.ui.video.VideoFileState
 import io.github.seijikohara.femto.ui.video.VideoUiState
 
 /**
@@ -99,7 +100,9 @@ internal fun VideoPanel(
                     },
                 )
             }
-            if (state.pickFailed) PickFailedLine(modifier = Modifier.fillMaxWidth())
+            if (state.pickFailed) {
+                VideoNoticeLine(text = stringResource(R.string.video_pick_failed), modifier = Modifier.fillMaxWidth())
+            }
             // The largest 16:9 frame the remaining space holds, centred.
             BoxWithConstraints(
                 modifier = Modifier.fillMaxWidth().weight(1f),
@@ -126,12 +129,17 @@ internal fun VideoPanel(
                         )
                     }
                 } else {
-                    PickVideoPrompt(
-                        modifier =
-                            Modifier
-                                .clip(MaterialTheme.shapes.medium)
-                                .clickable { onAction(VideoAction.PickFile) },
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (state.file == VideoFileState.UNAVAILABLE) {
+                            VideoNoticeLine(text = stringResource(R.string.video_file_unavailable))
+                        }
+                        PickVideoPrompt(
+                            modifier =
+                                Modifier
+                                    .clip(MaterialTheme.shapes.medium)
+                                    .clickable { onAction(VideoAction.PickFile) },
+                        )
+                    }
                 }
             }
         }
@@ -144,7 +152,7 @@ internal fun VideoPanel(
 private fun VideoPanelPreview() =
     FemtoTheme {
         VideoPanel(
-            state = VideoUiState(windowEnabled = true, fileReady = true, playing = true),
+            state = VideoUiState(windowEnabled = true, file = VideoFileState.READY, playing = true),
             pictureVisible = false,
             onAction = {},
             onCollapse = {},

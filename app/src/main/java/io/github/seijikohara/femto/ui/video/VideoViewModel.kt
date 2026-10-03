@@ -49,9 +49,9 @@ internal class VideoViewModel(
     // block; tests pass their own dispatcher.
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
-    // Whether the file the store names is loaded: false with no file, with the
-    // window off, or with the read grant gone.
-    private val loaded = MutableStateFlow(false)
+    // The file the store names as followStore found it: none (no file, or the
+    // window off), loaded, or unavailable (its read grant gone).
+    private val source = MutableStateFlow(VideoFileState.NONE)
 
     // Counts picks, so picking the file already recorded (after it failed to
     // play, say) still loads it again: the store alone would not change.
@@ -67,14 +67,15 @@ internal class VideoViewModel(
     val uiState: StateFlow<VideoUiState> =
         combine(
             store.settings.catchAsDefault(TAG, "video settings", VideoSettings.Default),
-            loaded,
+            source,
             player.isPlaying,
             player.failed,
             pickFailed,
-        ) { settings, isLoaded, playing, failed, refused ->
+        ) { settings, found, playing, failed, refused ->
             VideoUiState(
                 windowEnabled = settings.windowEnabled,
-                fileReady = isLoaded && !failed,
+                // A loaded file the player failed on cannot be opened either.
+                file = if (found == VideoFileState.READY && failed) VideoFileState.UNAVAILABLE else found,
                 playing = playing,
                 pickFailed = refused,
             )
@@ -119,7 +120,7 @@ internal class VideoViewModel(
                 // Stopped here at once rather than on the store's write, which
                 // may take a moment to land.
                 player.stop()
-                loaded.value = false
+                source.value = VideoFileState.NONE
                 viewModelScope.launch { store.setWindowEnabled(false) }
             }
         }
@@ -129,7 +130,7 @@ internal class VideoViewModel(
 
     // Load the file the store names while the window is on, and stop the
     // player otherwise. A file whose read grant is gone is not loaded: the
-    // window asks for a new one instead.
+    // window says it cannot be opened and asks for a new one.
     private suspend fun followStore() =
         combine(
             store.settings
@@ -141,7 +142,12 @@ internal class VideoViewModel(
             .collectLatest { uri ->
                 val playable = uri?.takeIf { withContext(ioDispatcher) { grants.holds(it) } }
                 if (playable == null) player.stop() else player.load(playable)
-                loaded.value = playable != null
+                source.value =
+                    when {
+                        playable != null -> VideoFileState.READY
+                        uri != null -> VideoFileState.UNAVAILABLE
+                        else -> VideoFileState.NONE
+                    }
             }
 }
 
