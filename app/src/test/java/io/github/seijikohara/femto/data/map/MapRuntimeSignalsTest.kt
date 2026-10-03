@@ -41,9 +41,25 @@ class MapRuntimeSignalsTest {
     fun `a new map page forgets the previous page's lens`() {
         // A rebuild to a raster map, or a page that never measures, must not
         // keep showing an earlier page's "measured".
-        MapRuntimeSignals.recordGoogleLens("measured,source=webgl,fovy=27.3")
+        val page = MapRuntimeSignals.recordMapPageLoad()
+        MapRuntimeSignals.recordGoogleLens("measured,source=webgl,fovy=27.3", page)
         MapRuntimeSignals.recordMapPageLoad()
         assertNull(MapRuntimeSignals.googleLensOrNull())
+    }
+
+    @Test
+    fun `a lens report from a page that is no longer current is dropped`() {
+        // The old WebView is destroyed only after the new page has loaded,
+        // so its last report can arrive after the reset.
+        val old = MapRuntimeSignals.recordMapPageLoad()
+        val current = MapRuntimeSignals.recordMapPageLoad()
+        MapRuntimeSignals.recordGoogleLens("measured,source=webgl,fovy=27.3", old)
+        assertNull(MapRuntimeSignals.googleLensOrNull())
+        MapRuntimeSignals.recordGoogleLens("unused", current)
+        assertEquals(MapRuntimeSignals.LensStatus.UNUSED, MapRuntimeSignals.googleLensOrNull()?.status)
+        // Even a stale report that lands after the current page's.
+        MapRuntimeSignals.recordGoogleLens("measured,source=webgl,fovy=27.3", old)
+        assertEquals(MapRuntimeSignals.LensStatus.UNUSED, MapRuntimeSignals.googleLensOrNull()?.status)
     }
 
     @Test

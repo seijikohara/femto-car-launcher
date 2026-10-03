@@ -533,6 +533,11 @@ internal fun WebMapView(
                 // the fresh view. Kept minimal on purpose: one method, primitive
                 // params, and the only page that can call it is our bundled asset
                 // served through the WebViewAssetLoader above.
+                // This page's token for the per-page diagnostics (see
+                // MapRuntimeSignals.recordMapPageLoad), taken before the page
+                // loads; the bridge below reports under it, so the previous
+                // WebView's late reports are dropped.
+                val mapPage = MapRuntimeSignals.recordMapPageLoad()
                 addJavascriptInterface(
                     object {
                         // Block body: a @JavascriptInterface method must not leak
@@ -635,7 +640,7 @@ internal fun WebMapView(
                                 // Whether the Google page measured its tilted map's
                                 // perspective, for the MAP diagnostics section.
                                 "lens" -> {
-                                    MapRuntimeSignals.recordGoogleLens(detail)
+                                    MapRuntimeSignals.recordGoogleLens(detail, mapPage)
                                 }
 
                                 // Throttled camera bearing for the compass overlay.
@@ -653,9 +658,6 @@ internal fun WebMapView(
                     },
                     "femtoBridge",
                 )
-                // A new page reports its own lens state; the previous page's
-                // must not outlive it in the diagnostics.
-                MapRuntimeSignals.recordMapPageLoad()
                 loadUrl(mapPageUrl(mapConfig.backend))
             }
         }

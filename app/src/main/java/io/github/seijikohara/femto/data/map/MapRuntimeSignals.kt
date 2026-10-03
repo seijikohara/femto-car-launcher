@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.data.map
 
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -26,7 +27,11 @@ internal object MapRuntimeSignals {
     private val failureCount = AtomicInteger(0)
     private val webGlRenderer = AtomicReference<String?>(null)
     private val pageFrames = AtomicReference<PageFrames?>(null)
-    private val googleLens = AtomicReference<GoogleLens?>(null)
+
+    // The current map page, and the last lens report with the page that sent
+    // it: a report is only ever read back for the page it came from.
+    private val currentPage = AtomicLong(0)
+    private val googleLens = AtomicReference<Pair<Long, GoogleLens>?>(null)
 
     /**
      * Whether the Google Maps page has measured its tilted vector map's
@@ -111,25 +116,32 @@ internal object MapRuntimeSignals {
     fun pageFramesOrNull(): PageFrames? = pageFrames.get()
 
     /**
-     * Record a `lens` event: "measured,source=<s>,fovy=<deg>",
-     * "unmeasured,source=<s>" or "unused"; anything else is ignored.
+     * Record a `lens` event from map page [page] (the token
+     * [recordMapPageLoad] gave it): "measured,source=<s>,fovy=<deg>",
+     * "unmeasured,source=<s>" or "unused"; anything else is ignored, and so
+     * is a report from a page that is no longer the current one.
      */
-    fun recordGoogleLens(detail: String) {
-        googleLensFrom(detail)?.let(googleLens::set)
+    fun recordGoogleLens(
+        detail: String,
+        page: Long,
+    ) {
+        if (page != currentPage.get()) return
+        googleLensFrom(detail)?.let { googleLens.set(page to it) }
     }
 
-    fun googleLensOrNull(): GoogleLens? = googleLens.get()
+    /** The current page's lens state; null until that page has reported. */
+    fun googleLensOrNull(): GoogleLens? = googleLens.get()?.takeIf { it.first == currentPage.get() }?.second
 
     /**
-     * Forget what the previous map page reported about itself, on every page
-     * (re)load: the lens state belongs to one page, so a rebuild to a raster
-     * map, or a page that never measures, must not keep showing an earlier
-     * page's "measured". The session-wide facts (failures, renderer, frames)
-     * stay.
+     * Start a new map page: returns its token for [recordGoogleLens]. The
+     * lens state belongs to one page, so a rebuild to a raster map, or a
+     * page that never measures, must not keep showing an earlier page's
+     * "measured" — and the old WebView, destroyed only after the new page
+     * has loaded, may still report; the token drops those reports even when
+     * they land after the new page's own. The session-wide facts (failures,
+     * renderer, frames) stay.
      */
-    fun recordMapPageLoad() {
-        googleLens.set(null)
-    }
+    fun recordMapPageLoad(): Long = currentPage.incrementAndGet()
 
     internal fun googleLensFrom(detail: String): GoogleLens? {
         val parts = detail.split(',')
