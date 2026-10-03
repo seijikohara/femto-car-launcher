@@ -117,6 +117,15 @@ class VideoWindowTest {
     }
 
     @Test
+    fun `a hidden picture while paused does not claim the audio plays`() {
+        setDashboard(fakeVideoUiState(playing = false), pictureVisible = false)
+
+        rule.onAllNodesWithText(HIDDEN_PAUSED_LINE).assertCountEquals(1)
+        hiddenLine().assertCountEquals(0)
+        picture().assertCountEquals(0)
+    }
+
+    @Test
     fun `a visible picture draws the surface`() {
         setDashboard(fakeVideoUiState(), pictureVisible = true)
 
@@ -187,7 +196,7 @@ class VideoWindowTest {
 
     @Test
     fun `the panel keeps the picture hidden while driving`() {
-        setDashboard(fakeVideoUiState(), pictureVisible = false)
+        setDashboard(fakeVideoUiState(playing = true), pictureVisible = false)
         rule.onNodeWithContentDescription("Open the video player").performClick()
 
         // The panel stands in for the window while it is open, so the one
@@ -250,5 +259,6 @@ class VideoWindowTest {
 
         const val SURFACE_TAG = "videoSurface"
         const val HIDDEN_LINE = "Picture hidden while driving · Audio keeps playing"
+        const val HIDDEN_PAUSED_LINE = "Picture hidden while driving"
     }
 }

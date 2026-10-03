@@ -81,7 +81,12 @@ internal fun VideoWindow(
                 ),
     ) {
         if (state.fileReady) {
-            VideoPicture(pictureVisible = pictureVisible, surface = surface, modifier = Modifier.fillMaxSize())
+            VideoPicture(
+                pictureVisible = pictureVisible,
+                playing = state.playing,
+                surface = surface,
+                modifier = Modifier.fillMaxSize(),
+            )
             VideoPlayButton(
                 playing = state.playing,
                 onAction = onAction,
@@ -133,12 +138,15 @@ internal fun VideoNoticeLine(
 /**
  * The picture, or in its place the line that says why it is hidden. A hidden
  * picture composes no [surface] at all, so the player has nowhere to draw: no
- * paused frame and no thumbnail stays behind. The line keeps clear of the
- * play / pause button in the bottom corner.
+ * paused frame and no thumbnail stays behind. The line says the audio keeps
+ * playing only while it does ([playing]); a file loads paused, and a hidden
+ * picture never pauses it. The line keeps clear of the play / pause button in
+ * the bottom corner.
  */
 @Composable
 internal fun VideoPicture(
     pictureVisible: Boolean,
+    playing: Boolean,
     surface: @Composable (Modifier) -> Unit,
     modifier: Modifier = Modifier,
 ) = Box(modifier = modifier, contentAlignment = Alignment.Center) {
@@ -146,7 +154,10 @@ internal fun VideoPicture(
         surface(Modifier.fillMaxSize())
     } else {
         Text(
-            text = stringResource(R.string.video_picture_hidden),
+            text =
+                stringResource(
+                    if (playing) R.string.video_picture_hidden_playing else R.string.video_picture_hidden_paused,
+                ),
             style = MaterialTheme.typography.cardCtaHint(),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

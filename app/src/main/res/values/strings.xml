@@ -149,7 +149,8 @@
     <string name="video_title">Video</string>
     <string name="video_pick">Pick a video</string>
     <string name="video_pick_another">Pick another video</string>
-    <string name="video_picture_hidden">Picture hidden while driving · Audio keeps playing</string>
+    <string name="video_picture_hidden_playing">Picture hidden while driving · Audio keeps playing</string>
+    <string name="video_picture_hidden_paused">Picture hidden while driving</string>
     <string name="video_play">Play</string>
     <string name="video_pause">Pause</string>
     <string name="video_expand">Open the video player</string>

@@ -117,6 +117,7 @@ internal fun VideoPanel(
                     Box(modifier = frame.clip(MaterialTheme.shapes.medium)) {
                         VideoPicture(
                             pictureVisible = pictureVisible,
+                            playing = state.playing,
                             surface = surface,
                             modifier = Modifier.fillMaxSize(),
                         )
