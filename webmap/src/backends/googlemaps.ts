@@ -790,11 +790,15 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // fix that arrives during such a glide leaves the chevron gliding and
     // moves the camera over the time the glide has left (followMotion,
     // markerTransitionStep), so the two land together — the reflow behaviour
-    // both backends share.
+    // both backends share. [reflowRemainingMs] is that time, read ONCE by the
+    // caller and shared with the motion choice: the clock moves on between
+    // two reads, and a second read would find the camera's carried-over
+    // move outlasting the glide and clear the chevron's transition.
     function placeFollowCamera(
         fix: NonNullable<typeof state.lastFix>,
         mapBearing: number,
         pushMotion: CameraMotion | null,
+        reflowRemainingMs: number,
     ): void {
         const width = window.innerWidth;
         const height = window.innerHeight;
@@ -812,7 +816,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         });
         const plan = spotMotion(state.spotShown ? state.spot : null, spot, pushMotion);
         if (plan.snapAt) glide.jump(poseAt(plan.snapAt));
-        markerTransition.apply(markerTransitionStep(plan.motion, markerTransition.remainingMs()));
+        markerTransition.apply(markerTransitionStep(plan.motion, reflowRemainingMs));
         markerEl.style.left = `${(0.5 + spot.x) * 100}%`;
         markerEl.style.top = `${(0.5 + spot.y) * 100}%`;
         // Before the glide below reads the map back against it.
@@ -837,7 +841,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         if (!fix) return;
         const orientation = orientationFor(fix.heading);
         syncChevron(fix.tilt, orientation.chevronTurn);
-        placeFollowCamera(fix, orientation.mapBearing, motion);
+        placeFollowCamera(fix, orientation.mapBearing, motion, markerTransition.remainingMs());
     }
 
     function setFollowing(follow: boolean): void {
@@ -1059,6 +1063,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             return;
         }
 
+        const reflowRemainingMs = markerTransition.remainingMs();
         const motion = followMotion({
             firstCamera: state.firstCamera,
             signalGap,
@@ -1068,7 +1073,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
                 lon: fix.lng,
             }),
             sinceLastFixMs,
-            reflowRemainingMs: markerTransition.remainingMs(),
+            reflowRemainingMs,
         });
         state.firstCamera = false;
 
@@ -1079,7 +1084,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         const orientation = orientationFor(heading);
         syncChevron(fix.tilt, orientation.chevronTurn);
         markerEl.style.display = "block";
-        placeFollowCamera(fix, orientation.mapBearing, motion);
+        placeFollowCamera(fix, orientation.mapBearing, motion, reflowRemainingMs);
     };
 
     // Android -> JS: switch the map type and toggle the traffic overlay.

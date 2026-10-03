@@ -401,6 +401,18 @@ async function boot(
     return { win, map, marker, advance, run };
 }
 
+// Make Date.now advance by 1 ms on every call, as a real clock can between
+// two reads; returns the restore.
+function tickingClock(): () => void {
+    const base = Date.now();
+    const clock = { calls: 0 };
+    const spy = vi.spyOn(Date, "now").mockImplementation(() => {
+        clock.calls += 1;
+        return base + clock.calls;
+    });
+    return () => spy.mockRestore();
+}
+
 // A deterministic stand-in for Math.random (mulberry32), so a failure
 // reproduces.
 function seeded(seed: number): () => number {
@@ -526,12 +538,17 @@ describe("the Google Maps page", () => {
         push(page.win, FIX, 90, { rightSafe: 0 });
         page.advance(200);
         const next = aheadOf(FIX, 90, 10);
+        // A device clock moves on between any two reads of it, so the push
+        // must decide on one reading of the time the chevron's glide has
+        // left, not compare two.
+        const restoreClock = tickingClock();
         push(page.win, next, 90, { rightSafe: 0 });
+        restoreClock();
         // The chevron keeps gliding; the camera moves over the ~60 ms the
         // glide has left rather than the 200 ms since the last fix, so the
         // two land together.
         expect(page.marker.style.transition).toContain(`${LAYOUT_REFLOW_MS}ms linear`);
-        page.advance(LAYOUT_REFLOW_MS - 200);
+        page.advance(LAYOUT_REFLOW_MS - 200 + 16);
         const at = screenOf(page.map, next);
         expect(Math.hypot(at.x, at.y - DROP * H)).toBeLessThan(1e-6);
     });
