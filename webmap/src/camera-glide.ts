@@ -36,12 +36,27 @@ export interface CameraView {
 
 // The camera the glide moves: the anchor (lat/lng, the location that sits at
 // the chevron's spot) plus the view and the tilt. heading/tilt ride along for
-// a raster map too (the backend drops them before moveCamera).
+// a raster map too (the backend drops them before moveCamera). lensGen is the
+// rest of Google's padding analogue: which measurement of the map's
+// perspective (the backend's lens generations, lens.ts) corrects the heading
+// and the anchor offset, a fraction blending two of them — glided like the
+// offset, as MapLibre glides its padding, so a new measurement turns and
+// re-centres the camera smoothly instead of in one frame.
 export interface CameraPose extends LatLng, CameraView {
     tilt: number;
+    lensGen: number;
 }
 
-const POSE_KEYS = ["lat", "lng", "zoom", "heading", "tilt", "offsetX", "offsetY"] as const;
+const POSE_KEYS = [
+    "lat",
+    "lng",
+    "zoom",
+    "heading",
+    "tilt",
+    "offsetX",
+    "offsetY",
+    "lensGen",
+] as const;
 
 // Below this delta a field is applied as the target rather than interpolated.
 // After a release() a glide starts from the camera read back from the map,

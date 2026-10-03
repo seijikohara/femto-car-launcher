@@ -161,3 +161,46 @@ export function lensYawDeg(
     if (lens === null || !(tiltDeg > 0) || offsetXPx === 0) return 0;
     return Math.atan((offsetXPx * Math.sin(tiltDeg * DEG)) / lens.focalPx) / DEG;
 }
+
+// A lens's whole correction for a chevron at screen offset ([offsetXPx],
+// [offsetYPx]) at [tiltDeg]: the yaw bias (lensYawDeg) and the ground offset
+// under the chevron (lensGroundOffset).
+export interface LensEffect {
+    yawDeg: number;
+    x: number;
+    y: number;
+}
+
+export function lensEffect(
+    lens: LensCalibration | null,
+    offsetXPx: number,
+    offsetYPx: number,
+    tiltDeg: number,
+): LensEffect {
+    const ground = lensGroundOffset(lens, offsetXPx, offsetYPx, tiltDeg);
+    return { yawDeg: lensYawDeg(lens, offsetXPx, tiltDeg), x: ground.x, y: ground.y };
+}
+
+// The correction [t] of the way from lens [from] to lens [to]: how the
+// camera moves to a new measurement (the lens appearing, a viewport resize)
+// instead of jumping its heading and centre in one frame. The yaw and the
+// ground offset move evenly, not the lens parameters: the uncalibrated flat
+// correction is no pinhole lens, so there are no parameters to blend from.
+export function blendLensEffect(
+    from: LensCalibration | null,
+    to: LensCalibration | null,
+    t: number,
+    offsetXPx: number,
+    offsetYPx: number,
+    tiltDeg: number,
+): LensEffect {
+    const a = lensEffect(from, offsetXPx, offsetYPx, tiltDeg);
+    if (t <= 0 || from === to) return a;
+    const b = lensEffect(to, offsetXPx, offsetYPx, tiltDeg);
+    if (t >= 1) return b;
+    return {
+        yawDeg: a.yawDeg + (b.yawDeg - a.yawDeg) * t,
+        x: a.x + (b.x - a.x) * t,
+        y: a.y + (b.y - a.y) * t,
+    };
+}

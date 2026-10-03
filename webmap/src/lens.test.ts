@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+    blendLensEffect,
     calibrateLens,
     type LensCalibration,
     lensGroundOffset,
     lensMoved,
     lensProbeDistancePx,
+    lensEffect,
     lensYawDeg,
 } from "./lens";
 
@@ -210,5 +212,25 @@ describe("lensMoved", () => {
 
     it("never reports a change on a flat map, where the lens is unused", () => {
         expect(lensMoved(null, lens, -180, 110, 0)).toBe(false);
+    });
+});
+
+describe("blendLensEffect", () => {
+    const a = { focalPx: 900, distancePx: 900 };
+    const b = { focalPx: 700, distancePx: 650 };
+
+    it("is each lens's own correction at the ends", () => {
+        expect(blendLensEffect(a, b, 0, -180, 110, 55)).toEqual(lensEffect(a, -180, 110, 55));
+        expect(blendLensEffect(a, b, 1, -180, 110, 55)).toEqual(lensEffect(b, -180, 110, 55));
+        expect(blendLensEffect(null, b, 0, -180, 110, 55)).toEqual({ yawDeg: 0, x: -180, y: 110 });
+    });
+
+    it("moves the yaw and the ground offset evenly in between", () => {
+        const from = lensEffect(null, -180, 110, 55);
+        const to = lensEffect(b, -180, 110, 55);
+        const mid = blendLensEffect(null, b, 0.25, -180, 110, 55);
+        expect(mid.yawDeg).toBeCloseTo(from.yawDeg + (to.yawDeg - from.yawDeg) / 4, 12);
+        expect(mid.x).toBeCloseTo(from.x + (to.x - from.x) / 4, 12);
+        expect(mid.y).toBeCloseTo(from.y + (to.y - from.y) / 4, 12);
     });
 });

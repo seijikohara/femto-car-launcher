@@ -67,8 +67,8 @@ import {
     markerTransitionStep,
     normalizeBearing,
     ORIENTATION_FLIP_MOTION,
-    REFLOW_MOTION,
     REFOLLOW_MOTION,
+    reflowMotionWithin,
     smoothedBearing,
     spotMotion,
 } from "../camera";
@@ -82,13 +82,13 @@ import {
 import { chevronHandles, setChevronColor, setChevronTransform, startStaleTicker } from "../chevron";
 import { ScriptLoadError } from "../load-outcome";
 import {
+    blendLensEffect,
     calibrateLens,
     type LensCalibration,
+    type LensEffect,
     lensFovyDeg,
-    lensGroundOffset,
     lensMoved,
     lensProbeDistancePx,
-    lensYawDeg,
 } from "../lens";
 import { createMarkerTransition } from "../marker-motion";
 // The self-marker placement (style.ts is the SSOT, shared with the OSM
@@ -359,10 +359,20 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // hidden (detached) or not yet placed, when a new spot takes no glide
         // of its own (see spotMotion).
         spotShown: false,
-        // The tilted vector map's measured perspective (lens.ts); null until
-        // the first measurement and whenever one is implausible, when the
-        // chevron falls back to the centre line with no yaw.
-        lens: null as LensCalibration | null,
+        // The tilted vector map's measured perspectives (lens.ts), by
+        // generation: each measurement that visibly changes the correction
+        // (lensMoved) is a new generation, and generation 0 is none — no yaw
+        // and the flat offset, as while no measurement exists or the last
+        // one was implausible. A pose's lensGen picks the generation that
+        // corrects it, a fraction blending two (camera-glide.ts), so a new
+        // measurement glides in rather than turning the map in one frame.
+        lenses: new Map<number, LensCalibration | null>([[0, null]]),
+        // The newest generation: what every placement glides to.
+        lensLatest: 0,
+        // The generation the map shows (the last applied, see moveCam): a
+        // glide only ever moves up from it, so generations below it are
+        // dropped.
+        lensGen: 0,
         // The camera the lens was last measured at: the perspective only
         // changes with these, so a probe re-measures only when one moved.
         lensAt: { tilt: Number.NaN, zoom: Number.NaN, width: 0, height: 0 },
@@ -560,13 +570,26 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         const offsetY = pose.offsetY ?? state.spot.y * window.innerHeight;
         if (!state.isVector) return { view: { zoom, heading: 0, offsetX, offsetY }, yaw: 0 };
         const tilt = shownTilt(pose.tilt ?? liveMap.getTilt() ?? 0);
-        const yaw = lensYawDeg(state.lens, offsetX, tilt);
-        const ground = lensGroundOffset(state.lens, offsetX, offsetY, tilt);
+        const lens = lensEffectAt(pose.lensGen ?? state.lensGen, offsetX, offsetY, tilt);
         const heading =
             pose.heading !== undefined
-                ? normalizeBearing(pose.heading - yaw)
+                ? normalizeBearing(pose.heading - lens.yawDeg)
                 : (liveMap.getHeading() ?? 0);
-        return { view: { zoom, heading, offsetX: ground.x, offsetY: ground.y }, yaw };
+        return { view: { zoom, heading, offsetX: lens.x, offsetY: lens.y }, yaw: lens.yawDeg };
+    }
+
+    // The correction lens generation [gen] makes (see state.lenses): a
+    // fraction blends the generations either side of it.
+    function lensEffectAt(gen: number, offsetX: number, offsetY: number, tilt: number): LensEffect {
+        const below = Math.floor(gen);
+        return blendLensEffect(
+            state.lenses.get(below) ?? null,
+            state.lenses.get(Math.ceil(gen)) ?? null,
+            gen - below,
+            offsetX,
+            offsetY,
+            tilt,
+        );
     }
 
     // One immediate camera move — the glide's per-frame step, and the jump.
@@ -587,6 +610,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         const now = Date.now();
         const opts: GMCameraOptions = {};
         const { view, yaw } = viewFor(pose);
+        if (pose.lensGen !== undefined) state.lensGen = pose.lensGen;
         if (pose.lat !== undefined && pose.lng !== undefined) {
             opts.center = cameraCenterFor({ lat: pose.lat, lng: pose.lng }, view);
         }
@@ -652,9 +676,11 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         const offsetX = owned.offsetX ?? state.spot.x * window.innerWidth;
         const offsetY = owned.offsetY ?? state.spot.y * window.innerHeight;
         const mapHeading = liveMap.getHeading() ?? 0;
+        const lensGen = owned.lensGen ?? state.lensGen;
         const heading = state.isVector
             ? normalizeBearing(
-                  mapHeading + lensYawDeg(state.lens, offsetX, shownTilt(owned.tilt ?? tilt)),
+                  mapHeading +
+                      lensEffectAt(lensGen, offsetX, offsetY, shownTilt(owned.tilt ?? tilt)).yawDeg,
               )
             : mapHeading;
         const { view } = viewFor({
@@ -663,12 +689,13 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             tilt: owned.tilt ?? tilt,
             offsetX,
             offsetY,
+            lensGen,
         });
         const center = liveMap.getCenter();
         const anchor = center
             ? anchorAt({ lat: center.lat(), lng: center.lng() }, view)
             : { lat: 0, lng: 0 };
-        return { ...anchor, zoom, heading, tilt, offsetX, offsetY };
+        return { ...anchor, zoom, heading, tilt, offsetX, offsetY, lensGen };
     }
     const glide = createCameraGlide({ current: readPose, apply: moveCam });
 
@@ -731,21 +758,47 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     }
 
     // A lens that appears, goes, or is re-measured differently (a viewport
-    // resize) changes the yaw and the anchor under the chevron: re-place the
-    // camera at once with the reflow motion rather than waiting for the next
-    // fix — a parked car may not send one. The same camera measured again
-    // changes nothing visible and leaves the camera alone (lensMoved).
+    // resize) changes the yaw and the anchor under the chevron, so it becomes
+    // a new generation and the camera glides its correction there at once
+    // (glideLens) rather than waiting for the next fix — a parked car may not
+    // send one. The same camera measured again changes nothing visible
+    // (lensMoved) and replaces the newest generation in place.
     function setLens(next: LensCalibration | null): void {
-        const previous = state.lens;
-        state.lens = next;
         const moved = lensMoved(
-            previous,
+            state.lenses.get(state.lensLatest) ?? null,
             next,
             state.spot.x * window.innerWidth,
             state.spot.y * window.innerHeight,
             liveMap.getTilt() ?? 0,
         );
-        if (moved && state.following && state.lastFix) easeHome(REFLOW_MOTION);
+        if (!moved) {
+            state.lenses.set(state.lensLatest, next);
+            return;
+        }
+        state.lensLatest += 1;
+        state.lenses.set(state.lensLatest, next);
+        const shown = Math.floor(state.lensGen);
+        for (const gen of state.lenses.keys()) {
+            if (gen < shown) state.lenses.delete(gen);
+        }
+        if (state.following) glideLens();
+    }
+
+    // Glide the camera's lens correction to the newest generation with the
+    // reflow motion — the heading turns by the change in yaw and the anchor
+    // moves under the chevron frame by frame, as MapLibre glides a padding
+    // change. Only the map moves: the chevron keeps its spot, so its CSS
+    // transition and left/top stay untouched; a chevron glide already in
+    // flight sets the time instead, so the offset still lands with it. A fix
+    // that arrives meanwhile glides the rest of the way with its own motion,
+    // since every placement targets the newest generation.
+    function glideLens(): void {
+        const fix = state.lastFix;
+        if (!fix) return;
+        glide.to(
+            followPose(fix, orientationFor(fix.heading).mapBearing, state.spot),
+            reflowMotionWithin(markerTransition.remainingMs()),
+        );
     }
 
     // The lens probe, an overlay that draws nothing and only reads the
@@ -827,20 +880,8 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         pushMotion: CameraMotion | null,
         reflowRemainingMs: number,
     ): void {
-        const width = window.innerWidth;
-        const height = window.innerHeight;
         const spot = markerSpot(fix);
-        const poseAt = (at: MarkerSpot): CameraPose => ({
-            lat: fix.lat,
-            lng: fix.lng,
-            zoom: fix.zoom,
-            heading: mapBearing,
-            // A raster map never tilts: a 0 here keeps the tilt the glide owns
-            // equal to what the map shows, should the map resolve to vector.
-            tilt: state.isVector ? fix.tilt : 0,
-            offsetX: at.x * width,
-            offsetY: at.y * height,
-        });
+        const poseAt = (at: MarkerSpot): CameraPose => followPose(fix, mapBearing, at);
         const plan = spotMotion(state.spotShown ? state.spot : null, spot, pushMotion);
         if (plan.snapAt) glide.jump(poseAt(plan.snapAt));
         markerTransition.apply(markerTransitionStep(plan.motion, reflowRemainingMs));
@@ -854,6 +895,28 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         } else {
             glide.to(poseAt(spot), plan.motion);
         }
+    }
+
+    // The follow camera's pose for [fix]: the fix as the anchor under the
+    // chevron at [at], the follow bearing [mapBearing] (before the lens's
+    // yaw), and the newest lens generation.
+    function followPose(
+        fix: NonNullable<typeof state.lastFix>,
+        mapBearing: number,
+        at: MarkerSpot,
+    ): CameraPose {
+        return {
+            lat: fix.lat,
+            lng: fix.lng,
+            zoom: fix.zoom,
+            heading: mapBearing,
+            // A raster map never tilts: a 0 here keeps the tilt the glide owns
+            // equal to what the map shows, should the map resolve to vector.
+            tilt: state.isVector ? fix.tilt : 0,
+            offsetX: at.x * window.innerWidth,
+            offsetY: at.y * window.innerHeight,
+            lensGen: state.lensLatest,
+        };
     }
 
     // --- Camera-follow state machine -----------------------------------------

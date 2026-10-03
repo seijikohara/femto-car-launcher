@@ -287,10 +287,18 @@ export interface FollowPush {
 export function followMotion(push: FollowPush): CameraMotion | null {
     if (push.firstCamera || push.signalGap) return null;
     if (push.reflow) return REFLOW_MOTION;
-    if (push.reflowRemainingMs > 0) {
-        return { durationMs: push.reflowRemainingMs, easing: REFLOW_MOTION.easing };
-    }
+    if (push.reflowRemainingMs > 0) return reflowMotionWithin(push.reflowRemainingMs);
     return { durationMs: easeDurationMs(push.sinceLastFixMs), easing: linearEase };
+}
+
+// The reflow motion for a camera move that must land with a chevron glide
+// still in flight: the time that glide has left ([reflowRemainingMs], from
+// MarkerTransition.remainingMs) on the reflow's own linear curve, or the
+// whole REFLOW_MOTION when none is in flight.
+export function reflowMotionWithin(reflowRemainingMs: number): CameraMotion {
+    return reflowRemainingMs > 0
+        ? { durationMs: reflowRemainingMs, easing: REFLOW_MOTION.easing }
+        : REFLOW_MOTION;
 }
 
 // What a camera move does to the chevron's CSS transition (marker-motion.ts),

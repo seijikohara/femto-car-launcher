@@ -6,7 +6,7 @@
 // page's few element and window accesses are stubbed here.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { PendingBridgeCalls } from "../bridge";
-import { LAYOUT_REFLOW_MS, smoothedBearing } from "../camera";
+import { LAYOUT_REFLOW_MS, shortestBearingDelta, smoothedBearing } from "../camera";
 import { markerDrop, markerXFraction } from "../style";
 import { init } from "./googlemaps";
 
@@ -309,6 +309,22 @@ function leanPx(map: FakeMap, fix: { lat: number; lng: number }, bearing: number
     return Math.abs(screenOf(map, aheadOf(fix, bearing, 120)).x - screenOf(map, fix).x);
 }
 
+// Every bearing the page reported to the host's compass.
+function compassReports(): string[] {
+    return reporter.report.mock.calls
+        .filter(([kind]) => kind === "bearing")
+        .map(([, detail]) => detail as string);
+}
+
+// Run [frames] frames, returning how far the map heading turned on each.
+function headingSteps(page: { map: FakeMap; advance(ms: number): void }, frames: number): number[] {
+    return Array.from({ length: frames }, () => {
+        const was = page.map.heading;
+        page.advance(16);
+        return Math.abs(shortestBearingDelta(was, page.map.heading));
+    });
+}
+
 // The bearing the page last reported to the host's compass.
 function lastCompass(): string | undefined {
     const calls = reporter.report.mock.calls.filter(([kind]) => kind === "bearing");
@@ -519,15 +535,35 @@ describe("the Google Maps page", () => {
         expect(page.marker.style.left).toBe(`${(0.5 - MX) * 100}%`);
         expect(page.map.heading).toBe(90);
         expect(leanPx(page.map, FIX, 90)).toBeGreaterThan(1);
-        // The first frame measures it, and the camera glides to the lens's
-        // yaw and exact anchor without waiting for the next fix.
-        page.advance(16);
+        // The first frame measures it, and the camera blends from no yaw to
+        // the lens's yaw and exact anchor over the reflow motion, without
+        // waiting for the next fix and without moving the chevron.
+        const steps = headingSteps(page, 30);
+        expect(Math.max(...steps)).toBeLessThan(1);
+        expect(Math.abs(shortestBearingDelta(90, page.map.heading))).toBeGreaterThan(5);
         expect(page.marker.style.left).toBe(`${(0.5 - MX) * 100}%`);
-        page.run(30);
+        expect(page.marker.style.transition).toBe("");
         const at = screenOf(page.map, FIX);
         expect(Math.hypot(at.x + MX * W, at.y - DROP * H)).toBeLessThan(1e-6);
         expect(leanPx(page.map, FIX, 90)).toBeLessThan(1e-6);
+        // The compass reads the travel heading throughout the blend.
+        expect(new Set(compassReports())).toEqual(new Set(["90.0"]));
         expect(reporter.report).not.toHaveBeenCalledWith("follow", false);
+    });
+
+    it("lands a fix that arrives while the lens blends in", async () => {
+        const page = await boot("VECTOR", "VECTOR");
+        push(page.win, FIX, 90);
+        page.advance(16);
+        page.advance(100);
+        const next = aheadOf(FIX, 90, 10);
+        push(page.win, next, 90);
+        page.run(50);
+        const at = screenOf(page.map, next);
+        expect(Math.hypot(at.x + MX * W, at.y - DROP * H)).toBeLessThan(1e-6);
+        expect(leanPx(page.map, next, 90)).toBeLessThan(1e-6);
+        expect(page.marker.style.transition).toBe("");
+        expect(new Set(compassReports())).toEqual(new Set(["90.0"]));
     });
 
     it("lands the chevron and the camera together when a fix arrives mid-glide", async () => {
@@ -557,15 +593,23 @@ describe("the Google Maps page", () => {
         const page = await boot("VECTOR", "VECTOR");
         push(page.win, FIX, 90);
         page.run(50);
+        const before = page.map.heading;
         // An orientation change or a split screen: the map re-renders at the
         // new size, the lens is re-measured, and the parked car sends no fix.
+        // The yaw blends to the new lens over the reflow motion; the chevron
+        // keeps its spot.
         const win = page.win as unknown as { innerWidth: number; innerHeight: number };
-        win.innerWidth = 700;
-        win.innerHeight = 380;
-        page.run(30);
+        win.innerWidth = 1400;
+        win.innerHeight = 360;
+        const steps = headingSteps(page, 30);
+        expect(Math.max(...steps)).toBeLessThan(1);
+        expect(Math.abs(shortestBearingDelta(before, page.map.heading))).toBeGreaterThan(5);
+        expect(page.marker.style.transition).toBe("");
         const at = screenOf(page.map, FIX);
-        expect(Math.hypot(at.x + MX * 700, at.y - DROP * 380)).toBeLessThan(1e-6);
+        expect(Math.hypot(at.x + MX * 1400, at.y - DROP * 360)).toBeLessThan(1e-6);
         expect(leanPx(page.map, FIX, 90)).toBeLessThan(1e-6);
+        expect(lastCompass()).toBe("90.0");
+        expect(reporter.report).not.toHaveBeenCalledWith("follow", false);
     });
 
     it("corrects for the tilt the map shows when Google clamps the requested one", async () => {
@@ -722,7 +766,7 @@ describe("the Google Maps page", () => {
         page.map.fire("tilesloaded");
         expect(page.map.moves[0]).toMatchObject({ heading: 45, tilt: 55 });
         // The chevron keeps the OSM spot; the first rendered frame measures
-        // the lens, and the camera glides to its yaw and exact anchor.
+        // the lens, and the camera blends to its yaw and exact anchor.
         expect(page.marker.style.left).toBe(`${(0.5 - MX) * 100}%`);
         page.run(50);
         const at = screenOf(page.map, FIX);
