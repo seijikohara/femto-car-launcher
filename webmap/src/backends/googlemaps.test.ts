@@ -777,30 +777,62 @@ describe("the Google Maps page", () => {
         expect(page.map.heading).toBe(0);
     });
 
+    // A step from 16 to 17, and one from the map type's zoom ceiling (18)
+    // past it, which Google clamps while keeping the centre it was sent.
     it.each([
-        ["VECTOR", 55],
-        ["VECTOR", 0],
-        ["RASTER", 0],
+        ["VECTOR", 55, 16, 17, 17],
+        ["VECTOR", 0, 16, 17, 17],
+        ["RASTER", 0, 16, 17, 17],
+        ["VECTOR", 55, 18, 19, 18],
+        ["VECTOR", 0, 18, 19, 18],
+        ["RASTER", 0, 18, 19, 18],
     ])(
-        "zooms a %s map (tilt %d°) about the chevron's spot while detached",
-        async (rendering, tilt) => {
+        "zooms a %s map (tilt %d°) about the chevron's spot while detached, %d to %d (shows %d)",
+        async (rendering, tilt, fromZoom, toZoom, shownZoom) => {
             // The OSM map's detached zoom step keeps its camera padding, so it
             // zooms about the padded centre, where the chevron was; this map
             // must zoom about the same spot.
             const page = await boot(rendering, rendering);
-            push(page.win, FIX, 90, { tilt });
+            page.map.maxZoom = 18;
+            push(page.win, FIX, 90, { tilt, zoom: fromZoom });
             page.run(50);
             page.map.fire("dragstart");
             const spot = screenOf(page.map, FIX);
-            push(page.win, FIX, 90, { tilt, zoom: 17 });
+            push(page.win, FIX, 90, { tilt, zoom: toZoom });
             const drift = Array.from({ length: 20 }, () => {
                 page.advance(16);
                 const at = screenOf(page.map, FIX);
                 return Math.hypot(at.x - spot.x, at.y - spot.y);
             });
-            expect(page.map.zoom).toBe(17);
+            expect(page.map.zoom).toBe(shownZoom);
             expect(Math.max(...drift)).toBeLessThan(1e-6);
             expect(spot.x).toBeCloseTo(-MX * W, 6);
+        },
+    );
+
+    it.each([55, 0])(
+        "holds the fix under the chevron at the zoom ceiling while following (tilt %d°)",
+        async (tilt) => {
+            const page = await boot("VECTOR", "VECTOR");
+            page.map.maxZoom = 18;
+            push(page.win, FIX, 90, { tilt, zoom: 18 });
+            page.run(50);
+            // The host's zoom goes past the ceiling: Google shows 18 and keeps
+            // the centre it is sent, so the centre must be the one for 18.
+            push(page.win, FIX, 90, { tilt, zoom: 19 });
+            const drift = Array.from({ length: 70 }, () => {
+                page.advance(16);
+                const at = screenOf(page.map, FIX);
+                return Math.hypot(at.x + MX * W, at.y - DROP * H);
+            });
+            expect(page.map.zoom).toBe(18);
+            expect(Math.max(...drift)).toBeLessThan(1e-6);
+            // A snap past the ceiling (a fix after a signal gap) too.
+            page.advance(11_000);
+            push(page.win, aheadOf(FIX, 90, 30), 90, { tilt, zoom: 19 });
+            const at = screenOf(page.map, aheadOf(FIX, 90, 30));
+            expect(Math.hypot(at.x + MX * W, at.y - DROP * H)).toBeLessThan(1e-6);
+            expect(reporter.report).not.toHaveBeenCalledWith("follow", false);
         },
     );
 

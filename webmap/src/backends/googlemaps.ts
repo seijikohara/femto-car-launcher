@@ -233,6 +233,17 @@ const MAP_TYPE_IDS: Record<string, string> = {
 // window this wide from hiding a user zoom.
 const GESTURE_SUPPRESS_MS = 200;
 
+// The value the map will show for a [requested] zoom or tilt, given
+// what it shows now ([shown]) after the page last sent [sent]: Google
+// clamps a zoom past the map type's ceiling and a vector map's tilt past
+// its ceiling at the zoom, and keeps the centre it was sent. The map
+// showing less than the page last sent is that clamp; otherwise the
+// requested value stands, since it is what this very move is about to
+// show. A clamp first met on this move is caught after it (moveCam).
+function shownValue(requested: number, shown: number, sent: number | null): number {
+    return sent !== null && shown < sent ? Math.min(requested, shown) : requested;
+}
+
 export async function init(reporter: PageReporter, pending: PendingBridgeCalls): Promise<void> {
     const { log, report } = reporter;
 
@@ -520,15 +531,16 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // Traffic layer is created once and toggled on/off via setMap (memoized).
     state.trafficLayer = new mapsLib.TrafficLayer();
 
-    // The tilt the lens corrects for when the page asks for [requested]:
-    // the tilt the map actually shows once Google has clamped the request (a
-    // vector map's tilt ceiling drops at low zoom). The map showing less than
-    // the page last sent is that clamp; otherwise the requested tilt stands,
-    // since it is what this very move is about to show.
+    // The tilt the lens corrects for when the page asks for [requested].
     function shownTilt(requested: number): number {
-        const shown = liveMap.getTilt() ?? 0;
-        const sent = state.lastSet.tilt;
-        return sent !== null && shown < sent ? Math.min(requested, shown) : requested;
+        return shownValue(requested, liveMap.getTilt() ?? 0, state.lastSet.tilt);
+    }
+
+    // The zoom the centre math works at when the page asks for [requested]:
+    // computed at a zoom the map clamps, the centre puts the chevron's
+    // anchor off by the clamped fraction of its offset.
+    function shownZoom(requested: number): number {
+        return shownValue(requested, liveMap.getZoom() ?? 0, state.lastSet.zoom);
     }
 
     // The view a pose shows the map at: the zoom, the MAP heading, and the
@@ -543,7 +555,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // pose leaves out is what the map shows (the heading and tilt) or the
     // chevron's spot (the offset).
     function viewFor(pose: Partial<CameraPose>): { view: CameraView; yaw: number } {
-        const zoom = pose.zoom ?? liveMap.getZoom() ?? 0;
+        const zoom = shownZoom(pose.zoom ?? liveMap.getZoom() ?? 0);
         const offsetX = pose.offsetX ?? state.spot.x * window.innerWidth;
         const offsetY = pose.offsetY ?? state.spot.y * window.innerHeight;
         if (!state.isVector) return { view: { zoom, heading: 0, offsetX, offsetY }, yaw: 0 };
@@ -568,6 +580,9 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // change: a vector map clamps tilt by zoom, so a zoom step can move the
     // tilt without this page having asked for a new one. heading/tilt are
     // vector-only (a raster map reinterprets them and stops positioning).
+    // A move that first runs into a zoom or tilt ceiling is re-centred at
+    // once for what the map then shows (see shownValue), rather than leaving
+    // the chevron off its anchor until the next move — a snap may have none.
     function moveCam(pose: Partial<CameraPose>): void {
         const now = Date.now();
         const opts: GMCameraOptions = {};
@@ -603,6 +618,18 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             }
         }
         liveMap.moveCamera(opts);
+        if (opts.center && pose.lat !== undefined && pose.lng !== undefined) {
+            const settled = viewFor(pose).view;
+            if (
+                settled.zoom !== view.zoom ||
+                settled.offsetX !== view.offsetX ||
+                settled.offsetY !== view.offsetY
+            ) {
+                liveMap.moveCamera({
+                    center: cameraCenterFor({ lat: pose.lat, lng: pose.lng }, settled),
+                });
+            }
+        }
     }
 
     // The camera easing this API lacks: a glide re-applies an interpolated
@@ -614,11 +641,11 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
     // as MapLibre's padded easeTo does. The location is read through the view
     // the glide starts from — the owned zoom, heading, tilt and offset where
     // it has them — because moveCam derives the first frame's centre from
-    // exactly that view: read at a clamped zoom (Google caps it at the map
-    // type's ceiling) while the glide starts from the zoom it asked for, the
-    // first frame would jump. The heading read back is the travel heading the
-    // map shows: its own heading plus the yaw it carries at that offset and
-    // tilt, which viewFor takes off again.
+    // exactly that view (viewFor, which works at the zoom and tilt the map
+    // shows where Google clamped the owned ones): read through any other
+    // view, the first frame would jump. The heading read back is the travel
+    // heading the map shows: its own heading plus the yaw it carries at that
+    // offset and tilt, which viewFor takes off again.
     function readPose(owned: Partial<CameraPose>): CameraPose {
         const zoom = liveMap.getZoom() ?? 0;
         const tilt = liveMap.getTilt() ?? 0;
