@@ -33,14 +33,24 @@ internal object MapRuntimeSignals {
      * perspective (webmap lens.ts), which keeps the road ahead vertical through
      * the chevron beside the cards. [source] is the probe that measured it:
      * "webgl" (the WebGL overlay's camera transformer, with a Map ID) or
-     * "canvas" (the 2D projection, without one); [fovyDeg] is the field of
-     * view the measurement implies, null while unmeasured.
+     * "canvas" (the 2D projection, without one), null when the lens is unused;
+     * [fovyDeg] is the field of view the measurement implies, null unless
+     * measured.
      */
     data class GoogleLens(
-        val measured: Boolean,
-        val source: String,
+        val status: LensStatus,
+        val source: String?,
         val fovyDeg: Double?,
     )
+
+    /** The page's lens state: see [GoogleLens]. */
+    enum class LensStatus {
+        MEASURED,
+        UNMEASURED,
+
+        /** A raster or flat (0°) map, which needs no lens. */
+        UNUSED,
+    }
 
     /**
      * One burst of the map page's own frame intervals (bridge.ts
@@ -101,14 +111,25 @@ internal object MapRuntimeSignals {
     fun pageFramesOrNull(): PageFrames? = pageFrames.get()
 
     /**
-     * Record a `lens` event: "measured,source=<s>,fovy=<deg>" or
-     * "unmeasured,source=<s>"; anything else is ignored.
+     * Record a `lens` event: "measured,source=<s>,fovy=<deg>",
+     * "unmeasured,source=<s>" or "unused"; anything else is ignored.
      */
     fun recordGoogleLens(detail: String) {
         googleLensFrom(detail)?.let(googleLens::set)
     }
 
     fun googleLensOrNull(): GoogleLens? = googleLens.get()
+
+    /**
+     * Forget what the previous map page reported about itself, on every page
+     * (re)load: the lens state belongs to one page, so a rebuild to a raster
+     * map, or a page that never measures, must not keep showing an earlier
+     * page's "measured". The session-wide facts (failures, renderer, frames)
+     * stay.
+     */
+    fun recordMapPageLoad() {
+        googleLens.set(null)
+    }
 
     internal fun googleLensFrom(detail: String): GoogleLens? {
         val parts = detail.split(',')
@@ -118,11 +139,27 @@ internal object MapRuntimeSignals {
                 .mapNotNull { field ->
                     field.substringBefore('=', "").takeIf { it.isNotEmpty() }?.let { it to field.substringAfter('=') }
                 }.toMap()
-        val source = fields["source"]?.takeIf { it.isNotEmpty() } ?: return null
+        val source = fields["source"]?.takeIf { it.isNotEmpty() }
         return when (parts.first()) {
-            "measured" -> fields["fovy"]?.toDoubleOrNull()?.let { GoogleLens(measured = true, source, it) }
-            "unmeasured" -> GoogleLens(measured = false, source, fovyDeg = null)
-            else -> null
+            "measured" -> {
+                source?.let {
+                    fields["fovy"]?.toDoubleOrNull()?.let { fovy ->
+                        GoogleLens(LensStatus.MEASURED, it, fovy)
+                    }
+                }
+            }
+
+            "unmeasured" -> {
+                source?.let { GoogleLens(LensStatus.UNMEASURED, it, fovyDeg = null) }
+            }
+
+            "unused" -> {
+                GoogleLens(LensStatus.UNUSED, source = null, fovyDeg = null)
+            }
+
+            else -> {
+                null
+            }
         }
     }
 

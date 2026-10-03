@@ -727,7 +727,10 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             return;
         }
         state.lensAt = { tilt, zoom, width, height };
-        if (!(tilt > 0)) return;
+        if (!(tilt > 0)) {
+            reportLens("unused");
+            return;
+        }
         const target = { lat: camera.center.lat(), lng: camera.center.lng() };
         const d = lensProbeDistancePx(height);
         const probeAt = (offsetY: number) =>
@@ -746,15 +749,22 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
                   })
                 : null;
         setLens(lens);
-        // The host's MAP diagnostics show whether the lens is measured, so an
-        // owner can tell on the device why the road does or does not lean.
-        const detail = lens
-            ? `measured,source=${source},fovy=${lensFovyDeg(lens, height).toFixed(1)}`
-            : `unmeasured,source=${source}`;
-        if (detail !== state.lensReport) {
-            state.lensReport = detail;
-            report("lens", detail);
-        }
+        reportLens(
+            lens
+                ? `measured,source=${source},fovy=${lensFovyDeg(lens, height).toFixed(1)}`
+                : `unmeasured,source=${source}`,
+        );
+    }
+
+    // Tell the host's MAP diagnostics the lens state, so an owner can tell on
+    // the device why the road does or does not lean: measured, unmeasured,
+    // or unused (a raster or flat map needs none). Only a change is sent; the
+    // host forgets the state on every page load, so a page that never
+    // reports leaves no earlier page's state behind.
+    function reportLens(detail: string): void {
+        if (detail === state.lensReport) return;
+        state.lensReport = detail;
+        report("lens", detail);
     }
 
     // A lens that appears, goes, or is re-measured differently (a viewport
@@ -1085,6 +1095,7 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             syncLensProbe();
             easeHome(null);
         }
+        if (!state.isVector) reportLens("unused");
         log("rendered");
         tilesListener.remove();
     });

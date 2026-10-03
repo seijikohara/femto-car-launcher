@@ -36,7 +36,7 @@ class MapFactsTest {
     fun `the Google lens row appears only on the Google backend`() {
         assertTrue(facts(backend = MapBackend.OSM).none { it.label == "Google lens" })
         assertEquals(
-            FactValue.Text("not reported (no tilted vector map yet)"),
+            FactValue.Text("not reported yet by this map page"),
             facts(backend = MapBackend.GOOGLEMAPS).single { it.label == "Google lens" }.value,
         )
     }
@@ -46,7 +46,12 @@ class MapFactsTest {
         val fact =
             facts(
                 backend = MapBackend.GOOGLEMAPS,
-                googleLens = MapRuntimeSignals.GoogleLens(measured = true, source = "webgl", fovyDeg = 27.3),
+                googleLens =
+                    MapRuntimeSignals.GoogleLens(
+                        MapRuntimeSignals.LensStatus.MEASURED,
+                        source = "webgl",
+                        fovyDeg = 27.3,
+                    ),
             ).single { it.label == "Google lens" }
         assertEquals(FactValue.Status("measured (WebGL overlay), fovy 27.3°", FactHealth.OK), fact.value)
     }
@@ -56,12 +61,31 @@ class MapFactsTest {
         val fact =
             facts(
                 backend = MapBackend.GOOGLEMAPS,
-                googleLens = MapRuntimeSignals.GoogleLens(measured = false, source = "canvas", fovyDeg = null),
+                googleLens =
+                    MapRuntimeSignals.GoogleLens(
+                        MapRuntimeSignals.LensStatus.UNMEASURED,
+                        source = "canvas",
+                        fovyDeg = null,
+                    ),
             ).single { it.label == "Google lens" }
         assertEquals(
             FactValue.Status("unmeasured (2D projection) — the road ahead leans", FactHealth.WARNING),
             fact.value,
         )
+    }
+
+    @Test
+    fun `an unused Google lens says a raster or flat map needs none, without a warning`() {
+        val fact =
+            facts(
+                backend = MapBackend.GOOGLEMAPS,
+                googleLens = MapRuntimeSignals.GoogleLens(
+                    MapRuntimeSignals.LensStatus.UNUSED,
+                    source = null,
+                    fovyDeg = null,
+                ),
+            ).single { it.label == "Google lens" }
+        assertEquals(FactValue.Text("not needed (raster or flat map)"), fact.value)
     }
 
     @Test

@@ -758,6 +758,25 @@ describe("the Google Maps page", () => {
         expect(lensReports()).toEqual(["unmeasured,source=canvas"]);
     });
 
+    it.each([
+        ["RASTER", "RASTER", "map-id", 55],
+        ["VECTOR", "RASTER", "map-id", 55],
+        ["AUTO", "RASTER", "", 55],
+        ["VECTOR", "VECTOR", "map-id", 0],
+        ["VECTOR", "VECTOR", "", 0],
+    ])(
+        "reports the lens unused on a %s choice that renders %s (Map ID %j, tilt %d°)",
+        async (rendering, renderingType, mapId, tilt) => {
+            // A raster or flat map needs no lens: the diagnostics must say so
+            // rather than keep an earlier page's state, or call it a lean.
+            const page = await boot(rendering, renderingType, { mapId });
+            push(page.win, FIX, 90, { tilt });
+            page.map.fire("tilesloaded");
+            page.run(20);
+            expect(lensReports()).toEqual(["unused"]);
+        },
+    );
+
     it("keeps the chevron beside the cards on a flat vector map", async () => {
         const page = await boot("VECTOR", "VECTOR");
         push(page.win, FIX, 90, { tilt: 0 });

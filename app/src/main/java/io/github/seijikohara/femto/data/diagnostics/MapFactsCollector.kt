@@ -191,19 +191,37 @@ private const val PAGE_FRAME_WARNING_MS = 100
 // lens.ts). Measured, the road ahead runs straight up through the chevron
 // beside the cards; unmeasured, the page keeps the chevron there with no
 // correction and the road leans — the row that tells an owner which on the
-// device. A raster or untilted map never reports, since it needs no lens.
-private fun googleLensFact(lens: MapRuntimeSignals.GoogleLens?): DiagnosticFact {
-    if (lens == null) return DiagnosticFact("Google lens", FactValue.Text("not reported (no tilted vector map yet)"))
-    val source = if (lens.source == "webgl") "WebGL overlay" else "2D projection"
-    return DiagnosticFact(
+// device. A raster or flat map needs no lens and says so; the host forgets
+// the state on every page load, so null is a page that has not reported yet.
+private fun googleLensFact(lens: MapRuntimeSignals.GoogleLens?): DiagnosticFact =
+    DiagnosticFact(
         "Google lens",
-        if (lens.measured && lens.fovyDeg != null) {
-            FactValue.Status("measured ($source), fovy ${"%.1f".format(Locale.ROOT, lens.fovyDeg)}°", FactHealth.OK)
-        } else {
-            FactValue.Status("unmeasured ($source) — the road ahead leans", FactHealth.WARNING)
+        when (lens?.status) {
+            null -> {
+                FactValue.Text("not reported yet by this map page")
+            }
+
+            MapRuntimeSignals.LensStatus.UNUSED -> {
+                FactValue.Text("not needed (raster or flat map)")
+            }
+
+            MapRuntimeSignals.LensStatus.MEASURED -> {
+                FactValue.Status(
+                    "measured (${lensSourceName(lens.source)}), fovy ${"%.1f".format(Locale.ROOT, lens.fovyDeg)}°",
+                    FactHealth.OK,
+                )
+            }
+
+            MapRuntimeSignals.LensStatus.UNMEASURED -> {
+                FactValue.Status(
+                    "unmeasured (${lensSourceName(lens.source)}) — the road ahead leans",
+                    FactHealth.WARNING,
+                )
+            }
         },
     )
-}
+
+private fun lensSourceName(source: String?): String = if (source == "webgl") "WebGL overlay" else "2D projection"
 
 // deviceConfigurationInfo reports the version as "major.minor"; compare on the
 // same packed 0xMMMMmmmm encoding the platform uses for reqGlEsVersion.

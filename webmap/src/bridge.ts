@@ -66,8 +66,9 @@ declare global {
 // section, which otherwise cannot tell a working map from one that failed
 // silently. "lens" = whether the Google page has measured its tilted map's
 // perspective (lens.ts), for the same section: "measured,source=<webgl|
-// canvas>,fovy=<deg>" or "unmeasured,source=<…>". No kind triggers a backend
-// switch — the host keeps the chosen backend (no auto-fallback).
+// canvas>,fovy=<deg>", "unmeasured,source=<…>", or "unused" (a raster or
+// flat map needs none). No kind triggers a backend switch — the host keeps
+// the chosen backend (no auto-fallback).
 export type MapEventKind = "ready" | "fatal" | "error" | "follow" | "bearing" | "frames" | "lens";
 
 export interface PageReporter {

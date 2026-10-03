@@ -653,6 +653,9 @@ internal fun WebMapView(
                     },
                     "femtoBridge",
                 )
+                // A new page reports its own lens state; the previous page's
+                // must not outlive it in the diagnostics.
+                MapRuntimeSignals.recordMapPageLoad()
                 loadUrl(mapPageUrl(mapConfig.backend))
             }
         }

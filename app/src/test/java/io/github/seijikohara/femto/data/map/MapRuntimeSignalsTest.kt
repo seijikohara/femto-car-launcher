@@ -24,13 +24,26 @@ class MapRuntimeSignalsTest {
     @Test
     fun `parses the page's lens report`() {
         assertEquals(
-            MapRuntimeSignals.GoogleLens(measured = true, source = "webgl", fovyDeg = 27.3),
+            MapRuntimeSignals.GoogleLens(MapRuntimeSignals.LensStatus.MEASURED, source = "webgl", fovyDeg = 27.3),
             MapRuntimeSignals.googleLensFrom("measured,source=webgl,fovy=27.3"),
         )
         assertEquals(
-            MapRuntimeSignals.GoogleLens(measured = false, source = "canvas", fovyDeg = null),
+            MapRuntimeSignals.GoogleLens(MapRuntimeSignals.LensStatus.UNMEASURED, source = "canvas", fovyDeg = null),
             MapRuntimeSignals.googleLensFrom("unmeasured,source=canvas"),
         )
+        assertEquals(
+            MapRuntimeSignals.GoogleLens(MapRuntimeSignals.LensStatus.UNUSED, source = null, fovyDeg = null),
+            MapRuntimeSignals.googleLensFrom("unused"),
+        )
+    }
+
+    @Test
+    fun `a new map page forgets the previous page's lens`() {
+        // A rebuild to a raster map, or a page that never measures, must not
+        // keep showing an earlier page's "measured".
+        MapRuntimeSignals.recordGoogleLens("measured,source=webgl,fovy=27.3")
+        MapRuntimeSignals.recordMapPageLoad()
+        assertNull(MapRuntimeSignals.googleLensOrNull())
     }
 
     @Test
