@@ -19,10 +19,18 @@ export function chevronHandles(): ChevronHandles {
     return { el, path: el.querySelector("path") };
 }
 
+// The colour last written to each chevron (see setChevronColor).
+const writtenChevronColors = new WeakMap<HTMLElement, string>();
+
 // A fresh fix re-colours the chevron (Material primary from the host) and
-// feeds the ripple the same colour via the CSS variable.
+// feeds the ripple the same colour via the CSS variable. The host sends the
+// colour with every fix, and it rarely changes, so the arrow's fill and the
+// variable are written only when it does — compared against the colour last
+// written here, as setChevronStyle does; so every write of the chevron's
+// fill and --marker-color goes through here.
 export function setChevronColor(chevron: ChevronHandles, color: string): void {
-    if (!color) return;
+    if (!color || writtenChevronColors.get(chevron.el) === color) return;
+    writtenChevronColors.set(chevron.el, color);
     chevron.path?.setAttribute("fill", color);
     chevron.el.style.setProperty("--marker-color", color);
 }

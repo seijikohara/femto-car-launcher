@@ -126,8 +126,11 @@ describe("the OSM follow engine", () => {
         page.push(FIX);
         vi.advanceTimersByTime(1_000);
         page.styleWrites.length = 0;
+        // Nor its colour: the host sends the same one with every fix.
+        vi.mocked(page.marker.style.setProperty).mockClear();
         page.push({ lat: FIX.lat + 1e-4, lon: FIX.lon });
         expect(page.styleWrites).toEqual([]);
+        expect(page.marker.style.setProperty).not.toHaveBeenCalled();
     });
 
     it("zooms a detached map about the padded centre, where the chevron was", () => {

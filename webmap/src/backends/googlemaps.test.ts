@@ -1214,9 +1214,17 @@ describe("the Google Maps page", () => {
         push(page.win, FIX, 90);
         page.run(50);
         page.styleWrites.length = 0;
+        // Nor its colour: the host sends the same one with every fix.
+        const path = page.marker.querySelector("path") as {
+            setAttribute: ReturnType<typeof vi.fn>;
+        };
+        path.setAttribute.mockClear();
+        vi.mocked(page.marker.style.setProperty).mockClear();
         push(page.win, aheadOf(FIX, 90, 20), 90);
         page.run(10);
         expect(page.styleWrites).toEqual([]);
+        expect(path.setAttribute).not.toHaveBeenCalled();
+        expect(page.marker.style.setProperty).not.toHaveBeenCalled();
     });
 
     it("reads the WebGL camera for the lens only when the tilt, zoom or viewport changed", async () => {
