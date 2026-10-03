@@ -140,18 +140,14 @@ const fake = vi.hoisted(() => {
         // A rendered frame: the overlays redraw against the camera it shows.
         render(): void {
             for (const overlay of this.overlays) overlay.draw();
-            const { width, height } = FakeMap.viewport();
+            const viewProjection = this.viewProjection();
             const transformer = {
-                fromLatLngAltitude: (at: LatLng & { altitude?: number }) => {
-                    const px = this.project(at, true);
-                    // Any positive w: the page must divide it out.
-                    const w = 1.7;
-                    const m = new Float64Array(16);
-                    m[12] = ((2 * px.x) / width - 1) * w;
-                    m[13] = (1 - (2 * px.y) / height) * w;
-                    m[15] = w;
-                    return m;
-                },
+                // The MVP matrix of a frame at [at]: this camera's projection
+                // and view times the model translation to the point, so its
+                // translation column is the point's clip position, w being
+                // the point's own depth.
+                fromLatLngAltitude: (at: LatLng & { altitude?: number }) =>
+                    Float64Array.from(FakeMap.multiply(viewProjection, this.model(at))),
                 getCameraParams: () => {
                     const { lat, lng } = this.center;
                     return {
@@ -163,6 +159,64 @@ const fake = vi.hoisted(() => {
                 },
             };
             for (const overlay of this.webglOverlays) overlay.onDraw({ gl: {}, transformer });
+        }
+        // The column-major product of two 4×4 matrices.
+        static multiply(a: number[], b: number[]): number[] {
+            return Array.from({ length: 16 }, (_, i) => {
+                const col = Math.floor(i / 4);
+                const row = i % 4;
+                return [0, 1, 2, 3].reduce((sum, k) => sum + a[k * 4 + row] * b[col * 4 + k], 0);
+            });
+        }
+        // A column-major 4×4 matrix from its rows.
+        static fromRows(rows: number[][]): number[] {
+            return Array.from({ length: 16 }, (_, i) => rows[i % 4][Math.floor(i / 4)]);
+        }
+        // The model matrix of a frame at [loc]: the translation from the
+        // camera target to [loc], in flat px east / north / up at this zoom.
+        model(loc: LatLng): number[] {
+            const worldPx = 256 * 2 ** this.zoom;
+            const east =
+                (((((loc.lng - this.center.lng) % 360) + 540) % 360) - 180) * (worldPx / 360);
+            const north =
+                (FakeMap.mercatorNorth(loc.lat) - FakeMap.mercatorNorth(this.center.lat)) * worldPx;
+            return FakeMap.fromRows([
+                [1, 0, 0, east],
+                [0, 1, 0, north],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+            ]);
+        }
+        // Projection × view of the pinhole camera project() draws with: the
+        // map turned by the heading, the camera tilted from straight down at
+        // the focal length's distance, an OpenGL-style perspective whose w is
+        // the depth.
+        viewProjection(): number[] {
+            const { width, height } = FakeMap.viewport();
+            const focal = height / 2 / Math.tan((optics.fovyDeg * Math.PI) / 360);
+            const h = (this.heading * Math.PI) / 180;
+            const t = (this.tilt * Math.PI) / 180;
+            const turn = FakeMap.fromRows([
+                [Math.cos(h), -Math.sin(h), 0, 0],
+                [Math.sin(h), Math.cos(h), 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+            ]);
+            const view = FakeMap.fromRows([
+                [1, 0, 0, 0],
+                [0, Math.cos(t), Math.sin(t), 0],
+                [0, -Math.sin(t), Math.cos(t), -focal],
+                [0, 0, 0, 1],
+            ]);
+            const near = 1;
+            const far = 1e7;
+            const projection = FakeMap.fromRows([
+                [(2 * focal) / width, 0, 0, 0],
+                [0, (2 * focal) / height, 0, 0],
+                [0, 0, -(far + near) / (far - near), (-2 * far * near) / (far - near)],
+                [0, 0, -1, 0],
+            ]);
+            return FakeMap.multiply(projection, FakeMap.multiply(view, turn));
         }
         // Where [loc] lands in the container, in px: flat Web Mercator turned
         // by the heading, then seen through the pinhole camera at the tilt,
@@ -360,6 +414,7 @@ interface PushOptions {
     tilt?: number;
     zoom?: number;
     rightSafe?: number;
+    leftSafe?: number;
 }
 
 // One host push, with the host's default layout.
@@ -367,9 +422,20 @@ function push(
     win: Window,
     fix: { lat: number; lng: number },
     bearing: number,
-    { tilt = 55, zoom = 16, rightSafe = 0.428 }: PushOptions = {},
+    { tilt = 55, zoom = 16, rightSafe = 0.428, leftSafe = 0 }: PushOptions = {},
 ): void {
-    win.updateCamera(fix.lat, fix.lng, bearing, zoom, tilt, 70, 0.1, rightSafe, 0, "#3367d6");
+    win.updateCamera(
+        fix.lat,
+        fix.lng,
+        bearing,
+        zoom,
+        tilt,
+        70,
+        0.1,
+        rightSafe,
+        leftSafe,
+        "#3367d6",
+    );
 }
 
 interface BootOptions {
@@ -501,35 +567,46 @@ describe("the Google Maps page", () => {
     // and the fixes' run of headings vary; the tilt is 0°, 45° or the
     // default 55°.
     const rand = seeded(442);
-    const cameras = [0, 45, 55].flatMap((tilt) =>
-        Array.from({ length: 4 }, () => ({
-            tilt,
-            fovyDeg: 15 + rand() * 40,
-            width: Math.round(480 + rand() * 1200),
-            height: Math.round(360 + rand() * 600),
-        })),
+    // The cards sit on either side: the chevron, and the yaw's sign, follow.
+    const cameras = (["right", "left"] as const).flatMap((cards) =>
+        [0, 45, 55].flatMap((tilt) =>
+            Array.from({ length: 4 }, () => ({
+                cards,
+                tilt,
+                fovyDeg: 15 + rand() * 40,
+                width: Math.round(480 + rand() * 1200),
+                height: Math.round(360 + rand() * 600),
+            })),
+        ),
     );
     it.each(cameras)(
-        "holds the fix under the chevron beside the cards, the road ahead vertical (tilt $tilt°, fovy $fovyDeg°, $width×$height)",
-        async ({ tilt, fovyDeg, width, height }) => {
+        "holds the fix under the chevron beside the $cards cards, the road ahead vertical (tilt $tilt°, fovy $fovyDeg°, $width×$height)",
+        async ({ cards, tilt, fovyDeg, width, height }) => {
             fake.optics.fovyDeg = fovyDeg;
             const page = await boot("VECTOR", "VECTOR", { width, height });
+            const side = cards === "right" ? -1 : 1;
+            const layout =
+                cards === "right"
+                    ? { rightSafe: 0.428, leftSafe: 0 }
+                    : { rightSafe: 0, leftSafe: 0.428 };
             const run = [90, 90.8, 135, 200, 10];
             run.reduce<{ fix: { lat: number; lng: number }; heading: number | null }>(
                 (previous, raw) => {
                     const fix = aheadOf(previous.fix, raw, 40);
-                    push(page.win, fix, raw, { tilt });
+                    push(page.win, fix, raw, { tilt, ...layout });
                     // Past the longest cadence-matched glide (MAX_EASE_MS)
                     // and the compass throttle after it: the glide lasts as
                     // long as the interval since the previous push.
                     page.run(140);
                     const heading = smoothedBearing(previous.heading, raw);
                     // The chevron sits at the OSM spot, pointing straight up.
-                    expect(page.marker.style.left).toBe(`${(0.5 - MX) * 100}%`);
+                    expect(page.marker.style.left).toBe(`${(0.5 + side * MX) * 100}%`);
                     expect(page.marker.style.transform).toContain("rotateZ(0deg)");
                     // The fix lands under it, well within a pixel...
                     const at = screenOf(page.map, fix);
-                    expect(Math.hypot(at.x + MX * width, at.y - DROP * height)).toBeLessThan(1e-6);
+                    expect(Math.hypot(at.x - side * MX * width, at.y - DROP * height)).toBeLessThan(
+                        1e-6,
+                    );
                     // ...the direction of travel runs straight up through it...
                     expect(leanPx(page.map, fix, heading)).toBeLessThan(1e-6);
                     // ...and the compass shows the travel heading, not the
