@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.seijikohara.femto.data.common.UI_SUBSCRIPTION_GRACE_MS
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.video.VIDEO_PICTURE_STOP_DWELL_MS
+import io.github.seijikohara.femto.data.video.adoptSource
 import io.github.seijikohara.femto.testfixtures.FakeVideoPlayer
 import io.github.seijikohara.femto.testfixtures.FakeVideoSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeVideoSourceGrants
@@ -175,6 +176,24 @@ class VideoViewModelTest {
         }
 
     @Test
+    fun `a file picked in Settings after a refused pick here clears the refusal`() =
+        runTest(dispatcher) {
+            enableWith(FILE)
+            val refusing = FakeVideoSourceGrants(held = setOf(FILE), grantable = setOf(FILE))
+            val viewModel = viewModel(grants = refusing)
+            subscribe(viewModel)
+            viewModel.onAction(VideoAction.FilePicked(OTHER_FILE))
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.pickFailed)
+
+            // Settings adopts a file through the same store.
+            store.adoptSource(SETTINGS_FILE, FakeVideoSourceGrants())
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.pickFailed)
+        }
+
+    @Test
     fun `picking the same file again after a failure loads it again`() =
         runTest(dispatcher) {
             enableWith(FILE)
@@ -335,5 +354,6 @@ class VideoViewModelTest {
     private companion object {
         const val FILE = "content://com.example.documents/document/video%3A1"
         const val OTHER_FILE = "content://com.example.documents/document/video%3A2"
+        const val SETTINGS_FILE = "content://com.example.documents/document/video%3A3"
     }
 }

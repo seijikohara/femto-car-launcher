@@ -4,6 +4,7 @@ import io.github.seijikohara.femto.data.calendar.CalendarCatalogState
 import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.video.VideoSettings
+import io.github.seijikohara.femto.data.video.adoptSource
 import io.github.seijikohara.femto.testfixtures.FakeCalendarPreferencesStore
 import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeDockSettingsStore
@@ -87,6 +88,23 @@ class SettingsViewModelVideoTest {
 
             assertEquals(true, vm.uiState.value.video.pickFailed)
             assertEquals(null, videoStore.current.sourceUri)
+        }
+
+    @Test
+    fun `a file picked on the dashboard after a refused pick here clears the refusal`() =
+        runTest(dispatcher) {
+            val refusing = FakeVideoSourceGrants(grantable = emptySet())
+            val vm = viewModel(grants = refusing)
+            subscribe(vm)
+            vm.onAction(SettingsAction.SetVideoFile(FILE))
+            advanceUntilIdle()
+            assertEquals(true, vm.uiState.value.video.pickFailed)
+
+            // The dashboard adopts a file through the same store.
+            videoStore.adoptSource(OTHER_FILE, FakeVideoSourceGrants())
+            advanceUntilIdle()
+
+            assertEquals(false, vm.uiState.value.video.pickFailed)
         }
 
     @Test

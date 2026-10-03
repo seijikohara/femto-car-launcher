@@ -53,7 +53,33 @@ internal interface VideoSourceGrants {
 internal suspend fun VideoSettingsStore.adoptSource(
     uri: String,
     grants: VideoSourceGrants,
-): Boolean = adoptionLock.withLock { adoptSourceLocked(uri, grants) }
+): Boolean = adoptSourceOrRefusal(uri, grants) == null
+
+/**
+ * [adoptSource], answering with the refusal to show for a pick it could not
+ * keep, or null when it kept it. The refusal records the file the store named
+ * at that moment, read under the same lock, so no other pick slips in between.
+ */
+internal suspend fun VideoSettingsStore.adoptSourceOrRefusal(
+    uri: String,
+    grants: VideoSourceGrants,
+): VideoPickRefusal? =
+    adoptionLock.withLock {
+        if (adoptSourceLocked(uri, grants)) null else VideoPickRefusal(settings.first().sourceUri)
+    }
+
+/**
+ * A pick [adoptSource] could not keep, tied to [sourceUri], the file the store
+ * named when it was refused. The dashboard and Settings each show their own
+ * refusal, and a later pick on either surface moves the record: from then on
+ * the refusal describes a file choice that no longer stands, so it is no
+ * longer shown ([stillApplies]).
+ */
+internal data class VideoPickRefusal(
+    val sourceUri: String?,
+) {
+    fun stillApplies(settings: VideoSettings): Boolean = settings.sourceUri == sourceUri
+}
 
 private suspend fun VideoSettingsStore.adoptSourceLocked(
     uri: String,

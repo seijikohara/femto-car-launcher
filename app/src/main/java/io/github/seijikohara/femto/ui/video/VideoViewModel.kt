@@ -15,7 +15,8 @@ import io.github.seijikohara.femto.data.video.VideoPreferences
 import io.github.seijikohara.femto.data.video.VideoSettings
 import io.github.seijikohara.femto.data.video.VideoSettingsStore
 import io.github.seijikohara.femto.data.video.VideoSourceGrants
-import io.github.seijikohara.femto.data.video.adoptSource
+import io.github.seijikohara.femto.data.video.VideoPickRefusal
+import io.github.seijikohara.femto.data.video.adoptSourceOrRefusal
 import io.github.seijikohara.femto.data.video.videoPictureVisibleFlow
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -57,9 +58,9 @@ internal class VideoViewModel(
     // play, say) still loads it again: the store alone would not change.
     private val picks = MutableStateFlow(0)
 
-    // Whether the last pick could not be kept (adoptSource refused it); the
-    // next pick clears it.
-    private val pickFailed = MutableStateFlow(false)
+    // The last pick here that could not be kept, if any; shown only while the
+    // record it was refused against stands (a pick in Settings moves it).
+    private val pickRefusal = MutableStateFlow<VideoPickRefusal?>(null)
 
     /** Where the UI attaches and detaches the player's surface; nothing more of the player. */
     val surfaceHost: VideoSurfaceHost get() = player
@@ -70,14 +71,14 @@ internal class VideoViewModel(
             source,
             player.isPlaying,
             player.failed,
-            pickFailed,
-        ) { settings, found, playing, failed, refused ->
+            pickRefusal,
+        ) { settings, found, playing, failed, refusal ->
             VideoUiState(
                 windowEnabled = settings.windowEnabled,
                 // A loaded file the player failed on cannot be opened either.
                 file = if (found == VideoFileState.READY && failed) VideoFileState.UNAVAILABLE else found,
                 playing = playing,
-                pickFailed = refused,
+                pickFailed = refusal?.stillApplies(settings) == true,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, VideoUiState.Off)
 
@@ -110,9 +111,9 @@ internal class VideoViewModel(
 
             is VideoAction.FilePicked -> {
                 viewModelScope.launch {
-                    pickFailed.value = false
-                    val kept = withContext(ioDispatcher) { store.adoptSource(action.uri, grants) }
-                    if (kept) picks.update { it + 1 } else pickFailed.value = true
+                    pickRefusal.value = null
+                    val refusal = withContext(ioDispatcher) { store.adoptSourceOrRefusal(action.uri, grants) }
+                    if (refusal == null) picks.update { it + 1 } else pickRefusal.value = refusal
                 }
             }
 

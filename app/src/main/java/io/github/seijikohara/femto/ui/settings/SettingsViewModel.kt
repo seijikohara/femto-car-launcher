@@ -36,7 +36,8 @@ import io.github.seijikohara.femto.data.video.VideoPreferences
 import io.github.seijikohara.femto.data.video.VideoSettings
 import io.github.seijikohara.femto.data.video.VideoSettingsStore
 import io.github.seijikohara.femto.data.video.VideoSourceGrants
-import io.github.seijikohara.femto.data.video.adoptSource
+import io.github.seijikohara.femto.data.video.VideoPickRefusal
+import io.github.seijikohara.femto.data.video.adoptSourceOrRefusal
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -123,9 +124,10 @@ internal class SettingsViewModel(
     // happened.
     private val installGrantDeclined = MutableStateFlow(false)
 
-    // VM-local like the export progress: whether the last video file picked
-    // here could not be kept (adoptSource refused it), until the next pick.
-    private val videoPickFailed = MutableStateFlow(false)
+    // VM-local like the export progress: the last video file picked here that
+    // could not be kept, if any; shown only while the record it was refused
+    // against stands (a pick on the dashboard moves it).
+    private val videoPickRefusal = MutableStateFlow<VideoPickRefusal?>(null)
 
     private val storeState: Flow<SettingsUiState> =
         combine(
@@ -268,13 +270,13 @@ internal class SettingsViewModel(
     private val video: Flow<VideoSettingsUi> =
         combine(
             videoPreferences.settings.catchAsDefault(TAG, "video settings", VideoSettings.Default),
-            videoPickFailed,
-        ) { settings, pickFailed ->
+            videoPickRefusal,
+        ) { settings, refusal ->
             VideoSettingsUi(
                 windowEnabled = settings.windowEnabled,
                 hidePictureWhileDriving = settings.hidePictureWhileDriving,
                 file = settings.sourceUri?.let { videoFileSummary(it) } ?: VideoFileSummary.None,
-                pickFailed = pickFailed,
+                pickFailed = refusal?.stillApplies(settings) == true,
             )
         }.distinctUntilChanged()
 
@@ -561,9 +563,9 @@ internal class SettingsViewModel(
                 }
 
                 is SettingsAction.SetVideoFile -> {
-                    videoPickFailed.value = false
-                    videoPickFailed.value =
-                        !withContext(ioDispatcher) { videoPreferences.adoptSource(action.uri, videoGrants) }
+                    videoPickRefusal.value = null
+                    videoPickRefusal.value =
+                        withContext(ioDispatcher) { videoPreferences.adoptSourceOrRefusal(action.uri, videoGrants) }
                 }
 
                 SettingsAction.CheckForUpdates -> {
