@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.update
  * a corrupted file): the write returns, and nothing changes.
  * [gateNextSourceWrite] holds the next file write until released, the way a
  * DataStore write takes a while, so a test can start a second write meanwhile.
+ * [gateNextWindowWrite] does the same for the next window-switch write.
  */
 internal class FakeVideoSettingsStore(
     initial: VideoSettings = VideoSettings.Default,
@@ -22,13 +23,20 @@ internal class FakeVideoSettingsStore(
 ) : VideoSettingsStore {
     private val state = MutableStateFlow(initial)
     private var sourceWriteGate: CompletableDeferred<Unit>? = null
+    private var windowWriteGate: CompletableDeferred<Unit>? = null
 
     override val settings: StateFlow<VideoSettings> = state
 
     /** The persisted values right now, for assertions. */
     val current: VideoSettings get() = state.value
 
-    override suspend fun setWindowEnabled(value: Boolean) = state.update { it.copy(windowEnabled = value) }
+    fun gateNextWindowWrite(): CompletableDeferred<Unit> =
+        CompletableDeferred<Unit>().also { windowWriteGate = it }
+
+    override suspend fun setWindowEnabled(value: Boolean) {
+        windowWriteGate?.also { windowWriteGate = null }?.await()
+        state.update { it.copy(windowEnabled = value) }
+    }
 
     override suspend fun setHidePictureWhileDriving(value: Boolean) =
         state.update { it.copy(hidePictureWhileDriving = value) }

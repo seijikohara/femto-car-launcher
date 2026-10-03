@@ -44,8 +44,8 @@ import io.github.seijikohara.femto.ui.video.VideoUiState
  * dock stays operable. It holds the larger picture, under the same motion
  * gate as the window ([VideoPicture]), with play / pause; its top bar adds
  * picking another file and closing, which turns the window off and stops
- * playback ([VideoAction.Close]). The back gesture and the collapse button
- * return to the window ([onCollapse]).
+ * playback ([VideoAction.Close]); the panel then goes with the window. The
+ * back gesture and the collapse button return to the window ([onCollapse]).
  */
 @Composable
 internal fun VideoPanel(
@@ -94,10 +94,10 @@ internal fun VideoPanel(
                 PanelIconButton(
                     icon = Lucide.X,
                     description = stringResource(R.string.video_close),
-                    onClick = {
-                        onAction(VideoAction.Close)
-                        onCollapse()
-                    },
+                    // No collapse here: the window reading off collapses the
+                    // panel (DashboardScaffold). Collapsing first would show
+                    // the small window again until the off reached the state.
+                    onClick = { onAction(VideoAction.Close) },
                 )
             }
             if (state.pickFailed) {

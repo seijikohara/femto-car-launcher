@@ -160,14 +160,29 @@ class VideoWindowTest {
     }
 
     @Test
-    fun `closing from the panel turns the window off and collapses the panel`() {
+    fun `closing from the panel never brings the small window back`() {
         setDashboard(fakeVideoUiState())
         rule.onNodeWithContentDescription("Open the video player").performClick()
 
+        // The state has not caught up with the close yet, as while the
+        // store's write is under way.
         rule.onNodeWithContentDescription("Close the video window").performClick()
 
         assertEquals(listOf<VideoAction>(VideoAction.Close), actions)
+        rule.onAllNodesWithTag(DashboardTags.VIDEO_WINDOW).assertCountEquals(0)
+    }
+
+    @Test
+    fun `the panel collapses once the window reads off`() {
+        setDashboard(fakeVideoUiState())
+        rule.onNodeWithContentDescription("Open the video player").performClick()
+        rule.onNodeWithContentDescription("Close the video window").performClick()
+
+        video = VideoUiState.Off
+        rule.waitForIdle()
+
         rule.onAllNodesWithTag(DashboardTags.VIDEO_PANEL).assertCountEquals(0)
+        rule.onAllNodesWithTag(DashboardTags.VIDEO_WINDOW).assertCountEquals(0)
     }
 
     @Test

@@ -242,6 +242,37 @@ class VideoViewModelTest {
         }
 
     @Test
+    fun `closing turns the window off at once while the store write is under way`() =
+        runTest(dispatcher) {
+            enableWith(FILE)
+            val viewModel = viewModel()
+            subscribe(viewModel)
+            val slowWrite = store.gateNextWindowWrite()
+
+            viewModel.onAction(VideoAction.Close)
+            runCurrent()
+
+            assertTrue(store.current.windowEnabled, "the write landed already; the test proves nothing")
+            assertFalse(viewModel.uiState.value.windowEnabled)
+            slowWrite.complete(Unit)
+        }
+
+    @Test
+    fun `turning the window back on after a close shows it again`() =
+        runTest(dispatcher) {
+            enableWith(FILE)
+            val viewModel = viewModel()
+            subscribe(viewModel)
+            viewModel.onAction(VideoAction.Close)
+            advanceUntilIdle()
+
+            store.setWindowEnabled(true)
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.windowEnabled)
+        }
+
+    @Test
     fun `the picture hides while moving and audio keeps playing`() =
         runTest(dispatcher) {
             enableWith(FILE)

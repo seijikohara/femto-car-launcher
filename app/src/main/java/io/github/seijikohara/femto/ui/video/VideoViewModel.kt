@@ -62,12 +62,23 @@ internal class VideoViewModel(
     // record it was refused against stands (a pick in Settings moves it).
     private val pickRefusal = MutableStateFlow<VideoPickRefusal?>(null)
 
+    // Set by Close until the store reads the window off: the window and its
+    // panel go at once instead of waiting for the write, so neither draws a
+    // "Pick a video" frame in between. Cleared on the store's own off (see
+    // init), so turning the window back on in Settings shows it again. A
+    // write the store loses leaves the window hidden until Settings turns it
+    // off and on.
+    private val closing = MutableStateFlow(false)
+
     /** Where the UI attaches and detaches the player's surface; nothing more of the player. */
     val surfaceHost: VideoSurfaceHost get() = player
 
     val uiState: StateFlow<VideoUiState> =
         combine(
-            store.settings.catchAsDefault(TAG, "video settings", VideoSettings.Default),
+            combine(
+                store.settings.catchAsDefault(TAG, "video settings", VideoSettings.Default),
+                closing,
+            ) { settings, closed -> if (closed) settings.copy(windowEnabled = false) else settings },
             source,
             player.isPlaying,
             player.failed,
@@ -97,6 +108,11 @@ internal class VideoViewModel(
 
     init {
         viewModelScope.launch { followStore() }
+        viewModelScope.launch {
+            store.settings
+                .catchAsDefault(TAG, "video settings", VideoSettings.Default)
+                .collect { if (!it.windowEnabled) closing.value = false }
+        }
     }
 
     fun onAction(action: VideoAction) {
@@ -118,8 +134,9 @@ internal class VideoViewModel(
             }
 
             VideoAction.Close -> {
-                // Stopped here at once rather than on the store's write, which
-                // may take a moment to land.
+                // Hidden and stopped here at once rather than on the store's
+                // write, which may take a moment to land.
+                closing.value = true
                 player.stop()
                 source.value = VideoFileState.NONE
                 viewModelScope.launch { store.setWindowEnabled(false) }
