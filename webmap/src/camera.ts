@@ -294,7 +294,10 @@ export function followMotion(push: FollowPush): CameraMotion | null {
 // The reflow motion for a camera move that must land with a chevron glide
 // still in flight: the time that glide has left ([reflowRemainingMs], from
 // MarkerTransition.remainingMs) on the reflow's own linear curve, or the
-// whole REFLOW_MOTION when none is in flight.
+// whole REFLOW_MOTION when none is in flight. That last is the
+// REFLOW_MOTION object itself, the identity markerTransitionStep arms the
+// chevron's transition on: a move that does not move the chevron (the
+// Google lens glide) must never hand this motion to markerTransitionStep.
 export function reflowMotionWithin(reflowRemainingMs: number): CameraMotion {
     return reflowRemainingMs > 0
         ? { durationMs: reflowRemainingMs, easing: REFLOW_MOTION.easing }

@@ -158,13 +158,14 @@ policy:
   length and camera distance from two probe points. From them it
   derives a yaw bias δ on the map heading, so the direction of travel
   runs straight up through the chevron at the OSM spot
-  (`markerSpot`), and the exact ground offset under the chevron. δ is Google's stand-in for camera padding, not a heading
-  rule: `followOrientation` stays the one follow-heading source, and
-  the backend adds δ only where it talks to the map (`moveCamera`,
-  the glide's read-back, the compass, which reports the travel
-  heading). The lens corrects for the tilt the map shows, not the
-  tilt requested, wherever Google clamps it (and works at the zoom the
-  map shows past its ceiling). A measurement that visibly moves δ or
+  (`markerSpot`), and the exact ground offset under the chevron. δ is
+  Google's stand-in for camera padding, not a heading rule:
+  `followOrientation` stays the one follow-heading source, and the
+  backend adds δ only where it talks to the map (`moveCamera`, the
+  glide's read-back, the compass, which reports the travel heading).
+  The lens corrects for the tilt the map shows, not the tilt
+  requested, wherever Google clamps it (and works at the zoom the map
+  shows past its ceiling). A measurement that visibly moves δ or
   the anchor (`lensMoved`: the lens appearing, a viewport resize) is a
   new endpoint the glide blends to over the reflow motion (`lensGen`
   in `CameraPose`), straight from the correction the map shows —
@@ -174,8 +175,7 @@ policy:
   viewport fraction, as the CSS chevron's left/top are, so a resize
   moves both at once; after a resize the anchor offset takes the new
   lens at once (the fix stays under the chevron) and only the yaw
-  blends.
-  Never hard-code a field of view. Both maps place the
+  blends. Never hard-code a field of view. Both maps place the
   chevron by the one rule (`markerSpot`): until the lens is measured,
   or when the measurement is implausible, the Google chevron stays at
   that spot with no yaw and the flat offset (the road leans until the

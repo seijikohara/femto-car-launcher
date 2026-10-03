@@ -378,7 +378,10 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         // sent, frozen. A pose's lensGen between the two blends them
         // (camera-glide.ts), so a new measurement glides in instead of
         // turning the map in one frame, and straight from what the map
-        // shows: never through an older measurement in between.
+        // shows: never through an older measurement in between. A
+        // generation is a counter, not a lens: a re-measurement that changes
+        // nothing visible replaces lensTo's lens in place, so even
+        // generation 0 can hold a measured lens.
         // [lensTo.resized]: measured at another viewport size than the
         // correction the blend starts from (see lensEffectAt).
         lensTo: { gen: 0, lens: null as LensCalibration | null, resized: false },
@@ -387,9 +390,12 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
             lens: null as LensCalibration | null,
             frozen: null as LensEffect | null,
         },
-        // The generation the map shows (the last applied, see moveCam). Every
-        // placement targets lensTo.gen and the counter only rises, so the
-        // map never shows a generation below lensFrom.gen.
+        // The generation the map shows (the last applied, see moveCam). The
+        // invariant that lets the blend keep only two endpoints: every glide
+        // target that carries a lensGen carries lensTo.gen, and a glide only
+        // moves the counter up from the value last applied (or read back,
+        // which is this one), so the map never shows a generation below
+        // lensFrom.gen and nothing ever reads an endpoint that was replaced.
         lensGen: 0,
         // The lens correction moveCam last sent: what lensFrom freezes when a
         // measurement arrives in the middle of a blend.
