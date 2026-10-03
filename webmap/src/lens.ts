@@ -17,9 +17,10 @@
 //
 // Both need the camera's focal length and distance, which Google does not
 // document. They are MEASURED, never assumed: the page projects two ground
-// points ahead of and behind the camera target through Google's own
-// MapCanvasProjection (calibrateLens) and solves the pinhole model below for
-// them. No field of view is hard-coded anywhere.
+// points ahead of and behind the camera target through Google's own camera —
+// a WebGLOverlayView's coordinate transformer on a map with a Map ID, else an
+// OverlayView's MapCanvasProjection — and solves the pinhole model below for
+// them (calibrateLens). No field of view is hard-coded anywhere.
 //
 // Pinhole model, in flat map px at the current zoom (the units of
 // camera-glide.ts's screen offsets on an untilted map): the camera looks at

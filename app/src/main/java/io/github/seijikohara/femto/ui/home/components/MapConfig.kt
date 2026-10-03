@@ -47,8 +47,8 @@ internal data class MapConfig(
     // Fraction (0..0.45) of the map width the right-hand floating cards occupy,
     // measured at layout time — the horizontal analogue of [bottomSafeFraction]:
     // the page places the marker clear of those cards (webmap/src/style.ts:
-    // markerSpot, googleMarkerSpot). 0 keeps the marker centred (portrait, or no
-    // cards).
+    // markerSpot, on both map backends). 0 keeps the marker centred
+    // (portrait, or no cards).
     val rightSafeFraction: Float = 0f,
     // Fraction (0..0.45) of the map width the left-hand floating cards occupy —
     // the horizontal mirror of [rightSafeFraction], set when the dashboard anchors

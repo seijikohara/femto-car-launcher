@@ -155,10 +155,10 @@ policy:
   vector map with a Map ID) or, without a Map ID, by an
   `OverlayView`'s `MapCanvasProjection` — a probe that rides only on
   a map that renders vector (`syncLensProbe`) — recovers the focal
-  length and camera distance from two probe points and derives a yaw bias δ on the map heading — so the
-  direction of travel runs straight up through the chevron at the
-  OSM spot (`markerSpot`) — and the exact ground offset under the
-  chevron. δ is Google's stand-in for camera padding, not a heading
+  length and camera distance from two probe points. From them it
+  derives a yaw bias δ on the map heading, so the direction of travel
+  runs straight up through the chevron at the OSM spot
+  (`markerSpot`), and the exact ground offset under the chevron. δ is Google's stand-in for camera padding, not a heading
   rule: `followOrientation` stays the one follow-heading source, and
   the backend adds δ only where it talks to the map (`moveCamera`,
   the glide's read-back, the compass, which reports the travel
