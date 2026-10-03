@@ -128,12 +128,12 @@ internal fun VideoNoticeLine(
     text: String,
     modifier: Modifier = Modifier,
 ) = Text(
-        text = text,
-        style = MaterialTheme.typography.cardCtaHint(),
-        color = MaterialTheme.colorScheme.error,
-        textAlign = TextAlign.Center,
-        modifier = modifier,
-    )
+    text = text,
+    style = MaterialTheme.typography.cardCtaHint(),
+    color = MaterialTheme.colorScheme.error,
+    textAlign = TextAlign.Center,
+    modifier = modifier,
+)
 
 /**
  * The picture, or in its place the line that says why it is hidden. A hidden

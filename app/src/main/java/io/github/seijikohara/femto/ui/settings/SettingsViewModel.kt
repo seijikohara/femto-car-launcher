@@ -32,11 +32,11 @@ import io.github.seijikohara.femto.data.update.UpdateSettingsStore
 import io.github.seijikohara.femto.data.update.UpdateState
 import io.github.seijikohara.femto.data.update.offeredManifestOrNull
 import io.github.seijikohara.femto.data.video.ContentResolverVideoSourceGrants
+import io.github.seijikohara.femto.data.video.VideoPickRefusal
 import io.github.seijikohara.femto.data.video.VideoPreferences
 import io.github.seijikohara.femto.data.video.VideoSettings
 import io.github.seijikohara.femto.data.video.VideoSettingsStore
 import io.github.seijikohara.femto.data.video.VideoSourceGrants
-import io.github.seijikohara.femto.data.video.VideoPickRefusal
 import io.github.seijikohara.femto.data.video.adoptSourceOrRefusal
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher

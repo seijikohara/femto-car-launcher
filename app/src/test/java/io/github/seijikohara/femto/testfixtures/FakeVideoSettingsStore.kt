@@ -30,8 +30,7 @@ internal class FakeVideoSettingsStore(
     /** The persisted values right now, for assertions. */
     val current: VideoSettings get() = state.value
 
-    fun gateNextWindowWrite(): CompletableDeferred<Unit> =
-        CompletableDeferred<Unit>().also { windowWriteGate = it }
+    fun gateNextWindowWrite(): CompletableDeferred<Unit> = CompletableDeferred<Unit>().also { windowWriteGate = it }
 
     override suspend fun setWindowEnabled(value: Boolean) {
         windowWriteGate?.also { windowWriteGate = null }?.await()
@@ -41,8 +40,7 @@ internal class FakeVideoSettingsStore(
     override suspend fun setHidePictureWhileDriving(value: Boolean) =
         state.update { it.copy(hidePictureWhileDriving = value) }
 
-    fun gateNextSourceWrite(): CompletableDeferred<Unit> =
-        CompletableDeferred<Unit>().also { sourceWriteGate = it }
+    fun gateNextSourceWrite(): CompletableDeferred<Unit> = CompletableDeferred<Unit>().also { sourceWriteGate = it }
 
     override suspend fun setSourceUri(value: String?) {
         sourceWriteGate?.also { sourceWriteGate = null }?.await()

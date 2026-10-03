@@ -11,11 +11,11 @@ import io.github.seijikohara.femto.data.common.catchAsDefault
 import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.video.ContentResolverVideoSourceGrants
+import io.github.seijikohara.femto.data.video.VideoPickRefusal
 import io.github.seijikohara.femto.data.video.VideoPreferences
 import io.github.seijikohara.femto.data.video.VideoSettings
 import io.github.seijikohara.femto.data.video.VideoSettingsStore
 import io.github.seijikohara.femto.data.video.VideoSourceGrants
-import io.github.seijikohara.femto.data.video.VideoPickRefusal
 import io.github.seijikohara.femto.data.video.adoptSourceOrRefusal
 import io.github.seijikohara.femto.data.video.videoPictureVisibleFlow
 import kotlinx.coroutines.CoroutineDispatcher
