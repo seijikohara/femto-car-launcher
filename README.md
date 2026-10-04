@@ -188,8 +188,9 @@ data source renders a reduced state instead of an error screen. The
 dashboard renders identically regardless of vehicle motion — there is
 no driving lockout — though a few features gate themselves on motion:
 the video window's picture, destination typing, saving and deleting,
-long music-title scrolling, and the update prompt and install step all
-pause while GPS reads the vehicle as moving.
+long music-title scrolling, and the update prompt and starting an
+install all pause while GPS reads the vehicle as moving, apart from an
+install confirmation already on screen, which still answers.
 
 ## Privacy and data
 
