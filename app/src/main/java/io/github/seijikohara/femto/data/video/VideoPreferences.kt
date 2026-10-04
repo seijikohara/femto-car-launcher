@@ -60,8 +60,11 @@ internal interface VideoSettingsStore {
 
 // Its own file, so the backup rules can exclude it alone: a content URI grant
 // is tied to this install and does not survive a restore or a device move.
+// Internal: the backup rules test checks the file this name gives.
+internal const val VIDEO_STORE_NAME = "video_preferences"
+
 // Internal (not private): VideoPreferencesTest clears the raw store between tests.
-internal val Context.videoDataStore: DataStore<Preferences> by preferencesDataStore(name = "video_preferences")
+internal val Context.videoDataStore: DataStore<Preferences> by preferencesDataStore(name = VIDEO_STORE_NAME)
 
 /** DataStore-backed accessor for [VideoSettings]. Modelled on `UpdatePreferences`. */
 internal class VideoPreferences(
