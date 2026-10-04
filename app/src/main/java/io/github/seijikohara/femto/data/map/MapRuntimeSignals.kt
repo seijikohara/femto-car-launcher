@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.data.map
 
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -26,6 +27,35 @@ internal object MapRuntimeSignals {
     private val failureCount = AtomicInteger(0)
     private val webGlRenderer = AtomicReference<String?>(null)
     private val pageFrames = AtomicReference<PageFrames?>(null)
+
+    // The current map page, and the last lens report with the page that sent
+    // it: a report is only ever read back for the page it came from.
+    private val currentPage = AtomicLong(0)
+    private val googleLens = AtomicReference<Pair<Long, GoogleLens>?>(null)
+
+    /**
+     * Whether the Google Maps page has measured its tilted vector map's
+     * perspective (webmap lens.ts), which keeps the road ahead vertical through
+     * the chevron beside the cards. [source] is the probe that measured it:
+     * "webgl" (the WebGL overlay's camera transformer, with a Map ID) or
+     * "canvas" (the 2D projection, without one), null when the lens is unused;
+     * [fovyDeg] is the field of view the measurement implies, null unless
+     * measured.
+     */
+    data class GoogleLens(
+        val status: LensStatus,
+        val source: String?,
+        val fovyDeg: Double?,
+    )
+
+    /** The page's lens state: see [GoogleLens]. */
+    enum class LensStatus {
+        MEASURED,
+        UNMEASURED,
+
+        /** A raster or flat (0°) map, which needs no lens. */
+        UNUSED,
+    }
 
     /**
      * One burst of the map page's own frame intervals (bridge.ts
@@ -92,6 +122,86 @@ internal object MapRuntimeSignals {
     }
 
     fun pageFramesOrNull(): PageFrames? = pageFrames.get()
+
+    /**
+     * Record a `lens` event from map page [page] (the token
+     * [recordMapPageLoad] gave it): "measured,source=<s>,fovy=<deg>",
+     * "unmeasured,source=<s>" or "unused"; anything else is ignored, and so
+     * is a report from a page that is no longer the current one. The
+     * current-page check and the write are one atomic update, so an old page
+     * that passed the check cannot land its write over the newer page's.
+     */
+    fun recordGoogleLens(
+        detail: String,
+        page: Long,
+    ) {
+        val lens = googleLensFrom(detail) ?: return
+        googleLens.updateAndGet { stored -> replacedGoogleLens(stored, page, currentPage.get(), lens) }
+    }
+
+    /**
+     * The stored lens report after [page] reports [lens], with [currentPage]
+     * the page current at the time: only the current page's report is
+     * stored, and never over a report from a newer page — whatever the
+     * current page looked like to the writer.
+     */
+    internal fun replacedGoogleLens(
+        stored: Pair<Long, GoogleLens>?,
+        page: Long,
+        currentPage: Long,
+        lens: GoogleLens,
+    ): Pair<Long, GoogleLens>? =
+        when {
+            page != currentPage -> stored
+            stored != null && stored.first > page -> stored
+            else -> page to lens
+        }
+
+    /** The current page's lens state; null until that page has reported. */
+    fun googleLensOrNull(): GoogleLens? = googleLens.get()?.takeIf { it.first == currentPage.get() }?.second
+
+    /**
+     * Start a new map page: returns its token for [recordGoogleLens]. The
+     * lens state belongs to one page, so a rebuild to a raster map, or a
+     * page that never measures, must not keep showing an earlier page's
+     * "measured" — and the old WebView, destroyed only after the new page
+     * has loaded, may still report; the token drops those reports even when
+     * they land after the new page's own. The session-wide facts (failures,
+     * renderer, frames) stay.
+     */
+    fun recordMapPageLoad(): Long = currentPage.incrementAndGet()
+
+    internal fun googleLensFrom(detail: String): GoogleLens? {
+        val parts = detail.split(',')
+        val fields =
+            parts
+                .drop(1)
+                .mapNotNull { field ->
+                    field.substringBefore('=', "").takeIf { it.isNotEmpty() }?.let { it to field.substringAfter('=') }
+                }.toMap()
+        val source = fields["source"]?.takeIf { it.isNotEmpty() }
+        return when (parts.first()) {
+            "measured" -> {
+                source?.let {
+                    fields["fovy"]?.toDoubleOrNull()?.let { fovy ->
+                        GoogleLens(LensStatus.MEASURED, it, fovy)
+                    }
+                }
+            }
+
+            "unmeasured" -> {
+                source?.let { GoogleLens(LensStatus.UNMEASURED, it, fovyDeg = null) }
+            }
+
+            "unused" -> {
+                GoogleLens(LensStatus.UNUSED, source = null, fovyDeg = null)
+            }
+
+            else -> {
+                null
+            }
+        }
+    }
 
     internal fun pageFramesFrom(
         detail: String,

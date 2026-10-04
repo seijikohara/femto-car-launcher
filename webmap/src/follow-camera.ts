@@ -21,8 +21,8 @@ import {
     isRealPosition,
     LAYOUT_REFLOW_MS,
     LOCATION_STALE_THRESHOLD_MS,
+    markerTransitionStep,
     ORIENTATION_FLIP_MOTION,
-    REFLOW_MOTION,
     REFOLLOW_MOTION,
     smoothedBearing,
 } from "./camera";
@@ -31,6 +31,7 @@ import {
     type ChevronHandles,
     geoMarkerElement,
     setChevronColor,
+    setChevronStyle,
     setChevronTransform,
     startStaleTicker,
 } from "./chevron";
@@ -139,7 +140,8 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
             leftSafe: number;
         } | null,
         // The zoom last pushed by the host; a change while detached is the
-        // user's +/- button, applied to the free camera around its own centre.
+        // user's +/- button, applied to the free camera about its padded
+        // centre (where the chevron was).
         lastPushedZoom: 0,
     };
 
@@ -217,7 +219,7 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
             state.refollowTimer = 0;
             state.geoMarker?.remove();
             state.geoMarker = null;
-            markerEl.style.display = "block";
+            setChevronStyle(markerEl, "display", "block");
             // Ease home in one continuous transition; the per-fix cadence
             // easing resumes from the next push.
             easeHome(REFOLLOW_MOTION);
@@ -225,7 +227,7 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
             // The screen-fixed chevron points at arbitrary map while
             // detached; the geo-anchored clone tracks the real position
             // instead.
-            markerEl.style.display = "none";
+            setChevronStyle(markerEl, "display", "none");
             syncGeoMarker();
         }
     }
@@ -323,7 +325,8 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
                 // Detached (free pan): the camera stays the user's, the
                 // geo-anchored marker tracks the fixes — except a pushed ZOOM
                 // change is the user's +/- button, applied to the free camera
-                // around its own centre.
+                // about its padded centre: easeTo keeps the padding the follow
+                // eases set, so the zoom pivots where the chevron was.
                 syncGeoMarker();
                 if (previousZoom > 0 && state.lastPushedZoom !== previousZoom) {
                     map.easeTo({
@@ -335,6 +338,7 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
                 }
                 return;
             }
+            const reflowRemainingMs = markerTransition.remainingMs();
             const motion = followMotion({
                 firstCamera: state.firstCamera,
                 signalGap,
@@ -350,19 +354,22 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
                     leftSafe: leftSafe || 0,
                 }),
                 sinceLastFixMs,
+                reflowRemainingMs,
             });
             state.firstCamera = false;
             // Lockstep: arm the marker's CSS transition on a reflow so its
-            // left/top write below glides instead of jumping; clear it
-            // otherwise so a real fix keeps snapping the screen-pinned marker
-            // while the camera eases the ground underneath it.
-            markerTransition.setActive(motion === REFLOW_MOTION);
+            // left/top write below glides instead of jumping; keep it while
+            // a reflow is still in flight, the camera finishing over the
+            // time it has left; clear it otherwise so a real fix keeps
+            // snapping the screen-pinned marker while the camera eases the
+            // ground underneath it.
+            markerTransition.apply(markerTransitionStep(motion, reflowRemainingMs));
             const spot = markerSpot({ markerPos, bottomSafe, rightSafe, leftSafe });
-            markerEl.style.left = `${(0.5 + spot.x) * 100}%`;
-            markerEl.style.top = `${(0.5 + spot.y) * 100}%`;
+            setChevronStyle(markerEl, "left", `${(0.5 + spot.x) * 100}%`);
+            setChevronStyle(markerEl, "top", `${(0.5 + spot.y) * 100}%`);
             const orientation = orientationFor(heading);
             syncChevron(tilt || 0, orientation.chevronTurn);
-            markerEl.style.display = "block";
+            setChevronStyle(markerEl, "display", "block");
             const opts: FollowCameraOpts = {
                 center: [lon, lat],
                 bearing: orientation.mapBearing,

@@ -314,6 +314,24 @@ class WebMapViewReloadTest {
         assertNull(MapRuntimeSignals.lastFailureOrNull())
     }
 
+    // The Google page's `lens` is diagnostics only, filed under the token the
+    // host took when it built that page: the page on screen's report shows,
+    // and a page a reload replaced cannot overwrite it, even reporting last.
+    @Test fun `a replaced Google page's late lens report leaves the page on screen's standing`() {
+        showMap(config = GoogleMapsConfig)
+        val replaced = page()
+        report("lens", "measured,source=webgl,fovy=27.3", page = replaced)
+        assertEquals(MapRuntimeSignals.LensStatus.MEASURED, MapRuntimeSignals.googleLensOrNull()?.status)
+        reportFatal(GoogleAuthFailure)
+        advanceBy(liveReloadRetryDelayMs(0) + MARGIN_MS)
+        assertNotSame(replaced, page())
+        // The new page has not reported yet: nothing of the old page shows.
+        assertNull(MapRuntimeSignals.googleLensOrNull())
+        report("lens", "unused")
+        report("lens", "measured,source=webgl,fovy=27.3", page = replaced)
+        assertEquals(MapRuntimeSignals.LensStatus.UNUSED, MapRuntimeSignals.googleLensOrNull()?.status)
+    }
+
     @Test fun `a renderer death while visible rebuilds at once`() {
         showMap()
         val dead = page()
