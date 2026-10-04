@@ -249,10 +249,11 @@ To enable the optional paid map provider in Settings → Map:
   allowing `https://appassets.androidplatform.net/*`. The Rendering
   setting (Automatic, Raster, or Vector) decides heading-up vector
   rendering versus flat north-up raster, not the Map ID: Vector needs
-  no Map ID, and a device that cannot render it falls back to raster
-  on its own; Automatic follows the Map ID's cloud configuration and
-  renders raster when none is set. An optional Map ID, created in the
-  Google Cloud console, adds cloud styling and advanced markers on top.
+  no Map ID, but fails with a notice on a device with no WebGL context
+  — pick Raster or Automatic there instead. Automatic follows the Map
+  ID's cloud configuration and renders raster when none is set. An
+  optional Map ID, created in the Google Cloud console, adds cloud
+  styling and advanced markers on top.
 
 ## Building from source
 
