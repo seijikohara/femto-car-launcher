@@ -152,6 +152,14 @@ class PanelDismissTest {
     }
 
     @Test
+    fun destination_panel_dismisses_on_a_tap_beside_the_dock() {
+        setDashboard()
+        openPanel("Navigation")
+        tapBesideTheDock()
+        assertNoOpenPanel()
+    }
+
+    @Test
     fun an_outside_tap_never_opens_maps_while_a_panel_is_open() {
         setDashboard()
         openPanel("Open full-screen calendar")

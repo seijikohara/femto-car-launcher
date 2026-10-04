@@ -31,11 +31,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.FolderOpen
+import com.composables.icons.lucide.Lucide
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.calendar.CalendarInfo
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
+import io.github.seijikohara.femto.ui.settings.VideoFileSummary
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.video.rememberVideoPicker
 
 // The Panels category's rows; see AppearanceSection's header comment on why
 // there is no title / reset wiring here.
@@ -46,6 +50,9 @@ internal fun PanelsSection(
     onOpenSystemSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier) {
+    // Registered here, outside the rows that come and go with the window
+    // switch, so a pick the user is making survives the rows leaving.
+    val pickVideo = rememberVideoPicker { uri -> onAction(SettingsAction.SetVideoFile(uri)) }
     SwitchRow(
         title = stringResource(R.string.settings_group_panel_calendar),
         checked = uiState.showCalendar,
@@ -94,6 +101,83 @@ internal fun PanelsSection(
         onCheckedChange = { onAction(SettingsAction.SetMusicShowArt(it)) },
         summary = stringResource(R.string.settings_panel_music_art_desc),
     )
+    SwitchRow(
+        title = stringResource(R.string.settings_group_panel_video),
+        checked = uiState.video.windowEnabled,
+        onCheckedChange = { onAction(SettingsAction.SetVideoWindow(it)) },
+        summary = stringResource(R.string.settings_panel_video_desc),
+    )
+    AnimatedVisibility(visible = uiState.video.windowEnabled) {
+        Column {
+            ActionRow(
+                title = stringResource(R.string.settings_video_file),
+                summary =
+                    if (uiState.video.pickFailed) {
+                        stringResource(R.string.video_pick_failed)
+                    } else {
+                        videoFileSummary(uiState.video.file)
+                    },
+                summaryLiveRegion = uiState.video.pickFailed,
+                onClick = pickVideo,
+                icon = Lucide.FolderOpen,
+            )
+            VideoPictureGateRow(
+                hidePictureWhileDriving = uiState.video.hidePictureWhileDriving,
+                onAction = onAction,
+            )
+        }
+    }
+}
+
+@Composable
+private fun videoFileSummary(file: VideoFileSummary): String =
+    when (file) {
+        VideoFileSummary.None -> stringResource(R.string.settings_video_file_none)
+        is VideoFileSummary.Named -> file.name
+        VideoFileSummary.Unavailable -> stringResource(R.string.video_file_unavailable)
+    }
+
+// The video picture's motion gate. Turning it on takes effect at once;
+// turning it off asks first, every time, with a warning that states the rules
+// in general terms and never suggests the gate makes watching legal or safe.
+@Composable
+private fun VideoPictureGateRow(
+    hidePictureWhileDriving: Boolean,
+    onAction: (SettingsAction) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var confirming by remember { mutableStateOf(false) }
+    SwitchRow(
+        title = stringResource(R.string.settings_video_hide_picture),
+        checked = hidePictureWhileDriving,
+        onCheckedChange = { hide ->
+            if (hide) onAction(SettingsAction.SetVideoHidePicture(true)) else confirming = true
+        },
+        summary = stringResource(R.string.settings_video_hide_picture_desc),
+        modifier = modifier,
+    )
+    if (confirming) {
+        AlertDialog(
+            onDismissRequest = { confirming = false },
+            title = { Text(stringResource(R.string.settings_video_show_picture_confirm_title)) },
+            text = { Text(stringResource(R.string.settings_video_show_picture_confirm_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirming = false
+                        onAction(SettingsAction.SetVideoHidePicture(false))
+                    },
+                ) {
+                    Text(stringResource(R.string.settings_video_show_picture_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirming = false }) {
+                    Text(stringResource(R.string.settings_cancel))
+                }
+            },
+        )
+    }
 }
 
 // Summarises the current visible-calendar selection in one line for the row subtitle.

@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.ui.home
 import android.content.ComponentName
 import io.github.seijikohara.femto.data.dock.DockNavId
 import io.github.seijikohara.femto.data.dock.DockStatusId
+import io.github.seijikohara.femto.data.places.PlaceTarget
 
 /**
  * One-shot side-effect signals emitted by [HomeViewModel] for the host to act on.
@@ -37,6 +38,16 @@ internal sealed interface HomeEvent {
     data class LaunchGeo(
         val latitude: Double,
         val longitude: Double,
+    ) : HomeEvent
+
+    /**
+     * Hand a destination to whichever app handles `geo:`. Like [LaunchGeo], the
+     * event carries only the destination; the host builds the URI through
+     * `geoHandoffUri`, so no provider is hard-coded.
+     */
+    data class LaunchDestination(
+        val target: PlaceTarget,
+        val label: String,
     ) : HomeEvent
 
     /**

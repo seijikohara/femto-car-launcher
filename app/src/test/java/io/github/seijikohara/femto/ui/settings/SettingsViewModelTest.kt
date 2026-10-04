@@ -37,6 +37,8 @@ import io.github.seijikohara.femto.testfixtures.FakeLocationSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeTrackLogPort
 import io.github.seijikohara.femto.testfixtures.FakeUpdateSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeUpdaterPort
+import io.github.seijikohara.femto.testfixtures.FakeVideoSettingsStore
+import io.github.seijikohara.femto.testfixtures.FakeVideoSourceGrants
 import io.github.seijikohara.femto.testfixtures.fakeCalendarInfo
 import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
 import kotlinx.coroutines.Dispatchers
@@ -1517,6 +1519,9 @@ class SettingsViewModelTest {
         updater = updaterPort,
         updatePreferences = updateStore,
         motion = motion,
+        videoPreferences = FakeVideoSettingsStore(),
+        videoGrants = FakeVideoSourceGrants(),
+        ioDispatcher = dispatcher,
     )
 
     private companion object {

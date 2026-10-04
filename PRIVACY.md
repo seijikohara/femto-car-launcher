@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Effective date: 2026-09-26**
+**Effective date: 2026-10-01**
 
 Femto Car Launcher ("the app") is an Android home launcher. This policy explains
 what data the app accesses, why, and who it is shared with. The app does **not**
@@ -12,11 +12,13 @@ contain advertising or analytics SDKs, and does **not** sell personal data.
 | --- | --- | --- |
 | **Precise / approximate location** | Show the map, the current address, local weather, and trip distance | Yes — see "Third parties" below |
 | **Recorded trip track** (position, speed, bearing, altitude) | Draw the trip visualization and export a GPX file when you ask for one | No — stored on the device only, and excluded from backup (see "Backup") |
+| **Saved places** (a name with a search text or a position) | Hand a destination to your navigation app in one tap | No — stored on the device only, and excluded from backup (see "Backup") |
 | **Calendar events** (read only) | Show upcoming events on the dashboard | No |
-| **Microphone** | Voice assistant input and the optional music spectrum visualization | The app does not store or transmit audio; voice input is handled by the device's speech recognizer (see below) |
+| **Microphone** | Voice assistant input, dictating a destination in the destination panel, and the optional music spectrum visualization | The app does not store or transmit audio; voice input is handled by the device's speech recognizer (see below) |
 | **Installed apps** (launcher app list) | Show and launch installed apps | No |
 | **Phone/cellular state** | Show the signal-strength indicator | No |
 | **Media playback metadata** | Show the now-playing card | No |
+| **Video files you pick** | Play a file in the dashboard's video window | No — the file is read where it is, and only a reference to it is stored, excluded from backup (see "Backup") |
 | **App settings** | Remember your preferences | Device backup only (see "Backup") |
 
 Calendar, music, and voice data are held only in memory while the app runs; none
@@ -24,7 +26,9 @@ of it is written to disk or transmitted. Location coordinates are transmitted, t
 the third-party services listed below, to render the map, the address, and the
 weather.
 
-The one thing the app writes to disk is the recorded trip track. While trip
+Besides your settings, the app writes three kinds of personal data to disk: the
+recorded trip track, the places you save in the destination panel, and, if you
+use the video window, a reference to the video file you picked. While trip
 recording is on — it is on by default and can be turned off in **Settings →
 Location** — the app stores each position fix, with its speed, bearing, and
 altitude, in a database on the device. That history is kept for 90 days by
@@ -32,6 +36,18 @@ default; **Settings → Location** offers 30 days, 90 days, a year, or no limit,
 and older points are deleted automatically. The history never leaves the device
 on its own: it is excluded from backup and device transfer, and it is sent
 nowhere. Exporting a trip as a GPX file writes it to the location you choose.
+
+Places you save in the destination panel (a name with a search text or a
+position) are stored on the device only, excluded from backup and device
+transfer, and passed only to the navigation app you hand one to.
+
+The video window plays a file you pick with the system file picker, from the
+device or from storage attached to it. The app reads the file where it is; it
+neither copies nor uploads it, and nothing about it leaves the device. To play
+the file again after a restart, the app keeps a reference to it (a content URI)
+and Android's permission to read it. That reference is excluded from backup and
+device transfer, and picking another file releases the permission on the old
+one.
 
 ## Third parties
 
@@ -99,9 +115,12 @@ control.
 ## Backup
 
 Android Auto Backup may copy app settings to your Google account. Location-related
-settings and the recorded trip track are **excluded** from backup and device
-transfer, so neither your position history nor your location settings is copied
-off the device.
+settings, the recorded trip track, and the places saved in the destination panel
+are **excluded** from backup and device transfer, so none of your position
+history, your location settings, or your saved places is copied off the device.
+The video window's settings, including the reference to the file you picked, are
+excluded too: the permission to read that file belongs to this installation, and
+a new installation starts with the picture hidden while driving.
 
 Your Google Maps Platform API key, if you enter one, lives in the app settings and
 is therefore **included** in both that backup and a device-to-device transfer.

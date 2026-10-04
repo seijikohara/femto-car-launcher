@@ -124,6 +124,10 @@ vehicle.
   full-screen player. Long titles scroll only while the vehicle is
   parked and truncate while moving. A spectrum visualisation renders on
   devices whose audio stack supports capture.
+- **Video window.** An optional small window over the map plays a video
+  file picked from the device or USB storage, with a full-screen player.
+  The picture stays hidden until GPS reads the vehicle as stopped; the
+  audio keeps playing.
 - **Clock.** A self-updating clock honouring the system 12/24-hour
   preference, with optional seconds.
 - **Status cluster.** Wi-Fi and cellular signal, Bluetooth state, GPS
@@ -134,6 +138,9 @@ vehicle.
 - **Dock.** An application dock attaches to any screen edge. A
   long-press edits the dock: buttons and status icons reorder or hide
   individually, and a reset restores the default layout.
+- **Destinations.** The dock's navigation button opens a destination
+  panel: type or speak a place, or tap a saved one, and the launcher
+  hands it to your navigation app. Typing waits until the vehicle stops.
 - **App panel.** A full-screen application panel offers search, a
   pinned-apps row, recently used apps, an A–Z fast-scroll index, and
   three icon-size presets. A long-press on an app opens App info or
@@ -169,21 +176,23 @@ than a lockout:
   dashboard.
 - **Panels.** Calendar, weather, and music cards toggle individually;
   the music card's spectrum, album name, and cover art each have a
-  visibility switch.
+  visibility switch, and the optional video window has its own switch
+  and picture gate.
 - **Units.** Speed and temperature units and the clock format follow
   the user, independent of the system locale.
 
 Every panel degrades gracefully: a denied permission or an unavailable
 data source renders a reduced state instead of an error screen. The
-dashboard renders identically regardless of vehicle motion —
-distraction responsibility stays with the driver and the vehicle's own
-instruments.
+dashboard renders identically regardless of vehicle motion, apart from
+the video window's picture gate — distraction responsibility stays with
+the driver and the vehicle's own instruments.
 
 ## Privacy and data
 
 - Femto Car Launcher requires no account and contains no advertising
   and no analytics.
-- Calendar and media data stay on the device; location leaves it only
+- Calendar and media data, and a video file picked for the video
+  window, stay on the device; location leaves it only
   inside the requests to the services the user selects: map tiles from
   the chosen map provider, weather from MET Norway, and — only when the
   user configures a self-hosted geocoding host — reverse-geocoding

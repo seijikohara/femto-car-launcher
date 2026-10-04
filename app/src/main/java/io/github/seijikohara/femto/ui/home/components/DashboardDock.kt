@@ -213,7 +213,7 @@ internal fun navSpecFor(id: DockNavId): NavSpec =
         DockNavId.PHONE -> NavSpec(Lucide.Phone, R.string.nav_phone, HomeAction.Shortcut(AppsBarShortcut.Phone))
         DockNavId.APPS -> NavSpec(Lucide.LayoutGrid, R.string.nav_apps, HomeAction.OpenAppDrawer)
         DockNavId.MUSIC -> NavSpec(Lucide.Music, R.string.nav_music, HomeAction.Shortcut(AppsBarShortcut.Music))
-        DockNavId.NAVIGATION -> NavSpec(Lucide.Navigation, R.string.nav_navigation, HomeAction.OpenMaps)
+        DockNavId.NAVIGATION -> NavSpec(Lucide.Navigation, R.string.nav_navigation, HomeAction.OpenDestinations)
         DockNavId.BROWSER -> NavSpec(Lucide.Globe, R.string.nav_browser, HomeAction.OpenBrowser)
         DockNavId.ASSISTANT -> NavSpec(Lucide.Mic, R.string.nav_assistant, HomeAction.OpenAssistant)
         DockNavId.SETTINGS -> NavSpec(Lucide.Settings, R.string.nav_settings, HomeAction.OpenSettings)
