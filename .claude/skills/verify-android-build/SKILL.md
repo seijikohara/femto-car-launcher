@@ -20,8 +20,9 @@ paths:
 
 # Verifying an Android build
 
-A change that compiles only in the editor still requires a real
-build before it ships. Use this skill before declaring a change
+A change that compiles only in the editor still needs a Gradle
+build before it ships — the editor's compiler and the Gradle/AGP
+toolchain can disagree. Use this skill before declaring a change
 "done", "ready", or "looks good" after any edit to the paths
 above. This skill is the verification-procedure SSOT; other skills
 cite it rather than describing the verification themselves.
