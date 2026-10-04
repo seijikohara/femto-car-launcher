@@ -544,6 +544,30 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun `the update badge stays hidden for a skipped build`() =
+        runTest {
+            val skipped = UpdateSettings.Default.copy(skippedVersionCode = UPDATE.versionCode)
+            val state = settledState(badgeViewModel(update = UpdateState.Available(UPDATE), settings = skipped))
+            assertFalse(state.updateBadge)
+        }
+
+    @Test
+    fun `the update badge shows for a build newer than the skipped one`() =
+        runTest {
+            val skipped = UpdateSettings.Default.copy(skippedVersionCode = UPDATE.versionCode - 1)
+            val state = settledState(badgeViewModel(update = UpdateState.Available(UPDATE), settings = skipped))
+            assertTrue(state.updateBadge)
+        }
+
+    @Test
+    fun `the update prompt never asks about a skipped build`() =
+        runTest {
+            val store = FakeUpdateSettingsStore(UpdateSettings.Default.copy(skippedVersionCode = UPDATE.versionCode))
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), store = store)
+            assertNull(promptAfterDwell(viewModel))
+        }
+
+    @Test
     fun `the update badge stays hidden when the build is up to date`() =
         runTest {
             assertFalse(settledState(badgeViewModel(update = UpdateState.UpToDate)).updateBadge)
@@ -875,6 +899,7 @@ class HomeViewModelTest {
         update: UpdateState,
         location: Location? = liveGpsFix(),
         tripState: TripState = fakeTripState(currentSpeedMs = 0.0),
+        settings: UpdateSettings = UpdateSettings.Default,
     ): HomeViewModel =
         HomeViewModel(
             locationFlow = flowOf(location),
@@ -885,6 +910,7 @@ class HomeViewModelTest {
             systemStatusFlow = flowOf(fakeSystemStatus()),
             tripStateFlow = flowOf(tripState),
             updateStateFlow = flowOf(update),
+            updateSettingsFlow = flowOf(settings),
             nowElapsedRealtimeNanos = { BADGE_NOW },
         )
 

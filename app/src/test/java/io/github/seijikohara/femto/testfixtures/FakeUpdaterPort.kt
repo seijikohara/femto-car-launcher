@@ -38,6 +38,20 @@ internal class FakeUpdaterPort(
         installs++
     }
 
+    var discards = 0
+        private set
+
+    var skips = 0
+        private set
+
+    override fun discard() {
+        discards++
+    }
+
+    override fun skip() {
+        skips++
+    }
+
     override fun acknowledgeUpdatedTo() {
         updatedTo.value = null
     }
