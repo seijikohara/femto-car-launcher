@@ -145,3 +145,10 @@ publishing an unsigned APK. Local `assembleStableRelease` /
 `assembleNightlyRelease` builds stay unsigned: the signing config
 registers only when `RELEASE_KEYSTORE_PATH` is set, so a contributor
 without the keystore keeps building.
+
+**Never replace the release keystore once a release is out.** Android
+refuses to install an update signed with a different key, so the
+in-app updater records that version as refused and offers only a
+newer build — each refused in turn, for as long as it still carries
+the replacement key — so every installed copy would need an uninstall
+and a manual install to move onto the new key.
