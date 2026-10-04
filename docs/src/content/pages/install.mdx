@@ -106,10 +106,20 @@ repeat the sideloading steps above for every new version.
   **Settings → Updates**, **Discard download** deletes the file. The update
   stays on offer, and **Update to …** downloads it again.
 - **Skip a version.** **Skip this version** stops the dot on the dock's
-  Settings button and the dashboard's question for that version, and
-  deletes its download. **Settings → Updates** still names it, marked
-  "Skipped", and **Update to …** still installs it if you change your mind.
-  A newer version is offered as usual.
+  Settings button and the one on **Settings → Updates**, closes the
+  dashboard's question for that version, and deletes its download.
+  **Settings → Updates** still names it, marked "Skipped", and
+  **Update to …** still installs it if you change your mind. A newer
+  version is offered as usual.
+- **Signed with a different key.** If Android refuses an update because
+  it is signed with a key other than the installed app's, the download
+  is deleted and that version is not offered again — nor is an older
+  one. A newer version is offered as usual.
+- **Developer verification.** From Android 16 QPR2 (API level 36.1),
+  Android may verify the app's developer before installing. If the
+  check needs a connection, **Settings → Updates** asks you to try
+  again online; if verification blocks the install outright,
+  **Settings → Updates** says the update was blocked.
 - **Where to look.** A dot on the dock's Settings button shows an update is
   waiting, while the vehicle is parked with a live GPS fix. The same dot
   shows on **Settings → Updates**, which is where to check if the Settings
@@ -122,10 +132,13 @@ A copy you build from source does not check for updates.
 To enable the optional paid map provider under **Settings → Map**, enter a
 personal Google Maps Platform API key with the Maps JavaScript API enabled
 and an HTTP-referrer restriction allowing
-`https://appassets.androidplatform.net/*`. An optional Map ID (created in
-the Google Cloud console) renders a vector map with heading-up rotation,
-tilt and 3D; a blank Map ID renders a flat north-up raster map. Usage bills
-your own Google Cloud account.
+`https://appassets.androidplatform.net/*`. The Rendering setting
+(Automatic, Raster, or Vector) decides heading-up vector rendering versus
+flat north-up raster, not the Map ID: Vector needs no Map ID, and a device
+that cannot render it falls back to raster on its own; Automatic follows
+the Map ID's cloud configuration and renders raster when none is set. An
+optional Map ID, created in the Google Cloud console, adds cloud styling
+and advanced markers on top. Usage bills your own Google Cloud account.
 
 ## Build from source
 

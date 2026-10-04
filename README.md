@@ -140,7 +140,9 @@ vehicle.
   individually, and a reset restores the default layout.
 - **Destinations.** The dock's navigation button opens a destination
   panel: type or speak a place, or tap a saved one, and the launcher
-  hands it to your navigation app. Typing waits until the vehicle stops.
+  hands it to your navigation app. Typing, saving and deleting pause
+  while GPS reads the vehicle as moving; voice and a tap on a saved
+  place work any time.
 - **App panel.** A full-screen application panel offers search, a
   pinned-apps row, recently used apps, an A–Z fast-scroll index, and
   three icon-size presets. A long-press on an app opens App info or
@@ -183,9 +185,11 @@ than a lockout:
 
 Every panel degrades gracefully: a denied permission or an unavailable
 data source renders a reduced state instead of an error screen. The
-dashboard renders identically regardless of vehicle motion, apart from
-the video window's picture gate — distraction responsibility stays with
-the driver and the vehicle's own instruments.
+dashboard renders identically regardless of vehicle motion — there is
+no driving lockout — though a few features gate themselves on motion:
+the video window's picture, destination typing, saving and deleting,
+long music-title scrolling, and the update prompt and install step all
+pause while GPS reads the vehicle as moving.
 
 ## Privacy and data
 
@@ -241,10 +245,13 @@ To enable the optional paid map provider in Settings → Map:
 
 - **Google Maps** — enter a personal Google Maps Platform API key with
   the Maps JavaScript API enabled and an HTTP-referrer restriction
-  allowing `https://appassets.androidplatform.net/*`. An optional Map
-  ID (created in the Google Cloud console) renders a vector map with
-  heading-up rotation, tilt, and 3D; a blank Map ID renders a flat
-  north-up raster map.
+  allowing `https://appassets.androidplatform.net/*`. The Rendering
+  setting (Automatic, Raster, or Vector) decides heading-up vector
+  rendering versus flat north-up raster, not the Map ID: Vector needs
+  no Map ID, and a device that cannot render it falls back to raster
+  on its own; Automatic follows the Map ID's cloud configuration and
+  renders raster when none is set. An optional Map ID, created in the
+  Google Cloud console, adds cloud styling and advanced markers on top.
 
 ## Building from source
 
