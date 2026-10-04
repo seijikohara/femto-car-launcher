@@ -25,13 +25,16 @@ Calendar, music, and voice data are held only in memory while the app runs; none
 of it is written to disk or transmitted. Location coordinates are transmitted,
 to the third-party services listed below, to render the map, the address, and
 the weather. Weather responses, and responses from a self-hosted geocoding host
-if you configure one, also sit briefly in an on-device HTTP cache that is never
-backed up; weather request URLs round your coordinates to about four decimal
-places, geocoding ones carry the exact fix.
+if you configure one, are also written to a small, size-capped on-device HTTP
+cache; an entry can persist there across restarts until the cache fills and the
+oldest entries are evicted, or until you clear the app's cache or data, and the
+cache is never backed up. Weather request URLs round your coordinates to about
+four decimal places; geocoding ones carry the exact fix.
 
-Besides your settings, the app writes three kinds of personal data to disk: the
-recorded trip track, the places you save in the destination panel, and, if you
-use the video window, a reference to the video file you picked. While trip
+Besides your settings, the app writes four kinds of personal data to disk: the
+recorded trip track, the places you save in the destination panel, the HTTP
+cache described above, and, if you use the video window, a reference to the
+video file you picked. While trip
 recording is on — it is on by default and can be turned off in **Settings →
 Location** — the app stores each position fix, with its speed, bearing, and
 altitude, in a database on the device. That history is kept for 90 days by
