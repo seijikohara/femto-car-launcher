@@ -1,151 +1,160 @@
 ---
 title: Install
-description: Get the latest build onto a head unit, an AI box or a phone, and build the app from source.
+description: Get the latest build onto an Android head unit, an AI box or a car-mounted phone, and build the app from source.
 ---
 
 ## Requirements
 
-- Android 13 (API level 33) or later.
+- Android 13 or later. Android 13 is application programming interface
+  (API) level 33.
 - Permission to install apps from outside an app store on the device
-  ("Install unknown apps"), or `adb` access to it.
+  ("Install unknown apps"), or Android Debug Bridge (`adb`) access to it.
 
 ## Download a build
 
-Femto Car Launcher publishes two channels as release-signed APKs, both
-built from the repository by continuous integration. There is no
-app-store listing at present, and sideloading is the supported
+Femto Car Launcher publishes two channels as release-signed Android
+packages (APKs), both built from the repository by continuous integration.
+There is no app-store listing at present, and sideloading is the supported
 installation path for both.
 
-- **Stable** — a dated release that only changes when a build is
-  judged ready, published as a
+- **Stable**: a dated release that changes only when the maintainer
+  promotes a build, published as a
   [GitHub release](https://github.com/seijikohara/femto-car-launcher/releases/latest).
   Download `femto-car-launcher-v<version>.apk`.
-- **Nightly** — the newest test build, which changes often and may
-  break, published as a rolling
+- **Nightly**: a nightly build that changes often and may break,
+  published as a rolling
   [`nightly`](https://github.com/seijikohara/femto-car-launcher/releases/tag/nightly)
   prerelease that replaces itself on every push that changes the APK.
   Download `femto-car-launcher-nightly.apk`. Its launcher icon carries
-  an "N" badge and its app name reads "Femto Nightly", so it never gets
-  mixed up with stable.
+  an "N" badge and its app name reads "Femto Nightly", so the two
+  channels are distinguishable on the device.
 
-The two channels use different application ids and install side by
-side, so trying a nightly build never means uninstalling stable, and
-switching back is just as easy.
+The two channels use different application IDs and install side by
+side, so a nightly build installs without removing the stable build.
 
 1. Download the APK for the channel you want from its release page.
-2. Install it by sideloading on the device, or from a computer:
+2. Install the APK by sideloading on the device, or from a computer:
 
     ```bash
     adb install -r <file>.apk
     ```
 
-3. Open the app. It asks for the permissions its panels need —
-   location for the map and the speed readout, calendar for the
-   agenda, notification access for now playing. A permission you deny
-   renders a reduced card, never an error screen.
+3. Open the app. The app asks for the permissions its panels need:
+   location for the map and the speed readout, calendar for the agenda,
+   and notification access for now playing. A permission you deny
+   renders a reduced card instead of an error screen.
 
 The in-app diagnostics report (**Settings → System → Diagnostics**)
-names the installed build by its version name, which is what a bug
-report should quote.
+names the installed build by its version name. Quote that version name
+in a bug report.
 
 ## Make it the home screen
 
-- **Built-in Android head units and phones:** open Android's default-apps
-  settings and choose Femto Car Launcher (or Femto Nightly, on the
-  nightly channel) as the home app. On a phone this step is optional —
-  the launcher also runs as a regular app.
-- **Aftermarket AI boxes:** most boxes lock the default-launcher slot. Use
-  the box's own "boot-up app" or auto-start setting to launch Femto Car
-  Launcher (or Femto Nightly) when the box starts.
+- **Android head units and car-mounted phones:** open Android's
+  default-apps settings and choose Femto Car Launcher (or Femto Nightly,
+  on the nightly channel) as the home app. On a phone this step is
+  optional, because the launcher also runs as a regular app.
+- **Aftermarket AI boxes:** most boxes lock the choice of default
+  launcher. Use the box's own "boot-up app" or auto-start setting to
+  launch Femto Car Launcher (or Femto Nightly) when the box starts.
 
-## Updating
+## Update the app
 
-The app checks its own channel for a newer build — stable checks the latest
-stable release, nightly checks the rolling nightly — so you don't need to
-repeat the sideloading steps above for every new version.
+The app checks its own channel for a newer build: stable checks the
+latest stable release, and nightly checks the rolling nightly build. You
+do not need to repeat the sideloading steps above for each new version.
 
-- **Automatic check.** At most once a day while the app is running, the app
-  looks for a newer build. Turn this off with the "Check automatically"
-  switch under **Settings → Updates**.
-- **Manual check.** Tap **Check for updates** under **Settings → Updates** at
-  any time. The **Available version** row shows what the check found: the
-  newer version and its download size, or "Up to date".
+- **Automatic check.** At most once a day while the app is running, the
+  app looks for a newer build. To turn the automatic check off, switch off
+  **Settings → Updates → Check automatically**.
+- **Manual check.** Tap **Check for updates** under
+  **Settings → Updates** at any time. The **Available version** row shows
+  what the check found: the newer version and its download size, or
+  "Up to date".
 - **Update.** When a newer build is available, tap **Update to …** under
-  **Settings → Updates**. One tap downloads the update (about 45 MB),
-  checks it, and then Android asks you to confirm the install. Some devices
-  then add a security-scan prompt of their own; continue past it to finish
-  the install. Leaving that prompt cancels the install, and tapping
-  **Update to …** again starts over. The first time, Android asks you to
-  allow installs from Femto Car Launcher (or Femto Nightly) before anything
-  downloads; while driving, it asks when you install instead. If you leave
-  **Settings → Updates** before Android asks you to confirm — or switch to
-  another app, or the screen turns off — the downloaded update waits there:
-  tap **Update to …** again to install it.
-  After the install, the launcher comes back on its own when Android allows
-  it. Otherwise, tap the "Updated to …" notification or open the launcher
-  again — press Home if it is your home screen.
+  **Settings → Updates**. One tap downloads the update (about 45 MB) and
+  checks it. Android then asks you to confirm the install. Some devices
+  add a security-scan prompt of their own; continue past it to finish the
+  install. Leaving that prompt cancels the install, and tapping
+  **Update to …** again starts over.
+
+    The first time, Android asks you to allow installs from Femto Car
+    Launcher (or Femto Nightly) before anything downloads. While the
+    vehicle is moving, Android asks for this permission when you install
+    instead. If you leave **Settings → Updates** before Android asks you to
+    confirm, switch to another app, or the screen turns off, the downloaded
+    update waits there: tap **Update to …** again to install it.
+
+    After the install, the launcher comes back on its own when Android
+    allows it. Otherwise, tap the "Updated to …" notification or open the
+    launcher again; press Home if the launcher is your home screen.
+
 - **When an update is found.** The dashboard asks once about each new
-  version, after the vehicle has been parked for a minute with a live GPS
-  fix, so a stop at a traffic light seldom brings it up. **Update** opens
-  **Settings → Updates** and starts the update there. **Later** (or Back)
-  means the dashboard does not ask about that version again; the dot on
-  the dock's Settings button and **Settings → Updates** keep offering it. A
-  version you have already seen under **Settings → Updates** is not asked
-  about. If the vehicle starts moving before you answer, or you switch to
-  another app, the question closes and comes back once the vehicle has been
-  parked for a minute again.
-- **While driving.** Install is unavailable while the vehicle is known to be
-  moving, so tapping **Update to …** then only downloads the update. If a
-  download finishes while the vehicle moves, the update waits: tap
+  version, after the vehicle has been parked for a minute with a live
+  Global Positioning System (GPS) fix, so a stop at a traffic light
+  seldom brings up the question. **Update** opens **Settings → Updates**
+  and starts the update there. **Later** (or Back) means the dashboard
+  does not ask about that version again; the dot on the dock's Settings
+  button and **Settings → Updates** keep offering the version. The
+  dashboard does not ask about a version you have already seen under
+  **Settings → Updates**. If the vehicle starts moving before you answer,
+  or you switch to another app, the question closes. The question comes
+  back once the vehicle has been parked for a minute again.
+- **While driving.** Install is unavailable while the vehicle is known to
+  be moving, so tapping **Update to …** then only downloads the update. If
+  a download finishes while the vehicle moves, the update waits: tap
   **Update to …** again once you have stopped. If the vehicle starts
-  moving before Android's confirmation appears, the confirmation waits until
-  you tap **Show the install dialog again** under **Settings → Updates**; a
-  confirmation already on screen stays there until you answer it. Checking
-  and downloading are not affected.
+  moving before Android's confirmation appears, the confirmation waits
+  until you tap **Show the install dialog again** under
+  **Settings → Updates**. A confirmation already on screen stays there
+  until you answer it. Checking and downloading continue while the
+  vehicle moves.
 - **Discard a download.** While a downloaded update waits under
-  **Settings → Updates**, **Discard download** deletes the file. The update
-  stays on offer, and **Update to …** downloads it again.
-- **Skip a version.** **Skip this version** stops the dot on the dock's
+  **Settings → Updates**, **Discard download** deletes the file. The
+  update stays on offer, and **Update to …** downloads it again.
+- **Skip a version.** **Skip this version** removes the dot on the dock's
   Settings button and the one on **Settings → Updates**, closes the
   dashboard's question for that version, and deletes its download.
-  **Settings → Updates** still names it, marked "Skipped", and
-  **Update to …** still installs it if you change your mind. A newer
-  version is offered as usual.
+  **Settings → Updates** still names the version, marked "Skipped", and
+  **Update to …** still installs it if you change your mind. The app
+  offers newer versions as usual.
 - **Signed with a different key.** If Android refuses an update because
-  it is signed with a key other than the installed app's, the download
-  is deleted and that version is not offered again — nor is an older
-  one. A newer version is offered as usual.
-- **Developer verification.** From Android 16 QPR2 (API level 36.1),
-  Android may verify the app's developer before installing. If the
-  check needs a connection, **Settings → Updates** asks you to try
-  again online; if verification blocks the install outright,
-  **Settings → Updates** says the update was blocked.
-- **Where to look.** A dot on the dock's Settings button shows an update is
-  waiting, while the vehicle is parked with a live GPS fix. The same dot
-  shows on **Settings → Updates**, which is where to check if the Settings
-  button is hidden from your dock.
+  a key other than the installed app's key signed it, the app deletes the
+  download. The app then stops offering that version and any older one,
+  and offers newer versions as usual.
+- **Developer verification.** From Android 16 QPR2 (Quarterly Platform
+  Release 2, API level 36.1), Android may verify the app's developer
+  before installing. If the check needs a connection,
+  **Settings → Updates** asks you to try again online. If verification
+  blocks the install outright, **Settings → Updates** says the update was
+  blocked.
+- **Where to look.** A dot on the dock's Settings button shows that an
+  update is waiting, while the vehicle is parked with a live GPS fix. The
+  same dot shows on **Settings → Updates**, which is where to check if
+  the Settings button is hidden from your dock.
 
 A copy you build from source does not check for updates.
 
 ## Optional: Google Maps provider
 
-To enable the optional paid map provider under **Settings → Map**, enter a
-personal Google Maps Platform API key with the Maps JavaScript API enabled
-and an HTTP-referrer restriction allowing
-`https://appassets.androidplatform.net/*`. The Rendering setting
-(Automatic, Raster, or Vector) decides heading-up vector rendering versus
-flat north-up raster, not the Map ID: Vector needs no Map ID, but fails
-with a notice on a device with no WebGL context — pick Raster or
-Automatic there instead. Automatic follows the Map ID's cloud
-configuration and renders raster when none is set. An optional Map ID,
-created in the Google Cloud console, adds cloud styling and advanced
-markers on top. Usage bills your own Google Cloud account.
+To enable the optional paid Google Maps provider, enter a personal Google
+Maps Platform API key under **Settings → Map**. The key needs the Maps
+JavaScript API enabled and an HTTP-referrer restriction that allows
+`https://appassets.androidplatform.net/*`. The
+**Settings → Map → Rendering** setting (Automatic, Raster, or Vector)
+chooses heading-up vector or flat north-up raster rendering; the Map ID
+does not. Vector needs no Map ID. On a device with no Web Graphics Library
+(WebGL) context, Vector shows a notice instead of a map; choose Raster or
+Automatic there. Automatic follows the Map ID's cloud configuration and
+renders raster when none is set. An optional Map ID, created in the Google
+Cloud console, adds cloud styling and advanced markers. Usage bills your
+own Google Cloud account.
 
 ## Build from source
 
-A Java Development Kit (JDK) 21 and an Android 13+ device or emulator are
-the only prerequisites; the Gradle build provisions Node.js and pnpm on
-demand for the bundled map page.
+The build needs Git, a Java Development Kit (JDK) 21, the Android software
+development kit (SDK), and an Android 13+ device or emulator. The Gradle
+build provisions Node.js and pnpm on demand for the bundled map page.
 
 ```bash
 git clone https://github.com/seijikohara/femto-car-launcher.git

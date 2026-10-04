@@ -1,6 +1,6 @@
 ---
 title: Privacy and data
-summary: No account, no advertising, no analytics. Calendar and media data never leave the device; location goes only to the map, weather and geocoding services you select.
+summary: No account, no advertising, no analytics. Calendar and media data stay on the device; location goes only to the map provider, MET Norway, and a geocoding host if you configure one.
 order: 6
 ---
 
@@ -10,60 +10,67 @@ contains no advertising and no analytics, and has no server of its own.
 ## What stays on the device
 
 Calendar and media data are read on the device and stay there. Location
-is read on the device and leaves it only inside the requests to the
-services you select — the map tiles for the area the map shows, the
-weather forecast for your position, and reverse-geocoding queries when
-you point the app at your own geocoding host. The trip track log is a
-local database; the only way its contents leave the device is a GPX
-export you trigger through the system file picker, to a destination you
-choose. Saved destinations stay in the app's storage on the device, out
-of backup and device transfer; a tap on one hands it to your navigation
-app. A video file you pick for the video window is read where it is and
-never copied or uploaded; the app keeps only a reference to it, which is
-left out of backup and device transfer.
+is read on the device and leaves it only inside requests to the services
+you use: the map tiles for the area the map shows, the weather forecast
+for your position, and reverse-geocoding queries when you point the app at
+your own geocoding host. The trip track log is a local database. Its
+contents leave the device only through a GPS Exchange Format (GPX) export
+you start through the system file picker, to a destination you choose.
+Saved destinations stay in the app's storage on the device, out of backup
+and device transfer; a tap on one hands it to your navigation app. A video
+file you pick for the video window is read where it is and never copied or
+uploaded. The app keeps only a reference to the file, and that reference
+is left out of backup and device transfer.
 
 ## What goes over the network
 
-Most network traffic goes only to a service you choose to use; the one
-exception is the update check, which runs by default but can be turned
-off:
+The app contacts only the services below:
 
-- **Map tiles and styles** from the chosen map provider — the keyless
-  OpenStreetMap provider by default, or Google Maps once you enter your
-  own key.
+- **Map tiles and styles** from the chosen map provider: the keyless
+  OpenStreetMap provider by default, the hosts a custom style URL names,
+  or Google Maps once you enter your own key.
 - **Weather** from MET Norway.
 - **Reverse-geocoding queries**, only when you configure a self-hosted
-  geocoding host. The default reverse geocoder runs on-device.
-- **Fonts** from Google Fonts, only for a family you pick under Settings.
-- **Update checks** to GitHub. The automatic check runs at most once a
-  day while the app is on, and only while that is turned on under
-  Settings → Updates; tapping Check for updates, Update to …, or Retry
-  there, or Update on the dashboard's update prompt, checks again right
-  away regardless of that setting or the daily limit. No location data
-  is sent; the update file itself downloads only when you ask for it.
+  geocoding host. The default reverse geocoder runs on the device.
+- **Fonts** from Google Fonts, only for a family you pick under
+  **Settings → Appearance**.
+- **Update checks** to GitHub. The automatic check runs by default, at
+  most once a day while the app is running, and only while
+  **Settings → Updates → Check automatically** is on. Tapping
+  **Check for updates**, **Update to …** or **Retry** there, or **Update**
+  on the dashboard's update prompt, checks again right away, regardless of
+  **Check automatically** or the daily limit. Update checks send no
+  location data. The update file itself downloads only when you ask for
+  it.
 
 ## Keys you enter
 
-Google Maps keys are entered by you, are sent only to Google, and stay on
-the device apart from your own Android settings backup and device
-transfer. Google's JavaScript API collects usage data for Google while the
-provider is enabled; the [privacy policy](/privacy/) describes that, and
-everything else the app does with data, in full.
+You enter Google Maps keys yourself. The app sends a key only to Google.
+The key stays on the device, apart from your own Android settings backup
+and device transfer. A custom style URL, including any provider key it
+carries, is also stored in the app settings and included in that backup
+and device transfer. While the Google Maps provider is
+enabled, the Maps JavaScript application programming interface (API)
+collects usage data for Google. The [Privacy Policy](/privacy/) describes
+this collection and all other data handling by the app.
 
 ## Permissions
 
-Notification access, when granted, is used solely to read and control the
-active media session for the now-playing card. Location and calendar
-permissions each unlock one visible feature; microphone unlocks three —
-the voice assistant, dictating a destination in the destination panel,
-and the optional music spectrum visualization — and none of them do
-anything else. A denied permission renders a reduced card, never a nag.
+The app uses notification access, when you grant it, only to read and
+control the active media session for the now-playing card. Location drives
+the map position, the speed overlay, trip recording, local weather, the
+current address, and the features that pause while the vehicle moves.
+Calendar drives the calendar card. The microphone serves three features
+only: the voice assistant, dictating a destination in the destination
+panel, and the optional music spectrum visualization. A denied permission
+renders a reduced card.
 
-## Diagnostics and licences
+## Diagnostics and licenses
 
 An in-app diagnostics report (**Settings → System → Diagnostics**)
-summarises device and runtime facts for troubleshooting. It masks API keys
-and is copied only when you tap **Copy report**. The open-source licences
-screen lists every bundled third-party component, and the app's own terms
-are reachable from **Settings → System → Terms** and on this site under
-[Terms](/terms/).
+summarizes device and runtime facts for troubleshooting. The report masks
+API keys, and the app copies it only when you tap **Copy report**.
+**Settings → System → Open source licenses** lists every bundled
+third-party component. The app's own terms are reachable from
+**Settings → System → Terms** and on this site as the
+[Terms of Service](/terms/).
