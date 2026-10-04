@@ -7,14 +7,12 @@ paths:
 
 Permission discipline for femto-car-launcher's `AndroidManifest.xml`.
 
-- Every `<uses-permission>` follows the procedure at the end of this
-  file (this rule is both the procedure and the audit-log SSOT, and
-  auto-loads whenever the manifest is touched).
-- Adding any permission requires a one-line justification in the
-  commit message body.
+- Every `<uses-permission>` follows the procedure below; this file
+  auto-loads whenever the manifest is touched.
 - The audit log below lists every declared permission with its
-  one-line justification, alphabetized. Keep this table in sync with
-  `AndroidManifest.xml` — this file is the audit-log SSOT.
+  one-line justification (see step 1 of the procedure), alphabetized.
+  Keep this table in sync with `AndroidManifest.xml` — this file is
+  the audit-log SSOT.
 
 | Permission | Justification |
 | --- | --- |

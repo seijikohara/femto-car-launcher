@@ -1,8 +1,8 @@
 @AGENTS.md
 
-`AGENTS.md` (imported above, inlined at launch) is the tool-agnostic
-project brief and the rule SSOT — cite its rules as
-`AGENTS.md#<anchor>`. The sections below are Claude Code-specific
+`AGENTS.md` is imported above (inlined at launch); see its **Rule
+locations** note for how it and `.claude/rules/*.md` divide the rule
+SSOT and how to cite them. The sections below are Claude Code-specific
 surface only; add nothing here that another agent would need.
 
 ## Claude Code surface

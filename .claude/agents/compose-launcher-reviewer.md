@@ -30,8 +30,8 @@ scope rather than reviewing the whole repo.
 
 ## Source of truth
 
-`AGENTS.md` (the rule SSOT) plus the rule files under
-`.claude/rules/` are the rule SSOT. Before flagging or clearing
+`AGENTS.md` plus the rule files under `.claude/rules/` together
+make up the rule SSOT. Before flagging or clearing
 findings, Read every `.claude/rules/*.md` whose scope (per
 AGENTS.md's rules index) covers a file in the diff — they are
 short; when in doubt read them all. If the project memory
