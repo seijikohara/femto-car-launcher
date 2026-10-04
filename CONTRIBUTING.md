@@ -10,24 +10,26 @@ live in [`AGENTS.md`](AGENTS.md) and the path-scoped rule files under
 
 ## Report a bug
 
-1. Install the latest `nightly` build (see
+1. Install the latest nightly build (see
    [Installation](README.md#installation)) and confirm that the bug
-   still occurs. Every merge to `develop` that changes the APK ships
-   as a new nightly, so an older build may already be fixed.
+   still occurs. Every merge to `develop` that changes the Android
+   package (APK) ships as a new nightly build, so a newer build may
+   already contain the fix.
 2. Search the [open and closed issues](https://github.com/seijikohara/femto-car-launcher/issues?q=is%3Aissue)
    for the same symptom.
 3. Open a [bug report](https://github.com/seijikohara/femto-car-launcher/issues/new?template=bug_report.yml).
-   The form asks for the build identifier, the device class, and the
+   The form asks for the version name, the device class, and the
    in-app diagnostics report.
 
-The diagnostics report is the fastest way to give the maintainer the
-facts a fix needs. In the app, open Settings → System → Diagnostics and
-tap **Copy report**. The report lists device and runtime facts, the
-build identifier (its version name), the WebView version, and
-recent warnings. It masks API keys, but review it before you post it.
+The diagnostics report gives the maintainer the facts a fix needs. In
+the app, open **Settings → System → Diagnostics** and tap
+**Copy report**. The report lists device and runtime facts, the version
+name of the build, the WebView version, and recent warnings. The report
+masks application programming interface (API) keys, but review the
+report before you post it.
 
 When a fix merges, the maintainer posts a closing comment on the issue
-naming the first nightly that carries the fix.
+naming the first nightly build that carries the fix.
 
 Do not report security vulnerabilities in a public issue. Follow
 [`SECURITY.md`](SECURITY.md) instead.
@@ -60,7 +62,7 @@ Read [`AGENTS.md`](AGENTS.md) before you edit anything. Its
 rule file to read for each part of the tree. The rules that most often
 surprise a first-time contributor:
 
-- The automotive floors for tap targets and body text
+- The automotive minimums for tap targets and body text
   ([`AGENTS.md#automotive-overrides`](AGENTS.md#automotive-overrides)).
 - The permission procedure for any `<uses-permission>` change
   ([`.claude/rules/permissions.md`](.claude/rules/permissions.md)).
@@ -76,8 +78,8 @@ Run the verification pipeline in
 [`.claude/skills/verify-android-build/SKILL.md`](.claude/skills/verify-android-build/SKILL.md)
 before you open a pull request. `./gradlew spotlessApply` fixes
 formatting in place. Continuous integration (CI) runs the same tasks
-plus the screenshot tests (`verifyRoborazziStableDebug`, whose goldens are
-recorded on the CI runner) and reports them as the single `Validate`
+plus the screenshot tests (`verifyRoborazziStableDebug`, whose reference
+images are recorded on the CI runner) and reports them as the single `Validate`
 status check, which every merge requires.
 
 ### Open a pull request
@@ -95,11 +97,11 @@ status check, which every merge requires.
 - Fill in the pull request template. Its checklist mirrors this
   section.
 
-The maintainer squashes the pull request into `develop`, and later
-promotes `develop` to `main` as a single squash per promotion (a
-release when the APK changed; see
-[`.github/RELEASING.md`](.github/RELEASING.md)), which is why `main`
-stays linear. Force-push is denied; update a stale branch with
+The maintainer squashes the pull request into `develop`. Later, the
+maintainer promotes `develop` to `main` as a single squash per
+promotion, which keeps `main` linear. A promotion that changes the APK
+becomes a release (see [`.github/RELEASING.md`](.github/RELEASING.md)).
+Force-push is denied; update a stale branch with
 `gh pr update-branch`.
 
 ## License of contributions

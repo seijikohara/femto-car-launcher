@@ -1,22 +1,23 @@
 # Releasing
 
 Femto Car Launcher publishes two channels, both built and published by
-[`ci.yml`](workflows/ci.yml). Nobody runs a release command by hand: CI
-computes every version, creates every tag, and signs every APK it
-publishes.
+[`ci.yml`](workflows/ci.yml). Nobody runs a release command by hand:
+continuous integration (CI) computes every version, creates every tag,
+and signs every Android package (APK) it publishes.
 
 ## Channels
 
-| Channel | Publishes on | What ships | Application id |
+| Channel | Publishes on | What ships | Application ID |
 | --- | --- | --- | --- |
 | `nightly` | every push to `develop` that changes the APK | a rolling `nightly` prerelease (replaces the previous one), asset `femto-car-launcher-nightly.apk` | `io.github.seijikohara.femto.nightly` |
 | `stable` | every push to `main` that changes the APK | a new dated GitHub release, asset `femto-car-launcher-v<version>.apk` | `io.github.seijikohara.femto` |
 
 Both are release-signed APKs, not an Android App Bundle: sideloading
-onto AI boxes and head units off the GitHub release is the only
-distribution channel, and an app bundle defers APK generation and
-signing to Google Play, which no on-device installer can open. The two
-application ids mean both channels install at once — see
+from the GitHub release onto AI boxes, Android head units and
+car-mounted phones is the only distribution channel. Google Play
+generates and signs the APKs from an app bundle, so no on-device
+installer can open an app bundle. The two application IDs mean both
+channels install at once — see
 [`AGENTS.md`, Git conventions](../AGENTS.md#git-conventions).
 
 ## Update manifest
@@ -34,8 +35,8 @@ push that publishes nothing (see
 channel keeps its previous manifest, so installed copies keep the
 offer they had. The asset name is fixed — the app requests it by that
 exact name — so renaming it here breaks the update check for every
-copy already installed. Changing `schemaVersion` breaks them the same
-way: an installed copy reads a manifest of any other version as no
+copy already installed. Changing `schemaVersion` breaks the update
+check the same way: an installed copy reads a manifest of any other version as no
 information, so a new schema must ship beside version 1 under a new
 asset name.
 
@@ -111,7 +112,8 @@ that follows it is incremental.
 ## Signing secrets
 
 One upload keystore signs both channels. A maintainer must add four
-repository secrets (Settings -> Secrets and variables -> Actions)
+repository secrets (**Settings → Secrets and variables → Actions** in
+the GitHub repository)
 before either job can sign:
 
 | Secret | Contents |
@@ -147,8 +149,8 @@ registers only when `RELEASE_KEYSTORE_PATH` is set, so a contributor
 without the keystore keeps building.
 
 **Never replace the release keystore once a release is out.** Android
-refuses to install an update signed with a different key, so the
-in-app updater records that version as refused and offers only a
-newer build — each refused in turn, for as long as it still carries
-the replacement key — so every installed copy would need an uninstall
-and a manual install to move onto the new key.
+refuses to install an update signed with a different key. The in-app
+updater then records that version as refused and offers only a newer
+build, which Android refuses in turn for as long as the build carries
+the replacement key. Every installed copy would need an uninstall and a
+manual install to move onto the new key.
