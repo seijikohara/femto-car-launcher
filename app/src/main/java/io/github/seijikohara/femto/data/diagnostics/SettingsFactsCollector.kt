@@ -103,6 +103,8 @@ internal fun updateSettingsFacts(update: UpdateSettings): List<DiagnosticFact> =
         entry("Update pending install", update.pendingInstallVersionCode?.toString() ?: "none"),
         entry("Update offer", update.offer?.let { "${it.versionName} (${it.versionCode})" } ?: "none"),
         entry("Update prompted", update.promptedVersionCode?.toString() ?: "none"),
+        entry("Update skipped", update.skippedVersionCode?.toString() ?: "none"),
+        entry("Update refused", update.refusedVersionCode?.toString() ?: "none"),
     )
 
 private fun entry(

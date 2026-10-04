@@ -60,7 +60,11 @@ the next host when there is one; `liveReloadRetryDelayMsOrNull` in
 `WebMapView.kt` owns the retry policy. Errors after a tile of the
 current style has arrived stay log-only, never UI; a style swap
 starts the judgement afresh, because it can re-create the vector
-source and fetch its TileJSON again.
+source and fetch its TileJSON again. That first tile of each style is
+also the OSM page's success signal, `tile`, on which the host
+restarts its retry backoff — never `ready`, which a page without data
+sends too. The Google page reports none (the reason sits beside the
+emitter in `src/load-outcome.ts`).
 
 The fatal's kind tells the host whether a reload can help. The page
 classifies every load failure in `src/load-outcome.ts`:
@@ -119,7 +123,10 @@ style setting, or the app theme on Auto), by different mechanisms:
 the OSM page swaps or recolours its style through `setStyleUrl`
 while the page lives, whereas Google's `colorScheme` is a
 construction-time `MapOptions` value, so `WebMapView` keys the
-WebView on `effectiveGoogleDark` and a flip rebuilds the Google page.
+WebView on the context it built the page for (`googleDark`) and a
+flip rebuilds the Google page: at once on screen, while behind
+another app the page keeps its context and the return rebuilds it
+once (each rebuild is a billed map load).
 A Map ID's cloud style overrides the scheme only if a dark-mode style
 is associated with it in the Cloud console (a 2025 addition); the
 Map ID hint in Settings says so.

@@ -181,6 +181,80 @@ class UpdatesSectionTest {
     }
 
     @Test
+    fun `a skipped build is still named, and marked skipped`() {
+        setSection(
+            offered(UpdateStep.Download(VERSION, APK_BYTES, grantDeclined = false, downloadOnly = false))
+                .copy(availableVersion = AvailableVersion.Offered(VERSION, APK_BYTES, skipped = true)),
+        )
+
+        val summary = context.getString(R.string.settings_updates_available_summary_skipped, VERSION, size)
+        rule.onNodeWithText(summary).assertExists()
+        // Installing it stays a deliberate choice.
+        rule.onNodeWithText(updateTitle).assertHasClickAction()
+    }
+
+    @Test
+    fun `the discard row sends DiscardUpdate while a download is staged`() {
+        setSection(
+            offered(UpdateStep.Install(VERSION, blockedWhileMoving = false, grantDeclined = false))
+                .copy(canDiscard = true),
+        )
+
+        rule.onNodeWithText(context.getString(R.string.settings_updates_discard)).performClick()
+
+        assertEquals(listOf<SettingsAction>(SettingsAction.DiscardUpdate), tapActions())
+    }
+
+    @Test
+    fun `no discard row without a staged download`() {
+        setSection(offered(UpdateStep.Downloading(VERSION, fraction = 0.5f)))
+
+        rule.onNodeWithText(context.getString(R.string.settings_updates_discard)).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the skip row names the build and sends SkipUpdate`() {
+        setSection(
+            offered(UpdateStep.Download(VERSION, APK_BYTES, grantDeclined = false, downloadOnly = false))
+                .copy(canSkip = true),
+        )
+
+        rule.onNodeWithText(context.getString(R.string.settings_updates_skip_desc, VERSION)).assertExists()
+        rule.onNodeWithText(context.getString(R.string.settings_updates_skip)).performClick()
+
+        assertEquals(listOf<SettingsAction>(SettingsAction.SkipUpdate), tapActions())
+    }
+
+    @Test
+    fun `no skip row while it cannot skip`() {
+        setSection(offered(UpdateStep.Download(VERSION, APK_BYTES, grantDeclined = false, downloadOnly = false)))
+
+        rule.onNodeWithText(context.getString(R.string.settings_updates_skip)).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a developer verification that needed a connection says to try again online`() {
+        setSection(
+            UpdatesUiState.Initial.copy(status = UpdateStatus.Failed(UpdateFailure.DEVELOPER_VERIFICATION_OFFLINE)),
+        )
+
+        rule
+            .onNodeWithText(context.getString(R.string.settings_updates_failed_developer_verification_offline))
+            .assertExists()
+    }
+
+    @Test
+    fun `a developer verification that blocked the update says so`() {
+        setSection(
+            UpdatesUiState.Initial.copy(status = UpdateStatus.Failed(UpdateFailure.DEVELOPER_VERIFICATION_BLOCKED)),
+        )
+
+        rule
+            .onNodeWithText(context.getString(R.string.settings_updates_failed_developer_verification_blocked))
+            .assertExists()
+    }
+
+    @Test
     fun `the check row sends a check while one can start`() {
         setSection(UpdatesUiState.Initial.copy(status = UpdateStatus.Checked(lastAttemptAt = null), canCheck = true))
 
@@ -304,6 +378,8 @@ class UpdatesSectionTest {
             canCheck = false,
             availableVersion = AvailableVersion.Offered(VERSION, APK_BYTES),
             step = step,
+            canDiscard = false,
+            canSkip = false,
             autoCheck = true,
             updatedTo = null,
             updateOffered = true,

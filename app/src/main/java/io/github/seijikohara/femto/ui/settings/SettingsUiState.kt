@@ -485,6 +485,16 @@ internal sealed interface SettingsAction {
         val token: Int,
     ) : SettingsAction
 
+    /** Delete the verified download that waits for the user; the offer stays. */
+    data object DiscardUpdate : SettingsAction
+
+    /**
+     * Skip the offered build: no dock dot and no dashboard prompt for it, and
+     * a verified download of it is deleted. Settings still names it and still
+     * installs it on request; a newer build is offered as usual.
+     */
+    data object SkipUpdate : SettingsAction
+
     /** The user came back from the "Install unknown apps" access without turning it on. */
     data object InstallGrantDeclined : SettingsAction
 

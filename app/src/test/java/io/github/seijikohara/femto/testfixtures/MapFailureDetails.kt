@@ -19,6 +19,10 @@ internal val BoundedFailureDetails =
         "google-maps-auth",
         "no-webgl-context",
         "map-init-exception: mapsLib.Map is not a constructor",
-        "style-load-rejected: AJAXError: Not Found (404): https://styles.example.test/basic/style.json",
+        styleLoadRejectedDetail("https://styles.example.test/basic/style.json"),
         "tile-host-rejected: AJAXError: Forbidden (403): https://tiles.example.test/planet",
     )
+
+// The fatal a page reports when the server hosting its style [url] refused
+// it: a mistyped custom style URL's 404.
+internal fun styleLoadRejectedDetail(url: String) = "style-load-rejected: AJAXError: Not Found (404): $url"

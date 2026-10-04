@@ -85,14 +85,22 @@ internal object MapRuntimeSignals {
     }
 
     /**
-     * Clear the *last failure* once the map renders, so a recovered map stops
-     * reporting a failure it has moved past. [failureCount] is deliberately kept:
-     * a map that fails and recovers repeatedly still reads as flapping, which a
-     * cleared counter would hide.
+     * Record the WebGL renderer behind a page's first painted frame. A painted
+     * frame is not a recovery: the OSM page paints its style whether or not
+     * its data arrived, so the last failure stays for [recordDataArrived].
      */
     fun recordRendered(webGlRenderer: String) {
-        lastFailure.set(null)
         this.webGlRenderer.set(webGlRenderer.takeIf { it.isNotBlank() })
+    }
+
+    /**
+     * Clear the *last failure* once the map's data has arrived, so a recovered
+     * map stops reporting a failure it has moved past. [failureCount] is
+     * deliberately kept: a map that fails and recovers repeatedly still reads
+     * as flapping, which a cleared counter would hide.
+     */
+    fun recordDataArrived() {
+        lastFailure.set(null)
     }
 
     /**
