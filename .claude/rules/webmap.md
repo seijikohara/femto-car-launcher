@@ -64,7 +64,12 @@ source and fetch its TileJSON again. That first tile of each style is
 also the OSM page's success signal, `tile`, on which the host
 restarts its retry backoff — never `ready`, which a page without data
 sends too. The Google page reports none (the reason sits beside the
-emitter in `src/load-outcome.ts`).
+emitter in `src/load-outcome.ts`). Its `lens` event — whether the
+lens of Camera follow is measured — feeds the MAP diagnostics only and
+is never a success signal;
+the host files it under a token it takes when it builds the page
+(`MapRuntimeSignals.recordMapPageLoad`), so a replaced page's late
+report cannot overwrite the page on screen's.
 
 The fatal's kind tells the host whether a reload can help. The page
 classifies every load failure in `src/load-outcome.ts`:
