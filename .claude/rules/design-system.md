@@ -30,7 +30,7 @@ with automotive overrides on top.
   weather-glyph palette in `ui/theme/WeatherGlyphColors.kt` (warm/cool
   distinctions dynamic color cannot produce) are the only hardcoded
   hex outside `Color.kt`.
-- Shape: M3 default `Shapes` (squircles). Do not customise.
+- Shape: M3 default `Shapes` (squircles). Do not customize.
 - Elevation: M3 standard — express surface hierarchy with the
   `surfaceContainer*` color roles (cards sit on `surfaceContainer`,
   nested emphasis on `surfaceContainerHigh`); do not pass a non-zero
@@ -68,7 +68,7 @@ with automotive overrides on top.
   hand-write the light/dark `@Preview` pair. Additional single-mode
   geometry previews (`@Preview(name = ..., widthDp = ..., heightDp =
   ...)`) beside it are sanctioned responsive test cases: annotation
-  classes cannot parameterise dimensions, and the geometries differ
+  classes cannot parameterize dimensions, and the geometries differ
   per component.
 - `ui/theme/FitText.kt` is the SSOT for a single-line label that
   shrinks to fit its available width across locales and screen sizes

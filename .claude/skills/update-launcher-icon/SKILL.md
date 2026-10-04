@@ -29,8 +29,8 @@ first, then re-run this procedure.
 
 | logo.svg element | Android resource | Rule |
 | --- | --- | --- |
-| Full-bleed background `<rect>` | `drawable/ic_launcher_background.xml` | Full-canvas fill of the rect's colour only. **Drop the corner radius** — the launcher applies its own mask shape. |
-| Everything else (the mark) | `drawable/ic_launcher_foreground.xml` | Scaled into the safe zone (math below), centred on the canvas. |
+| Full-bleed background `<rect>` | `drawable/ic_launcher_background.xml` | Full-canvas fill of the rect's color only. **Drop the corner radius** — the launcher applies its own mask shape. |
+| Everything else (the mark) | `drawable/ic_launcher_foreground.xml` | Scaled into the safe zone (math below), centered on the canvas. |
 | (same paths) | `<monochrome>` in `mipmap-anydpi/*.xml` | Shares the foreground drawable. Opacity differences survive as alpha in themed icons. |
 
 `mipmap-anydpi/ic_launcher.xml` and `ic_launcher_round.xml` only
@@ -38,7 +38,7 @@ reference the two drawables — they normally need no edit.
 
 ## Safe-zone scaling (the step everyone skips)
 
-The adaptive-icon safe zone is the centre circle of diameter 66 on
+The adaptive-icon safe zone is the center circle of diameter 66 on
 the 108 canvas. **Copying logo.svg coordinates 1:1 into the
 foreground is always wrong** — the full-bleed logo art reaches the
 canvas edge and the launcher mask clips it.
@@ -47,13 +47,13 @@ Keep the foreground viewport at 512 (matching logo.svg) and shrink
 the mark into the safe circle:
 
 1. Safe radius in 512 units: `512 × 33 / 108 ≈ 156`.
-2. Find the mark's farthest extent from its own centre `c`,
+2. Find the mark's farthest extent from its own center `c`,
    **including stroke**: `r_max = max(|p − c|) + strokeWidth / 2`
    over all path end/corner points `p`.
 3. `scale = 150 / r_max` (use ~150, not 156, for breathing room).
 4. Transform every coordinate `p' = 256 + (p − c) × scale` and
    multiply every `strokeWidth` by the same `scale`. This also
-   re-centres the mark's optical centre on (256, 256).
+   re-centers the mark's optical center on (256, 256).
 5. **Re-verify after transforming** (arithmetic slips here are
    common): recompute
    `r'_max = max(|p' − (256, 256)|) + strokeWidth' / 2` over the
@@ -67,7 +67,7 @@ the mark into the safe circle:
    table.
 2. **Write the background**: 108 viewport, single
    `M0,0h108v108h-108z` path filled with the logo's background
-   colour. Nothing else.
+   color. Nothing else.
 3. **Write the foreground**: 512 viewport, one `<path>` per SVG
    element, coordinates transformed by the safe-zone math.
    Attribute translation: `stroke` → `android:strokeColor`,
@@ -78,7 +78,7 @@ the mark into the safe circle:
    `android:fillColor="#00000000"`.
 4. **Monochrome**: keep sharing the foreground drawable. Create a
    dedicated white-stroke drawable only if the mark encodes its
-   hierarchy in *colour* rather than opacity (alpha is all the
+   hierarchy in *color* rather than opacity (alpha is all the
    themed-icon pipeline keeps).
 5. **No rasters**: `minSdk = 33`, so `mipmap-anydpi` always wins.
    Do not generate `mipmap-*dpi` webp/png fallbacks; delete any
@@ -98,7 +98,7 @@ shared monochrome icon — with no other wiring.
 
 Regenerate it whenever `logo.svg` changes: re-run the procedure
 above for the stable foreground, then re-append the two badge paths
-unchanged. The badge geometry (disc centre 357.5,336.5, r 20.5) is
+unchanged. The badge geometry (disc center 357.5,336.5, r 20.5) is
 bound by the chevron ink, the tighter of its two clearance limits —
 see the derivation in the comment above those paths in the drawable
 — so treat it as fixed rather than rescaling or repositioning it by

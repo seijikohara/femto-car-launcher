@@ -66,7 +66,7 @@ question, not the most numerous.
 - Google Material Design for Cars
 
 The caller may explicitly scope to a subset ("open-source only",
-"only LecoAuto and CarCar", "platform guidelines only"). Honour the
+"only LecoAuto and CarCar", "platform guidelines only"). Honor the
 scope. If the question maps onto something outside this list (a
 phone launcher, a smart-speaker UI, a kiosk launcher), include it
 nonetheless and flag it as out-of-default.

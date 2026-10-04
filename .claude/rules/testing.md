@@ -15,7 +15,7 @@ reference: <https://developer.android.com/training/testing>.
   `kotlinx-coroutines-test`; dispatcher control varies by need — an
   ambient `Dispatchers.setMain(StandardTestDispatcher())`, an
   injected `TestScope` / `CoroutineScope`, or neither when Turbine
-  and the default `runTest` scheduler already serialise the
+  and the default `runTest` scheduler already serialize the
   assertions.
 - Compose UI tests in `app/src/androidTest/...`: use
   `createComposeRule()`. Wrap content in `FemtoTheme { ... }` —
@@ -31,7 +31,7 @@ reference: <https://developer.android.com/training/testing>.
   appears. Repeat-yourself in test setup is the same kind of debt
   as in production.
 - One assertion focus per test; descriptive names (`returns_x_when_y`).
-- Parameterised tests for repeated cases.
+- Parameterized tests for repeated cases.
 - ViewModels expose `StateFlow`; tests drive an action then either
   collect with `viewModel.uiState.test { ... }` (Turbine) or call
   `advanceUntilIdle()` and assert directly on the resulting state —

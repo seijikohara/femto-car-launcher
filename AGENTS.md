@@ -14,7 +14,7 @@ setting), not a hard mandate — see #automotive-overrides.
 <!-- "multi-region distribution" is prose-cited by NominatimApi.kt. -->
 The launcher is designed for **multi-region distribution**. No
 single market is privileged in design, code, or documentation;
-locale-specific behaviour is parameterised, and the strictest
+locale-specific behavior is parameterized, and the strictest
 applicable rule wins when markets diverge.
 
 > **Rule locations.** AGENTS.md is the tool-agnostic project brief
@@ -164,7 +164,7 @@ compiler-required casts (`@Suppress("UNCHECKED_CAST")` in a
 
 ### SSOT / DRY <a id="ssot-dry"></a>
 
-This rule applies to **all** generated artefacts: production code,
+This rule applies to **all** generated artifacts: production code,
 test code, docs, comments, scripts, fixtures, CI configuration.
 Each fact lives in one place; other places cite the SSOT — they do
 not restate it.
@@ -174,7 +174,7 @@ not restate it.
   `MaterialTheme.colorScheme.X`) — never duplicate the literal.
 - **Code shape** (screen / ViewModel scaffolds):
   `.claude/rules/compose.md` plus the living screens under `ui/` —
-  model new code on an existing neighbour, never a canned template.
+  model new code on an existing neighbor, never a canned template.
 - **Procedures**: the procedure docs under `.claude/skills/` — cite
   them, never inline their steps.
 - **Decision history**: the project memory (Claude Code-managed —

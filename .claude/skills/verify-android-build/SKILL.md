@@ -61,7 +61,7 @@ task. Default is `assembleStableDebug`.
    ```
 
    Read the report (`app/build/reports/lint-results-*.{xml,html}`)
-   and summarise: new errors (blocking), new warnings grouped by
+   and summarize: new errors (blocking), new warnings grouped by
    category, and any baseline regressions. Never suppress — fix at
    source (AGENTS.md#no-suppress) or surface the finding to the user
    for a decision.

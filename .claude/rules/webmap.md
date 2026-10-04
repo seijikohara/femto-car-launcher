@@ -18,21 +18,21 @@ Dependency versions live in `webmap/package.json` +
 `pnpm-lock.yaml` + `pnpm-workspace.yaml` (the Vite+ catalog; together
 the SSOT) — never restate version numbers here.
 `app/config/` (the AboutLibraries manual entries: `libraries/` plus
-the licence bodies in `licenses/`) is the single home for the credit
-and licence text of every non-Gradle component the page bundles or
+the license bodies in `licenses/`) is the single home for the credit
+and license text of every non-Gradle component the page bundles or
 the map draws on — MapLibre GL JS (BSD-3-Clause), the Google Maps JS
 API loader (Apache-2.0), the OpenMapTiles Positron / Dark Matter
 design the bundled styles derive from (BSD-3-Clause code, CC BY 4.0
 design), OpenStreetMap data (ODbL 1.0), OpenFreeMap and Mapterhorn.
 The bundle's transitive npm notices are generated at build time by
 `scripts/third-party-notices.mjs` into `dist/web/` and read from the
-web assets by the licences screen, which also lets the map and
+web assets by the licenses screen, which also lets the map and
 weather credits open it in-app rather than a browser. A CDN-loaded
 library (the Google Maps JavaScript API itself, fetched at runtime
 by the bundled loader) needs none. Nothing under a proprietary
-licence is bundled: the
+license is bundled: the
 Mapbox backend was removed in 2026-09 because Mapbox's Product Terms
-require a purchased licence for any vehicle-related application,
+require a purchased license for any vehicle-related application,
 which no bring-your-own-token arrangement satisfies.
 
 ## Tile hosts
@@ -59,7 +59,7 @@ dead mirror. The `fatal` is what makes the host reload the page, on
 the next host when there is one; `liveReloadRetryDelayMsOrNull` in
 `WebMapView.kt` owns the retry policy. Errors after a tile of the
 current style has arrived stay log-only, never UI; a style swap
-starts the judgement afresh, because it can re-create the vector
+starts the judgment afresh, because it can re-create the vector
 source and fetch its TileJSON again. That first tile of each style is
 also the OSM page's success signal, `tile`, on which the host
 restarts its retry backoff — never `ready`, which a page without data
@@ -125,7 +125,7 @@ corner wherever the backend's own ToS permits:
 
 Both backends follow the host's resolved light/dark context (the Map
 style setting, or the app theme on Auto), by different mechanisms:
-the OSM page swaps or recolours its style through `setStyleUrl`
+the OSM page swaps or recolors its style through `setStyleUrl`
 while the page lives, whereas Google's `colorScheme` is a
 construction-time `MapOptions` value, so `WebMapView` keys the
 WebView on the context it built the page for (`googleDark`) and a
@@ -157,10 +157,10 @@ policy:
   for both.
 - The Google glide moves what `easeTo` moves — the location under
   the chevron and the chevron's screen offset, never the camera
-  centre — and derives the centre every frame, so a rotation or zoom
+  center — and derives the center every frame, so a rotation or zoom
   pivots on the chevron as on the OSM map.
 - The Maps JS API has no camera padding, so a tilted Google vector
-  map's perspective converges on the viewport centre. The page
+  map's perspective converges on the viewport center. The page
   measures that perspective instead of assuming it: `src/lens.ts`,
   fed by a `WebGLOverlayView`'s coordinate transformer (the camera
   matrix the map draws with; Google allows the overlay only on a
@@ -192,7 +192,7 @@ policy:
   chevron by the one rule (`markerSpot`): until the lens is measured,
   or when the measurement is implausible, the Google chevron stays at
   that spot with no yaw and the flat offset (the road leans until the
-  lens is measured) — never on the centre line. A chevron that changes
+  lens is measured) — never on the center line. A chevron that changes
   spot glides in lockstep with the camera (`spotMotion`) with the
   reflow motion both backends use.
 - A fix that arrives while the chevron still glides to a new spot (a
@@ -203,7 +203,7 @@ policy:
   together on both maps.
 - A detached zoom step (the host's +/- button) zooms about the
   chevron's spot on both maps: MapLibre's `easeTo` keeps the padding
-  and zooms about the padded centre; the Google glide holds the
+  and zooms about the padded center; the Google glide holds the
   location under the spot as its anchor while the zoom changes.
 
 ## Toolchain split

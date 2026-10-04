@@ -13,13 +13,13 @@ Permission discipline for femto-car-launcher's `AndroidManifest.xml`.
 - Adding any permission requires a one-line justification in the
   commit message body.
 - The audit log below lists every declared permission with its
-  one-line justification, alphabetised. Keep this table in sync with
+  one-line justification, alphabetized. Keep this table in sync with
   `AndroidManifest.xml` — this file is the audit-log SSOT.
 
 | Permission | Justification |
 | --- | --- |
 | `ACCESS_COARSE_LOCATION` | Paired with `ACCESS_FINE_LOCATION` per the Android 12+ runtime model — users may grant only coarse. The dashboard panels accept either precision and render with degraded precision when only coarse is granted. |
-| `ACCESS_FINE_LOCATION` | Centre the head-unit map on the user's position, derive the speed / altitude / address overlays, and locate the user for weather lookups. Required at runtime; the dependent panels render empty until the permission is granted. |
+| `ACCESS_FINE_LOCATION` | Center the head-unit map on the user's position, derive the speed / altitude / address overlays, and locate the user for weather lookups. Required at runtime; the dependent panels render empty until the permission is granted. |
 | `ACCESS_NETWORK_STATE` | Registers `ConnectivityManager` network callbacks for `SystemStatusRepository.onlineFlow()` — the default-network reading that drives the live map's reconnect logic (`HomeViewModel.online`) and gates the updater's automatic check (`UpdateRepository`) — plus the dock status cluster's Wi-Fi / cellular callbacks and the Diagnostics screen's connectivity facts. No native MapLibre remains; the live map runs in a WebView. |
 | `ACCESS_WIFI_STATE` | Read Wi-Fi transport / validation state so the dock status cluster reports a live Wi-Fi indicator. Normal protection; auto-granted at install. |
 | `BLUETOOTH_CONNECT` | Read the set of currently-connected Bluetooth devices (HEADSET / A2DP / GATT) so the dock status cluster reflects head-unit pairing state. Dangerous on Android 12+; runtime grant. When denied, the connected-device APIs are unreadable, so the BT indicator falls back to the adapter power state (on/off) rather than a misleading "disconnected"; the rest of the launcher remains functional. |
@@ -58,7 +58,7 @@ with `setWakeMode(C.WAKE_MODE_NONE)` (`ExoVideoPlayer`).
    - **Signature / system** — off-limits without system signing; stop
      and discuss before adding.
 3. **Edit `app/src/main/AndroidManifest.xml`** — add the tag to the
-   alphabetised block before `<application>`. No per-permission
+   alphabetized block before `<application>`. No per-permission
    comment: the block header already points here, and this audit log
    is the justification SSOT.
 4. **Wire runtime requests** for dangerous / special permissions.
@@ -68,7 +68,7 @@ with `setWakeMode(C.WAKE_MODE_NONE)` (`ExoVideoPlayer`).
    request is the dashboard's core location set
    (`MainActivity.requestRuntimePermissions()`); design the
    denied-state degradation first either way.
-5. **Update the audit log above** (alphabetised).
+5. **Update the audit log above** (alphabetized).
 6. **Verify** with the
    [`verify-android-build`](../skills/verify-android-build/SKILL.md)
    skill.
@@ -76,7 +76,7 @@ with `setWakeMode(C.WAKE_MODE_NONE)` (`ExoVideoPlayer`).
 ## Common not-yet-declared cases
 
 Already-declared permissions are NOT listed here — their use case and
-degradation behaviour live in the audit log above.
+degradation behavior live in the audit log above.
 
 | Permission | Use case | Caveats |
 | --- | --- | --- |
