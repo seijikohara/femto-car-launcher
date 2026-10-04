@@ -91,9 +91,6 @@ class HomeViewModelTest {
             val calendar = fakeCalendarSnapshot()
             val systemStatus = fakeSystemStatus()
             val tripState = fakeTripState()
-            // Distinct from HomeUiState.Initial.online (true) so the assertion pins
-            // this field to its own flow rather than the default.
-            val online = false
             val viewModel =
                 HomeViewModel(
                     locationFlow = flowOf(location),
@@ -103,7 +100,6 @@ class HomeViewModelTest {
                     calendarFlow = flowOf(calendar),
                     systemStatusFlow = flowOf(systemStatus),
                     tripStateFlow = flowOf(tripState),
-                    onlineFlow = flowOf(online),
                 )
             viewModel.uiState.test {
                 val state = awaitItem()
@@ -114,9 +110,33 @@ class HomeViewModelTest {
                 assertEquals(calendar, state.calendar)
                 assertEquals(systemStatus, state.systemStatus)
                 assertEquals(tripState, state.tripState)
-                assertEquals(online, state.online)
                 cancelAndIgnoreRemainingEvents()
             }
+        }
+
+    // The map's reconnect must not wait for the rest of the dashboard: held back
+    // until every source emits again after a return, it reaches the map after
+    // the page the return reload built, which then reloads a second time.
+    @Test
+    fun `the online reading reaches the map while another dashboard source has not emitted`() =
+        runTest {
+            val viewModel =
+                HomeViewModel(
+                    locationFlow = flowOf(fakeLocation()),
+                    addressFlow = flowOf(fakeAddress()),
+                    weatherFlow = flowOf(fakeWeatherSnapshot()),
+                    musicStateFlow = flowOf(MusicCardState.Playing(fakeNowPlaying())),
+                    // A source still loading, like a slow calendar query.
+                    calendarFlow = flow { awaitCancellation() },
+                    systemStatusFlow = flowOf(fakeSystemStatus()),
+                    tripStateFlow = flowOf(fakeTripState()),
+                    onlineFlow = flowOf(false),
+                )
+            backgroundScope.launch { viewModel.uiState.collect {} }
+            backgroundScope.launch { viewModel.online.collect {} }
+            runCurrent()
+            assertEquals(HomeUiState.Initial, viewModel.uiState.value, "the dashboard state still waits")
+            assertFalse(viewModel.online.value)
         }
 
     @Test
@@ -544,6 +564,30 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun `the update badge stays hidden for a skipped build`() =
+        runTest {
+            val skipped = UpdateSettings.Default.copy(skippedVersionCode = UPDATE.versionCode)
+            val state = settledState(badgeViewModel(update = UpdateState.Available(UPDATE), settings = skipped))
+            assertFalse(state.updateBadge)
+        }
+
+    @Test
+    fun `the update badge shows for a build newer than the skipped one`() =
+        runTest {
+            val skipped = UpdateSettings.Default.copy(skippedVersionCode = UPDATE.versionCode - 1)
+            val state = settledState(badgeViewModel(update = UpdateState.Available(UPDATE), settings = skipped))
+            assertTrue(state.updateBadge)
+        }
+
+    @Test
+    fun `the update prompt never asks about a skipped build`() =
+        runTest {
+            val store = FakeUpdateSettingsStore(UpdateSettings.Default.copy(skippedVersionCode = UPDATE.versionCode))
+            val viewModel = promptViewModel(update = UpdateState.Available(UPDATE), store = store)
+            assertNull(promptAfterDwell(viewModel))
+        }
+
+    @Test
     fun `the update badge stays hidden when the build is up to date`() =
         runTest {
             assertFalse(settledState(badgeViewModel(update = UpdateState.UpToDate)).updateBadge)
@@ -875,6 +919,7 @@ class HomeViewModelTest {
         update: UpdateState,
         location: Location? = liveGpsFix(),
         tripState: TripState = fakeTripState(currentSpeedMs = 0.0),
+        settings: UpdateSettings = UpdateSettings.Default,
     ): HomeViewModel =
         HomeViewModel(
             locationFlow = flowOf(location),
@@ -885,6 +930,7 @@ class HomeViewModelTest {
             systemStatusFlow = flowOf(fakeSystemStatus()),
             tripStateFlow = flowOf(tripState),
             updateStateFlow = flowOf(update),
+            updateSettingsFlow = flowOf(settings),
             nowElapsedRealtimeNanos = { BADGE_NOW },
         )
 

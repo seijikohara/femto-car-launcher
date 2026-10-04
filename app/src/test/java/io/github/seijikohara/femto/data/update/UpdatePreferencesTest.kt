@@ -40,8 +40,13 @@ class UpdatePreferencesTest {
             store.setPendingInstallVersionCode(PENDING)
             store.setOffer(OFFER)
             store.recordPrompted(PROMPTED)
+            store.setSkippedVersionCode(SKIPPED)
+            store.setRefusedVersionCode(REFUSED)
 
-            assertEquals(UpdateSettings(false, ATTEMPT_AT, PENDING, OFFER, PROMPTED), store.settings.first())
+            assertEquals(
+                UpdateSettings(false, ATTEMPT_AT, PENDING, OFFER, PROMPTED, SKIPPED, REFUSED),
+                store.settings.first(),
+            )
         }
 
     @Test
@@ -110,11 +115,13 @@ class UpdatePreferencesTest {
             store.setPendingInstallVersionCode(PENDING)
             store.setOffer(OFFER)
             store.recordPrompted(PROMPTED)
+            store.setSkippedVersionCode(SKIPPED)
+            store.setRefusedVersionCode(REFUSED)
 
             store.resetToDefaults()
 
             assertEquals(
-                UpdateSettings(DEFAULT_AUTO_CHECK, ATTEMPT_AT, PENDING, OFFER, PROMPTED),
+                UpdateSettings(DEFAULT_AUTO_CHECK, ATTEMPT_AT, PENDING, OFFER, PROMPTED, SKIPPED, REFUSED),
                 store.settings.first(),
             )
         }
@@ -128,6 +135,40 @@ class UpdatePreferencesTest {
             listOf(PROMPTED - 1, PROMPTED, PROMPTED + 1).map { settings.promptedFor(it) },
         )
     }
+
+    @Test
+    fun `only the skipped build itself is skipped`() {
+        val settings = UpdateSettings.Default.copy(skippedVersionCode = SKIPPED)
+
+        assertEquals(
+            listOf(false, true, false),
+            listOf(SKIPPED - 1, SKIPPED, SKIPPED + 1).map { settings.skipped(it) },
+        )
+    }
+
+    @Test
+    fun `a null skip removes the record`() =
+        runTest {
+            val store = clearedStore()
+            store.setSkippedVersionCode(SKIPPED)
+
+            store.setSkippedVersionCode(null)
+
+            assertNull(store.settings.first().skippedVersionCode)
+        }
+
+    @Test
+    fun `clearing below a version drops only an older skip`() =
+        runTest {
+            val store = clearedStore()
+            store.setSkippedVersionCode(SKIPPED)
+
+            store.clearSkipBelow(SKIPPED)
+            assertEquals(SKIPPED, store.settings.first().skippedVersionCode)
+
+            store.clearSkipBelow(SKIPPED + 1)
+            assertNull(store.settings.first().skippedVersionCode)
+        }
 
     @Test
     fun `nothing is prompted without a record`() {
@@ -144,6 +185,8 @@ class UpdatePreferencesTest {
         const val ATTEMPT_AT = 1_790_000_000_000L
         const val PENDING = 26092402
         const val PROMPTED = 26092501
+        const val SKIPPED = 26092601
+        const val REFUSED = 26092701
         val OFFER = fakeUpdateManifest(PENDING)
     }
 }

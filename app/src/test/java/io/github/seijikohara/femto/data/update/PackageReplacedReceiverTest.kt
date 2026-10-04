@@ -12,6 +12,7 @@ import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.BuildConfig
 import io.github.seijikohara.femto.MainActivity
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.testfixtures.receiveAndAwaitFinish
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -147,5 +148,7 @@ class PackageReplacedReceiverTest {
     private fun holdHomeRole() =
         ShadowRoleManager.addRoleHolder(RoleManager.ROLE_HOME, app.packageName, Process.myUserHandle())
 
-    private fun receive(action: String) = PackageReplacedReceiver().onReceive(app, Intent(action))
+    // Delivered with a pending result, so the receiver's goAsync() work runs;
+    // returns once it has finished the broadcast.
+    private fun receive(action: String) = PackageReplacedReceiver().receiveAndAwaitFinish(app, Intent(action))
 }

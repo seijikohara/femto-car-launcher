@@ -8,17 +8,26 @@ import android.content.pm.PackageManager
 import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.testfixtures.FakeInstallVerdicts
 import io.github.seijikohara.femto.testfixtures.ReceivedVerdict
+import io.github.seijikohara.femto.testfixtures.receive
+import io.github.seijikohara.femto.testfixtures.receiveAndAwaitFinish
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLog
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class InstallStatusReceiverTest {
@@ -113,22 +122,118 @@ class InstallStatusReceiverTest {
         assertFalse(info.exported)
     }
 
+    @Test
+    fun `delivery holds on until the work the verdict started is done`() =
+        runTest {
+            // The verdict's records are still being written: the receiver must
+            // keep its broadcast until they land.
+            val work = Job()
+            val delivery =
+                launch {
+                    deliverInstallStatus(
+                        app,
+                        statusIntent(PackageInstaller.STATUS_FAILURE_ABORTED),
+                        FakeInstallVerdicts(work),
+                    )
+                }
+            runCurrent()
+            assertFalse(delivery.isCompleted)
+
+            work.complete()
+            runCurrent()
+
+            assertTrue(delivery.isCompleted)
+        }
+
+    @Test
+    fun `the receiver finishes its broadcast once the status is delivered`() {
+        // Returns only once the receiver has called finish(); a receiver that
+        // never does fails here.
+        InstallStatusReceiver { verdicts }.receiveAndAwaitFinish(
+            app,
+            statusIntent(PackageInstaller.STATUS_FAILURE_ABORTED),
+        )
+
+        assertEquals(listOf<ReceivedVerdict>(ReceivedVerdict.Cancelled(SESSION)), verdicts.received)
+    }
+
+    @Test
+    fun `the receiver holds its broadcast until the verdict's work is done`() {
+        val work = Job()
+        val receiver = InstallStatusReceiver { FakeInstallVerdicts(work) }
+
+        val finished = receiver.receive(app, statusIntent(PackageInstaller.STATUS_FAILURE_ABORTED))
+        assertFalse(finished.isDone)
+
+        work.complete()
+        finished.get(30, TimeUnit.SECONDS)
+    }
+
+    @Test
+    fun `an abort the developer verification caused fails as such, not as a decline`() {
+        assertEquals(
+            InstallOutcome.Refused(UpdateFailure.DEVELOPER_VERIFICATION_BLOCKED),
+            installOutcomeOf(
+                PackageInstaller.STATUS_FAILURE_ABORTED,
+                developerVerificationFailure = UpdateFailure.DEVELOPER_VERIFICATION_BLOCKED,
+            ),
+        )
+    }
+
+    @Test
+    fun `a verification that needed a connection fails as offline`() {
+        assertEquals(
+            UpdateFailure.DEVELOPER_VERIFICATION_OFFLINE,
+            developerVerificationFailureOf(PackageInstaller.DEVELOPER_VERIFICATION_FAILED_REASON_NETWORK_UNAVAILABLE),
+        )
+    }
+
+    @Test
+    fun `a developer the verifier blocked, or an unknown reason, fails as blocked`() {
+        // A reason a later release adds is no connection problem either.
+        listOf(
+            PackageInstaller.DEVELOPER_VERIFICATION_FAILED_REASON_DEVELOPER_BLOCKED,
+            PackageInstaller.DEVELOPER_VERIFICATION_FAILED_REASON_UNKNOWN,
+            Int.MAX_VALUE,
+        ).forEach { reason ->
+            assertEquals(
+                UpdateFailure.DEVELOPER_VERIFICATION_BLOCKED,
+                developerVerificationFailureOf(reason),
+                "reason $reason",
+            )
+        }
+    }
+
+    @Test
+    fun `an abort reads as a decline on a release without developer verification`() {
+        // Android 13 has no developer verification, so whatever extra rides
+        // along, an abort is the user's answer.
+        deliver(PackageInstaller.STATUS_FAILURE_ABORTED) {
+            putExtra(PackageInstaller.EXTRA_DEVELOPER_VERIFICATION_FAILURE_REASON, DEVELOPER_BLOCKED)
+        }
+
+        assertEquals(listOf<ReceivedVerdict>(ReceivedVerdict.Cancelled(SESSION)), verdicts.received)
+    }
+
     private fun deliver(
         status: Int,
         extras: Intent.() -> Unit = {},
-    ) = deliverInstallStatus(
-        app,
+    ) = runTest { deliverInstallStatus(app, statusIntent(status, extras), verdicts) }
+
+    private fun statusIntent(
+        status: Int,
+        extras: Intent.() -> Unit = {},
+    ): Intent =
         Intent()
             .putExtra(PackageInstaller.EXTRA_SESSION_ID, SESSION)
             .putExtra(PackageInstaller.EXTRA_STATUS, status)
-            .apply(extras),
-        verdicts,
-    )
+            .apply(extras)
 
     private companion object {
         const val SESSION = 42
         const val CONFIRM_ACTION = "android.content.pm.action.CONFIRM_INSTALL"
         const val INSTALLER_PACKAGE = "com.android.packageinstaller"
         const val STATUS_MESSAGE = "INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match"
+        const val DEVELOPER_BLOCKED = PackageInstaller.DEVELOPER_VERIFICATION_FAILED_REASON_DEVELOPER_BLOCKED
     }
 }
