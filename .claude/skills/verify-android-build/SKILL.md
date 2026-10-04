@@ -50,7 +50,7 @@ task. Default is `assembleStableDebug`.
 
    Expect `BUILD SUCCESSFUL`. APK at
    `app/build/outputs/apk/stable/debug/app-stable-debug.apk`. `assembleStableDebug`
-   also builds the LIVE map web payload (`:app:buildWebMap` runs
+   also builds the live map web payload (`:app:buildWebMap` runs
    pnpm + Vite over `webmap/`), so webmap regressions surface here.
 
 3. **Run lint** for any change touching the manifest, themes, or

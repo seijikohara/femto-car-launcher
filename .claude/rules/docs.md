@@ -63,7 +63,7 @@ edit.
   root `.editorconfig`.
 - Prettier plugins order: astro then tailwindcss (last);
   `tailwindFunctions: ["cn", "cva"]`. `.astro` `class` attributes are
-  NOT sorted by the current plugin pairing (prettier-plugin-tailwindcss
+  **not** sorted by the current plugin pairing (prettier-plugin-tailwindcss
   0.8.x + prettier-plugin-astro 1.x) — only TSX `className` / `cn()` /
   `cva()` are.
 - TypeScript stays on 5.x here: `@astrojs/check` requires 5.x/6.x

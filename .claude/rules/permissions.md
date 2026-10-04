@@ -75,7 +75,7 @@ with `setWakeMode(C.WAKE_MODE_NONE)` (`ExoVideoPlayer`).
 
 ## Common not-yet-declared cases
 
-Already-declared permissions are NOT listed here — their use case and
+Already-declared permissions are **not** listed here — their use case and
 degradation behavior live in the audit log above.
 
 | Permission | Use case | Caveats |

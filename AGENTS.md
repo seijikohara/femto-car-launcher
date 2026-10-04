@@ -73,7 +73,7 @@ app/src/
 └── androidTest/...                   # Compose UI tests (createComposeRule)
 ```
 
-`webmap/` (top level) is the TypeScript source of the LIVE map
+`webmap/` (top level) is the TypeScript source of the live map
 WebView page; Gradle builds it into `assets/web/` via the
 node-gradle plugin (`node {}` in `app/build.gradle.kts` is the
 wiring SSOT; nothing under `src/main/assets/web/` is committed).

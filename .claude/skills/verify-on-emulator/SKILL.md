@@ -110,10 +110,10 @@ the home dashboard.
 
 ## Notes and former limitations
 
-- The LIVE map WebView **renders on the emulator** (verified 2026-07
+- The live map WebView **renders on the emulator** (verified 2026-07
   under both `-gpu host` and `swiftshader_indirect`); the old "GL
   surface cannot present" limitation no longer reproduces. A blank
-  map is NOT expected — check the `-gpu` mode and logcat before
+  map is **not** expected — check the `-gpu` mode and logcat before
   suspecting a regression.
 - The Play system image has no `adb root`; runtime grants via
   `pm grant` still work.
