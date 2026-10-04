@@ -88,14 +88,17 @@ font downloads and update checks carry none:
   personal data is sent.
 - **App updates** — the app checks GitHub (`github.com`) for a small
   update-availability file published beside each release; GitHub redirects
-  the actual file to `release-assets.githubusercontent.com`. This check runs
-  automatically at most once a day while the app is running — turn it off
-  in **Settings → Updates** — and again whenever you tap "Check for updates",
+  the actual file to `release-assets.githubusercontent.com`. The automatic
+  check runs at most once a day while the app is running, and only while
+  that is turned on in **Settings → Updates**. Tapping "Check for updates",
   "Update to …" or "Retry" there, or "Update" on the dashboard's update
-  prompt. Each check sends only the request information any web request
-  carries: the device's IP address and a User-Agent naming the app and its
-  version. The update file itself, about 45 MB, downloads only when you tap
-  "Update to …", "Retry", or the prompt's "Update".
+  prompt, checks again right away regardless of that setting or the daily
+  limit; "Update to …" and "Retry" check again before downloading too, in
+  case a newer build shipped since the last check. Each check sends only
+  the request information any web request carries: the device's IP address
+  and a User-Agent naming the app and its version. The update file itself,
+  about 45 MB, downloads only when you tap "Update to …", "Retry", or the
+  prompt's "Update".
 
 Voice input uses the device's built-in speech recognizer. On devices with Google
 services this may transmit audio to Google for recognition, outside the app's
