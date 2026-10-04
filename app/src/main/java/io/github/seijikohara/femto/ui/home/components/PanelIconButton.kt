@@ -18,6 +18,12 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 
 /**
+ * The panel icon button's corner shape, shared with anything that frames one
+ * (the video window's glass chip behind its play button).
+ */
+internal val PanelIconButtonShape = RoundedCornerShape(14.dp)
+
+/**
  * The shared 64 dp glass-panel top-bar icon button used by every maximize panel
  * (MaximizePanel, NowPlayingPanel, AppsPanel): a [FemtoDimens.MinTouchTarget]
  * rounded box wrapping a 28 dp [FemtoIcon]. [tint] defaults to `onSurface`; pass
@@ -34,7 +40,7 @@ internal fun PanelIconButton(
     modifier =
         modifier
             .size(FemtoDimens.MinTouchTarget)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(PanelIconButtonShape)
             .clickable(onClick = onClick)
             .semantics { contentDescription = description },
     contentAlignment = Alignment.Center,

@@ -33,6 +33,13 @@ Permission discipline for femto-car-launcher's `AndroidManifest.xml`.
 | `REQUEST_DELETE_PACKAGES` | Hand the app drawer's Uninstall action for a user-chosen, non-system app to the system uninstaller (`Intent.ACTION_DELETE` in `AppsRepository.requestUninstall`); the confirmation UI and the deletion are the system's. An app targeting API 28+ needs it for the uninstaller to accept the request (found empirically in #309). Normal protection (`protectionLevel` 0x0 in the framework manifest); auto-granted at install. |
 | `REQUEST_INSTALL_PACKAGES` | Hand a downloaded update of the launcher itself, verified against its release manifest's size and SHA-256, to the platform installer through a `PackageInstaller` session (Settings → Updates); the system's confirmation dialog appears for every install. Special: protection level `signature\|appop` (`protectionLevel` 0x42 in the framework manifest; the reference page's "signature" omits the appop flag), and the appop bit is what makes it user-grantable: the user grants it per app through "Install unknown apps" (`Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES`, read with `PackageManager.canRequestPackageInstalls()`), which the app routes to only when the user taps Install, never at startup. When it is denied, or disabled by device policy, nothing is installed: the verified download stays offered, and the user is pointed to the setting or to the release page for a manual install; the rest of the launcher is unaffected. |
 
+A permission a library's manifest merges in is part of the APK too, so
+it either joins the audit log or is removed in `AndroidManifest.xml` with
+`tools:node="remove"`. Removed today: `WAKE_LOCK`, merged by
+`media3-exoplayer`. Left to its defaults, the player enables a local
+wake lock for its stuck-playback detection; the video window opts out
+with `setWakeMode(C.WAKE_MODE_NONE)` (`ExoVideoPlayer`).
+
 ## Adding a new permission (procedure)
 
 1. **State the use case** — the one-line "why" that goes into the
