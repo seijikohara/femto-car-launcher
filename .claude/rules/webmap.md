@@ -68,7 +68,7 @@ sends too. The Google page reports none (the reason sits beside the
 emitter in `src/load-outcome.ts`). Its `lens` event — whether the
 lens of Camera follow is measured — feeds the MAP diagnostics only
 and is never a success signal. The host tags that event with a
-build-time token, captured when the host builds the page
+per-page token, taken when the host creates the WebView page
 (`MapRuntimeSignals.recordMapPageLoad`), so a replaced page's late
 report cannot overwrite the page on screen's.
 

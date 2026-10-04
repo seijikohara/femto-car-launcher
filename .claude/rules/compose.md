@@ -49,7 +49,8 @@ convention wins.
 - Every Composable that emits content takes `modifier: Modifier =
   Modifier` as the first non-state parameter and applies it before
   any internal modifiers. The Compose ktlint rule
-  `compose:modifier-missing-check` enforces both requirements.
+  `compose:modifier-missing-check` enforces the parameter
+  requirement.
 - `FemtoTheme` is wrapped exactly once at the entry point
   (`MainActivity` for production, the preview block for previews).
   See `.claude/rules/design-system.md`.

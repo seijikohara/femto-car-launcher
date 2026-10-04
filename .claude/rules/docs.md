@@ -25,7 +25,7 @@ edit.
   `base: ".."`, relative imports); never copy them into `docs/`.
 - Write internal links root-relative (`/install/`, `/terms/`) in
   content and through `withBase()` in components. Two `satteri` HAST
-  (HTML abstract syntax tree) plugins run over every Markdown/MDX
+  (Hypertext Abstract Syntax Tree) plugins run over every Markdown/MDX
   body: `satteri-repo-links` maps repository files (`PRIVACY.md` →
   `/privacy/`, anything else → GitHub), then `satteri-base-urls`
   prefixes the Pages base.
