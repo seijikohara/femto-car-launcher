@@ -13,10 +13,10 @@ paths:
 
 Dependency and build-file discipline for femto-car-launcher.
 
-- All dependencies and plugins are declared in
-  `gradle/libs.versions.toml` first, then referenced via `libs.*`
-  aliases. No raw `implementation("...")` strings in module
-  `build.gradle.kts` files.
+- Declare all dependencies and plugins in
+  `gradle/libs.versions.toml` first, then reference them via
+  `libs.*` aliases. No raw `implementation("...")` strings in
+  module `build.gradle.kts` files.
 - `gradle/libs.versions.toml` and
   `gradle/wrapper/gradle-wrapper.properties` are the version SSOT —
   never restate version numbers in docs or comments; cite the

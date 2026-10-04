@@ -37,25 +37,26 @@ which no bring-your-own-token arrangement satisfies.
 
 ## Tile hosts
 
-The OSM page never hard-codes a live endpoint. It reads the tile
-host, the terrain TileJSON and the initial style from the host's
-synchronous bridge getters (`tileHost()`, `terrainTileJsonUrl()`,
-`initialStyleUrl()` in `WebMapView.kt`) before constructing the map,
-and MapLibre's `transformRequest` re-points every request under the
-upstream origin (`UPSTREAM_TILE_HOST` in `src/style.ts`) at the
-configured host — so the bundled styles and the hosted style URLs
-stay written against the upstream layout and a mirror needs no style
-rewriting. The Kotlin side owns the host list and its fallback order
+The OSM page never hard-codes a live endpoint. Before constructing
+the map, it reads the tile host, the terrain TileJSON, and the
+initial style from the host's synchronous bridge getters
+(`tileHost()`, `terrainTileJsonUrl()`, `initialStyleUrl()` in
+`WebMapView.kt`). MapLibre's `transformRequest` then re-points every
+request under the upstream origin (`UPSTREAM_TILE_HOST` in
+`src/style.ts`) at the configured host. As a result, the bundled
+styles and the hosted style URLs stay written against the upstream
+layout, so a mirror needs no style rewriting. The Kotlin side owns
+the host list and its fallback order
 (`.claude/rules/dependencies.md`). Outside the launcher (`vp dev`)
 the getters are absent and the upstream defaults apply.
 
-An unreachable tile host does not fail the style load — the bundled
-styles come from `appassets` and only their sources fail, and
-MapLibre never re-fetches a failed TileJSON — so the page escalates
-an error naming the tile host to a `fatal` when no tile has arrived
-within the grace period (`src/load-outcome.ts`), whatever the number
-of hosts. A page opened without data is the common case, not only a
-dead mirror. The `fatal` is what makes the host reload the page, on
+An unreachable tile host does not fail the style load: the bundled
+styles come from `appassets`, so only their sources fail, and
+MapLibre never re-fetches a failed TileJSON. Instead, the page
+escalates an error naming the tile host to a `fatal` when no tile
+has arrived within the grace period (`src/load-outcome.ts`),
+whatever the number of hosts. A page opened without data is the
+common case, not only a dead mirror. The `fatal` is what makes the host reload the page, on
 the next host when there is one; `liveReloadRetryDelayMsOrNull` in
 `WebMapView.kt` owns the retry policy. Errors after a tile of the
 current style has arrived stay log-only, never UI; a style swap
@@ -65,9 +66,9 @@ also the OSM page's success signal, `tile`, on which the host
 restarts its retry backoff — never `ready`, which a page without data
 sends too. The Google page reports none (the reason sits beside the
 emitter in `src/load-outcome.ts`). Its `lens` event — whether the
-lens of Camera follow is measured — feeds the MAP diagnostics only and
-is never a success signal;
-the host files it under a token it takes when it builds the page
+lens of Camera follow is measured — feeds the MAP diagnostics only
+and is never a success signal. The host tags that event with a
+build-time token, captured when the host builds the page
 (`MapRuntimeSignals.recordMapPageLoad`), so a replaced page's late
 report cannot overwrite the page on screen's.
 
@@ -161,40 +162,43 @@ policy:
   pivots on the chevron as on the OSM map.
 - The Maps JS API has no camera padding, so a tilted Google vector
   map's perspective converges on the viewport center. The page
-  measures that perspective instead of assuming it: `src/lens.ts`,
-  fed by a `WebGLOverlayView`'s coordinate transformer (the camera
-  matrix the map draws with; Google allows the overlay only on a
-  vector map with a Map ID) or, without a Map ID, by an
-  `OverlayView`'s `MapCanvasProjection` — a probe added only once the
-  first `tilesloaded` confirms the map renders vector, for every
-  rendering choice (`syncLensProbe`) — recovers the focal
-  length and camera distance from two probe points. From them it
-  derives a yaw bias δ on the map heading, so the direction of travel
-  runs straight up through the chevron at the OSM spot
-  (`markerSpot`), and the exact ground offset under the chevron. δ is
-  Google's stand-in for camera padding, not a heading rule:
+  measures that perspective instead of assuming it. `src/lens.ts`
+  recovers the focal length and camera distance from two probe
+  points. It is fed by a `WebGLOverlayView`'s coordinate transformer
+  (the camera matrix the map draws with; Google allows the overlay
+  only on a vector map with a Map ID) or, without a Map ID, by an
+  `OverlayView`'s `MapCanvasProjection`. Either way, the probe
+  (`syncLensProbe`) is added only once the first `tilesloaded`
+  confirms the map renders vector, for every rendering choice. From
+  the two probe points, the lens derives a yaw bias δ on the map
+  heading, so the direction of travel runs straight up through the
+  chevron at the OSM spot (`markerSpot`), and the exact ground offset
+  under the chevron.
+- δ is Google's stand-in for camera padding, not a heading rule:
   `followOrientation` stays the one follow-heading source, and the
   backend adds δ only where it talks to the map (`moveCamera`, the
   glide's read-back, the compass, which reports the travel heading).
   The lens corrects for the tilt the map shows, not the tilt
   requested, wherever Google clamps it (and works at the zoom the map
-  shows past its ceiling). A measurement that visibly moves δ or
-  the anchor (`lensMoved`: the lens appearing, a viewport resize) is a
-  new endpoint the glide blends to over the reflow motion (`lensGen`
-  in `CameraPose`), straight from the correction the map shows —
-  never through older measurements — and without waiting for a fix:
-  the heading and the anchor glide, the chevron and its CSS
-  transition stay put. The pose carries the chevron's offset as a
-  viewport fraction, as the CSS chevron's left/top are, so a resize
-  moves both at once; after a resize the anchor offset takes the new
-  lens at once (the fix stays under the chevron) and only the yaw
-  blends. Never hard-code a field of view. Both maps place the
-  chevron by the one rule (`markerSpot`): until the lens is measured,
-  or when the measurement is implausible, the Google chevron stays at
-  that spot with no yaw and the flat offset (the road leans until the
-  lens is measured) — never on the center line. A chevron that changes
-  spot glides in lockstep with the camera (`spotMotion`) with the
-  reflow motion both backends use.
+  shows past its ceiling).
+- A measurement that visibly moves δ or the anchor (`lensMoved`: the
+  lens appearing, a viewport resize) is a new endpoint the glide
+  blends to over the reflow motion (`lensGen` in `CameraPose`). The
+  glide blends straight from the correction the map shows — never
+  through older measurements — and without waiting for a fix: the
+  heading and the anchor glide, while the chevron and its CSS
+  transition stay put.
+- The pose carries the chevron's offset as a viewport fraction, as
+  the CSS chevron's left/top are, so a resize moves both at once.
+  After a resize, the anchor offset takes the new lens at once (the
+  fix stays under the chevron), and only the yaw blends. Never
+  hard-code a field of view.
+- Both maps place the chevron by the one rule (`markerSpot`): until
+  the lens is measured, or when the measurement is implausible, the
+  Google chevron stays at that spot with no yaw and the flat offset
+  (the road leans until the lens is measured) — never on the center
+  line. A chevron that changes spot glides in lockstep with the
+  camera (`spotMotion`), with the reflow motion both backends use.
 - A fix that arrives while the chevron still glides to a new spot (a
   reflow, or a Google spot move) leaves the chevron's transition
   armed and moves the camera over the time it has left

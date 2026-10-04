@@ -27,6 +27,7 @@ two agree.
 Recapture only when the map's own appearance changes (a style or backend
 default): run the app on the OSM backend in the theme you are recapturing
 (`adb shell cmd uimode night yes|no`), screenshot a frame with no overlay in the
-crop area, and crop to a large landscape-ish rectangle. It is scaled with
-`ContentScale.Crop`, so it must stay big enough for the widest golden
-(currently 2000 px) and square-ish enough for the portrait ones.
+crop area, and crop to a large landscape-ish rectangle. The backdrop
+image is scaled with `ContentScale.Crop`, so it must stay big enough
+for the widest golden (currently 2000 px) and square-ish enough for
+the portrait ones.

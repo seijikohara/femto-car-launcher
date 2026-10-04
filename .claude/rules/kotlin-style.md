@@ -44,9 +44,9 @@ extensions. Where they differ, the project convention wins.
   prefer `internal` until export is needed.
 - Default arguments over overloads; named arguments at call sites
   for booleans and numeric flags.
-- Scope functions (`let`, `also`, `apply`, `run`, `with`) are used
-  for readability, not brevity. If two readers disagree on which
-  scope function fits, prefer an explicit local `val`.
+- Use scope functions (`let`, `also`, `apply`, `run`, `with`) for
+  readability, not brevity. If two readers disagree on which scope
+  function fits, prefer an explicit local `val`.
 - File-level `@OptIn(ExperimentalXxx::class)` for experimental
   APIs. Never module-level opt-in via `freeCompilerArgs`.
 - Context parameters are Stable in the pinned Kotlin (the pin

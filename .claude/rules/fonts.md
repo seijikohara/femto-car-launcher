@@ -15,10 +15,11 @@ No fonts are bundled. Each slot resolves to one of three sources —
 the head-unit's **system font** (`FontFamily.Default`), a **Google
 Fonts** family downloaded on demand and cached on disk, or a font
 **already installed on the device**, resolved straight from its
-on-disk file with no download and no cache entry. This is distinct
-from the retired *bundled* fonts (shipped inside the APK) — an
-installed font is never packaged with the app; it is enumerated at
-runtime from whatever the head unit or phone already has.
+on-disk file with no download and no cache entry. This three-source
+model is distinct from the retired *bundled* fonts (shipped inside
+the APK) — an installed font is never packaged with the app; it is
+enumerated at runtime from whatever the head unit or phone already
+has.
 
 - Two independent slots: a **Latin** face (alphanumerics / Western
   text) and a **CJK fallback** face (the multibyte fill for glyphs

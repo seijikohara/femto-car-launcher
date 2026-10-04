@@ -42,27 +42,29 @@ with automotive overrides on top.
   faint white glow on dark — and pairs with the opt-in glass border
   (`GlassConfig.showBorder`, default off, drawn as the shared
   `outlineVariant` / `DividerAlpha` divider hairline).
-- Typography: Bold Minimal on M3 roles, built on a **rem-style
-  modular scale** rooted at `FemtoDimens.BaseTextSize` (16 sp) with
-  0.25× multiplier steps (`FemtoDimens.TextXs` … `Text8Xl`) — re-base
-  the root and the whole scale moves — and a **three-weight system**:
-  `ExtraLight` (200) for the large hero numerals only, `Normal` (400)
-  for body / label / caption, `SemiBold` (600) for title / headline /
-  display. This replaces the earlier "one weight notch lighter" tuning.
-  Every role zeroes its letter-spacing (Bold Minimal runs untracked,
-  overriding the M3 per-role tracking); the named extensions carry none
-  either. `ui/theme/Type.kt` is the SSOT. Use
-  `MaterialTheme.typography.*` styles or the named `Typography`
-  extensions in `Type.kt` (`bigNumber`, `heroNumeral`, `sectionLabel`,
-  `eyebrow`, `calendarWeekday`, `glanceMetric`, `glanceBody`,
-  `glanceCaption`, `progressCaption`, `monoReference`, `cardTitle`,
-  `cardMeta`, `cardCta`, `cardCtaHint`, `tileLabel`, `drawerBody`,
-  `attributionCredit`, `unitLabel`, `panelMetric`); never construct
-  ad-hoc `TextStyle` literals —
-  a recurring `.copy(fontSize = ...)` becomes a new named extension
-  in `Type.kt`. The dashboard's measured value + unit pairs share the
-  `UnitSuffix` composable (`ui/home/components/`), which renders
-  `unitLabel` dimmed and baseline-trailing.
+- Typography: Bold Minimal on M3 roles.
+  - Built on a **rem-style modular scale** rooted at
+    `FemtoDimens.BaseTextSize` (16 sp) with 0.25× multiplier steps
+    (`FemtoDimens.TextXs` … `Text8Xl`) — re-base the root and the
+    whole scale moves — and a **three-weight system**: `ExtraLight`
+    (200) for the large hero numerals only, `Normal` (400) for
+    body / label / caption, `SemiBold` (600) for title / headline /
+    display.
+  - Every role zeroes its letter-spacing (Bold Minimal runs
+    untracked, overriding the M3 per-role tracking); the named
+    extensions carry none either.
+  - `ui/theme/Type.kt` is the SSOT. Use `MaterialTheme.typography.*`
+    styles or the named `Typography` extensions in `Type.kt`
+    (`bigNumber`, `heroNumeral`, `sectionLabel`, `eyebrow`,
+    `calendarWeekday`, `glanceMetric`, `glanceBody`, `glanceCaption`,
+    `progressCaption`, `monoReference`, `cardTitle`, `cardMeta`,
+    `cardCta`, `cardCtaHint`, `tileLabel`, `drawerBody`,
+    `attributionCredit`, `unitLabel`, `panelMetric`); never construct
+    ad-hoc `TextStyle` literals — a recurring `.copy(fontSize = ...)`
+    becomes a new named extension in `Type.kt`.
+  - The dashboard's measured value + unit pairs share the
+    `UnitSuffix` composable (`ui/home/components/`), which renders
+    `unitLabel` dimmed and baseline-trailing.
 - Sizing: read from `FemtoDimens` (e.g. `FemtoDimens.MinTouchTarget`).
 - Previews use `@PreviewLightDark` from `ui/theme/PreviewLightDark.kt` — never
   hand-write the light/dark `@Preview` pair. Additional single-mode

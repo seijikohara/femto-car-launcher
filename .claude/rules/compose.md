@@ -26,28 +26,30 @@ convention wins.
     testable in isolation.
   - `<Area>ViewModel` exposes `StateFlow<UiState>` and a single
     `fun onAction(action: Action)`; never expose mutable state or
-    lifecycle-aware fields. It may expose an additional
-    purpose-named `StateFlow` beside `UiState` when a signal must not
-    wait for the `UiState` aggregation or must not replay stale —
-    `HomeViewModel.online` (the map's reconnect reading),
-    `HomeViewModel.updatePrompt` (never shown stale),
+    lifecycle-aware fields.
+  - It may expose an additional purpose-named `StateFlow` beside
+    `UiState` when a signal must not wait for the `UiState`
+    aggregation or must not replay stale. Four examples exist today,
+    each paired with a policy from `data/common/FlowSharing.kt`:
+    `HomeViewModel.online` (the map's reconnect reading);
+    `HomeViewModel.updatePrompt` (never shown stale);
     `HomeViewModel.audioSpectrum` (a ~20 Hz stream kept out of
-    `UiState` so only the spectrum canvas recomposes on it), and
-    `VideoViewModel.pictureVisible` (the motion gate, judged afresh on
-    every return) — each shared with a policy from
-    `data/common/FlowSharing.kt`. Two further exposures are sanctioned
-    outside this `StateFlow` pattern: a one-shot `events:
-    SharedFlow<…Event>` for a navigation-style request a late
-    collector must not replay (`HomeViewModel.events`), and
-    `VideoViewModel.surfaceHost`, a narrow surface port for the
-    player's `TextureView` rather than state.
+    `UiState` so only the spectrum canvas recomposes on it); and
+    `VideoViewModel.pictureVisible` (the motion gate, judged afresh
+    on every return).
+  - Two further exposures are sanctioned outside this `StateFlow`
+    pattern: a one-shot `events: SharedFlow<…Event>` for a
+    navigation-style request a late collector must not replay
+    (`HomeViewModel.events`), and `VideoViewModel.surfaceHost`, a
+    narrow surface port for the player's `TextureView` rather than
+    state.
 - Trivial stateless screens need only `<Area>Screen.kt` (`Route`
   and `Screen` collapsed into one Composable); promote to the
   three-Composable shape on the first state addition.
 - Every Composable that emits content takes `modifier: Modifier =
   Modifier` as the first non-state parameter and applies it before
-  any internal modifiers. This is enforced by the Compose ktlint
-  rule `compose:modifier-missing-check`.
+  any internal modifiers. The Compose ktlint rule
+  `compose:modifier-missing-check` enforces both requirements.
 - `FemtoTheme` is wrapped exactly once at the entry point
   (`MainActivity` for production, the preview block for previews).
   See `.claude/rules/design-system.md`.

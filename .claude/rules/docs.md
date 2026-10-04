@@ -24,10 +24,11 @@ edit.
   `app/src/test/screenshots/` are imported in place (glob loader with
   `base: ".."`, relative imports); never copy them into `docs/`.
 - Write internal links root-relative (`/install/`, `/terms/`) in
-  content and through `withBase()` in components. Two Sätteri hast
-  plugins run over every Markdown/MDX body: `satteri-repo-links`
-  maps repository files (`PRIVACY.md` → `/privacy/`, anything else →
-  GitHub), then `satteri-base-urls` prefixes the Pages base.
+  content and through `withBase()` in components. Two `satteri` HAST
+  (HTML abstract syntax tree) plugins run over every Markdown/MDX
+  body: `satteri-repo-links` maps repository files (`PRIVACY.md` →
+  `/privacy/`, anything else → GitHub), then `satteri-base-urls`
+  prefixes the Pages base.
   `scripts/check-dist-links.ts` fails the build on a link that
   misses the base or resolves to nothing.
 - The site origin and base path have one home: `docs/site.base.json`.
@@ -87,12 +88,12 @@ edit.
   `outDir` default `public/catalog`) writes
   `<outDir>/{manifest.json,full/<id>.webp,thumb/<id>.webp}` (lossy WebP
   q85 full size; 480 px q75 thumbnails) and adds `full`, `thumb`,
-  `widthPx`, `heightPx` per entry plus `thumbWidth`. It is a no-op
-  without a manifest (PR builds ship the page with its empty state)
-  and fails when a manifest entry has no image (a partial render must
-  not be published). It `rmSync`s `outDir` first, and `public/catalog`
-  is `public/catalog/nightly`'s parent — always import stable before
-  nightly, never the reverse.
+  `widthPx`, `heightPx` per entry plus `thumbWidth`. The import
+  script is a no-op without a manifest (PR builds ship the page with
+  its empty state) and fails when a manifest entry has no image (a
+  partial render must not be published). It `rmSync`s `outDir` first,
+  and `public/catalog` is `public/catalog/nightly`'s parent — always
+  import stable before nightly, never the reverse.
 - Two channels, same shape, different paths: stable at
   `public/catalog/`, nightly (rendered from `develop`) at
   `public/catalog/nightly/`. `CatalogViewer`'s `channels` prop lists

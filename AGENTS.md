@@ -141,8 +141,8 @@ read the rule before touching `AndroidManifest.xml`.
 
 ### Code style <a id="code-style"></a>
 
-- Source code, comments, docstrings, Markdown, commit messages,
-  and PR text are written in **English**.
+- Write source code, comments, docstrings, Markdown, commit
+  messages, and PR text in **English**.
 - Comments explain **why** when the why is non-obvious; never
   restate what the code already shows.
 - No AI-attribution trailers or footers in commits, PRs, or issues
@@ -259,7 +259,7 @@ in the skill directory; `create-avd.sh` recreates it).
   build always outranks an earlier build of the *same* channel on a
   device. The two channels' counters run independently (stable
   counts the day's cut tags, nightly counts the day's commits) and
-  can diverge in either direction, but it never matters: the two
+  can diverge in either direction without consequence: the two
   application ids keep Android from ever comparing versionCode across
   channels.
 - The two channels are the `stable` and `nightly` product flavors;
