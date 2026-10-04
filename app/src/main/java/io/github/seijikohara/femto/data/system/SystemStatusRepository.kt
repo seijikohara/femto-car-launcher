@@ -39,10 +39,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -108,64 +110,112 @@ internal class SystemStatusRepository(
         }.distinctUntilChanged().flowOn(dispatcher)
 
     /**
-     * Whether ANY network currently has validated internet access — `true` once at
-     * least one transport (Wi-Fi, cellular, Ethernet, …) reaches reachable internet
-     * ([NetworkCapabilities.NET_CAPABILITY_VALIDATED]), `false` in airplane mode,
-     * behind a captive portal, or on a router with no upstream. Transport-agnostic
-     * on purpose (no `addTransportType`), unlike [wifiFlow] / [cellularFlow] which
-     * report per-transport dock state.
+     * Whether the default network (the one new connections use) has validated
+     * internet access: INTERNET + [NetworkCapabilities.NET_CAPABILITY_VALIDATED].
+     * `false` in airplane mode, behind a captive portal, or on a router with no
+     * upstream. Transport-agnostic on purpose, unlike [wifiFlow] / [cellularFlow],
+     * which report per-transport dock state.
      *
-     * Exists for the live map: the map WebView fetches its map data from the network,
-     * so a page opened offline cannot render and cannot recover on its own. The host
-     * reloads the page on the offline->online edge this flow reports (at once, or on
-     * the launcher's return when it is hidden); its retry backoff covers data that
-     * returns with no such edge. WebMapView owns both.
+     * Two consumers read it. The live map: the map WebView fetches its map data from
+     * the network, so a page opened offline cannot render and cannot recover on its
+     * own. The host reloads the page on the offline->online edge this flow reports (at
+     * once, or on the launcher's return when it is hidden); its retry backoff covers
+     * data that returns with no such edge. WebMapView owns both. And the updater's
+     * automatic check (UpdateRepository): it runs only while this reads `true`, judged
+     * again on every clock tick and every change of this flow.
      *
-     * The request requires VALIDATED (real internet, not mere link-up), so
-     * `onAvailable` / `onLost` bracket exactly the validated lifetime and the tracked
-     * set mirrors it — a network dropping validation stops matching and fires
-     * `onLost`, needing no `onCapabilitiesChanged` re-check. Seeds the current state
-     * synchronously (mirroring [bluetoothBroadcastFlow]) so an online cold start
-     * emits `true` first, not a `false` the map would read as a spurious recovery
-     * edge; the seed also gives the outer combine an initial value in airplane mode,
-     * where no callback ever fires.
+     * It follows the default network, the one the map's requests actually use,
+     * rather than any validated one. A handover (Wi-Fi out of range, cellular taking
+     * over) whose new default is already validated reads as no change: a
+     * default-network callback hears the new default as `onAvailable` followed at
+     * once by `onCapabilitiesChanged`, and nothing more about the old one; `onLost`
+     * comes only when no network takes over (see
+     * [ConnectivityManager.NetworkCallback.onLost]). The state is read from
+     * `onCapabilitiesChanged`, never from `onAvailable`, whose network may lack
+     * validation; the same callback also reports a default that loses validation.
+     *
+     * The documented sequence does not always hold: an abrupt Wi-Fi teardown on
+     * an Android 13 emulator reported the default network lost before validated
+     * cellular took over. So a loss is reported only once no validated default
+     * has existed for [ONLINE_LOSS_GRACE_MS], while a reading back online is
+     * reported at once; a handover shorter than the grace makes no edge. The cost
+     * is that a real outage is noticed up to the grace later. Both consumers
+     * accept that: the map only reloads on the reconnect after an outage, which
+     * waits for data anyway. The updater's automatic check, due once a day, can
+     * start inside the grace of a real outage; it then fails quietly and its
+     * attempt counts, so the next one comes a day later. That needs the daily
+     * check to fall due in the first seconds of an outage, and costs only a
+     * day's delay of an update offer.
+     * Seeds the current state synchronously (mirroring [bluetoothBroadcastFlow]) so an
+     * online cold start emits `true` first, not a `false` the map would read as a
+     * spurious recovery edge; the seed also gives the outer combine an initial value
+     * in airplane mode, where no callback ever fires.
      */
     fun onlineFlow(): Flow<Boolean> {
         val cm = connectivity ?: return flowOf(false)
         return callbackFlow {
             trySend(cm.isValidatedOnline())
-            val onlineNetworks = mutableSetOf<Network>()
+            // Each callback is logged by name, so a device check can read the
+            // sequence a handover actually delivers (only the transport type,
+            // no network identifier).
             val callback = object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
-                    onlineNetworks += network
-                    trySend(true)
+                    Log.d(TAG, "onlineFlow: onAvailable")
+                }
+
+                override fun onCapabilitiesChanged(
+                    network: Network,
+                    caps: NetworkCapabilities,
+                ) {
+                    val validated = caps.hasValidatedInternet()
+                    Log.d(TAG, "onlineFlow: onCapabilitiesChanged ${caps.transportName()} validated=$validated")
+                    trySend(validated)
                 }
 
                 override fun onLost(network: Network) {
-                    onlineNetworks -= network
-                    trySend(onlineNetworks.isNotEmpty())
+                    Log.d(TAG, "onlineFlow: onLost")
+                    trySend(false)
                 }
             }
-            val request = NetworkRequest
-                .Builder()
-                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                .addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-                .build()
-            cm.registerNetworkCallback(request, callback)
+            cm.registerDefaultNetworkCallback(callback)
             awaitClose { cm.unregisterNetworkCallback(callback) }
-        }.distinctUntilChanged().flowOn(dispatcher)
+        }.holdingLoss(ONLINE_LOSS_GRACE_MS).distinctUntilChanged().flowOn(dispatcher)
     }
 
-    // Current validated-internet state, read synchronously for onlineFlow's seed. Checks
-    // the SAME capabilities the request requires (INTERNET + VALIDATED) so the seed and
-    // the callback agree on what "online" means.
+    // Reports a loss only once it has lasted [graceMs]; a reading back online
+    // within the grace cancels it, and the downstream distinctUntilChanged
+    // drops the repeated `true`. The first reading (the synchronous seed)
+    // passes at once either way, so an offline cold start still reads offline.
+    private fun Flow<Boolean>.holdingLoss(graceMs: Long): Flow<Boolean> =
+        flow {
+            val seeded = booleanArrayOf(false)
+            emitAll(
+                transformLatest { online ->
+                    if (!online && seeded[0]) delay(graceMs)
+                    seeded[0] = true
+                    emit(online)
+                },
+            )
+        }
+
+    private fun NetworkCapabilities.transportName(): String =
+        when {
+            hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "wifi"
+            hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "cellular"
+            hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "ethernet"
+            hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> "vpn"
+            else -> "other"
+        }
+
+    // The default network's validated-internet state, read synchronously for
+    // onlineFlow's seed (activeNetwork is the default network).
     private fun ConnectivityManager.isValidatedOnline(): Boolean =
-        activeNetwork
-            ?.let { getNetworkCapabilities(it) }
-            ?.let {
-                it.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                    it.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-            } == true
+        activeNetwork?.let { getNetworkCapabilities(it) }?.hasValidatedInternet() == true
+
+    // What "online" means for onlineFlow, shared by its seed and its callback.
+    private fun NetworkCapabilities.hasValidatedInternet(): Boolean =
+        hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
 
     // Kotlin's typed combine overloads cover at most 5 flows; the cluster has
     // six sources once cellular signal strength joins. Stage the two reactive
@@ -536,5 +586,13 @@ internal class SystemStatusRepository(
         // internal so the test source set asserts against this single value
         // instead of mirroring the window.
         internal const val GPS_FIX_FRESHNESS_MS = 30_000L
+
+        // How long onlineFlow waits before it reports a loss of validated
+        // internet. An abrupt Wi-Fi teardown on the TBox-Mock-Play emulator
+        // (Android 13) reported the default network lost although validated
+        // cellular took over within ~1.3 s, and the map reloaded on the edge
+        // ~5.4 s after the teardown; twice that gap rides out such a handover,
+        // while a real outage is noticed at most this much later.
+        internal const val ONLINE_LOSS_GRACE_MS = 10_000L
     }
 }

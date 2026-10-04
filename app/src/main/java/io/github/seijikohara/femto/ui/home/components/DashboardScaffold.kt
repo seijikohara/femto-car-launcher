@@ -181,6 +181,9 @@ internal fun DashboardScaffold(
     // pass a still capture that also needs the MapConfig placement inputs, to
     // draw the self-marker where the WebView would (see MapPanel.mapSurface).
     mapSurface: (@Composable (Location, MapConfig) -> Unit)? = null,
+    // The live map's connectivity reading (HomeViewModel.online), forwarded to
+    // MapPanel.
+    online: Boolean = true,
 ) = DashboardContent(
     uiState = uiState,
     is24Hour = is24Hour,
@@ -205,6 +208,7 @@ internal fun DashboardScaffold(
     motionTier = motionTier,
     clock = clock,
     mapSurface = mapSurface,
+    online = online,
 )
 
 // The full-screen dashboard body: the map fills the viewport as the background
@@ -236,6 +240,7 @@ private fun DashboardContent(
     // pass a still capture that also needs the MapConfig placement inputs, to
     // draw the self-marker where the WebView would (see MapPanel.mapSurface).
     mapSurface: (@Composable (Location, MapConfig) -> Unit)? = null,
+    online: Boolean = true,
 ) = BoxWithConstraints(modifier = modifier) {
     val compact = maxHeight < CompactHeightBreakpoint || maxWidth < CompactWidthBreakpoint
     val portrait = maxHeight > maxWidth
@@ -411,7 +416,7 @@ private fun DashboardContent(
         onTap = { onAction(HomeAction.OpenMaps) },
         modifier = Modifier.fillMaxSize().hazeSource(hazeState),
         recenterNonce = recenterNonce,
-        online = uiState.online,
+        online = online,
         onFollowChange = { following = it },
         onBearingChange = { bearingDeg = it },
         onOpenLicenses = { onAction(HomeAction.OpenLicenses) },
