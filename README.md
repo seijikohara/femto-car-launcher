@@ -16,97 +16,96 @@
 Femto Car Launcher replaces the Android home screen with a single
 fixed dashboard designed for automotive viewing distances and touch
 accuracy. The dashboard combines a live map, driving data, weather,
-calendar, and media control on one screen, so a driver reads the
-essentials at a glance instead of navigating between apps.
+calendar, and media control on one screen, so you read the essentials
+at a glance instead of switching between apps.
 
 Femto Car Launcher targets three hardware classes: aftermarket
 CarPlay / Android Auto AI boxes that inject Android into a factory
-display, built-in Android head units, and smartphones mounted as a
-car-navigation display. On a smartphone the launcher also runs as a
-regular app; becoming the default home screen stays optional. The
-minimum supported platform is Android 13 (Application Programming
-Interface — API — level 33). No single market is privileged: language,
-units, and locale-specific behaviour adapt per device.
+display, Android head units (aftermarket units installed in the
+dashboard), and car-mounted phones. On a phone the launcher also runs
+as a regular app; making it the default home screen stays optional.
+The minimum supported platform is Android 13, which is Application
+Programming Interface (API) level 33. No single market is privileged:
+language, units, and locale-specific behavior adapt per device.
 
 The [project site](https://seijikohara.github.io/femto-car-launcher/)
-describes every feature in depth, carries the install guide, and
-hosts a screenshot catalog of the dashboard across display sizes and
-settings.
+describes each feature, carries the install guide, and hosts a
+screenshot catalog of the dashboard across display geometries, display
+sizes, themes, driver sides, and dock positions.
 
 <div align="center">
 
-<img src="app/src/test/screenshots/dashboard-head-unit-853x512.png" alt="The dashboard on a head unit in the light theme: a map with the self-marker, clock, calendar and weather cards, media controls, trip readout and the dock" width="820">
+<img src="app/src/test/screenshots/dashboard-head-unit-853x512.png" alt="The dashboard on a head unit in the light theme: a map with the vehicle position marker, clock, calendar and weather cards, media controls, trip readout and the dock" width="820">
 
 <img src="app/src/test/screenshots/dashboard-head-unit-853x512-dark.png" alt="The same dashboard in the dark theme, with the map switched to its dark style" width="820">
 
 <sub>The dashboard on a head-unit display, light and dark. The map style follows
-the theme. These images are the project's own
-screenshot-test references, regenerated from the current code on every UI
-change, so they cannot drift from the build. The map behind the interface is a
-still capture of this app's OpenStreetMap backend — the map itself renders in a
-WebView, which the screenshot harness cannot run (see
+the theme. These images are the project's own screenshot-test references.
+Continuous integration compares them with the current code on every pull
+request, so a mismatch blocks the merge. The map behind the interface is a still
+capture of the OpenStreetMap provider: the live map renders in a WebView, which
+the screenshot harness cannot run (see
 <a href="app/src/test/resources/README.md">app/src/test/resources</a>).</sub>
 
 </div>
 
 ## Live map
 
-The dashboard background is a full-bleed live map that follows the
-vehicle.
+The dashboard background is a live map that fills the whole display
+and follows the vehicle.
 
 - **Two map providers.** OpenStreetMap data rendered through the
-  keyless OpenFreeMap service works out of the box with no account and
-  no API key. A Google Maps provider (roadmap, satellite, hybrid, and
-  terrain map types with a traffic overlay) activates when the user
-  enters a personal Google Maps Platform API key in Settings → Map.
-  Usage of the paid provider bills the key owner's own account; Femto
-  Car Launcher adds no fees. The Google Maps provider is not offered in
-  the territories on Google's
+  keyless OpenFreeMap service works without an account or an API key.
+  A Google Maps provider (roadmap, satellite, hybrid, and terrain map
+  types with a traffic overlay) activates when you enter a personal
+  Google Maps Platform API key in **Settings → Map**. Usage of this
+  paid provider bills your own Google Cloud account; Femto Car
+  Launcher adds no fees. The Google Maps provider is not offered in the
+  territories on Google's
   [Prohibited Territories](https://cloud.google.com/maps-platform/terms/maps-prohibited-territories)
-  list; see [TERMS.md](TERMS.md). The default OpenStreetMap provider is
-  unaffected.
-- **Bring your own style.** The OpenStreetMap provider can load any hosted
-  MapLibre style you name (Settings → Appearance → Map color → Custom style
-  URL), including one from a provider whose key rides in the URL. The map
-  then shows that style's own credits. For a mirror of the default provider's
-  layout there is separately a tile-host override under Settings → Map.
+  list; see the [Terms of Service](TERMS.md). The default
+  OpenStreetMap provider is unaffected.
+- **Bring your own style.** The OpenStreetMap provider can load a hosted
+  MapLibre style you name (**Settings → Appearance → Map color → Custom
+  style URL**), including a style whose provider key is part of the URL.
+  The map then shows that style's own credits. To use a mirror of the
+  default provider's tile layout instead, set **Settings → Map → Tile
+  host (advanced)**.
 - **A car-navigation camera.** The camera follows the Global
-  Positioning System (GPS) position with smooth easing, keeps the
-  travel direction pointing up (heading-up), and offers a north-up
-  mode. A drag detaches the camera for free panning; the camera
-  re-attaches automatically after a pause, or immediately via the
-  locate button. Zoom buttons and a compass sit at the screen edge in
-  reach of the driver.
-- **Depth and style.** Optional three-dimensional buildings and
-  terrain relief add depth on the OpenStreetMap provider. Map colours
-  can follow the launcher accent and the light/dark theme, or use the
-  provider's own styles.
-- **Self-healing.** A map that fails to load — an unstable link, a
-  provider outage, a missing key — shows a clear notice in the visible
-  map area and recovers automatically while the launcher is on screen:
-  reloads retry with a capped backoff for as long as the map data stays
-  out of reach, even while the device still reports a connection, and a
-  reconnect after an offline period reloads the map at once. A request
-  the provider answers with a refusal, such as a style address its
-  server reports as missing or a rejected key, stops the retries after a
-  few attempts; a failure with no readable answer, such as a server name
-  that does not resolve, keeps retrying like an outage.
+  Positioning System (GPS) position with easing and keeps the direction
+  of travel pointing up (heading-up). A tap on the compass toggles a
+  north-up mode. A drag detaches the camera for free panning. The
+  camera re-attaches automatically after a pause, or immediately when
+  you tap the locate button. Zoom buttons and a compass sit at the
+  screen edge, within reach of the driver.
+- **Depth and style.** Optional three-dimensional (3D) buildings and
+  terrain relief add depth on the OpenStreetMap provider. Map colors
+  can follow the launcher accent color and the light/dark theme, or use
+  the provider's own styles.
+- **Automatic recovery.** When the map fails to load (an unstable link,
+  a provider outage, a missing key), a notice appears in the visible
+  map area. While the launcher is on screen, reloads retry with a
+  capped backoff until the map data loads, even while the device still
+  reports a connection. A reconnect after an offline period reloads the
+  map at once. A refusal from the provider, such as a style address its
+  server reports as missing or a rejected key, stops the retries after
+  a few attempts. A failure with no readable answer, such as a server
+  name that does not resolve, keeps retrying like an outage.
 
 ## Driving data and trips
 
-- **Speed overlay.** Current speed, trip distance, average speed,
-  altitude, and the reverse-geocoded address of the current position,
-  rendered in high-contrast numerals. A tap on the reset button starts
-  a new trip with a "Since" timestamp.
+- **Speed overlay.** The overlay shows current speed, trip distance,
+  average speed, and altitude in high-contrast numerals, plus the
+  reverse-geocoded address of the current position. A tap on the reset
+  button starts a new trip and shows a "Since" timestamp.
 - **Trip recording.** An on-device track log records the route at one
   fix per second while driving, with a configurable retention period.
   Recorded trips export as GPS Exchange Format (GPX) files through the
   system file picker.
-- **Trip flythrough.** A tap on the speed panel opens a
-  three-dimensional wireframe replay of the recorded track — a
-  flythrough with a speed-coloured trail and altitude curtain, rendered
-  natively for smooth motion, with a two-dimensional fallback on
-  devices without the required graphics support.
+- **Trip flythrough.** A tap on the speed panel opens a 3D wireframe
+  replay of the recorded track, with a speed-colored trail and an
+  altitude curtain, rendered natively. Devices without the required
+  graphics support get a two-dimensional replay of the same track.
 
 ## Glanceable panels
 
@@ -117,21 +116,21 @@ vehicle.
   bars. Forecasts stay readable offline through an on-device cache.
 - **Calendar.** A multi-day strip plus upcoming events read from the
   device calendar, with per-calendar visibility selection and a
-  full-screen agenda panel. Event colours match the calendar colours.
-- **Now playing.** The active media session of any music app: title,
-  artist, album, cover art, and transport controls, including shuffle
-  and repeat where the source app supports them. Cover art opens a
-  full-screen player. Long titles scroll only while the vehicle is
-  parked and truncate while moving. A spectrum visualisation renders on
-  devices whose audio stack supports capture.
+  full-screen agenda panel. Event colors match the calendar colors.
+- **Now playing.** The active media session of any app that publishes
+  one: title, artist, album, cover art, and transport controls,
+  including shuffle and repeat where the source app supports them.
+  Cover art opens a full-screen player. Long titles scroll only while
+  the vehicle is parked and truncate while it moves. A spectrum
+  visualization renders on devices whose audio stack supports capture.
 - **Video window.** An optional small window over the map plays a video
-  file picked from the device or USB storage, with a full-screen player.
-  The picture stays hidden until GPS reads the vehicle as stopped; the
-  audio keeps playing.
-- **Clock.** A self-updating clock honouring the system 12/24-hour
-  preference, with optional seconds.
+  file you pick from the device or USB storage, with a full-screen
+  player. The picture stays hidden until GPS reads the vehicle as
+  stopped; the audio keeps playing.
+- **Clock.** A clock that follows the system 12/24-hour preference by
+  default, with optional seconds.
 - **Status cluster.** Wi-Fi and cellular signal, Bluetooth state, GPS
-  reception, and battery level with charging state.
+  reception, and battery level with charging state, shown in the dock.
 
 ## Apps and voice
 
@@ -140,127 +139,135 @@ vehicle.
   individually, and a reset restores the default layout.
 - **Destinations.** The dock's navigation button opens a destination
   panel: type or speak a place, or tap a saved one, and the launcher
-  hands it to your navigation app. Typing, saving and deleting pause
+  hands it to your navigation app. Typing, saving, and deleting pause
   while GPS reads the vehicle as moving; voice and a tap on a saved
-  place work any time.
+  place work at any time.
 - **App panel.** A full-screen application panel offers search, a
   pinned-apps row, recently used apps, an A–Z fast-scroll index, and
   three icon-size presets. A long-press on an app opens App info or
   uninstalls the app.
-- **Voice assistant.** A microphone button captures speech in-launcher
-  with a live transcript, and falls back to the system voice assistant
-  when no on-device recognizer exists or the microphone permission is
-  denied.
+- **Voice assistant.** A microphone button captures speech in the
+  launcher with a live transcript. The launcher falls back to the
+  system voice assistant when no on-device recognizer exists or when
+  you deny the microphone permission.
 
-## Made for the car — and adjustable
+## Automotive defaults and adjustments
 
 Automotive defaults keep the dashboard legible and operable while
-driving: at the default display size, body text stays at or above
-16 sp and touch targets stay at or above 64 dp, and the layout
-anchors cards clear of the driver's view with a left- and
-right-hand-drive switch. Every default remains a user choice rather
-than a lockout:
+driving. At the default display size, body text stays at or above
+16 scale-independent pixels (sp), and touch targets stay at or above
+64 density-independent pixels (dp). The **Settings → Screen → Driver
+side** setting (Left or Right) anchors the cards, the clock, and the map
+controls on the driver's side of the screen, within reach. Each item
+below is a setting you can change, not a lockout:
 
-- **Layout.** Any orientation and aspect ratio, from wide head units to
-  portrait phone mounts; the dashboard reflows across a matrix of screen
-  sizes. Display size offers five steps from small to large, and the
-  small end deliberately trades the automotive floors for density.
-- **Appearance.** Material You dynamic colour by default, fixed accent
-  presets as an alternative, light / dark / automatic theme, and a
+- **Layout.** Landscape and portrait orientations, at aspect ratios
+  from wide head units to car-mounted phones in portrait; the dashboard
+  reflows across a matrix of screen sizes. Display size offers five
+  steps from Small to Large. Small and Compact scale the whole interface
+  below the default, so text and touch targets drop below the minimums
+  above to fit more on screen.
+- **Appearance.** Material You dynamic color by default, fixed accent
+  presets as an alternative, a light/dark/automatic theme, and a
   configurable glass look (blur, borders, drop shadows) for the
   floating cards.
 - **Typography.** The system font by default, any Google Fonts family
   per slot (a Latin face plus a Chinese-Japanese-Korean fallback face)
-  downloaded on demand, or any font already installed on the device —
-  plus user-adjustable text size, weight, and letter spacing. No fonts
-  ship inside the APK and no Play Services are required.
-- **Motion.** A reduced-motion setting calms animations across the
-  dashboard.
+  downloaded on demand, or a font already installed on the device. Text
+  size, weight, and letter spacing are adjustable. No fonts ship inside
+  the Android package (APK), and no Play Services are required.
+- **Animation.** The **Settings → Screen → Motion** setting (Standard,
+  Reduced, Off) reduces or turns off animations.
 - **Panels.** Calendar, weather, and music cards toggle individually;
   the music card's spectrum, album name, and cover art each have a
   visibility switch, and the optional video window has its own switch
   and picture gate.
-- **Units.** Speed and temperature units and the clock format follow
-  the user, independent of the system locale.
+- **Units.** Speed, temperature, and clock format default to Auto,
+  which follows the system settings; **Settings → Units** sets each one
+  explicitly.
 
-Every panel degrades gracefully: a denied permission or an unavailable
-data source renders a reduced state instead of an error screen. The
-dashboard renders identically regardless of vehicle motion — there is
-no driving lockout — though a few features gate themselves on motion:
-the video window's picture, destination typing, saving and deleting,
-long music-title scrolling, and the update prompt and starting an
-install all pause while GPS reads the vehicle as moving, apart from an
-install confirmation already on screen, which still answers.
+When a permission is denied or a data source is unavailable, the
+affected panel renders a reduced state instead of an error screen.
+
+The dashboard layout does not change with vehicle motion, and the
+launcher has no driving lockout. A few features gate themselves on
+motion instead. The video window's picture stays hidden until GPS reads
+the vehicle as stopped. Destination typing, saving, and deleting,
+long music-title scrolling, the update prompt, and starting an install
+pause while GPS reads the vehicle as moving. An install confirmation
+already on screen still accepts an answer.
 
 ## Privacy and data
 
 - Femto Car Launcher requires no account and contains no advertising
   and no analytics.
 - Calendar and media data, saved destinations, and the reference to a
-  video file picked for the video window, stay on the device; location
-  leaves it only inside the requests to the services the user selects:
-  map tiles from the chosen map provider, weather from MET Norway, and
-  — only when the user configures a self-hosted geocoding host —
-  reverse-geocoding queries; the default reverse geocoder runs
-  on-device.
-- Google Maps keys are entered by the user, are sent only to Google, and
-  stay on the device apart from the user's own Android settings backup and
-  device transfer — see [PRIVACY.md](PRIVACY.md).
-- Notification access, when granted, is used solely to read and control
-  the active media session for the now-playing card.
-- An in-app diagnostics report (Settings → System) summarises device
-  and runtime facts for troubleshooting, and the open-source licenses
-  screen lists every bundled third-party component.
-- The app's own terms are in [TERMS.md](TERMS.md), reachable in-app from
-  Settings → System → Terms.
+  video file you pick for the video window stay on the device.
+- Location leaves the device only inside requests to the services you
+  use: map tiles from the chosen map provider, weather from MET Norway,
+  and reverse-geocoding queries when you configure a self-hosted
+  geocoding host. The default reverse geocoder runs on the device.
+- You enter Google Maps keys yourself. The app sends a key only to
+  Google and keeps it on the device, apart from your own Android
+  settings backup and device transfer; see the
+  [Privacy Policy](PRIVACY.md).
+- The app uses notification access, when you grant it, only to read
+  and control the active media session for the now-playing card.
+- An in-app diagnostics report (**Settings → System → Diagnostics**)
+  summarizes device and runtime facts for troubleshooting.
+  **Settings → System → Open source licenses** lists every bundled
+  third-party component.
+- The app's own terms are in the [Terms of Service](TERMS.md), also
+  reachable in the app from **Settings → System → Terms**.
 
 ## Installation
 
 Femto Car Launcher publishes two channels as release-signed APKs,
 both built from this repository by continuous integration:
 
-- **Stable** — a dated release that only changes when a build is
-  judged ready, published as a
+- **Stable**: a dated release that changes only when the maintainer
+  promotes a build, published as a
   [GitHub release](https://github.com/seijikohara/femto-car-launcher/releases/latest).
   Download `femto-car-launcher-v<version>.apk` from the latest
   release.
-- **Nightly** — the newest test build, which changes often and may
-  break, published as a rolling
+- **Nightly**: a nightly build that changes often and may break,
+  published as a rolling
   [`nightly`](https://github.com/seijikohara/femto-car-launcher/releases/tag/nightly)
   prerelease that replaces itself on every push that changes the APK.
   Download `femto-car-launcher-nightly.apk`. Its launcher icon carries
-  an "N" badge and its app name reads "Femto Nightly", so it never
-  gets mixed up with stable.
+  an "N" badge and its app name reads "Femto Nightly", so the two
+  channels are distinguishable on the device.
 
-The two channels use different application ids and install side by
-side, so trying a nightly build never means uninstalling stable, and
-switching back is just as easy. Install either APK by sideloading on
-the head unit or with `adb install -r <file>.apk`. Play Store
+The two channels use different application IDs and install side by
+side, so a nightly build installs without removing the stable build.
+Install either APK by sideloading on the device, or from a computer
+with Android Debug Bridge: `adb install -r <file>.apk`. Play Store
 publication is not planned at present; sideloading is the supported
 installation path. Android 13 or later is required.
 
-The app checks for updates on its own — see the
+The app checks for updates automatically; the
 [install guide](https://seijikohara.github.io/femto-car-launcher/install/)
-for details.
+describes the update flow.
 
-To enable the optional paid map provider in Settings → Map:
-
-- **Google Maps** — enter a personal Google Maps Platform API key with
-  the Maps JavaScript API enabled and an HTTP-referrer restriction
-  allowing `https://appassets.androidplatform.net/*`. The Rendering
-  setting (Automatic, Raster, or Vector) decides heading-up vector
-  rendering versus flat north-up raster, not the Map ID: Vector needs
-  no Map ID, but fails with a notice on a device with no WebGL context
-  — pick Raster or Automatic there instead. Automatic follows the Map
-  ID's cloud configuration and renders raster when none is set. An
-  optional Map ID, created in the Google Cloud console, adds cloud
-  styling and advanced markers on top.
+To enable the optional paid Google Maps provider, enter a personal
+Google Maps Platform API key in **Settings → Map**. The key needs the
+Maps JavaScript API enabled and an HTTP-referrer restriction that
+allows `https://appassets.androidplatform.net/*`. The
+**Settings → Map → Rendering** setting (Automatic, Raster, or Vector)
+chooses heading-up vector or flat north-up raster rendering; the Map ID
+does not. Vector needs no Map ID. On a device with no Web Graphics
+Library (WebGL) context, Vector shows a notice instead of a map; choose
+Raster or Automatic there. Automatic follows the Map ID's cloud
+configuration and renders raster when none is set. An optional Map ID,
+created in the Google Cloud console, adds cloud styling and advanced
+markers.
 
 ## Building from source
 
-A Java Development Kit (JDK) 21 and an Android 13+ device or emulator
-are the only prerequisites; the Gradle build provisions Node.js and
-pnpm on demand for the bundled map page.
+The build needs a Java Development Kit (JDK) 21, the Android software
+development kit (SDK), and an Android 13+ device or emulator. The
+Gradle build provisions Node.js and pnpm on demand for the bundled map
+page.
 
 ```bash
 ./gradlew assembleStableDebug   # debug APK at app/build/outputs/apk/stable/debug/
@@ -276,5 +283,5 @@ verification commands live in [`AGENTS.md`](AGENTS.md) and
 
 Femto Car Launcher is licensed under the Apache License, Version 2.0
 ([`LICENSE`](LICENSE)). Bundled third-party components keep their own
-licenses, listed in-app under Settings → System → Open source
-licenses.
+licenses, listed in the app under **Settings → System → Open source
+licenses**.
