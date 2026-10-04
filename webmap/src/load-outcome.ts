@@ -1,6 +1,7 @@
 // How a map page's load failures are reported, so the host can tell the
-// failures a reload cures from the ones it cannot. Pure (timers are injected,
-// as in createBearingReporter), so every decision is unit-tested; osm.ts,
+// failures a reload cures from the ones it cannot, and how the OSM page
+// reports that its data arrived. Pure (timers are injected, as in
+// createBearingReporter), so every decision is unit-tested; osm.ts,
 // googlemaps.ts and main.ts only wire events into it.
 //
 // The host (WebMapView.kt, liveReloadRetryDelayMsOrNull) keeps reloading the
@@ -50,7 +51,8 @@ export interface NoTileWatchdog {
     // tile host arms the timer.
     onError(detail: string, status: number | null): void;
     // A tile of [sourceId] arrived: unless that source is served from
-    // elsewhere, the tile host answers, until the next style swap.
+    // elsewhere, the tile host answers, until the next style swap. The first
+    // such tile of a style is reported to the host as `tile`.
     onTile(sourceId: string): void;
     // setStyleUrl switched to another style: judge it like a fresh page. A
     // swap can re-create the vector source (a hosted and a bundled style
@@ -58,6 +60,11 @@ export interface NoTileWatchdog {
     // the replaced style prove nothing, and a timer armed for that style has
     // nothing left to judge.
     onStyleSwap(): void;
+    // The swapped-in style is now set on the map. setStyleUrl defers the
+    // actual setStyle past a render, so tiles between onStyleSwap and this
+    // call still belong to the outgoing style: they neither stand the
+    // watchdog down nor report the new style's data.
+    onStyleApplied(): void;
 }
 
 // An unreachable tile host does NOT fail the style load: the bundled styles
@@ -72,6 +79,13 @@ export interface NoTileWatchdog {
 // one), with one host as with several. A tile arriving at any point from a
 // source the tile host serves stands the watchdog down until the next style
 // swap, so a flaky tile on a map that has drawn never reaches the UI.
+//
+// That first tile of each style is also the page's success signal: it goes to
+// the host as `tile`, and the host restarts its retry backoff on it, so the
+// next failure after an outage starts at the short first step. Only the OSM
+// page reports it. A Google page's tile events can fire on a page that then
+// reports a credential failure, and a reset there would turn the host's
+// bounded retries — each one a billed map load — into an endless billed loop.
 export function createNoTileWatchdog(deps: {
     // The origin serving the page's tiles. An error naming another origin (a
     // terrain DEM, a hosted style) never arms: it must not rotate the tile host.
@@ -90,6 +104,9 @@ export function createNoTileWatchdog(deps: {
     // in vite.config.ts and no-let.js).
     const state = {
         tileArrived: false,
+        // Set by a style swap until the new style is set on the map: tiles
+        // meanwhile are the outgoing style's.
+        swapPending: false,
         // Bumped by every style swap, retiring the timers armed before it.
         generation: 0,
         evidence: null as GateEvidence | null,
@@ -113,13 +130,25 @@ export function createNoTileWatchdog(deps: {
             }, deps.graceMs);
         },
         onTile(sourceId: string): void {
-            if (deps.ignoredSourceIds.includes(sourceId)) return;
+            if (
+                state.swapPending ||
+                state.tileArrived ||
+                deps.ignoredSourceIds.includes(sourceId)
+            ) {
+                return;
+            }
             state.tileArrived = true;
+            deps.reporter.log(`first tile of the style (${sourceId})`);
+            deps.reporter.report("tile", sourceId);
         },
         onStyleSwap(): void {
             state.tileArrived = false;
+            state.swapPending = true;
             state.generation += 1;
             state.evidence = null;
+        },
+        onStyleApplied(): void {
+            state.swapPending = false;
         },
     };
 }

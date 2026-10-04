@@ -64,9 +64,12 @@ declare global {
 // camera bearing for the compass overlay. `ready` marks the first frame the
 // backend actually painted — the host records it for the MAP diagnostics
 // section, which otherwise cannot tell a working map from one that failed
-// silently. No kind triggers a backend switch — the host keeps the chosen
-// backend (no auto-fallback).
-export type MapEventKind = "ready" | "fatal" | "error" | "follow" | "bearing" | "frames";
+// silently. `tile` = the first tile of the current style arrived from the tile
+// host: the OSM page's success signal, on which the host restarts its retry
+// backoff (load-outcome.ts reports it; `ready` cannot serve, since a page
+// without data paints too). No kind triggers a backend switch — the host keeps
+// the chosen backend (no auto-fallback).
+export type MapEventKind = "ready" | "fatal" | "error" | "follow" | "bearing" | "frames" | "tile";
 
 export interface PageReporter {
     // Diagnostic logging only (visible via chrome://inspect or the debug
