@@ -195,12 +195,13 @@ pause while GPS reads the vehicle as moving.
 
 - Femto Car Launcher requires no account and contains no advertising
   and no analytics.
-- Calendar and media data, and a video file picked for the video
-  window, stay on the device; location leaves it only
-  inside the requests to the services the user selects: map tiles from
-  the chosen map provider, weather from MET Norway, and — only when the
-  user configures a self-hosted geocoding host — reverse-geocoding
-  queries; the default reverse geocoder runs on-device.
+- Calendar and media data, saved destinations, and the reference to a
+  video file picked for the video window, stay on the device; location
+  leaves it only inside the requests to the services the user selects:
+  map tiles from the chosen map provider, weather from MET Norway, and
+  — only when the user configures a self-hosted geocoding host —
+  reverse-geocoding queries; the default reverse geocoder runs
+  on-device.
 - Google Maps keys are entered by the user, are sent only to Google, and
   stay on the device apart from the user's own Android settings backup and
   device transfer — see [PRIVACY.md](PRIVACY.md).

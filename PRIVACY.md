@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Effective date: 2026-10-01**
+**Effective date: 2026-10-04**
 
 Femto Car Launcher ("the app") is an Android home launcher. This policy explains
 what data the app accesses, why, and who it is shared with. The app does **not**
@@ -22,9 +22,12 @@ contain advertising or analytics SDKs, and does **not** sell personal data.
 | **App settings** | Remember your preferences | Device backup only (see "Backup") |
 
 Calendar, music, and voice data are held only in memory while the app runs; none
-of it is written to disk or transmitted. Location coordinates are transmitted, to
-the third-party services listed below, to render the map, the address, and the
-weather.
+of it is written to disk or transmitted. Location coordinates are transmitted,
+to the third-party services listed below, to render the map, the address, and
+the weather. Weather responses, and responses from a self-hosted geocoding host
+if you configure one, also sit briefly in an on-device HTTP cache that is never
+backed up; weather request URLs round your coordinates to about four decimal
+places, geocoding ones carry the exact fix.
 
 Besides your settings, the app writes three kinds of personal data to disk: the
 recorded trip track, the places you save in the destination panel, and, if you

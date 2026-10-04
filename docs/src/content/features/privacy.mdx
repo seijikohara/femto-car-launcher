@@ -24,7 +24,9 @@ left out of backup and device transfer.
 
 ## What goes over the network
 
-Network traffic goes only to the services you select:
+Most network traffic goes only to a service you choose to use; the one
+exception is the update check, which runs by default but can be turned
+off:
 
 - **Map tiles and styles** from the chosen map provider — the keyless
   OpenStreetMap provider by default, or Google Maps once you enter your
@@ -33,6 +35,9 @@ Network traffic goes only to the services you select:
 - **Reverse-geocoding queries**, only when you configure a self-hosted
   geocoding host. The default reverse geocoder runs on-device.
 - **Fonts** from Google Fonts, only for a family you pick under Settings.
+- **Update checks** to GitHub, at most once a day while the app runs —
+  turn this off under Settings → Updates. No location data is sent; the
+  update file itself downloads only when you ask for it.
 
 ## Keys you enter
 
@@ -45,9 +50,11 @@ everything else the app does with data, in full.
 ## Permissions
 
 Notification access, when granted, is used solely to read and control the
-active media session for the now-playing card. Location, calendar and
-microphone permissions each unlock one visible feature and nothing else; a
-denied permission renders a reduced card, never a nag.
+active media session for the now-playing card. Location and calendar
+permissions each unlock one visible feature; microphone unlocks three —
+the voice assistant, dictating a destination in the destination panel,
+and the optional music spectrum visualization — and none of them do
+anything else. A denied permission renders a reduced card, never a nag.
 
 ## Diagnostics and licences
 
