@@ -152,6 +152,20 @@
     <string name="nav_assistant">Assistant</string>
     <string name="nav_settings">Settings</string>
 
+    <!-- Destination panel (the dock's Navigation button) -->
+    <string name="destination_title">Destination</string>
+    <string name="destination_open_maps">Open maps app</string>
+    <string name="destination_query_hint">Search for a place or address</string>
+    <string name="destination_navigate">Navigate</string>
+    <string name="destination_save_query">Save</string>
+    <string name="destination_save_location">Save current location</string>
+    <!-- Shown under the disabled text field while the vehicle moves. -->
+    <string name="destination_moving_hint">Typing works when stopped. Voice and saved places work now.</string>
+    <string name="destination_saved_places">Saved places</string>
+    <string name="destination_no_saved_places">No saved places yet. Save a search or your current location while stopped.</string>
+    <!-- %1$s = the saved place's label -->
+    <string name="destination_delete_place">Delete %1$s</string>
+
     <!-- Shared edit-mode "Done" affordance (drawer pinned dock + dashboard dock nav). -->
     <string name="edit_done">Done</string>
     <!-- Dashboard footer: long-press edit menu (nav buttons and status icons share it) -->

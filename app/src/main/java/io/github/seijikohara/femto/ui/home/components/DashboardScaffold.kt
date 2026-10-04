@@ -48,6 +48,8 @@ import io.github.seijikohara.femto.data.display.DockWidth
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.MusicCardState
+import io.github.seijikohara.femto.data.places.PlaceTarget
+import io.github.seijikohara.femto.ui.destination.DestinationPanelHost
 import io.github.seijikohara.femto.ui.drawer.AppDrawerPanelHost
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
@@ -276,11 +278,12 @@ private fun DashboardContent(
     // overlay tree, so one dismiss definition can drive catchers on both sides
     // of the dock inset: the inner catcher (inside DashboardOverlays) covers
     // the overlay box, the outer catcher below covers the dock-margin slivers
-    // outside it. The apps panel's trigger is the dock's APPS button — a
-    // sibling of the overlays — so its OpenAppDrawer action is intercepted
-    // here rather than routed to the ViewModel. rememberSaveable keeps an open
-    // panel open across rotation.
+    // outside it. The apps and destination panels' triggers are dock buttons
+    // (APPS, NAVIGATION) — siblings of the overlays — so their OpenAppDrawer /
+    // OpenDestinations actions are intercepted here rather than routed to the
+    // ViewModel. rememberSaveable keeps an open panel open across rotation.
     var appsExpanded by rememberSaveable { mutableStateOf(false) }
+    var destinationExpanded by rememberSaveable { mutableStateOf(false) }
     var nowPlayingExpanded by rememberSaveable { mutableStateOf(false) }
     var calendarExpanded by rememberSaveable { mutableStateOf(false) }
     var weatherExpanded by rememberSaveable { mutableStateOf(false) }
@@ -302,15 +305,26 @@ private fun DashboardContent(
     LaunchedEffect(hasWeather) {
         if (!hasWeather) weatherExpanded = false
     }
-    // The apps panel is the only one reachable while another panel is open —
-    // the dock stays operable — so opening it collapses whatever is underneath,
-    // mirroring how the old drawer sheet covered everything.
+    // The dock-opened panels (apps, destination) are the only ones reachable
+    // while another panel is open — the dock stays operable — so opening one
+    // collapses whatever is underneath, mirroring how the old drawer sheet
+    // covered everything.
     LaunchedEffect(appsExpanded) {
         if (appsExpanded) {
             nowPlayingExpanded = false
             calendarExpanded = false
             weatherExpanded = false
             tripExpanded = false
+            destinationExpanded = false
+        }
+    }
+    LaunchedEffect(destinationExpanded) {
+        if (destinationExpanded) {
+            nowPlayingExpanded = false
+            calendarExpanded = false
+            weatherExpanded = false
+            tripExpanded = false
+            appsExpanded = false
         }
     }
     // A tap outside an open panel's body dismisses it, matching the modal
@@ -322,12 +336,17 @@ private fun DashboardContent(
             weatherExpanded -> ({ weatherExpanded = false })
             tripExpanded -> ({ tripExpanded = false })
             appsExpanded -> ({ appsExpanded = false })
+            destinationExpanded -> ({ destinationExpanded = false })
             else -> null
         }
     val overlayAction =
         remember(onAction) {
             { action: HomeAction ->
-                if (action is HomeAction.OpenAppDrawer) appsExpanded = true else onAction(action)
+                when (action) {
+                    HomeAction.OpenAppDrawer -> appsExpanded = true
+                    HomeAction.OpenDestinations -> destinationExpanded = true
+                    else -> onAction(action)
+                }
             }
         }
 
@@ -484,6 +503,8 @@ private fun DashboardContent(
         onCloseTrip = { tripExpanded = false },
         appsExpanded = appsExpanded,
         onCloseApps = { appsExpanded = false },
+        destinationExpanded = destinationExpanded,
+        onCloseDestination = { destinationExpanded = false },
         dismissOpenPanel = dismissOpenPanel,
         modifier = Modifier.fillMaxSize().padding(dockEdgePadding(dockPosition, dockExtent)),
         spectrum = spectrum,
@@ -527,7 +548,7 @@ private fun DashboardContent(
 }
 
 // The dashboard's glass overlay tree that floats over the map — map controls, the
-// clock and speed overlays, the floating info cards, and the five maximize
+// clock and speed overlays, the floating info cards, and the six maximize
 // panels. The caller keeps the map (the blur source), the dock, and every
 // panel's expanded state composed one level up, outside this tree, and supplies
 // the dock-edge inset through [modifier] so the overlays never sit under the
@@ -579,6 +600,8 @@ private fun DashboardOverlays(
     onCloseTrip: () -> Unit,
     appsExpanded: Boolean,
     onCloseApps: () -> Unit,
+    destinationExpanded: Boolean,
+    onCloseDestination: () -> Unit,
     // Non-null while any panel is open: the inner outside-tap catcher's action.
     dismissOpenPanel: (() -> Unit)?,
     modifier: Modifier = Modifier,
@@ -898,6 +921,28 @@ private fun DashboardOverlays(
         ) {
             AppDrawerPanelHost(
                 onClose = onCloseApps,
+                hazeState = hazeState,
+                glassConfig = glassConfig,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
+        // The destination panel, opened by the dock's NAVIGATION button (see
+        // the parent's OpenDestinations interception). Like the apps panel it
+        // needs no "has data" gate: with no fix it still takes a query, and
+        // only "Save current location" waits for one.
+        AnimatedVisibility(
+            visible = destinationExpanded,
+            enter = Motion.panelEnter(motionTier),
+            exit = Motion.panelExit(motionTier),
+            modifier = Modifier.fillMaxSize().padding(outerPad),
+        ) {
+            DestinationPanelHost(
+                currentPoint = uiState.location?.let { PlaceTarget.Point(it.latitude, it.longitude) },
+                currentAddress = uiState.address?.displayString().orEmpty(),
+                onNavigate = { target, label -> onAction(HomeAction.Navigate(target, label)) },
+                onOpenMaps = { onAction(HomeAction.OpenMaps) },
+                onClose = onCloseDestination,
                 hazeState = hazeState,
                 glassConfig = glassConfig,
                 modifier = Modifier.fillMaxSize(),

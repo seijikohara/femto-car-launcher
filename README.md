@@ -134,6 +134,9 @@ vehicle.
 - **Dock.** An application dock attaches to any screen edge. A
   long-press edits the dock: buttons and status icons reorder or hide
   individually, and a reset restores the default layout.
+- **Destinations.** The dock's navigation button opens a destination
+  panel: type or speak a place, or tap a saved one, and the launcher
+  hands it to your navigation app. Typing waits until the vehicle stops.
 - **App panel.** A full-screen application panel offers search, a
   pinned-apps row, recently used apps, an A–Z fast-scroll index, and
   three icon-size presets. A long-press on an app opens App info or

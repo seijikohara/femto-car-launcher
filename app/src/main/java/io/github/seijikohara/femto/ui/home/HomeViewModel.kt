@@ -269,6 +269,16 @@ internal class HomeViewModel(
                 )
             }
 
+            HomeAction.OpenDestinations -> {
+                // Opens the destination panel at the dashboard overlay layer
+                // (DashboardContent intercepts it, like OpenAppDrawer); a no-op
+                // if it ever reaches the ViewModel.
+            }
+
+            is HomeAction.Navigate -> {
+                mutableEvents.tryEmit(HomeEvent.LaunchDestination(action.target, action.label))
+            }
+
             is HomeAction.Shortcut -> {
                 mutableEvents.tryEmit(HomeEvent.LaunchAppCategory(action.target.intentCategory))
             }

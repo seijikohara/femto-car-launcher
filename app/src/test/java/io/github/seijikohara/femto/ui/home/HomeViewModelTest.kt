@@ -13,6 +13,7 @@ import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.SPECTRUM_BAND_COUNT
+import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.update.UpdateFailure
 import io.github.seijikohara.femto.data.update.UpdateManifest
 import io.github.seijikohara.femto.data.update.UpdateSettings
@@ -253,6 +254,25 @@ class HomeViewModelTest {
                 }
                 cancelAndIgnoreRemainingEvents()
             }
+        }
+
+    @Test
+    fun `onAction Navigate with a typed query emits LaunchDestination for the query`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.Navigate(PlaceTarget.Query("1st & Pike")),
+                expected = HomeEvent.LaunchDestination(PlaceTarget.Query("1st & Pike"), label = ""),
+            )
+        }
+
+    @Test
+    fun `onAction Navigate with a saved place emits LaunchDestination carrying its label`() =
+        runTest {
+            val point = PlaceTarget.Point(35.681236, 139.767125)
+            stubViewModel().assertEvent(
+                action = HomeAction.Navigate(point, label = "Home"),
+                expected = HomeEvent.LaunchDestination(point, label = "Home"),
+            )
         }
 
     @Test
