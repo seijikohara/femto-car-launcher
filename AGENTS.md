@@ -18,7 +18,7 @@ locale-specific behavior is parameterized, and the strictest
 applicable rule wins when markets diverge.
 
 > **Rule locations.** AGENTS.md is the tool-agnostic project brief
-> and rule SSOT for every coding agent (cite rules here as
+> and rule SSOT (single source of truth) for every coding agent (cite rules here as
 > `AGENTS.md#<anchor>`); path-scoped rules live in
 > `.claude/rules/*.md` (cite by file path; rule-file anchors are not
 > addressable from outside). One home per rule; link, never restate.
@@ -27,8 +27,9 @@ applicable rule wins when markets diverge.
 
 ## Tech stack <a id="tech-stack"></a>
 
-- Kotlin (auto-applied by AGP), Jetpack Compose (via the BOM),
-  Material 3; JDK 21 toolchain, Java 11 source/target. Versions:
+- Kotlin (auto-applied by AGP, the Android Gradle Plugin), Jetpack
+  Compose (via the BOM, Bill of Materials), Material 3; JDK 21
+  toolchain, Java 11 source/target. Versions:
   `gradle/libs.versions.toml` + `gradle/wrapper/gradle-wrapper.properties`
   (the JDK toolchain version itself is pinned in
   `gradle/gradle-daemon-jvm.properties`).
@@ -164,10 +165,10 @@ compiler-required casts (`@Suppress("UNCHECKED_CAST")` in a
 
 ### SSOT / DRY <a id="ssot-dry"></a>
 
-This rule applies to **all** generated artifacts: production code,
-test code, docs, comments, scripts, fixtures, CI configuration.
-Each fact lives in one place; other places cite the SSOT — they do
-not restate it.
+This rule — SSOT and DRY (don't repeat yourself) — applies to
+**all** generated artifacts: production code, test code, docs,
+comments, scripts, fixtures, CI configuration. Each fact lives in
+one place; other places cite the SSOT — they do not restate it.
 
 - **Project rules**: this file plus `.claude/rules/*.md`.
 - **Code values**: the symbol (`FemtoDimens.X`,
@@ -197,7 +198,7 @@ rule file manually. When in doubt, read them all.
 | `.claude/rules/permissions.md` | `AndroidManifest.xml` | Permission procedure + the audit-log table |
 | `.claude/rules/dependencies.md` | Gradle catalog + wrapper, `**/build.gradle.kts`, `settings.gradle.kts`, `webmap/package.json` + lockfile + workspace catalog | Version-catalog discipline, Compose BOM, lock-step rule, build-time endpoints |
 | `.claude/rules/kotlin-style.md` | `app/src/**/*.kt` | Expression chains, naming, sanctioned language features, ktlint / Spotless wiring |
-| `.claude/rules/compose.md` | `app/src/main/java/io/github/seijikohara/femto/**/*.kt` | UDF architecture, layering, `WhileUiSubscribed`, Compose performance |
+| `.claude/rules/compose.md` | `app/src/main/java/io/github/seijikohara/femto/**/*.kt` | UDF (unidirectional data flow) architecture, layering, `WhileUiSubscribed`, Compose performance |
 | `.claude/rules/testing.md` | `app/src/test/**`, `app/src/androidTest/**` | JUnit 4 + `runTest`, Compose UI tests, `testfixtures/` |
 | `.claude/rules/webmap.md` | `webmap/**` | Vite+ toolchain split, `build.target` floor, TS 7 constraints, pnpm pin |
 | `.claude/rules/docs.md` | `docs/**` | Astro site: content SSOT, base-aware links, pnpm / oxlint / Prettier toolchain, catalog import contract |
