@@ -18,8 +18,8 @@ locale-specific behavior is parameterized, and the strictest
 applicable rule wins when markets diverge.
 
 > **Rule locations.** AGENTS.md is the tool-agnostic project brief
-> and rule SSOT (single source of truth) for every coding agent (cite rules here as
-> `AGENTS.md#<anchor>`); path-scoped rules live in
+> and rule SSOT (single source of truth) for every coding agent
+> (cite rules here as `AGENTS.md#<anchor>`); path-scoped rules live in
 > `.claude/rules/*.md` (cite by file path; rule-file anchors are not
 > addressable from outside). One home per rule; link, never restate.
 > Tool-specific surface (Claude Code agents, skills, memory) lives in
