@@ -51,6 +51,7 @@ internal fun HomeRoute(
     val viewModel: HomeViewModel =
         viewModel(factory = HomeViewModelFactory(context.applicationContext as Application))
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val online by viewModel.online.collectAsStateWithLifecycle()
     val updatePrompt by viewModel.updatePrompt.collectAsStateWithLifecycle()
     val currentOnEvent by rememberUpdatedState(onEvent)
     LaunchedEffect(viewModel) {
@@ -90,6 +91,7 @@ internal fun HomeRoute(
         musicShowArt = musicShowArt,
         spectrum = viewModel.audioSpectrum,
         motionTier = motionTier,
+        online = online,
         updatePrompt = updatePrompt,
         sheetOpen = sheetOpen,
         fullscreen = fullscreen,

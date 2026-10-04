@@ -159,7 +159,8 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
             reporter,
         });
 
-        // The one positive signal that the tile host is answering. NOT
+        // The one positive signal that the tile host is answering, and so the
+        // one the watchdog reports to the host as the page's success. NOT
         // `isSourceLoaded`: a raster source declared with an inline tiles array
         // (the bundled light style's relief layer) reports itself loaded the
         // moment it is added, without a single request leaving the device.
@@ -191,6 +192,8 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
                             terrainUrl: terrainUrl,
                         }),
                 });
+                // Only from here do tiles belong to the swapped-in style.
+                noTileWatchdog.onStyleApplied();
             }
         }
 

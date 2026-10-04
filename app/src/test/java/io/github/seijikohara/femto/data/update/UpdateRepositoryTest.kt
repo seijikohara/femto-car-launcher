@@ -9,7 +9,9 @@ import io.github.seijikohara.femto.testfixtures.FakeClock
 import io.github.seijikohara.femto.testfixtures.FakeInstallConfirmation
 import io.github.seijikohara.femto.testfixtures.FakeUpdateFeed
 import io.github.seijikohara.femto.testfixtures.FakeUpdateSettingsStore
+import io.github.seijikohara.femto.testfixtures.HeldDispatcher
 import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
@@ -787,7 +789,7 @@ class UpdateRepositoryTest {
             repository.install()
             runCurrent()
 
-            assertEquals(UpdateState.Failed(UpdateFailure.OTHER, newer), repository.state.value)
+            assertEquals(UpdateState.Failed(UpdateFailure.OTHER, newer, staged = true), repository.state.value)
             assertEquals(emptyList(), installer.committed)
             assertNull(store.current.pendingInstallVersionCode)
         }
@@ -801,7 +803,7 @@ class UpdateRepositoryTest {
             repository.install()
             runCurrent()
 
-            assertEquals(UpdateState.Failed(UpdateFailure.OTHER, newer), repository.state.value)
+            assertEquals(UpdateState.Failed(UpdateFailure.OTHER, newer, staged = true), repository.state.value)
             assertNull(store.current.pendingInstallVersionCode)
         }
 
@@ -814,7 +816,10 @@ class UpdateRepositoryTest {
             repository.onInstallFailed(SESSION, UpdateFailure.INSTALL_BLOCKED)
             runCurrent()
 
-            assertEquals(UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer), repository.state.value)
+            assertEquals(
+                UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer, staged = true),
+                repository.state.value,
+            )
             assertNull(store.current.pendingInstallVersionCode)
             assertTrue(file.exists())
         }
@@ -1116,7 +1121,10 @@ class UpdateRepositoryTest {
             repository.onConfirmationRequested(SESSION, FakeInstallConfirmation(starts = false))
             runCurrent()
 
-            assertEquals(UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer), repository.state.value)
+            assertEquals(
+                UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer, staged = true),
+                repository.state.value,
+            )
             assertEquals(listOf(SESSION), installer.abandoned)
             assertNull(store.current.pendingInstallVersionCode)
         }
@@ -1134,7 +1142,10 @@ class UpdateRepositoryTest {
             repository.install()
             runCurrent()
 
-            assertEquals(UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer), repository.state.value)
+            assertEquals(
+                UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer, staged = true),
+                repository.state.value,
+            )
             assertEquals(listOf(SESSION), installer.abandoned)
         }
 
@@ -1398,7 +1409,10 @@ class UpdateRepositoryTest {
             val repository = installingRepository()
             repository.onConfirmationRequested(SESSION, FakeInstallConfirmation(starts = false))
             runCurrent()
-            assertEquals(UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer), repository.state.value)
+            assertEquals(
+                UpdateState.Failed(UpdateFailure.INSTALL_BLOCKED, newer, staged = true),
+                repository.state.value,
+            )
 
             val restarted = startedRepository()
 
@@ -1461,6 +1475,286 @@ class UpdateRepositoryTest {
             assertNull(store.current.offer)
         }
 
+    // --- discard and skip -----------------------------------------------------
+
+    @Test
+    fun `discard deletes the verified download and returns to the offer`() =
+        runTest {
+            val repository = readyRepository()
+
+            repository.discard()
+            runCurrent()
+
+            assertEquals(UpdateState.Available(newer), repository.state.value)
+            assertFalse(stagingDir.exists())
+            assertEquals(newer, store.current.offer)
+        }
+
+    @Test
+    fun `a discarded download is not restored at the next start`() =
+        runTest {
+            readyRepository().discard()
+            runCurrent()
+
+            val restarted = startedRepository()
+
+            assertEquals(UpdateState.Available(newer), restarted.state.value)
+        }
+
+    @Test
+    fun `discard deletes the download a refused install kept and clears the pending record`() =
+        runTest {
+            val repository = installingRepository()
+            repository.onInstallFailed(SESSION, UpdateFailure.INSTALL_BLOCKED)
+            runCurrent()
+
+            repository.discard()
+            runCurrent()
+
+            assertEquals(UpdateState.Available(newer), repository.state.value)
+            assertFalse(stagingDir.exists())
+            assertNull(store.current.pendingInstallVersionCode)
+        }
+
+    @Test
+    fun `a download tapped right after a discard waits for the deletion`() =
+        runTest {
+            val io = HeldDispatcher()
+            val repository = readyRepository(ioDispatcher = io)
+            // The discard's deletion and the download's look at the staged file
+            // are both IO; run them newest first, as a busy IO pool may.
+            io.hold = true
+
+            repository.discard()
+            repository.download()
+            runCurrent()
+            io.releaseNewestFirst()
+            runCurrent()
+
+            // Without the wait, the download would take the doomed file as
+            // already staged, and offer an install of a file that is gone.
+            assertTrue(assertIs<UpdateState.Ready>(repository.state.value).file.exists())
+            assertEquals(2, feed.downloads.size)
+        }
+
+    @Test
+    fun `discard leaves a download that is not staged alone`() =
+        runTest {
+            val repository = availableRepository()
+            feed.downloadFailure = UpdateFailure.NETWORK
+            repository.download()
+            runCurrent()
+            val failed = repository.state.value
+
+            repository.discard()
+            runCurrent()
+
+            assertEquals(failed, repository.state.value)
+        }
+
+    @Test
+    fun `skip records the offered build as skipped and keeps the offer`() =
+        runTest {
+            val repository = availableRepository()
+
+            repository.skip()
+            runCurrent()
+
+            assertEquals(NEWER, store.current.skippedVersionCode)
+            assertEquals(UpdateState.Available(newer), repository.state.value)
+        }
+
+    @Test
+    fun `skip also discards a verified download of the build`() =
+        runTest {
+            val repository = readyRepository()
+
+            repository.skip()
+            runCurrent()
+
+            assertEquals(NEWER, store.current.skippedVersionCode)
+            assertEquals(UpdateState.Available(newer), repository.state.value)
+            assertFalse(stagingDir.exists())
+        }
+
+    @Test
+    fun `skip does nothing without an offer`() =
+        runTest {
+            val repository = startedRepository()
+
+            repository.skip()
+            runCurrent()
+
+            assertNull(store.current.skippedVersionCode)
+        }
+
+    @Test
+    fun `a newer build clears the skip`() =
+        runTest {
+            val repository = availableRepository()
+            repository.skip()
+            runCurrent()
+            feed.latestResult = FeedResult.Found(fakeUpdateManifest(NEWER + 1))
+
+            repository.checkNow()
+            runCurrent()
+
+            assertNull(store.current.skippedVersionCode)
+        }
+
+    @Test
+    fun `a skip of the newer build tapped while its offer is recorded survives`() =
+        runTest {
+            val repository = availableRepository()
+            repository.skip()
+            runCurrent()
+            val newest = fakeUpdateManifest(NEWER + 1)
+            feed.latestResult = FeedResult.Found(newest)
+            // The check's record of the newer offer reads the store and then
+            // waits, holding the old skip it read.
+            val gate = store.gateReads()
+            repository.checkNow()
+            runCurrent()
+
+            repository.skip()
+            runCurrent()
+            gate.complete(Unit)
+            runCurrent()
+
+            assertEquals(newest.versionCode, store.current.skippedVersionCode)
+        }
+
+    @Test
+    fun `a check that finds the skipped build again keeps the skip`() =
+        runTest {
+            val repository = availableRepository()
+            repository.skip()
+            runCurrent()
+
+            repository.checkNow()
+            runCurrent()
+
+            assertEquals(NEWER, store.current.skippedVersionCode)
+        }
+
+    @Test
+    fun `the running build reaching a skipped build clears the skip at start`() =
+        runTest {
+            store.setSkippedVersionCode(NEWER)
+
+            startedRepository(currentVersionCode = NEWER)
+
+            assertNull(store.current.skippedVersionCode)
+        }
+
+    @Test
+    fun `a skip of a build the running one has not reached survives a restart`() =
+        runTest {
+            store.setSkippedVersionCode(NEWER)
+
+            startedRepository()
+
+            assertEquals(NEWER, store.current.skippedVersionCode)
+        }
+
+    @Test
+    fun `a signature conflict records the refused build`() =
+        runTest {
+            installingRepository().onInstallFailed(SESSION, UpdateFailure.INSTALL_CONFLICT)
+            runCurrent()
+
+            assertEquals(NEWER, store.current.refusedVersionCode)
+        }
+
+    @Test
+    fun `a check after a signature conflict does not offer the refused build again`() =
+        runTest {
+            val repository = installingRepository()
+            repository.onInstallFailed(SESSION, UpdateFailure.INSTALL_CONFLICT)
+            runCurrent()
+
+            repository.checkNow()
+            runCurrent()
+
+            assertEquals(UpdateState.UpToDate, repository.state.value)
+        }
+
+    @Test
+    fun `a check that runs before the conflict's cleanup does not offer the refused build`() =
+        runTest {
+            val repository = installingRepository()
+            feed.latestResult = FeedResult.Found(newer)
+
+            // The conflict settles at once; its file and store cleanup runs
+            // later, and the check gets in first.
+            repository.onInstallFailed(SESSION, UpdateFailure.INSTALL_CONFLICT)
+            repository.checkNow()
+            runCurrent()
+
+            assertEquals(UpdateState.UpToDate, repository.state.value)
+        }
+
+    @Test
+    fun `a refused build is not offered again after a restart`() =
+        runTest {
+            installingRepository().onInstallFailed(SESSION, UpdateFailure.INSTALL_CONFLICT)
+            runCurrent()
+            val restarted = startedRepository()
+
+            restarted.checkNow()
+            runCurrent()
+
+            assertEquals(UpdateState.UpToDate, restarted.state.value)
+        }
+
+    @Test
+    fun `a build older than the refused one is not offered either`() =
+        runTest {
+            store.setRefusedVersionCode(NEWER + 1)
+            feed.latestResult = FeedResult.Found(newer)
+            val repository = startedRepository()
+
+            repository.checkNow()
+            runCurrent()
+
+            assertEquals(UpdateState.UpToDate, repository.state.value)
+        }
+
+    @Test
+    fun `a build newer than the refused one is offered`() =
+        runTest {
+            store.setRefusedVersionCode(NEWER)
+            val newest = fakeUpdateManifest(NEWER + 1)
+            feed.latestResult = FeedResult.Found(newest)
+            val repository = startedRepository()
+
+            repository.checkNow()
+            runCurrent()
+
+            assertEquals(UpdateState.Available(newest), repository.state.value)
+        }
+
+    @Test
+    fun `a persisted offer of the refused build is dropped at start`() =
+        runTest {
+            store.setRefusedVersionCode(NEWER)
+            store.setOffer(newer)
+
+            val restarted = startedRepository()
+
+            assertEquals(UpdateState.Idle(lastAttemptAt = null), restarted.state.value)
+        }
+
+    @Test
+    fun `the running build reaching the refused one clears the record at start`() =
+        runTest {
+            store.setRefusedVersionCode(NEWER)
+
+            startedRepository(currentVersionCode = NEWER)
+
+            assertNull(store.current.refusedVersionCode)
+        }
+
     // --- helpers ------------------------------------------------------------
 
     private fun TestScope.repository(
@@ -1469,6 +1763,7 @@ class UpdateRepositoryTest {
         enabled: Boolean = true,
         installer: ApkInstaller = this@UpdateRepositoryTest.installer,
         store: UpdateSettingsStore = this@UpdateRepositoryTest.store,
+        ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
     ): UpdateRepository =
         UpdateRepository(
             feed = feed,
@@ -1483,7 +1778,7 @@ class UpdateRepositoryTest {
             clock = clock,
             scope = backgroundScope,
             stagingDir = stagingDir,
-            ioDispatcher = StandardTestDispatcher(testScheduler),
+            ioDispatcher = ioDispatcher,
         )
 
     // A repository whose start-up reconciliation has run.
@@ -1492,15 +1787,18 @@ class UpdateRepositoryTest {
         channel: UpdateChannel = UpdateChannel.STABLE,
         installer: ApkInstaller = this@UpdateRepositoryTest.installer,
         store: UpdateSettingsStore = this@UpdateRepositoryTest.store,
+        ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
     ): UpdateRepository =
-        repository(currentVersionCode, channel, installer = installer, store = store).also { runCurrent() }
+        repository(currentVersionCode, channel, installer = installer, store = store, ioDispatcher = ioDispatcher)
+            .also { runCurrent() }
 
     // A started repository whose check (at NOW) found [manifest].
     private fun TestScope.availableRepository(
         manifest: UpdateManifest = newer,
         installer: ApkInstaller = this@UpdateRepositoryTest.installer,
+        ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
     ): UpdateRepository =
-        startedRepository(installer = installer).also { repository ->
+        startedRepository(installer = installer, ioDispatcher = ioDispatcher).also { repository ->
             feed.latestResult = FeedResult.Found(manifest)
             repository.checkNow()
             runCurrent()
@@ -1510,8 +1808,9 @@ class UpdateRepositoryTest {
     // real check and download path.
     private fun TestScope.readyRepository(
         installer: ApkInstaller = this@UpdateRepositoryTest.installer,
+        ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
     ): UpdateRepository =
-        availableRepository(installer = installer).also { repository ->
+        availableRepository(installer = installer, ioDispatcher = ioDispatcher).also { repository ->
             repository.download()
             runCurrent()
         }

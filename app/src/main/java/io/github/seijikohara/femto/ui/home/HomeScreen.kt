@@ -48,6 +48,8 @@ internal fun HomeScreen(
     musicShowArt: Boolean = true,
     spectrum: StateFlow<FloatArray?>? = null,
     motionTier: MotionTier = MotionTier.STANDARD,
+    // The live map's connectivity reading (HomeViewModel.online).
+    online: Boolean = true,
     // The build the update prompt asks about (HomeViewModel.updatePrompt), or null.
     updatePrompt: UpdateManifest? = null,
     // Whether one of the host's sheets covers the dashboard (Settings, the
@@ -84,6 +86,7 @@ internal fun HomeScreen(
         musicShowArt = musicShowArt,
         spectrum = spectrum,
         motionTier = motionTier,
+        online = online,
         video = video,
         videoPictureVisible = videoPictureVisible,
         onVideoAction = onVideoAction,

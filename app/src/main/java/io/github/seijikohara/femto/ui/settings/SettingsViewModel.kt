@@ -92,6 +92,12 @@ internal interface UpdaterPort {
 
     fun install()
 
+    /** Delete the staged download and return to the plain offer (UpdateRepository.discard). */
+    fun discard()
+
+    /** Skip the offered build (UpdateRepository.skip). */
+    fun skip()
+
     fun acknowledgeUpdatedTo()
 }
 
@@ -624,6 +630,15 @@ internal class SettingsViewModel(
                     }
                 }
 
+                // Neither puts anything on screen, so neither waits for parking.
+                SettingsAction.DiscardUpdate -> {
+                    updater.discard()
+                }
+
+                SettingsAction.SkipUpdate -> {
+                    updater.skip()
+                }
+
                 SettingsAction.InstallGrantDeclined -> {
                     installGrantDeclined.value = true
                 }
@@ -774,6 +789,10 @@ internal class SettingsViewModelFactory(
             override fun download() = repository.download()
 
             override fun install() = repository.install()
+
+            override fun discard() = repository.discard()
+
+            override fun skip() = repository.skip()
 
             override fun acknowledgeUpdatedTo() = repository.acknowledgeUpdatedTo()
         }

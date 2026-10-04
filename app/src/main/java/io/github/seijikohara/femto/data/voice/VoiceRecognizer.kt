@@ -38,6 +38,25 @@ internal sealed interface VoiceState {
 }
 
 /**
+ * The in-process speech input a ViewModel drives: the recognition lifecycle as
+ * a [state] flow plus its controls. [VoiceRecognizer] is the platform
+ * implementation; tests substitute a fake, because Robolectric has no speech
+ * engine to drive.
+ */
+internal interface SpeechInput {
+    val state: StateFlow<VoiceState>
+
+    fun start()
+
+    fun stop()
+
+    /** Return to the ready state, discarding any result or error. */
+    fun reset()
+
+    fun destroy()
+}
+
+/**
  * Thin wrapper over the platform [SpeechRecognizer] that exposes the recognition
  * lifecycle as a [StateFlow]. The launcher hosts the mic UI itself (rather than
  * firing `ACTION_ASSIST` and leaving), so speech is captured in-process and the
@@ -49,17 +68,17 @@ internal sealed interface VoiceState {
  */
 internal class VoiceRecognizer(
     context: Context,
-) {
+) : SpeechInput {
     private val appContext = context.applicationContext
     val isAvailable: Boolean = SpeechRecognizer.isRecognitionAvailable(appContext)
 
     private val _state =
         MutableStateFlow<VoiceState>(if (isAvailable) VoiceState.Idle else VoiceState.Unavailable)
-    val state: StateFlow<VoiceState> = _state.asStateFlow()
+    override val state: StateFlow<VoiceState> = _state.asStateFlow()
 
     private var recognizer: SpeechRecognizer? = null
 
-    fun start() {
+    override fun start() {
         if (!isAvailable) return
         val active = recognizer ?: SpeechRecognizer.createSpeechRecognizer(appContext).also {
             it.setRecognitionListener(listener)
@@ -69,12 +88,11 @@ internal class VoiceRecognizer(
         active.startListening(recognizerIntent())
     }
 
-    fun stop() {
+    override fun stop() {
         recognizer?.stopListening()
     }
 
-    /** Return to the ready state, discarding any result or error. */
-    fun reset() {
+    override fun reset() {
         if (isAvailable) {
             // Park the engine before the next start(): after onError some OEM
             // recognizers silently no-op on a reused instance unless cancelled.
@@ -83,7 +101,7 @@ internal class VoiceRecognizer(
         }
     }
 
-    fun destroy() {
+    override fun destroy() {
         recognizer?.destroy()
         recognizer = null
     }

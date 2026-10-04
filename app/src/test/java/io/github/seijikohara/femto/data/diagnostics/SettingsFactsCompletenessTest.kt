@@ -44,6 +44,8 @@ class SettingsFactsCompletenessTest {
             "pendingInstallVersionCode" to "Update pending install",
             "offer" to "Update offer",
             "promptedVersionCode" to "Update prompted",
+            "skippedVersionCode" to "Update skipped",
+            "refusedVersionCode" to "Update refused",
         )
 
     private val videoPropertyToFactLabel: Map<String, String> =

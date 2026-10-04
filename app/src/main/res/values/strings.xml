@@ -167,6 +167,20 @@
     <string name="nav_assistant">Assistant</string>
     <string name="nav_settings">Settings</string>
 
+    <!-- Destination panel (the dock's Navigation button) -->
+    <string name="destination_title">Destination</string>
+    <string name="destination_open_maps">Open maps app</string>
+    <string name="destination_query_hint">Search for a place or address</string>
+    <string name="destination_navigate">Navigate</string>
+    <string name="destination_save_query">Save</string>
+    <string name="destination_save_location">Save current location</string>
+    <!-- Shown under the disabled text field while the vehicle moves. -->
+    <string name="destination_moving_hint">Typing works when stopped. Voice and saved places work now.</string>
+    <string name="destination_saved_places">Saved places</string>
+    <string name="destination_no_saved_places">No saved places yet. Save a search or your current location while stopped.</string>
+    <!-- %1$s = the saved place's label -->
+    <string name="destination_delete_place">Delete %1$s</string>
+
     <!-- Shared edit-mode "Done" affordance (drawer pinned dock + dashboard dock nav). -->
     <string name="edit_done">Done</string>
     <!-- Dashboard footer: long-press edit menu (nav buttons and status icons share it) -->
@@ -493,6 +507,8 @@
     <string name="settings_updates_available">Available version</string>
     <!-- %1$s = the offered version name, %2$s = its download size, e.g. "45.3 MB" -->
     <string name="settings_updates_available_summary">%1$s · %2$s</string>
+    <!-- The same, for the build the user skipped (Skip this version) -->
+    <string name="settings_updates_available_summary_skipped">%1$s · %2$s · Skipped</string>
     <string name="settings_updates_up_to_date">Up to date</string>
     <string name="settings_updates_check">Check for updates</string>
     <string name="settings_updates_status_disabled">This build does not check for updates.</string>
@@ -506,6 +522,8 @@
     <string name="settings_updates_failed_verify">The download did not match the published update and was deleted.</string>
     <string name="settings_updates_failed_install_conflict">This update is signed with a different key, so it cannot replace the installed app.</string>
     <string name="settings_updates_failed_install_blocked">This device blocks app installs, so the update cannot be installed here.</string>
+    <string name="settings_updates_failed_developer_verification_offline">Android needs a connection to verify this app\'s developer, so the update was not installed. Try again when you are online.</string>
+    <string name="settings_updates_failed_developer_verification_blocked">Android\'s developer verification blocked this update, so it was not installed.</string>
     <string name="settings_updates_failed_other">The update could not be completed.</string>
     <!-- The one-tap update row, through every stage; %1$s = the offered version name -->
     <string name="settings_updates_update">Update to %1$s</string>
@@ -529,6 +547,11 @@
     <string name="settings_updates_retry">Retry</string>
     <!-- %1$s = the offered version name, %2$s = its download size, e.g. "45.3 MB" -->
     <string name="settings_updates_retry_desc">Version %1$s · %2$s</string>
+    <string name="settings_updates_discard">Discard download</string>
+    <string name="settings_updates_discard_desc">Deletes the downloaded file. The update stays on offer.</string>
+    <string name="settings_updates_skip">Skip this version</string>
+    <!-- %1$s = the offered version name -->
+    <string name="settings_updates_skip_desc">No more reminders about %1$s. A newer version is offered again.</string>
     <string name="settings_updates_auto_check">Check automatically</string>
     <string name="settings_updates_auto_check_desc">Look for a new version once a day. Nothing downloads until you ask.</string>
     <string name="settings_updates_release_page">Open release page</string>

@@ -2,8 +2,8 @@
 <!--
    Legacy Auto Backup rules (devices on API <= 30; minSdk is 33 so
    data_extraction_rules.xml governs in practice). Kept consistent with it:
-   exclude location-related settings, the updater's bookkeeping and the video
-   window's settings from backup.
+   exclude location-related settings, saved places, the updater's bookkeeping
+   and the video window's settings from backup.
 -->
 <full-backup-content>
     <!-- display_preferences (incl. the user's BYO Google Maps key) deliberately stays in backup: it is a client-side key designed to live in distributed apps, and restoring it avoids re-entry on a new head unit. location_preferences stays excluded (position history is not portable state). -->
@@ -12,6 +12,8 @@
     <exclude domain="database" path="track_log.db" />
     <!-- update_preferences is the updater's bookkeeping about this install, none of it portable (see data_extraction_rules.xml). -->
     <exclude domain="file" path="datastore/update_preferences.preferences_pb" />
+    <!-- saved_places is location data that stays on the device (see data_extraction_rules.xml). -->
+    <exclude domain="file" path="datastore/saved_places.preferences_pb" />
     <!-- video_preferences holds a picked file whose read grant belongs to this install, and the picture gate a new install starts on (see data_extraction_rules.xml). -->
     <exclude domain="file" path="datastore/video_preferences.preferences_pb" />
 </full-backup-content>

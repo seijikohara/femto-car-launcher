@@ -45,6 +45,7 @@ import io.github.seijikohara.femto.data.update.UpdateSettings
 import io.github.seijikohara.femto.data.update.UpdateState
 import io.github.seijikohara.femto.data.update.offersUpdate
 import io.github.seijikohara.femto.data.update.promptedFor
+import io.github.seijikohara.femto.data.update.skipped
 import io.github.seijikohara.femto.data.weather.MetNorwayApi
 import io.github.seijikohara.femto.data.weather.WeatherRepository
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
@@ -68,6 +69,10 @@ import java.io.File
 
 private const val TAG = "HomeViewModel"
 
+// The connectivity reading the dashboard assumes before the first one arrives
+// (see HomeViewModel.online).
+private const val ASSUMED_ONLINE = true
+
 internal class HomeViewModel(
     private val locationFlow: Flow<Location?>,
     private val addressFlow: Flow<ShortAddress?>,
@@ -76,16 +81,18 @@ internal class HomeViewModel(
     private val calendarFlow: Flow<CalendarSnapshot?>,
     private val systemStatusFlow: Flow<SystemStatus>,
     private val tripStateFlow: Flow<TripState>,
-    // Whether the device currently has validated internet; drives the live map's
-    // offline->online reload (see WebMapView). Defaults to always-online so previews
-    // and tests that do not exercise recovery are unaffected.
-    private val onlineFlow: Flow<Boolean> = flowOf(true),
+    // Whether the default network has validated internet
+    // (SystemStatusRepository.onlineFlow); backs [online]. Defaults to
+    // always-online so previews and tests that do not exercise recovery are
+    // unaffected.
+    private val onlineFlow: Flow<Boolean> = flowOf(ASSUMED_ONLINE),
     // The updater's state; drives the dock's update badge and the update prompt.
     // Defaults to a build that never checks, so previews and tests that do not
     // exercise either are unaffected.
     private val updateStateFlow: Flow<UpdateState> = flowOf(UpdateState.Disabled),
     // The updater's store: the prompt reads which build it has asked about
-    // (UpdateSettings.promptedVersionCode) and records each answer.
+    // (UpdateSettings.promptedVersionCode) and records each answer, and both
+    // the prompt and the dock's dot leave a skipped build alone.
     private val updateSettingsFlow: Flow<UpdateSettings> = flowOf(UpdateSettings.Default),
     private val recordUpdatePrompted: suspend (Int) -> Unit = {},
     // The boot clock the motion gate judges a fix's age against; tests pin it,
@@ -113,16 +120,19 @@ internal class HomeViewModel(
     // updater resolves off the main thread when first collected
     // (UpdateRepository.observe), and the combine below emits only once every
     // source has, so an unseeded slot would hold the whole dashboard back.
+    // A skipped build raises no dot; a broken store fails open, as the
+    // prompt's read does.
     private val updateBadge: Flow<Boolean> =
         combine(
-            updateStateFlow.map { it.offersUpdate() },
+            updateStateFlow,
+            updateSettingsFlow.catchAsDefault(TAG, "update badge settings", UpdateSettings.Default),
             vehicleMotionFlow(locationFlow, tripStateFlow, nowElapsedRealtimeNanos),
-        ) { offered, motion -> offered && motion == VehicleMotion.PARKED }
+        ) { state, settings, motion -> state.offersUpdate(settings) && motion == VehicleMotion.PARKED }
             .onStart { emit(false) }
             .distinctUntilChanged()
             .catchAsDefault(TAG, "update badge", false)
 
-    // Kotlin's typed combine overloads cover at most 5 flows. Stage the nine
+    // Kotlin's typed combine overloads cover at most 5 flows. Stage the eight
     // sources through a typed intermediate (CoreSignals) so the compiler enforces
     // arity and per-slot types end-to-end: a future reorder fails to compile
     // instead of silently mismapping a positional values[i] cast.
@@ -148,8 +158,7 @@ internal class HomeViewModel(
             calendarFlow.catchAsDefault(TAG, "calendar", HomeUiState.Initial.calendar),
             systemStatusFlow.catchAsDefault(TAG, "system status", HomeUiState.Initial.systemStatus),
             tripStateFlow.catchAsDefault(TAG, "trip state", HomeUiState.Initial.tripState),
-            onlineFlow.catchAsDefault(TAG, "connectivity", HomeUiState.Initial.online),
-        ) { core, calendar, systemStatus, tripState, online ->
+        ) { core, calendar, systemStatus, tripState ->
             HomeUiState(
                 location = core.location,
                 address = core.address,
@@ -158,20 +167,35 @@ internal class HomeViewModel(
                 calendar = calendar,
                 systemStatus = systemStatus,
                 tripState = tripState,
-                online = online,
                 updateBadge = core.updateBadge,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, HomeUiState.Initial)
+
+    /**
+     * Whether the default network has validated internet, for the live map's
+     * offline->online reload (WebMapView). Its own state, apart from [uiState]:
+     * the combine emits only once every source has, so after a return the
+     * reading would reach the map only when the slowest source spoke again,
+     * seconds after the page the return reload built, which a late
+     * offline->online edge then reloads a second time. Starts online, so a
+     * dashboard that has not heard yet never shows the map a false
+     * offline->online edge.
+     */
+    val online: StateFlow<Boolean> =
+        onlineFlow
+            .catchAsDefault(TAG, "connectivity", ASSUMED_ONLINE)
+            .stateIn(viewModelScope, WhileUiSubscribed, ASSUMED_ONLINE)
 
     /**
      * The build the dashboard's update prompt asks about, or null: an offer
      * waiting for its first step (to download, or to install the verified
      * file), once a live GPS fix has shown the vehicle parked for
      * [UPDATE_PROMPT_PARKED_DWELL_MS] without a break (fail-closed; see
-     * VehicleMotion), that the prompt has not asked about and the Updates
+     * VehicleMotion), that the prompt has not asked about, the Updates
      * section has not shown (promptedFor, or an answer earlier in this
-     * process). A verdict that leaves PARKED closes it at once, unrecorded, to
-     * ask again after the next full dwell.
+     * process), and the user has not skipped (skipped). A verdict that
+     * leaves PARKED closes it at once, unrecorded, to ask again after the
+     * next full dwell.
      *
      * Its own state, apart from [uiState], and shared with
      * [WhileUiSubscribedFresh]: a dashboard that comes back, even a second
@@ -193,7 +217,8 @@ internal class HomeViewModel(
             state.promptableOfferOrNull()?.takeIf { offer ->
                 reading.parkedThroughDwell &&
                     offer.versionCode !in answered &&
-                    !settings.promptedFor(offer.versionCode)
+                    !settings.promptedFor(offer.versionCode) &&
+                    !settings.skipped(offer.versionCode)
             }
         }.distinctUntilChanged()
             .catchAsDefault(TAG, "update prompt", null)
@@ -242,6 +267,16 @@ internal class HomeViewModel(
                         ?.let { HomeEvent.LaunchGeo(it.latitude, it.longitude) }
                         ?: HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_MAPS),
                 )
+            }
+
+            HomeAction.OpenDestinations -> {
+                // Opens the destination panel at the dashboard overlay layer
+                // (DashboardContent intercepts it, like OpenAppDrawer); a no-op
+                // if it ever reaches the ViewModel.
+            }
+
+            is HomeAction.Navigate -> {
+                mutableEvents.tryEmit(HomeEvent.LaunchDestination(action.target, action.label))
             }
 
             is HomeAction.Shortcut -> {
