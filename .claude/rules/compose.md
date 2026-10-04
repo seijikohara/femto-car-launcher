@@ -29,9 +29,18 @@ convention wins.
     lifecycle-aware fields. It may expose an additional
     purpose-named `StateFlow` beside `UiState` when a signal must not
     wait for the `UiState` aggregation or must not replay stale —
-    `HomeViewModel.online` (the map's reconnect reading) and
-    `HomeViewModel.updatePrompt` (never shown stale) — shared with a
-    policy from `data/common/FlowSharing.kt`.
+    `HomeViewModel.online` (the map's reconnect reading),
+    `HomeViewModel.updatePrompt` (never shown stale),
+    `HomeViewModel.audioSpectrum` (a ~20 Hz stream kept out of
+    `UiState` so only the spectrum canvas recomposes on it), and
+    `VideoViewModel.pictureVisible` (the motion gate, judged afresh on
+    every return) — each shared with a policy from
+    `data/common/FlowSharing.kt`. Two further exposures are sanctioned
+    outside this `StateFlow` pattern: a one-shot `events:
+    SharedFlow<…Event>` for a navigation-style request a late
+    collector must not replay (`HomeViewModel.events`), and
+    `VideoViewModel.surfaceHost`, a narrow surface port for the
+    player's `TextureView` rather than state.
 - Trivial stateless screens need only `<Area>Screen.kt` (`Route`
   and `Screen` collapsed into one Composable); promote to the
   three-Composable shape on the first state addition.

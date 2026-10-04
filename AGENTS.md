@@ -58,7 +58,7 @@ app/src/
 ├── main/
 │   ├── java/io/github/seijikohara/femto/
 │   │   ├── MainActivity.kt           # ComponentActivity, single launcher entry
-│   │   ├── data/                     # One sub-package per domain (apps, calendar, clock, common, diagnostics, display, dock, fonts, geocoding, location, music, system, voice, weather); data/ never imports ui/
+│   │   ├── data/                     # One sub-package per domain (apps, calendar, clock, common, diagnostics, display, dock, fonts, geocoding, location, map, music, places, system, update, video, voice, weather); data/ never imports ui/
 │   │   └── ui/
 │   │       ├── <area>/               # One area per top-level surface
 │   │       │   ├── <Area>Route.kt    # VM-binding entry point (when stateful)
