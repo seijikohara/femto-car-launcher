@@ -116,8 +116,9 @@ need the per-bump justification rule from
   Kotlin and the `kotlin-compose` / `kotlin-serialization` plugin
   aliases move in lock-step automatically (shared `version.ref =
   "kotlin"` in the catalog).
-- **A `maplibre-gl` bump can silently break tile rendering with no
-  automated signal.** There is no automated tile-rendering test —
+- **Silent rendering breaks.** A `maplibre-gl` bump can break tile
+  rendering with no automated signal. There is no automated
+  tile-rendering test —
   `pnpm run check` (type-check + the `webmap/` unit tests) only
   covers pure logic (camera math, style JSON), not what actually
   paints. After any `maplibre-gl` major bump,

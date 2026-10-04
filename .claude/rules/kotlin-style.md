@@ -29,8 +29,9 @@ extensions. Where they differ, the project convention wins.
   wraps **every** branch of a `when` in `{}` as soon as one branch
   spans multiple lines (e.g. a function call with named arguments
   on separate lines). When that happens, accept the block form
-  rather than fighting the formatter — flatten the offending call
-  to a single line if the goal is the unwrapped style. The
+  rather than overriding the formatter's consistency rule —
+  flatten the offending call to a single line if the goal is the
+  unwrapped style. The
   `multiline-expression-wrapping` ktlint rule is **disabled** in
   `.editorconfig` so single-line branches stay unwrapped where
   ktlint's consistency rule does not interfere.

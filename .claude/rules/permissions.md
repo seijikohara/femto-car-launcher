@@ -79,7 +79,7 @@ degradation behavior live in the audit log above.
 | Permission | Use case | Caveats |
 | --- | --- | --- |
 | `QUERY_ALL_PACKAGES` | Show installed apps in the launcher's app list | Play Store policy: requires justification at submission. Prefer `<queries>` with specific intents when feasible. |
-| `SYSTEM_ALERT_WINDOW` | Map / music PiP overlays | User-grantable but visually scary; explain in onboarding. |
+| `SYSTEM_ALERT_WINDOW` | Map / music PiP overlays | User-grantable; the system dialog is prominent and may alarm a first-time user, so explain the request in onboarding before triggering it. |
 
 ## Anti-patterns
 

@@ -95,8 +95,8 @@ the home dashboard.
 
 5. **Drive the UI**: `uiautomator dump /sdcard/ui.xml` + `adb pull`,
    grep `content-desc="Settings"` for the dock button bounds (the
-   `DashboardDock` component, formerly called the footer), then
-   `input tap`. The settings ModalBottomSheet opens **partially
+   `DashboardDock` component), then `input tap`. The settings
+   ModalBottomSheet opens **partially
    expanded** — `input swipe` up to fully expand, then swipe to
    scroll.
 

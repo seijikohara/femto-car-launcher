@@ -36,12 +36,13 @@ first, then re-run this procedure.
 `mipmap-anydpi/ic_launcher.xml` and `ic_launcher_round.xml` only
 reference the two drawables — they normally need no edit.
 
-## Safe-zone scaling (the step everyone skips)
+## Safe-zone scaling
 
-The adaptive-icon safe zone is the center circle of diameter 66 on
-the 108 canvas. **Copying logo.svg coordinates 1:1 into the
-foreground is always wrong** — the full-bleed logo art reaches the
-canvas edge and the launcher mask clips it.
+This step is the one most often skipped. The adaptive-icon safe
+zone is the center circle of diameter 66 on the 108 canvas. Copying
+`logo.svg` coordinates 1:1 into the foreground clips the mark: the
+full-bleed logo art reaches the canvas edge, and the launcher mask
+crops anything outside the safe-zone circle.
 
 Keep the foreground viewport at 512 (matching logo.svg) and shrink
 the mark into the safe circle:
@@ -57,9 +58,9 @@ the mark into the safe circle:
 5. **Re-verify after transforming** (arithmetic slips here are
    common): recompute
    `r'_max = max(|p' − (256, 256)|) + strokeWidth' / 2` over the
-   transformed points with a calculator/script — do not do the
-   square roots in your head. The procedure is only complete when
-   `r'_max ≤ 156`.
+   transformed points with a calculator or script rather than by
+   hand — manual arithmetic is the most common source of error
+   here. The procedure is only complete when `r'_max ≤ 156`.
 
 ## Procedure
 
@@ -109,6 +110,7 @@ eye.
 - Copying logo.svg coordinates or stroke widths 1:1 into the
   foreground — the mask clips the mark (see safe-zone math).
 - Reproducing the logo's rounded corners in the background layer.
-- Generating density-bucket PNG/webp fallbacks "for older devices".
+- Generating density-bucket PNG/webp fallbacks for pre-API-33
+  devices the app no longer supports.
 - Editing `ic_launcher_foreground.xml` directly to change the
   design — `logo.svg` is the SSOT.

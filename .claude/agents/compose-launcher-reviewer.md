@@ -75,9 +75,9 @@ Group findings by severity:
 3. **Praise** — note any non-obvious-good choices. Use sparingly,
    only when genuine.
 
-Keep the report tight. If the change is small and clean, "Looks
-good, no findings" is the right answer. Do not invent issues to
-look thorough.
+Keep the report short. If the change is small with no violations,
+"Looks good, no findings" is the right answer. Do not invent issues
+to look thorough.
 
 Do not propose fixes unless asked. Reviewers report; they do not
 rewrite.
