@@ -91,10 +91,8 @@ Each option states:
    - `lecoauto_reference.md`
    - `project_overview.md`
    - any future entries about competitive features.
-   Cite the memory as a source; proceed without it if unavailable.
-   End the report with a **Proposed memory updates** section
-   listing durable facts for the caller to persist — do not write
-   files yourself (transient details do not qualify).
+
+   Cite the memory as a source; proceed without it if unavailable. End the report with a **Proposed memory updates** section listing durable facts for the caller to persist — do not write files yourself (transient details do not qualify).
 2. Visit **official sites and primary sources** first, then community forums, then aggregator / blog pages.
 3. For **open-source projects**, look at the actual code via `gh` and `WebFetch` against `github.com`. Implementation patterns in source are more reliable than READMEs.
 4. **Cross-reference** at least two independent sources for any claim about how an app works internally.
