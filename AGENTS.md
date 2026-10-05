@@ -76,6 +76,7 @@ Every `<uses-permission>` follows the procedure in `.claude/rules/permissions.md
 
 - Write source code, comments, docstrings, Markdown, commit messages, and PR text in **English**.
 - Comments explain **why** when the why is non-obvious; never restate what the code already shows.
+- Markdown prose is not hard-wrapped: a paragraph or list item is one line, and a line break appears only where Markdown needs one (headings, list items, table rows, code blocks, block HTML/JSX, front matter). The same applies to issue, pull request, and review-comment bodies. Commit messages are not Markdown and keep git's conventional wrapping.
 - No AI-attribution trailers or footers in commits, PRs, or issues (`Co-Authored-By: Claude`, "Generated with Claude Code", or any agent's equivalent).
 - Public-facing content (README, the docs site, release text) stays brand-neutral: no competitor or vendor product names. Platform standards (CarPlay, Android Auto) and the technical stack (MapLibre, OpenStreetMap, OpenFreeMap, MET Norway, Google Maps) may be named.
 - New screens use `@PreviewLightDark` for both light and dark modes.
