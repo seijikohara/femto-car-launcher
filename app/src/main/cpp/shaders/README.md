@@ -1,14 +1,10 @@
 # Trip-flyover shaders
 
-`line.vert` / `line.frag` are the GLSL sources for the native Vulkan wireframe
-pipeline. They are **precompiled to SPIR-V and committed** as C headers under
-`../generated/` (`line_vert_spv.h`, `line_frag_spv.h`), so the app build has no
-`glslc` dependency and CI needs only the pinned NDK + CMake.
+`line.vert` / `line.frag` are the GLSL sources for the native Vulkan wireframe pipeline. They are **precompiled to SPIR-V and committed** as C headers under `../generated/` (`line_vert_spv.h`, `line_frag_spv.h`), so the app build has no `glslc` dependency and CI needs only the pinned NDK + CMake.
 
 ## Regenerating after editing a shader
 
-Use the `glslc` bundled with the pinned NDK (see `ndk` in
-`gradle/libs.versions.toml`), then re-embed as `uint32_t` arrays:
+Use the `glslc` bundled with the pinned NDK (see `ndk` in `gradle/libs.versions.toml`), then re-embed as `uint32_t` arrays:
 
 ```sh
 NDK="$ANDROID_HOME/ndk/<version>"

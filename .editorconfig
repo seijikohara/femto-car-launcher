@@ -33,5 +33,8 @@ compose_allowed_composition_locals = LocalFemtoDarkTheme
 [*.{xml,json,yml,yaml,toml}]
 indent_size = 2
 
-[*.md]
+# Two trailing spaces are a Markdown hard break, so trailing whitespace stays.
+# Prose is never hard-wrapped (AGENTS.md#code-style), so no line limit applies.
+[*.{md,mdx}]
 trim_trailing_whitespace = false
+max_line_length = off

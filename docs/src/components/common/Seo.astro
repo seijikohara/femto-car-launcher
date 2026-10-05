@@ -22,7 +22,7 @@ const {
 } = Astro.props;
 
 const fullTitle =
-    title === siteConfig.title ? title : `${title} - ${siteConfig.name}`;
+    title === siteConfig.title ? title : `${title} — ${siteConfig.name}`;
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 // withBase covers a root-relative default like "/og-image.png"; astro:assets
 // `.src` values are already base-prefixed, and withBase leaves them untouched.

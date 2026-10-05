@@ -30,7 +30,7 @@ export interface SiteConfig {
     repository: string;
     /** Dated stable release: the primary, install-this download. */
     stableRelease: string;
-    /** Rolling nightly prerelease: the secondary, changes-often preview. */
+    /** Rolling nightly prerelease: the secondary, changes-often build. */
     nightlyRelease: string;
 }
 
@@ -41,7 +41,8 @@ const siteConfig: SiteConfig = {
         "A glanceable Android home launcher for in-car displays: live map, driving data, weather, calendar and media on one screen, built for aftermarket AI boxes, Android head units and car-mounted phones.",
     url: "https://seijikohara.github.io/femto-car-launcher",
     // The committed screenshot-test golden is the canonical dashboard look, so
-    // it doubles as the social card; the CI-recorded PNG can never drift.
+    // it doubles as the social card; CI verifies the PNG against the code on
+    // every pull request.
     ogImage: dashboardLight.src,
     lang: "en",
     ogLocale: "en_US",
@@ -68,7 +69,7 @@ const siteConfig: SiteConfig = {
                 href: "https://github.com/seijikohara/femto-car-launcher",
             },
             {
-                name: "Nightly preview",
+                name: "Nightly build",
                 href: "https://github.com/seijikohara/femto-car-launcher/releases/tag/nightly",
             },
             { name: "Privacy Policy", href: "/privacy/" },

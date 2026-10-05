@@ -8,7 +8,7 @@ import { withBase } from "@/lib/url";
 
 const title = "Screenshot catalog";
 const description =
-    "The dashboard rendered for every display geometry, display size, theme, driver side and dock position — pick two axes to compare and filter the rest.";
+    "The dashboard rendered across display geometries, display sizes, themes, driver sides and dock positions. Pick two axes to compare and filter the rest.";
 ---
 
 <BaseLayout title={title} description={description}>
@@ -21,13 +21,12 @@ const description =
                 </h1>
                 <p class="mt-4 text-lg text-muted-foreground">{description}</p>
                 <p class="mt-3 text-sm text-muted-foreground">
-                    Renders come from the same screenshot harness as the
-                    goldens: the map is a still, the glass blur is not
-                    rasterized, and fonts fall back to the system face. The page
-                    URL reflects your selection, so a combination can be shared
-                    as a link. The stable build shows the latest release; the
-                    nightly build shows the newest test build, when one is
-                    available.
+                    Renders come from the screenshot-test harness: the map is a
+                    still image, the glass blur is left out, and fonts fall back
+                    to the system face. The page URL reflects your selection, so
+                    you can share a combination as a link. The Stable build
+                    shows the latest release; the Nightly build shows the latest
+                    nightly build, when one is available.
                 </p>
             </header>
             <CatalogViewer

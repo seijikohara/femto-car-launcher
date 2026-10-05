@@ -330,7 +330,7 @@
     <string name="font_picker_search_hint">Search Google Fonts</string>
     <string name="font_picker_clear">Clear search</string>
     <string name="font_picker_system">System default</string>
-    <string name="font_picker_system_desc">Use the head unit\'s built-in font</string>
+    <string name="font_picker_system_desc">Use the device\'s built-in font</string>
     <string name="font_picker_subtitle_cjk">%1$s · CJK</string>
     <string name="font_picker_selected">Selected</string>
     <string name="font_picker_loading">Loading Google Fonts…</string>
@@ -423,7 +423,7 @@
     <string name="settings_google_maps_rendering_auto">Automatic</string>
     <string name="settings_google_maps_rendering_raster">Raster</string>
     <string name="settings_google_maps_rendering_vector">Vector</string>
-    <string name="settings_google_maps_rendering_note">Vector adds heading-up rotation and tilt; raster is flat and north-up. Automatic follows the map ID\'s cloud configuration, and renders raster when no map ID is set. Vector needs no map ID, but a device that cannot render it falls back to raster on its own.</string>
+    <string name="settings_google_maps_rendering_note">Vector adds heading-up rotation and tilt; raster is flat and north-up. Automatic follows the map ID\'s cloud configuration, and renders raster when no map ID is set. Vector needs no map ID, but on a device without WebGL it shows a notice instead of a map; choose Raster or Automatic there.</string>
     <string name="settings_google_maps_type">Map type</string>
     <string name="settings_google_maps_type_roadmap">Roadmap</string>
     <string name="settings_google_maps_type_satellite">Satellite</string>

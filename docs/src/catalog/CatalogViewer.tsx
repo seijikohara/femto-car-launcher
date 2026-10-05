@@ -478,7 +478,7 @@ function Lightbox({
                             </a>
                         </figcaption>
                         <DialogDescription className="sr-only">
-                            Use the arrow keys to move to a neighbouring render.
+                            Use the arrow keys to move to a neighboring render.
                         </DialogDescription>
                     </figure>
                 )}
@@ -737,8 +737,8 @@ export default function CatalogViewer({ channels }: Props) {
     if (status.kind === "missing")
         return (
             <output className="block text-muted-foreground">
-                This build carries no catalog. The published site renders it on
-                every push to main.
+                This build carries no catalog. The published site renders the
+                catalog on every push to main.
             </output>
         );
     if (status.kind === "error")

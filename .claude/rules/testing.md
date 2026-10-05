@@ -7,41 +7,12 @@ paths:
 
 # Testing
 
-Testing rules for femto-car-launcher. Authoritative external
-reference: <https://developer.android.com/training/testing>.
+Testing rules for femto-car-launcher. Authoritative external reference: <https://developer.android.com/training/testing>.
 
-- JVM unit tests in `app/src/test/...`: JUnit 4 today (room to
-  migrate to Kotest later). Async code uses `runTest` from
-  `kotlinx-coroutines-test`; dispatcher control varies by need — an
-  ambient `Dispatchers.setMain(StandardTestDispatcher())`, an
-  injected `TestScope` / `CoroutineScope`, or neither when Turbine
-  and the default `runTest` scheduler already serialise the
-  assertions.
-- Compose UI tests in `app/src/androidTest/...`: use
-  `createComposeRule()`. Wrap content in `FemtoTheme { ... }` —
-  never an ad-hoc `MaterialTheme`.
-- The SSOT for test fixtures and helpers is a single
-  `testfixtures/` package per source set
-  (`app/src/test/.../testfixtures/`,
-  `app/src/androidTest/.../testfixtures/`, and
-  `app/src/sharedTest/.../testfixtures/` for builders both source
-  sets consume). Builders / factories
-  are the SSOT for test data; the `data class FakeFoo(...)`
-  literal in a single test file is a finding the second time it
-  appears. Repeat-yourself in test setup is the same kind of debt
-  as in production.
+- JVM unit tests in `app/src/test/...`: JUnit 4 today (room to migrate to Kotest later). Async code uses `runTest` from `kotlinx-coroutines-test`; dispatcher control varies by need — an ambient `Dispatchers.setMain(StandardTestDispatcher())`, an injected `TestScope` / `CoroutineScope`, or neither when Turbine and the default `runTest` scheduler already serialize the assertions.
+- Compose UI tests in `app/src/androidTest/...`: use `createComposeRule()`. Wrap content in `FemtoTheme { ... }` — never an ad-hoc `MaterialTheme`.
+- The SSOT for test fixtures and helpers is a single `testfixtures/` package per source set (`app/src/test/.../testfixtures/`, `app/src/androidTest/.../testfixtures/`, and `app/src/sharedTest/.../testfixtures/` for builders both source sets consume). Builders / factories are the SSOT for test data; the `data class FakeFoo(...)` literal in a single test file is a finding the second time it appears. Repeat-yourself in test setup is the same kind of debt as in production.
 - One assertion focus per test; descriptive names (`returns_x_when_y`).
-- Parameterised tests for repeated cases.
-- ViewModels expose `StateFlow`; tests drive an action then either
-  collect with `viewModel.uiState.test { ... }` (Turbine) or call
-  `advanceUntilIdle()` and assert directly on the resulting state —
-  pick whichever reads more clearly for the assertion at hand.
-- Screenshot goldens live in `*ScreenshotTest` classes with
-  `testfixtures/ScreenshotOptions.kt`; the dashboard's geometries and
-  render inputs are `testfixtures/DashboardGeometries.kt` /
-  `DashboardFixtures.kt`, shared with the screenshot-catalog generator
-  under `catalog/`. That generator carries
-  `@Category(CatalogGeneration::class)`: the unit-test tasks exclude it
-  and only `./gradlew :app:generateCatalog` runs it (output
-  `app/build/outputs/catalog/`, contract in `.claude/rules/docs.md`).
-  New catalog axes go into `CatalogMatrix`, never a second list.
+- Parameterized tests for repeated cases.
+- ViewModels expose `StateFlow`; tests drive an action then either collect with `viewModel.uiState.test { ... }` (Turbine) or call `advanceUntilIdle()` and assert directly on the resulting state — pick whichever reads more clearly for the assertion at hand.
+- Screenshot goldens live in `*ScreenshotTest` classes with `testfixtures/ScreenshotOptions.kt`; the dashboard's geometries and render inputs are `testfixtures/DashboardGeometries.kt` / `DashboardFixtures.kt`, shared with the screenshot-catalog generator under `catalog/`. That generator carries `@Category(CatalogGeneration::class)`: the unit-test tasks exclude it and only `./gradlew :app:generateCatalog` runs it (output `app/build/outputs/catalog/`, contract in `.claude/rules/docs.md`). New catalog axes go into `CatalogMatrix`, never a second list.

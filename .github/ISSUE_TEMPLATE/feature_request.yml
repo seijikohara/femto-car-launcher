@@ -1,5 +1,5 @@
 name: Feature request
-description: Propose a feature or a behaviour change.
+description: Propose a feature or a behavior change.
 labels: ["enhancement"]
 body:
   - type: markdown
@@ -20,7 +20,7 @@ body:
     id: proposal
     attributes:
       label: Proposed change
-      description: Describe the behaviour you have in mind.
+      description: Describe the behavior you have in mind.
     validations:
       required: true
   - type: dropdown
@@ -30,8 +30,8 @@ body:
       multiple: true
       options:
         - Aftermarket CarPlay / Android Auto AI box
-        - Built-in Android head unit
-        - Smartphone or tablet on a car mount
+        - Android head unit
+        - Car-mounted phone
   - type: textarea
     id: alternatives
     attributes:
