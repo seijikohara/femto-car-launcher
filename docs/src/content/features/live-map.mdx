@@ -4,62 +4,27 @@ summary: A map that fills the display and follows the vehicle, with a keyless de
 order: 1
 ---
 
-The dashboard background is a live map that fills the whole display and
-follows the vehicle. The cards, the clock, the speed readout and the dock
-float above the map.
+The dashboard background is a live map that fills the whole display and follows the vehicle. The cards, the clock, the speed readout and the dock float above the map.
 
 ## Two map providers
 
-- **OpenStreetMap (default).** OpenStreetMap data rendered through the
-  keyless OpenFreeMap service. The provider needs no account and no
-  application programming interface (API) key.
-- **Google Maps (optional).** Roadmap, satellite, hybrid and terrain map
-  types with a traffic overlay. The provider activates when you enter a
-  personal Google Maps Platform API key under **Settings → Map**. Usage
-  bills your own Google Cloud account; Femto Car Launcher adds no fees.
-  The app stores the key in its settings and sends it only to Google. The
-  Google Maps provider is not offered in the territories on Google's
-  [Prohibited Territories](https://cloud.google.com/maps-platform/terms/maps-prohibited-territories)
-  list; the default provider is unaffected. The
-  [Terms of Service](/terms/) give the details that apply to each
-  provider.
+- **OpenStreetMap (default).** OpenStreetMap data rendered through the keyless OpenFreeMap service. The provider needs no account and no application programming interface (API) key.
+- **Google Maps (optional).** Roadmap, satellite, hybrid and terrain map types with a traffic overlay. The provider activates when you enter a personal Google Maps Platform API key under **Settings → Map**. Usage bills your own Google Cloud account; Femto Car Launcher adds no fees. The app stores the key in its settings and sends it only to Google. The Google Maps provider is not offered in the territories on Google's [Prohibited Territories](https://cloud.google.com/maps-platform/terms/maps-prohibited-territories) list; the default provider is unaffected. The [Terms of Service](/terms/) give the details that apply to each provider.
 
 ## Bring your own style
 
-The OpenStreetMap provider can load a hosted MapLibre style you name
-(**Settings → Appearance → Map color → Custom style URL**), including a
-style whose provider key is part of the URL. The map then shows that
-style's own credits. If you only want a mirror of the default provider's
-layout (a tile server closer to you, or one you run yourself), set
-**Settings → Map → Tile host (advanced)** instead.
+The OpenStreetMap provider can load a hosted MapLibre style you name (**Settings → Appearance → Map color → Custom style URL**), including a style whose provider key is part of the URL. The map then shows that style's own credits. If you only want a mirror of the default provider's layout (a tile server closer to you, or one you run yourself), set **Settings → Map → Tile host (advanced)** instead.
 
 ## A car-navigation camera
 
-- The camera follows the Global Positioning System (GPS) position with
-  easing and keeps the direction of travel pointing up. A tap on the
-  compass toggles a north-up mode.
-- A drag detaches the camera for free panning. The camera re-attaches
-  after a pause, or immediately when you tap the locate button.
-- Zoom buttons and a compass sit at the screen edge, within reach of the
-  driver on either side of the car.
+- The camera follows the Global Positioning System (GPS) position with easing and keeps the direction of travel pointing up. A tap on the compass toggles a north-up mode.
+- A drag detaches the camera for free panning. The camera re-attaches after a pause, or immediately when you tap the locate button.
+- Zoom buttons and a compass sit at the screen edge, within reach of the driver on either side of the car.
 
 ## Depth and style
 
-Optional three-dimensional buildings and terrain relief add depth on the
-OpenStreetMap provider. Map colors can follow the launcher's accent color
-and the light/dark theme, or use the provider's own styles unchanged.
+Optional three-dimensional buildings and terrain relief add depth on the OpenStreetMap provider. Map colors can follow the launcher's accent color and the light/dark theme, or use the provider's own styles unchanged.
 
 ## Automatic recovery
 
-When the map fails to load (an unstable link, a provider outage, a
-missing key), a notice appears inside the visible map area instead of a
-blank panel. While the launcher is on screen, reloads retry with a capped
-backoff until the map data loads, even while the device still reports a
-connection. A reconnect after an offline period reloads the map at once.
-Behind another app the map waits: if a reload was due, the reload runs
-once when you return to the launcher. A request the provider answers with
-a refusal, such as a style address its server reports as missing or a
-rejected key, stops the retries after a few attempts. A failure that
-brings back no readable answer, such as a server name that does not
-resolve or a reply the map view is not allowed to read, looks like an
-outage and keeps retrying.
+When the map fails to load (an unstable link, a provider outage, a missing key), a notice appears inside the visible map area instead of a blank panel. While the launcher is on screen, reloads retry with a capped backoff until the map data loads, even while the device still reports a connection. A reconnect after an offline period reloads the map at once. Behind another app the map waits: if a reload was due, the reload runs once when you return to the launcher. A request the provider answers with a refusal, such as a style address its server reports as missing or a rejected key, stops the retries after a few attempts. A failure that brings back no readable answer, such as a server name that does not resolve or a reply the map view is not allowed to read, looks like an outage and keeps retrying.

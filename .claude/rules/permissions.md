@@ -7,12 +7,8 @@ paths:
 
 Permission discipline for femto-car-launcher's `AndroidManifest.xml`.
 
-- Every `<uses-permission>` follows the procedure below; this file
-  auto-loads whenever the manifest is touched.
-- The audit log below lists every declared permission with its
-  one-line justification (see step 1 of the procedure), alphabetized.
-  Keep this table in sync with `AndroidManifest.xml` — this file is
-  the audit-log SSOT.
+- Every `<uses-permission>` follows the procedure below; this file auto-loads whenever the manifest is touched.
+- The audit log below lists every declared permission with its one-line justification (see step 1 of the procedure), alphabetized. Keep this table in sync with `AndroidManifest.xml` — this file is the audit-log SSOT.
 
 | Permission | Justification |
 | --- | --- |
@@ -31,50 +27,24 @@ Permission discipline for femto-car-launcher's `AndroidManifest.xml`.
 | `REQUEST_DELETE_PACKAGES` | Hand the app drawer's Uninstall action for a user-chosen, non-system app to the system uninstaller (`Intent.ACTION_DELETE` in `AppsRepository.requestUninstall`); the confirmation UI and the deletion are the system's. An app targeting API 28+ needs it for the uninstaller to accept the request (found empirically in #309). Normal protection (`protectionLevel` 0x0 in the framework manifest); auto-granted at install. |
 | `REQUEST_INSTALL_PACKAGES` | **Why:** hand a downloaded update of the launcher itself, verified against its release manifest's size and SHA-256, to the platform installer through a `PackageInstaller` session (Settings → Updates); the system's confirmation dialog appears for every install.<br>**Grant model:** special protection level `signature\|appop` (`protectionLevel` 0x42 in the framework manifest; the reference page's "signature" omits the appop flag). The appop bit is what makes it user-grantable: the user grants it per app through "Install unknown apps" (`Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES`, read with `PackageManager.canRequestPackageInstalls()`), which the app routes to only when the user taps Install, never at startup.<br>**Degradation:** when it is denied, or disabled by device policy, nothing is installed: the verified download stays offered, and the user is pointed to the setting or to the release page for a manual install; the rest of the launcher is unaffected. |
 
-A permission a library's manifest merges in is part of the APK too, so
-it either joins the audit log or is removed in `AndroidManifest.xml` with
-`tools:node="remove"`. Removed today: `WAKE_LOCK`, merged by
-`media3-exoplayer`. Left to its defaults, the player enables a local
-wake lock for its stuck-playback detection; the video window opts out
-with `setWakeMode(C.WAKE_MODE_NONE)` (`ExoVideoPlayer`).
+A permission a library's manifest merges in is part of the APK too, so it either joins the audit log or is removed in `AndroidManifest.xml` with `tools:node="remove"`. Removed today: `WAKE_LOCK`, merged by `media3-exoplayer`. Left to its defaults, the player enables a local wake lock for its stuck-playback detection; the video window opts out with `setWakeMode(C.WAKE_MODE_NONE)` (`ExoVideoPlayer`).
 
 ## Adding a new permission (procedure)
 
-1. **State the use case** — the one-line "why" that goes into the
-   commit body and the audit log above:
-   `<PERMISSION>: needed to <verb> for <feature>.`
+1. **State the use case** — the one-line "why" that goes into the commit body and the audit log above: `<PERMISSION>: needed to <verb> for <feature>.`
 2. **Pick the protection level**:
-   - **Normal** (`INTERNET`, `ACCESS_NETWORK_STATE`) — declare in the
-     manifest; auto-granted at install.
-   - **Dangerous** (`ACCESS_FINE_LOCATION`, `READ_CONTACTS`) —
-     declare **and** request at runtime via
-     `ActivityResultContracts.RequestPermission()`. Never assume the
-     grant.
-   - **Special** (`SYSTEM_ALERT_WINDOW`, `MANAGE_EXTERNAL_STORAGE`) —
-     declare **and** route the user through the matching
-     `Settings.ACTION_*` Intent.
-   - **Signature / system** — off-limits without system signing; stop
-     and discuss before adding.
-3. **Edit `app/src/main/AndroidManifest.xml`** — add the tag to the
-   alphabetized block before `<application>`. No per-permission
-   comment: the block header already points here, and this audit log
-   is the justification SSOT.
-4. **Wire runtime requests** for dangerous / special permissions.
-   Never call a dangerous API without
-   `ContextCompat.checkSelfPermission(...)`. Request at the
-   interaction point, not startup — the one sanctioned startup
-   request is the dashboard's core location set
-   (`MainActivity.requestRuntimePermissions()`); design the
-   denied-state degradation first either way.
+   - **Normal** (`INTERNET`, `ACCESS_NETWORK_STATE`) — declare in the manifest; auto-granted at install.
+   - **Dangerous** (`ACCESS_FINE_LOCATION`, `READ_CONTACTS`) — declare **and** request at runtime via `ActivityResultContracts.RequestPermission()`. Never assume the grant.
+   - **Special** (`SYSTEM_ALERT_WINDOW`, `MANAGE_EXTERNAL_STORAGE`) — declare **and** route the user through the matching `Settings.ACTION_*` Intent.
+   - **Signature / system** — off-limits without system signing; stop and discuss before adding.
+3. **Edit `app/src/main/AndroidManifest.xml`** — add the tag to the alphabetized block before `<application>`. No per-permission comment: the block header already points here, and this audit log is the justification SSOT.
+4. **Wire runtime requests** for dangerous / special permissions. Never call a dangerous API without `ContextCompat.checkSelfPermission(...)`. Request at the interaction point, not startup — the one sanctioned startup request is the dashboard's core location set (`MainActivity.requestRuntimePermissions()`); design the denied-state degradation first either way.
 5. **Update the audit log above** (alphabetized).
-6. **Verify** with the
-   [`verify-android-build`](../skills/verify-android-build/SKILL.md)
-   skill.
+6. **Verify** with the [`verify-android-build`](../skills/verify-android-build/SKILL.md) skill.
 
 ## Common not-yet-declared cases
 
-Already-declared permissions are **not** listed here — their use case and
-degradation behavior live in the audit log above.
+Already-declared permissions are **not** listed here — their use case and degradation behavior live in the audit log above.
 
 | Permission | Use case | Caveats |
 | --- | --- | --- |
@@ -83,10 +53,7 @@ degradation behavior live in the audit log above.
 
 ## Anti-patterns
 
-- Declaring `QUERY_ALL_PACKAGES` when a `<queries>` element with
-  specific intents would satisfy the use case.
+- Declaring `QUERY_ALL_PACKAGES` when a `<queries>` element with specific intents would satisfy the use case.
 - Calling a dangerous API directly without `checkSelfPermission`.
-- Adding a permission to "future-proof" a feature that does not yet
-  exist.
-- Requesting a permission in `MainActivity#onCreate` without context
-  (no rationale UI) — explain why before asking.
+- Adding a permission to "future-proof" a feature that does not yet exist.
+- Requesting a permission in `MainActivity#onCreate` without context (no rationale UI) — explain why before asking.

@@ -4,76 +4,37 @@ summary: Automotive defaults for legibility and touch accuracy across screen sha
 order: 5
 ---
 
-Automotive defaults keep the dashboard legible and operable while driving.
-At the default display size, body text stays at or above 16
-scale-independent pixels (sp), and touch targets stay at or above 64
-density-independent pixels (dp). The **Settings → Screen → Driver side**
-setting (Left or Right) anchors the cards, the clock and the map controls
-on the driver's side of the screen, within reach. The settings on this
-page change these defaults; they are user choices, not lockouts.
+Automotive defaults keep the dashboard legible and operable while driving. At the default display size, body text stays at or above 16 scale-independent pixels (sp), and touch targets stay at or above 64 density-independent pixels (dp). The **Settings → Screen → Driver side** setting (Left or Right) anchors the cards, the clock and the map controls on the driver's side of the screen, within reach. The settings on this page change these defaults; they are user choices, not lockouts.
 
 ## Layout
 
-The dashboard supports landscape and portrait orientations, at aspect
-ratios from wide head units to car-mounted phones in portrait. The
-dashboard reflows across a matrix of screen sizes rather than targeting one
-resolution. Display size offers five steps from Small to Large. The
-default, Medium, keeps the 16 sp and 64 dp minimums above. Small and
-Compact scale the whole interface below Medium to fit more on screen, as
-Android's own display-size control does.
+The dashboard supports landscape and portrait orientations, at aspect ratios from wide head units to car-mounted phones in portrait. The dashboard reflows across a matrix of screen sizes rather than targeting one resolution. Display size offers five steps from Small to Large. The default, Medium, keeps the 16 sp and 64 dp minimums above. Small and Compact scale the whole interface below Medium to fit more on screen, as Android's own display-size control does.
 
 ## Three device classes
 
-- **Aftermarket AI boxes** that inject Android into a factory display
-  through the car's CarPlay or Android Auto input. These boxes usually
-  lock the choice of default launcher, so the launcher starts through the
-  box's own "boot-up app" setting.
-- **Android head units**: aftermarket units installed in the dashboard and
-  running Android, in landscape or portrait, with large screens at low
-  pixel density.
-- **Car-mounted phones**: a smartphone mounted as a car-navigation
-  display. Here the launcher also runs as a regular app; making it the
-  default home screen stays optional, because a phone is a shared,
-  everyday device.
+- **Aftermarket AI boxes** that inject Android into a factory display through the car's CarPlay or Android Auto input. These boxes usually lock the choice of default launcher, so the launcher starts through the box's own "boot-up app" setting.
+- **Android head units**: aftermarket units installed in the dashboard and running Android, in landscape or portrait, with large screens at low pixel density.
+- **Car-mounted phones**: a smartphone mounted as a car-navigation display. Here the launcher also runs as a regular app; making it the default home screen stays optional, because a phone is a shared, everyday device.
 
 ## Appearance
 
-Material You dynamic color by default, fixed accent presets as an
-alternative, a light/dark/automatic theme, and a configurable glass look
-(blur, borders and drop shadows) for the floating cards.
+Material You dynamic color by default, fixed accent presets as an alternative, a light/dark/automatic theme, and a configurable glass look (blur, borders and drop shadows) for the floating cards.
 
 ## Typography
 
-The system font by default, any Google Fonts family per slot (a Latin face
-plus a Chinese-Japanese-Korean fallback face) downloaded on demand, or a
-font already installed on the device. Text size, weight and letter spacing
-are adjustable. No fonts ship inside the Android package (APK), and no
-Play Services are required.
+The system font by default, any Google Fonts family per slot (a Latin face plus a Chinese-Japanese-Korean fallback face) downloaded on demand, or a font already installed on the device. Text size, weight and letter spacing are adjustable. No fonts ship inside the Android package (APK), and no Play Services are required.
 
 ## Animation, panels and units
 
-- The **Settings → Screen → Motion** setting (Standard, Reduced, Off)
-  reduces or turns off animations.
-- Calendar, weather and music cards toggle individually; the music card's
-  spectrum, album name and cover art each have a visibility switch, and the
-  optional video window has its own switch and picture gate.
-- Speed, temperature and clock format default to Auto, which follows the
-  system settings; **Settings → Units** sets each one explicitly. No
-  single market is privileged: language, units and locale-specific
-  behavior adapt per device.
+- The **Settings → Screen → Motion** setting (Standard, Reduced, Off) reduces or turns off animations.
+- Calendar, weather and music cards toggle individually; the music card's spectrum, album name and cover art each have a visibility switch, and the optional video window has its own switch and picture gate.
+- Speed, temperature and clock format default to Auto, which follows the system settings; **Settings → Units** sets each one explicitly. No single market is privileged: language, units and locale-specific behavior adapt per device.
 
 ## Vehicle motion
 
-The dashboard layout does not change with vehicle motion, and the launcher
-has no driving lockout. Responsibility for distraction stays with the
-driver. A few features gate themselves on motion instead:
+The dashboard layout does not change with vehicle motion, and the launcher has no driving lockout. Responsibility for distraction stays with the driver. A few features gate themselves on motion instead:
 
-- The optional video window's picture stays hidden until the Global
-  Positioning System (GPS) reads the vehicle as stopped.
-- Destination typing, saving and deleting pause while GPS reads the
-  vehicle as moving.
+- The optional video window's picture stays hidden until the Global Positioning System (GPS) reads the vehicle as stopped.
+- Destination typing, saving and deleting pause while GPS reads the vehicle as moving.
 - Long music titles scroll only while the vehicle is parked.
-- While the vehicle is known to be moving, an update does not start
-  installing, and the dashboard does not show the update prompt. An
-  install confirmation already on screen when motion starts stays
-  answerable.
+- While the vehicle is known to be moving, an update does not start installing, and the dashboard does not show the update prompt. An install confirmation already on screen when motion starts stays answerable.

@@ -4,37 +4,19 @@ summary: A high-contrast speed overlay, an on-device track log you can export, a
 order: 2
 ---
 
-The speed overlay sits on the map in large, high-contrast numerals sized
-for a glance from the driver's seat. The launcher computes speed,
-distance, average speed and altitude on the device from the Global
-Positioning System (GPS) fixes it already receives for the map.
+The speed overlay sits on the map in large, high-contrast numerals sized for a glance from the driver's seat. The launcher computes speed, distance, average speed and altitude on the device from the Global Positioning System (GPS) fixes it already receives for the map.
 
 ## Speed overlay
 
-- **Current speed**, in the unit you choose (kilometers or miles per
-  hour), independent of the system locale.
-- **Trip distance**, **average speed** and **altitude** for the current
-  trip.
-- **Address** of the current position, reverse-geocoded on the device by
-  default. A self-hosted geocoding host can replace the on-device geocoder
-  if you run one.
-- A tap on the **reset** button starts a new trip. The readout then shows
-  a "Since" timestamp, which marks the period the numbers cover. A trip
-  also ends automatically after a configurable parked pause, so the
-  readout starts fresh on the next drive without a tap.
+- **Current speed**, in the unit you choose (kilometers or miles per hour), independent of the system locale.
+- **Trip distance**, **average speed** and **altitude** for the current trip.
+- **Address** of the current position, reverse-geocoded on the device by default. A self-hosted geocoding host can replace the on-device geocoder if you run one.
+- A tap on the **reset** button starts a new trip. The readout then shows a "Since" timestamp, which marks the period the numbers cover. A trip also ends automatically after a configurable parked pause, so the readout starts fresh on the next drive without a tap.
 
 ## Trip recording
 
-An on-device track log records the route at one fix per second while the
-vehicle is moving. The retention period is configurable. Recorded trips
-export as GPS Exchange Format (GPX) files through the Android file
-picker, and you choose the destination: a folder, a cloud drive or
-another app.
+An on-device track log records the route at one fix per second while the vehicle is moving. The retention period is configurable. Recorded trips export as GPS Exchange Format (GPX) files through the Android file picker, and you choose the destination: a folder, a cloud drive or another app.
 
 ## Trip flythrough
 
-A tap on the speed panel opens a three-dimensional (3D) wireframe replay
-of the recorded track: a flythrough with a speed-colored trail and an
-altitude curtain, rendered natively. Devices without the required
-graphics support get a two-dimensional replay of the same track, so the
-replay stays available without the 3D view.
+A tap on the speed panel opens a three-dimensional (3D) wireframe replay of the recorded track: a flythrough with a speed-colored trail and an altitude curtain, rendered natively. Devices without the required graphics support get a two-dimensional replay of the same track, so the replay stays available without the 3D view.
