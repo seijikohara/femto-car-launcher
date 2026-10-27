@@ -148,8 +148,9 @@ private fun DateOnlyContent(
                             .semantics { contentDescription = calendarExpandLabel }
                     } else {
                         // No panel to open, so no click action rather than a tap
-                        // that does nothing.
-                        Modifier
+                        // that does nothing. The merge still reads the day, weekday
+                        // and month as one item, as the clickable card's merge does.
+                        Modifier.semantics(mergeDescendants = true) {}
                     },
                 ).padding(FemtoDimens.CardPaddingCompact),
     ) {
