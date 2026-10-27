@@ -4,9 +4,11 @@ import android.content.Context
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -71,7 +73,13 @@ class CalendarDateOnlyClickTest {
         agendaHint: Int,
     ) {
         setDashboard(snapshot)
-        rule.onNodeWithText(HeadMonth).assertIsDisplayed().assertHasNoClickAction()
+        rule
+            .onNodeWithText(HeadMonth)
+            .assertIsDisplayed()
+            .assertHasNoClickAction()
+            // The node the month matched also carries the weekday: the head reads
+            // as one item, not three.
+            .assert(hasText(snapshot.weekday))
         rule.onNodeWithText(string(agendaHint)).assertDoesNotExist()
         rule.onNodeWithContentDescription(string(R.string.calendar_expand)).assertDoesNotExist()
 
