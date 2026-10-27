@@ -61,12 +61,7 @@ class CalendarCardTest {
         }
         // Today stays in the agenda even with no events, carrying an explicit
         // no-events line instead of silently vanishing.
-        val noEvents =
-            InstrumentationRegistry
-                .getInstrumentation()
-                .targetContext
-                .getString(R.string.calendar_no_events)
-        rule.onNodeWithText(noEvents).assertIsDisplayed()
+        rule.onNodeWithText(string(R.string.calendar_no_events)).assertIsDisplayed()
     }
 
     @Test
@@ -95,7 +90,7 @@ class CalendarCardTest {
                 )
             }
         }
-        rule.onNodeWithContentDescription("Open full-screen calendar").performClick()
+        rule.onNodeWithContentDescription(string(R.string.calendar_expand)).performClick()
         assertTrue(expanded)
     }
 
@@ -125,14 +120,7 @@ class CalendarCardTest {
                 CalendarCard(snapshot = fakeCalendarSnapshot(hasCalendarAccess = false), is24Hour = true, onExpand = {})
             }
         }
-        // Resolve the copy from resources so the literal stays the SSOT in
-        // strings.xml ("Calendar access not granted").
-        val denied =
-            InstrumentationRegistry
-                .getInstrumentation()
-                .targetContext
-                .getString(R.string.calendar_permission_denied)
-        rule.onNodeWithText(denied).assertIsDisplayed()
+        rule.onNodeWithText(string(R.string.calendar_permission_denied)).assertIsDisplayed()
     }
 
     @Test
@@ -142,14 +130,7 @@ class CalendarCardTest {
                 CalendarCard(snapshot = fakeCalendarSnapshot(queryFailed = true), is24Hour = true, onExpand = {})
             }
         }
-        // Resolve the copy from resources so the literal stays the SSOT in
-        // strings.xml ("Calendar couldn't be read").
-        val failed =
-            InstrumentationRegistry
-                .getInstrumentation()
-                .targetContext
-                .getString(R.string.calendar_query_failed)
-        rule.onNodeWithText(failed).assertIsDisplayed()
+        rule.onNodeWithText(string(R.string.calendar_query_failed)).assertIsDisplayed()
     }
 
     @Test
@@ -159,8 +140,8 @@ class CalendarCardTest {
                 CalendarCard(snapshot = fakeCalendarSnapshot(), is24Hour = true, onExpand = {}, dateOnly = true)
             }
         }
-        // The head's month line ("May 2026", uppercased) renders; no event row does.
-        rule.onNodeWithText("MAY 2026").assertIsDisplayed()
+        // The head's month line renders; no event row does.
+        rule.onNodeWithText(headMonth).assertIsDisplayed()
         rule.onNodeWithText("Team standup").assertDoesNotExist()
         rule.onNodeWithText("Brunch").assertDoesNotExist()
     }
@@ -178,7 +159,7 @@ class CalendarCardTest {
                 )
             }
         }
-        rule.onNodeWithContentDescription("Open full-screen calendar").performClick()
+        rule.onNodeWithContentDescription(string(R.string.calendar_expand)).performClick()
         assertTrue(expanded)
     }
 
@@ -196,7 +177,7 @@ class CalendarCardTest {
         }
         // The date needs no calendar access, so it shows with no denial hint, and
         // the card carries no click action: the panel cannot open without access.
-        rule.onNodeWithText("MAY 2026").assertIsDisplayed()
+        rule.onNodeWithText(headMonth).assertIsDisplayed()
         rule.onNodeWithText(string(R.string.calendar_permission_denied)).assertDoesNotExist()
         rule.onNode(hasClickAction()).assertDoesNotExist()
     }
@@ -213,14 +194,18 @@ class CalendarCardTest {
                 )
             }
         }
-        rule.onNodeWithText("MAY 2026").assertIsDisplayed()
+        rule.onNodeWithText(headMonth).assertIsDisplayed()
         rule.onNodeWithText(string(R.string.calendar_query_failed)).assertDoesNotExist()
         rule.onNode(hasClickAction()).assertDoesNotExist()
     }
 
+    // Copy resolves from resources, so strings.xml stays the SSOT for it.
     private fun string(id: Int): String =
         InstrumentationRegistry
             .getInstrumentation()
             .targetContext
             .getString(id)
+
+    // The head's month line: the fixture's label, uppercased as the head draws it.
+    private val headMonth = fakeCalendarSnapshot().monthLabel.uppercase()
 }
