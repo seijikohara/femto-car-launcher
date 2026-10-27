@@ -1493,13 +1493,15 @@ private fun DashboardScaffoldHiddenPanelPreview() {
 
 // Date-only calendar with the weather card hidden: the calendar wraps its head,
 // so the landscape column ends below the music card and the map takes the rest.
+// Unlike the previews above, these carry a calendar snapshot: without one the
+// date-only card is an empty frame and shows nothing of the mode.
 @PreviewLightDark
 @Preview(name = "Dashboard - date-only calendar", widthDp = 853, heightDp = 512)
 @Composable
 private fun DashboardScaffoldDateOnlyPreview() {
     FemtoTheme {
         DashboardScaffold(
-            uiState = HomeUiState.Initial,
+            uiState = HomeUiState.Initial.copy(calendar = PreviewCalendarSnapshot),
             is24Hour = true,
             showClockSeconds = true,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
@@ -1521,7 +1523,7 @@ private fun DashboardScaffoldDateOnlyPreview() {
 private fun DashboardScaffoldDateOnlyPortraitPreview() {
     FemtoTheme {
         DashboardScaffold(
-            uiState = HomeUiState.Initial,
+            uiState = HomeUiState.Initial.copy(calendar = PreviewCalendarSnapshot),
             is24Hour = true,
             showClockSeconds = true,
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,

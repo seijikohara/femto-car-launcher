@@ -450,7 +450,8 @@ private fun CenteredHint(text: String) =
         )
     }
 
-private val PreviewSnapshot =
+// Preview data only; internal so the dashboard previews draw the same card.
+internal val PreviewCalendarSnapshot =
     CalendarSnapshot(
         today = LocalDate.of(2026, 3, 30),
         // The longest common English weekday / month exercise the head's
@@ -492,7 +493,7 @@ private val PreviewSnapshot =
 @Composable
 private fun CalendarCardPreview() {
     FemtoTheme {
-        CalendarCard(snapshot = PreviewSnapshot, is24Hour = true, onExpand = {})
+        CalendarCard(snapshot = PreviewCalendarSnapshot, is24Hour = true, onExpand = {})
     }
 }
 
@@ -504,7 +505,7 @@ private fun CalendarCardPreview() {
 private fun CalendarCardDateOnlyPreview() {
     FemtoTheme {
         CalendarCard(
-            snapshot = PreviewSnapshot,
+            snapshot = PreviewCalendarSnapshot,
             is24Hour = true,
             onExpand = {},
             modifier = Modifier.fillMaxSize(),
@@ -522,7 +523,7 @@ private fun CalendarCardDateOnlyPreview() {
 private fun CalendarCardDateOnlyWrappedPreview() {
     FemtoTheme {
         CalendarCard(
-            snapshot = PreviewSnapshot.copy(days = emptyList(), hasCalendarAccess = false),
+            snapshot = PreviewCalendarSnapshot.copy(days = emptyList(), hasCalendarAccess = false),
             is24Hour = true,
             onExpand = {},
             modifier = Modifier.fillMaxWidth(),
