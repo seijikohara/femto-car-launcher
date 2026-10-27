@@ -66,7 +66,7 @@ Automotive defaults keep the dashboard legible and operable while driving. At th
 - **Appearance.** Material You dynamic color by default, fixed accent presets as an alternative, a light/dark/automatic theme, and a configurable glass look (blur, borders, drop shadows) for the floating cards.
 - **Typography.** The system font by default, any Google Fonts family per slot (a Latin face plus a Chinese-Japanese-Korean fallback face) downloaded on demand, or a font already installed on the device. Text size, weight, and letter spacing are adjustable. No fonts ship inside the Android package (APK), and no Play Services are required.
 - **Animation.** The **Settings → Screen → Motion** setting (Standard, Reduced, Off) reduces or turns off animations.
-- **Panels.** Calendar, weather, and music cards toggle individually, and the calendar card can show the date only; the music card's spectrum, album name, and cover art each have a visibility switch, and the optional video window has its own switch and picture gate.
+- **Panels.** Calendar, weather, and music cards toggle individually, and the calendar card can show only the date, weekday, and month; the music card's spectrum, album name, and cover art each have a visibility switch, and the optional video window has its own switch and picture gate.
 - **Units.** Speed, temperature, and clock format default to Auto, which follows the system settings; **Settings → Units** sets each one explicitly.
 
 When a permission is denied or a data source is unavailable, the affected panel renders a reduced state instead of an error screen.
