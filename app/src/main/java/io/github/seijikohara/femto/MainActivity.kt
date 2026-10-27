@@ -286,6 +286,7 @@ class MainActivity : ComponentActivity() {
                             weather = settings.showWeather,
                             music = settings.showMusic,
                         ),
+                    calendarDateOnly = settings.calendarDateOnly,
                     musicShowAlbum = settings.musicShowAlbum,
                     musicShowArt = settings.musicShowArt,
                     motionTier = settings.motionTier,

@@ -247,6 +247,10 @@ internal data class DisplaySettings(
     val showCalendar: Boolean,
     val showWeather: Boolean,
     val showMusic: Boolean,
+    // Whether the calendar card shows only today's date head (day, weekday,
+    // month) without the agenda. Defaults false (the full agenda card); turning
+    // it on frees map area, most of all when the weather card is hidden too.
+    val calendarDateOnly: Boolean,
     // Whether the music card renders the audio-reactive spectrum behind its
     // transport controls. Defaults to false: the visualization is decorative
     // and its Visualizer capture sits behind the RECORD_AUDIO runtime grant,
@@ -333,6 +337,7 @@ internal data class DisplaySettings(
                 showCalendar = true,
                 showWeather = true,
                 showMusic = true,
+                calendarDateOnly = false,
                 musicSpectrum = false,
                 musicShowAlbum = true,
                 musicShowArt = true,

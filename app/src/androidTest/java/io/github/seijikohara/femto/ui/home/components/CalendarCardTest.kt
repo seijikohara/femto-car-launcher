@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -150,4 +151,76 @@ class CalendarCardTest {
                 .getString(R.string.calendar_query_failed)
         rule.onNodeWithText(failed).assertIsDisplayed()
     }
+
+    @Test
+    fun date_only_shows_the_head_without_the_agenda() {
+        rule.setContent {
+            FemtoTheme {
+                CalendarCard(snapshot = fakeCalendarSnapshot(), is24Hour = true, onExpand = {}, dateOnly = true)
+            }
+        }
+        // The head's month line ("May 2026", uppercased) renders; no event row does.
+        rule.onNodeWithText("MAY 2026").assertIsDisplayed()
+        rule.onNodeWithText("Team standup").assertDoesNotExist()
+        rule.onNodeWithText("Brunch").assertDoesNotExist()
+    }
+
+    @Test
+    fun date_only_card_tap_invokes_onExpand() {
+        var expanded = false
+        rule.setContent {
+            FemtoTheme {
+                CalendarCard(
+                    snapshot = fakeCalendarSnapshot(),
+                    is24Hour = true,
+                    onExpand = { expanded = true },
+                    dateOnly = true,
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("Open full-screen calendar").performClick()
+        assertTrue(expanded)
+    }
+
+    @Test
+    fun date_only_shows_the_date_without_calendar_access_and_no_tap() {
+        rule.setContent {
+            FemtoTheme {
+                CalendarCard(
+                    snapshot = fakeCalendarSnapshot(hasCalendarAccess = false),
+                    is24Hour = true,
+                    onExpand = {},
+                    dateOnly = true,
+                )
+            }
+        }
+        // The date needs no calendar access, so it shows with no denial hint, and
+        // the card carries no click action: the panel cannot open without access.
+        rule.onNodeWithText("MAY 2026").assertIsDisplayed()
+        rule.onNodeWithText(string(R.string.calendar_permission_denied)).assertDoesNotExist()
+        rule.onNode(hasClickAction()).assertDoesNotExist()
+    }
+
+    @Test
+    fun date_only_shows_the_date_after_a_query_failure_and_no_tap() {
+        rule.setContent {
+            FemtoTheme {
+                CalendarCard(
+                    snapshot = fakeCalendarSnapshot(queryFailed = true),
+                    is24Hour = true,
+                    onExpand = {},
+                    dateOnly = true,
+                )
+            }
+        }
+        rule.onNodeWithText("MAY 2026").assertIsDisplayed()
+        rule.onNodeWithText(string(R.string.calendar_query_failed)).assertDoesNotExist()
+        rule.onNode(hasClickAction()).assertDoesNotExist()
+    }
+
+    private fun string(id: Int): String =
+        InstrumentationRegistry
+            .getInstrumentation()
+            .targetContext
+            .getString(id)
 }

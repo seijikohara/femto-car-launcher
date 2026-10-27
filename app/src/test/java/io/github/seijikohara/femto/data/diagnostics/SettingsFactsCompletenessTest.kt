@@ -96,6 +96,7 @@ class SettingsFactsCompletenessTest {
             "showCalendar" to "Panels (calendar / weather / music)",
             "showWeather" to "Panels (calendar / weather / music)",
             "showMusic" to "Panels (calendar / weather / music)",
+            "calendarDateOnly" to "Calendar date only",
             "musicSpectrum" to "Music spectrum",
             "musicShowAlbum" to "Music album / art",
             "musicShowArt" to "Music album / art",

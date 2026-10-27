@@ -79,6 +79,7 @@ internal fun displaySettingsFacts(display: DisplaySettings): List<DiagnosticFact
             "Panels (calendar / weather / music)",
             "${display.showCalendar} / ${display.showWeather} / ${display.showMusic}",
         ),
+        entry("Calendar date only", "${display.calendarDateOnly}"),
         entry("Music spectrum", "${display.musicSpectrum}"),
         entry("Music album / art", "${display.musicShowAlbum} / ${display.musicShowArt}"),
         entry("Google Maps rendering", display.googleMapsRendering.name),

@@ -179,6 +179,7 @@ internal fun DashboardScaffold(
     dockConfig: DockConfig = DockConfig(),
     driverSide: DriverSide = DriverSide.RIGHT,
     spectrum: StateFlow<FloatArray?>? = null,
+    calendarDateOnly: Boolean = false,
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
     motionTier: MotionTier = MotionTier.STANDARD,
@@ -217,6 +218,7 @@ internal fun DashboardScaffold(
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.systemBars),
     spectrum = spectrum,
+    calendarDateOnly = calendarDateOnly,
     musicShowAlbum = musicShowAlbum,
     musicShowArt = musicShowArt,
     motionTier = motionTier,
@@ -250,6 +252,7 @@ private fun DashboardContent(
     modifier: Modifier = Modifier,
     dockConfig: DockConfig = DockConfig(),
     spectrum: StateFlow<FloatArray?>? = null,
+    calendarDateOnly: Boolean = false,
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
     motionTier: MotionTier = MotionTier.STANDARD,
@@ -431,13 +434,26 @@ private fun DashboardContent(
         } else {
             0.dp
         }
+    // The height the portrait band actually takes. bottomCardBand except when the
+    // date-only calendar wraps its head (calendarWrapsHead): the band then ends
+    // where its cards do, below the cap, so the speed overlay and the marker
+    // reserve follow the band's measured height down. Until the first measure
+    // (and after the mode turns over, which resets it) the cap stands in.
+    val bandWrapsCards = bottomCards && calendarWrapsHead(panels, calendarDateOnly)
+    var wrappedBandHeightPx by remember(bandWrapsCards) { mutableIntStateOf(0) }
+    val bottomCardExtent =
+        if (bandWrapsCards && wrappedBandHeightPx > 0) {
+            with(density) { wrappedBandHeightPx.toDp() }
+        } else {
+            bottomCardBand
+        }
     val bottomSafeFraction =
         with(density) {
             val heightPx = maxHeight.roundToPx()
             if (heightPx > 0) {
                 val dockBottom = if (dockPosition == DockPosition.BOTTOM) dockExtent else 0.dp
                 val overlay = overlayHeightPx + (cardGap + MarkerOverlayClearance + dockBottom).toPx()
-                val cards = bottomCardBand.toPx()
+                val cards = bottomCardExtent.toPx()
                 ((overlay + cards) / heightPx).coerceIn(0f, 0.5f)
             } else {
                 0f
@@ -504,6 +520,8 @@ private fun DashboardContent(
         landscapeCards = landscapeCards,
         bottomCards = bottomCards,
         bottomCardBand = bottomCardBand,
+        bottomCardExtent = bottomCardExtent,
+        onWrappedBandHeightChange = { wrappedBandHeightPx = it },
         floatingCardWidth = floatingCardWidth,
         hasCards = hasCards,
         hazeState = hazeState,
@@ -545,6 +563,7 @@ private fun DashboardContent(
         dismissOpenPanel = dismissOpenPanel,
         modifier = Modifier.fillMaxSize().padding(dockEdgePadding(dockPosition, dockExtent)),
         spectrum = spectrum,
+        calendarDateOnly = calendarDateOnly,
         musicShowAlbum = musicShowAlbum,
         musicShowArt = musicShowArt,
         clock = clock,
@@ -603,7 +622,12 @@ private fun DashboardOverlays(
     cardGap: Dp,
     landscapeCards: Boolean,
     bottomCards: Boolean,
+    // The portrait band's cap, and the height it actually takes (see
+    // DashboardContent), which the band reports back through
+    // onWrappedBandHeightChange while it wraps its cards.
     bottomCardBand: Dp,
+    bottomCardExtent: Dp,
+    onWrappedBandHeightChange: (Int) -> Unit,
     floatingCardWidth: Dp,
     hasCards: Boolean,
     hazeState: HazeState,
@@ -650,6 +674,7 @@ private fun DashboardOverlays(
     dismissOpenPanel: (() -> Unit)?,
     modifier: Modifier = Modifier,
     spectrum: StateFlow<FloatArray?>? = null,
+    calendarDateOnly: Boolean = false,
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
     clock: Clock = Clock.systemDefaultZone(),
@@ -770,7 +795,7 @@ private fun DashboardOverlays(
                             PaddingValues(
                                 start = outerPad,
                                 end = outerPad,
-                                bottom = cardGap + bottomCardBand,
+                                bottom = cardGap + bottomCardExtent,
                             )
                         } else {
                             cardSideInset(
@@ -822,6 +847,7 @@ private fun DashboardOverlays(
                 onExpandCalendar = onExpandCalendar,
                 onExpandWeather = onExpandWeather,
                 spectrum = spectrum,
+                calendarDateOnly = calendarDateOnly,
                 musicShowAlbum = musicShowAlbum,
                 musicShowArt = musicShowArt,
                 motionTier = motionTier,
@@ -831,8 +857,17 @@ private fun DashboardOverlays(
                             .testTag(DashboardTags.CARDS)
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
-                            .height(bottomCardBand)
-                            .padding(horizontal = outerPad, vertical = outerPad)
+                            .then(
+                                if (calendarWrapsHead(panels, calendarDateOnly)) {
+                                    // The band wraps its cards (bottom-aligned, up to
+                                    // the cap) and reports the height it takes.
+                                    Modifier
+                                        .heightIn(max = bottomCardBand)
+                                        .onSizeChanged { onWrappedBandHeightChange(it.height) }
+                                } else {
+                                    Modifier.height(bottomCardBand)
+                                },
+                            ).padding(horizontal = outerPad, vertical = outerPad)
                     } else {
                         // Cards in a column on the driver's side, top-anchored and
                         // height-capped so they pair with the clock and never stretch;
@@ -1182,6 +1217,15 @@ private fun dockAlignment(position: DockPosition): Alignment =
         DockPosition.RIGHT -> Alignment.CenterEnd
     }
 
+// Whether the date-only calendar card wraps its head instead of taking the
+// weighted calendar + weather row. Only without the weather card: beside it the
+// calendar keeps the row's height, as the agenda card does, so the pair still
+// reads as one row with both heads on the shared hero line.
+private fun calendarWrapsHead(
+    panels: PanelVisibility,
+    calendarDateOnly: Boolean,
+): Boolean = calendarDateOnly && panels.calendar && !panels.weather
+
 // The floating info cards: the calendar+weather row stacked over the music card,
 // hosted in the landscape right column or the portrait bottom band. Each card gets
 // the shared glass treatment so the map shows through.
@@ -1203,6 +1247,7 @@ private fun FloatingCardColumn(
     motionTier: MotionTier,
     modifier: Modifier = Modifier,
     spectrum: StateFlow<FloatArray?>? = null,
+    calendarDateOnly: Boolean = false,
     musicShowAlbum: Boolean = true,
     musicShowArt: Boolean = true,
 ) {
@@ -1215,6 +1260,7 @@ private fun FloatingCardColumn(
             glassConfig = glassConfig,
             motionTier = motionTier,
             modifier = cardModifier,
+            dateOnly = calendarDateOnly,
         )
     }
     val weather: @Composable (Modifier) -> Unit = { cardModifier ->
@@ -1256,7 +1302,11 @@ private fun FloatingCardColumn(
         // of stacking three full cards into a column too short for them; a single
         // visible card takes the whole row. The row is the only weighted child, so it
         // grows to fill whatever height the content-height music card below leaves.
-        if (panels.calendar || panels.weather) {
+        // The one exception is a lone date-only calendar: nothing in it needs the
+        // row's height, so it wraps its head and the map takes the rest.
+        if (calendarWrapsHead(panels, calendarDateOnly)) {
+            calendar(Modifier.fillMaxWidth())
+        } else if (panels.calendar || panels.weather) {
             Row(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 horizontalArrangement = Arrangement.spacedBy(cardGap),
@@ -1437,6 +1487,50 @@ private fun DashboardScaffoldHiddenPanelPreview() {
             panels = PanelVisibility(calendar = false),
             glassConfig = GlassConfig(),
             onAction = {},
+        )
+    }
+}
+
+// Date-only calendar with the weather card hidden: the calendar wraps its head,
+// so the landscape column ends below the music card and the map takes the rest.
+@PreviewLightDark
+@Preview(name = "Dashboard - date-only calendar", widthDp = 853, heightDp = 512)
+@Composable
+private fun DashboardScaffoldDateOnlyPreview() {
+    FemtoTheme {
+        DashboardScaffold(
+            uiState = HomeUiState.Initial,
+            is24Hour = true,
+            showClockSeconds = true,
+            speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+            temperatureUnit = TemperatureUnit.CELSIUS,
+            mapConfig = MapConfig(),
+            panels = PanelVisibility(weather = false),
+            glassConfig = GlassConfig(),
+            onAction = {},
+            calendarDateOnly = true,
+        )
+    }
+}
+
+// The same in portrait: the bottom band shrinks to its cards and the speed
+// overlay follows it down.
+@PreviewLightDark
+@Preview(name = "Dashboard - date-only calendar, portrait", widthDp = 360, heightDp = 640)
+@Composable
+private fun DashboardScaffoldDateOnlyPortraitPreview() {
+    FemtoTheme {
+        DashboardScaffold(
+            uiState = HomeUiState.Initial,
+            is24Hour = true,
+            showClockSeconds = true,
+            speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+            temperatureUnit = TemperatureUnit.CELSIUS,
+            mapConfig = MapConfig(),
+            panels = PanelVisibility(weather = false),
+            glassConfig = GlassConfig(),
+            onAction = {},
+            calendarDateOnly = true,
         )
     }
 }

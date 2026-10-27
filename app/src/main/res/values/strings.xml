@@ -468,6 +468,8 @@
     <string name="settings_track_delete_confirm_title">Delete track history?</string>
     <string name="settings_track_delete_confirm_message">All recorded track points are removed from this device. This cannot be undone.</string>
     <string name="settings_group_panel_calendar">Calendar panel</string>
+    <string name="settings_group_panel_calendar_date_only">Date only</string>
+    <string name="settings_panel_calendar_date_only_desc">Show only the date and weekday on the dashboard card.</string>
     <string name="settings_group_panel_weather">Weather panel</string>
     <string name="settings_group_panel_music">Music panel</string>
     <string name="settings_group_panel_music_spectrum">Music spectrum</string>

@@ -141,6 +141,27 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `SetCalendarDateOnly writes the value to the store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetCalendarDateOnly(true))
+            advanceUntilIdle()
+            assertEquals(true, store.settings.first().calendarDateOnly)
+        }
+
+    @Test
+    fun `calendar date only defaults off and reaches the ui state`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            backgroundScope.launch { vm.uiState.collect { } }
+            advanceUntilIdle()
+            assertEquals(false, vm.uiState.value.calendarDateOnly)
+
+            store.setCalendarDateOnly(true)
+            advanceUntilIdle()
+            assertEquals(true, vm.uiState.value.calendarDateOnly)
+        }
+
+    @Test
     fun `SetMusicSpectrum writes the value to the store`() =
         runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetMusicSpectrum(true))

@@ -180,6 +180,7 @@ internal class SettingsViewModel(
                 showCalendar = display.showCalendar,
                 showWeather = display.showWeather,
                 showMusic = display.showMusic,
+                calendarDateOnly = display.calendarDateOnly,
                 musicSpectrum = display.musicSpectrum,
                 musicShowAlbum = display.musicShowAlbum,
                 musicShowArt = display.musicShowArt,
@@ -449,6 +450,10 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetShowMusic -> {
                     displayPreferences.setShowMusic(action.value)
+                }
+
+                is SettingsAction.SetCalendarDateOnly -> {
+                    displayPreferences.setCalendarDateOnly(action.value)
                 }
 
                 is SettingsAction.SetMusicSpectrum -> {

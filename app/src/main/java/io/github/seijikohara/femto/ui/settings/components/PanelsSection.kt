@@ -59,19 +59,27 @@ internal fun PanelsSection(
         onCheckedChange = { onAction(SettingsAction.SetShowCalendar(it)) },
     )
     AnimatedVisibility(visible = uiState.showCalendar) {
-        MultiSelectRow(
-            title = stringResource(R.string.settings_visible_calendars),
-            summary = visibleCalendarsSummary(
-                uiState.hasCalendarAccess,
-                uiState.availableCalendars,
-                uiState.hiddenCalendarIds,
-            ),
-            hasCalendarAccess = uiState.hasCalendarAccess,
-            calendars = uiState.availableCalendars,
-            hiddenIds = uiState.hiddenCalendarIds,
-            onToggle = { id, hidden -> onAction(SettingsAction.SetCalendarHidden(id, hidden)) },
-            onOpenAppSettings = onOpenSystemSettings,
-        )
+        Column {
+            SwitchRow(
+                title = stringResource(R.string.settings_group_panel_calendar_date_only),
+                checked = uiState.calendarDateOnly,
+                onCheckedChange = { onAction(SettingsAction.SetCalendarDateOnly(it)) },
+                summary = stringResource(R.string.settings_panel_calendar_date_only_desc),
+            )
+            MultiSelectRow(
+                title = stringResource(R.string.settings_visible_calendars),
+                summary = visibleCalendarsSummary(
+                    uiState.hasCalendarAccess,
+                    uiState.availableCalendars,
+                    uiState.hiddenCalendarIds,
+                ),
+                hasCalendarAccess = uiState.hasCalendarAccess,
+                calendars = uiState.availableCalendars,
+                hiddenIds = uiState.hiddenCalendarIds,
+                onToggle = { id, hidden -> onAction(SettingsAction.SetCalendarHidden(id, hidden)) },
+                onOpenAppSettings = onOpenSystemSettings,
+            )
+        }
     }
     SwitchRow(
         title = stringResource(R.string.settings_group_panel_weather),

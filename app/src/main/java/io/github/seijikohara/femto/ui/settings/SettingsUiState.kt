@@ -79,6 +79,7 @@ internal data class SettingsUiState(
     val showCalendar: Boolean,
     val showWeather: Boolean,
     val showMusic: Boolean,
+    val calendarDateOnly: Boolean,
     val musicSpectrum: Boolean,
     val musicShowAlbum: Boolean,
     val musicShowArt: Boolean,
@@ -156,6 +157,7 @@ internal data class SettingsUiState(
                 showCalendar = DisplaySettings.Default.showCalendar,
                 showWeather = DisplaySettings.Default.showWeather,
                 showMusic = DisplaySettings.Default.showMusic,
+                calendarDateOnly = DisplaySettings.Default.calendarDateOnly,
                 musicSpectrum = DisplaySettings.Default.musicSpectrum,
                 musicShowAlbum = DisplaySettings.Default.musicShowAlbum,
                 musicShowArt = DisplaySettings.Default.musicShowArt,
@@ -363,6 +365,10 @@ internal sealed interface SettingsAction {
     ) : SettingsAction
 
     data class SetShowMusic(
+        val value: Boolean,
+    ) : SettingsAction
+
+    data class SetCalendarDateOnly(
         val value: Boolean,
     ) : SettingsAction
 

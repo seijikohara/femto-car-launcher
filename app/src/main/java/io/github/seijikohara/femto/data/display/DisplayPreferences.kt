@@ -116,6 +116,8 @@ internal interface DisplaySettingsStore {
 
     suspend fun setShowMusic(value: Boolean)
 
+    suspend fun setCalendarDateOnly(value: Boolean)
+
     suspend fun setMusicSpectrum(value: Boolean)
 
     suspend fun setMusicShowAlbum(value: Boolean)
@@ -201,6 +203,7 @@ internal class DisplayPreferences(
                     showCalendar = prefs[SHOW_CALENDAR_KEY] ?: true,
                     showWeather = prefs[SHOW_WEATHER_KEY] ?: true,
                     showMusic = prefs[SHOW_MUSIC_KEY] ?: true,
+                    calendarDateOnly = prefs[CALENDAR_DATE_ONLY_KEY] ?: false,
                     musicSpectrum = prefs[MUSIC_SPECTRUM_KEY] ?: false,
                     musicShowAlbum = prefs[MUSIC_SHOW_ALBUM_KEY] ?: true,
                     musicShowArt = prefs[MUSIC_SHOW_ART_KEY] ?: true,
@@ -370,6 +373,10 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[SHOW_MUSIC_KEY] = value }
     }
 
+    override suspend fun setCalendarDateOnly(value: Boolean) {
+        context.displayDataStore.editOrLog(TAG) { it[CALENDAR_DATE_ONLY_KEY] = value }
+    }
+
     override suspend fun setMusicSpectrum(value: Boolean) {
         context.displayDataStore.editOrLog(TAG) { it[MUSIC_SPECTRUM_KEY] = value }
     }
@@ -468,6 +475,7 @@ internal class DisplayPreferences(
         val SHOW_CALENDAR_KEY = booleanPreferencesKey("show_calendar")
         val SHOW_WEATHER_KEY = booleanPreferencesKey("show_weather")
         val SHOW_MUSIC_KEY = booleanPreferencesKey("show_music")
+        val CALENDAR_DATE_ONLY_KEY = booleanPreferencesKey("calendar_date_only")
         val MUSIC_SPECTRUM_KEY = booleanPreferencesKey("music_spectrum")
         val MUSIC_SHOW_ALBUM_KEY = booleanPreferencesKey("music_show_album")
         val MUSIC_SHOW_ART_KEY = booleanPreferencesKey("music_show_art")
@@ -529,6 +537,7 @@ internal class DisplayPreferences(
                 SHOW_CALENDAR_KEY,
                 SHOW_WEATHER_KEY,
                 SHOW_MUSIC_KEY,
+                CALENDAR_DATE_ONLY_KEY,
                 MUSIC_SPECTRUM_KEY,
                 MUSIC_SHOW_ALBUM_KEY,
                 MUSIC_SHOW_ART_KEY,

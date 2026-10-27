@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -68,6 +69,10 @@ import java.time.LocalTime
  *     events are omitted so the agenda spends every row on real entries; only
  *     today stays when free, carrying an explicit no-events line.
  *
+ * With [dateOnly] on (Settings → Panels → Date only) the card renders the head
+ * alone, at the same top-of-card position, and wraps it unless the caller sizes
+ * the card (see DateOnlyContent).
+ *
  * Typography and spacing originated in the retired dashboard-v2 design mockup;
  * the dashboard's body-size floor ([FemtoDimens.MinBodyTextSize]) is intentionally
  * relaxed here so the agenda fits the short head-unit info-pane card.
@@ -84,28 +89,73 @@ internal fun CalendarCard(
     // The agenda below scrolls rather than crossfading, so a data refresh keeps the
     // user's scroll position instead of resetting it to today (see CalendarContent).
     motionTier: MotionTier = MotionTier.STANDARD,
+    dateOnly: Boolean = false,
 ) = Surface(
     modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
     shape = MaterialTheme.shapes.large,
     color = Color.Transparent,
     contentColor = MaterialTheme.colorScheme.onSurface,
 ) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        when {
-            // null is the loading frame: render nothing rather than a denial the
-            // user has not earned yet.
-            snapshot == null -> Unit
+    if (dateOnly) {
+        DateOnlyContent(snapshot, motionTier, onExpand)
+    } else {
+        Box(modifier = Modifier.fillMaxSize()) {
+            when {
+                // null is the loading frame: render nothing rather than a denial the
+                // user has not earned yet.
+                snapshot == null -> Unit
 
-            // A non-null snapshot with access denied carries no real data, so show the
-            // denial message instead of a hollow agenda.
-            !snapshot.hasCalendarAccess -> CenteredHint(stringResource(R.string.calendar_permission_denied))
+                // A non-null snapshot with access denied carries no real data, so show the
+                // denial message instead of a hollow agenda.
+                !snapshot.hasCalendarAccess -> CenteredHint(stringResource(R.string.calendar_permission_denied))
 
-            // Access is granted but the provider query faulted: the empty agenda is
-            // a read failure, not a free month, so say so rather than fake it.
-            snapshot.queryFailed -> CenteredHint(stringResource(R.string.calendar_query_failed))
+                // Access is granted but the provider query faulted: the empty agenda is
+                // a read failure, not a free month, so say so rather than fake it.
+                snapshot.queryFailed -> CenteredHint(stringResource(R.string.calendar_query_failed))
 
-            else -> CalendarContent(snapshot, is24Hour, motionTier, onExpand)
+                else -> CalendarContent(snapshot, is24Hour, motionTier, onExpand)
+            }
         }
+    }
+}
+
+// The date-only card: the head and nothing else. The head needs no calendar
+// access (the repository fills today / weekday / month from the clock alone), so
+// a denied grant or a failed query shows the date with no hint. fillMaxWidth, not
+// fillMaxSize: the card wraps the head when the caller leaves its height open,
+// and the Surface's propagated minimum still stretches this column over a
+// caller-sized card (beside the weather card), keeping the head at the top.
+@Composable
+private fun DateOnlyContent(
+    snapshot: CalendarSnapshot?,
+    motionTier: MotionTier,
+    onExpand: () -> Unit,
+) {
+    val calendarExpandLabel = stringResource(R.string.calendar_expand)
+    // The same gate DashboardScaffold puts on the full-screen panel: it opens
+    // only on a granted, intact snapshot, so anywhere else the card carries no
+    // click action at all rather than a tap that does nothing.
+    val canExpand = snapshot != null && snapshot.hasCalendarAccess && !snapshot.queryFailed
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                // The head plus the card padding already clears the tap-target
+                // floor at the default text size; the floor holds it there when
+                // the user shrinks the text, and keeps the loading frame the
+                // size of the card it becomes.
+                .heightIn(min = FemtoDimens.MinTouchTarget)
+                .then(
+                    if (canExpand) {
+                        Modifier
+                            .clickable { onExpand() }
+                            .semantics { contentDescription = calendarExpandLabel }
+                    } else {
+                        Modifier
+                    },
+                ).padding(FemtoDimens.CardPaddingCompact),
+    ) {
+        snapshot?.let { FadingHead(it, motionTier) }
     }
 }
 
@@ -140,17 +190,9 @@ private fun CalendarContent(
                 .padding(FemtoDimens.CardPaddingCompact),
         verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
     ) {
-        // Fade only the head on a date change, keyed on its own displayed identity so
-        // an agenda-only refresh (same day number / weekday / month) never re-fires it.
-        // The scrollable agenda below is deliberately NOT wrapped — a Crossfade there
-        // would reset the user's scroll on every refresh.
-        Motion.ContentCrossfade(
-            targetState = CalendarHead(snapshot.today.dayOfMonth, snapshot.weekday, snapshot.monthLabel),
-            tier = motionTier,
-            label = "calendarHead",
-        ) { head ->
-            Head(head)
-        }
+        // The scrollable agenda below is deliberately NOT wrapped in the head's fade —
+        // a Crossfade there would reset the user's scroll on every refresh.
+        FadingHead(snapshot, motionTier)
         // Free days are dropped rather than rendered as placeholder rows: the glance
         // question is "what is coming up". Today is the one exception — it stays
         // visible even when free.
@@ -190,6 +232,20 @@ private data class CalendarHead(
     val weekday: String,
     val month: String,
 )
+
+// Fades only the head on a date change, keyed on its own displayed identity so
+// an agenda-only refresh (same day number / weekday / month) never re-fires it.
+@Composable
+private fun FadingHead(
+    snapshot: CalendarSnapshot,
+    motionTier: MotionTier,
+) = Motion.ContentCrossfade(
+    targetState = CalendarHead(snapshot.today.dayOfMonth, snapshot.weekday, snapshot.monthLabel),
+    tier = motionTier,
+    label = "calendarHead",
+) { head ->
+    Head(head)
+}
 
 @Composable
 private fun Head(head: CalendarHead) =
@@ -395,6 +451,40 @@ private fun CenteredHint(text: String) =
         )
     }
 
+private val PreviewSnapshot =
+    CalendarSnapshot(
+        today = LocalDate.of(2026, 3, 30),
+        // The longest common English weekday / month exercise the head's
+        // FitText fit-to-width on the narrow card.
+        weekday = "Wednesday",
+        monthLabel = "September 2026",
+        days =
+            listOf(
+                DayCell(
+                    LocalDate.of(2026, 3, 30),
+                    "Mon",
+                    listOf(
+                        EventItem(LocalTime.of(10, 30), "Team standup"),
+                        EventItem(LocalTime.of(14, 0), "Pick up kids"),
+                    ),
+                ),
+                DayCell(LocalDate.of(2026, 3, 31), "Tue", emptyList()),
+                DayCell(
+                    LocalDate.of(2026, 4, 1),
+                    "Wed",
+                    listOf(EventItem(null, "Quarter close")),
+                ),
+                DayCell(LocalDate.of(2026, 4, 2), "Thu", emptyList()),
+                DayCell(
+                    LocalDate.of(2026, 4, 3),
+                    "Fri",
+                    listOf(EventItem(LocalTime.of(9, 0), "Dentist")),
+                ),
+                DayCell(LocalDate.of(2026, 4, 4), "Sat", emptyList()),
+            ),
+        hasCalendarAccess = true,
+    )
+
 // Sized to the head-unit binding: each top-row card is ~165 x 207 dp (half the
 // info pane on the 853 x 512 dp / 5:3 projection). Wider panels only add slack.
 @PreviewLightDark
@@ -403,42 +493,41 @@ private fun CenteredHint(text: String) =
 @Composable
 private fun CalendarCardPreview() {
     FemtoTheme {
+        CalendarCard(snapshot = PreviewSnapshot, is24Hour = true, onExpand = {})
+    }
+}
+
+// Date only beside the weather card: the row sizes the card, and the head keeps
+// its top-of-card place on the shared hero line.
+@PreviewLightDark
+@Preview(name = "Calendar card - date only", widthDp = 165, heightDp = 207)
+@Composable
+private fun CalendarCardDateOnlyPreview() {
+    FemtoTheme {
         CalendarCard(
-            snapshot =
-                CalendarSnapshot(
-                    today = LocalDate.of(2026, 3, 30),
-                    // The longest common English weekday / month exercise the head's
-                    // FitText fit-to-width on the narrow card.
-                    weekday = "Wednesday",
-                    monthLabel = "September 2026",
-                    days =
-                        listOf(
-                            DayCell(
-                                LocalDate.of(2026, 3, 30),
-                                "Mon",
-                                listOf(
-                                    EventItem(LocalTime.of(10, 30), "Team standup"),
-                                    EventItem(LocalTime.of(14, 0), "Pick up kids"),
-                                ),
-                            ),
-                            DayCell(LocalDate.of(2026, 3, 31), "Tue", emptyList()),
-                            DayCell(
-                                LocalDate.of(2026, 4, 1),
-                                "Wed",
-                                listOf(EventItem(null, "Quarter close")),
-                            ),
-                            DayCell(LocalDate.of(2026, 4, 2), "Thu", emptyList()),
-                            DayCell(
-                                LocalDate.of(2026, 4, 3),
-                                "Fri",
-                                listOf(EventItem(LocalTime.of(9, 0), "Dentist")),
-                            ),
-                            DayCell(LocalDate.of(2026, 4, 4), "Sat", emptyList()),
-                        ),
-                    hasCalendarAccess = true,
-                ),
+            snapshot = PreviewSnapshot,
             is24Hour = true,
             onExpand = {},
+            modifier = Modifier.fillMaxSize(),
+            dateOnly = true,
+        )
+    }
+}
+
+// Date only with the weather card hidden: the card wraps the head across the
+// card column's width. Calendar access is denied here, which this mode shows as
+// the date alone rather than the denial hint.
+@PreviewLightDark
+@Preview(name = "Calendar card - date only, wrapped", widthDp = 330)
+@Composable
+private fun CalendarCardDateOnlyWrappedPreview() {
+    FemtoTheme {
+        CalendarCard(
+            snapshot = PreviewSnapshot.copy(days = emptyList(), hasCalendarAccess = false),
+            is24Hour = true,
+            onExpand = {},
+            modifier = Modifier.fillMaxWidth(),
+            dateOnly = true,
         )
     }
 }

@@ -125,6 +125,8 @@ internal class FakeDisplaySettingsStore(
 
     override suspend fun setShowMusic(value: Boolean) = state.update { it.copy(showMusic = value) }
 
+    override suspend fun setCalendarDateOnly(value: Boolean) = state.update { it.copy(calendarDateOnly = value) }
+
     override suspend fun setMusicSpectrum(value: Boolean) = state.update { it.copy(musicSpectrum = value) }
 
     override suspend fun setMusicShowAlbum(value: Boolean) = state.update { it.copy(musicShowAlbum = value) }
@@ -308,6 +310,10 @@ internal class FakeDisplaySettingsStore(
 
             DisplayPreferences.SHOW_MUSIC_KEY -> {
                 copy(showMusic = default.showMusic)
+            }
+
+            DisplayPreferences.CALENDAR_DATE_ONLY_KEY -> {
+                copy(calendarDateOnly = default.calendarDateOnly)
             }
 
             DisplayPreferences.MUSIC_SPECTRUM_KEY -> {

@@ -45,6 +45,7 @@ class DisplayPreferencesTest {
             store.setMusicSpectrum(true)
             store.setMusicShowAlbum(false)
             store.setMusicShowArt(false)
+            store.setCalendarDateOnly(true)
             store.setMotionTier(MotionTier.OFF)
             store.setDriverSide(DriverSide.LEFT)
             assertNotEquals(DisplaySettings.Default, store.settings.first())
@@ -54,6 +55,9 @@ class DisplayPreferencesTest {
                 assertFalse(persisted.musicShowAlbum)
                 assertFalse(persisted.musicShowArt)
             }
+
+            // The calendar date-only switch persists away from its off default.
+            assertTrue(store.settings.first().calendarDateOnly)
 
             store.settings.first().let { persisted ->
                 assertEquals(MotionTier.OFF, persisted.motionTier)
@@ -275,6 +279,7 @@ class DisplayPreferencesTest {
                     showCalendar = DisplaySettings.Default.showCalendar,
                     showWeather = DisplaySettings.Default.showWeather,
                     showMusic = DisplaySettings.Default.showMusic,
+                    calendarDateOnly = DisplaySettings.Default.calendarDateOnly,
                     musicSpectrum = DisplaySettings.Default.musicSpectrum,
                     musicShowAlbum = DisplaySettings.Default.musicShowAlbum,
                     musicShowArt = DisplaySettings.Default.musicShowArt,
@@ -357,6 +362,7 @@ class DisplayPreferencesTest {
         setShowCalendar(false)
         setShowWeather(false)
         setShowMusic(false)
+        setCalendarDateOnly(true)
         setMusicSpectrum(true)
         setMusicShowAlbum(false)
         setMusicShowArt(false)
