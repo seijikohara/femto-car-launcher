@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import android.view.View
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.RenderProcessGoneDetail
@@ -562,6 +563,13 @@ internal fun WebMapView(
                     .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context))
                     .build()
             WebView(context).apply {
+                // The map is the dashboard's Haze blur source, so every frame draws it
+                // once on screen and once more per glass panel. Without a layer each of
+                // those draws re-runs the WebView draw functor, and WebView 153+ under the
+                // Vulkan renderer aborts the process when one functor is drawn several
+                // times before HWUI submits the frame (#456). A hardware layer renders the
+                // page once per frame; the on-screen map and the glass sample its texture.
+                setLayerType(View.LAYER_TYPE_HARDWARE, null)
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 // Keep rasterizing while attached but not yet visible (the Compose

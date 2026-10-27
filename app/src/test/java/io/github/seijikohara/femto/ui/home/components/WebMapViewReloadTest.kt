@@ -41,10 +41,10 @@ import kotlin.test.assertSame
  * the backoff while the launcher is visible, never while it is hidden, and
  * once at once on its return; an offline->online edge that arrives while
  * hidden reloads on the return too; the OSM page's first tile restarts the
- * backoff. The page is the real WebMapView over a Robolectric WebView: an
- * event arrives through the registered `femtoBridge` the way the page sends
- * it, the failure notice replaces the WebView, and a reload shows as a new
- * WebView instance.
+ * backoff; every page draws through its own hardware layer. The page is the
+ * real WebMapView over a Robolectric WebView: an event arrives through the
+ * registered `femtoBridge` the way the page sends it, the failure notice
+ * replaces the WebView, and a reload shows as a new WebView instance.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -350,6 +350,17 @@ class WebMapViewReloadTest {
         assertEquals(0, pages().size, "no rebuild while hidden")
         setLifecycle(Lifecycle.State.RESUMED)
         assertNotSame(dead, page(), "one rebuild on the return")
+    }
+
+    // Why the page needs the layer is documented at the setLayerType call in
+    // WebMapView (#456); a rebuilt page comes from the same factory and must keep it.
+    @Test fun `every page, a rebuilt one included, draws through its own hardware layer`() {
+        showMap()
+        val first = page()
+        assertEquals(View.LAYER_TYPE_HARDWARE, first.layerType)
+        killRenderer(first)
+        assertNotSame(first, page(), "the death rebuilds the page")
+        assertEquals(View.LAYER_TYPE_HARDWARE, page().layerType)
     }
 
     // A lone kill behind another app is the system reclaiming memory, and

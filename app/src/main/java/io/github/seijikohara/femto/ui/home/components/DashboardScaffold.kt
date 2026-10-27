@@ -286,8 +286,9 @@ private fun DashboardContent(
     )
 
     // Shared Haze state: the map registers as the blur source, every glass overlay
-    // (chrome, the floating cards, and the dock) samples it. The WebView GL surface
-    // falls back to the tint (it cannot be captured by Haze).
+    // (chrome, the floating cards, and the dock) samples it. Each overlay redraws the
+    // source, so the live map WebView draws through its own hardware layer (see
+    // WebMapView) rather than once per overlay.
     val hazeState = rememberHazeState()
     var following by remember { mutableStateOf(true) }
     var bearingDeg by remember { mutableFloatStateOf(0f) }
