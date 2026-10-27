@@ -322,7 +322,7 @@ private fun DashboardContent(
     LaunchedEffect(hasNowPlaying) {
         if (!hasNowPlaying) nowPlayingExpanded = false
     }
-    val hasCalendar = uiState.calendar?.takeIf { it.hasCalendarAccess && !it.queryFailed } != null
+    val hasCalendar = uiState.calendar?.hasAgenda == true
     LaunchedEffect(hasCalendar) {
         if (!hasCalendar) calendarExpanded = false
     }
@@ -689,7 +689,7 @@ private fun DashboardOverlays(
     LaunchedEffect(expandedNowPlaying) {
         if (expandedNowPlaying != null) panelNowPlaying = expandedNowPlaying
     }
-    val expandedCalendar = uiState.calendar?.takeIf { it.hasCalendarAccess && !it.queryFailed }
+    val expandedCalendar = uiState.calendar?.takeIf { it.hasAgenda }
     var panelCalendar by remember { mutableStateOf(expandedCalendar) }
     LaunchedEffect(expandedCalendar) {
         if (expandedCalendar != null) panelCalendar = expandedCalendar

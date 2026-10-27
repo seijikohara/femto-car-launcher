@@ -39,6 +39,11 @@ internal data class CalendarSnapshot(
     // stays false.
     val multipleCalendarsVisible: Boolean = false,
 ) {
+    // Whether [days] is a real read of the calendar (possibly empty): access is
+    // granted and the provider query held. The full-screen calendar panel opens
+    // only on such a snapshot; a denied or failed one has nothing for it to show.
+    val hasAgenda: Boolean get() = hasCalendarAccess && !queryFailed
+
     // Days worth showing on the compact dashboard card: those with events,
     // plus today even when free. The card is short on room, so it skips every
     // other free day rather than clip before reaching a real entry. The

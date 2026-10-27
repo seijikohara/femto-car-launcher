@@ -132,10 +132,6 @@ private fun DateOnlyContent(
     onExpand: () -> Unit,
 ) {
     val calendarExpandLabel = stringResource(R.string.calendar_expand)
-    // The same gate DashboardScaffold puts on the full-screen panel: it opens
-    // only on a granted, intact snapshot, so anywhere else the card carries no
-    // click action at all rather than a tap that does nothing.
-    val canExpand = snapshot != null && snapshot.hasCalendarAccess && !snapshot.queryFailed
     Column(
         modifier =
             Modifier
@@ -146,11 +142,13 @@ private fun DateOnlyContent(
                 // size of the card it becomes.
                 .heightIn(min = FemtoDimens.MinTouchTarget)
                 .then(
-                    if (canExpand) {
+                    if (snapshot?.hasAgenda == true) {
                         Modifier
                             .clickable { onExpand() }
                             .semantics { contentDescription = calendarExpandLabel }
                     } else {
+                        // No panel to open, so no click action rather than a tap
+                        // that does nothing.
                         Modifier
                     },
                 ).padding(FemtoDimens.CardPaddingCompact),
