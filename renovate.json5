@@ -92,6 +92,17 @@
       matchPackageNames: ["typescript"],
       allowedVersions: "<7",
     },
+    {
+      // Astro renders Markdown with the satteri copy that
+      // @astrojs/markdown-satteri depends on (^0.10.5 as of 0.4.6). The site's
+      // own hast plugins import satteri types, so a second satteri minor makes
+      // `astro check` reject them and could break them at runtime. Raise this
+      // ceiling when @astrojs/markdown-satteri moves to a newer satteri.
+      description: "Keep satteri on the minor that @astrojs/markdown-satteri uses",
+      matchFileNames: ["docs/package.json"],
+      matchPackageNames: ["satteri"],
+      allowedVersions: "<0.11",
+    },
   ],
   customManagers: [
     {
