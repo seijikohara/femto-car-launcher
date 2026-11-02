@@ -1,60 +1,13 @@
 {
-  // Shared Renovate policy across seijikohara repositories.
-  // Schema: https://docs.renovatebot.com/renovate-schema.json
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
-  extends: [
-    // Maintainer-recommended superset of config:recommended. Pins GitHub Action
-    // and Docker digests, enables config migration, dev-dependency pinning,
-    // weekly lock file maintenance, and the npm minimum-release-age cooldown.
-    "config:best-practices",
-    // Conventional Commits with a unified `chore(deps): ...` subject.
-    ":semanticCommits",
-    ":semanticCommitTypeAll(chore)",
-    ":semanticCommitScope(deps)",
-    // Keep npm semver ranges (the committed lockfile gives reproducibility); overrides
-    // best-practices dev-dependency pinning. Action digest pinning is unaffected.
-    ":preserveSemverRanges",
-  ],
-  timezone: "Asia/Tokyo",
-  schedule: ["before 9am on monday"],
-  labels: ["dependencies"],
+  // Shared policy: https://github.com/seijikohara/renovate-config
+  extends: ["github>seijikohara/renovate-config:default.json5"],
   // Target develop, not main: every commit on main whose APK changed is a
   // stable release (AGENTS.md, Git conventions), so a dependency bump
   // landing there directly would ship as an immediate stable release
   // instead of riding the nightly channel first, same as any other change.
   baseBranchPatterns: ["develop"],
-  // Keep update branches rebased on the base branch and merge via rebase
-  // once CI passes.
-  rebaseWhen: "behind-base-branch",
-  platformAutomerge: true,
-  automergeStrategy: "rebase",
-  // Hold every release for 3 days so a hijacked publish cannot ride automerge on day zero.
-  minimumReleaseAge: "3 days",
-  // Auto-merge the weekly webmap pnpm-lock.yaml refresh together with regular updates.
-  lockFileMaintenance: { automerge: true },
-  // The weekly window allows only a few Renovate runs, and the default limit of
-  // two new PRs per hour left the pnpm group and lock file maintenance
-  // rate-limited week after week.
-  prHourlyLimit: 0,
   packageRules: [
-    {
-      description: "Auto-merge non-major updates once CI passes",
-      matchUpdateTypes: ["minor", "patch", "pin", "pinDigest", "digest"],
-      automerge: true,
-    },
-    {
-      description: "Hold major updates for manual review via the dependency dashboard",
-      matchUpdateTypes: ["major"],
-      automerge: false,
-      dependencyDashboardApproval: true,
-      addLabels: ["major"],
-    },
-    {
-      description: "Group and label GitHub Actions updates",
-      matchManagers: ["github-actions"],
-      groupName: "github-actions",
-      addLabels: ["github-actions"],
-    },
     {
       description: "Group the Gradle version catalog and wrapper",
       matchManagers: ["gradle", "gradle-wrapper"],
@@ -75,14 +28,6 @@
       description: "Update every pnpm pin in one PR so the pins cannot drift apart",
       matchDepNames: ["pnpm"],
       groupName: "pnpm package manager",
-    },
-    {
-      // The java-version datasource publishes no release timestamps, so with the
-      // default minimumReleaseAgeBehaviour (timestamp-required) a JDK update
-      // stays in "Pending Status Checks" forever. Majors still need dashboard approval.
-      description: "Skip the release-age hold for JDK versions, which carry no timestamps",
-      matchDatasources: ["java-version"],
-      minimumReleaseAge: null,
     },
     {
       // @astrojs/check, which runs `astro check`, supports TypeScript ^5 || ^6
@@ -114,11 +59,4 @@
       ],
     },
   ],
-  vulnerabilityAlerts: {
-    description: "Raise security fixes immediately and require manual review",
-    schedule: ["at any time"],
-    minimumReleaseAge: null,
-    addLabels: ["security"],
-    automerge: false,
-  },
 }
