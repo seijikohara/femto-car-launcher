@@ -21,7 +21,7 @@ plugins {
 node {
     download = true
     // renovate: datasource=node-version depName=node
-    version = "26.13.0"
+    version = "26.13.1"
     // null suppresses the plugin's own repository registration; the Node.js
     // ivy repository lives in settings.gradle.kts (FAIL_ON_PROJECT_REPOS).
     distBaseUrl = null
