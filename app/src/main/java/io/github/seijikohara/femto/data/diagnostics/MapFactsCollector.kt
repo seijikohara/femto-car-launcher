@@ -8,6 +8,8 @@ import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.map.MapRuntimeSignals
+import io.github.seijikohara.femto.data.map.offline.TileBenchmarkOutcome
+import io.github.seijikohara.femto.data.map.offline.TileBenchmarkResults
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -77,6 +79,7 @@ internal fun mapFactsFrom(
     webGlRenderer: String? = null,
     pageFrames: MapRuntimeSignals.PageFrames? = null,
     googleLens: MapRuntimeSignals.GoogleLens? = null,
+    tileBenchmark: TileBenchmarkOutcome? = null,
 ): List<DiagnosticFact> =
     buildList {
         add(webGl2Fact(glEsVersion, webGl2Need(backend, googleRendering, hasGoogleMapId)))
@@ -86,6 +89,56 @@ internal fun mapFactsFrom(
         add(lastFailureFact(lastFailure, nowElapsedRealtimeMs))
         if (failureCount > 1) {
             add(DiagnosticFact("Failures this session", FactValue.Text("$failureCount")))
+        }
+        addAll(tileBenchmarkFacts(tileBenchmark, nowElapsedRealtimeMs))
+    }
+
+private fun ms(value: Double): String = "%.1f".format(Locale.ROOT, value)
+
+private fun kb(bytes: Int): Int = (bytes + 512) / 1024
+
+// The nightly benchmark answers whether converting a Shortbread tile per request
+// is fast enough on this head unit; the owner reads these rows off the copied report.
+private fun tileBenchmarkFacts(
+    outcome: TileBenchmarkOutcome?,
+    nowElapsedRealtimeMs: Long,
+): List<DiagnosticFact> =
+    when (outcome) {
+        null -> {
+            emptyList()
+        }
+
+        is TileBenchmarkOutcome.Failed -> {
+            listOf(DiagnosticFact("Tile conversion", FactValue.Status("failed on ${outcome.sample}", FactHealth.ERROR)))
+        }
+
+        is TileBenchmarkOutcome.Measured -> {
+            val ageS = ((nowElapsedRealtimeMs - outcome.finishedAtElapsedRealtimeMs) / 1_000L).coerceAtLeast(0)
+            listOf(
+                DiagnosticFact(
+                    "Tile conversion",
+                    FactValue.Text(
+                        "tiles ${outcome.rows.size}, warm runs ${outcome.warmRuns}, cores ${outcome.cores}, ${ageS}s ago",
+                    ),
+                ),
+            ) +
+                outcome.rows.map { row ->
+                    DiagnosticFact(
+                        "Tile ${row.sample}",
+                        FactValue.Text(
+                            "${kb(row.rawBytes)} KB, ${row.features} features \u2192 ${kb(row.outputBytes)} KB; " +
+                                "first ${ms(row.firstMs)} ms; p50 ${ms(row.warmP50Ms)} ms; p95 ${ms(row.warmP95Ms)} ms",
+                        ),
+                    )
+                } +
+                DiagnosticFact(
+                    "Tile conversion parallel",
+                    FactValue.Text(
+                        "${outcome.parallelTiles} at once: p50 ${ms(
+                            outcome.parallelP50Ms,
+                        )} ms; p95 ${ms(outcome.parallelP95Ms)} ms",
+                    ),
+                )
         }
     }
 
@@ -262,6 +315,7 @@ internal class MapFactsCollector(
                     webGlRenderer = MapRuntimeSignals.webGlRendererOrNull(),
                     pageFrames = MapRuntimeSignals.pageFramesOrNull(),
                     googleLens = MapRuntimeSignals.googleLensOrNull(),
+                    tileBenchmark = TileBenchmarkResults.latestOrNull(),
                 ),
             )
         }
