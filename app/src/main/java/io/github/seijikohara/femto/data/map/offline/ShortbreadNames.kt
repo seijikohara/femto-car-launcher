@@ -6,10 +6,24 @@ package io.github.seijikohara.femto.data.map.offline
  * Non-letters are ignored, so digits-only and empty texts count as Latin. This mirrors the rule of the generator behind
  * the online tiles; a Unicode-name check would classify fullwidth Latin letters differently.
  */
-internal fun isLatinText(text: String): Boolean =
-    text.codePoints().allMatch { codePoint ->
-        !Character.isLetter(codePoint) || Character.UnicodeScript.of(codePoint) == Character.UnicodeScript.LATIN
+internal fun isLatinText(text: String): Boolean {
+    // An index loop instead of a stream: this runs per labelled feature, so it must not allocate. Most labels are
+    // ASCII, where a letter is always Latin, so the script lookup is skipped below 0x80.
+    var index = 0
+    while (index < text.length) {
+        val codePoint = text.codePointAt(index)
+        if (codePoint >= ASCII_LIMIT &&
+            Character.isLetter(codePoint) &&
+            Character.UnicodeScript.of(codePoint) != Character.UnicodeScript.LATIN
+        ) {
+            return false
+        }
+        index += Character.charCount(codePoint)
     }
+    return true
+}
+
+private const val ASCII_LIMIT = 0x80
 
 /**
  * Derive the OpenMapTiles name properties that Shortbread omits.

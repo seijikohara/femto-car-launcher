@@ -16,8 +16,8 @@ class ShortbreadNamesTest {
 
     @Test
     fun `a text is Latin when every letter in it is of the Latin script`() {
-        listOf("Matsuyama", "Škoda–1", "ＪＲ", "123", "").forEach { assertTrue(isLatinText(it), "'$it'") }
-        listOf("松山", "Αθήνα", "松山 Matsuyama").forEach { assertFalse(isLatinText(it), "'$it'") }
+        listOf("Matsuyama", "Škoda–1", "ＪＲ", "123", "", "Cafe 😀").forEach { assertTrue(isLatinText(it), "'$it'") }
+        listOf("松山", "Αθήνα", "松山 Matsuyama", "𠮷野家").forEach { assertFalse(isLatinText(it), "'$it'") }
     }
 
     @Test
