@@ -10,6 +10,7 @@ internal data class DiagnosticsUiState(
     val problemsOnly: Boolean = false,
     // True for a short pulse after a copy so the button can confirm.
     val copyConfirmed: Boolean = false,
+    val tileBenchmark: TileBenchmarkUi = TileBenchmarkUi.HIDDEN,
 ) {
     companion object {
         val Initial: DiagnosticsUiState =
@@ -17,10 +18,15 @@ internal data class DiagnosticsUiState(
     }
 }
 
+// HIDDEN where no sample tiles ship (stable builds), so the screen is unchanged there.
+internal enum class TileBenchmarkUi { HIDDEN, IDLE, RUNNING }
+
 internal sealed interface DiagnosticsAction {
     data object Refresh : DiagnosticsAction
 
     data object CopyReport : DiagnosticsAction
 
     data object ToggleProblemsOnly : DiagnosticsAction
+
+    data object RunTileBenchmark : DiagnosticsAction
 }
