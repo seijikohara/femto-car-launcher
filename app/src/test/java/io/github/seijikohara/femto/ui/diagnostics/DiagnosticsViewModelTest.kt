@@ -212,7 +212,13 @@ class DiagnosticsViewModelTest {
     fun `the benchmark stays hidden when no samples are available`() =
         runTest {
             val viewModel = viewModel(tileBenchmarkAvailable = { false })
-            assertEquals(TileBenchmarkUi.HIDDEN, viewModel.uiState.value.tileBenchmark)
+            viewModel.uiState.test {
+                val state = expectMostRecentItem()
+                // Collected sections tell the combined state from the seed, whose benchmark is hidden too.
+                assertTrue(state.sections.none { it.payload == null })
+                assertEquals(TileBenchmarkUi.HIDDEN, state.tileBenchmark)
+                cancelAndIgnoreRemainingEvents()
+            }
         }
 
     @Test
@@ -276,9 +282,14 @@ class DiagnosticsViewModelTest {
         runTest {
             var entered = 0
             val viewModel = viewModel(tileBenchmarkAvailable = { false }, runTileBenchmark = { entered++ })
-            viewModel.onAction(DiagnosticsAction.RunTileBenchmark)
+            viewModel.uiState.test {
+                viewModel.onAction(DiagnosticsAction.RunTileBenchmark)
+                val state = expectMostRecentItem()
+                assertTrue(state.sections.none { it.payload == null })
+                assertEquals(TileBenchmarkUi.HIDDEN, state.tileBenchmark)
+                cancelAndIgnoreRemainingEvents()
+            }
             assertEquals(0, entered)
-            assertEquals(TileBenchmarkUi.HIDDEN, viewModel.uiState.value.tileBenchmark)
         }
 
     @Test
