@@ -3,6 +3,11 @@ package io.github.seijikohara.femto.data.diagnostics
 import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.map.MapRuntimeSignals
+import io.github.seijikohara.femto.data.map.offline.OfflineRegionsState
+import io.github.seijikohara.femto.data.map.offline.RegionDownload
+import io.github.seijikohara.femto.data.map.offline.RegionDownloadFailure
+import io.github.seijikohara.femto.data.map.offline.RegionDownloadPhase
+import io.github.seijikohara.femto.data.map.offline.SavedRegion
 import io.github.seijikohara.femto.data.map.offline.TileBenchmarkOutcome
 import io.github.seijikohara.femto.data.map.offline.TileBenchmarkRow
 import org.junit.Test
@@ -23,6 +28,7 @@ class MapFactsTest {
         googleLens: MapRuntimeSignals.GoogleLens? = null,
         tileBenchmark: TileBenchmarkOutcome? = null,
         tileBenchmarkRuns: Int = 0,
+        offlineRegions: OfflineRegionsState? = null,
     ) = mapFactsFrom(
         glEsVersion,
         backend,
@@ -36,7 +42,122 @@ class MapFactsTest {
         googleLens,
         tileBenchmark,
         tileBenchmarkRuns,
+        offlineRegions,
     )
+
+    private fun savedRegion(sizeBytes: Long) = SavedRegion("r$sizeBytes", "Region $sizeBytes", sizeBytes, null, 0L)
+
+    private fun download(
+        phase: RegionDownloadPhase,
+        receivedBytes: Long = 14,
+        totalBytes: Long = 100,
+        failure: RegionDownloadFailure? = null,
+    ) = RegionDownload("r", "Secret Name", receivedBytes, totalBytes, phase, failure)
+
+    private fun downloadFact(download: RegionDownload?) =
+        facts(offlineRegions = OfflineRegionsState(loaded = true, download = download))
+            .single { it.label == "Region download" }
+            .value
+
+    @Test
+    fun `no region facts without the offline state`() {
+        assertTrue(facts().none { it.label == "Saved regions" || it.label == "Region download" })
+    }
+
+    @Test
+    fun `saved regions read zero when empty`() {
+        assertEquals(
+            FactValue.Text("0, 0 MB"),
+            facts(offlineRegions = OfflineRegionsState(loaded = true)).single { it.label == "Saved regions" }.value,
+        )
+    }
+
+    @Test
+    fun `saved regions sum their sizes in decimal megabytes rounded down`() {
+        val state = OfflineRegionsState(loaded = true, saved = listOf(savedRegion(862_351_360), savedRegion(1_728_512)))
+        assertEquals(
+            FactValue.Text("2, 864 MB"),
+            facts(offlineRegions = state).single { it.label == "Saved regions" }.value,
+        )
+    }
+
+    @Test
+    fun `region facts sit after the map facts and before the benchmark`() {
+        val labels =
+            facts(
+                offlineRegions = OfflineRegionsState(loaded = true),
+                tileBenchmark = TileBenchmarkOutcome.Failed("s"),
+            ).map { it.label }
+        assertEquals(listOf("Saved regions", "Region download", "Tile conversion"), labels.takeLast(3))
+    }
+
+    @Test
+    fun `no download reads none`() {
+        assertEquals(FactValue.Text("none"), downloadFact(null))
+    }
+
+    @Test
+    fun `a running download reads its percentage`() {
+        assertEquals(FactValue.Text("running 14%"), downloadFact(download(RegionDownloadPhase.RUNNING)))
+    }
+
+    @Test
+    fun `a verifying download reads its phase`() {
+        assertEquals(
+            FactValue.Text("verifying 100%"),
+            downloadFact(download(RegionDownloadPhase.VERIFYING, receivedBytes = 100)),
+        )
+    }
+
+    @Test
+    fun `a paused download with a failure warns and names it`() {
+        assertEquals(
+            FactValue.Status("paused 14%: network", FactHealth.WARNING),
+            downloadFact(download(RegionDownloadPhase.PAUSED, failure = RegionDownloadFailure.NETWORK)),
+        )
+    }
+
+    @Test
+    fun `a paused download without a failure is plain text`() {
+        assertEquals(FactValue.Text("paused 14%"), downloadFact(download(RegionDownloadPhase.PAUSED)))
+    }
+
+    @Test
+    fun `a failed download is an error naming the failure`() {
+        assertEquals(
+            FactValue.Status("failed: corrupt", FactHealth.ERROR),
+            downloadFact(download(RegionDownloadPhase.FAILED, failure = RegionDownloadFailure.CORRUPT)),
+        )
+    }
+
+    @Test
+    fun `the percentage of a very large download is computed in Long`() {
+        assertEquals(
+            FactValue.Text("running 50%"),
+            downloadFact(
+                download(RegionDownloadPhase.RUNNING, receivedBytes = 29_222_385_664, totalBytes = 58_444_771_328),
+            ),
+        )
+    }
+
+    @Test
+    fun `an unknown total reads zero percent`() {
+        assertEquals(
+            FactValue.Text("running 0%"),
+            downloadFact(download(RegionDownloadPhase.RUNNING, receivedBytes = 0, totalBytes = 0)),
+        )
+    }
+
+    @Test
+    fun `no region name reaches the report`() {
+        val state =
+            OfflineRegionsState(
+                loaded = true,
+                saved = listOf(savedRegion(1)),
+                download = download(RegionDownloadPhase.RUNNING),
+            )
+        assertTrue(facts(offlineRegions = state).none { "Region 1" in it.label || "Secret" in it.value.toString() })
+    }
 
     @Test
     fun `the Google lens row appears only on the Google backend`() {

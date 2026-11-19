@@ -23,7 +23,7 @@ app/src/
 ├── main/
 │   ├── java/io/github/seijikohara/femto/
 │   │   ├── MainActivity.kt           # ComponentActivity, single launcher entry
-│   │   ├── data/                     # One sub-package per domain (apps, calendar, clock, common, diagnostics, display, dock, fonts, geocoding, location, map, music, places, system, update, video, voice, weather); a domain may nest a self-contained part (map/offline, the offline tile converter); data/ never imports ui/
+│   │   ├── data/                     # One sub-package per domain (apps, calendar, clock, common, diagnostics, display, dock, fonts, geocoding, location, map, music, places, system, update, video, voice, weather); a domain may nest a self-contained part (map/offline, the offline map: tile converter and saved regions); data/ never imports ui/
 │   │   └── ui/
 │   │       ├── <area>/               # One area per top-level surface
 │   │       │   ├── <Area>Route.kt    # VM-binding entry point (when stateful)
@@ -33,7 +33,7 @@ app/src/
 │   │       │   └── components/       # Area-private widgets
 │   │       └── theme/                # FemtoTheme + tokens + PreviewLightDark
 │   └── res/                          # themes (values{,-night}/), strings (per-locale once locales are wired up), icon drawables, xml/
-├── nightly/...                       # nightly-channel overrides: app_name string + badged ic_launcher_foreground; sample tiles (assets/offline-bench/) for the nightly tile conversion benchmark
+├── nightly/...                       # nightly-channel overrides: app_name string + badged ic_launcher_foreground; sample tiles (assets/offline-bench/) for the nightly tile conversion benchmark; the resource boolean `offline_regions_enabled` (`res/values/bools.xml`), which shows the Saved map regions row in the nightly build only
 ├── test/...                          # JVM unit tests (runTest + TestDispatcher)
 └── androidTest/...                   # Compose UI tests (createComposeRule)
 ```

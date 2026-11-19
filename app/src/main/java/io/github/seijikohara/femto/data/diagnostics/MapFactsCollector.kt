@@ -8,6 +8,11 @@ import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.map.MapRuntimeSignals
+import io.github.seijikohara.femto.data.map.offline.OfflineRegionRepository
+import io.github.seijikohara.femto.data.map.offline.OfflineRegionsState
+import io.github.seijikohara.femto.data.map.offline.RegionDownload
+import io.github.seijikohara.femto.data.map.offline.RegionDownloadFailure
+import io.github.seijikohara.femto.data.map.offline.RegionDownloadPhase
 import io.github.seijikohara.femto.data.map.offline.TileBenchmarkOutcome
 import io.github.seijikohara.femto.data.map.offline.TileBenchmarkResults
 import io.github.seijikohara.femto.data.map.offline.TileBenchmarkRow
@@ -82,6 +87,7 @@ internal fun mapFactsFrom(
     googleLens: MapRuntimeSignals.GoogleLens? = null,
     tileBenchmark: TileBenchmarkOutcome? = null,
     tileBenchmarkRuns: Int = 0,
+    offlineRegions: OfflineRegionsState? = null,
 ): List<DiagnosticFact> =
     buildList {
         add(webGl2Fact(glEsVersion, webGl2Need(backend, googleRendering, hasGoogleMapId)))
@@ -92,8 +98,48 @@ internal fun mapFactsFrom(
         if (failureCount > 1) {
             add(DiagnosticFact("Failures this session", FactValue.Text("$failureCount")))
         }
+        offlineRegions?.let { addAll(offlineRegionFacts(it)) }
         addAll(tileBenchmarkFacts(tileBenchmark, tileBenchmarkRuns, nowElapsedRealtimeMs))
     }
+
+// Counts and sizes only: the choice of regions can say where the owner drives, so no name enters the report.
+private fun offlineRegionFacts(state: OfflineRegionsState): List<DiagnosticFact> =
+    listOf(
+        DiagnosticFact(
+            "Saved regions",
+            FactValue.Text("${state.saved.size}, ${state.saved.sumOf { it.sizeBytes } / BYTES_PER_MEGABYTE} MB"),
+        ),
+        DiagnosticFact("Region download", regionDownloadValue(state.download)),
+    )
+
+private const val BYTES_PER_MEGABYTE = 1_000_000L
+
+private fun regionDownloadValue(download: RegionDownload?): FactValue =
+    when {
+        download == null -> {
+            FactValue.Text("none")
+        }
+
+        download.phase == RegionDownloadPhase.FAILED -> {
+            FactValue.Status("failed: ${download.failure.words()}", FactHealth.ERROR)
+        }
+
+        download.failure != null -> {
+            FactValue.Status("${download.progressText()}: ${download.failure.words()}", FactHealth.WARNING)
+        }
+
+        else -> {
+            FactValue.Text(download.progressText())
+        }
+    }
+
+// Long throughout: a region file can exceed 50 GB, which overflows an Int product.
+private fun RegionDownload.progressText(): String {
+    val percent = if (totalBytes == 0L) 0L else receivedBytes * 100 / totalBytes
+    return "${phase.name.lowercase()} $percent%"
+}
+
+private fun RegionDownloadFailure?.words(): String = this?.name?.lowercase()?.replace('_', ' ') ?: "unknown"
 
 private fun ms(value: Double): String = "%.1f".format(Locale.ROOT, value)
 
@@ -344,6 +390,10 @@ internal class MapFactsCollector(
                     googleLens = MapRuntimeSignals.googleLensOrNull(),
                     tileBenchmark = TileBenchmarkResults.latestOrNull(),
                     tileBenchmarkRuns = TileBenchmarkResults.runCount(),
+                    offlineRegions = OfflineRegionRepository.get(context).run {
+                        load()
+                        state.value
+                    },
                 ),
             )
         }
