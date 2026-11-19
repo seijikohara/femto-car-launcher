@@ -35,9 +35,10 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
 /**
  * The one download, in whichever phase it is: running with its bar and both sizes, being checked, paused with its
- * reason and the bytes it holds, or failed with its reason. Each phase offers only the buttons that do something
- * in it; Cancel asks first (the ViewModel opens the confirmation), and Dismiss clears a failure, which left nothing
- * on disk.
+ * reason and the bytes it holds, or failed with its reason. Only a running or checked download is titled
+ * Downloading; a paused or failed one carries the region's name alone. Each phase offers only the buttons that do
+ * something in it; Cancel asks first (the ViewModel opens the confirmation), and Dismiss clears a failure, which
+ * left nothing on disk.
  */
 @Composable
 internal fun RegionDownloadRow(
@@ -52,7 +53,7 @@ internal fun RegionDownloadRow(
     verticalArrangement = Arrangement.spacedBy(4.dp),
 ) {
     Text(
-        text = stringResource(R.string.offline_regions_download_title, download.name),
+        text = downloadTitle(download),
         style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onSurface,
     )
@@ -77,8 +78,14 @@ internal fun RegionDownloadRow(
         }
 
         RegionDownloadPhase.PAUSED -> {
-            // A download restored after a restart carries no reason; its sizes say what is left.
-            download.failure?.let { Line(text = failureText(it), announced = true) }
+            // A download restored after a restart carries no reason, so it says only that it is paused; its sizes
+            // say what is left.
+            Line(
+                text =
+                    download.failure?.let { failureText(it) }
+                        ?: stringResource(R.string.offline_regions_download_paused),
+                announced = true,
+            )
             Line(text = progressText(download))
             Buttons {
                 DownloadButton(
@@ -105,6 +112,20 @@ internal fun RegionDownloadRow(
         }
     }
 }
+
+// Nothing runs in a paused or failed download, a restored one included, so only a transfer or its check says
+// Downloading.
+@Composable
+private fun downloadTitle(download: RegionDownload): String =
+    when (download.phase) {
+        RegionDownloadPhase.RUNNING, RegionDownloadPhase.VERIFYING -> {
+            stringResource(R.string.offline_regions_download_title, download.name)
+        }
+
+        RegionDownloadPhase.PAUSED, RegionDownloadPhase.FAILED -> {
+            download.name
+        }
+    }
 
 // Two Longs to the end: a 58 GB file overflows an Int, so the fraction is taken in floating point.
 private fun RegionDownload.fraction(): Float =

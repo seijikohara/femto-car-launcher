@@ -132,7 +132,11 @@ private fun RegionList(
     if (uiState.loaded && uiState.saved.isEmpty()) {
         SettingRow(title = stringResource(R.string.offline_regions_empty))
     }
-    AddRegionRow(busy = uiState.download != null, onClick = { onAction(OfflineRegionsAction.AddRegion) })
+    AddRegionRow(
+        enabled = uiState.loaded && uiState.download == null,
+        busy = uiState.download != null,
+        onClick = { onAction(OfflineRegionsAction.AddRegion) },
+    )
 }
 
 @Composable
@@ -168,7 +172,7 @@ private fun SavedRegionRow(
     ) {
         FemtoIcon(
             imageVector = Lucide.Trash2,
-            contentDescription = stringResource(R.string.offline_regions_delete),
+            contentDescription = stringResource(R.string.offline_regions_delete_region, region.name),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(FemtoDimens.InlineIconSize),
         )
@@ -190,16 +194,19 @@ private fun mediumDate(epochMs: Long): String {
     return remember(context, epochMs) { DateFormat.getMediumDateFormat(context).format(Date(epochMs)) }
 }
 
-// One download at a time: while one exists, the row stays in place, takes no tap, and says why.
+// One download at a time: while one exists, the row stays in place, takes no tap, and says why. Before the load it
+// takes no tap either: a paused download the load restores would answer the offer as busy, and the sheet would
+// close that offer without a word.
 @Composable
 private fun AddRegionRow(
+    enabled: Boolean,
     busy: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) = SettingRow(
     title = stringResource(R.string.offline_regions_add),
     summary = if (busy) stringResource(R.string.offline_regions_add_busy) else null,
-    modifier = modifier.clickable(enabled = !busy, onClick = onClick),
+    modifier = modifier.clickable(enabled = enabled, onClick = onClick),
 ) {
     TrailingIcon(Lucide.Plus)
 }

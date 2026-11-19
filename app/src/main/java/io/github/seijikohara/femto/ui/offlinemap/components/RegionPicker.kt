@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ChevronRight
@@ -113,11 +114,14 @@ private fun PickerHeader(
             modifier = Modifier.size(BackIconSize),
         )
     }
+    // A long region name ends in an ellipsis inside the width the back arrow leaves, instead of being clipped.
     Text(
         text = title,
         style = MaterialTheme.typography.headlineMedium,
         color = MaterialTheme.colorScheme.onBackground,
         maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.weight(1f),
     )
 }
 

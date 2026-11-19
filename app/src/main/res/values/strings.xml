@@ -414,6 +414,7 @@
     <string name="offline_regions_download_title">Downloading %1$s</string>
     <string name="offline_regions_download_progress">%1$s of %2$s</string>
     <string name="offline_regions_download_verifying">Checking the file…</string>
+    <string name="offline_regions_download_paused">Paused.</string>
     <string name="offline_regions_download_cancel">Cancel</string>
     <string name="offline_regions_download_resume">Resume</string>
     <string name="offline_regions_download_dismiss">Dismiss</string>
@@ -425,6 +426,7 @@
     <string name="offline_regions_failure_corrupt">The downloaded file is damaged. Try again.</string>
     <string name="offline_regions_saved_summary">%1$s · data from %2$s</string>
     <string name="offline_regions_delete">Delete</string>
+    <string name="offline_regions_delete_region">Delete %1$s</string>
     <string name="offline_regions_empty">No saved regions</string>
     <string name="offline_regions_add">Add region</string>
     <string name="offline_regions_add_busy">One download at a time</string>

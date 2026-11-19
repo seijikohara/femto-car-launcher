@@ -37,6 +37,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.util.Date
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 
 /**
  * What the Saved map regions sheet draws from its state, beyond the ViewModel's mapping: the storage line, the
@@ -135,6 +136,40 @@ class OfflineRegionsScreenTest {
     }
 
     @Test
+    fun `a download restored after a restart is named and says it is paused`() {
+        setScreen(
+            OfflineRegionsUiState(
+                loaded = true,
+                download = regionDownload("Bayern", RegionDownloadPhase.PAUSED, RECEIVED_BYTES, TOTAL_BYTES),
+            ),
+        )
+
+        // Nothing runs until Resume, so the row does not say Downloading.
+        rule.onNodeWithText("Bayern").assertExists()
+        rule.onNodeWithText(context.getString(R.string.offline_regions_download_title, "Bayern")).assertDoesNotExist()
+        rule.onNodeWithText(context.getString(R.string.offline_regions_download_paused)).assertExists()
+        rule
+            .onNodeWithText(
+                context.getString(R.string.offline_regions_download_progress, size(RECEIVED_BYTES), size(TOTAL_BYTES)),
+            ).assertExists()
+    }
+
+    @Test
+    fun `a failed download is named without saying downloading`() {
+        setScreen(
+            OfflineRegionsUiState(
+                loaded = true,
+                download =
+                    regionDownload("Bayern", RegionDownloadPhase.FAILED, failure = RegionDownloadFailure.NETWORK),
+            ),
+        )
+
+        rule.onNodeWithText("Bayern").assertExists()
+        rule.onNodeWithText(context.getString(R.string.offline_regions_download_title, "Bayern")).assertDoesNotExist()
+        rule.onNodeWithText(context.getString(R.string.offline_regions_failure_network)).assertExists()
+    }
+
+    @Test
     fun `the verifying download takes no button`() {
         setScreen(
             OfflineRegionsUiState(
@@ -175,6 +210,15 @@ class OfflineRegionsScreenTest {
     }
 
     @Test
+    fun `add region waits for the saved regions to load`() {
+        setScreen(OfflineRegionsUiState(loaded = false))
+
+        // A download restored by the load would answer the offer as busy, and the sheet would close it silently.
+        rule.onNodeWithText(context.getString(R.string.offline_regions_add)).assertIsNotEnabled()
+        rule.onNodeWithText(context.getString(R.string.offline_regions_add_busy)).assertDoesNotExist()
+    }
+
+    @Test
     fun `add region opens the picker without a download`() {
         setScreen(OfflineRegionsUiState(loaded = true))
 
@@ -205,7 +249,9 @@ class OfflineRegionsScreenTest {
             .onNodeWithText(context.getString(R.string.offline_regions_saved_summary, size(BERLIN_BYTES), date))
             .assertExists()
         rule.onNodeWithText(context.getString(R.string.offline_regions_empty)).assertDoesNotExist()
-        rule.onNodeWithContentDescription(context.getString(R.string.offline_regions_delete)).performClick()
+        rule
+            .onNodeWithContentDescription(context.getString(R.string.offline_regions_delete_region, "Berlin"))
+            .performClick()
 
         assertEquals(listOf<OfflineRegionsAction>(OfflineRegionsAction.DeleteRegion("berlin")), actions)
     }
@@ -437,6 +483,11 @@ class OfflineRegionsScreenTest {
             .performClick()
 
         assertEquals(1, opened)
+    }
+
+    @Test
+    fun `the stable build the unit tests run on does not offer saved regions`() {
+        assertFalse(context.resources.getBoolean(R.bool.offline_regions_enabled))
     }
 
     private fun size(bytes: Long): String = Formatter.formatShortFileSize(context, bytes)
