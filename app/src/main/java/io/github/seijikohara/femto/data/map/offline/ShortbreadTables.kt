@@ -1,6 +1,6 @@
 package io.github.seijikohara.femto.data.map.offline
 
-/** Lookup tables that map Shortbread kinds onto OpenMapTiles classes; [ShortbreadConverter] is the only reader. */
+// Lookup tables that map Shortbread kinds onto OpenMapTiles classes; ShortbreadConverter is the only reader.
 
 private fun classTable(vararg groups: Pair<String, List<String>>): Map<String, String> =
     groups.flatMap { (targetClass, kinds) -> kinds.map { it to targetClass } }.toMap()

@@ -54,15 +54,11 @@ internal object ShortbreadConverter {
         }
     }
 
+    /** Return the OpenMapTiles layers for the decoded Shortbread [source] layers of a tile at [zoom]. */
     fun convertLayers(
         zoom: Int,
         source: List<SourceLayer>,
-    ): List<OutputLayer> {
-        val sink = Sink()
-        val layers = source.groupBy { it.name }
-        Converter(zoom, layers, sink).run()
-        return sink.layers()
-    }
+    ): List<OutputLayer> = Sink().also { Converter(zoom, source.groupBy { it.name }, it).run() }.layers()
 
     /** Run [rawTileOrNull], decode, [convertLayers] and encode; null on malformed input, an empty array when nothing maps. Never throws. */
     fun convertOrNull(
@@ -298,7 +294,13 @@ private fun placeRank(placeClass: String): Int = PlaceOrder.indexOf(placeClass).
 /** The text before the first line break; a reference is rendered on one line. */
 private fun firstLine(ref: String): String = ref.substringBefore('\n')
 
-/** The tile-wide state of one conversion: each rule below reads every source layer of its Shortbread name. */
+/**
+ * The tile-wide state of one conversion: each rule below reads every source layer of its Shortbread name.
+ *
+ * A rule builds a feature's properties in an `ArrayList` sized up front and filled with `add`, and the name rules
+ * append into that same list. The rules run once per feature, tens of thousands of times per tile, where
+ * `listOfNotNull` would allocate a varargs array beside the list and a `+` chain a new list per step.
+ */
 private class Converter(
     private val zoom: Int,
     private val layers: Map<String, List<SourceLayer>>,
@@ -607,25 +609,11 @@ private class Converter(
             val place = sink.bucket("place")
             layer.eachFeature { feature ->
                 val wayArea = layer.number(feature, area)
-                val placeClass: String?
-                val rank: Long
                 when (layer.number(feature, level).toLong()) {
-                    2L -> {
-                        placeClass = "country"
-                        rank = countryRank(wayArea)
-                    }
-
-                    4L -> {
-                        placeClass = if (wayArea >= STATE_MIN_AREA) "state" else "province"
-                        rank = 1
-                    }
-
-                    else -> {
-                        placeClass = null
-                        rank = 0
-                    }
-                }
-                if (placeClass != null) {
+                    2L -> "country" to countryRank(wayArea)
+                    4L -> (if (wayArea >= STATE_MIN_AREA) "state" else "province") to 1L
+                    else -> null
+                }?.let { (placeClass, rank) ->
                     val properties = ArrayList<TileProperty>(2 + MAX_NAME_PROPERTIES)
                     properties.add(text("class", placeClass))
                     properties.add(integer("rank", rank))
@@ -645,9 +633,7 @@ private class Converter(
                 val place = PlaceKinds[layer.textOrNull(feature, kind)]
                 if (place != null && zoom >= place.minZoom) {
                     val people = layer.number(feature, population)
-                    var cityRank = 0
-                    for (threshold in CityRankPopulation) if (threshold > people) cityRank++
-                    val rank = 1 + cityRank + place.rankOffset
+                    val rank = 1 + CityRankPopulation.count { it > people } + place.rankOffset
                     val properties = ArrayList<TileProperty>(3 + MAX_NAME_PROPERTIES)
                     properties.add(place.classProperty)
                     properties.addNotNull(place.capitalProperty)

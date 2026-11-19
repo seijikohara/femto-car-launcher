@@ -233,7 +233,13 @@ internal object VectorTileCodec {
         }
     }
 
-    /** Cursor over `[pos, end)` of [buf]; every read checks bounds before it consumes or allocates. */
+    /**
+     * Cursor over `[pos, end)` of [buf]; every read checks bounds before it consumes or allocates.
+     *
+     * The decoder walks it, and [ByteWriter] fills its buffer, with `while` and `for` loops over `var` state instead
+     * of collection chains: a tile holds tens of thousands of fields, and an iterator or a list per field would
+     * allocate on the hottest path of a conversion.
+     */
     private class Reader(
         private val buf: ByteArray,
         private var pos: Int,
