@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.data.map.offline
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -43,6 +44,10 @@ internal sealed interface TileBenchmarkOutcome {
 
     data class Failed(
         val sample: String,
+    ) : TileBenchmarkOutcome
+
+    data class Aborted(
+        val reason: String,
     ) : TileBenchmarkOutcome
 }
 
@@ -133,6 +138,37 @@ internal suspend fun runTileConversionBenchmark(
         cores = cores,
         finishedAtElapsedRealtimeMs = elapsedRealtimeMs(),
     )
+}
+
+/** Runs the benchmark and always leaves an outcome in [TileBenchmarkResults]: a run that cannot finish says why. */
+internal suspend fun runAndRecordTileBenchmark(
+    loadSamples: () -> List<BenchmarkSample>,
+    cores: Int,
+    elapsedRealtimeMs: () -> Long,
+    nanoTime: () -> Long = System::nanoTime,
+    convert: (zoom: Int, tile: ByteArray) -> ByteArray? = ShortbreadConverter::convertOrNull,
+) {
+    val samples =
+        try {
+            loadSamples()
+        } catch (_: Exception) {
+            TileBenchmarkResults.record(TileBenchmarkOutcome.Aborted("samples could not be read"))
+            return
+        }
+    if (samples.isEmpty()) {
+        TileBenchmarkResults.record(TileBenchmarkOutcome.Aborted("no samples"))
+        return
+    }
+    try {
+        runTileConversionBenchmark(samples, cores, elapsedRealtimeMs, nanoTime, convert)
+            ?.let(TileBenchmarkResults::record)
+    } catch (e: CancellationException) {
+        TileBenchmarkResults.record(TileBenchmarkOutcome.Aborted("interrupted"))
+        throw e
+    } catch (t: Throwable) {
+        // A diagnostic's own failure, OutOfMemoryError included, is the datum; it must not take the launcher down.
+        TileBenchmarkResults.record(TileBenchmarkOutcome.Aborted(t.javaClass.simpleName))
+    }
 }
 
 /** Parse `<region>-<z>-<x>-<y>.sb.mvt.gz`; null for any other file (the notice text). */

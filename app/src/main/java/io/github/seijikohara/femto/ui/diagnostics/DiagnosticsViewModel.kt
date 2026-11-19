@@ -19,8 +19,7 @@ import io.github.seijikohara.femto.data.diagnostics.diagnosticsCollectors
 import io.github.seijikohara.femto.data.diagnostics.musicSectionWithSession
 import io.github.seijikohara.femto.data.map.offline.TILE_BENCHMARK_ASSET_DIR
 import io.github.seijikohara.femto.data.map.offline.TILE_SAMPLE_SUFFIX
-import io.github.seijikohara.femto.data.map.offline.TileBenchmarkResults
-import io.github.seijikohara.femto.data.map.offline.runTileConversionBenchmark
+import io.github.seijikohara.femto.data.map.offline.runAndRecordTileBenchmark
 import io.github.seijikohara.femto.data.map.offline.tileBenchmarkSamples
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicSessionRepository
@@ -208,11 +207,11 @@ internal val DiagnosticsViewModelFactory: ViewModelProvider.Factory =
                 },
                 runTileBenchmark = {
                     withContext(Dispatchers.Default) {
-                        runTileConversionBenchmark(
-                            samples = tileBenchmarkSamples(application.assets),
+                        runAndRecordTileBenchmark(
+                            loadSamples = { tileBenchmarkSamples(application.assets) },
                             cores = Runtime.getRuntime().availableProcessors(),
                             elapsedRealtimeMs = SystemClock::elapsedRealtime,
-                        )?.let(TileBenchmarkResults::record)
+                        )
                     }
                 },
             )

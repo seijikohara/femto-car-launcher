@@ -140,4 +140,54 @@ class TileConversionBenchmarkTest {
         TileBenchmarkResults.record(second)
         assertEquals(second, TileBenchmarkResults.latestOrNull())
     }
+
+    private suspend fun runAndRecord(
+        loadSamples: () -> List<BenchmarkSample> = { listOf(sample()) },
+        convert: (zoom: Int, tile: ByteArray) -> ByteArray? = { _, _ -> output },
+    ) = runAndRecordTileBenchmark(
+        loadSamples = loadSamples,
+        cores = 2,
+        elapsedRealtimeMs = { 0L },
+        convert = convert,
+    )
+
+    @Test
+    fun `a finished run records its outcome`() =
+        runTest {
+            TileBenchmarkResults.record(TileBenchmarkOutcome.Failed("stale"))
+            runAndRecord()
+            assertIs<TileBenchmarkOutcome.Measured>(TileBenchmarkResults.latestOrNull())
+        }
+
+    @Test
+    fun `samples that cannot be read record an aborted run`() =
+        runTest {
+            runAndRecord(loadSamples = { throw java.io.IOException("x") })
+            assertEquals(TileBenchmarkOutcome.Aborted("samples could not be read"), TileBenchmarkResults.latestOrNull())
+        }
+
+    @Test
+    fun `no samples record an aborted run`() =
+        runTest {
+            runAndRecord(loadSamples = { emptyList() })
+            assertEquals(TileBenchmarkOutcome.Aborted("no samples"), TileBenchmarkResults.latestOrNull())
+        }
+
+    @Test
+    fun `a cancelled run records that it was interrupted and stays cancelled`() =
+        runTest {
+            TileBenchmarkResults.record(TileBenchmarkOutcome.Failed("stale"))
+            lateinit var job: Job
+            job = launch { runAndRecord(convert = { _, _ -> output.also { job.cancel() } }) }
+            job.join()
+            assertTrue(job.isCancelled)
+            assertEquals(TileBenchmarkOutcome.Aborted("interrupted"), TileBenchmarkResults.latestOrNull())
+        }
+
+    @Test
+    fun `an error during the run records its name and does not escape`() =
+        runTest {
+            runAndRecord(convert = { _, _ -> throw OutOfMemoryError() })
+            assertEquals(TileBenchmarkOutcome.Aborted("OutOfMemoryError"), TileBenchmarkResults.latestOrNull())
+        }
 }

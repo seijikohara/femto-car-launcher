@@ -112,6 +112,15 @@ private fun tileBenchmarkFacts(
             listOf(DiagnosticFact("Tile conversion", FactValue.Status("failed on ${outcome.sample}", FactHealth.ERROR)))
         }
 
+        is TileBenchmarkOutcome.Aborted -> {
+            listOf(
+                DiagnosticFact(
+                    "Tile conversion",
+                    FactValue.Status("did not finish: ${outcome.reason}", FactHealth.ERROR),
+                ),
+            )
+        }
+
         is TileBenchmarkOutcome.Measured -> {
             val ageS = ((nowElapsedRealtimeMs - outcome.finishedAtElapsedRealtimeMs) / 1_000L).coerceAtLeast(0)
             listOf(

@@ -356,4 +356,12 @@ class MapFactsTest {
             facts(tileBenchmark = TileBenchmarkOutcome.Failed("kanto-14-1-2")).single { it.label.startsWith("Tile") },
         )
     }
+
+    @Test
+    fun `an aborted benchmark is an error fact giving the reason`() {
+        assertEquals(
+            DiagnosticFact("Tile conversion", FactValue.Status("did not finish: interrupted", FactHealth.ERROR)),
+            facts(tileBenchmark = TileBenchmarkOutcome.Aborted("interrupted")).single { it.label.startsWith("Tile") },
+        )
+    }
 }
