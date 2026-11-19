@@ -15,8 +15,10 @@ private const val NANOS_PER_MS = 1_000_000.0
 
 // Not `.gz`: the Android asset merger gunzips every `*.gz` asset and drops the extension, and the benchmark has
 // to time the stored, gzip-compressed form a real request reads.
-internal const val TILE_SAMPLE_SUFFIX = ".sb.mvt.gzip"
-private val SampleFileName = Regex("""(.+)-(\d+)-\d+-\d+""")
+private const val TILE_SAMPLE_SUFFIX = ".sb.mvt.gzip"
+
+// Group 1 is the sample name, group 2 its zoom.
+private val SampleFileName = Regex("""(.+-(\d+)-\d+-\d+)""" + Regex.escape(TILE_SAMPLE_SUFFIX))
 
 internal class BenchmarkSample(
     val name: String,
@@ -174,14 +176,12 @@ internal suspend fun runAndRecordTileBenchmark(
     }
 }
 
+/** Whether [fileName] names a sample, `<region>-<z>-<x>-<y>.sb.mvt.gzip`; any other file (the notice text) does not. */
+internal fun isBenchmarkSampleFile(fileName: String): Boolean = SampleFileName.matches(fileName)
+
 /** Parse `<region>-<z>-<x>-<y>.sb.mvt.gzip`; null for any other file (the notice text). */
 internal fun benchmarkSampleOrNull(
     fileName: String,
     tile: ByteArray,
 ): BenchmarkSample? =
-    fileName
-        .takeIf { it.endsWith(TILE_SAMPLE_SUFFIX) }
-        ?.removeSuffix(TILE_SAMPLE_SUFFIX)
-        ?.let { name ->
-            SampleFileName.matchEntire(name)?.let { BenchmarkSample(name, it.groupValues[2].toInt(), tile) }
-        }
+    SampleFileName.matchEntire(fileName)?.let { BenchmarkSample(it.groupValues[1], it.groupValues[2].toInt(), tile) }

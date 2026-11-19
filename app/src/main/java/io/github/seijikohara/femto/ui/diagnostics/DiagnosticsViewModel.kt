@@ -17,8 +17,7 @@ import io.github.seijikohara.femto.data.diagnostics.SectionId
 import io.github.seijikohara.femto.data.diagnostics.SectionPayload
 import io.github.seijikohara.femto.data.diagnostics.diagnosticsCollectors
 import io.github.seijikohara.femto.data.diagnostics.musicSectionWithSession
-import io.github.seijikohara.femto.data.map.offline.TILE_BENCHMARK_ASSET_DIR
-import io.github.seijikohara.femto.data.map.offline.TILE_SAMPLE_SUFFIX
+import io.github.seijikohara.femto.data.map.offline.hasTileBenchmarkSamples
 import io.github.seijikohara.femto.data.map.offline.runAndRecordTileBenchmark
 import io.github.seijikohara.femto.data.map.offline.tileBenchmarkSamples
 import io.github.seijikohara.femto.data.music.MusicCardState
@@ -199,11 +198,7 @@ internal val DiagnosticsViewModelFactory: ViewModelProvider.Factory =
                     }
                 },
                 tileBenchmarkAvailable = {
-                    withContext(Dispatchers.IO) {
-                        application.assets
-                            .list(TILE_BENCHMARK_ASSET_DIR)
-                            ?.any { it.endsWith(TILE_SAMPLE_SUFFIX) } == true
-                    }
+                    withContext(Dispatchers.IO) { hasTileBenchmarkSamples(application.assets::list) }
                 },
                 runTileBenchmark = {
                     withContext(Dispatchers.Default) {
