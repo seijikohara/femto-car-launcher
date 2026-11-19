@@ -95,7 +95,7 @@ internal class RegionFeedApi(
             client.newCall(indexRequest(etag)).execute().use { response ->
                 when (val code = response.code) {
                     HTTP_NOT_MODIFIED -> IndexResult.NotModified
-                    HTTP_OK if response.replacesIndex(staging, target) -> IndexResult.Fresh(response.header("ETag"))
+                    HTTP_OK if response.replacesIndex(staging, target) -> IndexResult.Fresh(response.etagOrNull())
                     else -> IndexResult.Unavailable.also { Log.w(TAG, "index HTTP $code not kept") }
                 }
             }
@@ -131,11 +131,13 @@ internal class RegionFeedApi(
         onProgress: (receivedBytes: Long, totalBytes: Long) -> Unit,
     ): TransferResult {
         // Without an ETag, If-Range has nothing to guard a resume with: bytes of
-        // a newer file would be appended to an older one unnoticed.
-        val resumeFrom = heldBytes.takeIf { it > 0 && expected.etag != null }
+        // a newer file would be appended to an older one unnoticed. One that
+        // cannot be sent counts as none.
+        val resumeEtag = expected.etag?.sendableEtagOrNull()
+        val resumeFrom = heldBytes.takeIf { it > 0 && resumeEtag != null }
         if (resumeFrom == null) part.delete()
         return try {
-            client.newCall(downloadRequest(url, resumeFrom, expected.etag)).execute().use { response ->
+            client.newCall(downloadRequest(url, resumeFrom, resumeEtag)).execute().use { response ->
                 // Only an answer that proves the part unusable deletes it. A redirect, a
                 // busy or refusing server says nothing about the part, and one such answer
                 // must not throw away gigabytes that a later resume can still use.
@@ -251,7 +253,7 @@ internal class RegionFeedApi(
     // Compression is left to OkHttp here: nothing compares the index's size.
     private fun indexRequest(etag: String?): Request =
         requestTo(indexUrl)
-            .apply { etag?.let { header("If-None-Match", it) } }
+            .apply { etag?.sendableEtagOrNull()?.let { header("If-None-Match", it) } }
             .build()
 
     private fun fileRequest(url: String): Request.Builder = requestTo(url).header("Accept-Encoding", IDENTITY_ENCODING)
@@ -307,10 +309,17 @@ private fun Response.remoteFileOrNull(): RemoteFile? =
         ?.let { size ->
             RemoteFile(
                 sizeBytes = size,
-                etag = header("ETag"),
+                etag = etagOrNull(),
                 lastModifiedEpochMs = headers.getInstant("Last-Modified")?.toEpochMilli(),
             )
         }
+
+// OkHttp throws on a request header value with a character outside tab and
+// 0x20-0x7e, so an ETag that could not be sent back counts as absent: the
+// whole file is asked for, and the index is fetched without revalidation.
+private fun String.sendableEtagOrNull(): String? = takeIf { etag -> etag.all { it == '\t' || it in ' '..'~' } }
+
+private fun Response.etagOrNull(): String? = header("ETag")?.sendableEtagOrNull()
 
 // The part goes with this outcome: what it held cannot be resumed against the answer.
 private fun <T : TransferResult> T.discarding(part: File): T = also { part.delete() }

@@ -97,6 +97,31 @@ class RegionFeedApiTest {
         }
 
     @Test
+    fun `a resume with an unsendable etag asks for the whole file instead`() =
+        runTest {
+            val part = partHolding(FILE_BYTES.copyOf(5))
+            server.enqueue(fileResponse(FILE_BYTES))
+            val restarts = mutableListOf<RemoteFile>()
+
+            val result =
+                downloadInto(
+                    part,
+                    expected = FILE.copy(etag = UNSENDABLE_ETAG),
+                    onRestart = { file ->
+                        restarts += file
+                        true
+                    },
+                )
+
+            val request = server.takeRequest()
+            assertNull(request.getHeader("Range"))
+            assertNull(request.getHeader("If-Range"))
+            assertEquals(listOf(FILE), restarts)
+            assertEquals(TransferResult.Complete(FILE), result)
+            assertContentEquals(FILE_BYTES, part.readBytes())
+        }
+
+    @Test
     fun `a full answer to a resume restarts from zero when the caller agrees`() =
         runTest {
             val part = partHolding(FILE_BYTES.copyOf(5))
@@ -494,6 +519,21 @@ class RegionFeedApiTest {
         }
 
     @Test
+    fun `an etag that could not be sent back is read as null`() =
+        runTest {
+            // Lenient: OkHttp reads such a value but refuses to send it in a request header.
+            server.enqueue(MockResponse().setHeader("Content-Length", 10).addHeaderLenient("ETag", UNSENDABLE_ETAG))
+            server.enqueue(MockResponse().setBody("{}").addHeaderLenient("ETag", UNSENDABLE_ETAG))
+            val api = newApi()
+
+            val probe = api.probe(fileUrl())
+            val index = api.index(indexTarget(), etag = null)
+
+            assertEquals(ProbeResult.Found(RemoteFile(10, etag = null, lastModifiedEpochMs = null)), probe)
+            assertEquals(IndexResult.Fresh(etag = null), index)
+        }
+
+    @Test
     fun `a probe without a length is size unknown`() =
         runTest {
             server.enqueue(MockResponse().removeHeader("Content-Length"))
@@ -556,6 +596,19 @@ class RegionFeedApiTest {
             assertEquals("/index-v1.json", server.takeRequest().path)
             assertEquals("new", target.readText())
             assertEquals(listOf(target.name), target.parentFile?.list()?.toList())
+        }
+
+    @Test
+    fun `an index with an unsendable etag is fetched without revalidation`() =
+        runTest {
+            val target = cachedIndex("old")
+            server.enqueue(MockResponse().setBody("new").setHeader("ETag", NEW_INDEX_ETAG))
+
+            val result = newApi().index(target, UNSENDABLE_ETAG)
+
+            assertEquals(IndexResult.Fresh(NEW_INDEX_ETAG), result)
+            assertNull(server.takeRequest().getHeader("If-None-Match"))
+            assertEquals("new", target.readText())
         }
 
     @Test
@@ -686,6 +739,9 @@ class RegionFeedApiTest {
 
         const val ETAG = "\"abc\""
         const val WEAK_ETAG = "W/\"abc\""
+
+        // A character outside tab and 0x20–0x7e: OkHttp throws on it in a request header.
+        const val UNSENDABLE_ETAG = "\"é\""
         const val NEW_ETAG = "\"def\""
         const val INDEX_ETAG = "\"index-1\""
         const val NEW_INDEX_ETAG = "\"index-2\""
