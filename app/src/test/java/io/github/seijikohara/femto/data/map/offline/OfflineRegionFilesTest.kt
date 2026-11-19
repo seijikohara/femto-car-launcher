@@ -182,6 +182,38 @@ class OfflineRegionFilesTest {
     }
 
     @Test
+    fun `a missing root still reports the free space of the disk`() {
+        val root = File(folder.root, "nowhere/offline_map")
+
+        assertTrue(OfflineRegionFiles(root).freeBytes() > 0L)
+        assertFalse(root.exists())
+    }
+
+    @Test
+    fun `reconcile does not finish a commit while a part or a record exists`() {
+        val withPart = files(File(folder.root, "with-part"))
+        assertTrue(withPart.writePending(pending(sizeBytes = 5)))
+        withPart.dataFile("europe/norway").fill(5)
+        withPart.partFile("europe/norway").fill(2)
+
+        withPart.reconcile()
+
+        assertEquals(pending(sizeBytes = 5), withPart.pendingOrNull())
+        assertTrue(withPart.partFile("europe/norway").isFile)
+        assertEquals(emptyList(), withPart.savedRegions())
+
+        val withRecord = files(File(folder.root, "with-record"))
+        withRecord.partFile("europe/norway").fill(5)
+        assertTrue(withRecord.commit(saved()))
+        assertTrue(withRecord.writePending(pending(sizeBytes = 5)))
+
+        withRecord.reconcile()
+
+        assertEquals(pending(sizeBytes = 5), withRecord.pendingOrNull())
+        assertEquals(listOf(saved()), withRecord.savedRegions())
+    }
+
+    @Test
     fun `reconcile deletes a data file nobody describes`() {
         val files = files()
         files.dataFile("orphan").fill(5)

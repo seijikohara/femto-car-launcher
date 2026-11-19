@@ -60,7 +60,10 @@ internal fun regionFileKey(id: String): String =
 /** Blocking file work; callers run it on an IO dispatcher. */
 internal class OfflineRegionFiles(
     private val root: File,
-    private val usableBytes: () -> Long = { root.usableSpace },
+    private val usableBytes: () -> Long = {
+        generateSequence(root) { it.parentFile }.firstOrNull { it.exists() }?.usableSpace
+            ?: 0L
+    },
 ) {
     private val regionsDir get() = File(root, REGIONS_DIR)
     private val pendingFile get() = File(root, PENDING_FILE_NAME)
@@ -115,8 +118,13 @@ internal class OfflineRegionFiles(
         if (pending == null && pendingFile.exists()) return
 
         pending
-            ?.takeIf { dataFile(it.id).let { data -> data.isFile && data.length() == it.sizeBytes } }
-            ?.let(::finishCommit)
+            // A part or a record beside the data file means a re-download of a saved region is running,
+            // not a commit that stopped after the rename; that download is left to be resumed.
+            ?.takeIf {
+                dataFile(it.id).let { data -> data.isFile && data.length() == it.sizeBytes } &&
+                    !partFile(it.id).exists() &&
+                    !recordFile(it.id).exists()
+            }?.let(::finishCommit)
 
         val pendingKey = pendingOrNull()?.let { regionFileKey(it.id) }
         val files = regionsDir.listFiles().orEmpty()
