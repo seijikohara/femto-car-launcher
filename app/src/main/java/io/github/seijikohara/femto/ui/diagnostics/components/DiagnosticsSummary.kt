@@ -21,6 +21,7 @@ import io.github.seijikohara.femto.data.diagnostics.DiagnosticSection
 import io.github.seijikohara.femto.data.diagnostics.issueCount
 import io.github.seijikohara.femto.ui.diagnostics.DiagnosticsAction
 import io.github.seijikohara.femto.ui.diagnostics.DiagnosticsUiState
+import io.github.seijikohara.femto.ui.diagnostics.TileBenchmarkUi
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 
 /**
@@ -38,6 +39,27 @@ internal fun DiagnosticsSummary(
 ) {
     SummaryLine(sections = uiState.sections)
     ActionButtons(copyConfirmed = uiState.copyConfirmed, onAction = onAction)
+    if (uiState.tileBenchmark != TileBenchmarkUi.HIDDEN) {
+        OutlinedButton(
+            onClick = { onAction(DiagnosticsAction.RunTileBenchmark) },
+            enabled = uiState.tileBenchmark == TileBenchmarkUi.IDLE,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = FemtoDimens.MinTouchTarget),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        if (uiState.tileBenchmark == TileBenchmarkUi.RUNNING) {
+                            R.string.diagnostics_tile_benchmark_running
+                        } else {
+                            R.string.diagnostics_tile_benchmark_run
+                        },
+                    ),
+            )
+        }
+    }
     FilterChip(
         selected = uiState.problemsOnly,
         onClick = { onAction(DiagnosticsAction.ToggleProblemsOnly) },

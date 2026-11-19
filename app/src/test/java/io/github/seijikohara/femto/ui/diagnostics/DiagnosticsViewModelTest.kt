@@ -10,6 +10,7 @@ import io.github.seijikohara.femto.data.diagnostics.SectionPayload
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.testfixtures.fakeDiagnosticSections
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -207,18 +208,127 @@ class DiagnosticsViewModelTest {
             }
         }
 
+    @Test
+    fun `the benchmark stays hidden when no samples are available`() =
+        runTest {
+            val viewModel = viewModel(tileBenchmarkAvailable = { false })
+            viewModel.uiState.test {
+                val state = expectMostRecentItem()
+                // Collected sections tell the combined state from the seed, whose benchmark is hidden too.
+                assertTrue(state.sections.none { it.payload == null })
+                assertEquals(TileBenchmarkUi.HIDDEN, state.tileBenchmark)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `the benchmark is offered when samples are available`() =
+        runTest {
+            val viewModel = viewModel(tileBenchmarkAvailable = { true })
+            viewModel.uiState.test {
+                assertEquals(TileBenchmarkUi.IDLE, expectMostRecentItem().tileBenchmark)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `running the benchmark shows it running and then refreshes the sections`() =
+        runTest {
+            val gate = CompletableDeferred<Unit>()
+            var providerCalls = 0
+            val collectors = collectorsFor(fakeDiagnosticSections())
+            val viewModel =
+                viewModel(
+                    collectorsProvider = { collectors.also { providerCalls++ } },
+                    tileBenchmarkAvailable = { true },
+                    runTileBenchmark = { gate.await() },
+                )
+            viewModel.uiState.test {
+                assertEquals(TileBenchmarkUi.IDLE, expectMostRecentItem().tileBenchmark)
+                viewModel.onAction(DiagnosticsAction.RunTileBenchmark)
+                assertEquals(TileBenchmarkUi.RUNNING, expectMostRecentItem().tileBenchmark)
+                gate.complete(Unit)
+                assertEquals(TileBenchmarkUi.IDLE, expectMostRecentItem().tileBenchmark)
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertEquals(2, providerCalls)
+        }
+
+    @Test
+    fun `a second tap while the benchmark runs does nothing`() =
+        runTest {
+            val gate = CompletableDeferred<Unit>()
+            var entered = 0
+            val viewModel =
+                viewModel(
+                    tileBenchmarkAvailable = { true },
+                    runTileBenchmark = {
+                        entered++
+                        gate.await()
+                    },
+                )
+            viewModel.uiState.test {
+                expectMostRecentItem()
+                viewModel.onAction(DiagnosticsAction.RunTileBenchmark)
+                viewModel.onAction(DiagnosticsAction.RunTileBenchmark)
+                gate.complete(Unit)
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertEquals(1, entered)
+        }
+
+    @Test
+    fun `the action does nothing while the benchmark is hidden`() =
+        runTest {
+            var entered = 0
+            val viewModel = viewModel(tileBenchmarkAvailable = { false }, runTileBenchmark = { entered++ })
+            viewModel.uiState.test {
+                viewModel.onAction(DiagnosticsAction.RunTileBenchmark)
+                val state = expectMostRecentItem()
+                assertTrue(state.sections.none { it.payload == null })
+                assertEquals(TileBenchmarkUi.HIDDEN, state.tileBenchmark)
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertEquals(0, entered)
+        }
+
+    @Test
+    fun `a failing benchmark still returns to idle and refreshes`() =
+        runTest {
+            var providerCalls = 0
+            val collectors = collectorsFor(fakeDiagnosticSections())
+            val viewModel =
+                viewModel(
+                    collectorsProvider = { collectors.also { providerCalls++ } },
+                    tileBenchmarkAvailable = { true },
+                    runTileBenchmark = { throw IllegalStateException("benchmark broke") },
+                )
+            viewModel.uiState.test {
+                expectMostRecentItem()
+                viewModel.onAction(DiagnosticsAction.RunTileBenchmark)
+                assertEquals(TileBenchmarkUi.IDLE, expectMostRecentItem().tileBenchmark)
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertEquals(2, providerCalls)
+        }
+
     private fun viewModel(
         collectors: List<SectionCollector> = collectorsFor(fakeDiagnosticSections()),
+        collectorsProvider: () -> List<SectionCollector> = { collectors },
         musicStateFlow: Flow<MusicCardState> = flowOf(MusicCardState.NoActiveSession),
         copyToClipboard: suspend (String) -> Unit = {},
+        tileBenchmarkAvailable: suspend () -> Boolean = { false },
+        runTileBenchmark: suspend () -> Unit = {},
     ): DiagnosticsViewModel =
         DiagnosticsViewModel(
             // A lambda capturing one fixed list still returns the same
             // collector instances on every refresh — the freshness guarantee
             // matters only for the production registry's spectrum→logs gate.
-            collectorsProvider = { collectors },
+            collectorsProvider = collectorsProvider,
             musicStateFlow = musicStateFlow,
             copyToClipboard = copyToClipboard,
+            tileBenchmarkAvailable = tileBenchmarkAvailable,
+            runTileBenchmark = runTileBenchmark,
         )
 
     private fun collectorsFor(sections: List<DiagnosticSection>): List<SectionCollector> =

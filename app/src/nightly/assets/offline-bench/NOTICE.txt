@@ -1,0 +1,8 @@
+Sample vector tiles for the tile conversion benchmark in Diagnostics.
+
+Each *.sb.mvt.gzip file is one tile exactly as a Shortbread MBTiles extract from
+download.geofabrik.de stores it (fetched 2026-11-17 and 2026-11-19), named
+<region>-<z>-<x>-<y> in XYZ numbering.
+
+(c) OpenStreetMap contributors. The data is available under the Open Database
+License: https://www.openstreetmap.org/copyright

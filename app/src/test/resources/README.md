@@ -1,4 +1,4 @@
-# Screenshot-test resources
+# Test resources
 
 ## `map-backdrop-osm{,-dark}.png` — still maps for the dashboard goldens
 
@@ -9,3 +9,16 @@ The dashboard goldens render the real UI, but not the real map: the map is a Web
 **Provenance.** Device captures of this app rendering the OSM backend (OpenFreeMap vector tiles, OpenStreetMap data under ODbL) over San Francisco, cropped clear of every UI overlay. Two of them, because the app swaps the map style with the theme: Positron for light, Dark Matter for dark. The dashboard fixtures place the fix and the reverse-geocoded address in the same city so the two agree.
 
 Recapture only when the map's own appearance changes (a style or backend default): run the app on the OSM backend in the theme you are recapturing (`adb shell cmd uimode night yes|no`), screenshot a frame with no overlay in the crop area, and crop to a large landscape-ish rectangle. The backdrop image is scaled with `ContentScale.Crop`, so it must stay big enough for the widest golden (currently 2000 px) and square-ish enough for the portrait ones.
+
+## `offlinemap/` — vector tiles for the offline-map converter tests
+
+Seven tiles in two forms each, named `<region>-<z>-<x>-<y>` in XYZ numbering:
+
+- `*.sb.mvt.gz` is a tile exactly as a Geofabrik Shortbread MBTiles extract stores it (a gzip-compressed Mapbox Vector Tile in the Shortbread 1.0 schema).
+- `*.omt.mvt.gz` is the expected conversion of that tile into the OpenMapTiles layers the bundled map styles read, gzip-compressed for size.
+
+The seven were picked so that together they exercise nearly every branch of the conversion: Japanese and Greek names beside Latin ones, place classes from country to hamlet, every road class, rail and tram, aeroways, water, land cover, land use, boundaries, piers, ferries and buildings.
+
+**Provenance.** Tiles from the Cyprus and Shikoku extracts on `download.geofabrik.de` (`*-shortbread-1.0.mbtiles`, fetched 2026-11-17), unmodified. © OpenStreetMap contributors, available under the Open Database License. The expected conversions came from the prototype converter that the Kotlin one was ported from; `ShortbreadConverterGoldenTest` pins them.
+
+Regenerate the expected files only when a conversion rule changes on purpose: run `ShortbreadConverterGoldenTest` with the environment variable `FEMTO_UPDATE_GOLDENS=1`. The test rewrites the `*.omt.mvt.gz` files and then fails, so a regenerated file never passes unnoticed.

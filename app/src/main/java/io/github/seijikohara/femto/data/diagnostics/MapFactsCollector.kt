@@ -8,6 +8,9 @@ import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.map.MapRuntimeSignals
+import io.github.seijikohara.femto.data.map.offline.TileBenchmarkOutcome
+import io.github.seijikohara.femto.data.map.offline.TileBenchmarkResults
+import io.github.seijikohara.femto.data.map.offline.TileBenchmarkRow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -77,6 +80,8 @@ internal fun mapFactsFrom(
     webGlRenderer: String? = null,
     pageFrames: MapRuntimeSignals.PageFrames? = null,
     googleLens: MapRuntimeSignals.GoogleLens? = null,
+    tileBenchmark: TileBenchmarkOutcome? = null,
+    tileBenchmarkRuns: Int = 0,
 ): List<DiagnosticFact> =
     buildList {
         add(webGl2Fact(glEsVersion, webGl2Need(backend, googleRendering, hasGoogleMapId)))
@@ -87,7 +92,82 @@ internal fun mapFactsFrom(
         if (failureCount > 1) {
             add(DiagnosticFact("Failures this session", FactValue.Text("$failureCount")))
         }
+        addAll(tileBenchmarkFacts(tileBenchmark, tileBenchmarkRuns, nowElapsedRealtimeMs))
     }
+
+private fun ms(value: Double): String = "%.1f".format(Locale.ROOT, value)
+
+private fun kb(bytes: Int): Int = (bytes + 512) / 1024
+
+// The nightly benchmark answers whether converting a Shortbread tile per request
+// is fast enough on this head unit; the owner reads these rows off the copied report.
+private fun tileBenchmarkFacts(
+    outcome: TileBenchmarkOutcome?,
+    runs: Int,
+    nowElapsedRealtimeMs: Long,
+): List<DiagnosticFact> =
+    when (outcome) {
+        null -> {
+            emptyList()
+        }
+
+        is TileBenchmarkOutcome.Failed -> {
+            listOf(DiagnosticFact("Tile conversion", FactValue.Status("failed on ${outcome.sample}", FactHealth.ERROR)))
+        }
+
+        is TileBenchmarkOutcome.Aborted -> {
+            listOf(
+                DiagnosticFact(
+                    "Tile conversion",
+                    FactValue.Status("did not finish: ${outcome.reason}", FactHealth.ERROR),
+                ),
+            )
+        }
+
+        is TileBenchmarkOutcome.Measured -> {
+            val ageS = ((nowElapsedRealtimeMs - outcome.finishedAtElapsedRealtimeMs) / 1_000L).coerceAtLeast(0)
+            // The run number tells a first run in the process from a repeat, whose `first` figures are already warm.
+            listOf(
+                DiagnosticFact(
+                    "Tile conversion",
+                    FactValue.Text(
+                        "run $runs since launch, tiles ${outcome.rows.size}, warm runs ${outcome.warmRuns}, " +
+                            "cores ${outcome.cores}, ${ageS}s ago",
+                    ),
+                ),
+            ) + outcome.rows.map(::tileSampleFact) + outcome.rows.map { tileParallelFact(it, outcome) }
+        }
+    }
+
+private fun tileSampleFact(row: TileBenchmarkRow): DiagnosticFact {
+    val raw = kb(row.rawBytes)
+    val out = kb(row.outputBytes)
+    val first = ms(row.firstMs)
+    val median = ms(row.warmMedianMs)
+    val p95 = ms(row.warmP95Ms)
+    val max = ms(row.warmMaxMs)
+    return DiagnosticFact(
+        "Tile ${row.sample}",
+        FactValue.Text(
+            "$raw KB, ${row.features} features \u2192 $out KB; " +
+                "first $first ms; median $median ms; p95 $p95 ms; max $max ms",
+        ),
+    )
+}
+
+private fun tileParallelFact(
+    row: TileBenchmarkRow,
+    outcome: TileBenchmarkOutcome.Measured,
+): DiagnosticFact {
+    val median = ms(row.parallelMedianMs)
+    val max = ms(row.parallelMaxMs)
+    return DiagnosticFact(
+        "Tile ${row.sample} in parallel",
+        FactValue.Text(
+            "${outcome.parallelTiles} at once, ${outcome.parallelRounds} rounds: median $median ms; max $max ms",
+        ),
+    )
+}
 
 // The GLES version the platform reports is the capability behind WebGL 2, not a
 // direct probe of it: a driver the WebView blocklists can still deny a context
@@ -262,6 +342,8 @@ internal class MapFactsCollector(
                     webGlRenderer = MapRuntimeSignals.webGlRendererOrNull(),
                     pageFrames = MapRuntimeSignals.pageFramesOrNull(),
                     googleLens = MapRuntimeSignals.googleLensOrNull(),
+                    tileBenchmark = TileBenchmarkResults.latestOrNull(),
+                    tileBenchmarkRuns = TileBenchmarkResults.runCount(),
                 ),
             )
         }

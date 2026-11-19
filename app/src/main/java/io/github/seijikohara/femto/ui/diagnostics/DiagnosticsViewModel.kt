@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.ui.diagnostics
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.getSystemService
 import androidx.lifecycle.ViewModel
@@ -16,6 +17,9 @@ import io.github.seijikohara.femto.data.diagnostics.SectionId
 import io.github.seijikohara.femto.data.diagnostics.SectionPayload
 import io.github.seijikohara.femto.data.diagnostics.diagnosticsCollectors
 import io.github.seijikohara.femto.data.diagnostics.musicSectionWithSession
+import io.github.seijikohara.femto.data.map.offline.hasTileBenchmarkSamples
+import io.github.seijikohara.femto.data.map.offline.runAndRecordTileBenchmark
+import io.github.seijikohara.femto.data.map.offline.tileBenchmarkSamples
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicSessionRepository
 import kotlinx.coroutines.CancellationException
@@ -48,10 +52,13 @@ internal class DiagnosticsViewModel(
     musicStateFlow: Flow<MusicCardState>,
     private val copyToClipboard: suspend (String) -> Unit,
     private val nowEpochMs: () -> Long = System::currentTimeMillis,
+    private val tileBenchmarkAvailable: suspend () -> Boolean = { false },
+    private val runTileBenchmark: suspend () -> Unit = {},
 ) : ViewModel() {
     private val payloads = MutableStateFlow(emptyPayloads())
     private val problemsOnly = MutableStateFlow(false)
     private val copyConfirmed = MutableStateFlow(false)
+    private val tileBenchmark = MutableStateFlow(TileBenchmarkUi.HIDDEN)
     private var collectionJob: Job? = null
     private var copyJob: Job? = null
 
@@ -66,7 +73,8 @@ internal class DiagnosticsViewModel(
             },
             problemsOnly,
             copyConfirmed,
-        ) { collected, music, problems, confirmed ->
+            tileBenchmark,
+        ) { collected, music, problems, confirmed, benchmark ->
             DiagnosticsUiState(
                 sections =
                     SectionId.entries.map { id ->
@@ -82,11 +90,16 @@ internal class DiagnosticsViewModel(
                     },
                 problemsOnly = problems,
                 copyConfirmed = confirmed,
+                tileBenchmark = benchmark,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, DiagnosticsUiState.Initial)
 
     init {
         refresh()
+        viewModelScope.launch {
+            // Evaluated once: the sample tiles are part of the installed APK and cannot appear later.
+            if (tileBenchmarkAvailable()) tileBenchmark.value = TileBenchmarkUi.IDLE
+        }
     }
 
     fun onAction(action: DiagnosticsAction) =
@@ -94,6 +107,7 @@ internal class DiagnosticsViewModel(
             DiagnosticsAction.Refresh -> refresh()
             DiagnosticsAction.CopyReport -> copyReport()
             DiagnosticsAction.ToggleProblemsOnly -> problemsOnly.update { !it }
+            DiagnosticsAction.RunTileBenchmark -> runBenchmark()
         }
 
     private fun refresh() {
@@ -115,6 +129,24 @@ internal class DiagnosticsViewModel(
                     }
                 }
             }
+    }
+
+    private fun runBenchmark() {
+        // The atomic swap keeps a second tap from starting a parallel run.
+        if (!tileBenchmark.compareAndSet(TileBenchmarkUi.IDLE, TileBenchmarkUi.RUNNING)) return
+        viewModelScope.launch {
+            try {
+                runTileBenchmark()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "tile conversion benchmark failed", e)
+            } finally {
+                tileBenchmark.value = TileBenchmarkUi.IDLE
+            }
+            // The MAP section reads the recorded outcome only when collected again.
+            refresh()
+        }
     }
 
     private fun copyReport() {
@@ -163,6 +195,18 @@ internal val DiagnosticsViewModelFactory: ViewModelProvider.Factory =
                         application
                             .getSystemService<ClipboardManager>()
                             ?.setPrimaryClip(ClipData.newPlainText("Femto diagnostics", text))
+                    }
+                },
+                tileBenchmarkAvailable = {
+                    withContext(Dispatchers.IO) { hasTileBenchmarkSamples(application.assets::list) }
+                },
+                runTileBenchmark = {
+                    withContext(Dispatchers.Default) {
+                        runAndRecordTileBenchmark(
+                            loadSamples = { tileBenchmarkSamples(application.assets) },
+                            cores = Runtime.getRuntime().availableProcessors(),
+                            elapsedRealtimeMs = SystemClock::elapsedRealtime,
+                        )
                     }
                 },
             )

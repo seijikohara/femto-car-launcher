@@ -3,6 +3,8 @@ package io.github.seijikohara.femto.data.diagnostics
 import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.map.MapRuntimeSignals
+import io.github.seijikohara.femto.data.map.offline.TileBenchmarkOutcome
+import io.github.seijikohara.femto.data.map.offline.TileBenchmarkRow
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -19,6 +21,8 @@ class MapFactsTest {
         webGlRenderer: String? = null,
         pageFrames: MapRuntimeSignals.PageFrames? = null,
         googleLens: MapRuntimeSignals.GoogleLens? = null,
+        tileBenchmark: TileBenchmarkOutcome? = null,
+        tileBenchmarkRuns: Int = 0,
     ) = mapFactsFrom(
         glEsVersion,
         backend,
@@ -30,6 +34,8 @@ class MapFactsTest {
         webGlRenderer,
         pageFrames,
         googleLens,
+        tileBenchmark,
+        tileBenchmarkRuns,
     )
 
     @Test
@@ -297,6 +303,78 @@ class MapFactsTest {
                 lastFailure = MapRuntimeSignals.MapFailure("style-load-failed", elapsedRealtimeMs = 0L),
                 failureCount = 4,
             ).single { it.label == "Failures this session" },
+        )
+    }
+
+    @Test
+    fun `no benchmark outcome adds no fact`() {
+        assertTrue(facts().none { it.label.startsWith("Tile") })
+    }
+
+    @Test
+    fun `a measured benchmark reports the run, each sample and the parallel pass`() {
+        val facts =
+            facts(
+                nowElapsedRealtimeMs = 43_000,
+                tileBenchmark =
+                    TileBenchmarkOutcome.Measured(
+                        rows =
+                            listOf(
+                                TileBenchmarkRow(
+                                    "kanto-14-1-2",
+                                    rawBytes = 626_688,
+                                    features = 21_034,
+                                    outputBytes = 552_960,
+                                    firstMs = 85.24,
+                                    warmMedianMs = 41.0,
+                                    warmP95Ms = 55.31,
+                                    warmMaxMs = 61.07,
+                                    parallelMedianMs = 60.1,
+                                    parallelMaxMs = 88.94,
+                                ),
+                            ),
+                        warmRuns = 30,
+                        parallelTiles = 4,
+                        parallelRounds = 10,
+                        cores = 8,
+                        finishedAtElapsedRealtimeMs = 1_000,
+                    ),
+                tileBenchmarkRuns = 2,
+            ).filter { it.label.startsWith("Tile") }
+        assertEquals(
+            listOf(
+                DiagnosticFact(
+                    "Tile conversion",
+                    FactValue.Text("run 2 since launch, tiles 1, warm runs 30, cores 8, 42s ago"),
+                ),
+                DiagnosticFact(
+                    "Tile kanto-14-1-2",
+                    FactValue.Text(
+                        "612 KB, 21034 features \u2192 540 KB; first 85.2 ms; median 41.0 ms; p95 55.3 ms; max 61.1 ms",
+                    ),
+                ),
+                DiagnosticFact(
+                    "Tile kanto-14-1-2 in parallel",
+                    FactValue.Text("4 at once, 10 rounds: median 60.1 ms; max 88.9 ms"),
+                ),
+            ),
+            facts,
+        )
+    }
+
+    @Test
+    fun `a failed benchmark is an error fact naming the sample`() {
+        assertEquals(
+            DiagnosticFact("Tile conversion", FactValue.Status("failed on kanto-14-1-2", FactHealth.ERROR)),
+            facts(tileBenchmark = TileBenchmarkOutcome.Failed("kanto-14-1-2")).single { it.label.startsWith("Tile") },
+        )
+    }
+
+    @Test
+    fun `an aborted benchmark is an error fact giving the reason`() {
+        assertEquals(
+            DiagnosticFact("Tile conversion", FactValue.Status("did not finish: interrupted", FactHealth.ERROR)),
+            facts(tileBenchmark = TileBenchmarkOutcome.Aborted("interrupted")).single { it.label.startsWith("Tile") },
         )
     }
 }

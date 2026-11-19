@@ -570,6 +570,8 @@
     <string name="diagnostics_loading">Collecting…</string>
     <string name="diagnostics_copy">Copy report</string>
     <string name="diagnostics_copied">Copied</string>
+    <string name="diagnostics_tile_benchmark_run">Run tile conversion benchmark</string>
+    <string name="diagnostics_tile_benchmark_running">Running benchmark…</string>
     <plurals name="diagnostics_summary_issues">
         <item quantity="one">%1$d issue found</item>
         <item quantity="other">%1$d issues found</item>
