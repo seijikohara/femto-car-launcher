@@ -1,5 +1,7 @@
 package io.github.seijikohara.femto.data.display
 
+import io.github.seijikohara.femto.data.map.offline.OfflineStorageLimit
+
 /** Light / dark / follow-system theme choice. */
 internal enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
@@ -297,6 +299,8 @@ internal data class DisplaySettings(
      * nothing about it is rewritten — see MapScheme.mapStyleRefFor.
      */
     val mapCustomStyleUrl: String = "",
+    /** Ceiling on the space the saved offline map regions may occupy together. */
+    val offlineStorageLimit: OfflineStorageLimit = OfflineStorageLimit.NONE,
 ) {
     companion object {
         val Default =
@@ -349,6 +353,7 @@ internal data class DisplaySettings(
                 googleMapsTraffic = false,
                 mapTileHost = "",
                 mapCustomStyleUrl = "",
+                offlineStorageLimit = OfflineStorageLimit.NONE,
             )
     }
 }

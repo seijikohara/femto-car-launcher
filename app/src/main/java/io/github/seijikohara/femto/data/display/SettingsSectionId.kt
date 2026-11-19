@@ -74,6 +74,7 @@ internal enum class SettingsSectionId(
             DisplayPreferences.MAP_3D_BUILDINGS_KEY,
             DisplayPreferences.MAP_TERRAIN_KEY,
             DisplayPreferences.MAP_TILE_HOST_KEY,
+            DisplayPreferences.OFFLINE_STORAGE_LIMIT_KEY,
             DisplayPreferences.MAP_TILT_KEY,
             DisplayPreferences.MAP_ZOOM_KEY,
             DisplayPreferences.MAP_NORTH_UP_KEY,

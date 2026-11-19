@@ -11,6 +11,7 @@ import io.github.seijikohara.femto.data.common.catchIoAsDefaults
 import io.github.seijikohara.femto.data.common.editOrLog
 import io.github.seijikohara.femto.data.common.toEnumOr
 import io.github.seijikohara.femto.data.fonts.FontPreferences
+import io.github.seijikohara.femto.data.map.offline.OfflineStorageLimit
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -140,6 +141,8 @@ internal interface DisplaySettingsStore {
 
     suspend fun setMapCustomStyleUrl(value: String)
 
+    suspend fun setOfflineStorageLimit(limit: OfflineStorageLimit)
+
     /**
      * Remove exactly [keys] so their read falls back to [DisplaySettings.Default]
      * for those fields only, leaving every other persisted field untouched.
@@ -216,6 +219,7 @@ internal class DisplayPreferences(
                     googleMapsTraffic = prefs[GOOGLE_MAPS_TRAFFIC_KEY] ?: false,
                     mapTileHost = prefs[MAP_TILE_HOST_KEY].orEmpty(),
                     mapCustomStyleUrl = prefs[MAP_CUSTOM_STYLE_URL_KEY].orEmpty(),
+                    offlineStorageLimit = prefs[OFFLINE_STORAGE_LIMIT_KEY].toEnumOr(OfflineStorageLimit.NONE),
                 )
             }
 
@@ -421,6 +425,10 @@ internal class DisplayPreferences(
         context.displayDataStore.editOrLog(TAG) { it[MAP_CUSTOM_STYLE_URL_KEY] = value }
     }
 
+    override suspend fun setOfflineStorageLimit(limit: OfflineStorageLimit) {
+        context.displayDataStore.editOrLog(TAG) { it[OFFLINE_STORAGE_LIMIT_KEY] = limit.name }
+    }
+
     // Removing only the given keys makes the read path above fall back to its
     // per-field defaults for exactly those fields; every other key is left as-is.
     override suspend fun resetKeys(keys: Set<Preferences.Key<*>>) {
@@ -487,6 +495,7 @@ internal class DisplayPreferences(
         val GOOGLE_MAPS_TRAFFIC_KEY = booleanPreferencesKey("google_maps_traffic")
         val MAP_TILE_HOST_KEY = stringPreferencesKey("map_tile_host")
         val MAP_CUSTOM_STYLE_URL_KEY = stringPreferencesKey("map_custom_style_url")
+        val OFFLINE_STORAGE_LIMIT_KEY = stringPreferencesKey("offline_storage_limit")
 
         /**
          * Every key persisted above, declared once right beside them.
@@ -549,6 +558,7 @@ internal class DisplayPreferences(
                 GOOGLE_MAPS_TRAFFIC_KEY,
                 MAP_TILE_HOST_KEY,
                 MAP_CUSTOM_STYLE_URL_KEY,
+                OFFLINE_STORAGE_LIMIT_KEY,
             )
     }
 }
