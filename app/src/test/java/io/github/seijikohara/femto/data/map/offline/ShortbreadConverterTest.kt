@@ -1,10 +1,9 @@
 package io.github.seijikohara.femto.data.map.offline
 
 import io.github.seijikohara.femto.testfixtures.gunzipped
+import io.github.seijikohara.femto.testfixtures.gzipped
 import io.github.seijikohara.femto.testfixtures.sourceLayer
 import org.junit.Test
-import java.io.ByteArrayOutputStream
-import java.util.zip.GZIPOutputStream
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -351,9 +350,6 @@ class ShortbreadConverterTest {
         assertEquals(1, count(result, "transportation"))
     }
 
-    private fun gzip(bytes: ByteArray): ByteArray =
-        ByteArrayOutputStream().also { out -> GZIPOutputStream(out).use { it.write(bytes) } }.toByteArray()
-
     private fun buildingTile(): ByteArray =
         VectorTileCodec.encode(
             listOf(
@@ -377,14 +373,14 @@ class ShortbreadConverterTest {
         val plain = buildingTile()
 
         val fromPlain = assertNotNull(ShortbreadConverter.convertOrNull(14, plain))
-        val fromGzip = assertNotNull(ShortbreadConverter.convertOrNull(14, gzip(plain)))
+        val fromGzip = assertNotNull(ShortbreadConverter.convertOrNull(14, gzipped(plain)))
 
         assertContentEquals(fromPlain, fromGzip)
         assertEquals(
             20,
             assertNotNull(VectorTileCodec.decodeOrNull(fromPlain)).single { it.name == "building" }.features.size,
         )
-        assertContentEquals(plain, gunzipped(gzip(plain)))
+        assertContentEquals(plain, gunzipped(gzipped(plain)))
     }
 
     @Test
@@ -402,6 +398,6 @@ class ShortbreadConverterTest {
             ShortbreadConverter.convertOrNull(14, byteArrayOf(0x1f, 0x8b.toByte(), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)),
         )
         assertNull(ShortbreadConverter.convertOrNull(14, plain.copyOf(plain.size / 2)))
-        assertNull(ShortbreadConverter.convertOrNull(14, gzip(ByteArray(MAX_RAW_TILE_BYTES + 1))))
+        assertNull(ShortbreadConverter.convertOrNull(14, gzipped(ByteArray(MAX_RAW_TILE_BYTES + 1))))
     }
 }

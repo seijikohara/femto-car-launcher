@@ -4,7 +4,9 @@ import io.github.seijikohara.femto.data.map.offline.SourceFeature
 import io.github.seijikohara.femto.data.map.offline.SourceLayer
 import io.github.seijikohara.femto.data.map.offline.TileValue
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
 
 /** The seven tiles under `app/src/test/resources/offlinemap/`; `app/src/test/resources/README.md` documents them. */
 internal val OfflineTileFixtureNames: List<String> =
@@ -29,6 +31,9 @@ internal fun gunzipped(bytes: ByteArray): ByteArray =
     GZIPInputStream(ByteArrayInputStream(bytes)).use {
         it.readBytes()
     }
+
+internal fun gzipped(bytes: ByteArray): ByteArray =
+    ByteArrayOutputStream().also { out -> GZIPOutputStream(out).use { it.write(bytes) } }.toByteArray()
 
 /** A feature with its tags resolved to a property map and its geometry wrapped for structural equality. */
 internal data class ResolvedFeature(

@@ -333,19 +333,14 @@ class VectorTileCodecFixtureTest(
     }
 
     companion object {
-        private val FeatureCounts =
-            mapOf(
-                "shikoku-13-7112-3265" to 611,
-                "cyprus-12-2423-1627" to 627,
-                "cyprus-14-9721-6496" to 1105,
-                "shikoku-14-14266-6569" to 1129,
-                "shikoku-10-886-409" to 150,
-                "cyprus-9-303-202" to 516,
-                "shikoku-4-14-6" to 260,
-            )
+        // In the order of OfflineTileFixtureNames.
+        private val FeatureCounts = listOf(611, 627, 1105, 1129, 150, 516, 260)
 
         @JvmStatic
         @Parameterized.Parameters(name = "{0}")
-        fun cases(): List<Array<Any>> = OfflineTileFixtureNames.map { arrayOf(it, FeatureCounts.getValue(it)) }
+        fun cases(): List<Array<Any>> =
+            OfflineTileFixtureNames
+                .also { require(it.size == FeatureCounts.size) { "one feature count per fixture" } }
+                .zip(FeatureCounts) { name, count -> arrayOf(name, count) }
     }
 }

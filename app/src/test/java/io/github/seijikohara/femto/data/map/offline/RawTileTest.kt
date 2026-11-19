@@ -1,8 +1,7 @@
 package io.github.seijikohara.femto.data.map.offline
 
+import io.github.seijikohara.femto.testfixtures.gzipped
 import org.junit.Test
-import java.io.ByteArrayOutputStream
-import java.util.zip.GZIPOutputStream
 import kotlin.test.assertContentEquals
 import kotlin.test.assertNull
 
@@ -10,24 +9,20 @@ import kotlin.test.assertNull
 class RawTileTest {
     private val payload = ByteArray(5_000) { (it % 251).toByte() }
 
-    private fun gzip(bytes: ByteArray): ByteArray =
-        ByteArrayOutputStream().also { out -> GZIPOutputStream(out).use { it.write(bytes) } }.toByteArray()
-
     private fun withTrailerSize(
-        gzipped: ByteArray,
+        tile: ByteArray,
         size: Int,
-    ): ByteArray =
-        gzipped.copyOf().also { copy -> repeat(4) { copy[copy.size - 4 + it] = (size ushr (8 * it)).toByte() } }
+    ): ByteArray = tile.copyOf().also { copy -> repeat(4) { copy[copy.size - 4 + it] = (size ushr (8 * it)).toByte() } }
 
     @Test
     fun `a gzip tile with a truthful trailer inflates to the payload`() {
-        assertContentEquals(payload, ShortbreadConverter.rawTileOrNull(gzip(payload)))
+        assertContentEquals(payload, ShortbreadConverter.rawTileOrNull(gzipped(payload)))
     }
 
     @Test
     fun `a trailer that disagrees with the payload is rejected as corrupt`() {
         listOf(0, payload.size - 10, payload.size + 10).forEach { size ->
-            assertNull(ShortbreadConverter.rawTileOrNull(withTrailerSize(gzip(payload), size)), "trailer size $size")
+            assertNull(ShortbreadConverter.rawTileOrNull(withTrailerSize(gzipped(payload), size)), "trailer size $size")
         }
     }
 
@@ -35,11 +30,11 @@ class RawTileTest {
     fun `concatenated gzip members inflate to their joined payloads`() {
         val second = ByteArray(300) { 7 }
 
-        assertContentEquals(payload + second, ShortbreadConverter.rawTileOrNull(gzip(payload) + gzip(second)))
+        assertContentEquals(payload + second, ShortbreadConverter.rawTileOrNull(gzipped(payload) + gzipped(second)))
     }
 
     @Test
     fun `a trailer that hides an oversized payload is rejected`() {
-        assertNull(ShortbreadConverter.rawTileOrNull(withTrailerSize(gzip(ByteArray(MAX_RAW_TILE_BYTES + 1)), 100)))
+        assertNull(ShortbreadConverter.rawTileOrNull(withTrailerSize(gzipped(ByteArray(MAX_RAW_TILE_BYTES + 1)), 100)))
     }
 }
