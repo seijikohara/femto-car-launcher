@@ -6,10 +6,11 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
-internal const val TILE_BENCHMARK_WARM_RUNS = 15
-internal const val TILE_BENCHMARK_PARALLEL_ROUNDS = 5
+internal const val TILE_BENCHMARK_WARM_RUNS = 30
+internal const val TILE_BENCHMARK_PARALLEL_ROUNDS = 10
 
 private const val NANOS_PER_MS = 1_000_000.0
 
@@ -32,8 +33,11 @@ internal data class TileBenchmarkRow(
     val features: Int,
     val outputBytes: Int,
     val firstMs: Double,
-    val warmP50Ms: Double,
+    val warmMedianMs: Double,
     val warmP95Ms: Double,
+    val warmMaxMs: Double,
+    val parallelMedianMs: Double,
+    val parallelMaxMs: Double,
 )
 
 internal sealed interface TileBenchmarkOutcome {
@@ -41,8 +45,7 @@ internal sealed interface TileBenchmarkOutcome {
         val rows: List<TileBenchmarkRow>,
         val warmRuns: Int,
         val parallelTiles: Int,
-        val parallelP50Ms: Double,
-        val parallelP95Ms: Double,
+        val parallelRounds: Int,
         val cores: Int,
         val finishedAtElapsedRealtimeMs: Long,
     ) : TileBenchmarkOutcome
@@ -57,21 +60,44 @@ internal sealed interface TileBenchmarkOutcome {
 }
 
 /**
- * Process-wide record of the latest benchmark run, so the MAP diagnostics section
- * can report it after the screen that started the run is gone. Session-scoped by
- * design: timings from a previous launch would describe a different thermal state.
+ * Process-wide record of the benchmark outcomes, which the MAP diagnostics section reads when it is collected. A run
+ * belongs to the Diagnostics ViewModel, which lives as long as the activity: closing the sheet does not cancel the
+ * run, only the activity's destruction does, and the record still holds the outcome once that ViewModel is gone.
+ * Session-scoped by design: timings from a previous launch would describe a different thermal state.
  */
 internal object TileBenchmarkResults {
     private val latest = AtomicReference<TileBenchmarkOutcome?>(null)
+    private val runs = AtomicInteger(0)
 
-    fun record(outcome: TileBenchmarkOutcome) = latest.set(outcome)
+    fun record(outcome: TileBenchmarkOutcome) {
+        latest.set(outcome)
+        runs.incrementAndGet()
+    }
 
     fun latestOrNull(): TileBenchmarkOutcome? = latest.get()
+
+    /** Return how many outcomes have been recorded since the process started. */
+    fun runCount(): Int = runs.get()
 }
 
+/**
+ * One timed conversion. It keeps the output's size, not the output: a real request drops its output once sent, and
+ * keeping every output alive would load the heap and the garbage collector as no request does. [outputBytes] is null
+ * when the conversion failed.
+ */
 private class Timing(
     val ms: Double,
-    val output: ByteArray?,
+    val outputBytes: Int?,
+)
+
+/** A sample's figures from the sequential pass; the parallel pass completes them into a [TileBenchmarkRow]. */
+private class SequentialFigures(
+    val sample: String,
+    val rawBytes: Int,
+    val features: Int,
+    val outputBytes: Int,
+    val firstMs: Double,
+    val sortedWarmMs: List<Double>,
 )
 
 /**
@@ -95,51 +121,64 @@ internal suspend fun runTileConversionBenchmark(
 
     fun timed(sample: BenchmarkSample): Timing {
         val start = nanoTime()
-        val output = convert(sample.zoom, sample.tile)
-        return Timing((nanoTime() - start) / NANOS_PER_MS, output)
+        val outputBytes = convert(sample.zoom, sample.tile)?.size
+        return Timing((nanoTime() - start) / NANOS_PER_MS, outputBytes)
     }
 
-    val rows =
+    val sequential =
         samples.map { sample ->
             val first = timed(sample)
-            val firstOutput = first.output ?: return TileBenchmarkOutcome.Failed(sample.name)
+            val outputBytes = first.outputBytes ?: return TileBenchmarkOutcome.Failed(sample.name)
             val warm =
                 List(TILE_BENCHMARK_WARM_RUNS) {
                     currentCoroutineContext().ensureActive()
                     timed(sample)
                 }
-            if (warm.any { it.output == null }) return TileBenchmarkOutcome.Failed(sample.name)
-            val sortedWarm = warm.map { it.ms }.sorted()
+            if (warm.any { it.outputBytes == null }) return TileBenchmarkOutcome.Failed(sample.name)
             // Sizes come from the sample, outside the timed section.
             val raw = ShortbreadConverter.rawTileOrNull(sample.tile)
-            TileBenchmarkRow(
+            SequentialFigures(
                 sample = sample.name,
                 rawBytes = raw?.size ?: 0,
                 features = raw?.let(VectorTileCodec::decodeOrNull)?.sumOf { it.features.size } ?: 0,
-                outputBytes = firstOutput.size,
+                outputBytes = outputBytes,
                 firstMs = first.ms,
-                warmP50Ms = nearestRankMs(sortedWarm, 50),
-                warmP95Ms = nearestRankMs(sortedWarm, 95),
+                sortedWarmMs = warm.map { it.ms }.sorted(),
             )
         }
 
-    val parallel =
+    // Each round converts every sample at once and times each conversion on its own. A round's timings come back in
+    // sample order, so a sample's timings are the entries at its index: pooled, they would describe no tile.
+    val rounds =
         List(TILE_BENCHMARK_PARALLEL_ROUNDS) {
             coroutineScope {
                 ensureActive()
                 samples.map { async { timed(it) } }.awaitAll()
             }
-        }.flatten()
-    parallel.indices
-        .firstOrNull { parallel[it].output == null }
-        ?.let { return TileBenchmarkOutcome.Failed(samples[it % samples.size].name) }
-    val sortedParallel = parallel.map { it.ms }.sorted()
+        }
+    samples.indices
+        .firstOrNull { index -> rounds.any { it[index].outputBytes == null } }
+        ?.let { return TileBenchmarkOutcome.Failed(samples[it].name) }
     return TileBenchmarkOutcome.Measured(
-        rows = rows,
+        rows =
+            sequential.mapIndexed { index, figures ->
+                val sortedParallelMs = rounds.map { it[index].ms }.sorted()
+                TileBenchmarkRow(
+                    sample = figures.sample,
+                    rawBytes = figures.rawBytes,
+                    features = figures.features,
+                    outputBytes = figures.outputBytes,
+                    firstMs = figures.firstMs,
+                    warmMedianMs = nearestRankMs(figures.sortedWarmMs, 50),
+                    warmP95Ms = nearestRankMs(figures.sortedWarmMs, 95),
+                    warmMaxMs = figures.sortedWarmMs.last(),
+                    parallelMedianMs = nearestRankMs(sortedParallelMs, 50),
+                    parallelMaxMs = sortedParallelMs.last(),
+                )
+            },
         warmRuns = TILE_BENCHMARK_WARM_RUNS,
         parallelTiles = samples.size,
-        parallelP50Ms = nearestRankMs(sortedParallel, 50),
-        parallelP95Ms = nearestRankMs(sortedParallel, 95),
+        parallelRounds = TILE_BENCHMARK_PARALLEL_ROUNDS,
         cores = cores,
         finishedAtElapsedRealtimeMs = elapsedRealtimeMs(),
     )

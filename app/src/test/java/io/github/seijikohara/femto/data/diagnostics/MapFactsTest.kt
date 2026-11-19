@@ -22,6 +22,7 @@ class MapFactsTest {
         pageFrames: MapRuntimeSignals.PageFrames? = null,
         googleLens: MapRuntimeSignals.GoogleLens? = null,
         tileBenchmark: TileBenchmarkOutcome? = null,
+        tileBenchmarkRuns: Int = 0,
     ) = mapFactsFrom(
         glEsVersion,
         backend,
@@ -34,6 +35,7 @@ class MapFactsTest {
         pageFrames,
         googleLens,
         tileBenchmark,
+        tileBenchmarkRuns,
     )
 
     @Test
@@ -324,26 +326,37 @@ class MapFactsTest {
                                     features = 21_034,
                                     outputBytes = 552_960,
                                     firstMs = 85.24,
-                                    warmP50Ms = 41.0,
+                                    warmMedianMs = 41.0,
                                     warmP95Ms = 55.31,
+                                    warmMaxMs = 61.07,
+                                    parallelMedianMs = 60.1,
+                                    parallelMaxMs = 88.94,
                                 ),
                             ),
-                        warmRuns = 15,
+                        warmRuns = 30,
                         parallelTiles = 4,
-                        parallelP50Ms = 60.1,
-                        parallelP95Ms = 88.94,
+                        parallelRounds = 10,
                         cores = 8,
                         finishedAtElapsedRealtimeMs = 1_000,
                     ),
+                tileBenchmarkRuns = 2,
             ).filter { it.label.startsWith("Tile") }
         assertEquals(
             listOf(
-                DiagnosticFact("Tile conversion", FactValue.Text("tiles 1, warm runs 15, cores 8, 42s ago")),
+                DiagnosticFact(
+                    "Tile conversion",
+                    FactValue.Text("run 2 since launch, tiles 1, warm runs 30, cores 8, 42s ago"),
+                ),
                 DiagnosticFact(
                     "Tile kanto-14-1-2",
-                    FactValue.Text("612 KB, 21034 features \u2192 540 KB; first 85.2 ms; p50 41.0 ms; p95 55.3 ms"),
+                    FactValue.Text(
+                        "612 KB, 21034 features \u2192 540 KB; first 85.2 ms; median 41.0 ms; p95 55.3 ms; max 61.1 ms",
+                    ),
                 ),
-                DiagnosticFact("Tile conversion parallel", FactValue.Text("4 at once: p50 60.1 ms; p95 88.9 ms")),
+                DiagnosticFact(
+                    "Tile kanto-14-1-2 in parallel",
+                    FactValue.Text("4 at once, 10 rounds: median 60.1 ms; max 88.9 ms"),
+                ),
             ),
             facts,
         )

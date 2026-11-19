@@ -10,6 +10,7 @@ import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.map.MapRuntimeSignals
 import io.github.seijikohara.femto.data.map.offline.TileBenchmarkOutcome
 import io.github.seijikohara.femto.data.map.offline.TileBenchmarkResults
+import io.github.seijikohara.femto.data.map.offline.TileBenchmarkRow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -80,6 +81,7 @@ internal fun mapFactsFrom(
     pageFrames: MapRuntimeSignals.PageFrames? = null,
     googleLens: MapRuntimeSignals.GoogleLens? = null,
     tileBenchmark: TileBenchmarkOutcome? = null,
+    tileBenchmarkRuns: Int = 0,
 ): List<DiagnosticFact> =
     buildList {
         add(webGl2Fact(glEsVersion, webGl2Need(backend, googleRendering, hasGoogleMapId)))
@@ -90,7 +92,7 @@ internal fun mapFactsFrom(
         if (failureCount > 1) {
             add(DiagnosticFact("Failures this session", FactValue.Text("$failureCount")))
         }
-        addAll(tileBenchmarkFacts(tileBenchmark, nowElapsedRealtimeMs))
+        addAll(tileBenchmarkFacts(tileBenchmark, tileBenchmarkRuns, nowElapsedRealtimeMs))
     }
 
 private fun ms(value: Double): String = "%.1f".format(Locale.ROOT, value)
@@ -101,6 +103,7 @@ private fun kb(bytes: Int): Int = (bytes + 512) / 1024
 // is fast enough on this head unit; the owner reads these rows off the copied report.
 private fun tileBenchmarkFacts(
     outcome: TileBenchmarkOutcome?,
+    runs: Int,
     nowElapsedRealtimeMs: Long,
 ): List<DiagnosticFact> =
     when (outcome) {
@@ -123,33 +126,48 @@ private fun tileBenchmarkFacts(
 
         is TileBenchmarkOutcome.Measured -> {
             val ageS = ((nowElapsedRealtimeMs - outcome.finishedAtElapsedRealtimeMs) / 1_000L).coerceAtLeast(0)
+            // The run number tells a first run in the process from a repeat, whose `first` figures are already warm.
             listOf(
                 DiagnosticFact(
                     "Tile conversion",
                     FactValue.Text(
-                        "tiles ${outcome.rows.size}, warm runs ${outcome.warmRuns}, cores ${outcome.cores}, ${ageS}s ago",
+                        "run $runs since launch, tiles ${outcome.rows.size}, warm runs ${outcome.warmRuns}, " +
+                            "cores ${outcome.cores}, ${ageS}s ago",
                     ),
                 ),
-            ) +
-                outcome.rows.map { row ->
-                    DiagnosticFact(
-                        "Tile ${row.sample}",
-                        FactValue.Text(
-                            "${kb(row.rawBytes)} KB, ${row.features} features \u2192 ${kb(row.outputBytes)} KB; " +
-                                "first ${ms(row.firstMs)} ms; p50 ${ms(row.warmP50Ms)} ms; p95 ${ms(row.warmP95Ms)} ms",
-                        ),
-                    )
-                } +
-                DiagnosticFact(
-                    "Tile conversion parallel",
-                    FactValue.Text(
-                        "${outcome.parallelTiles} at once: p50 ${ms(
-                            outcome.parallelP50Ms,
-                        )} ms; p95 ${ms(outcome.parallelP95Ms)} ms",
-                    ),
-                )
+            ) + outcome.rows.map(::tileSampleFact) + outcome.rows.map { tileParallelFact(it, outcome) }
         }
     }
+
+private fun tileSampleFact(row: TileBenchmarkRow): DiagnosticFact {
+    val raw = kb(row.rawBytes)
+    val out = kb(row.outputBytes)
+    val first = ms(row.firstMs)
+    val median = ms(row.warmMedianMs)
+    val p95 = ms(row.warmP95Ms)
+    val max = ms(row.warmMaxMs)
+    return DiagnosticFact(
+        "Tile ${row.sample}",
+        FactValue.Text(
+            "$raw KB, ${row.features} features \u2192 $out KB; " +
+                "first $first ms; median $median ms; p95 $p95 ms; max $max ms",
+        ),
+    )
+}
+
+private fun tileParallelFact(
+    row: TileBenchmarkRow,
+    outcome: TileBenchmarkOutcome.Measured,
+): DiagnosticFact {
+    val median = ms(row.parallelMedianMs)
+    val max = ms(row.parallelMaxMs)
+    return DiagnosticFact(
+        "Tile ${row.sample} in parallel",
+        FactValue.Text(
+            "${outcome.parallelTiles} at once, ${outcome.parallelRounds} rounds: median $median ms; max $max ms",
+        ),
+    )
+}
 
 // The GLES version the platform reports is the capability behind WebGL 2, not a
 // direct probe of it: a driver the WebView blocklists can still deny a context
@@ -325,6 +343,7 @@ internal class MapFactsCollector(
                     pageFrames = MapRuntimeSignals.pageFramesOrNull(),
                     googleLens = MapRuntimeSignals.googleLensOrNull(),
                     tileBenchmark = TileBenchmarkResults.latestOrNull(),
+                    tileBenchmarkRuns = TileBenchmarkResults.runCount(),
                 ),
             )
         }

@@ -14,6 +14,8 @@ internal fun tileBenchmarkSampleFiles(listAssets: (String) -> Array<String>?): L
     listAssets(TILE_BENCHMARK_ASSET_DIR)
         .orEmpty()
         .filter(::isBenchmarkSampleFile)
+        // File-name order does not put the densest bundled sample first, so its `first` figure is warm code on bytes
+        // the process has not seen, the steady-state worst case, while the first sample's `first` shows cold code.
         .sorted()
 
 /** Whether any sample is bundled (stable ships none); false when the listing fails, so Diagnostics still opens. */

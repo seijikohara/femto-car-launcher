@@ -35,7 +35,7 @@ class TileConversionBenchmarkTest {
     @Test
     fun `each sample reports its first run and the warm percentiles`() =
         runTest {
-            val clock = ScriptedClock(listOf(40L) + (1L..15L).toList() + List(5) { 1L })
+            val clock = ScriptedClock(listOf(40L) + (1L..30L).toList() + List(10) { 1L })
             val outcome =
                 runTileConversionBenchmark(
                     samples = listOf(sample()),
@@ -47,18 +47,19 @@ class TileConversionBenchmarkTest {
             val measured = assertIs<TileBenchmarkOutcome.Measured>(outcome)
             val row = measured.rows.single()
             assertEquals(40.0, row.firstMs)
-            assertEquals(8.0, row.warmP50Ms)
-            assertEquals(15.0, row.warmP95Ms)
-            assertEquals(15, measured.warmRuns)
+            assertEquals(15.0, row.warmMedianMs)
+            assertEquals(29.0, row.warmP95Ms)
+            assertEquals(30.0, row.warmMaxMs)
+            assertEquals(30, measured.warmRuns)
             assertEquals(4, measured.cores)
             assertEquals(777L, measured.finishedAtElapsedRealtimeMs)
         }
 
     @Test
-    fun `the parallel pass times every conversion of every round`() =
+    fun `the parallel pass reports each sample from its own timings`() =
         runTest {
-            // 1 first + 15 warm per sample, then 5 rounds x 2 samples = 10 timings of 1..10 ms.
-            val clock = ScriptedClock(List(32) { 1L } + (1L..10L).toList())
+            // 31 runs per sample, then 10 rounds of a and b at once: a takes 1..10 ms, b 11..20 ms.
+            val clock = ScriptedClock(List(62) { 1L } + (1L..10L).flatMap { listOf(it, it + 10) })
             val outcome =
                 runTileConversionBenchmark(
                     samples = listOf(sample("a"), sample("b")),
@@ -69,8 +70,24 @@ class TileConversionBenchmarkTest {
                 )
             val measured = assertIs<TileBenchmarkOutcome.Measured>(outcome)
             assertEquals(2, measured.parallelTiles)
-            assertEquals(5.0, measured.parallelP50Ms)
-            assertEquals(10.0, measured.parallelP95Ms)
+            assertEquals(10, measured.parallelRounds)
+            val (a, b) = measured.rows
+            assertEquals(listOf(5.0, 10.0), listOf(a.parallelMedianMs, a.parallelMaxMs))
+            assertEquals(listOf(15.0, 20.0), listOf(b.parallelMedianMs, b.parallelMaxMs))
+        }
+
+    @Test
+    fun `a sample that fails in the parallel pass fails the run by name`() =
+        runTest {
+            var conversions = 0
+            val outcome =
+                runTileConversionBenchmark(
+                    samples = listOf(sample("a"), BenchmarkSample("b", 11, sample().tile)),
+                    cores = 2,
+                    elapsedRealtimeMs = { 0L },
+                    convert = { zoom, _ -> output.takeIf { ++conversions <= 62 || zoom != 11 } },
+                )
+            assertEquals(TileBenchmarkOutcome.Failed("b"), outcome)
         }
 
     @Test
@@ -122,7 +139,7 @@ class TileConversionBenchmarkTest {
                 }
             job.join()
             assertTrue(job.isCancelled)
-            assertTrue(conversions < 16, "ran $conversions conversions")
+            assertTrue(conversions < 1 + TILE_BENCHMARK_WARM_RUNS, "ran $conversions conversions")
         }
 
     @Test
@@ -139,6 +156,14 @@ class TileConversionBenchmarkTest {
         TileBenchmarkResults.record(TileBenchmarkOutcome.Failed("x"))
         TileBenchmarkResults.record(second)
         assertEquals(second, TileBenchmarkResults.latestOrNull())
+    }
+
+    @Test
+    fun `the run counter counts every recorded outcome`() {
+        val before = TileBenchmarkResults.runCount()
+        TileBenchmarkResults.record(TileBenchmarkOutcome.Failed("x"))
+        TileBenchmarkResults.record(TileBenchmarkOutcome.Aborted("y"))
+        assertEquals(before + 2, TileBenchmarkResults.runCount())
     }
 
     private suspend fun runAndRecord(
