@@ -123,8 +123,9 @@ internal val PlaceClasses: Map<String, PlaceClass> =
 internal val PlaceMinZoom: Map<String, Int> =
     mapOf("suburb" to 11, "hamlet" to 11, "quarter" to 13, "neighbourhood" to 13, "isolated_dwelling" to 14)
 
-internal val CityRankPopulation: List<Long> =
-    listOf(5_000_000, 2_000_000, 1_000_000, 500_000, 250_000, 100_000, 50_000, 25_000, 10_000)
+// A primitive array: the rank loop runs per place and must not box the thresholds.
+internal val CityRankPopulation: LongArray =
+    longArrayOf(5_000_000, 2_000_000, 1_000_000, 500_000, 250_000, 100_000, 50_000, 25_000, 10_000)
 
 internal val PlaceRankOffset: Map<String, Int> =
     mapOf(

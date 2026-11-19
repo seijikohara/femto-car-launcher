@@ -9,6 +9,9 @@ private const val TAG = "ShortbreadConverter"
 private const val GZIP_MAGIC_FIRST: Byte = 0x1f
 private const val GZIP_MAGIC_SECOND: Byte = 0x8b.toByte()
 
+private const val GZIP_MIN_BYTES = 18
+private const val INFLATE_BUFFER_BYTES = 64 * 1024
+
 /** Upper bound for an inflated tile; a decompression bomb must not exhaust the heap of a head unit. */
 internal const val MAX_RAW_TILE_BYTES = 16 * 1024 * 1024
 
@@ -21,11 +24,32 @@ internal object ShortbreadConverter {
     fun rawTileOrNull(tile: ByteArray): ByteArray? =
         runCatching {
             if (tile.size >= 2 && tile[0] == GZIP_MAGIC_FIRST && tile[1] == GZIP_MAGIC_SECOND) {
-                GZIPInputStream(ByteArrayInputStream(tile)).use { it.readNBytes(MAX_RAW_TILE_BYTES + 1) }
+                inflateSizedOrNull(tile)
+                    ?: GZIPInputStream(ByteArrayInputStream(tile)).use { it.readNBytes(MAX_RAW_TILE_BYTES + 1) }
             } else {
                 tile
             }
         }.getOrNull()?.takeIf { it.size <= MAX_RAW_TILE_BYTES }
+
+    /**
+     * Inflate [tile] into one array sized by the gzip trailer, which spares the chunk-and-concatenate copy of an
+     * unsized read. Return null whenever the trailer cannot be trusted (wrong size, extra members, an implausible
+     * hint), so the caller falls back to the bounded unsized read and the result never depends on the hint.
+     */
+    private fun inflateSizedOrNull(tile: ByteArray): ByteArray? {
+        if (tile.size < GZIP_MIN_BYTES) return null
+        val last = tile.size - 4
+        val hint =
+            (tile[last].toLong() and 0xff) or
+                ((tile[last + 1].toLong() and 0xff) shl 8) or
+                ((tile[last + 2].toLong() and 0xff) shl 16) or
+                ((tile[last + 3].toLong() and 0xff) shl 24)
+        if (hint < 1 || hint > MAX_RAW_TILE_BYTES) return null
+        val out = ByteArray(hint.toInt())
+        return GZIPInputStream(ByteArrayInputStream(tile), INFLATE_BUFFER_BYTES).use { stream ->
+            out.takeIf { stream.readNBytes(it, 0, it.size) == it.size && stream.read() == -1 }
+        }
+    }
 
     fun convertLayers(
         zoom: Int,
@@ -50,52 +74,82 @@ internal object ShortbreadConverter {
             .getOrNull()
 }
 
-/** An output feature with the keys [Sink] sorts the two ordered layers by. */
+/** An output feature with the keys [Bucket] sorts the two ordered layers by. */
 private class Keyed(
     val feature: OutputFeature,
     val rank: Int,
     val value: Double,
 )
 
+/** Rank ascending, then value descending; a plain comparator keeps the sort key unboxed. */
+private val KeyedOrder =
+    Comparator<Keyed> { a, b ->
+        if (a.rank != b.rank) a.rank.compareTo(b.rank) else java.lang.Double.compare(b.value, a.value)
+    }
+
+/**
+ * The features of one OpenMapTiles layer. A rule resolves its buckets once per source layer; the bucket only joins
+ * the output (and takes its extent) when the first feature is added, so a layer no feature maps to stays absent.
+ */
+private class Bucket(
+    val name: String,
+) {
+    var extent = 0
+    var claimed = false
+    val plain = ArrayList<OutputFeature>()
+    val keyed = ArrayList<Keyed>()
+}
+
 /** Collects output features per OpenMapTiles layer; a layer takes the extent of the first source layer that adds to it. */
 private class Sink {
-    private val extents = LinkedHashMap<String, Int>()
-    private val plain = HashMap<String, ArrayList<OutputFeature>>()
-    private val keyed = HashMap<String, ArrayList<Keyed>>()
+    private val buckets = HashMap<String, Bucket>()
+    private val joined = ArrayList<Bucket>()
+
+    fun bucket(layer: String): Bucket = buckets.getOrPut(layer) { Bucket(layer) }
 
     fun add(
-        layer: String,
+        bucket: Bucket,
         from: SourceLayer,
         feature: SourceFeature,
         properties: List<TileProperty>,
     ) {
-        extents.getOrPut(layer) { from.extent }
-        plain.getOrPut(layer) { ArrayList() }.add(outputFeature(feature, properties))
+        join(bucket, from)
+        bucket.plain.add(outputFeature(feature, properties))
     }
 
     /** Add a feature to a layer that is sorted by [rank] ascending, then [value] descending, keeping source order on ties. */
     fun addKeyed(
-        layer: String,
+        bucket: Bucket,
         from: SourceLayer,
         feature: SourceFeature,
         properties: List<TileProperty>,
         rank: Int,
         value: Double,
     ) {
-        extents.getOrPut(layer) { from.extent }
-        keyed.getOrPut(layer) { ArrayList() }.add(Keyed(outputFeature(feature, properties), rank, value))
+        join(bucket, from)
+        bucket.keyed.add(Keyed(outputFeature(feature, properties), rank, value))
     }
 
     fun layers(): List<OutputLayer> =
-        extents.map { (name, extent) ->
-            val features =
-                plain[name].orEmpty() +
-                    keyed[name]
-                        .orEmpty()
-                        .sortedWith(compareBy<Keyed> { it.rank }.thenByDescending { it.value })
-                        .map { it.feature }
-            OutputLayer(name, extent, features)
+        joined.map { bucket ->
+            // Sorting in place is safe: the sort is stable and nothing else reads the bucket afterwards.
+            bucket.keyed.sortWith(KeyedOrder)
+            val features = ArrayList<OutputFeature>(bucket.plain.size + bucket.keyed.size)
+            features.addAll(bucket.plain)
+            bucket.keyed.forEach { features.add(it.feature) }
+            OutputLayer(bucket.name, bucket.extent, features)
         }
+
+    private fun join(
+        bucket: Bucket,
+        from: SourceLayer,
+    ) {
+        if (!bucket.claimed) {
+            bucket.claimed = true
+            bucket.extent = from.extent
+            joined.add(bucket)
+        }
+    }
 
     private fun outputFeature(
         feature: SourceFeature,
@@ -112,6 +166,73 @@ private fun integer(
     key: String,
     value: Long,
 ) = TileProperty(key, TileValue.Integer(value))
+
+// Output values that do not depend on the feature are built once and shared: the encoder's lookups then hit the
+// identity fast path, and a tile of tens of thousands of features allocates none of them.
+private val OceanProperties = listOf(text("class", "ocean"))
+private val GlacierProperties = listOf(text("class", "ice"), text("subclass", "glacier"))
+private val DefaultWaterProperties = listOf(text("class", DEFAULT_WATER_CLASS))
+private val LakeClass = text("class", "lake")
+private val FerryClass = text("class", "ferry")
+private val PierProperties = listOf(text("class", "pier"))
+private val BridgeProperties = listOf(text("class", "bridge"))
+private val BuildingProperties = listOf(integer("render_height", BUILDING_HEIGHT), integer("render_min_height", 0))
+private val BridgeBrunnel = text("brunnel", "bridge")
+private val TunnelBrunnel = text("brunnel", "tunnel")
+private val RampProperty = integer("ramp", 1)
+private val OnewayForward = integer("oneway", 1)
+private val OnewayReverse = integer("oneway", -1)
+private val MotorwayClass = text("class", "motorway")
+private val JunctionSubclass = text("subclass", "junction")
+private val MotorwayNameRank = roadRank("motorway")
+
+// The tables below are keyed by the Shortbread kind, so one lookup yields everything the rule emits for it.
+private val WaterProperties: Map<String, List<TileProperty>> = WaterClasses.mapValues {
+    listOf(text("class", it.value))
+}
+
+private val LandcoverProperties: Map<String, List<TileProperty>> =
+    LandcoverClasses.mapValues { (kind, landcover) -> listOf(text("class", landcover), text("subclass", kind)) }
+
+private val LanduseProperties: Map<String, List<TileProperty>> = LanduseClasses.mapValues {
+    listOf(text("class", it.value))
+}
+
+private val AerowayProperties: Map<String, List<TileProperty>> = AerowayKinds.associateWith {
+    listOf(text("class", it))
+}
+
+/** What the converter derives from a road kind, computed once so a feature costs a single table lookup. */
+private class RoadKind(
+    val roadClass: String,
+    kind: String,
+) {
+    val minZoom = RoadMinZoom[roadClass] ?: 0
+    val classProperty = text("class", roadClass)
+    val subclassProperty = text("subclass", kind)
+    val keepsSubclass = roadClass in RoadClassesWithSubclass
+    val isPath = roadClass == "path"
+    val nameRank = roadRank(roadClass)
+}
+
+private val RoadKinds: Map<String, RoadKind> = RoadClasses.mapValues { (kind, roadClass) -> RoadKind(roadClass, kind) }
+
+/** What the converter derives from a place kind; see [RoadKind]. */
+private class PlaceKind(
+    val place: PlaceClass,
+) {
+    val minZoom = PlaceMinZoom[place.placeClass] ?: 0
+    val rankOffset = PlaceRankOffset[place.placeClass] ?: 0
+    val classProperty = text("class", place.placeClass)
+    val capitalProperty = place.capital?.let { integer("capital", it) }
+    val order = placeRank(place.placeClass)
+}
+
+private val PlaceKinds: Map<String, PlaceKind> = PlaceClasses.mapValues { PlaceKind(it.value) }
+
+private fun MutableList<TileProperty>.addNotNull(property: TileProperty?) {
+    if (property != null) add(property)
+}
 
 // A property is "set" when its value is a true flag, a non-zero number or a non-empty text; that is how the
 // Shortbread schema writes its boolean-like attributes.
@@ -143,18 +264,16 @@ private fun SourceLayer.number(
         is TileValue.Flag, null -> 0.0
     }
 
-private fun SourceLayer.brunnelOrNull(
+private fun SourceLayer.brunnelPropertyOrNull(
     feature: SourceFeature,
     bridge: Int,
     tunnel: Int,
-): String? =
+): TileProperty? =
     when {
-        isSet(feature, bridge) -> "bridge"
-        isSet(feature, tunnel) -> "tunnel"
+        isSet(feature, bridge) -> BridgeBrunnel
+        isSet(feature, tunnel) -> TunnelBrunnel
         else -> null
     }
-
-private fun brunnel(value: String?): TileProperty? = value?.let { text("brunnel", it) }
 
 private fun roadRank(roadClass: String): Int = RoadNameOrder.indexOf(roadClass).takeIf { it >= 0 } ?: RoadNameOrder.size
 
@@ -205,24 +324,21 @@ private class Converter(
 
     private fun ocean() =
         eachLayer("ocean") { layer ->
-            val properties = listOf(text("class", "ocean"))
-            layer.eachFeature { sink.add("water", layer, it, properties) }
+            val water = sink.bucket("water")
+            layer.eachFeature { sink.add(water, layer, it, OceanProperties) }
         }
 
     private fun waterPolygons() =
         eachLayer("water_polygons") { layer ->
             val kind = layer.keyIndex("kind")
+            val landcover = sink.bucket("landcover")
+            val water = sink.bucket("water")
             layer.eachFeature { feature ->
                 val kindText = layer.textOrNull(feature, kind)
                 if (kindText == "glacier") {
-                    sink.add("landcover", layer, feature, listOf(text("class", "ice"), text("subclass", "glacier")))
+                    sink.add(landcover, layer, feature, GlacierProperties)
                 } else {
-                    sink.add(
-                        "water",
-                        layer,
-                        feature,
-                        listOf(text("class", WaterClasses[kindText] ?: DEFAULT_WATER_CLASS)),
-                    )
+                    sink.add(water, layer, feature, WaterProperties[kindText] ?: DefaultWaterProperties)
                 }
             }
         }
@@ -230,7 +346,13 @@ private class Converter(
     private fun waterPolygonLabels() =
         eachLayer("water_polygons_labels") { layer ->
             val name = NameKeys(layer)
-            layer.eachFeature { sink.add("water_name", layer, it, listOf(text("class", "lake")) + name.of(layer, it)) }
+            val waterName = sink.bucket("water_name")
+            layer.eachFeature {
+                val properties = ArrayList<TileProperty>(1 + MAX_NAME_PROPERTIES)
+                properties.add(LakeClass)
+                name.appendTo(properties, layer, it)
+                sink.add(waterName, layer, it, properties)
+            }
         }
 
     private fun waterLines(
@@ -241,36 +363,28 @@ private class Converter(
         val bridge = layer.keyIndex("bridge")
         val tunnel = layer.keyIndex("tunnel")
         val name = NameKeys(layer)
+        val waterway = sink.bucket("waterway")
         layer.eachFeature { feature ->
-            val properties =
-                listOfNotNull(
-                    layer.textOrNull(feature, kind)?.let { text("class", it) },
-                    brunnel(layer.brunnelOrNull(feature, bridge, tunnel)),
-                ) + if (labelled) name.of(layer, feature) else emptyList()
-            sink.add("waterway", layer, feature, properties)
+            val properties = ArrayList<TileProperty>(2 + MAX_NAME_PROPERTIES)
+            layer.textOrNull(feature, kind)?.let { properties.add(text("class", it)) }
+            properties.addNotNull(layer.brunnelPropertyOrNull(feature, bridge, tunnel))
+            if (labelled) name.appendTo(properties, layer, feature)
+            sink.add(waterway, layer, feature, properties)
         }
     }
 
     private fun landLike(layerName: String) =
         eachLayer(layerName) { layer ->
             val kind = layer.keyIndex("kind")
+            val landcover = sink.bucket("landcover")
+            val landuse = sink.bucket("landuse")
             layer.eachFeature { feature ->
                 val kindText = layer.textOrNull(feature, kind)
-                val landcover = LandcoverClasses[kindText]
-                val landuse = LanduseClasses[kindText]
+                val landcoverProperties = LandcoverProperties[kindText]
+                val landuseProperties = LanduseProperties[kindText]
                 when {
-                    kindText != null && landcover != null -> {
-                        sink.add(
-                            "landcover",
-                            layer,
-                            feature,
-                            listOf(text("class", landcover), text("subclass", kindText)),
-                        )
-                    }
-
-                    landuse != null -> {
-                        sink.add("landuse", layer, feature, listOf(text("class", landuse)))
-                    }
+                    landcoverProperties != null -> sink.add(landcover, layer, feature, landcoverProperties)
+                    landuseProperties != null -> sink.add(landuse, layer, feature, landuseProperties)
                 }
             }
         }
@@ -280,9 +394,10 @@ private class Converter(
             val level = layer.keyIndex("admin_level")
             val maritime = layer.keyIndex("maritime")
             val disputed = layer.keyIndex("disputed")
+            val boundary = sink.bucket("boundary")
             layer.eachFeature { feature ->
                 sink.add(
-                    "boundary",
+                    boundary,
                     layer,
                     feature,
                     listOf(
@@ -303,37 +418,34 @@ private class Converter(
             val oneway = layer.keyIndex("oneway")
             val onewayReverse = layer.keyIndex("oneway_reverse")
             val service = layer.keyIndex("service")
+            val aeroway = sink.bucket("aeroway")
+            val transportation = sink.bucket("transportation")
             layer.eachFeature { feature ->
                 val kindText = layer.textOrNull(feature, kind)
-                val roadClass = RoadClasses[kindText]
+                val aerowayProperties = AerowayProperties[kindText]
+                val road = RoadKinds[kindText]
                 when {
-                    kindText != null && kindText in AerowayKinds -> {
-                        sink.add("aeroway", layer, feature, listOf(text("class", kindText)))
+                    aerowayProperties != null -> {
+                        sink.add(aeroway, layer, feature, aerowayProperties)
                     }
 
-                    roadClass != null && zoom >= (RoadMinZoom[roadClass] ?: 0) -> {
-                        sink.add(
-                            "transportation",
-                            layer,
-                            feature,
-                            listOfNotNull(
-                                text("class", roadClass),
-                                kindText?.takeIf { roadClass in RoadClassesWithSubclass }?.let { text("subclass", it) },
-                                brunnel(layer.brunnelOrNull(feature, bridge, tunnel)),
-                                integer("ramp", 1).takeIf { layer.isSet(feature, link) },
-                                when {
-                                    layer.isSet(feature, oneway) -> integer("oneway", 1)
-                                    layer.isSet(feature, onewayReverse) -> integer("oneway", -1)
-                                    else -> null
-                                },
-                                layer
-                                    .textOrNull(
-                                        feature,
-                                        service,
-                                    )?.takeIf { it.isNotEmpty() }
-                                    ?.let { text("service", it) },
-                            ),
-                        )
+                    road != null && zoom >= road.minZoom -> {
+                        val properties = ArrayList<TileProperty>(STREET_PROPERTIES)
+                        properties.add(road.classProperty)
+                        if (road.keepsSubclass) properties.add(road.subclassProperty)
+                        properties.addNotNull(layer.brunnelPropertyOrNull(feature, bridge, tunnel))
+                        if (layer.isSet(feature, link)) properties.add(RampProperty)
+                        when {
+                            layer.isSet(feature, oneway) -> properties.add(OnewayForward)
+                            layer.isSet(feature, onewayReverse) -> properties.add(OnewayReverse)
+                        }
+                        layer
+                            .textOrNull(
+                                feature,
+                                service,
+                            )?.takeIf { it.isNotEmpty() }
+                            ?.let { properties.add(text("service", it)) }
+                        sink.add(transportation, layer, feature, properties)
                     }
                 }
             }
@@ -344,25 +456,23 @@ private class Converter(
             val kind = layer.keyIndex("kind")
             val bridge = layer.keyIndex("bridge")
             val tunnel = layer.keyIndex("tunnel")
+            val aeroway = sink.bucket("aeroway")
+            val transportation = sink.bucket("transportation")
             layer.eachFeature { feature ->
                 val kindText = layer.textOrNull(feature, kind)
-                val roadClass = RoadClasses[kindText]
+                val aerowayProperties = AerowayProperties[kindText]
+                val road = RoadKinds[kindText]
                 when {
-                    kindText != null && kindText in AerowayKinds -> {
-                        sink.add("aeroway", layer, feature, listOf(text("class", kindText)))
+                    aerowayProperties != null -> {
+                        sink.add(aeroway, layer, feature, aerowayProperties)
                     }
 
-                    roadClass != null && kindText != null -> {
-                        sink.add(
-                            "transportation",
-                            layer,
-                            feature,
-                            listOfNotNull(
-                                text("class", roadClass),
-                                text("subclass", kindText),
-                                brunnel(layer.brunnelOrNull(feature, bridge, tunnel)),
-                            ),
-                        )
+                    road != null -> {
+                        val properties = ArrayList<TileProperty>(3)
+                        properties.add(road.classProperty)
+                        properties.add(road.subclassProperty)
+                        properties.addNotNull(layer.brunnelPropertyOrNull(feature, bridge, tunnel))
+                        sink.add(transportation, layer, feature, properties)
                     }
                 }
             }
@@ -371,28 +481,27 @@ private class Converter(
     private fun piers(layerName: String) =
         eachLayer(layerName) { layer ->
             val kind = layer.keyIndex("kind")
-            val properties = listOf(text("class", "pier"))
+            val transportation = sink.bucket("transportation")
             layer.eachFeature { feature ->
-                if (layer.textOrNull(feature, kind) == "pier") sink.add("transportation", layer, feature, properties)
+                if (layer.textOrNull(feature, kind) == "pier") sink.add(transportation, layer, feature, PierProperties)
             }
         }
 
     private fun bridges() =
         eachLayer("bridges") { layer ->
-            val properties = listOf(text("class", "bridge"))
-            layer.eachFeature { sink.add("transportation", layer, it, properties) }
+            val transportation = sink.bucket("transportation")
+            layer.eachFeature { sink.add(transportation, layer, it, BridgeProperties) }
         }
 
     private fun ferries() =
         eachLayer("ferries") { layer ->
             val name = NameKeys(layer)
+            val transportation = sink.bucket("transportation")
             layer.eachFeature {
-                sink.add(
-                    "transportation",
-                    layer,
-                    it,
-                    listOf(text("class", "ferry")) + name.of(layer, it),
-                )
+                val properties = ArrayList<TileProperty>(1 + MAX_NAME_PROPERTIES)
+                properties.add(FerryClass)
+                name.appendTo(properties, layer, it)
+                sink.add(transportation, layer, it, properties)
             }
         }
 
@@ -403,29 +512,26 @@ private class Converter(
             val bridge = layer.keyIndex("bridge")
             val tunnel = layer.keyIndex("tunnel")
             val name = NameKeys(layer)
+            val transportationName = sink.bucket("transportation_name")
             layer.eachFeature { feature ->
                 val kindText = layer.textOrNull(feature, kind)?.removeSuffix("_link")
-                val roadClass = RoadClasses[kindText]
-                if (roadClass != null) {
+                val road = RoadKinds[kindText]
+                if (road != null) {
                     val shortRef =
                         layer
                             .textOrNull(feature, ref)
                             ?.let { firstLine(it).substringBefore(';') }
                             ?.takeIf { it.isNotEmpty() }
-                    sink.addKeyed(
-                        "transportation_name",
-                        layer,
-                        feature,
-                        listOfNotNull(
-                            text("class", roadClass),
-                            kindText?.takeIf { roadClass == "path" }?.let { text("subclass", it) },
-                            brunnel(layer.brunnelOrNull(feature, bridge, tunnel)),
-                            shortRef?.let { text("ref", it) },
-                            shortRef?.let { integer("ref_length", it.codePointCount(0, it.length).toLong()) },
-                        ) + name.of(layer, feature),
-                        rank = roadRank(roadClass),
-                        value = 0.0,
-                    )
+                    val properties = ArrayList<TileProperty>(STREET_LABEL_PROPERTIES + MAX_NAME_PROPERTIES)
+                    properties.add(road.classProperty)
+                    if (road.isPath) properties.add(road.subclassProperty)
+                    properties.addNotNull(layer.brunnelPropertyOrNull(feature, bridge, tunnel))
+                    if (shortRef != null) {
+                        properties.add(text("ref", shortRef))
+                        properties.add(integer("ref_length", shortRef.codePointCount(0, shortRef.length).toLong()))
+                    }
+                    name.appendTo(properties, layer, feature)
+                    sink.addKeyed(transportationName, layer, feature, properties, rank = road.nameRank, value = 0.0)
                 }
             }
         }
@@ -434,32 +540,29 @@ private class Converter(
         eachLayer("street_labels_points") { layer ->
             val ref = layer.keyIndex("ref")
             val name = NameKeys(layer)
+            val transportationName = sink.bucket("transportation_name")
             layer.eachFeature { feature ->
                 val junctionRef =
                     layer
                         .textOrNull(feature, ref)
                         ?.let(::firstLine)
                         ?.takeIf { it.isNotEmpty() }
-                sink.addKeyed(
-                    "transportation_name",
-                    layer,
-                    feature,
-                    listOfNotNull(
-                        text("class", "motorway"),
-                        text("subclass", "junction"),
-                        junctionRef?.let { text("ref", it) },
-                        junctionRef?.let { integer("ref_length", it.codePointCount(0, it.length).toLong()) },
-                    ) + name.of(layer, feature),
-                    rank = roadRank("motorway"),
-                    value = 0.0,
-                )
+                val properties = ArrayList<TileProperty>(JUNCTION_PROPERTIES + MAX_NAME_PROPERTIES)
+                properties.add(MotorwayClass)
+                properties.add(JunctionSubclass)
+                if (junctionRef != null) {
+                    properties.add(text("ref", junctionRef))
+                    properties.add(integer("ref_length", junctionRef.codePointCount(0, junctionRef.length).toLong()))
+                }
+                name.appendTo(properties, layer, feature)
+                sink.addKeyed(transportationName, layer, feature, properties, rank = MotorwayNameRank, value = 0.0)
             }
         }
 
     private fun buildings() =
         eachLayer("buildings") { layer ->
-            val properties = listOf(integer("render_height", BUILDING_HEIGHT), integer("render_min_height", 0))
-            layer.eachFeature { sink.add("building", layer, it, properties) }
+            val building = sink.bucket("building")
+            layer.eachFeature { sink.add(building, layer, it, BuildingProperties) }
         }
 
     private fun publicTransport() =
@@ -467,18 +570,15 @@ private class Converter(
             val kind = layer.keyIndex("kind")
             val iata = layer.keyIndex("iata")
             val name = NameKeys(layer)
+            val aerodromeLabel = sink.bucket("aerodrome_label")
             layer.eachFeature { feature ->
                 if (layer.textOrNull(feature, kind) == "aerodrome") {
                     val code = layer.textOrNull(feature, iata)?.takeIf { it.isNotEmpty() }
-                    sink.add(
-                        "aerodrome_label",
-                        layer,
-                        feature,
-                        listOfNotNull(
-                            text("class", if (code != null) "international" else "other"),
-                            code?.let { text("iata", it) },
-                        ) + name.of(layer, feature),
-                    )
+                    val properties = ArrayList<TileProperty>(2 + MAX_NAME_PROPERTIES)
+                    properties.add(text("class", if (code != null) "international" else "other"))
+                    code?.let { properties.add(text("iata", it)) }
+                    name.appendTo(properties, layer, feature)
+                    sink.add(aerodromeLabel, layer, feature, properties)
                 }
             }
         }
@@ -488,6 +588,7 @@ private class Converter(
             val level = layer.keyIndex("admin_level")
             val area = layer.keyIndex("way_area")
             val name = NameKeys(layer)
+            val place = sink.bucket("place")
             layer.eachFeature { feature ->
                 val wayArea = layer.number(feature, area)
                 val placeClass: String?
@@ -509,14 +610,11 @@ private class Converter(
                     }
                 }
                 if (placeClass != null) {
-                    sink.addKeyed(
-                        "place",
-                        layer,
-                        feature,
-                        listOf(text("class", placeClass), integer("rank", rank)) + name.of(layer, feature),
-                        rank = placeRank(placeClass),
-                        value = wayArea,
-                    )
+                    val properties = ArrayList<TileProperty>(2 + MAX_NAME_PROPERTIES)
+                    properties.add(text("class", placeClass))
+                    properties.add(integer("rank", rank))
+                    name.appendTo(properties, layer, feature)
+                    sink.addKeyed(place, layer, feature, properties, rank = placeRank(placeClass), value = wayArea)
                 }
             }
         }
@@ -526,27 +624,29 @@ private class Converter(
             val kind = layer.keyIndex("kind")
             val population = layer.keyIndex("population")
             val name = NameKeys(layer)
+            val placeBucket = sink.bucket("place")
             layer.eachFeature { feature ->
-                val place = PlaceClasses[layer.textOrNull(feature, kind)]
-                if (place != null && zoom >= (PlaceMinZoom[place.placeClass] ?: 0)) {
+                val place = PlaceKinds[layer.textOrNull(feature, kind)]
+                if (place != null && zoom >= place.minZoom) {
                     val people = layer.number(feature, population)
-                    val rank =
-                        1 + CityRankPopulation.count { it > people } + (PlaceRankOffset[place.placeClass] ?: 0)
-                    sink.addKeyed(
-                        "place",
-                        layer,
-                        feature,
-                        listOfNotNull(
-                            text("class", place.placeClass),
-                            place.capital?.let { integer("capital", it) },
-                            integer("rank", rank.toLong()),
-                        ) + name.of(layer, feature),
-                        rank = placeRank(place.placeClass),
-                        value = people,
-                    )
+                    var cityRank = 0
+                    for (threshold in CityRankPopulation) if (threshold > people) cityRank++
+                    val rank = 1 + cityRank + place.rankOffset
+                    val properties = ArrayList<TileProperty>(3 + MAX_NAME_PROPERTIES)
+                    properties.add(place.classProperty)
+                    properties.addNotNull(place.capitalProperty)
+                    properties.add(integer("rank", rank.toLong()))
+                    name.appendTo(properties, layer, feature)
+                    sink.addKeyed(placeBucket, layer, feature, properties, rank = place.order, value = people)
                 }
             }
         }
+
+    private companion object {
+        const val STREET_PROPERTIES = 6
+        const val STREET_LABEL_PROPERTIES = 5
+        const val JUNCTION_PROPERTIES = 4
+    }
 }
 
 /** The key indices of the three name attributes of one source layer, resolved once per layer. */
@@ -557,13 +657,14 @@ private class NameKeys(
     private val nameEn = layer.keyIndex("name_en")
     private val nameDe = layer.keyIndex("name_de")
 
-    fun of(
+    fun appendTo(
+        destination: MutableList<TileProperty>,
         layer: SourceLayer,
         feature: SourceFeature,
-    ): List<TileProperty> =
-        nameProperties(
-            layer.textOrNull(feature, name),
-            layer.textOrNull(feature, nameEn),
-            layer.textOrNull(feature, nameDe),
-        )
+    ) = appendNameProperties(
+        destination,
+        layer.textOrNull(feature, name),
+        layer.textOrNull(feature, nameEn),
+        layer.textOrNull(feature, nameDe),
+    )
 }

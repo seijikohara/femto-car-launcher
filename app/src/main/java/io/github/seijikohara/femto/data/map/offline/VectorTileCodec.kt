@@ -32,6 +32,9 @@ internal object VectorTileCodec {
     private const val VALUE_SINT64 = 6
     private const val VALUE_BOOL = 7
 
+    private val NO_TAGS = IntArray(0)
+    private const val INITIAL_TAG_CAPACITY = 32
+
     private const val WIRE_VARINT = 0
     private const val WIRE_FIXED64 = 1
     private const val WIRE_LENGTH_DELIMITED = 2
@@ -93,8 +96,11 @@ internal object VectorTileCodec {
         // Tags are checked once the tables are complete: the format allows features before keys and values.
         features.forEach { feature ->
             val tags = feature.tags
-            for (i in tags.indices step 2) {
+            // A plain loop: a step progression would allocate once per feature.
+            var i = 0
+            while (i < tags.size) {
                 if (tags[i] >= keys.size || tags[i + 1] >= values.size) throw MalformedTile
+                i += 2
             }
         }
         return SourceLayer(name, extent, keys, values, features)
@@ -103,24 +109,54 @@ internal object VectorTileCodec {
     private fun decodeFeature(reader: Reader): SourceFeature {
         var id: Long? = null
         var type = 0
-        var tags = IntArray(0)
+        var tags = NO_TAGS
+        var tagCount = 0
         var geometry = ByteArray(0)
         while (reader.hasMore()) {
             val tag = reader.varint()
             val field = (tag ushr 3).toInt()
             val wire = (tag and 7).toInt()
             when {
-                field == FEATURE_ID && wire == WIRE_VARINT -> id = reader.varint()
-                field == FEATURE_TAGS && wire == WIRE_LENGTH_DELIMITED -> tags += reader.packedIndices()
-                field == FEATURE_TAGS && wire == WIRE_VARINT -> tags += reader.varintAsIndex()
-                field == FEATURE_TYPE && wire == WIRE_VARINT -> type = reader.varint().toInt()
-                field == FEATURE_GEOMETRY && wire == WIRE_LENGTH_DELIMITED -> geometry = reader.bytes()
-                else -> reader.skip(wire)
+                field == FEATURE_ID && wire == WIRE_VARINT -> {
+                    id = reader.varint()
+                }
+
+                field == FEATURE_TAGS && wire == WIRE_LENGTH_DELIMITED -> {
+                    val packed = reader.subReader()
+                    // Each varint takes at least one byte, so the byte length bounds the count.
+                    tags = withRoom(tags, tagCount, packed.remaining())
+                    while (packed.hasMore()) tags[tagCount++] = packed.varintAsIndex()
+                }
+
+                field == FEATURE_TAGS && wire == WIRE_VARINT -> {
+                    tags = withRoom(tags, tagCount, 1)
+                    tags[tagCount++] = reader.varintAsIndex()
+                }
+
+                field == FEATURE_TYPE && wire == WIRE_VARINT -> {
+                    type = reader.varint().toInt()
+                }
+
+                field == FEATURE_GEOMETRY && wire == WIRE_LENGTH_DELIMITED -> {
+                    geometry = reader.bytes()
+                }
+
+                else -> {
+                    reader.skip(wire)
+                }
             }
         }
         // A trailing odd tag has no value to pair with.
-        return SourceFeature(id, type, if (tags.size % 2 == 0) tags else tags.copyOf(tags.size - 1), geometry)
+        val pairedCount = tagCount and 1.inv()
+        return SourceFeature(id, type, if (tags.size == pairedCount) tags else tags.copyOf(pairedCount), geometry)
     }
+
+    /** Return [tags], or a copy with room for [extra] more entries after the first [count]. */
+    private fun withRoom(
+        tags: IntArray,
+        count: Int,
+        extra: Int,
+    ): IntArray = if (tags.size - count >= extra) tags else tags.copyOf(count + extra)
 
     private fun decodeValue(reader: Reader): TileValue? {
         var value: TileValue? = null
@@ -152,19 +188,19 @@ internal object VectorTileCodec {
         // One scratch buffer serves every feature and value message, which keeps allocation per feature flat.
         val scratch = ByteWriter()
         val body = ByteWriter()
+        var tags = IntArray(INITIAL_TAG_CAPACITY)
         body.writeVarintField(LAYER_VERSION, WRITTEN_VERSION)
         body.writeBytesField(LAYER_NAME, layer.name.toByteArray(StandardCharsets.UTF_8))
         layer.features.forEach { feature ->
             scratch.reset()
-            val tags =
-                IntArray(feature.properties.size * 2).also { out ->
-                    feature.properties.forEachIndexed { i, property ->
-                        out[2 * i] = keyIndex.getOrPut(property.key) { keyIndex.size }
-                        out[2 * i + 1] = valueIndex.getOrPut(property.value) { valueIndex.size }
-                    }
-                }
+            val tagCount = feature.properties.size * 2
+            if (tags.size < tagCount) tags = IntArray(tagCount)
+            feature.properties.forEachIndexed { i, property ->
+                tags[2 * i] = keyIndex.getOrPut(property.key) { keyIndex.size }
+                tags[2 * i + 1] = valueIndex.getOrPut(property.value) { valueIndex.size }
+            }
             feature.id?.let { scratch.writeVarintField(FEATURE_ID, it) }
-            if (tags.isNotEmpty()) scratch.writePackedField(FEATURE_TAGS, tags)
+            if (tagCount > 0) scratch.writePackedField(FEATURE_TAGS, tags, tagCount)
             scratch.writeVarintField(FEATURE_TYPE, feature.type.toLong())
             scratch.writeBytesField(FEATURE_GEOMETRY, feature.geometry)
             body.writeBytesField(LAYER_FEATURE, scratch)
@@ -231,14 +267,7 @@ internal object VectorTileCodec {
             return buf.copyOfRange(pos, pos + len).also { pos += len }
         }
 
-        fun packedIndices(): IntArray {
-            val sub = subReader()
-            // Each varint takes at least one byte, so the sub-length bounds the count.
-            val out = IntArray(sub.end - sub.pos)
-            var n = 0
-            while (sub.hasMore()) out[n++] = sub.varintAsIndex()
-            return out.copyOf(n)
-        }
+        fun remaining(): Int = end - pos
 
         fun float(): Float = Float.fromBits(fixed(4).toInt())
 
@@ -344,10 +373,14 @@ internal object VectorTileCodec {
         fun writePackedField(
             field: Int,
             values: IntArray,
+            count: Int,
         ) {
             writeTag(field, WIRE_LENGTH_DELIMITED)
-            writeVarint(values.sumOf { varintSize(it.toLong()) }.toLong())
-            values.forEach { writeVarint(it.toLong()) }
+            // The length prefix needs the payload size first, so the sizes are summed in a plain loop before writing.
+            var payload = 0
+            for (i in 0 until count) payload += varintSize(values[i].toLong())
+            writeVarint(payload.toLong())
+            for (i in 0 until count) writeVarint(values[i].toLong())
         }
 
         fun writeDoubleField(

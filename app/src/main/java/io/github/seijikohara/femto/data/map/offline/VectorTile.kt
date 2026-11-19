@@ -45,13 +45,17 @@ internal class SourceLayer(
     fun valueOrNull(
         feature: SourceFeature,
         keyIndex: Int,
-    ): TileValue? =
-        feature.tags
-            .takeIf { keyIndex >= 0 }
-            ?.indices
-            ?.step(2)
-            ?.firstOrNull { feature.tags[it] == keyIndex }
-            ?.let { values[feature.tags[it + 1]] }
+    ): TileValue? {
+        if (keyIndex < 0) return null
+        val tags = feature.tags
+        // A plain loop: this runs several times per feature, and a step progression plus a lambda per call add up on ART.
+        var i = 0
+        while (i < tags.size) {
+            if (tags[i] == keyIndex) return values[tags[i + 1]]
+            i += 2
+        }
+        return null
+    }
 }
 
 internal data class TileProperty(

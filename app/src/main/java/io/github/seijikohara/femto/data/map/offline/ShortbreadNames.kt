@@ -25,6 +25,9 @@ internal fun isLatinText(text: String): Boolean {
 
 private const val ASCII_LIMIT = 0x80
 
+/** The most properties [appendNameProperties] adds, for callers that pre-size their list. */
+internal const val MAX_NAME_PROPERTIES = 7
+
 /**
  * Derive the OpenMapTiles name properties that Shortbread omits.
  *
@@ -36,28 +39,33 @@ internal fun nameProperties(
     nameEn: String?,
     nameDe: String?,
 ): List<TileProperty> =
-    if (name.isNullOrEmpty()) {
-        emptyList()
-    } else {
-        val en = nameEn.takeUnless { it.isNullOrEmpty() } ?: name
-        val de = nameDe.takeUnless { it.isNullOrEmpty() } ?: name
-        val nameIsLatin = isLatinText(name)
-        val latin =
-            when {
-                nameIsLatin -> name
-                en != name && isLatinText(en) -> en
-                else -> null
-            }
-        buildList {
-            add(textProperty("name", name))
-            add(textProperty("name_en", en))
-            add(textProperty("name_de", de))
-            if (!nameIsLatin) add(textProperty("name:nonlatin", name))
-            latin?.let { add(textProperty("name:latin", it)) }
-            add(textProperty("name_int", latin ?: name))
-            if (en != name) add(textProperty("name:en", en))
+    ArrayList<TileProperty>(MAX_NAME_PROPERTIES).also { appendNameProperties(it, name, nameEn, nameDe) }
+
+/** Append the properties [nameProperties] derives to [destination], so a caller can build a feature's list in one allocation. */
+internal fun appendNameProperties(
+    destination: MutableList<TileProperty>,
+    name: String?,
+    nameEn: String?,
+    nameDe: String?,
+) {
+    if (name.isNullOrEmpty()) return
+    val en = nameEn.takeUnless { it.isNullOrEmpty() } ?: name
+    val de = nameDe.takeUnless { it.isNullOrEmpty() } ?: name
+    val nameIsLatin = isLatinText(name)
+    val latin =
+        when {
+            nameIsLatin -> name
+            en != name && isLatinText(en) -> en
+            else -> null
         }
-    }
+    destination.add(textProperty("name", name))
+    destination.add(textProperty("name_en", en))
+    destination.add(textProperty("name_de", de))
+    if (!nameIsLatin) destination.add(textProperty("name:nonlatin", name))
+    latin?.let { destination.add(textProperty("name:latin", it)) }
+    destination.add(textProperty("name_int", latin ?: name))
+    if (en != name) destination.add(textProperty("name:en", en))
+}
 
 private fun textProperty(
     key: String,
