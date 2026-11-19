@@ -394,8 +394,9 @@ internal class OfflineRegionRepository internal constructor(
     }
 
     // The checks of a new download, run again on the file the server sent instead. The old part is still on disk
-    // and goes once the restart is accepted, so its length counts as free. Null when the file is accepted and its
-    // record stored.
+    // and goes once the restart is accepted, so its length counts as free. It goes before the record of the new
+    // file is stored: a process that dies in between must not leave the old file's bytes beside that record, where
+    // Resume would append the new file's tail to them. Null when the file is accepted and its record stored.
     private suspend fun restartRefusalOrNull(
         record: PendingDownloadRecord,
         file: RemoteFile,
@@ -410,11 +411,17 @@ internal class OfflineRegionRepository internal constructor(
                     replacedBytes = 0,
                     incomingBytes = file.sizeBytes,
                 )
-            val freeBytes = files.freeBytes() + files.partFile(record.id).length()
+            val part = files.partFile(record.id)
+            val freeBytes = files.freeBytes() + part.length()
             when {
                 decision is StorageDecision.OverLimit -> OVER_LIMIT
+
                 !hasRoomFor(file.sizeBytes, freeBytes) -> NO_SPACE
-                else -> STORAGE.takeUnless { files.writePending(record.forFile(file)) }
+
+                else -> STORAGE.takeUnless {
+                    (part.delete() || !part.exists()) &&
+                        files.writePending(record.forFile(file))
+                }
             }
         }
     }

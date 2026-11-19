@@ -142,7 +142,7 @@ internal class RegionFeedApi(
                 // busy or refusing server says nothing about the part, and one such answer
                 // must not throw away gigabytes that a later resume can still use.
                 when (val code = response.code) {
-                    HTTP_PARTIAL -> response.appendRange(part, expected, resumeFrom, onProgress)
+                    HTTP_PARTIAL -> response.appendRange(part, expected, resumeFrom, resumeEtag, onProgress)
                     HTTP_OK -> response.replaceWhole(part, expected, heldBytes, onRestart, onProgress)
                     HTTP_NOT_FOUND, HTTP_GONE -> TransferResult.Gone.discarding(part)
                     HTTP_RANGE_NOT_SATISFIABLE -> TransferResult.Unavailable.discarding(part)
@@ -157,18 +157,24 @@ internal class RegionFeedApi(
 
     // A 206 continues the part only when it starts at the part's end and
     // belongs to the expected file; any other range would splice two files.
+    // Caching proxies can hold two versions of the file at once and answer
+    // If-Range with a range of the other one, so an ETag other than the one
+    // sent marks another file even when the sizes match. A 206 without a
+    // sendable ETag is judged by its range alone.
     private suspend fun Response.appendRange(
         part: File,
         expected: RemoteFile,
         resumeFrom: Long?,
+        sentEtag: String?,
         onProgress: (receivedBytes: Long, totalBytes: Long) -> Unit,
     ): TransferResult =
         header("Content-Range")
             ?.let(::byteRangeOrNull)
             ?.takeIf { it.first == resumeFrom && it.total == expected.sizeBytes }
+            ?.takeIf { etagOrNull().let { etag -> etag == null || etag == sentEtag } }
             ?.let { copyInto(part, from = it.first, byteCount = it.length, file = expected, onProgress) }
             ?: run {
-                Log.w(TAG, "range ${header("Content-Range")} refused")
+                Log.w(TAG, "range ${header("Content-Range")} of ${header("ETag")} refused")
                 TransferResult.Unavailable.discarding(part)
             }
 

@@ -515,6 +515,30 @@ class OfflineRegionRepositoryTest {
         }
 
     @Test
+    fun `a process that dies after an accepted restart resumes the new file from its start`() =
+        runTest {
+            val first = pausedRepository(partBytes = 1_000L)
+            val changed = RemoteFile(2_000_000L, "\"monaco-2\"", DATA_DATE)
+            feed.sentFile = changed
+            // The process dies here: the restart is accepted and the part not yet opened.
+            val death = feed.gateRestart()
+            first.resume()
+            runCurrent()
+
+            val afterDeath = FakeRegionFeed()
+            val second = repository(feed = afterDeath)
+            second.resume()
+            runCurrent()
+
+            // A part of the old file beside the record of the new one would be resumed as a range of the new file.
+            assertEquals(
+                RequestedRegionDownload(monaco.fileUrl, files().partFile(monaco.id), changed, heldBytes = 0L),
+                afterDeath.downloads.single(),
+            )
+            death.cancel()
+        }
+
+    @Test
     fun `a restart whose record cannot be written fails as storage`() =
         runTest {
             val repository = pausedRepository()

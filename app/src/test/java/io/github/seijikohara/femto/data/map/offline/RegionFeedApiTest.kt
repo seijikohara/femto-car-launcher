@@ -89,7 +89,7 @@ class RegionFeedApiTest {
     fun `a resume sends the etag back exactly as the server sent it`() =
         runTest {
             val part = partHolding(FILE_BYTES.copyOf(5))
-            server.enqueue(rangeResponse("bytes 5-9/10", FILE_BYTES.copyOfRange(5, 10)))
+            server.enqueue(rangeResponse("bytes 5-9/10", FILE_BYTES.copyOfRange(5, 10), etag = WEAK_ETAG))
 
             downloadInto(part, expected = FILE.copy(etag = WEAK_ETAG))
 
@@ -248,6 +248,32 @@ class RegionFeedApiTest {
 
             assertEquals(TransferResult.Unavailable, result)
             assertFalse(part.exists())
+        }
+
+    @Test
+    fun `a range of another version is not appended`() =
+        runTest {
+            val part = partHolding(FILE_BYTES.copyOf(5))
+            // A caching proxy that holds two versions of the file answers with a range of the other one.
+            server.enqueue(rangeResponse("bytes 5-9/10", FILE_BYTES.copyOfRange(5, 10), etag = OTHER_VERSION_ETAG))
+
+            val result = downloadInto(part)
+
+            assertEquals(ETAG, server.takeRequest().getHeader("If-Range"))
+            assertEquals(TransferResult.Unavailable, result)
+            assertFalse(part.exists())
+        }
+
+    @Test
+    fun `a range without an etag is judged by its range alone`() =
+        runTest {
+            val part = partHolding(FILE_BYTES.copyOf(5))
+            server.enqueue(rangeResponse("bytes 5-9/10", FILE_BYTES.copyOfRange(5, 10), etag = null))
+
+            val result = downloadInto(part)
+
+            assertEquals(TransferResult.Complete(FILE), result)
+            assertContentEquals(FILE_BYTES, part.readBytes())
         }
 
     @Test
@@ -725,11 +751,12 @@ class RegionFeedApiTest {
     private fun rangeResponse(
         contentRange: String?,
         bytes: ByteArray,
+        etag: String? = ETAG,
     ): MockResponse =
         MockResponse()
             .setResponseCode(206)
             .setBody(Buffer().write(bytes))
-            .setHeader("ETag", ETAG)
+            .apply { etag?.let { setHeader("ETag", it) } }
             .apply { contentRange?.let { setHeader("Content-Range", it) } }
 
     private companion object {
@@ -743,6 +770,7 @@ class RegionFeedApiTest {
         // A character outside tab and 0x20–0x7e: OkHttp throws on it in a request header.
         const val UNSENDABLE_ETAG = "\"é\""
         const val NEW_ETAG = "\"def\""
+        const val OTHER_VERSION_ETAG = "\"xyz\""
         const val INDEX_ETAG = "\"index-1\""
         const val NEW_INDEX_ETAG = "\"index-2\""
 
