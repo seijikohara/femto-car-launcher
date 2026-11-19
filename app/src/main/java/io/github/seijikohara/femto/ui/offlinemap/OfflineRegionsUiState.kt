@@ -43,7 +43,7 @@ internal data class RegionRow(
     val name: String,
     /** Null when the region has no file of its own. */
     val approxBytes: Long?,
-    /** Whether a tap opens the region's sub-regions rather than asking for its offer. */
+    /** Whether a tap opens the region's sub-regions rather than asking for its offer; a saved row opens nothing. */
     val hasChildren: Boolean,
     val saved: Boolean,
     /** The `All of <name>` row that picks the opened region whole. */

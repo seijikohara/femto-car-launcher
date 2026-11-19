@@ -203,7 +203,11 @@ internal class OfflineRegionsViewModel(
     private fun openRegion(regionId: String) =
         navigation.update { nav ->
             val picker = nav.picker
-            val opens = picker?.pendingId == null && picker?.catalogOrNull()?.hasOfferedChildren(regionId) == true
+            // A saved region's file already covers its sub-regions; opening them would offer bytes saved twice.
+            val opens =
+                picker?.pendingId == null &&
+                    !isSaved(regionId) &&
+                    picker?.catalogOrNull()?.hasOfferedChildren(regionId) == true
             if (picker != null && opens) nav.copy(picker = picker.copy(path = picker.path + regionId)) else nav
         }
 

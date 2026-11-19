@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -41,10 +42,14 @@ import io.github.seijikohara.femto.ui.theme.FemtoIcon
 
 private const val SUGGESTION_HEADER_KEY = "__suggestion_header__"
 
+/** The chevron of a row that opens its sub-regions; decorative, so tests find it by this tag. */
+internal const val REGION_PICKER_CHEVRON_TAG = "region-picker-chevron"
+
 /**
  * The region tree, one level at a time, in place of the list. The back arrow goes up a level, and from the root
  * back to the list. A row with sub-regions opens them; a row with a file and none, or the `All of` row, asks what
- * saving it would take. A saved region cannot be asked for again, and while one offer is pending no row takes a tap.
+ * saving it would take. A saved region's row does nothing, sub-regions or not, and while one offer is pending no row
+ * takes a tap.
  */
 @Composable
 internal fun RegionPicker(
@@ -145,9 +150,13 @@ private fun PickerRow(
 ) {
     val action =
         when {
-            pendingId != null -> null
+            // A saved region's file already covers its sub-regions, so its row does nothing.
+            pendingId != null || row.saved -> null
+
             row.hasChildren -> OfflineRegionsAction.OpenRegion(row.id)
-            row.approxBytes != null && !row.saved -> OfflineRegionsAction.PickRegion(row.id)
+
+            row.approxBytes != null -> OfflineRegionsAction.PickRegion(row.id)
+
             else -> null
         }
     SettingRow(
@@ -164,8 +173,8 @@ private fun PickerRow(
                 )
             }
 
-            row.hasChildren -> {
-                TrailingIcon(Lucide.ChevronRight)
+            row.hasChildren && !row.saved -> {
+                TrailingIcon(Lucide.ChevronRight, modifier = Modifier.testTag(REGION_PICKER_CHEVRON_TAG))
             }
         }
     }

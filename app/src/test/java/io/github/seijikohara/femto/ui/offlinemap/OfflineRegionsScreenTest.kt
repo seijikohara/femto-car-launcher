@@ -7,11 +7,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -24,6 +26,7 @@ import io.github.seijikohara.femto.data.map.offline.RegionDownloadFailure
 import io.github.seijikohara.femto.data.map.offline.RegionDownloadPhase
 import io.github.seijikohara.femto.testfixtures.regionDownload
 import io.github.seijikohara.femto.testfixtures.savedRegion
+import io.github.seijikohara.femto.ui.offlinemap.components.REGION_PICKER_CHEVRON_TAG
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
 import io.github.seijikohara.femto.ui.settings.components.MapSection
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -272,6 +275,33 @@ class OfflineRegionsScreenTest {
             listOf(OfflineRegionsAction.PickRegion("germany"), OfflineRegionsAction.Back),
             actions,
         )
+    }
+
+    @Test
+    fun `a saved region with sub-regions says saved, shows no chevron and takes no tap`() {
+        setScreen(
+            OfflineRegionsUiState(
+                loaded = true,
+                picker =
+                    RegionPickerUiState.Level(
+                        parentName = "Europe",
+                        suggestion = null,
+                        rows =
+                            listOf(
+                                RegionRow("germany", "Germany", GERMANY_BYTES, hasChildren = true, saved = true),
+                                RegionRow("poland", "Poland", null, hasChildren = true, saved = false),
+                            ),
+                        pendingId = null,
+                    ),
+            ),
+        )
+
+        rule.onNodeWithText(context.getString(R.string.offline_regions_picker_saved)).assertExists()
+        // Poland's chevron alone: the saved Germany shows none.
+        rule.onAllNodesWithTag(REGION_PICKER_CHEVRON_TAG, useUnmergedTree = true).assertCountEquals(1)
+        rule.onNodeWithText("Germany").assertHasNoClickAction().performClick()
+
+        assertEquals(emptyList(), actions)
     }
 
     @Test

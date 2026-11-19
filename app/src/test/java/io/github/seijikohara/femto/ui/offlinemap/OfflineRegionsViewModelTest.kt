@@ -321,18 +321,26 @@ class OfflineRegionsViewModelTest {
         }
 
     @Test
-    fun `a saved region with sub-regions still opens them`() =
+    fun `a saved region with sub-regions does not open`() =
         runTest(dispatcher) {
             port.state.value =
                 OfflineRegionsState(loaded = true, saved = listOf(savedRegion("germany", "Germany", GERMANY_BYTES)))
             val vm = pickerOpen()
             vm.onAction(OfflineRegionsAction.OpenRegion("europe"))
+            advanceUntilIdle()
+            assertTrue(
+                vm
+                    .level()
+                    .rows
+                    .single { it.id == "germany" }
+                    .saved,
+            )
+
             vm.onAction(OfflineRegionsAction.OpenRegion("germany"))
             advanceUntilIdle()
 
-            val germany = vm.level()
-            assertEquals("Germany", germany.parentName)
-            assertTrue(germany.rows.first().saved)
+            assertEquals("Europe", vm.level().parentName)
+            assertEquals(emptyList(), port.offers)
         }
 
     @Test
