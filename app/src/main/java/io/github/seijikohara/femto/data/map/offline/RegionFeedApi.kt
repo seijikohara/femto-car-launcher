@@ -35,6 +35,9 @@ internal const val DOWNLOAD_PROGRESS_STEP_BYTES = 1024L * 1024
 
 private const val COPY_CHUNK_BYTES = 64 * 1024
 
+// Not among HttpURLConnection's constants.
+private const val HTTP_RANGE_NOT_SATISFIABLE = 416
+
 // Range, Content-Length and the bytes on disk agree only for the bytes as
 // stored; without it OkHttp asks for gzip and inflates the body out of sight.
 private const val IDENTITY_ENCODING = "identity"
@@ -77,7 +80,7 @@ internal class RegionFeedApi(
             val heldBytes = part.length()
             // A part already whole means the process died between the last byte and the rename.
             when {
-                !url.startsWith(hostPrefix) -> TransferResult.Unavailable.discarding(part)
+                !url.startsWith(hostPrefix) -> TransferResult.Unavailable
                 heldBytes > 0 && heldBytes == expected.sizeBytes -> TransferResult.Complete(expected)
                 else -> transfer(url, part, expected, heldBytes, onRestart, onProgress)
             }
@@ -133,12 +136,15 @@ internal class RegionFeedApi(
         if (resumeFrom == null) part.delete()
         return try {
             client.newCall(downloadRequest(url, resumeFrom, expected.etag)).execute().use { response ->
-                // Any status not named here (416, a redirect, a server error) leaves nothing to resume against.
+                // Only an answer that proves the part unusable deletes it. A redirect, a
+                // busy or refusing server says nothing about the part, and one such answer
+                // must not throw away gigabytes that a later resume can still use.
                 when (val code = response.code) {
                     HTTP_PARTIAL -> response.appendRange(part, expected, resumeFrom, onProgress)
                     HTTP_OK -> response.replaceWhole(part, expected, heldBytes, onRestart, onProgress)
                     HTTP_NOT_FOUND, HTTP_GONE -> TransferResult.Gone.discarding(part)
-                    else -> TransferResult.Unavailable.discarding(part).also { Log.w(TAG, "download HTTP $code") }
+                    HTTP_RANGE_NOT_SATISFIABLE -> TransferResult.Unavailable.discarding(part)
+                    else -> TransferResult.Unavailable.also { Log.w(TAG, "download HTTP $code; part kept") }
                 }
             }
         } catch (e: IOException) {

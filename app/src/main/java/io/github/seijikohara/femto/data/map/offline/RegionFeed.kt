@@ -58,7 +58,7 @@ internal sealed interface TransferResult {
     /** 404 or 410; the part is gone. */
     data object Gone : TransferResult
 
-    /** A redirect, an unexpected status or range; the part is gone. */
+    /** A redirect or an unexpected status: the part is kept. A range that no longer matches: the part is gone. */
     data object Unavailable : TransferResult
 }
 

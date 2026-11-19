@@ -349,7 +349,7 @@ class RegionFeedApiTest {
         }
 
     @Test
-    fun `a redirect is not followed`() =
+    fun `a redirect is not followed and keeps the part`() =
         runTest {
             val part = partHolding(FILE_BYTES.copyOf(5))
             server.enqueue(MockResponse().setResponseCode(302).setHeader("Location", "/elsewhere/monaco.mbtiles"))
@@ -359,23 +359,25 @@ class RegionFeedApiTest {
 
             assertEquals(TransferResult.Unavailable, result)
             assertEquals(1, server.requestCount)
-            assertFalse(part.exists())
+            assertContentEquals(FILE_BYTES.copyOf(5), part.readBytes())
         }
 
     @Test
-    fun `another status is unavailable and the part is deleted`() =
+    fun `a server error keeps the part`() =
         runTest {
-            val part = partHolding(FILE_BYTES.copyOf(5))
-            server.enqueue(MockResponse().setResponseCode(503))
+            val outcomes =
+                PART_KEEPING_CODES.map { code ->
+                    val part = partHolding(FILE_BYTES.copyOf(5))
+                    server.enqueue(MockResponse().setResponseCode(code))
+                    downloadInto(part) to part.readBytes().toList()
+                }
 
-            val result = downloadInto(part)
-
-            assertEquals(TransferResult.Unavailable, result)
-            assertFalse(part.exists())
+            val kept = TransferResult.Unavailable to FILE_BYTES.copyOf(5).toList()
+            assertEquals(List(PART_KEEPING_CODES.size) { kept }, outcomes)
         }
 
     @Test
-    fun `a url on another host is refused without a request`() =
+    fun `a url on another host is refused without a request and keeps the part`() =
         runTest {
             val part = partHolding(FILE_BYTES.copyOf(5))
             val api = newApi()
@@ -397,7 +399,7 @@ class RegionFeedApiTest {
                 Triple(probe, transfer, index),
             )
             assertEquals(0, server.requestCount)
-            assertFalse(part.exists())
+            assertContentEquals(FILE_BYTES.copyOf(5), part.readBytes())
         }
 
     @Test
@@ -695,6 +697,9 @@ class RegionFeedApiTest {
         val MODIFIED_EPOCH_MS = Instant.parse("2026-11-18T21:14:02Z").toEpochMilli()
 
         val GONE_CODES = listOf(404, 410)
+
+        // Answers that say nothing about the part: a busy, rate-limiting or refusing server.
+        val PART_KEEPING_CODES = listOf(503, 429, 403)
 
         // No header, an unknown total, no total, a total past Long, an end before the start.
         val UNREADABLE_RANGES =
