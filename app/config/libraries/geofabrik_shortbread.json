@@ -1,7 +1,7 @@
 {
   "uniqueId": "de.geofabrik:shortbread-tiles",
   "name": "Geofabrik Shortbread vector tiles",
-  "description": "OpenStreetMap extracts as vector tiles in the Shortbread schema (download.geofabrik.de). The nightly build bundles a few of these tiles as samples for its tile conversion benchmark. © OpenStreetMap contributors.",
+  "description": "OpenStreetMap extracts as vector tiles in the Shortbread schema (download.geofabrik.de). Map regions saved on the device are these files, and the list of regions comes from the same server. The nightly build also bundles a few of the tiles as samples for its tile conversion benchmark. © OpenStreetMap contributors.",
   "website": "https://download.geofabrik.de/",
   "developers": [
     {

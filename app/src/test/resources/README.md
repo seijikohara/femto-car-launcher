@@ -22,3 +22,12 @@ The seven were picked so that together they exercise nearly every branch of the 
 **Provenance.** Tiles from the Cyprus and Shikoku extracts on `download.geofabrik.de` (`*-shortbread-1.0.mbtiles`, fetched 2026-11-17), unmodified. © OpenStreetMap contributors, available under the Open Database License. The expected conversions came from the prototype converter that the Kotlin one was ported from; `ShortbreadConverterGoldenTest` pins them.
 
 Regenerate the expected files only when a conversion rule changes on purpose: run `ShortbreadConverterGoldenTest` with the environment variable `FEMTO_UPDATE_GOLDENS=1`. The test rewrites the `*.omt.mvt.gz` files and then fails, so a regenerated file never passes unnoticed.
+
+## `offlinemap/regions/` — the region list for the saved-regions tests
+
+- `region-index-sample.json` has the shape of Geofabrik's region index (`https://download.geofabrik.de/index-v1.json`): a GeoJSON `FeatureCollection` whose features carry `id`, `parent`, `name` and `urls`, with a `MultiPolygon` each. It holds 22 of the 554 regions, picked for the cases the catalogue has to handle: roots, countries that exist only as sub-regions (Japan, Germany, Poland), a region with a file whose sub-regions have none (Bayern, California), ids with a slash whose `name` repeats the id and whose `parent` skips a level (`us/california`, `us/nevada`), a name with markup (`dolnoslaskie`), a region made of several polygons (Kantō), and a subtree with no file at all (Canada).
+- `shortbread-regions-sample.json` has the shape of the committed snapshot `app/src/main/assets/map/offline/shortbread-regions.json`: the ids among those 22 that have a Shortbread file, with the file's size in bytes.
+
+**Provenance.** The `properties` are copied unchanged from the index as fetched on 2026-11-19. The geometry is not Geofabrik's: every ring is replaced by its bounding box, which keeps the nesting (polygons, rings, `[longitude, latitude]` positions) and makes containment answers easy to read in a test. The sizes are the ones `scripts/update-shortbread-regions.mjs` recorded on the same day.
+
+Regenerate only when the index changes shape. The tests pin names, parents and sizes from these files, so a regenerated fixture needs its expectations revisited.
