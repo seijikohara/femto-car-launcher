@@ -81,7 +81,7 @@ internal data class OfflineRegionsState(
 internal sealed interface RegionCatalogResult {
     data class Loaded(
         val catalog: RegionCatalog,
-        /** The smallest region with a file around the position, unless it is saved. */
+        /** The smallest region with a file around the position, unless it or a region above it is saved. */
         val suggestedId: String?,
     ) : RegionCatalogResult
 
@@ -175,7 +175,8 @@ internal class OfflineRegionRepository internal constructor(
 
     /**
      * Fetch the region index, revalidated against the cached copy, which stands in when the host does not answer.
-     * The suggestion is the smallest region with a file around the position, unless that region is saved.
+     * The suggestion is the smallest region with a file around the position, unless that region or one above it is
+     * saved.
      */
     suspend fun catalog(
         longitude: Double?,
@@ -298,8 +299,16 @@ internal class OfflineRegionRepository internal constructor(
         latitude: Double?,
     ): String? =
         when {
-            longitude == null || latitude == null -> null
-            else -> smallestContainingOrNull(longitude, latitude)?.id?.takeUnless(::isSaved)
+            longitude == null || latitude == null -> {
+                null
+            }
+
+            // A saved region's file covers its sub-regions, which the picker does not open either.
+            else -> {
+                smallestContainingOrNull(longitude, latitude)
+                    ?.takeUnless { region -> lineageOf(region).any { isSaved(it.id) } }
+                    ?.id
+            }
         }
 
     private suspend fun offerFor(

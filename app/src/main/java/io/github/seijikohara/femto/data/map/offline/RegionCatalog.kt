@@ -40,7 +40,7 @@ private val LineBreakTag = Regex("<br\\s*/?>", RegexOption.IGNORE_CASE)
 private val AnyTag = Regex("<[^>]*>")
 private val Whitespace = Regex("\\s+")
 
-private val json = Json { ignoreUnknownKeys = true }
+private val IndexJson = Json { ignoreUnknownKeys = true }
 
 internal data class CatalogRegion(
     val id: String,
@@ -61,7 +61,7 @@ internal class RegionCatalog(
     private val offeredIds: Set<String> =
         regions
             .filter { it.approxBytes != null }
-            .flatMap { region -> generateSequence(region) { byId[it.parentId] }.take(byId.size).map { it.id }.toList() }
+            .flatMap { region -> lineageOf(region).map { it.id }.toList() }
             .toSet()
 
     private val offeredChildren: Map<String?, List<CatalogRegion>> =
@@ -73,6 +73,10 @@ internal class RegionCatalog(
     private val withFile = regions.filter { it.approxBytes != null }
 
     fun regionOrNull(id: String): CatalogRegion? = byId[id]
+
+    /** [region] and the regions above it, nearest first; bounded by the catalogue's size, so no walk runs forever. */
+    fun lineageOf(region: CatalogRegion): Sequence<CatalogRegion> =
+        generateSequence(region) { byId[it.parentId] }.take(byId.size)
 
     fun childrenOf(parentId: String?): List<CatalogRegion> = offeredChildren[parentId].orEmpty()
 
@@ -242,7 +246,7 @@ private fun catalogOf(
 
 private inline fun <reified T> decodeOrNull(input: InputStream): T? =
     try {
-        json.decodeFromStream<T>(input)
+        IndexJson.decodeFromStream<T>(input)
     } catch (_: SerializationException) {
         null
     } catch (_: IllegalArgumentException) {

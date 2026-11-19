@@ -908,6 +908,17 @@ class OfflineRegionRepositoryTest {
         }
 
     @Test
+    fun `the suggestion skips a region under a saved region`() =
+        runTest {
+            // Kantō lies in Japan: the saved file of Japan covers it, and the picker does not open Japan either.
+            seedSaved(catalog.region("japan"), 1_000L)
+
+            val result = repository().catalog(longitude = 139.76, latitude = 35.68)
+
+            assertNull(assertIs<RegionCatalogResult.Loaded>(result).suggestedId)
+        }
+
+    @Test
     fun `a position that is not known gives no suggestion`() =
         runTest {
             val result = repository().catalog(longitude = null, latitude = null)
