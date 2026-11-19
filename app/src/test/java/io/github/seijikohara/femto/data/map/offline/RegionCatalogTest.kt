@@ -148,9 +148,9 @@ class RegionCatalogTest {
     fun `a ring with fewer than four positions is ignored`() {
         val catalog =
             catalogOf(
-                feature(id = "a", geometry = """{"type":"MultiPolygon","coordinates":[[[[0,0],[10,0],[0,0]]]]}"""),
+                feature(id = "a", geometry = """{"type":"MultiPolygon","coordinates":[[[[0,0],[10,0],[5,10]]]]}"""),
             )
-        assertNull(catalog.smallestContainingOrNull(1.0, 0.5))
+        assertNull(catalog.smallestContainingOrNull(5.0, 5.0))
     }
 
     @Test
