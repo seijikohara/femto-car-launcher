@@ -127,8 +127,8 @@ class TileConversionBenchmarkTest {
 
     @Test
     fun `a sample file name gives the name and the zoom`() {
-        val sample = benchmarkSampleOrNull("kanto-14-14552-6451.sb.mvt.gz", byteArrayOf(1))
-        assertEquals("kanto-14-14552-6451", sample?.name)
+        val sample = benchmarkSampleOrNull("kanto-14-14553-6450.sb.mvt.gzip", byteArrayOf(1))
+        assertEquals("kanto-14-14553-6450", sample?.name)
         assertEquals(14, sample?.zoom)
         assertNull(benchmarkSampleOrNull("NOTICE.txt", byteArrayOf(1)))
     }

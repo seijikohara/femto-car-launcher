@@ -12,7 +12,10 @@ internal const val TILE_BENCHMARK_WARM_RUNS = 15
 internal const val TILE_BENCHMARK_PARALLEL_ROUNDS = 5
 
 private const val NANOS_PER_MS = 1_000_000.0
-internal const val TILE_SAMPLE_SUFFIX = ".sb.mvt.gz"
+
+// Not `.gz`: the Android asset merger gunzips every `*.gz` asset and drops the extension, and the benchmark has
+// to time the stored, gzip-compressed form a real request reads.
+internal const val TILE_SAMPLE_SUFFIX = ".sb.mvt.gzip"
 private val SampleFileName = Regex("""(.+)-(\d+)-\d+-\d+""")
 
 internal class BenchmarkSample(
@@ -171,7 +174,7 @@ internal suspend fun runAndRecordTileBenchmark(
     }
 }
 
-/** Parse `<region>-<z>-<x>-<y>.sb.mvt.gz`; null for any other file (the notice text). */
+/** Parse `<region>-<z>-<x>-<y>.sb.mvt.gzip`; null for any other file (the notice text). */
 internal fun benchmarkSampleOrNull(
     fileName: String,
     tile: ByteArray,
