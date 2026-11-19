@@ -1,7 +1,9 @@
 package io.github.seijikohara.femto.data.map.offline
 
 import android.content.Context
+import android.os.storage.StorageManager
 import android.util.Log
+import androidx.core.content.getSystemService
 import io.github.seijikohara.femto.data.common.femtoUserAgent
 import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.map.offline.RegionDownloadFailure.CORRUPT
@@ -431,7 +433,7 @@ internal class OfflineRegionRepository internal constructor(
         // Outside the lock: a cancel takes it, stops this transfer at the end of the check, and nothing is committed.
         val usable = withContext(ioDispatcher) { check.isUsable(files.partFile(record.id), record.sizeBytes) }
         lock.withLock {
-            val committed = usable && withContext(ioDispatcher) { files.commit(record.saved(clock())) }
+            val committed = usable && withContext(ioDispatcher) { files.commit(record.toSavedRecord(clock())) }
             when {
                 committed -> {
                     pendingRecord = null
@@ -506,8 +508,14 @@ internal class OfflineRegionRepository internal constructor(
             val display = DisplayPreferences(app)
             // Read once, on first use and off the caller's thread: the snapshot ships with the app.
             val snapshotSizes by lazy { snapshotSizesOf(app) }
+            val noBackupDir = app.noBackupFilesDir
+            val storage = app.getSystemService<StorageManager>()
             return OfflineRegionRepository(
-                files = OfflineRegionFiles(File(app.noBackupFilesDir, ROOT_DIR)),
+                files =
+                    OfflineRegionFiles(
+                        root = File(noBackupDir, ROOT_DIR),
+                        usableBytes = { storage?.allocatableBytesOrZero(noBackupDir) ?: 0L },
+                    ),
                 feed = RegionFeedApi(regionHttpClient(), femtoUserAgent),
                 check = SqliteRegionFileCheck,
                 limit = { display.settings.first().offlineStorageLimit },
@@ -524,6 +532,15 @@ internal class OfflineRegionRepository internal constructor(
                 .orEmpty()
     }
 }
+
+// Counts the cached data the system can clear as well, which is the answer to "is there room for this download".
+// The no-backup directory always exists, so its volume is found without walking up to an existing ancestor.
+private fun StorageManager.allocatableBytesOrZero(dir: File): Long =
+    try {
+        getAllocatableBytes(getUuidForPath(dir))
+    } catch (_: IOException) {
+        0L
+    }
 
 private fun File.textOrNull(): String? = runCatching { readText() }.getOrNull()?.takeIf { it.isNotEmpty() }
 
@@ -543,18 +560,6 @@ private fun PendingDownloadRecord.remoteFile(): RemoteFile = RemoteFile(sizeByte
 // The download answer is the authority: the record takes the size, ETag and date of the file it brought.
 private fun PendingDownloadRecord.forFile(file: RemoteFile): PendingDownloadRecord =
     copy(sizeBytes = file.sizeBytes, etag = file.etag, lastModifiedEpochMs = file.lastModifiedEpochMs)
-
-private fun PendingDownloadRecord.saved(atEpochMs: Long): SavedRegionRecord =
-    SavedRegionRecord(
-        id = id,
-        name = name,
-        url = url,
-        sizeBytes = sizeBytes,
-        etag = etag,
-        lastModifiedEpochMs = lastModifiedEpochMs,
-        savedAtEpochMs = atEpochMs,
-        polygon = polygon,
-    )
 
 private fun PendingDownloadRecord.download(
     receivedBytes: Long,

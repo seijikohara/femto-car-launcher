@@ -221,6 +221,25 @@ class OfflineRegionRepositoryTest {
             assertNull(repository.state.value.download)
         }
 
+    @Test
+    fun `a restart after the record was written shows the region saved and no download`() =
+        runTest {
+            files().partFile(monaco.id).resizeSparse(monacoFile.sizeBytes)
+            assertTrue(files().commit(savedRegionRecord(monaco, monacoFile, SAVED_AT)))
+            // The commit stopped before its last step: the pending record of the same file is still on disk.
+            assertTrue(files().writePending(pendingDownloadRecord(monaco, monacoFile)))
+            val repository = repository()
+
+            repository.load()
+
+            assertEquals(
+                listOf("monaco"),
+                repository.state.value.saved
+                    .map { it.id },
+            )
+            assertNull(repository.state.value.download)
+        }
+
     // --- the download -------------------------------------------------------
 
     @Test
