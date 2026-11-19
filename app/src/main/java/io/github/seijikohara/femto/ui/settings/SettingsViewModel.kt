@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.calendar.CalendarCatalog
 import io.github.seijikohara.femto.data.calendar.CalendarCatalogState
 import io.github.seijikohara.femto.data.calendar.CalendarPreferences
@@ -116,6 +117,9 @@ internal class SettingsViewModel(
     private val motion: Flow<VehicleMotion>,
     private val videoPreferences: VideoSettingsStore,
     private val videoGrants: VideoSourceGrants,
+    // Whether the build offers the Saved map regions sheet; the factory reads it
+    // from resources, tests set it.
+    private val offlineRegionsAvailable: Boolean,
     // The video grants cross into the document's provider, a Binder call that
     // can block; tests pass their own dispatcher.
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -297,8 +301,18 @@ internal class SettingsViewModel(
             updates,
             video,
         ) { state, export, statusVisible, update, videoRows ->
-            state.copy(trackExport = export, dockStatusVisible = statusVisible, updates = update, video = videoRows)
-        }.stateIn(viewModelScope, WhileUiSubscribed, SettingsUiState.Initial)
+            state.copy(
+                trackExport = export,
+                dockStatusVisible = statusVisible,
+                updates = update,
+                video = videoRows,
+                offlineRegionsAvailable = offlineRegionsAvailable,
+            )
+        }.stateIn(
+            viewModelScope,
+            WhileUiSubscribed,
+            SettingsUiState.Initial.copy(offlineRegionsAvailable = offlineRegionsAvailable),
+        )
 
     fun onAction(action: SettingsAction) {
         // Each branch is a single suspending write; launch once and dispatch.
@@ -775,6 +789,7 @@ internal class SettingsViewModelFactory(
             motion = locationGraph.vehicleMotion(),
             videoPreferences = VideoPreferences(application),
             videoGrants = ContentResolverVideoSourceGrants(application),
+            offlineRegionsAvailable = application.resources.getBoolean(R.bool.offline_regions_enabled),
         ) as T
     }
 

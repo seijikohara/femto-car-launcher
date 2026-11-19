@@ -19,6 +19,11 @@ class SettingsSectionIdTest {
     }
 
     @Test
+    fun `the Map section owns the offline storage limit so Reset Map clears it`() {
+        assertTrue(DisplayPreferences.OFFLINE_STORAGE_LIMIT_KEY in SettingsSectionId.MAP.displayKeys)
+    }
+
+    @Test
     fun `no DisplayPreferences key is owned by more than one section`() {
         val allAssignments = SettingsSectionId.entries.flatMap { section -> section.displayKeys.map { it to section } }
         val ownersByKey = allAssignments.groupBy({ it.first }, { it.second })

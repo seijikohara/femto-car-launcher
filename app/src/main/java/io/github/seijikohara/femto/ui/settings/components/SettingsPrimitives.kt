@@ -52,10 +52,10 @@ import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import kotlin.math.roundToInt
 
 // Shared back-arrow icon size: the screen-level Header (back to the
-// dashboard) and SettingsCategoryDetail's narrow-mode back arrow (back to the
-// category list) both use it, so the two back affordances read as the same
-// control at a glance.
-private val BackIconSize = 28.dp
+// dashboard), SettingsCategoryDetail's narrow-mode back arrow (back to the
+// category list) and the saved-regions picker's back arrow all use it, so the
+// back affordances read as the same control at a glance.
+internal val BackIconSize = 28.dp
 
 // SettingRow's inset from the card's edge. Internal, so that content a section
 // draws under a row (the Updates section's progress bar) lines up with the
@@ -242,8 +242,10 @@ internal fun <T> ChoiceRow(
     }
 }
 
+// Internal so a screen whose ViewModel decides when the choice opens (the
+// saved-regions storage limit) shows the same dialog as ChoiceRow.
 @Composable
-private fun <T> ChoiceDialog(
+internal fun <T> ChoiceDialog(
     title: String,
     options: List<Pair<T, String>>,
     selected: T,
@@ -278,7 +280,7 @@ private fun <T> ChoiceDialog(
     // no confirm action — only Cancel.
     confirmButton = {},
     dismissButton = {
-        TextButton(onClick = onDismiss) {
+        TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget)) {
             Text(text = stringResource(R.string.settings_cancel))
         }
     },

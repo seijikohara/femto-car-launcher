@@ -1,0 +1,15 @@
+{
+  "generated": "2026-11-19",
+  "source": "https://download.geofabrik.de/index-v1-nogeom.json",
+  "regions": {
+    "bayern": 1043341312,
+    "berlin": 49217536,
+    "cyprus": 32321536,
+    "dolnoslaskie": 246747136,
+    "kanto": 862351360,
+    "monaco": 1728512,
+    "shikoku": 140623872,
+    "us/california": 852045824,
+    "us/nevada": 207106048
+  }
+}

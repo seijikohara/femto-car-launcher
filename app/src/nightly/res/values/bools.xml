@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Overrides for the nightly channel only; see src/main/res/values/bools.xml. -->
+<resources>
+    <bool name="offline_regions_enabled">true</bool>
+</resources>

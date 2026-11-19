@@ -50,6 +50,7 @@ internal fun MapSection(
     uiState: SettingsUiState,
     onAction: (SettingsAction) -> Unit,
     onOpenDocument: (SettingsDocument) -> Unit,
+    onOpenOfflineRegions: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showGoogleKeyDialog by remember { mutableStateOf(false) }
@@ -168,6 +169,17 @@ internal fun MapSection(
                     modifier = Modifier.clickable { showTileHostDialog = true },
                 ) {
                     TrailingIcon(Lucide.ChevronRight)
+                }
+                // Saved regions are OpenStreetMap data, so the row sits with the
+                // OpenStreetMap rows, and only in a build that carries the sheet.
+                if (uiState.offlineRegionsAvailable) {
+                    SettingRow(
+                        title = stringResource(R.string.settings_map_offline_regions),
+                        summary = stringResource(R.string.settings_map_offline_regions_summary),
+                        modifier = Modifier.clickable(onClick = onOpenOfflineRegions),
+                    ) {
+                        TrailingIcon(Lucide.ChevronRight)
+                    }
                 }
             }
         }

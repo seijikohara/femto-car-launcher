@@ -1,0 +1,1132 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "europe",
+    "name": "Europe",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/europe-latest.osm.pbf",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/europe-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/europe-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/europe",
+     "updates": "https://download.geofabrik.de/europe-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        -32.683233,
+        29.635548
+       ],
+       [
+        46.75348,
+        29.635548
+       ],
+       [
+        46.75348,
+        81.47299
+       ],
+       [
+        -32.683233,
+        81.47299
+       ],
+       [
+        -32.683233,
+        29.635548
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "asia",
+    "name": "Asia",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/asia-latest.osm.pbf",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/asia-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/asia-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/asia",
+     "updates": "https://download.geofabrik.de/asia-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        -180.0,
+        58.1
+       ],
+       [
+        -168.25,
+        58.1
+       ],
+       [
+        -168.25,
+        77.7
+       ],
+       [
+        -180.0,
+        77.7
+       ],
+       [
+        -180.0,
+        58.1
+       ]
+      ]
+     ],
+     [
+      [
+       [
+        31.60401,
+        -13.01165
+       ],
+       [
+        180.0,
+        -13.01165
+       ],
+       [
+        180.0,
+        84.52666
+       ],
+       [
+        31.60401,
+        84.52666
+       ],
+       [
+        31.60401,
+        -13.01165
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "north-america",
+    "name": "North America",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/north-america-latest.osm.pbf",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/north-america-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/north-america",
+     "updates": "https://download.geofabrik.de/north-america-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        -180.0,
+        5.57228
+       ],
+       [
+        -5.198412,
+        5.57228
+       ],
+       [
+        -5.198412,
+        85.04177
+       ],
+       [
+        -180.0,
+        85.04177
+       ],
+       [
+        -180.0,
+        5.57228
+       ]
+      ]
+     ],
+     [
+      [
+       [
+        170.903298,
+        50.021873
+       ],
+       [
+        180.0,
+        50.021873
+       ],
+       [
+        180.0,
+        56.309896
+       ],
+       [
+        170.903298,
+        56.309896
+       ],
+       [
+        170.903298,
+        50.021873
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "monaco",
+    "parent": "europe",
+    "iso3166-1:alpha2": [
+     "MC"
+    ],
+    "name": "Monaco",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/europe/monaco-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/europe/monaco-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/monaco-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/europe/monaco-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/europe:monaco",
+     "updates": "https://download.geofabrik.de/europe/monaco-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        7.408583,
+        43.48382
+       ],
+       [
+        7.595671,
+        43.48382
+       ],
+       [
+        7.595671,
+        43.75293
+       ],
+       [
+        7.408583,
+        43.75293
+       ],
+       [
+        7.408583,
+        43.48382
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "cyprus",
+    "parent": "europe",
+    "iso3166-1:alpha2": [
+     "CY"
+    ],
+    "name": "Cyprus",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/europe/cyprus-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/europe/cyprus-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/cyprus-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/europe/cyprus-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/europe:cyprus",
+     "updates": "https://download.geofabrik.de/europe/cyprus-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        31.95244,
+        34.23374
+       ],
+       [
+        34.96147,
+        34.23374
+       ],
+       [
+        34.96147,
+        36.00323
+       ],
+       [
+        31.95244,
+        36.00323
+       ],
+       [
+        31.95244,
+        34.23374
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "germany",
+    "parent": "europe",
+    "iso3166-1:alpha2": [
+     "DE"
+    ],
+    "name": "Germany",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/europe/germany-latest.osm.pbf",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/germany-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/europe/germany-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/europe:germany",
+     "updates": "https://download.geofabrik.de/europe/germany-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        5.864417,
+        47.26543
+       ],
+       [
+        15.05078,
+        47.26543
+       ],
+       [
+        15.05078,
+        55.14777
+       ],
+       [
+        5.864417,
+        55.14777
+       ],
+       [
+        5.864417,
+        47.26543
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "bayern",
+    "parent": "germany",
+    "name": "Bayern",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/europe/germany/bayern-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/europe/germany/bayern-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/germany/bayern-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/europe/germany/bayern-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/europe:germany:bayern",
+     "updates": "https://download.geofabrik.de/europe/germany/bayern-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        8.975186,
+        47.26543
+       ],
+       [
+        13.84947,
+        47.26543
+       ],
+       [
+        13.84947,
+        50.56623
+       ],
+       [
+        8.975186,
+        50.56623
+       ],
+       [
+        8.975186,
+        47.26543
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "oberbayern",
+    "parent": "bayern",
+    "name": "Oberbayern",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/europe/germany/bayern/oberbayern-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/europe/germany/bayern/oberbayern-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/germany/bayern/oberbayern-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/europe/germany/bayern/oberbayern-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/europe:germany:bayern:oberbayern",
+     "updates": "https://download.geofabrik.de/europe/germany/bayern/oberbayern-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        10.71268,
+        47.3913
+       ],
+       [
+        13.10973,
+        47.3913
+       ],
+       [
+        13.10973,
+        49.09052
+       ],
+       [
+        10.71268,
+        49.09052
+       ],
+       [
+        10.71268,
+        47.3913
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "berlin",
+    "parent": "germany",
+    "name": "Berlin",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/europe/germany/berlin-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/europe/germany/berlin-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/germany/berlin-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/europe/germany/berlin-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/europe:germany:berlin",
+     "updates": "https://download.geofabrik.de/europe/germany/berlin-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        13.08283,
+        52.33446
+       ],
+       [
+        13.76225,
+        52.33446
+       ],
+       [
+        13.76225,
+        52.6783
+       ],
+       [
+        13.08283,
+        52.6783
+       ],
+       [
+        13.08283,
+        52.33446
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "poland",
+    "parent": "europe",
+    "iso3166-1:alpha2": [
+     "PL"
+    ],
+    "name": "Poland",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/europe/poland-latest.osm.pbf",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/poland-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/europe/poland-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/europe:poland",
+     "updates": "https://download.geofabrik.de/europe/poland-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        13.99022,
+        48.98642
+       ],
+       [
+        24.16102,
+        48.98642
+       ],
+       [
+        24.16102,
+        55.22826
+       ],
+       [
+        13.99022,
+        55.22826
+       ],
+       [
+        13.99022,
+        48.98642
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "dolnoslaskie",
+    "parent": "poland",
+    "name": "Województwo dolnośląskie<br />(Lower Silesian Voivodeship)",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/europe/poland/dolnoslaskie-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/europe/poland/dolnoslaskie-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/poland/dolnoslaskie-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/europe/poland/dolnoslaskie-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/europe:poland:dolnoslaskie",
+     "updates": "https://download.geofabrik.de/europe/poland/dolnoslaskie-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        14.80839,
+        50.08251
+       ],
+       [
+        17.80584,
+        50.08251
+       ],
+       [
+        17.80584,
+        51.81417
+       ],
+       [
+        14.80839,
+        51.81417
+       ],
+       [
+        14.80839,
+        50.08251
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "dach",
+    "parent": "europe",
+    "name": "Germany, Austria, Switzerland",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/europe/dach-latest.osm.pbf",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/dach-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/europe/dach-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/europe:dach",
+     "updates": "https://download.geofabrik.de/europe/dach-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        5.864417,
+        45.81617
+       ],
+       [
+        17.16273,
+        45.81617
+       ],
+       [
+        17.16273,
+        55.14777
+       ],
+       [
+        5.864417,
+        55.14777
+       ],
+       [
+        5.864417,
+        45.81617
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "japan",
+    "parent": "asia",
+    "iso3166-1:alpha2": [
+     "JP"
+    ],
+    "name": "Japan",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/asia/japan-latest.osm.pbf",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/asia/japan-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/asia/japan-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/asia:japan",
+     "updates": "https://download.geofabrik.de/asia/japan-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        122.5607,
+        20.08228
+       ],
+       [
+        154.4709,
+        20.08228
+       ],
+       [
+        154.4709,
+        45.8154
+       ],
+       [
+        122.5607,
+        45.8154
+       ],
+       [
+        122.5607,
+        20.08228
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "kanto",
+    "parent": "japan",
+    "name": "Kantō region",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/asia/japan/kanto-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/asia/japan/kanto-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/asia/japan/kanto-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/asia/japan/kanto-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/asia:japan:kanto",
+     "updates": "https://download.geofabrik.de/asia/japan/kanto-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        135.8525,
+        20.21338
+       ],
+       [
+        136.3236,
+        20.21338
+       ],
+       [
+        136.3236,
+        20.63032
+       ],
+       [
+        135.8525,
+        20.63032
+       ],
+       [
+        135.8525,
+        20.21338
+       ]
+      ]
+     ],
+     [
+      [
+       [
+        153.7509,
+        24.07627
+       ],
+       [
+        154.2068,
+        24.07627
+       ],
+       [
+        154.2068,
+        24.49142
+       ],
+       [
+        153.7509,
+        24.49142
+       ],
+       [
+        153.7509,
+        24.07627
+       ]
+      ]
+     ],
+     [
+      [
+       [
+        134.5757,
+        20.08228
+       ],
+       [
+        154.4709,
+        20.08228
+       ],
+       [
+        154.4709,
+        37.15988
+       ],
+       [
+        134.5757,
+        37.15988
+       ],
+       [
+        134.5757,
+        20.08228
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "shikoku",
+    "parent": "japan",
+    "name": "Shikoku",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/asia/japan/shikoku-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/asia/japan/shikoku-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/asia/japan/shikoku-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/asia/japan/shikoku-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/asia:japan:shikoku",
+     "updates": "https://download.geofabrik.de/asia/japan/shikoku-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        131.7698,
+        32.22959
+       ],
+       [
+        135.1794,
+        32.22959
+       ],
+       [
+        135.1794,
+        34.65151
+       ],
+       [
+        131.7698,
+        34.65151
+       ],
+       [
+        131.7698,
+        32.22959
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "us",
+    "parent": "north-america",
+    "iso3166-1:alpha2": [
+     "US"
+    ],
+    "name": "United States of America",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/north-america/us-latest.osm.pbf",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/us-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/north-america/us-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/north-america:us",
+     "updates": "https://download.geofabrik.de/north-america/us-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        -180.0,
+        15.92097
+       ],
+       [
+        -66.87576,
+        15.92097
+       ],
+       [
+        -66.87576,
+        72.98845
+       ],
+       [
+        -180.0,
+        72.98845
+       ],
+       [
+        -180.0,
+        15.92097
+       ]
+      ]
+     ],
+     [
+      [
+       [
+        170.9033,
+        50.02187
+       ],
+       [
+        180.0,
+        50.02187
+       ],
+       [
+        180.0,
+        56.3099
+       ],
+       [
+        170.9033,
+        56.3099
+       ],
+       [
+        170.9033,
+        50.02187
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "us/california",
+    "parent": "north-america",
+    "iso3166-2": [
+     "US-CA"
+    ],
+    "name": "us/california",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/north-america/us/california-latest.osm.pbf",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/us/california-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/north-america/us/california-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/north-america:us:california",
+     "updates": "https://download.geofabrik.de/north-america/us/california-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        -125.8935,
+        32.48171
+       ],
+       [
+        -114.1291,
+        32.48171
+       ],
+       [
+        -114.1291,
+        42.01618
+       ],
+       [
+        -125.8935,
+        42.01618
+       ],
+       [
+        -125.8935,
+        32.48171
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "norcal",
+    "parent": "us/california",
+    "name": "Northern California",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/north-america/us/california/norcal-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/north-america/us/california/norcal-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/us/california/norcal-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/north-america/us/california/norcal-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/north-america:us:california:norcal",
+     "updates": "https://download.geofabrik.de/north-america/us/california/norcal-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        -125.8935,
+        35.78528
+       ],
+       [
+        -115.6468,
+        35.78528
+       ],
+       [
+        -115.6468,
+        42.01618
+       ],
+       [
+        -125.8935,
+        42.01618
+       ],
+       [
+        -125.8935,
+        35.78528
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "socal",
+    "parent": "us/california",
+    "name": "Southern California",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/north-america/us/california/socal-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/north-america/us/california/socal-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/us/california/socal-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/north-america/us/california/socal-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/north-america:us:california:socal",
+     "updates": "https://download.geofabrik.de/north-america/us/california/socal-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        -121.4401,
+        32.48438
+       ],
+       [
+        -114.1291,
+        32.48438
+       ],
+       [
+        -114.1291,
+        35.81055
+       ],
+       [
+        -121.4401,
+        35.81055
+       ],
+       [
+        -121.4401,
+        32.48438
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "us/nevada",
+    "parent": "north-america",
+    "iso3166-2": [
+     "US-NV"
+    ],
+    "name": "us/nevada",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/north-america/us/nevada-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/north-america/us/nevada-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/us/nevada-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/north-america/us/nevada-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/north-america:us:nevada",
+     "updates": "https://download.geofabrik.de/north-america/us/nevada-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        -120.0074,
+        35.00053
+       ],
+       [
+        -114.0379,
+        35.00053
+       ],
+       [
+        -114.0379,
+        42.00391
+       ],
+       [
+        -120.0074,
+        42.00391
+       ],
+       [
+        -120.0074,
+        35.00053
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "canada",
+    "parent": "north-america",
+    "iso3166-1:alpha2": [
+     "CA"
+    ],
+    "name": "Canada",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/north-america/canada-latest.osm.pbf",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/canada-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/north-america/canada-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/north-america:canada",
+     "updates": "https://download.geofabrik.de/north-america/canada-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        -141.7761,
+        41.66009
+       ],
+       [
+        -44.17684,
+        41.66009
+       ],
+       [
+        -44.17684,
+        85.04032
+       ],
+       [
+        -141.7761,
+        85.04032
+       ],
+       [
+        -141.7761,
+        41.66009
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "alberta",
+    "parent": "canada",
+    "iso3166-2": [
+     "CA-AB"
+    ],
+    "name": "Alberta",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/north-america/canada/alberta-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/north-america/canada/alberta-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/canada/alberta-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/north-america/canada/alberta-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/north-america:canada:alberta",
+     "updates": "https://download.geofabrik.de/north-america/canada/alberta-updates"
+    }
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        -120.0043,
+        48.99251
+       ],
+       [
+        -110.0018,
+        48.99251
+       ],
+       [
+        -110.0018,
+        60.00254
+       ],
+       [
+        -120.0043,
+        60.00254
+       ],
+       [
+        -120.0043,
+        48.99251
+       ]
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}

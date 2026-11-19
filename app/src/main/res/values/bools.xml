@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Whether Settings offers the Saved map regions sheet. Off in the stable build until the map draws saved
+         regions; the nightly build turns it on (app/src/nightly/res/values/bools.xml). -->
+    <bool name="offline_regions_enabled">false</bool>
+</resources>

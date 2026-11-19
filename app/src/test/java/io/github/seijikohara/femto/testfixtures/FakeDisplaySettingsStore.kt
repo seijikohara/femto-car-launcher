@@ -24,6 +24,7 @@ import io.github.seijikohara.femto.data.display.SpeedUnitSetting
 import io.github.seijikohara.femto.data.display.TemperatureUnitSetting
 import io.github.seijikohara.femto.data.display.ThemeMode
 import io.github.seijikohara.femto.data.display.UiScale
+import io.github.seijikohara.femto.data.map.offline.OfflineStorageLimit
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -148,6 +149,11 @@ internal class FakeDisplaySettingsStore(
     override suspend fun setMapTileHost(value: String) = state.update { it.copy(mapTileHost = value) }
 
     override suspend fun setMapCustomStyleUrl(value: String) = state.update { it.copy(mapCustomStyleUrl = value) }
+
+    override suspend fun setOfflineStorageLimit(limit: OfflineStorageLimit) =
+        state.update {
+            it.copy(offlineStorageLimit = limit)
+        }
 
     override suspend fun setGoogleMapsTraffic(value: Boolean) = state.update { it.copy(googleMapsTraffic = value) }
 
@@ -350,6 +356,10 @@ internal class FakeDisplaySettingsStore(
 
             DisplayPreferences.MAP_TILE_HOST_KEY -> {
                 copy(mapTileHost = default.mapTileHost)
+            }
+
+            DisplayPreferences.OFFLINE_STORAGE_LIMIT_KEY -> {
+                copy(offlineStorageLimit = default.offlineStorageLimit)
             }
 
             DisplayPreferences.MAP_CUSTOM_STYLE_URL_KEY -> {

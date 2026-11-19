@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.data.display
 import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.test.core.app.ApplicationProvider
+import io.github.seijikohara.femto.data.map.offline.OfflineStorageLimit
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -100,6 +101,21 @@ class DisplayPreferencesTest {
 
             context.displayDataStore.edit { it[DisplayPreferences.MAP_BACKEND_KEY] = "MAPBOX" }
             assertEquals(MapBackend.OSM, store.settings.first().mapBackend)
+        }
+
+    @Test
+    fun `the offline storage limit round-trips and an unknown stored value reads as NONE`() =
+        runTest {
+            val context = ApplicationProvider.getApplicationContext<Context>()
+            val store = DisplayPreferences(context)
+            store.resetToDefaults()
+            assertEquals(OfflineStorageLimit.NONE, store.settings.first().offlineStorageLimit)
+
+            store.setOfflineStorageLimit(OfflineStorageLimit.GB_5)
+            assertEquals(OfflineStorageLimit.GB_5, store.settings.first().offlineStorageLimit)
+
+            context.displayDataStore.edit { it[DisplayPreferences.OFFLINE_STORAGE_LIMIT_KEY] = "GB_7" }
+            assertEquals(OfflineStorageLimit.NONE, store.settings.first().offlineStorageLimit)
         }
 
     @Test
@@ -260,6 +276,7 @@ class DisplayPreferencesTest {
                     map3dBuildings = DisplaySettings.Default.map3dBuildings,
                     mapTerrain = DisplaySettings.Default.mapTerrain,
                     mapTileHost = DisplaySettings.Default.mapTileHost,
+                    offlineStorageLimit = DisplaySettings.Default.offlineStorageLimit,
                     mapTiltDeg = DisplaySettings.Default.mapTiltDeg,
                     mapZoom = DisplaySettings.Default.mapZoom,
                     mapNorthUp = DisplaySettings.Default.mapNorthUp,
@@ -373,6 +390,7 @@ class DisplayPreferencesTest {
         setGoogleMapsMapType(GoogleMapType.HYBRID)
         setGoogleMapsTraffic(true)
         setMapTileHost("https://tiles.example.test")
+        setOfflineStorageLimit(OfflineStorageLimit.GB_10)
         return settings.first()
     }
 }

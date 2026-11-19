@@ -23,7 +23,7 @@ app/src/
 ├── main/
 │   ├── java/io/github/seijikohara/femto/
 │   │   ├── MainActivity.kt           # ComponentActivity, single launcher entry
-│   │   ├── data/                     # One sub-package per domain (apps, calendar, clock, common, diagnostics, display, dock, fonts, geocoding, location, map, music, places, system, update, video, voice, weather); a domain may nest a self-contained part (map/offline, the offline tile converter); data/ never imports ui/
+│   │   ├── data/                     # One sub-package per domain (apps, calendar, clock, common, diagnostics, display, dock, fonts, geocoding, location, map, music, places, system, update, video, voice, weather); a domain may nest a self-contained part (map/offline, the offline map: tile converter and saved regions); data/ never imports ui/
 │   │   └── ui/
 │   │       ├── <area>/               # One area per top-level surface
 │   │       │   ├── <Area>Route.kt    # VM-binding entry point (when stateful)
@@ -33,7 +33,7 @@ app/src/
 │   │       │   └── components/       # Area-private widgets
 │   │       └── theme/                # FemtoTheme + tokens + PreviewLightDark
 │   └── res/                          # themes (values{,-night}/), strings (per-locale once locales are wired up), icon drawables, xml/
-├── nightly/...                       # nightly-channel overrides: app_name string + badged ic_launcher_foreground; sample tiles (assets/offline-bench/) for the nightly tile conversion benchmark
+├── nightly/...                       # nightly-channel overrides: app_name string + badged ic_launcher_foreground; sample tiles (assets/offline-bench/) for the nightly tile conversion benchmark; the resource boolean `offline_regions_enabled` (`res/values/bools.xml`), which shows the Saved map regions row in the nightly build only
 ├── test/...                          # JVM unit tests (runTest + TestDispatcher)
 └── androidTest/...                   # Compose UI tests (createComposeRule)
 ```
@@ -41,6 +41,8 @@ app/src/
 `webmap/` (top level) is the TypeScript source of the live map WebView page; Gradle builds it into `assets/web/` via the node-gradle plugin (`node {}` in `app/build.gradle.kts` is the wiring SSOT; nothing under `src/main/assets/web/` is committed). `gradle/libs.versions.toml` is the dependency catalog SSOT (webmap npm deps: `webmap/package.json` + lockfile).
 
 `docs/` (top level) is the Astro source of the project website (feature guide, install guide, legal pages rendered from the root `PRIVACY.md` / `TERMS.md`, and the dashboard screenshot catalog viewer (`docs/src/catalog/`, fed by `generateCatalog` through `pnpm run import-catalog`)). Its build output is never committed.
+
+`scripts/` (top level) holds maintainer scripts that regenerate committed data; each says in its header what it writes. `update-shortbread-regions.mjs` refreshes `app/src/main/assets/map/offline/shortbread-regions.json`, the list of regions the app offers for saving.
 
 Trivial stateless screens need only `<Area>Screen.kt` — see `.claude/rules/compose.md`.
 

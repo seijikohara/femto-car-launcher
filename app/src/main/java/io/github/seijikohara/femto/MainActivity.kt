@@ -72,6 +72,7 @@ import io.github.seijikohara.femto.ui.home.components.MapConfig
 import io.github.seijikohara.femto.ui.home.components.PanelVisibility
 import io.github.seijikohara.femto.ui.licenses.LicensesSheet
 import io.github.seijikohara.femto.ui.locale.resolved
+import io.github.seijikohara.femto.ui.offlinemap.OfflineRegionsSheet
 import io.github.seijikohara.femto.ui.settings.SettingsDocument
 import io.github.seijikohara.femto.ui.settings.SettingsSheet
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -247,6 +248,8 @@ class MainActivity : ComponentActivity() {
                 val fullscreen = settings.fullscreen == FullscreenSetting.ON
                 // The font picker opens over settings for one slot at a time; null = closed.
                 var fontPickerSlot by rememberSaveable { mutableStateOf<FontSlot?>(null) }
+                // The saved map regions open over settings, like the font picker.
+                var showOfflineRegions by rememberSaveable { mutableStateOf(false) }
                 // Diagnostics opens over settings, like the font picker.
                 var showDiagnostics by rememberSaveable { mutableStateOf(false) }
                 // The open-source licenses sheet opens over settings, like diagnostics.
@@ -312,7 +315,12 @@ class MainActivity : ComponentActivity() {
                         )
                     },
                     sheetOpen =
-                        showAssistant || showSettings || fontPickerSlot != null || showDiagnostics || showLicenses,
+                        showAssistant ||
+                            showSettings ||
+                            fontPickerSlot != null ||
+                            showOfflineRegions ||
+                            showDiagnostics ||
+                            showLicenses,
                     fullscreen = fullscreen,
                 )
                 // Every sheet is hosted at the platform density so adjusting UI scale
@@ -338,6 +346,7 @@ class MainActivity : ComponentActivity() {
                             onOpenNotificationAccess = ::openNotificationListenerSettings,
                             onOpenSystemSettings = ::openSystemSettings,
                             onOpenFontPicker = { fontPickerSlot = it },
+                            onOpenOfflineRegions = { showOfflineRegions = true },
                             onOpenDiagnostics = { showDiagnostics = true },
                             onOpenLicenses = { showLicenses = true },
                             onOpenDocument = ::openSettingsDocument,
@@ -350,6 +359,12 @@ class MainActivity : ComponentActivity() {
                         FontPickerSheet(
                             slot = slot,
                             onDismiss = { fontPickerSlot = null },
+                            fullscreen = fullscreen,
+                        )
+                    }
+                    if (showOfflineRegions) {
+                        OfflineRegionsSheet(
+                            onDismiss = { showOfflineRegions = false },
                             fullscreen = fullscreen,
                         )
                     }

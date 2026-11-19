@@ -63,6 +63,7 @@ internal fun SettingsScreen(
     onOpenNotificationAccess: () -> Unit,
     onOpenSystemSettings: () -> Unit,
     onOpenFontPicker: (FontSlot) -> Unit,
+    onOpenOfflineRegions: () -> Unit,
     onOpenDiagnostics: () -> Unit,
     onOpenLicenses: () -> Unit,
     onOpenDocument: (SettingsDocument) -> Unit,
@@ -90,6 +91,7 @@ internal fun SettingsScreen(
                 uiState = uiState,
                 onAction = onAction,
                 onOpenFontPicker = onOpenFontPicker,
+                onOpenOfflineRegions = onOpenOfflineRegions,
                 onOpenSystemSettings = onOpenSystemSettings,
                 onOpenNotificationAccess = onOpenNotificationAccess,
                 onOpenDiagnostics = onOpenDiagnostics,
@@ -218,6 +220,7 @@ private fun settingsCategoryEntries(
     uiState: SettingsUiState,
     onAction: (SettingsAction) -> Unit,
     onOpenFontPicker: (FontSlot) -> Unit,
+    onOpenOfflineRegions: () -> Unit,
     onOpenSystemSettings: () -> Unit,
     onOpenNotificationAccess: () -> Unit,
     onOpenDiagnostics: () -> Unit,
@@ -235,7 +238,12 @@ private fun settingsCategoryEntries(
             UnitsSection(uiState = uiState, onAction = onAction)
         },
         SettingsCategoryEntry(SettingsCategoryId.MAP) {
-            MapSection(uiState = uiState, onAction = onAction, onOpenDocument = onOpenDocument)
+            MapSection(
+                uiState = uiState,
+                onAction = onAction,
+                onOpenDocument = onOpenDocument,
+                onOpenOfflineRegions = onOpenOfflineRegions,
+            )
         },
         SettingsCategoryEntry(SettingsCategoryId.LOCATION) {
             LocationSection(uiState = uiState, onAction = onAction)
@@ -269,6 +277,7 @@ private fun SettingsScreenPreview() {
             onOpenNotificationAccess = {},
             onOpenSystemSettings = {},
             onOpenFontPicker = {},
+            onOpenOfflineRegions = {},
             onOpenDiagnostics = {},
             onOpenLicenses = {},
             onOpenDocument = {},

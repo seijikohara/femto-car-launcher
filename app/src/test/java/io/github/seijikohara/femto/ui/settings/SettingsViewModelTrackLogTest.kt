@@ -65,6 +65,7 @@ class SettingsViewModelTrackLogTest {
             motion = flowOf(VehicleMotion.PARKED),
             videoPreferences = FakeVideoSettingsStore(),
             videoGrants = FakeVideoSourceGrants(),
+            offlineRegionsAvailable = false,
             ioDispatcher = dispatcher,
         )
 

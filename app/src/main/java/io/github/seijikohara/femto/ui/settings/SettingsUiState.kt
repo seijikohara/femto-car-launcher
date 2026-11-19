@@ -115,6 +115,10 @@ internal data class SettingsUiState(
     // The Panels category's video rows, from the video store (see
     // SettingsViewModel's video flow); defaulted on the field like updates.
     val video: VideoSettingsUi = VideoSettingsUi.Initial,
+    // Whether this build offers the Saved map regions sheet (R.bool.offline_regions_enabled):
+    // fixed for the build, read once by SettingsViewModelFactory; defaulted on the field like
+    // updates, since no store backs it.
+    val offlineRegionsAvailable: Boolean = false,
 ) {
     companion object {
         // Seeded from the persistence defaults so the default values live in one
