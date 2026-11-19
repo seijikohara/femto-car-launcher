@@ -3,7 +3,9 @@ package io.github.seijikohara.femto.data.map.offline
 import io.github.seijikohara.femto.testfixtures.gzipped
 import org.junit.Test
 import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 
 /** The gzip trailer sizes the inflate buffer, so a trailer that lies or a stream that outgrows it must never change the result. */
 class RawTileTest {
@@ -31,6 +33,33 @@ class RawTileTest {
         val second = ByteArray(300) { 7 }
 
         assertContentEquals(payload + second, ShortbreadConverter.rawTileOrNull(gzipped(payload) + gzipped(second)))
+    }
+
+    @Test
+    fun `a tiny gzip file whose trailer claims the size cap is rejected`() {
+        val tiny = withTrailerSize(gzipped(byteArrayOf(1)), MAX_RAW_TILE_BYTES)
+
+        assertEquals(21, tiny.size)
+        assertNull(ShortbreadConverter.rawTileOrNull(tiny))
+    }
+
+    @Test
+    fun `a plain tile is returned as is`() {
+        val plain = byteArrayOf(0x1a, 0x00)
+
+        assertSame(plain, ShortbreadConverter.rawTileOrNull(plain))
+    }
+
+    @Test
+    fun `input shorter than a gzip header and trailer is rejected`() {
+        assertNull(ShortbreadConverter.rawTileOrNull(gzipped(payload).copyOf(17)))
+    }
+
+    @Test
+    fun `a gzip member followed by trailing garbage inflates to the member`() {
+        val garbage = byteArrayOf(1, 2, 3, 4, 5, 6, 7, 8)
+
+        assertContentEquals(payload, ShortbreadConverter.rawTileOrNull(gzipped(payload) + garbage))
     }
 
     @Test

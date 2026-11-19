@@ -33,6 +33,7 @@ internal object VectorTileCodec {
     private const val VALUE_BOOL = 7
 
     private val NO_TAGS = IntArray(0)
+    private val NO_GEOMETRY = ByteArray(0)
     private const val INITIAL_TAG_CAPACITY = 32
 
     private const val WIRE_VARINT = 0
@@ -111,7 +112,7 @@ internal object VectorTileCodec {
         var type = 0
         var tags = NO_TAGS
         var tagCount = 0
-        var geometry = ByteArray(0)
+        var geometry = NO_GEOMETRY
         while (reader.hasMore()) {
             val tag = reader.varint()
             val field = (tag ushr 3).toInt()
@@ -151,12 +152,16 @@ internal object VectorTileCodec {
         return SourceFeature(id, type, if (tags.size == pairedCount) tags else tags.copyOf(pairedCount), geometry)
     }
 
-    /** Return [tags], or a copy with room for [extra] more entries after the first [count]. */
+    /**
+     * Return [tags], or a copy with room for [extra] more entries after the first [count]. The copy at least doubles,
+     * so a feature of many unpacked tag fields costs linear time, not a copy per field; the trim after the feature
+     * drops the slack.
+     */
     private fun withRoom(
         tags: IntArray,
         count: Int,
         extra: Int,
-    ): IntArray = if (tags.size - count >= extra) tags else tags.copyOf(count + extra)
+    ): IntArray = if (tags.size - count >= extra) tags else tags.copyOf(maxOf(count + extra, tags.size * 2))
 
     private fun decodeValue(reader: Reader): TileValue? {
         var value: TileValue? = null

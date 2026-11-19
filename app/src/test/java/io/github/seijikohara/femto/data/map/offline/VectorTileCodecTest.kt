@@ -233,6 +233,30 @@ class VectorTileCodecTest {
         )
     }
 
+    @Test(timeout = 5_000)
+    fun `a feature of 200,000 unpacked tag fields decodes without copying its tags per field`() {
+        // Each field is two bytes, the key of the tags field with the varint wire type and then index 0. They are built
+        // in one array because the Pb folds copy the whole message once per part.
+        val fields = ByteArray(400_000) { (if (it % 2 == 0) 0x10 else 0).toByte() }
+        val tile =
+            Pb.tile(
+                Pb.layer(
+                    Pb.stringField(3, "k"),
+                    Pb.value(Pb.stringField(1, "v")),
+                    Pb.bytesField(2, fields),
+                ),
+            )
+
+        val layer = assertNotNull(VectorTileCodec.decodeOrNull(tile)).single()
+
+        assertEquals(
+            200_000,
+            layer.features
+                .single()
+                .tags.size,
+        )
+    }
+
     @Test
     fun `a value message without a known field decodes to an absent property`() {
         val tile =

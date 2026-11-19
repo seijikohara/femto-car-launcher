@@ -398,6 +398,7 @@ class ShortbreadConverterTest {
             ShortbreadConverter.convertOrNull(14, byteArrayOf(0x1f, 0x8b.toByte(), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)),
         )
         assertNull(ShortbreadConverter.convertOrNull(14, plain.copyOf(plain.size / 2)))
-        assertNull(ShortbreadConverter.convertOrNull(14, gzipped(ByteArray(MAX_RAW_TILE_BYTES + 1))))
+        // An even run of zeros decodes as zero layers, so only the size cap can make this one null.
+        assertNull(ShortbreadConverter.convertOrNull(14, gzipped(ByteArray(MAX_RAW_TILE_BYTES + 2))))
     }
 }

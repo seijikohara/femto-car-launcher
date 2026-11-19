@@ -12,6 +12,9 @@ private const val GZIP_MAGIC_SECOND: Byte = 0x8b.toByte()
 private const val GZIP_MIN_BYTES = 18
 private const val INFLATE_BUFFER_BYTES = 64 * 1024
 
+// Deflate cannot expand its input by more than this factor, so a size hint beyond it is a lie.
+private const val DEFLATE_MAX_RATIO = 1032L
+
 /** Upper bound for an inflated tile; a decompression bomb must not exhaust the heap of a head unit. */
 internal const val MAX_RAW_TILE_BYTES = 16 * 1024 * 1024
 
@@ -44,7 +47,7 @@ internal object ShortbreadConverter {
                 ((tile[last + 1].toLong() and 0xff) shl 8) or
                 ((tile[last + 2].toLong() and 0xff) shl 16) or
                 ((tile[last + 3].toLong() and 0xff) shl 24)
-        if (hint < 1 || hint > MAX_RAW_TILE_BYTES) return null
+        if (hint < 1 || hint > MAX_RAW_TILE_BYTES || hint > tile.size * DEFLATE_MAX_RATIO) return null
         val out = ByteArray(hint.toInt())
         return GZIPInputStream(ByteArrayInputStream(tile), INFLATE_BUFFER_BYTES).use { stream ->
             out.takeIf { stream.readNBytes(it, 0, it.size) == it.size && stream.read() == -1 }
@@ -66,12 +69,25 @@ internal object ShortbreadConverter {
         zoom: Int,
         tile: ByteArray,
     ): ByteArray? =
-        runCatching {
+        // A plain try, not runCatching: wrapping the failure in a Result allocates, and under memory exhaustion that
+        // allocation could itself throw out of this function.
+        try {
             rawTileOrNull(tile)
                 ?.let { VectorTileCodec.decodeOrNull(it) }
                 ?.let { VectorTileCodec.encode(convertLayers(zoom, it)) }
-        }.onFailure { Log.w(TAG, "tile conversion failed", it) }
-            .getOrNull()
+        } catch (t: Throwable) {
+            logFailure(t)
+            null
+        }
+
+    /** Log a conversion failure if the logger can; the caller has to get its null even when logging itself throws. */
+    private fun logFailure(t: Throwable) {
+        try {
+            Log.w(TAG, "tile conversion failed", t)
+        } catch (_: Throwable) {
+            // Out of memory, most likely; nothing is left to report the failure through.
+        }
+    }
 }
 
 /** An output feature with the keys [Bucket] sorts the two ordered layers by. */
