@@ -194,6 +194,7 @@ class SettingsViewModelVideoTest {
             motion = flowOf(VehicleMotion.PARKED),
             videoPreferences = videoStore,
             videoGrants = grants,
+            offlineRegionsAvailable = false,
             ioDispatcher = dispatcher,
         )
 

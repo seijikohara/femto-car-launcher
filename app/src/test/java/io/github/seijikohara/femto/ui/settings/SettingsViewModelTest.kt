@@ -162,6 +162,26 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `the saved map regions row stays hidden when the build does not carry the feature`() =
+        runTest(dispatcher) {
+            val vm = viewModel(offlineRegionsAvailable = false)
+            backgroundScope.launch { vm.uiState.collect { } }
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.offlineRegionsAvailable)
+        }
+
+    @Test
+    fun `the saved map regions row shows when the build carries the feature`() =
+        runTest(dispatcher) {
+            val vm = viewModel(offlineRegionsAvailable = true)
+            // Before the stores answer too: the flag is fixed for the build, so it never waits on them.
+            assertTrue(vm.uiState.value.offlineRegionsAvailable)
+            backgroundScope.launch { vm.uiState.collect { } }
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.offlineRegionsAvailable)
+        }
+
+    @Test
     fun `SetMusicSpectrum writes the value to the store`() =
         runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetMusicSpectrum(true))
@@ -1529,6 +1549,7 @@ class SettingsViewModelTest {
         calendarPrefs: FakeCalendarPreferencesStore = FakeCalendarPreferencesStore(),
         availableCalendars: CalendarCatalogState = CalendarCatalogState(hasAccess = true, calendars = emptyList()),
         updaterPort: UpdaterPort = updater,
+        offlineRegionsAvailable: Boolean = false,
     ) = SettingsViewModel(
         store,
         fontStore,
@@ -1542,6 +1563,7 @@ class SettingsViewModelTest {
         motion = motion,
         videoPreferences = FakeVideoSettingsStore(),
         videoGrants = FakeVideoSourceGrants(),
+        offlineRegionsAvailable = offlineRegionsAvailable,
         ioDispatcher = dispatcher,
     )
 

@@ -2,11 +2,18 @@ package io.github.seijikohara.femto.testfixtures
 
 import io.github.seijikohara.femto.data.map.offline.CatalogRegion
 import io.github.seijikohara.femto.data.map.offline.PendingDownloadRecord
+import io.github.seijikohara.femto.data.map.offline.REGION_HOST_PREFIX
 import io.github.seijikohara.femto.data.map.offline.RegionCatalog
+import io.github.seijikohara.femto.data.map.offline.RegionDownload
+import io.github.seijikohara.femto.data.map.offline.RegionDownloadFailure
+import io.github.seijikohara.femto.data.map.offline.RegionDownloadPhase
+import io.github.seijikohara.femto.data.map.offline.RegionPolygon
 import io.github.seijikohara.femto.data.map.offline.RemoteFile
+import io.github.seijikohara.femto.data.map.offline.SavedRegion
 import io.github.seijikohara.femto.data.map.offline.SavedRegionRecord
 import io.github.seijikohara.femto.data.map.offline.regionCatalogOrNull
 import io.github.seijikohara.femto.data.map.offline.shortbreadSizesOrNull
+import java.util.Locale
 
 private object OfflineRegionResources
 
@@ -60,3 +67,53 @@ internal fun savedRegionRecord(
         savedAtEpochMs = savedAtEpochMs,
         polygon = region.polygon.rings.map { it.toList() },
     )
+
+/** Build a catalogue region with no area, for tests that walk the tree rather than locate a position. */
+internal fun catalogRegion(
+    id: String,
+    name: String,
+    parentId: String? = null,
+    approxBytes: Long? = null,
+): CatalogRegion =
+    CatalogRegion(
+        id = id,
+        parentId = parentId,
+        name = name,
+        fileUrl = "$REGION_HOST_PREFIX$id-shortbread-1.0.mbtiles",
+        approxBytes = approxBytes,
+        polygon = RegionPolygon(emptyList()),
+    )
+
+/** Build a saved region as the repository lists it. */
+internal fun savedRegion(
+    id: String,
+    name: String,
+    sizeBytes: Long,
+    dataDateEpochMs: Long? = null,
+): SavedRegion =
+    SavedRegion(
+        id = id,
+        name = name,
+        sizeBytes = sizeBytes,
+        dataDateEpochMs = dataDateEpochMs,
+        savedAtEpochMs = SAVED_AT_EPOCH_MS,
+    )
+
+/** Build the download of the region [name], whose id is the name in lower case. */
+internal fun regionDownload(
+    name: String,
+    phase: RegionDownloadPhase,
+    receivedBytes: Long = 0,
+    totalBytes: Long = 1_000_000_000,
+    failure: RegionDownloadFailure? = null,
+): RegionDownload =
+    RegionDownload(
+        regionId = name.lowercase(Locale.ROOT),
+        name = name,
+        receivedBytes = receivedBytes,
+        totalBytes = totalBytes,
+        phase = phase,
+        failure = failure,
+    )
+
+private const val SAVED_AT_EPOCH_MS = 1_763_500_000_000L
