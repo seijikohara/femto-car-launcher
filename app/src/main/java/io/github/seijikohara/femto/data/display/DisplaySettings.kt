@@ -101,11 +101,12 @@ internal enum class DockWidth { COMPACT, EXTENDED }
 internal enum class DriverSide { RIGHT, LEFT }
 
 /**
- * Motion intensity for panel transitions and card content cross-fades.
- * STANDARD = fade + subtle scale; REDUCED = short fade, no scale; OFF =
- * instant (for the weakest head-unit GPUs).
+ * Motion intensity for panel transitions, card content cross-fades, and the
+ * Material components' motion scheme. STANDARD = fade + subtle scale; REDUCED =
+ * fade, no scale; OFF = instant (for the weakest head-unit GPUs). Public (like
+ * [AccentColor]) because the public [FemtoTheme] takes it.
  */
-internal enum class MotionTier { STANDARD, REDUCED, OFF }
+enum class MotionTier { STANDARD, REDUCED, OFF }
 
 /**
  * Screen orientation: follow the head unit ([AUTO], the default — portrait and

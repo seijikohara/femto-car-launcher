@@ -34,7 +34,7 @@ import io.github.seijikohara.femto.ui.common.fileSize
 import io.github.seijikohara.femto.ui.offlinemap.OfflineRegionsAction
 import io.github.seijikohara.femto.ui.offlinemap.RegionPickerUiState
 import io.github.seijikohara.femto.ui.offlinemap.RegionRow
-import io.github.seijikohara.femto.ui.settings.components.BackIconSize
+import io.github.seijikohara.femto.ui.settings.components.BackButton
 import io.github.seijikohara.femto.ui.settings.components.SettingRow
 import io.github.seijikohara.femto.ui.settings.components.SettingsSubheader
 import io.github.seijikohara.femto.ui.settings.components.TrailingIcon
@@ -99,21 +99,7 @@ private fun PickerHeader(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(12.dp),
 ) {
-    Box(
-        modifier =
-            Modifier
-                .size(FemtoDimens.MinTouchTarget)
-                .clip(CircleShape)
-                .clickable(onClick = onBack),
-        contentAlignment = Alignment.Center,
-    ) {
-        FemtoIcon(
-            imageVector = Lucide.ArrowLeft,
-            contentDescription = stringResource(R.string.settings_back),
-            tint = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.size(BackIconSize),
-        )
-    }
+    BackButton(onClick = onBack)
     // A long region name ends in an ellipsis inside the width the back arrow leaves, instead of being clipped.
     Text(
         text = title,

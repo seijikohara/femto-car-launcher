@@ -33,6 +33,7 @@ import io.github.seijikohara.femto.data.diagnostics.issueCount
 import io.github.seijikohara.femto.data.diagnostics.issues
 import io.github.seijikohara.femto.ui.diagnostics.components.DiagnosticsSectionCard
 import io.github.seijikohara.femto.ui.diagnostics.components.DiagnosticsSummary
+import io.github.seijikohara.femto.ui.settings.components.BackButton
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -111,14 +112,7 @@ private val ToggledSectionsSaver =
 @Composable
 private fun Header(onBack: () -> Unit) =
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack, modifier = Modifier.size(FemtoDimens.MinTouchTarget)) {
-            FemtoIcon(
-                imageVector = Lucide.ArrowLeft,
-                contentDescription = stringResource(R.string.settings_back),
-                tint = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.size(28.dp),
-            )
-        }
+        BackButton(onClick = onBack)
         Text(
             text = stringResource(R.string.diagnostics_title),
             style = MaterialTheme.typography.headlineMedium,

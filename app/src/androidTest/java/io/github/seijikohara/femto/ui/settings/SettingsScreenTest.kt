@@ -559,6 +559,7 @@ class SettingsScreenTest {
                     onOpenFontPicker = {},
                     onOpenDiagnostics = {},
                     onOpenLicenses = {},
+                    onOpenOfflineRegions = {},
                     onOpenDocument = { onOpenDocument(it) },
                 )
             }

@@ -1,11 +1,17 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.material3.DropdownMenu
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DropdownMenuGroup
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenuPopup
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import com.composables.icons.lucide.ArrowDown
 import com.composables.icons.lucide.ArrowLeft
@@ -53,56 +59,75 @@ internal fun DockEditMenu(
     // vertically, so there onMoveLeft/onMoveRight (a -1/+1 reorder) move the
     // indicator up/down, not left/right.
     vertical: Boolean = false,
-) = DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
-    if (canMoveLeft) {
-        DropdownMenuItem(
-            text = { Text(stringResource(if (vertical) R.string.dock_move_up else R.string.drawer_move_left)) },
-            // M3's default menu-item height (48 dp) sits below the automotive floor.
-            modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
-            leadingIcon = {
-                FemtoIcon(
-                    imageVector = if (vertical) Lucide.ArrowUp else Lucide.ArrowLeft,
-                    contentDescription = null,
-                )
-            },
+) = DropdownMenuPopup(
+    expanded = expanded,
+    onDismissRequest = onDismiss,
+    // DropdownMenuPopup does not scroll on its own, unlike DropdownMenu; a
+    // short head-unit window must still reach the last item.
+    modifier = Modifier.verticalScroll(rememberScrollState()),
+) {
+    // One group, as before the Expressive menus: the items share no seam worth
+    // splitting. The edge-dependent moves change the item count, and with it
+    // which item takes the group's rounded ends.
+    val hideIndex = listOf(canMoveLeft, canMoveRight).count { it }
+    val count = hideIndex + 2
+    DropdownMenuGroup(shapes = MenuDefaults.groupShape(index = 0, count = 1)) {
+        if (canMoveLeft) {
+            DockEditMenuItem(
+                label = stringResource(if (vertical) R.string.dock_move_up else R.string.drawer_move_left),
+                icon = if (vertical) Lucide.ArrowUp else Lucide.ArrowLeft,
+                shape = MenuDefaults.itemShape(index = 0, count = count).shape,
+                onClick = {
+                    onMoveLeft()
+                    onDismiss()
+                },
+            )
+        }
+        if (canMoveRight) {
+            DockEditMenuItem(
+                label = stringResource(if (vertical) R.string.dock_move_down else R.string.drawer_move_right),
+                icon = if (vertical) Lucide.ArrowDown else Lucide.ArrowRight,
+                shape = MenuDefaults.itemShape(index = if (canMoveLeft) 1 else 0, count = count).shape,
+                onClick = {
+                    onMoveRight()
+                    onDismiss()
+                },
+            )
+        }
+        DockEditMenuItem(
+            label = stringResource(R.string.dock_hide),
+            icon = Lucide.EyeOff,
+            shape = MenuDefaults.itemShape(index = hideIndex, count = count).shape,
             onClick = {
-                onMoveLeft()
+                onHide()
+                onDismiss()
+            },
+        )
+        DockEditMenuItem(
+            label = stringResource(R.string.settings_reset_dock),
+            icon = Lucide.RotateCcw,
+            shape = MenuDefaults.itemShape(index = hideIndex + 1, count = count).shape,
+            onClick = {
+                onResetDock()
                 onDismiss()
             },
         )
     }
-    if (canMoveRight) {
-        DropdownMenuItem(
-            text = { Text(stringResource(if (vertical) R.string.dock_move_down else R.string.drawer_move_right)) },
-            modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
-            leadingIcon = {
-                FemtoIcon(
-                    imageVector = if (vertical) Lucide.ArrowDown else Lucide.ArrowRight,
-                    contentDescription = null,
-                )
-            },
-            onClick = {
-                onMoveRight()
-                onDismiss()
-            },
-        )
-    }
-    DropdownMenuItem(
-        text = { Text(stringResource(R.string.dock_hide)) },
-        modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
-        leadingIcon = { FemtoIcon(imageVector = Lucide.EyeOff, contentDescription = null) },
-        onClick = {
-            onHide()
-            onDismiss()
-        },
-    )
-    DropdownMenuItem(
-        text = { Text(stringResource(R.string.settings_reset_dock)) },
-        modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
-        leadingIcon = { FemtoIcon(imageVector = Lucide.RotateCcw, contentDescription = null) },
-        onClick = {
-            onResetDock()
-            onDismiss()
-        },
-    )
 }
+
+// M3's default menu-item height sits below the automotive floor, hence the
+// explicit min height.
+@Composable
+private fun DockEditMenuItem(
+    label: String,
+    icon: ImageVector,
+    shape: Shape,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) = DropdownMenuItem(
+    onClick = onClick,
+    text = { Text(label) },
+    shape = shape,
+    modifier = modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
+    leadingIcon = { FemtoIcon(imageVector = icon, contentDescription = null) },
+)

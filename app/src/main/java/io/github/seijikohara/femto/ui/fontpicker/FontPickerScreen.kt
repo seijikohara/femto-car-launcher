@@ -38,6 +38,7 @@ import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.data.fonts.FontSource
 import io.github.seijikohara.femto.data.fonts.GoogleFontFamily
 import io.github.seijikohara.femto.data.fonts.SystemFontFamily
+import io.github.seijikohara.femto.ui.settings.components.BackButton
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -146,21 +147,7 @@ private fun Header(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(12.dp),
 ) {
-    Box(
-        modifier =
-            Modifier
-                .size(FemtoDimens.MinTouchTarget)
-                .clip(RoundedCornerShape(percent = 50))
-                .clickable(onClick = onBack),
-        contentAlignment = Alignment.Center,
-    ) {
-        FemtoIcon(
-            imageVector = Lucide.ArrowLeft,
-            contentDescription = stringResource(R.string.settings_back),
-            tint = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.size(28.dp),
-        )
-    }
+    BackButton(onClick = onBack)
     Text(
         text = titleFor(slot),
         style = MaterialTheme.typography.headlineMedium,

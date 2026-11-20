@@ -21,6 +21,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.progressSemantics
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -309,42 +313,41 @@ private fun TripChip(
                 DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_ALL,
             )
         }
-    val fill =
-        if (selected) {
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
-        } else {
-            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
-        }
-    Column(
-        modifier =
-            modifier
-                .clip(RoundedCornerShape(12.dp))
-                .background(fill)
-                .clickable(onClick = onClick)
-                // Hold the automotive tap floor even though the chip's content is
-                // shorter (AGENTS.md#automotive-overrides).
-                .heightIn(min = FemtoDimens.MinTouchTarget)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.sectionLabel(12),
-            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-        )
-        Text(
-            text =
-                if (trip.isCurrent) {
-                    stringResource(R.string.trip_viz_current)
-                } else {
-                    pluralStringResource(R.plurals.trip_viz_point_count, trip.pointCount, trip.pointCount)
-                },
-            style = MaterialTheme.typography.glanceCaption(),
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-            maxLines = 1,
-        )
-    }
+    // Translucent fills and no border or elevation: nothing opaque over the
+    // flyover (issue #427).
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(text = label, style = MaterialTheme.typography.sectionLabel(12), maxLines = 1)
+                Text(
+                    text =
+                        if (trip.isCurrent) {
+                            stringResource(R.string.trip_viz_current)
+                        } else {
+                            pluralStringResource(R.plurals.trip_viz_point_count, trip.pointCount, trip.pointCount)
+                        },
+                    style = MaterialTheme.typography.glanceCaption(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    maxLines = 1,
+                )
+            }
+        },
+        // Hold the automotive tap floor even though the chip's content is
+        // shorter (AGENTS.md#automotive-overrides).
+        modifier = modifier.heightIn(min = FemtoDimens.MinTouchTarget),
+        shape = RoundedCornerShape(12.dp),
+        colors =
+            FilterChipDefaults.filterChipColors(
+                containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f),
+                labelColor = MaterialTheme.colorScheme.onSurface,
+                selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.20f),
+                selectedLabelColor = MaterialTheme.colorScheme.primary,
+            ),
+        elevation = null,
+        border = null,
+    )
 }
 
 @Composable
@@ -441,11 +444,7 @@ private fun PlaybackControls(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(4.dp),
 ) {
-    GlassCircleButton(
-        icon = if (playing) Lucide.Pause else Lucide.Play,
-        description = stringResource(if (playing) R.string.trip_viz_pause else R.string.trip_viz_play),
-        onClick = onTogglePlay,
-    )
+    PlayPauseToggle(playing = playing, onToggle = onTogglePlay)
     GlassCircleButton(
         icon = Lucide.RotateCcw,
         description = stringResource(R.string.trip_viz_replay),
@@ -532,7 +531,7 @@ private fun GlassCircleButton(
         modifier
             .size(FemtoDimens.MinTouchTarget)
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = GLASS_CIRCLE_FILL_ALPHA))
             .clickable(onClick = onClick)
             .semantics { contentDescription = description },
     contentAlignment = Alignment.Center,
@@ -541,8 +540,49 @@ private fun GlassCircleButton(
         imageVector = icon,
         contentDescription = null,
         tint = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.size(26.dp),
+        modifier = Modifier.size(GlassCircleIconSize),
     )
+}
+
+private val GlassCircleIconSize = 26.dp
+private const val GLASS_CIRCLE_FILL_ALPHA = 0.10f
+
+/**
+ * Flyover play / pause as an icon toggle: [GlassCircleButton]'s translucent
+ * circle in both states (the icon, not the fill, carries the state), with the
+ * Material press morph toward the icon button's default pressed shape. The
+ * description keeps naming the action a tap performs, as before.
+ */
+@Composable
+private fun PlayPauseToggle(
+    playing: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val description = stringResource(if (playing) R.string.trip_viz_pause else R.string.trip_viz_play)
+    val fill = MaterialTheme.colorScheme.onSurface.copy(alpha = GLASS_CIRCLE_FILL_ALPHA)
+    IconToggleButton(
+        checked = playing,
+        onCheckedChange = { onToggle() },
+        shapes = IconButtonDefaults.toggleableShapes(shape = CircleShape, checkedShape = CircleShape),
+        modifier =
+            modifier
+                .size(FemtoDimens.MinTouchTarget)
+                .semantics { contentDescription = description },
+        colors =
+            IconButtonDefaults.iconToggleButtonColors(
+                containerColor = fill,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                checkedContainerColor = fill,
+                checkedContentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+    ) {
+        FemtoIcon(
+            imageVector = if (playing) Lucide.Pause else Lucide.Play,
+            contentDescription = null,
+            modifier = Modifier.size(GlassCircleIconSize),
+        )
+    }
 }
 
 @Composable

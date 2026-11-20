@@ -27,6 +27,7 @@ import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Lucide
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.ui.settings.components.BackButton
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -164,14 +165,7 @@ private fun Header(
     title: String,
     onBack: () -> Unit,
 ) = Row(verticalAlignment = Alignment.CenterVertically) {
-    IconButton(onClick = onBack, modifier = Modifier.size(FemtoDimens.MinTouchTarget)) {
-        FemtoIcon(
-            imageVector = Lucide.ArrowLeft,
-            contentDescription = stringResource(R.string.settings_back),
-            tint = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.size(28.dp),
-        )
-    }
+    BackButton(onClick = onBack)
     Text(
         text = title,
         style = MaterialTheme.typography.headlineMedium,
