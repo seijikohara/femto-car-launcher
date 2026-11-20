@@ -1,7 +1,5 @@
 package io.github.seijikohara.femto.ui.settings.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -24,60 +22,78 @@ internal fun ScreenSection(
     uiState: SettingsUiState,
     onAction: (SettingsAction) -> Unit,
     modifier: Modifier = Modifier,
-) = Column(modifier = modifier) {
-    SliderRow(
-        title = stringResource(R.string.settings_group_ui_scale),
-        valueLabel = stringResource(uiState.uiScale.labelRes()),
-        value = UiScale.entries.indexOf(uiState.uiScale),
-        range = 0..UiScale.entries.lastIndex,
-        onValueChange = { onAction(SettingsAction.SetUiScale(UiScale.entries[it])) },
-    )
-    ChoiceRow(
-        title = stringResource(R.string.settings_group_orientation),
-        options =
-            listOf(
-                OrientationSetting.AUTO to stringResource(R.string.settings_option_auto),
-                OrientationSetting.LANDSCAPE to stringResource(R.string.settings_orientation_landscape),
-                OrientationSetting.PORTRAIT to stringResource(R.string.settings_orientation_portrait),
-            ),
-        selected = uiState.orientation,
-        onSelect = { onAction(SettingsAction.SetOrientation(it)) },
-    )
+) = SettingsGroup(modifier = modifier) {
+    item { shapes ->
+        SliderRow(
+            title = stringResource(R.string.settings_group_ui_scale),
+            valueLabel = stringResource(uiState.uiScale.labelRes()),
+            value = UiScale.entries.indexOf(uiState.uiScale),
+            range = 0..UiScale.entries.lastIndex,
+            onValueChange = { onAction(SettingsAction.SetUiScale(UiScale.entries[it])) },
+            shapes = shapes,
+        )
+    }
+    item { shapes ->
+        ChoiceRow(
+            title = stringResource(R.string.settings_group_orientation),
+            options =
+                listOf(
+                    OrientationSetting.AUTO to stringResource(R.string.settings_option_auto),
+                    OrientationSetting.LANDSCAPE to stringResource(R.string.settings_orientation_landscape),
+                    OrientationSetting.PORTRAIT to stringResource(R.string.settings_orientation_portrait),
+                ),
+            selected = uiState.orientation,
+            onSelect = { onAction(SettingsAction.SetOrientation(it)) },
+            shapes = shapes,
+        )
+    }
     // The whole dashboard layout (floating cards, clock, speed reserve, map
     // controls, self-marker) anchors to the driver's side, so the row sits with
     // the other whole-screen layout choices.
-    ChoiceRow(
-        title = stringResource(R.string.settings_group_driver_side),
-        options =
-            listOf(
-                DriverSide.RIGHT to stringResource(R.string.settings_driver_side_right),
-                DriverSide.LEFT to stringResource(R.string.settings_driver_side_left),
-            ),
-        selected = uiState.driverSide,
-        onSelect = { onAction(SettingsAction.SetDriverSide(it)) },
-    )
-    SwitchRow(
-        title = stringResource(R.string.settings_group_fullscreen),
-        checked = uiState.fullscreen == FullscreenSetting.ON,
-        onCheckedChange = { onAction(SettingsAction.SetFullscreen(it.toFullscreen())) },
-    )
-    SwitchRow(
-        title = stringResource(R.string.settings_keep_screen_on),
-        checked = uiState.keepScreenOn,
-        onCheckedChange = { onAction(SettingsAction.SetKeepScreenOn(it)) },
-    )
-    ChoiceRow(
-        title = stringResource(R.string.settings_group_dock_position),
-        options =
-            listOf(
-                DockPosition.BOTTOM to stringResource(R.string.settings_dock_bottom),
-                DockPosition.TOP to stringResource(R.string.settings_dock_top),
-                DockPosition.LEFT to stringResource(R.string.settings_dock_left),
-                DockPosition.RIGHT to stringResource(R.string.settings_dock_right),
-            ),
-        selected = uiState.dockPosition,
-        onSelect = { onAction(SettingsAction.SetDockPosition(it)) },
-    )
+    item { shapes ->
+        ChoiceRow(
+            title = stringResource(R.string.settings_group_driver_side),
+            options =
+                listOf(
+                    DriverSide.RIGHT to stringResource(R.string.settings_driver_side_right),
+                    DriverSide.LEFT to stringResource(R.string.settings_driver_side_left),
+                ),
+            selected = uiState.driverSide,
+            onSelect = { onAction(SettingsAction.SetDriverSide(it)) },
+            shapes = shapes,
+        )
+    }
+    item { shapes ->
+        SwitchRow(
+            title = stringResource(R.string.settings_group_fullscreen),
+            checked = uiState.fullscreen == FullscreenSetting.ON,
+            onCheckedChange = { onAction(SettingsAction.SetFullscreen(it.toFullscreen())) },
+            shapes = shapes,
+        )
+    }
+    item { shapes ->
+        SwitchRow(
+            title = stringResource(R.string.settings_keep_screen_on),
+            checked = uiState.keepScreenOn,
+            onCheckedChange = { onAction(SettingsAction.SetKeepScreenOn(it)) },
+            shapes = shapes,
+        )
+    }
+    item { shapes ->
+        ChoiceRow(
+            title = stringResource(R.string.settings_group_dock_position),
+            options =
+                listOf(
+                    DockPosition.BOTTOM to stringResource(R.string.settings_dock_bottom),
+                    DockPosition.TOP to stringResource(R.string.settings_dock_top),
+                    DockPosition.LEFT to stringResource(R.string.settings_dock_left),
+                    DockPosition.RIGHT to stringResource(R.string.settings_dock_right),
+                ),
+            selected = uiState.dockPosition,
+            onSelect = { onAction(SettingsAction.SetDockPosition(it)) },
+            shapes = shapes,
+        )
+    }
     // Only the horizontal bar has two widths; a rail is a fixed thickness and
     // ignores the setting, so the row is hidden there rather than left as a
     // control that does nothing — the same gating MapSection gives its
@@ -86,7 +102,7 @@ internal fun ScreenSection(
     //
     // Compact means "pill where it fits" — a bar too narrow for the pill still
     // draws extended, since the pill would clip its end buttons (see DockWidth).
-    AnimatedVisibility(visible = uiState.dockPosition.hostsHorizontalBar) {
+    animatedItem(visible = uiState.dockPosition.hostsHorizontalBar) { shapes ->
         ChoiceRow(
             title = stringResource(R.string.settings_group_dock_width),
             options =
@@ -96,6 +112,7 @@ internal fun ScreenSection(
                 ),
             selected = uiState.dockWidth,
             onSelect = { onAction(SettingsAction.SetDockWidth(it)) },
+            shapes = shapes,
         )
     }
     // The whole read-only cluster, in one switch. Per-indicator visibility stays
@@ -103,43 +120,55 @@ internal fun ScreenSection(
     // disagree with the hidden set both of them write. This row is also the only
     // way back once every indicator is hidden and there is nothing left to
     // long-press, which is why it sits beside Reset dock.
-    SwitchRow(
-        title = stringResource(R.string.settings_group_dock_status),
-        checked = uiState.dockStatusVisible,
-        onCheckedChange = { onAction(SettingsAction.SetDockStatusVisible(it)) },
-        summary = stringResource(R.string.settings_dock_status_summary),
-    )
+    item { shapes ->
+        SwitchRow(
+            title = stringResource(R.string.settings_group_dock_status),
+            checked = uiState.dockStatusVisible,
+            onCheckedChange = { onAction(SettingsAction.SetDockStatusVisible(it)) },
+            shapes = shapes,
+            summary = stringResource(R.string.settings_dock_status_summary),
+        )
+    }
     // Restores the dock's own nav/status order + hidden sets (a separate
     // DockPreferences store, not this section's DisplaySettings fields), so it
     // is a standalone action rather than folded into the Screen category's
     // whole-section reset — see SettingsAction.ResetDock.
-    ResetRow(
-        onConfirm = { onAction(SettingsAction.ResetDock) },
-        title = stringResource(R.string.settings_reset_dock),
-        confirmTitle = stringResource(R.string.settings_reset_dock_confirm_title),
-        confirmMessage = stringResource(R.string.settings_reset_dock_confirm_message),
-    )
-    ChoiceRow(
-        title = stringResource(R.string.settings_group_assistant),
-        options =
-            listOf(
-                AssistantLaunchSetting.SYSTEM to stringResource(R.string.settings_assistant_system),
-                AssistantLaunchSetting.IN_APP to stringResource(R.string.settings_assistant_in_app),
-            ),
-        selected = uiState.assistantLaunch,
-        onSelect = { onAction(SettingsAction.SetAssistantLaunch(it)) },
-    )
-    ChoiceRow(
-        title = stringResource(R.string.settings_group_motion),
-        options =
-            listOf(
-                MotionTier.STANDARD to stringResource(R.string.settings_motion_standard),
-                MotionTier.REDUCED to stringResource(R.string.settings_motion_reduced),
-                MotionTier.OFF to stringResource(R.string.settings_motion_off),
-            ),
-        selected = uiState.motionTier,
-        onSelect = { onAction(SettingsAction.SetMotionTier(it)) },
-    )
+    item { shapes ->
+        ResetRow(
+            onConfirm = { onAction(SettingsAction.ResetDock) },
+            shapes = shapes,
+            title = stringResource(R.string.settings_reset_dock),
+            confirmTitle = stringResource(R.string.settings_reset_dock_confirm_title),
+            confirmMessage = stringResource(R.string.settings_reset_dock_confirm_message),
+        )
+    }
+    item { shapes ->
+        ChoiceRow(
+            title = stringResource(R.string.settings_group_assistant),
+            options =
+                listOf(
+                    AssistantLaunchSetting.SYSTEM to stringResource(R.string.settings_assistant_system),
+                    AssistantLaunchSetting.IN_APP to stringResource(R.string.settings_assistant_in_app),
+                ),
+            selected = uiState.assistantLaunch,
+            onSelect = { onAction(SettingsAction.SetAssistantLaunch(it)) },
+            shapes = shapes,
+        )
+    }
+    item { shapes ->
+        ChoiceRow(
+            title = stringResource(R.string.settings_group_motion),
+            options =
+                listOf(
+                    MotionTier.STANDARD to stringResource(R.string.settings_motion_standard),
+                    MotionTier.REDUCED to stringResource(R.string.settings_motion_reduced),
+                    MotionTier.OFF to stringResource(R.string.settings_motion_off),
+                ),
+            selected = uiState.motionTier,
+            onSelect = { onAction(SettingsAction.SetMotionTier(it)) },
+            shapes = shapes,
+        )
+    }
 }
 
 private fun Boolean.toFullscreen(): FullscreenSetting = if (this) FullscreenSetting.ON else FullscreenSetting.OFF

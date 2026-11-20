@@ -1,6 +1,5 @@
 package io.github.seijikohara.femto.ui.settings.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,12 +9,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ListItemShapes
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -80,32 +78,68 @@ internal fun AppearanceSection(
     onOpenFontPicker: (FontSlot) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier) {
-    ChoiceRow(
-        title = stringResource(R.string.settings_group_theme),
-        options =
-            listOf(
-                ThemeMode.SYSTEM to stringResource(R.string.settings_option_auto),
-                ThemeMode.LIGHT to stringResource(R.string.settings_theme_light),
-                ThemeMode.DARK to stringResource(R.string.settings_theme_dark),
-            ),
-        selected = uiState.themeMode,
-        onSelect = { onAction(SettingsAction.SetThemeMode(it)) },
-    )
-    AccentRow(
-        selected = uiState.accentColor,
-        onSelect = { onAction(SettingsAction.SetAccentColor(it)) },
-    )
-    SettingsSubheader(stringResource(R.string.settings_subheader_map_color))
-    MapThemeMatchRow(
-        mapStyle = uiState.mapStyle,
-        onSelect = { onAction(SettingsAction.SetMapStyle(it)) },
-    )
-    if (uiState.mapBackend == MapBackend.OSM) {
-        // Light scheme applies for AUTO + LIGHT, Dark scheme for AUTO + DARK. AUTO
-        // can use either (the system theme decides), so AUTO shows both; a fixed
-        // LIGHT / DARK hides the scheme it never uses. Independent colour schemes:
-        // ACCENT is the adaptive accent-tinted default, the rest fixed OpenFreeMap.
-        AnimatedVisibility(visible = uiState.mapStyle != MapStyleSetting.DARK) {
+    var showStyleUrlDialog by remember { mutableStateOf(false) }
+    // Light scheme applies for AUTO + LIGHT, Dark scheme for AUTO + DARK. AUTO
+    // can use either (the system theme decides), so AUTO shows both; a fixed
+    // LIGHT / DARK hides the scheme it never uses. Only the OpenStreetMap
+    // backend draws these independent colour schemes: ACCENT is the adaptive
+    // accent-tinted default, the rest fixed OpenFreeMap.
+    val osm = uiState.mapBackend == MapBackend.OSM
+    val lightSchemeShown = osm && uiState.mapStyle != MapStyleSetting.DARK
+    val darkSchemeShown = osm && uiState.mapStyle != MapStyleSetting.LIGHT
+    // The one URL both CUSTOM choices load. Shown while a VISIBLE scheme row is
+    // on CUSTOM so the field sits right under the choice that needs it — a
+    // stale CUSTOM on the side the Match setting hides must not leave a Style
+    // URL row with no choice above it.
+    val customSelected =
+        (lightSchemeShown && uiState.mapSchemeLight == MapColorScheme.CUSTOM) ||
+            (darkSchemeShown && uiState.mapSchemeDark == MapColorScheme.CUSTOM)
+    SettingsGroup {
+        item { shapes ->
+            ChoiceRow(
+                title = stringResource(R.string.settings_group_theme),
+                options =
+                    listOf(
+                        ThemeMode.SYSTEM to stringResource(R.string.settings_option_auto),
+                        ThemeMode.LIGHT to stringResource(R.string.settings_theme_light),
+                        ThemeMode.DARK to stringResource(R.string.settings_theme_dark),
+                    ),
+                selected = uiState.themeMode,
+                onSelect = { onAction(SettingsAction.SetThemeMode(it)) },
+                shapes = shapes,
+            )
+        }
+        item { shapes ->
+            AccentRow(
+                selected = uiState.accentColor,
+                onSelect = { onAction(SettingsAction.SetAccentColor(it)) },
+                shapes = shapes,
+            )
+        }
+    }
+    SettingsGroup(header = stringResource(R.string.settings_subheader_map_color)) {
+        item { shapes ->
+            MapThemeMatchRow(
+                mapStyle = uiState.mapStyle,
+                onSelect = { onAction(SettingsAction.SetMapStyle(it)) },
+                shapes = shapes,
+            )
+        }
+        // The plain Light / Dark override that turning the Match switch off reveals.
+        animatedItem(visible = uiState.mapStyle != MapStyleSetting.AUTO) { shapes ->
+            ChoiceRow(
+                title = stringResource(R.string.settings_group_map_style),
+                options =
+                    listOf(
+                        MapStyleSetting.LIGHT to stringResource(R.string.settings_theme_light),
+                        MapStyleSetting.DARK to stringResource(R.string.settings_theme_dark),
+                    ),
+                selected = uiState.mapStyle,
+                onSelect = { onAction(SettingsAction.SetMapStyle(it)) },
+                shapes = shapes,
+            )
+        }
+        animatedItem(visible = lightSchemeShown) { shapes ->
             ChoiceRow(
                 title = stringResource(R.string.settings_group_map_scheme_light),
                 options =
@@ -118,9 +152,10 @@ internal fun AppearanceSection(
                     ),
                 selected = uiState.mapSchemeLight,
                 onSelect = { onAction(SettingsAction.SetMapSchemeLight(it)) },
+                shapes = shapes,
             )
         }
-        AnimatedVisibility(visible = uiState.mapStyle != MapStyleSetting.LIGHT) {
+        animatedItem(visible = darkSchemeShown) { shapes ->
             ChoiceRow(
                 title = stringResource(R.string.settings_group_map_scheme_dark),
                 options =
@@ -134,144 +169,171 @@ internal fun AppearanceSection(
                     ),
                 selected = uiState.mapSchemeDark,
                 onSelect = { onAction(SettingsAction.SetMapSchemeDark(it)) },
+                shapes = shapes,
             )
         }
-        // The one URL both CUSTOM choices load. Shown while a VISIBLE scheme
-        // row is on CUSTOM so the field sits right under the choice that needs
-        // it — a stale CUSTOM on the side the Match setting hides must not
-        // leave a Style URL row with no choice above it. The dialog is a
-        // sibling of the rows, as in MapSection.
-        var showStyleUrlDialog by remember { mutableStateOf(false) }
-        val customSelected =
-            (uiState.mapStyle != MapStyleSetting.DARK && uiState.mapSchemeLight == MapColorScheme.CUSTOM) ||
-                (uiState.mapStyle != MapStyleSetting.LIGHT && uiState.mapSchemeDark == MapColorScheme.CUSTOM)
-        AnimatedVisibility(visible = customSelected) {
-            SettingRow(
+        animatedItem(visible = customSelected) { shapes ->
+            SettingsListItem(
                 title = stringResource(R.string.settings_map_custom_style_url),
+                shapes = shapes,
                 summary = mapCustomStyleUrlSummary(uiState.mapCustomStyleUrl),
-                modifier = Modifier.clickable { showStyleUrlDialog = true },
+                onClick = { showStyleUrlDialog = true },
             ) {
                 TrailingIcon(Lucide.ChevronRight)
             }
         }
-        if (showStyleUrlDialog) {
-            HttpsUrlDialog(
-                title = stringResource(R.string.settings_map_custom_style_url),
-                hint = stringResource(R.string.settings_map_custom_style_url_hint),
-                initialValue = uiState.mapCustomStyleUrl,
-                saveLabel = stringResource(R.string.settings_map_custom_style_url_save),
-                clearLabel = stringResource(R.string.settings_map_custom_style_url_clear),
-                onSave = {
-                    onAction(SettingsAction.SetMapCustomStyleUrl(it))
-                    showStyleUrlDialog = false
-                },
-                onClear = {
-                    onAction(SettingsAction.ClearMapCustomStyleUrl)
-                    showStyleUrlDialog = false
-                },
-                onDismiss = { showStyleUrlDialog = false },
+    }
+    // A sibling of the rows, as in MapSection.
+    if (showStyleUrlDialog) {
+        HttpsUrlDialog(
+            title = stringResource(R.string.settings_map_custom_style_url),
+            hint = stringResource(R.string.settings_map_custom_style_url_hint),
+            initialValue = uiState.mapCustomStyleUrl,
+            saveLabel = stringResource(R.string.settings_map_custom_style_url_save),
+            clearLabel = stringResource(R.string.settings_map_custom_style_url_clear),
+            onSave = {
+                onAction(SettingsAction.SetMapCustomStyleUrl(it))
+                showStyleUrlDialog = false
+            },
+            onClear = {
+                onAction(SettingsAction.ClearMapCustomStyleUrl)
+                showStyleUrlDialog = false
+            },
+            onDismiss = { showStyleUrlDialog = false },
+        )
+    }
+    SettingsGroup(header = stringResource(R.string.settings_subheader_glass)) {
+        item { shapes ->
+            SliderRow(
+                title = stringResource(R.string.settings_group_glass_blur),
+                valueLabel = stringResource(R.string.settings_glass_blur_value, uiState.glassBlurRadius),
+                value = uiState.glassBlurRadius,
+                range = MIN_GLASS_BLUR..MAX_GLASS_BLUR,
+                onValueChange = { onAction(SettingsAction.SetGlassBlurRadius(it)) },
+                shapes = shapes,
+            )
+        }
+        item { shapes ->
+            SliderRow(
+                title = stringResource(R.string.settings_group_glass_opacity),
+                valueLabel = stringResource(R.string.settings_glass_opacity_value, uiState.glassTintScale),
+                value = uiState.glassTintScale,
+                range = MIN_GLASS_OPACITY..MAX_GLASS_OPACITY,
+                onValueChange = { onAction(SettingsAction.SetGlassTintScale(it)) },
+                shapes = shapes,
+            )
+        }
+        item { shapes ->
+            SwitchRow(
+                title = stringResource(R.string.settings_group_glass_border),
+                checked = uiState.glassShowBorder,
+                onCheckedChange = { onAction(SettingsAction.SetGlassShowBorder(it)) },
+                shapes = shapes,
+            )
+        }
+        item { shapes ->
+            SwitchRow(
+                title = stringResource(R.string.settings_group_glass_shadow),
+                checked = uiState.glassShadowEnabled,
+                onCheckedChange = { onAction(SettingsAction.SetGlassShadowEnabled(it)) },
+                shapes = shapes,
+            )
+        }
+        // The intensity / size sliders only apply while the shadow is on; gate them
+        // like the map-scheme rows above so inert controls do not clutter the sheet.
+        animatedItem(visible = uiState.glassShadowEnabled) { shapes ->
+            SliderRow(
+                title = stringResource(R.string.settings_group_glass_shadow_intensity),
+                valueLabel =
+                    stringResource(R.string.settings_glass_shadow_intensity_value, uiState.glassShadowIntensity),
+                value = uiState.glassShadowIntensity,
+                range = MIN_GLASS_SHADOW_INTENSITY..MAX_GLASS_SHADOW_INTENSITY,
+                onValueChange = { onAction(SettingsAction.SetGlassShadowIntensity(it)) },
+                shapes = shapes,
+            )
+        }
+        animatedItem(visible = uiState.glassShadowEnabled) { shapes ->
+            SliderRow(
+                title = stringResource(R.string.settings_group_glass_shadow_size),
+                valueLabel = stringResource(R.string.settings_glass_shadow_size_value, uiState.glassShadowSizeDp),
+                value = uiState.glassShadowSizeDp,
+                range = MIN_GLASS_SHADOW_SIZE..MAX_GLASS_SHADOW_SIZE,
+                onValueChange = { onAction(SettingsAction.SetGlassShadowSizeDp(it)) },
+                shapes = shapes,
             )
         }
     }
-    SettingsSubheader(stringResource(R.string.settings_subheader_glass))
-    SliderRow(
-        title = stringResource(R.string.settings_group_glass_blur),
-        valueLabel = stringResource(R.string.settings_glass_blur_value, uiState.glassBlurRadius),
-        value = uiState.glassBlurRadius,
-        range = MIN_GLASS_BLUR..MAX_GLASS_BLUR,
-        onValueChange = { onAction(SettingsAction.SetGlassBlurRadius(it)) },
-    )
-    SliderRow(
-        title = stringResource(R.string.settings_group_glass_opacity),
-        valueLabel = stringResource(R.string.settings_glass_opacity_value, uiState.glassTintScale),
-        value = uiState.glassTintScale,
-        range = MIN_GLASS_OPACITY..MAX_GLASS_OPACITY,
-        onValueChange = { onAction(SettingsAction.SetGlassTintScale(it)) },
-    )
-    SwitchRow(
-        title = stringResource(R.string.settings_group_glass_border),
-        checked = uiState.glassShowBorder,
-        onCheckedChange = { onAction(SettingsAction.SetGlassShowBorder(it)) },
-    )
-    SwitchRow(
-        title = stringResource(R.string.settings_group_glass_shadow),
-        checked = uiState.glassShadowEnabled,
-        onCheckedChange = { onAction(SettingsAction.SetGlassShadowEnabled(it)) },
-    )
-    // The intensity / size sliders only apply while the shadow is on; gate them
-    // like the map-scheme rows above so inert controls do not clutter the sheet.
-    AnimatedVisibility(visible = uiState.glassShadowEnabled) {
-        SliderRow(
-            title = stringResource(R.string.settings_group_glass_shadow_intensity),
-            valueLabel = stringResource(R.string.settings_glass_shadow_intensity_value, uiState.glassShadowIntensity),
-            value = uiState.glassShadowIntensity,
-            range = MIN_GLASS_SHADOW_INTENSITY..MAX_GLASS_SHADOW_INTENSITY,
-            onValueChange = { onAction(SettingsAction.SetGlassShadowIntensity(it)) },
-        )
+    SettingsGroup(header = stringResource(R.string.settings_subheader_fonts)) {
+        item { shapes ->
+            FontRow(
+                title = stringResource(R.string.settings_group_font_latin),
+                family = uiState.latinFont,
+                onClick = { onOpenFontPicker(FontSlot.LATIN) },
+                shapes = shapes,
+            )
+        }
+        item { shapes ->
+            FontRow(
+                title = stringResource(R.string.settings_group_font_cjk),
+                family = uiState.cjkFont,
+                onClick = { onOpenFontPicker(FontSlot.CJK) },
+                shapes = shapes,
+            )
+        }
+        item { shapes ->
+            SliderRow(
+                title = stringResource(R.string.settings_group_font_size),
+                valueLabel = stringResource(R.string.settings_font_size_value, uiState.fontBaseSizeSp),
+                value = uiState.fontBaseSizeSp,
+                range = MIN_FONT_SIZE..MAX_FONT_SIZE,
+                onValueChange = { onAction(SettingsAction.SetFontBaseSizeSp(it)) },
+                shapes = shapes,
+            )
+        }
+        item { shapes ->
+            SliderRow(
+                title = stringResource(R.string.settings_group_font_weight),
+                // Show the resulting body (normal-tier) weight number, resolved through the
+                // same FemtoWeights.of ladder the theme applies, rather than re-deriving it.
+                valueLabel =
+                    stringResource(
+                        R.string.settings_font_weight_value,
+                        FemtoWeights.of(uiState.fontWeightStep).normal.weight,
+                    ),
+                value = uiState.fontWeightStep,
+                range = MIN_FONT_WEIGHT_STEP..MAX_FONT_WEIGHT_STEP,
+                onValueChange = { onAction(SettingsAction.SetFontWeightStep(it)) },
+                shapes = shapes,
+            )
+        }
+        item { shapes ->
+            SliderRow(
+                title = stringResource(R.string.settings_group_font_spacing),
+                valueLabel =
+                    stringResource(
+                        R.string.settings_font_spacing_value,
+                        uiState.fontLetterSpacingCentiEm / CENTI_EM_PER_EM,
+                    ),
+                value = uiState.fontLetterSpacingCentiEm,
+                range = MIN_FONT_SPACING..MAX_FONT_SPACING,
+                onValueChange = { onAction(SettingsAction.SetFontLetterSpacingCentiEm(it)) },
+                shapes = shapes,
+            )
+        }
     }
-    AnimatedVisibility(visible = uiState.glassShadowEnabled) {
-        SliderRow(
-            title = stringResource(R.string.settings_group_glass_shadow_size),
-            valueLabel = stringResource(R.string.settings_glass_shadow_size_value, uiState.glassShadowSizeDp),
-            value = uiState.glassShadowSizeDp,
-            range = MIN_GLASS_SHADOW_SIZE..MAX_GLASS_SHADOW_SIZE,
-            onValueChange = { onAction(SettingsAction.SetGlassShadowSizeDp(it)) },
-        )
-    }
-    SettingsSubheader(stringResource(R.string.settings_subheader_fonts))
-    FontRow(
-        title = stringResource(R.string.settings_group_font_latin),
-        family = uiState.latinFont,
-        onClick = { onOpenFontPicker(FontSlot.LATIN) },
-    )
-    FontRow(
-        title = stringResource(R.string.settings_group_font_cjk),
-        family = uiState.cjkFont,
-        onClick = { onOpenFontPicker(FontSlot.CJK) },
-    )
-    SliderRow(
-        title = stringResource(R.string.settings_group_font_size),
-        valueLabel = stringResource(R.string.settings_font_size_value, uiState.fontBaseSizeSp),
-        value = uiState.fontBaseSizeSp,
-        range = MIN_FONT_SIZE..MAX_FONT_SIZE,
-        onValueChange = { onAction(SettingsAction.SetFontBaseSizeSp(it)) },
-    )
-    SliderRow(
-        title = stringResource(R.string.settings_group_font_weight),
-        // Show the resulting body (normal-tier) weight number, resolved through the
-        // same FemtoWeights.of ladder the theme applies, rather than re-deriving it.
-        valueLabel =
-            stringResource(
-                R.string.settings_font_weight_value,
-                FemtoWeights.of(uiState.fontWeightStep).normal.weight,
-            ),
-        value = uiState.fontWeightStep,
-        range = MIN_FONT_WEIGHT_STEP..MAX_FONT_WEIGHT_STEP,
-        onValueChange = { onAction(SettingsAction.SetFontWeightStep(it)) },
-    )
-    SliderRow(
-        title = stringResource(R.string.settings_group_font_spacing),
-        valueLabel =
-            stringResource(
-                R.string.settings_font_spacing_value,
-                uiState.fontLetterSpacingCentiEm / CENTI_EM_PER_EM,
-            ),
-        value = uiState.fontLetterSpacingCentiEm,
-        range = MIN_FONT_SPACING..MAX_FONT_SPACING,
-        onValueChange = { onAction(SettingsAction.SetFontLetterSpacingCentiEm(it)) },
-    )
 }
 
 // Theme stays the one primary light/dark control; this is the map's secondary,
 // clearly-subordinate override. Checked (the default) means mapStyle == AUTO,
 // which already follows the app's resolved theme (LocalFemtoDarkTheme). Turning
 // it off freezes the map at whatever the app currently renders (no visual jump at
-// the instant of toggling) and reveals a plain Light/Dark choice for further
-// manual override.
+// the instant of toggling) and reveals the plain Light/Dark choice below it for
+// further manual override.
 @Composable
 private fun MapThemeMatchRow(
     mapStyle: MapStyleSetting,
     onSelect: (MapStyleSetting) -> Unit,
+    shapes: ListItemShapes,
     modifier: Modifier = Modifier,
 ) {
     val appIsDark = LocalFemtoDarkTheme.current
@@ -288,20 +350,9 @@ private fun MapThemeMatchRow(
                 },
             )
         },
+        shapes = shapes,
         modifier = modifier,
     )
-    AnimatedVisibility(visible = mapStyle != MapStyleSetting.AUTO) {
-        ChoiceRow(
-            title = stringResource(R.string.settings_group_map_style),
-            options =
-                listOf(
-                    MapStyleSetting.LIGHT to stringResource(R.string.settings_theme_light),
-                    MapStyleSetting.DARK to stringResource(R.string.settings_theme_dark),
-                ),
-            selected = mapStyle,
-            onSelect = onSelect,
-        )
-    }
 }
 
 // The accent picker: a title over a horizontally-scrolling row of color swatches.
@@ -311,19 +362,10 @@ private fun MapThemeMatchRow(
 private fun AccentRow(
     selected: AccentColor,
     onSelect: (AccentColor) -> Unit,
+    shapes: ListItemShapes,
     modifier: Modifier = Modifier,
-) = Column(
-    modifier =
-        modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-    verticalArrangement = Arrangement.spacedBy(10.dp),
-) {
-    Text(
-        text = stringResource(R.string.settings_group_accent),
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onSurface,
-    )
+) = SettingsSegment(shapes = shapes, modifier = modifier) {
+    SegmentTitle(title = stringResource(R.string.settings_group_accent))
     Row(
         modifier =
             Modifier
