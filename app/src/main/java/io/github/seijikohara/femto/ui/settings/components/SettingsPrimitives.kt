@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -352,10 +353,19 @@ internal fun SliderRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+    // The stored setting is the source of truth, so the slider's state mirrors
+    // [value] on every recomposition instead of owning it: the thumb then shows
+    // the rounded, clamped setting, exactly as Material 3's deprecated
+    // value-based overload did internally.
+    val sliderValue = value.coerceIn(range.first, range.last).toFloat()
+    val sliderState =
+        remember(range) {
+            SliderState(value = sliderValue, trackRange = range.first.toFloat()..range.last.toFloat())
+        }
+    sliderState.value = sliderValue
     Slider(
-        value = value.coerceIn(range.first, range.last).toFloat(),
+        state = sliderState,
         onValueChange = { onValueChange(it.roundToInt().coerceIn(range.first, range.last)) },
-        valueRange = range.first.toFloat()..range.last.toFloat(),
     )
 }
 
