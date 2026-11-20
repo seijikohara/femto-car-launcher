@@ -200,6 +200,9 @@ internal fun DashboardScaffold(
     videoPictureVisible: Boolean = false,
     onVideoAction: (VideoAction) -> Unit = {},
     videoSurface: @Composable (Modifier) -> Unit = {},
+    // The fullscreen choice, for the app drawer's search view, which opens in a
+    // window of its own.
+    fullscreen: Boolean = false,
 ) = DashboardContent(
     uiState = uiState,
     is24Hour = is24Hour,
@@ -230,6 +233,7 @@ internal fun DashboardScaffold(
     videoPictureVisible = videoPictureVisible,
     onVideoAction = onVideoAction,
     videoSurface = videoSurface,
+    fullscreen = fullscreen,
 )
 
 // The full-screen dashboard body: the map fills the viewport as the background
@@ -267,6 +271,7 @@ private fun DashboardContent(
     videoPictureVisible: Boolean = false,
     onVideoAction: (VideoAction) -> Unit = {},
     videoSurface: @Composable (Modifier) -> Unit = {},
+    fullscreen: Boolean = false,
 ) = BoxWithConstraints(modifier = modifier) {
     val compact = maxHeight < CompactHeightBreakpoint || maxWidth < CompactWidthBreakpoint
     val portrait = maxHeight > maxWidth
@@ -554,6 +559,7 @@ private fun DashboardContent(
         videoPictureVisible = videoPictureVisible,
         onVideoAction = onVideoAction,
         videoSurface = videoSurface,
+        fullscreen = fullscreen,
         videoExpanded = videoExpanded,
         onExpandVideo = { videoExpanded = true },
         onCloseVideo = { videoExpanded = false },
@@ -664,6 +670,7 @@ private fun DashboardOverlays(
     videoPictureVisible: Boolean,
     onVideoAction: (VideoAction) -> Unit,
     videoSurface: @Composable (Modifier) -> Unit,
+    fullscreen: Boolean,
     videoExpanded: Boolean,
     onExpandVideo: () -> Unit,
     onCloseVideo: () -> Unit,
@@ -1081,6 +1088,7 @@ private fun DashboardOverlays(
                 onClose = onCloseApps,
                 hazeState = hazeState,
                 glassConfig = glassConfig,
+                fullscreen = fullscreen,
                 modifier = Modifier.fillMaxSize(),
             )
         }

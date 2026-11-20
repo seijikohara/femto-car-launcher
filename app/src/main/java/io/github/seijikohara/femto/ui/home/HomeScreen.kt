@@ -56,7 +56,8 @@ internal fun HomeScreen(
     // Whether one of the host's sheets covers the dashboard (Settings, the
     // assistant, ...).
     sheetOpen: Boolean = false,
-    // The fullscreen choice, for the update prompt's own window.
+    // The fullscreen choice, for the windows that open over the dashboard: the
+    // update prompt and the app drawer's search view.
     fullscreen: Boolean = false,
     // The video window (VideoViewModel's state), its events, and the player's
     // surface; see DashboardScaffold.
@@ -93,6 +94,7 @@ internal fun HomeScreen(
         videoPictureVisible = videoPictureVisible,
         onVideoAction = onVideoAction,
         videoSurface = videoSurface,
+        fullscreen = fullscreen,
     )
     // The update prompt waits while a sheet covers the dashboard. Over Settings
     // it could ask about the very offer the Updates section shows (and records

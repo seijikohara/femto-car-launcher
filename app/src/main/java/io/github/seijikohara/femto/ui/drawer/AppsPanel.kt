@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CheckableDropdownMenuItem
 import androidx.compose.material3.DropdownMenuGroup
@@ -23,17 +24,21 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.SearchBarValue
 import androidx.compose.material3.SelectableDropdownMenuItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSearchBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,7 +60,6 @@ import com.composables.icons.lucide.LayoutGrid
 import com.composables.icons.lucide.LayoutList
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Search
-import com.composables.icons.lucide.X
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
@@ -63,6 +67,7 @@ import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
 import io.github.seijikohara.femto.data.apps.DrawerLayout
 import io.github.seijikohara.femto.data.apps.DrawerPreferences
+import io.github.seijikohara.femto.ui.common.ExpandedSearch
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.PanelIconButton
 import io.github.seijikohara.femto.ui.home.components.glassChrome
@@ -72,9 +77,11 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.drawerBody
 import io.github.seijikohara.femto.ui.theme.eyebrow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 internal const val APP_DRAWER_SEARCH_TEST_TAG = "app-drawer-search"
+internal const val APP_DRAWER_SEARCH_RESULTS_TEST_TAG = "app-drawer-search-results"
 internal const val APP_DRAWER_ICON_SIZE_TEST_TAG = "app-drawer-icon-size"
 
 /**
@@ -88,9 +95,11 @@ internal const val APP_DRAWER_ICON_SIZE_TEST_TAG = "app-drawer-icon-size"
  *
  * Unlike the shared [io.github.seijikohara.femto.ui.home.components.MaximizePanel],
  * whose top bar ends in one "open external app" button, this panel's bar is
- * app-native: collapse, the APPS eyebrow, a search toggle, and a display-options
- * overflow (grid/list layout + icon size). Search state is owned here and flows
- * down to [AppDrawerContent]; the system back gesture collapses via [onClose].
+ * app-native: collapse, the APPS eyebrow, a search button, and a display-options
+ * overflow (grid/list layout + icon size). The search button opens the shared
+ * [ExpandedSearch], whose full-screen view shows the drawer content filtered by
+ * the query; the panel underneath stays unfiltered. The system back gesture
+ * collapses the panel via [onClose].
  *
  * Pure UI — the caller ([AppDrawerPanelHost]) owns the view-model and preferences
  * so this composable stays previewable and golden-testable.
@@ -115,14 +124,29 @@ internal fun AppsPanel(
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
+    // The launcher's fullscreen choice, re-applied to the search view's window.
+    fullscreen: Boolean = false,
 ) {
     BackHandler(onBack = onClose)
-    // Reset per open: the panel leaves composition on collapse, so a plain
-    // remember starts each open with search closed, an empty query, and hidden
-    // apps tucked away.
-    var searchActive by remember { mutableStateOf(false) }
-    var query by remember { mutableStateOf("") }
+    // Reset per open: the panel leaves composition on collapse, which drops even
+    // saveable state, so each open starts with search closed, an empty query,
+    // and hidden apps tucked away. The search state is saveable so a rotation
+    // keeps an open search open.
+    var searchActive by rememberSaveable { mutableStateOf(false) }
+    val searchBarState = rememberSearchBarState()
+    val query = rememberTextFieldState()
     var showHidden by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    // The header shows the collapsed search bar only while a search runs: the
+    // expanded view grows out of it and shrinks back into it, then the header
+    // returns to the eyebrow and its buttons.
+    LaunchedEffect(searchActive) {
+        if (searchActive) {
+            searchBarState.animateToExpanded()
+            snapshotFlow { searchBarState.currentValue }.first { it == SearchBarValue.Collapsed }
+            searchActive = false
+        }
+    }
     Surface(
         modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
         shape = MaterialTheme.shapes.large,
@@ -134,13 +158,8 @@ internal fun AppsPanel(
             verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
         ) {
             AppsTopBar(
-                query = query,
-                onQueryChange = { query = it },
                 searchActive = searchActive,
-                onSearchActiveChange = { active ->
-                    searchActive = active
-                    if (!active) query = ""
-                },
+                onOpenSearch = { searchActive = true },
                 layout = layout,
                 onToggleLayout = onToggleLayout,
                 iconSize = iconSize,
@@ -148,6 +167,45 @@ internal fun AppsPanel(
                 showHidden = showHidden,
                 onShowHiddenChange = { showHidden = it },
                 onClose = onClose,
+                searchField = { fieldModifier ->
+                    ExpandedSearch(
+                        searchBarState = searchBarState,
+                        textFieldState = query,
+                        placeholder = stringResource(R.string.drawer_search_hint),
+                        inputFieldTestTag = APP_DRAWER_SEARCH_TEST_TAG,
+                        fullscreen = fullscreen,
+                        modifier = fieldModifier,
+                        // Nothing opaque over the glass: the collapsed bar shows only
+                        // while the expanded view grows out of it and back.
+                        collapsedColors = SearchBarDefaults.colors(containerColor = Color.Transparent),
+                        textStyle = MaterialTheme.typography.drawerBody(),
+                    ) {
+                        AppDrawerContent(
+                            uiState = uiState,
+                            layout = layout,
+                            iconSize = iconSize,
+                            pinned = pinned,
+                            hidden = hidden,
+                            showHidden = showHidden,
+                            query = query.text.toString(),
+                            onLaunch = { component ->
+                                onLaunch(component)
+                                scope.launch { searchBarState.animateToCollapsed() }
+                            },
+                            onTogglePin = onTogglePin,
+                            onToggleHide = onToggleHide,
+                            onOpenAppInfo = onOpenAppInfo,
+                            onRequestUninstall = onRequestUninstall,
+                            onReorderPins = onReorderPins,
+                            onRetry = onRetry,
+                            modifier =
+                                Modifier
+                                    .fillMaxSize()
+                                    .padding(FemtoDimens.CardPadding)
+                                    .testTag(APP_DRAWER_SEARCH_RESULTS_TEST_TAG),
+                        )
+                    }
+                },
             )
             AppDrawerContent(
                 uiState = uiState,
@@ -156,7 +214,7 @@ internal fun AppsPanel(
                 pinned = pinned,
                 hidden = hidden,
                 showHidden = showHidden,
-                query = query,
+                query = "",
                 onLaunch = onLaunch,
                 onTogglePin = onTogglePin,
                 onToggleHide = onToggleHide,
@@ -170,15 +228,13 @@ internal fun AppsPanel(
     }
 }
 
-// Collapse | (APPS eyebrow + search toggle + display options) OR (search field +
-// close). Search folds the title and display controls away — the layout toggle
-// is moot while a query forces the list view (see effectiveLayout).
+// Collapse | (APPS eyebrow + search button + display options) OR the collapsed
+// search bar. The bar shows only while a search runs, as the anchor the
+// full-screen search view grows out of and shrinks back into.
 @Composable
 private fun AppsTopBar(
-    query: String,
-    onQueryChange: (String) -> Unit,
     searchActive: Boolean,
-    onSearchActiveChange: (Boolean) -> Unit,
+    onOpenSearch: () -> Unit,
     layout: DrawerLayout,
     onToggleLayout: () -> Unit,
     iconSize: DrawerIconSize,
@@ -186,6 +242,7 @@ private fun AppsTopBar(
     showHidden: Boolean,
     onShowHiddenChange: (Boolean) -> Unit,
     onClose: () -> Unit,
+    searchField: @Composable (Modifier) -> Unit,
     modifier: Modifier = Modifier,
 ) = Row(
     modifier = modifier.fillMaxWidth(),
@@ -198,22 +255,7 @@ private fun AppsTopBar(
         onClick = onClose,
     )
     if (searchActive) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            modifier = Modifier.weight(1f).testTag(APP_DRAWER_SEARCH_TEST_TAG),
-            textStyle = MaterialTheme.typography.drawerBody(),
-            placeholder = {
-                Text(text = stringResource(R.string.drawer_search_hint), style = MaterialTheme.typography.drawerBody())
-            },
-            leadingIcon = { FemtoIcon(imageVector = Lucide.Search, contentDescription = null) },
-            singleLine = true,
-        )
-        PanelIconButton(
-            icon = Lucide.X,
-            description = stringResource(R.string.drawer_search_close),
-            onClick = { onSearchActiveChange(false) },
-        )
+        searchField(Modifier.weight(1f))
     } else {
         Text(
             text = stringResource(R.string.nav_apps).uppercase(),
@@ -225,7 +267,7 @@ private fun AppsTopBar(
         PanelIconButton(
             icon = Lucide.Search,
             description = stringResource(R.string.drawer_search),
-            onClick = { onSearchActiveChange(true) },
+            onClick = onOpenSearch,
         )
         DisplayOptionsButton(
             layout = layout,
@@ -362,6 +404,7 @@ internal fun AppDrawerPanelHost(
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
+    fullscreen: Boolean = false,
 ) {
     val context = LocalContext.current
     val viewModel: AppDrawerViewModel = viewModel(factory = AppDrawerViewModelFactory)
@@ -410,6 +453,7 @@ internal fun AppDrawerPanelHost(
         modifier = modifier,
         hazeState = hazeState,
         glassConfig = glassConfig,
+        fullscreen = fullscreen,
     )
 }
 
