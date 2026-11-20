@@ -55,11 +55,7 @@ internal class DashboardCatalogTest(
         RuntimeEnvironment.setQualifiers(entry.geometry.qualifiers)
         captureRoboImage(filePath = "${CatalogRun.OUTPUT_DIR}/${entry.file}") {
             RobolectricHaze {
-                FemtoTheme(
-                    uiScale = entry.scale,
-                    darkTheme = entry.darkTheme,
-                    motionTier = DashboardFixtures.motionTier,
-                ) {
+                FemtoTheme(uiScale = entry.scale, darkTheme = entry.darkTheme) {
                     DashboardScaffold(
                         uiState = DashboardFixtures.state,
                         is24Hour = true,
@@ -73,7 +69,6 @@ internal class DashboardCatalogTest(
                         modifier = Modifier.fillMaxSize(),
                         dockPosition = entry.dockPosition,
                         driverSide = entry.driverSide,
-                        motionTier = DashboardFixtures.motionTier,
                         clock = DashboardFixtures.fixedClock,
                         mapSurface = { _, config -> MapBackdrop(darkTheme = entry.darkTheme, mapConfig = config) },
                     )

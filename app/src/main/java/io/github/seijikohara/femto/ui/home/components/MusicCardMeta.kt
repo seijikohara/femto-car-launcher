@@ -205,7 +205,6 @@ internal fun MusicMetaAndProgress(
     motionTier: MotionTier = MotionTier.STANDARD,
     // Scroll long title / artist / album lines to their full length while the
     // vehicle is stationary; static ellipsis while moving. See [MetaLine].
-    // The same gate raises the progress wave (see [playbackWave]).
     stationary: Boolean = false,
 ) {
     // Title, artist and album styles derive from the M3 type roles once and are
@@ -259,8 +258,6 @@ internal fun MusicMetaAndProgress(
                 positionUpdateTimeMs = positionUpdateTimeMs,
                 isPlaying = isPlaying,
                 playbackSpeed = playbackSpeed,
-                motionTier = motionTier,
-                stationary = stationary,
             )
         },
     ) { measurables, constraints ->

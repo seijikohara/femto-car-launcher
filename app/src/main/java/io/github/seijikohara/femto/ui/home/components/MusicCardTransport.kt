@@ -12,10 +12,9 @@ import androidx.compose.material3.ButtonGroupScope
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.IconToggleButton
-import androidx.compose.material3.LinearWavyProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.WavyProgressIndicatorDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -33,25 +32,20 @@ import com.composables.icons.lucide.Play
 import com.composables.icons.lucide.SkipBack
 import com.composables.icons.lucide.SkipForward
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.progressCaption
-
-// Top-level, so the indicator sees the same instance on every recomposition
-// and keeps its drawing cache; a new lambda would rebuild it each time.
-private val FlatAmplitude: (Float) -> Float = { 0f }
 
 private val PlayButtonShape = RoundedCornerShape(16.dp)
 private val PlayIconSize = 40.dp
 private val SkipIconSize = 32.dp
 
 /**
- * The music card's elapsed / total row around a Material wavy progress line.
- * [playbackWave] decides the wave from [isPlaying], [stationary] and
- * [motionTier]: raised only while playing parked, travelling only at the
- * standard motion tier.
+ * The music card's elapsed / total row around a flat Material progress line
+ * (the Expressive gap and stop dot). Flat on purpose, not the wavy
+ * indicator: a rippling line draws the eye on a dashboard the driver only
+ * glances at.
  */
 @Composable
 internal fun Progress(
@@ -61,8 +55,6 @@ internal fun Progress(
     isPlaying: Boolean,
     playbackSpeed: Float,
     modifier: Modifier = Modifier,
-    motionTier: MotionTier = MotionTier.STANDARD,
-    stationary: Boolean = false,
 ) {
     val livePosition =
         rememberInterpolatedPositionMs(
@@ -80,7 +72,6 @@ internal fun Progress(
                 if (durationMs > 0L) (livePosition.value.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
             }
         }
-    val wave = playbackWave(isPlaying = isPlaying, stationary = stationary, motionTier = motionTier)
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -92,15 +83,11 @@ internal fun Progress(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
         )
-        LinearWavyProgressIndicator(
+        LinearProgressIndicator(
             progress = progress,
             modifier = Modifier.weight(1f),
             color = MaterialTheme.colorScheme.primary,
             trackColor = MaterialTheme.colorScheme.outlineVariant,
-            amplitude = if (wave.raised) WavyProgressIndicatorDefaults.indicatorAmplitude else FlatAmplitude,
-            // Any positive speed runs the wave's offset animation forever, even
-            // while the line is flat, so a still wave needs a zero speed.
-            waveSpeed = if (wave.travelling) WavyProgressIndicatorDefaults.LinearDeterminateWavelength else 0.dp,
         )
         Text(
             text = formatMillis(durationMs),
