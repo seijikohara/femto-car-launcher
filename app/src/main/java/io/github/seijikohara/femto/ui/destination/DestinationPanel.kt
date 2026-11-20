@@ -33,12 +33,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.composables.icons.lucide.Lucide
@@ -79,6 +82,10 @@ internal const val DESTINATION_QUERY_TEST_TAG = "destination-query"
  * while moving the field and those controls disable, and a line says typing
  * waits for a stop. The mic and the saved places work in every motion state,
  * so a driver can still set a destination without typing.
+ *
+ * With no app to take a destination ([DestinationUiState.handOffAvailable]),
+ * Navigate, the keyboard's Go key and the saved places hand off nothing, and
+ * the same line says why; typing and saving still work for later.
  *
  * A landscape panel puts the entry beside the saved places; a portrait panel
  * stacks them, the entry above, matching how [io.github.seijikohara.femto.ui.home.components.CalendarPanel]
@@ -137,6 +144,7 @@ internal fun DestinationPanel(
         SavedPlaces(
             places = uiState.places,
             typingAllowed = uiState.typingAllowed,
+            handOffAvailable = uiState.handOffAvailable,
             onNavigate = handOff,
             onDelete = { onAction(DestinationAction.DeletePlace(it)) },
             modifier = placesModifier,
@@ -179,7 +187,8 @@ private fun DestinationEntry(
     verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
 ) {
     val query = uiState.query.trim()
-    val navigate = { if (query.isNotEmpty()) onNavigate(PlaceTarget.Query(query), "") }
+    val canNavigate = query.isNotEmpty() && uiState.handOffAvailable
+    val navigate = { if (canNavigate) onNavigate(PlaceTarget.Query(query), "") }
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -214,10 +223,14 @@ private fun DestinationEntry(
             MicButton(listening = uiState.voice is VoiceState.Listening, onClick = onMicTap)
         }
     }
-    StatusLine(voice = uiState.voice, typingAllowed = uiState.typingAllowed)
+    StatusLine(
+        voice = uiState.voice,
+        typingAllowed = uiState.typingAllowed,
+        handOffAvailable = uiState.handOffAvailable,
+    )
     Button(
         onClick = navigate,
-        enabled = query.isNotEmpty(),
+        enabled = canNavigate,
         modifier = Modifier.fillMaxWidth().heightIn(min = FemtoDimens.MinTouchTarget),
     ) {
         FemtoIcon(
@@ -253,12 +266,15 @@ private fun DestinationEntry(
     }
 }
 
-// One line under the field: the motion gate's explanation while moving, else
-// the voice step (live transcript or failure); nothing when idle.
+// One line under the field: the voice step (live transcript or failure), else
+// the missing hand-off app, else the motion gate's explanation while moving;
+// nothing when idle. The missing app outranks the motion line, whose promise
+// that saved places work now would not hold.
 @Composable
 private fun StatusLine(
     voice: VoiceState,
     typingAllowed: Boolean,
+    handOffAvailable: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val text =
@@ -271,6 +287,10 @@ private fun StatusLine(
 
             voice is VoiceState.Failed -> {
                 stringResource(voice.messageRes)
+            }
+
+            !handOffAvailable -> {
+                stringResource(R.string.destination_no_handler)
             }
 
             !typingAllowed -> {
@@ -310,11 +330,13 @@ private fun MicButton(
 )
 
 // The saved places in insertion order (newest last). A row tap hands the
-// place off in any motion state; the trailing delete shows only while stopped.
+// place off in any motion state while an app can take it; the trailing
+// delete shows only while stopped.
 @Composable
 private fun SavedPlaces(
     places: List<SavedPlace>,
     typingAllowed: Boolean,
+    handOffAvailable: Boolean,
     onNavigate: (target: PlaceTarget, label: String) -> Unit,
     onDelete: (Long) -> Unit,
     modifier: Modifier = Modifier,
@@ -339,6 +361,7 @@ private fun SavedPlaces(
                 SavedPlaceRow(
                     place = place,
                     showDelete = typingAllowed,
+                    navigable = handOffAvailable,
                     onNavigate = { onNavigate(place.target, place.label) },
                     onDelete = { onDelete(place.id) },
                 )
@@ -351,6 +374,7 @@ private fun SavedPlaces(
 private fun SavedPlaceRow(
     place: SavedPlace,
     showDelete: Boolean,
+    navigable: Boolean,
     onNavigate: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
@@ -364,7 +388,8 @@ private fun SavedPlaceRow(
                 .weight(1f)
                 .heightIn(min = FemtoDimens.MinTouchTarget)
                 .clip(MaterialTheme.shapes.medium)
-                .clickable(onClick = onNavigate)
+                .clickable(enabled = navigable, onClick = onNavigate)
+                .alpha(if (navigable) 1f else FemtoDimens.DisabledContentAlpha)
                 .padding(horizontal = FemtoDimens.CardSectionGap),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
@@ -410,7 +435,8 @@ private fun SavedPlaceRow(
  * for the permission on its first tap, never at startup, and a denial leaves
  * the typed and saved paths in place. A hand-off (recognition already
  * cancelled by the panel) clears the query and closes the panel, as the apps
- * panel closes on a launch.
+ * panel closes on a launch. The host also asks the ViewModel to look for an
+ * app that takes the hand-off, on opening and on every return to the launcher.
  */
 @Composable
 internal fun DestinationPanelHost(
@@ -430,6 +456,10 @@ internal fun DestinationPanelHost(
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) viewModel.onAction(DestinationAction.StartListening)
         }
+    // An observer added while the activity is resumed receives ON_RESUME at
+    // once, so this runs as the panel opens, and again whenever the user comes
+    // back from another app, which is where a maps app gets installed.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onAction(DestinationAction.CheckHandOff) }
     DestinationPanel(
         uiState = uiState,
         currentPoint = currentPoint,
@@ -462,6 +492,28 @@ private fun DestinationPanelStoppedPreview() {
     FemtoTheme {
         DestinationPanel(
             uiState = PreviewState.copy(motion = VehicleMotion.PARKED, query = "Central Station"),
+            currentPoint = PlaceTarget.Point(35.681236, 139.767125),
+            currentAddress = "1-9-1 Marunouchi",
+            onAction = {},
+            onMicTap = {},
+            onNavigate = { _, _ -> },
+            onOpenMaps = {},
+            onClose = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@PreviewLightDark
+@Composable
+private fun DestinationPanelNoHandlerPreview() {
+    FemtoTheme {
+        DestinationPanel(
+            uiState = PreviewState.copy(
+                motion = VehicleMotion.PARKED,
+                query = "Central Station",
+                handOffAvailable = false,
+            ),
             currentPoint = PlaceTarget.Point(35.681236, 139.767125),
             currentAddress = "1-9-1 Marunouchi",
             onAction = {},

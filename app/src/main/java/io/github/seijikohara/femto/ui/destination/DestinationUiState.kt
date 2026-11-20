@@ -11,12 +11,17 @@ import io.github.seijikohara.femto.data.voice.VoiceState
  * the gate on every edit that involves typing — the text field, saving and
  * deleting places — while voice and a tap on a saved place work in every
  * motion state (issue #389, Safety).
+ *
+ * [handOffAvailable] is false when no installed app takes a destination; the
+ * panel then hands off nothing and says why. It reads true until checked, so a
+ * hand-off that works is never blocked by a check that has not run.
  */
 internal data class DestinationUiState(
     val query: String,
     val voice: VoiceState,
     val places: List<SavedPlace>,
     val motion: VehicleMotion,
+    val handOffAvailable: Boolean = true,
 ) {
     /**
      * True unless the verdict is [VehicleMotion.MOVING]. The gate fails open:
@@ -38,6 +43,7 @@ internal data class DestinationUiState(
                 voice = VoiceState.Idle,
                 places = emptyList(),
                 motion = VehicleMotion.UNKNOWN,
+                handOffAvailable = true,
             )
     }
 }
@@ -84,4 +90,11 @@ internal sealed interface DestinationAction {
      * in every motion state: it types nothing.
      */
     data object ClearQuery : DestinationAction
+
+    /**
+     * Look again for an app that takes the hand-off. The panel's host sends it
+     * on opening and on every return to the launcher, since a maps app may have
+     * been installed or removed in between.
+     */
+    data object CheckHandOff : DestinationAction
 }

@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
@@ -52,6 +53,7 @@ class DestinationPanelTest {
         stationary: Boolean,
         query: String = "",
         currentPoint: PlaceTarget.Point? = PlaceTarget.Point(1.0, 2.0),
+        handOffAvailable: Boolean = true,
     ) = rule.setContent {
         FemtoTheme {
             DestinationPanel(
@@ -61,6 +63,7 @@ class DestinationPanelTest {
                         voice = VoiceState.Idle,
                         places = listOf(office, home),
                         motion = if (stationary) VehicleMotion.PARKED else VehicleMotion.MOVING,
+                        handOffAvailable = handOffAvailable,
                     ),
                 currentPoint = currentPoint,
                 currentAddress = "1-9-1 Marunouchi",
@@ -246,6 +249,41 @@ class DestinationPanelTest {
     }
 
     @Test
+    fun without_an_app_to_take_it_navigate_is_disabled() {
+        setPanel(stationary = true, query = "Central Station", handOffAvailable = false)
+        rule.onNodeWithText("Navigate").performScrollTo().assertIsNotEnabled()
+    }
+
+    @Test
+    fun without_an_app_to_take_it_the_go_key_hands_off_nothing() {
+        setPanel(stationary = true, query = "Central Station", handOffAvailable = false)
+        rule.onNodeWithTag(DESTINATION_QUERY_TEST_TAG).performImeAction()
+        assertEquals(emptyList(), handoffs)
+    }
+
+    @Test
+    fun without_an_app_to_take_it_a_saved_place_tap_hands_off_nothing() {
+        setPanel(stationary = true, handOffAvailable = false)
+        rule.onNodeWithText("Home").performClick()
+        assertEquals(emptyList(), handoffs)
+    }
+
+    @Test
+    fun without_an_app_to_take_it_a_line_says_so_instead_of_the_moving_line() {
+        // The moving line promises that saved places work now, which would not
+        // hold with no app to hand them to.
+        setPanel(stationary = false, handOffAvailable = false)
+        rule.onNodeWithText(NO_HANDLER_LINE).assertIsDisplayed()
+        rule.onNodeWithText("Typing works when stopped. Voice and saved places work now.").assertDoesNotExist()
+    }
+
+    @Test
+    fun with_an_app_to_take_it_no_missing_app_line_shows() {
+        setPanel(stationary = true)
+        rule.onNodeWithText(NO_HANDLER_LINE).assertDoesNotExist()
+    }
+
+    @Test
     fun a_query_hand_off_cancels_recognition_before_the_launch() {
         setPanel(stationary = true, query = "Central Station")
         rule.onNodeWithText("Navigate").performScrollTo().performClick()
@@ -253,3 +291,6 @@ class DestinationPanelTest {
         assertEquals(listOf<Pair<PlaceTarget, String>>(PlaceTarget.Query("Central Station") to ""), handoffs)
     }
 }
+
+private const val NO_HANDLER_LINE =
+    "No app on this device can open a destination. Install a maps or navigation app."

@@ -52,8 +52,8 @@ import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.hasCoarseLocationPermission
 import io.github.seijikohara.femto.data.location.hasFineLocationPermission
 import io.github.seijikohara.femto.data.places.PlaceTarget
+import io.github.seijikohara.femto.data.places.destinationIntent
 import io.github.seijikohara.femto.data.places.geoCentreUri
-import io.github.seijikohara.femto.data.places.geoHandoffUri
 import io.github.seijikohara.femto.data.system.SystemPermissionSignals
 import io.github.seijikohara.femto.data.update.UpdateChannel
 import io.github.seijikohara.femto.data.update.dismissUpdateNotification
@@ -628,17 +628,17 @@ class MainActivity : ComponentActivity() {
     }
 
     // The destination panel's hand-off: the same package-agnostic geo: intent
-    // as launchGeo, carrying a query or a labelled point (geoHandoffUri). A
-    // device without a geo: handler is a silent no-op; tryStartActivity logs
-    // only the action and the exception class (launchFailureLogLine), because
-    // the platform's exception message embeds the Intent and its destination.
+    // as launchGeo, carrying a query or a labelled point (destinationIntent).
+    // The panel already says so when no app takes it (hasDestinationHandler);
+    // a handler removed between that check and the tap leaves a no-op here.
+    // tryStartActivity logs only the action and the exception class
+    // (launchFailureLogLine), because the platform's exception message embeds
+    // the Intent and its destination.
     private fun launchDestination(
         target: PlaceTarget,
         label: String,
     ) {
-        val intent =
-            Intent(Intent.ACTION_VIEW, geoHandoffUri(target, label).toUri())
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val intent = destinationIntent(target, label).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         tryStartActivity(intent)
     }
 
