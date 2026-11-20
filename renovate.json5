@@ -30,6 +30,20 @@
       groupName: "pnpm package manager",
     },
     {
+      // webmap's catalog aliases vite to @voidzero-dev/vite-plus-core, and
+      // each vite-plus release pins one core version. Since Vite+ 1.7.0 the
+      // core's version encodes the bundled Vite (8.3.8000), so the pair no
+      // longer shares a number and the core's jump reads as a major: Renovate
+      // split it into its own PR, which paired the new core with the old
+      // vite-plus and broke the build (#516). separateMajorMinor: false keeps
+      // that major in the same branch as the vite-plus update.
+      description: "Update vite-plus and its vite-plus-core alias together",
+      matchFileNames: ["webmap/**"],
+      matchDepNames: ["vite", "vite-plus"],
+      groupName: "Vite+",
+      separateMajorMinor: false,
+    },
+    {
       // @astrojs/check, which runs `astro check`, supports TypeScript ^5 || ^6
       // only. webmap is not affected and stays on TypeScript 7.
       description: "Keep the docs site below TypeScript 7 until Astro supports it",
