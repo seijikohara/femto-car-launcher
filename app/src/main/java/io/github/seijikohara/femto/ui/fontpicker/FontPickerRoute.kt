@@ -19,6 +19,7 @@ internal fun FontPickerRoute(
     slot: FontSlot,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    fullscreen: Boolean = false,
 ) {
     val context = LocalContext.current
     val viewModel: FontPickerViewModel =
@@ -33,5 +34,6 @@ internal fun FontPickerRoute(
         onAction = viewModel::onAction,
         onBack = onBack,
         modifier = modifier,
+        fullscreen = fullscreen,
     )
 }
