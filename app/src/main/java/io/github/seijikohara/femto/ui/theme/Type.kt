@@ -62,6 +62,8 @@ internal data class FemtoWeights(
  *
  * [family] is the resolved font family — the system default, or the user's
  * downloaded Google Fonts pair (Latin + CJK fallback). See [buildFontFamily].
+ *
+ * The 15 emphasized roles derive from the built base roles; see [withEmphasized].
  */
 internal fun femtoTypography(
     family: FontFamily,
@@ -161,8 +163,52 @@ internal fun femtoTypography(
                 fontSize = FemtoDimens.TextSm,
                 letterSpacing = tracking,
             ),
-        )
+        ).withEmphasized(weights.strong)
     }
+
+/**
+ * Return this typography with every emphasized role filled from its base role
+ * at the [strong] weight tier. Left unset, the emphasized roles keep the M3
+ * token styles — the default font at M3 sizes — so an Expressive component
+ * would drop the user's typeface and the rem scale. Emphasis is a weight change
+ * only: family, size, line height and tracking stay the base role's. The
+ * title / headline / display roles already run at the strong tier, so their
+ * emphasized roles equal the base roles; the three-weight system has no heavier
+ * tier to raise them to.
+ */
+private fun Typography.withEmphasized(strong: FontWeight): Typography =
+    Typography(
+        displayLarge = displayLarge,
+        displayMedium = displayMedium,
+        displaySmall = displaySmall,
+        headlineLarge = headlineLarge,
+        headlineMedium = headlineMedium,
+        headlineSmall = headlineSmall,
+        titleLarge = titleLarge,
+        titleMedium = titleMedium,
+        titleSmall = titleSmall,
+        bodyLarge = bodyLarge,
+        bodyMedium = bodyMedium,
+        bodySmall = bodySmall,
+        labelLarge = labelLarge,
+        labelMedium = labelMedium,
+        labelSmall = labelSmall,
+        displayLargeEmphasized = displayLarge.copy(fontWeight = strong),
+        displayMediumEmphasized = displayMedium.copy(fontWeight = strong),
+        displaySmallEmphasized = displaySmall.copy(fontWeight = strong),
+        headlineLargeEmphasized = headlineLarge.copy(fontWeight = strong),
+        headlineMediumEmphasized = headlineMedium.copy(fontWeight = strong),
+        headlineSmallEmphasized = headlineSmall.copy(fontWeight = strong),
+        titleLargeEmphasized = titleLarge.copy(fontWeight = strong),
+        titleMediumEmphasized = titleMedium.copy(fontWeight = strong),
+        titleSmallEmphasized = titleSmall.copy(fontWeight = strong),
+        bodyLargeEmphasized = bodyLarge.copy(fontWeight = strong),
+        bodyMediumEmphasized = bodyMedium.copy(fontWeight = strong),
+        bodySmallEmphasized = bodySmall.copy(fontWeight = strong),
+        labelLargeEmphasized = labelLarge.copy(fontWeight = strong),
+        labelMediumEmphasized = labelMedium.copy(fontWeight = strong),
+        labelSmallEmphasized = labelSmall.copy(fontWeight = strong),
+    )
 
 // The resolved weight tiers, read back from the roles femtoTypography already
 // built, so the named styles below — and the dashboard's pinned large numerals,
