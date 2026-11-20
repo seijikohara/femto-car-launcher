@@ -1,12 +1,18 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.QueueEntry
+import io.github.seijikohara.femto.data.music.RepeatMode
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Rule
@@ -148,6 +154,30 @@ class NowPlayingPanelTest {
         rule.onNodeWithContentDescription("Shuffle").performClick()
         rule.onNodeWithContentDescription("Repeat").performClick()
         assertEquals(listOf<MusicCommand>(MusicCommand.ToggleShuffle, MusicCommand.CycleRepeat), commands)
+    }
+
+    @Test
+    fun shuffle_and_repeat_expose_their_toggle_state() {
+        rule.setContent {
+            FemtoTheme {
+                NowPlayingPanel(
+                    nowPlaying = fakeNowPlaying(
+                        canShuffle = true,
+                        canRepeat = true,
+                        shuffleOn = false,
+                        repeatMode = RepeatMode.ONE,
+                    ),
+                    onCommand = {},
+                    onLaunchSource = {},
+                    onClose = {},
+                )
+            }
+        }
+        rule.onNodeWithContentDescription("Shuffle").assertIsOff()
+        rule
+            .onNodeWithContentDescription("Repeat")
+            .assertIsOn()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Repeat one"))
     }
 
     @Test

@@ -16,6 +16,8 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -33,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -52,11 +55,36 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import kotlin.math.roundToInt
 
-// Shared back-arrow icon size: the screen-level Header (back to the
-// dashboard), SettingsCategoryDetail's narrow-mode back arrow (back to the
-// category list) and the saved-regions picker's back arrow all use it, so the
-// back affordances read as the same control at a glance.
-internal val BackIconSize = 28.dp
+// Shared back-arrow icon size: every BackButton (the settings, diagnostics,
+// licenses and font-picker headers, SettingsCategoryDetail's narrow-mode back
+// arrow, the saved-regions picker) uses it, so the back affordances read as
+// the same control at a glance.
+private val BackIconSize = 28.dp
+
+/**
+ * Render the shared screen-header back arrow: a [FemtoDimens.MinTouchTarget]
+ * round icon button that morphs to the Material icon button's default pressed
+ * shape on press. [tint] defaults to `onBackground` for headers drawn on the
+ * screen background; pass `onSurfaceVariant` inside a surface.
+ */
+@Composable
+internal fun BackButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    description: String = stringResource(R.string.settings_back),
+    tint: Color = MaterialTheme.colorScheme.onBackground,
+) = IconButton(
+    onClick = onClick,
+    shapes = IconButtonDefaults.shapes(),
+    modifier = modifier.size(FemtoDimens.MinTouchTarget),
+) {
+    FemtoIcon(
+        imageVector = Lucide.ArrowLeft,
+        contentDescription = description,
+        tint = tint,
+        modifier = Modifier.size(BackIconSize),
+    )
+}
 
 // SettingRow's inset from the card's edge. Internal, so that content a section
 // draws under a row (the Updates section's progress bar) lines up with the
@@ -73,20 +101,7 @@ internal fun Header(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(12.dp),
 ) {
-    Box(
-        modifier =
-            Modifier
-                .size(FemtoDimens.MinTouchTarget)
-                .clipClickable(onBack),
-        contentAlignment = Alignment.Center,
-    ) {
-        FemtoIcon(
-            imageVector = Lucide.ArrowLeft,
-            contentDescription = stringResource(R.string.settings_back),
-            tint = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.size(BackIconSize),
-        )
-    }
+    BackButton(onClick = onBack)
     Text(
         text = stringResource(R.string.settings_title),
         style = MaterialTheme.typography.headlineMedium,
@@ -125,17 +140,11 @@ internal fun SettingsCategoryDetail(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             if (onBack != null) {
-                Box(
-                    modifier = Modifier.size(FemtoDimens.MinTouchTarget).clipClickable(onBack),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    FemtoIcon(
-                        imageVector = Lucide.ArrowLeft,
-                        contentDescription = stringResource(R.string.settings_category_back),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(BackIconSize),
-                    )
-                }
+                BackButton(
+                    onClick = onBack,
+                    description = stringResource(R.string.settings_category_back),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             Text(
                 text = title,
@@ -171,29 +180,23 @@ internal fun SettingsCategoryDetail(
 }
 
 // A compact >= MinTouchTarget tap target for the per-category reset
-// affordance in SettingsCategoryDetail's header row.
+// affordance in SettingsCategoryDetail's header row; round with the same press
+// morph as BackButton.
 @Composable
 private fun SectionResetButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+) = IconButton(
+    onClick = onClick,
+    shapes = IconButtonDefaults.shapes(),
+    modifier = modifier.size(FemtoDimens.MinTouchTarget),
 ) {
-    val description = stringResource(R.string.settings_reset_section)
-    Box(
-        modifier =
-            modifier
-                .size(FemtoDimens.MinTouchTarget)
-                .clip(RoundedCornerShape(percent = 50))
-                .clickable(onClick = onClick)
-                .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center,
-    ) {
-        FemtoIcon(
-            imageVector = Lucide.RotateCcw,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(FemtoDimens.InlineIconSize),
-        )
-    }
+    FemtoIcon(
+        imageVector = Lucide.RotateCcw,
+        contentDescription = stringResource(R.string.settings_reset_section),
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(FemtoDimens.InlineIconSize),
+    )
 }
 
 // A sub-group label inside a section card, separating related rows under a
@@ -524,12 +527,6 @@ internal fun FontRow(
 ) {
     TrailingIcon(Lucide.ChevronRight)
 }
-
-// Small modifier helper: clip to a circle and make clickable, for the back box.
-private fun Modifier.clipClickable(onClick: () -> Unit): Modifier =
-    this
-        .clip(RoundedCornerShape(percent = 50))
-        .clickable(onClick = onClick)
 
 // Whether a typed value is a URL the map WebView can actually load. A bare
 // hostname would resolve against the page's own appassets origin and an http one

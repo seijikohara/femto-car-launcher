@@ -7,16 +7,24 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CheckableDropdownMenuItem
+import androidx.compose.material3.DropdownMenuGroup
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SelectableDropdownMenuItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,7 +63,6 @@ import io.github.seijikohara.femto.data.apps.AppEntry
 import io.github.seijikohara.femto.data.apps.DrawerIconSize
 import io.github.seijikohara.femto.data.apps.DrawerLayout
 import io.github.seijikohara.femto.data.apps.DrawerPreferences
-import io.github.seijikohara.femto.ui.home.components.FemtoHorizontalDivider
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.PanelIconButton
 import io.github.seijikohara.femto.ui.home.components.glassChrome
@@ -251,60 +258,86 @@ private fun DisplayOptionsButton(
         onClick = { menuOpen = true },
         modifier = Modifier.testTag(APP_DRAWER_ICON_SIZE_TEST_TAG),
     )
-    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-        DropdownMenuItem(
-            // The icon and label show the layout the tap switches TO.
-            text = {
-                Text(
-                    stringResource(
-                        if (layout == DrawerLayout.GRID) R.string.drawer_layout_list else R.string.drawer_layout_grid,
-                    ),
-                )
-            },
-            modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
-            leadingIcon = {
-                FemtoIcon(
-                    imageVector = if (layout == DrawerLayout.GRID) Lucide.LayoutList else Lucide.LayoutGrid,
-                    contentDescription = null,
-                )
-            },
-            onClick = {
-                onToggleLayout()
-                menuOpen = false
-            },
-        )
-        FemtoHorizontalDivider()
-        IconSizeOptions.forEach { (size, labelRes) ->
+    DropdownMenuPopup(
+        expanded = menuOpen,
+        onDismissRequest = { menuOpen = false },
+        // DropdownMenuPopup does not scroll on its own, unlike DropdownMenu; a
+        // short head-unit window must still reach the last item.
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+    ) {
+        DropdownMenuGroup(shapes = MenuDefaults.groupShape(index = 0, count = DISPLAY_OPTION_GROUPS)) {
             DropdownMenuItem(
-                text = { Text(stringResource(labelRes)) },
-                // M3's default menu-item height (48 dp) sits below the automotive floor.
-                modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
-                trailingIcon = {
-                    if (size == iconSize) FemtoIcon(imageVector = Lucide.Check, contentDescription = null)
-                },
                 onClick = {
-                    onSelectIconSize(size)
+                    onToggleLayout()
                     menuOpen = false
                 },
+                // The icon and label show the layout the tap switches TO.
+                text = {
+                    Text(
+                        stringResource(
+                            if (layout ==
+                                DrawerLayout.GRID
+                            ) {
+                                R.string.drawer_layout_list
+                            } else {
+                                R.string.drawer_layout_grid
+                            },
+                        ),
+                    )
+                },
+                shape = MenuDefaults.itemShape(index = 0, count = 1).shape,
+                // M3's default menu-item height sits below the automotive floor.
+                modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
+                leadingIcon = {
+                    FemtoIcon(
+                        imageVector = if (layout == DrawerLayout.GRID) Lucide.LayoutList else Lucide.LayoutGrid,
+                        contentDescription = null,
+                    )
+                },
             )
+        }
+        Spacer(Modifier.height(MenuDefaults.GroupSpacing))
+        DropdownMenuGroup(shapes = MenuDefaults.groupShape(index = 1, count = DISPLAY_OPTION_GROUPS)) {
+            IconSizeOptions.forEachIndexed { index, (size, labelRes) ->
+                SelectableDropdownMenuItem(
+                    selected = size == iconSize,
+                    onClick = {
+                        onSelectIconSize(size)
+                        menuOpen = false
+                    },
+                    text = { Text(stringResource(labelRes)) },
+                    shapes = MenuDefaults.itemShape(index = index, count = IconSizeOptions.size),
+                    modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
+                    trailingContent = {
+                        if (size == iconSize) FemtoIcon(imageVector = Lucide.Check, contentDescription = null)
+                    },
+                )
+            }
         }
         // Reveal hidden apps in the grid (each carrying an Unhide in its menu).
         // A checkmark marks the toggle on; it stays open-agnostic — flipping it
         // dismisses the menu so the grid change is immediately visible.
-        FemtoHorizontalDivider()
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.drawer_show_hidden)) },
-            modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
-            trailingIcon = {
-                if (showHidden) FemtoIcon(imageVector = Lucide.Check, contentDescription = null)
-            },
-            onClick = {
-                onShowHiddenChange(!showHidden)
-                menuOpen = false
-            },
-        )
+        Spacer(Modifier.height(MenuDefaults.GroupSpacing))
+        DropdownMenuGroup(shapes = MenuDefaults.groupShape(index = 2, count = DISPLAY_OPTION_GROUPS)) {
+            CheckableDropdownMenuItem(
+                checked = showHidden,
+                onCheckedChange = {
+                    onShowHiddenChange(it)
+                    menuOpen = false
+                },
+                text = { Text(stringResource(R.string.drawer_show_hidden)) },
+                shapes = MenuDefaults.itemShape(index = 0, count = 1),
+                modifier = Modifier.sizeIn(minHeight = FemtoDimens.MinTouchTarget),
+                trailingContent = {
+                    if (showHidden) FemtoIcon(imageVector = Lucide.Check, contentDescription = null)
+                },
+            )
+        }
     }
 }
+
+// Layout, icon size, show hidden.
+private const val DISPLAY_OPTION_GROUPS = 3
 
 private val IconSizeOptions =
     listOf(
