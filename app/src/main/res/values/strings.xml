@@ -121,6 +121,10 @@
          renderings of the feed. -->
     <string name="weather_attribution">Weather data from MET Norway (CC BY 4.0), charted by the app</string>
 
+    <!-- Expanded search (app drawer, font picker) -->
+    <string name="search_close">Close search</string>
+    <string name="search_clear">Clear search</string>
+
     <!-- Maximize panels (calendar / weather) -->
     <string name="panel_collapse">Collapse</string>
     <string name="calendar_expand">Open full-screen calendar</string>
@@ -141,6 +145,8 @@
     <string name="music_seek">Seek</string>
     <string name="music_shuffle">Shuffle</string>
     <string name="music_repeat">Repeat</string>
+    <string name="music_repeat_all">Repeat all</string>
+    <string name="music_repeat_one">Repeat one</string>
     <string name="music_playing_next">Playing next</string>
 
     <!-- Video window (issue #390). The hidden-picture line must never suggest
@@ -238,7 +244,6 @@
     <string name="drawer_move_right">Move right</string>
     <string name="drawer_search_hint">Search apps</string>
     <string name="drawer_search">Search</string>
-    <string name="drawer_search_close">Close search</string>
     <string name="drawer_no_matches">No apps match your search</string>
     <string name="drawer_display_options">Display options</string>
     <string name="drawer_icon_size_small">Small</string>
@@ -330,7 +335,6 @@
     <string name="settings_font_system">System default</string>
     <string name="settings_group_system">System</string>
     <string name="font_picker_search_hint">Search Google Fonts</string>
-    <string name="font_picker_clear">Clear search</string>
     <string name="font_picker_system">System default</string>
     <string name="font_picker_system_desc">Use the device\'s built-in font</string>
     <string name="font_picker_subtitle_cjk">%1$s · CJK</string>

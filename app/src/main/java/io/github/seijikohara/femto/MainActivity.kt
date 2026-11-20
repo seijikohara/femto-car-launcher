@@ -228,6 +228,7 @@ class MainActivity : ComponentActivity() {
                 fontBaseSizeSp = settings.fontBaseSizeSp,
                 fontWeightStep = settings.fontWeightStep,
                 fontLetterSpacingCentiEm = settings.fontLetterSpacingCentiEm,
+                motionTier = settings.motionTier,
             ) {
                 // The dashboard stays composed; the assistant and settings are
                 // bottom-sheet overlays that slide up over it. The app launcher is a

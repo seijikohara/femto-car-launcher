@@ -1,40 +1,103 @@
 package io.github.seijikohara.femto.ui.settings.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ListItemShapes
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Text
+import androidx.compose.material3.WideNavigationRail
+import androidx.compose.material3.WideNavigationRailDefaults
+import androidx.compose.material3.WideNavigationRailItem
+import androidx.compose.material3.WideNavigationRailValue
+import androidx.compose.material3.rememberWideNavigationRailState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.Download
+import com.composables.icons.lucide.LayoutDashboard
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Map
+import com.composables.icons.lucide.MapPin
+import com.composables.icons.lucide.Monitor
+import com.composables.icons.lucide.Palette
+import com.composables.icons.lucide.Ruler
+import com.composables.icons.lucide.Settings
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.ui.common.UpdateBadge
 import io.github.seijikohara.femto.ui.settings.SettingsCategoryId
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 
 /**
- * The master-detail layout's category navigator: the rail in the wide layout,
- * the list in the narrow list-detail layout — one composable either way, only
- * its width / placement differs at the call site (see `SettingsScreen`). Every
- * [SettingsCategoryId] gets one row, in enum declaration order; the row
- * matching [selectedId] is highlighted so the wide rail always shows which
- * category the detail pane is showing. The rows of [badged] categories carry
+ * The wide master-detail layout's category navigator: an expanded Material 3
+ * Expressive navigation rail ([WideNavigationRail]) with one icon-and-label
+ * item per [SettingsCategoryId], in enum declaration order. The item matching
+ * [selectedId] carries the active indicator, so the rail always shows which
+ * category the detail pane is showing. The items of [badged] categories carry
  * the update dot ([UpdateBadge]): today only Updates, while an update is on
  * offer.
+ *
+ * The rail has no container of its own (it sits on the settings sheet) and no
+ * window insets (the sheet already handles them). Its items are floored at
+ * [FemtoDimens.MinTouchTarget], and scroll as one column: eight such items do
+ * not fit the height a head unit leaves under the settings header, and the
+ * rail itself lays its items out without scrolling.
+ */
+@Composable
+internal fun SettingsCategoryRail(
+    selectedId: SettingsCategoryId,
+    onSelect: (SettingsCategoryId) -> Unit,
+    modifier: Modifier = Modifier,
+    badged: Set<SettingsCategoryId> = emptySet(),
+) = WideNavigationRail(
+    modifier = modifier,
+    state = rememberWideNavigationRailState(initialValue = WideNavigationRailValue.Expanded),
+    colors = WideNavigationRailDefaults.colors(containerColor = Color.Transparent),
+    windowInsets = WindowInsets(0),
+    contentPadding = PaddingValues(0.dp),
+) {
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides FemtoDimens.MinTouchTarget) {
+        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            SettingsCategoryId.entries.forEach { id ->
+                val title = stringResource(id.titleRes)
+                val selectDescription = stringResource(R.string.settings_category_select, title)
+                WideNavigationRailItem(
+                    selected = id == selectedId,
+                    onClick = { onSelect(id) },
+                    icon = { FemtoIcon(imageVector = id.icon, contentDescription = null) },
+                    label = { CategoryLabel(title = title, badged = id in badged) },
+                    railExpanded = true,
+                    // See SettingsCategoryListItem on the "Select X" description.
+                    modifier = Modifier.semantics { contentDescription = selectDescription },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The narrow list-detail layout's category navigator: one segmented group with
+ * a row per [SettingsCategoryId], in enum declaration order. The row matching
+ * [selectedId] is highlighted; the rows of [badged] categories carry the update
+ * dot ([UpdateBadge]), as in [SettingsCategoryRail].
  */
 @Composable
 internal fun SettingsCategoryList(
@@ -42,60 +105,90 @@ internal fun SettingsCategoryList(
     onSelect: (SettingsCategoryId) -> Unit,
     modifier: Modifier = Modifier,
     badged: Set<SettingsCategoryId> = emptySet(),
-) = Column(
-    modifier = modifier.verticalScroll(rememberScrollState()),
-) {
-    SettingsCategoryId.entries.forEach { id ->
-        SettingsCategoryListItem(
-            title = stringResource(id.titleRes),
-            selected = id == selectedId,
-            onClick = { onSelect(id) },
-            badged = id in badged,
-        )
+) = Column(modifier = modifier.verticalScroll(rememberScrollState())) {
+    SettingsGroup {
+        SettingsCategoryId.entries.forEach { id ->
+            item(key = id) { shapes ->
+                SettingsCategoryListItem(
+                    title = stringResource(id.titleRes),
+                    selected = id == selectedId,
+                    onClick = { onSelect(id) },
+                    shapes = shapes,
+                    badged = id in badged,
+                )
+            }
+        }
     }
 }
 
-// One rail / list row: a >= MinTouchTarget tap target, highlighted with the
-// secondary-container role color when selected. The click target's own
-// contentDescription ("Select X") is distinct from the title Text's plain
-// string so the two never collide in the wide layout, where the rail's row
-// and the detail pane's own header both show the same category title at once.
-// A [badged] row's dot follows the title, and its "Update available" merges
-// into the row's description after "Select X".
+// One list row: a >= MinTouchTarget segment, highlighted with the selected
+// list-item colours when selected. The click target's own contentDescription
+// ("Select X") is distinct from the title Text's plain string so the two never
+// collide where the navigator and the detail pane's own header both show the
+// same category title at once; the rail items carry the same description. The
+// outer semantics keep the tab role the list has always had, over the radio
+// role of the list item's selection overload. A [badged] row's dot follows the
+// title, and its "Update available" merges into the row's description after
+// "Select X".
 @Composable
 private fun SettingsCategoryListItem(
     title: String,
     selected: Boolean,
     onClick: () -> Unit,
+    shapes: ListItemShapes,
     modifier: Modifier = Modifier,
     badged: Boolean = false,
 ) {
-    val containerColor =
-        if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
-    val contentColor =
-        if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
     val selectDescription = stringResource(R.string.settings_category_select, title)
-    Row(
+    SegmentedListItem(
+        selected = selected,
+        onClick = onClick,
+        shapes = shapes,
+        colors = settingsSegmentColors(),
         modifier =
             modifier
-                .fillMaxWidth()
                 .heightIn(min = FemtoDimens.MinTouchTarget)
-                .background(containerColor, MaterialTheme.shapes.large)
-                .selectable(selected = selected, role = Role.Tab, onClick = onClick)
-                .semantics { contentDescription = selectDescription }
-                .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .semantics {
+                    role = Role.Tab
+                    contentDescription = selectDescription
+                },
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            color = contentColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            // Shrinks a long title rather than pushing the dot off the row.
-            modifier = Modifier.weight(1f, fill = false),
-        )
-        if (badged) UpdateBadge()
+        CategoryLabel(title = title, badged = badged)
     }
 }
+
+// A category's title, followed by the update dot when [badged].
+@Composable
+private fun CategoryLabel(
+    title: String,
+    badged: Boolean,
+    modifier: Modifier = Modifier,
+) = Row(
+    modifier = modifier,
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
+) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        // Shrinks a long title rather than pushing the dot off the row.
+        modifier = Modifier.weight(1f, fill = false),
+    )
+    if (badged) UpdateBadge()
+}
+
+// The rail icon of each category.
+private val SettingsCategoryId.icon: ImageVector
+    get() =
+        when (this) {
+            SettingsCategoryId.APPEARANCE -> Lucide.Palette
+            SettingsCategoryId.SCREEN -> Lucide.Monitor
+            SettingsCategoryId.UNITS -> Lucide.Ruler
+            SettingsCategoryId.MAP -> Lucide.Map
+            SettingsCategoryId.LOCATION -> Lucide.MapPin
+            SettingsCategoryId.PANELS -> Lucide.LayoutDashboard
+            SettingsCategoryId.UPDATES -> Lucide.Download
+            SettingsCategoryId.SYSTEM -> Lucide.Settings
+        }

@@ -4,7 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
@@ -17,8 +17,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Density
+import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.rememberDynamicColorScheme
 import io.github.seijikohara.femto.data.display.AccentColor
+import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.display.UiScale
 
 /**
@@ -35,11 +37,12 @@ internal val LocalFemtoDarkTheme =
     }
 
 /**
- * Root theme for the launcher.
+ * Root theme for the launcher, wrapping [MaterialExpressiveTheme] so Material
+ * components pick up the Material 3 Expressive defaults.
  *
  * Color: [AccentColor.DYNAMIC] (the default) uses Material You wallpaper-derived
  * color (always available because minSdk = 33); any other [accent] generates the
- * Material 3 scheme from a fixed preset seed. Falls back to a Bold Minimal
+ * Material 3 scheme from a fixed preset seed (2025 color spec). Falls back to a Bold Minimal
  * monochrome scheme inside Compose previews when on the dynamic path. Scheme
  * changes (Light <-> Dark, accent, wallpaper) cross-fade rather than snap.
  *
@@ -49,6 +52,9 @@ internal val LocalFemtoDarkTheme =
  * The user also adjusts the type independently of the family: [fontBaseSizeSp]
  * re-bases the rem scale via fontScale (text only), [fontWeightStep] shifts the
  * three weight tiers, and [fontLetterSpacingCentiEm] tracks every role.
+ *
+ * Motion: [motionTier] selects the theme's motion scheme through [Motion.scheme],
+ * so Material components follow the same setting as the dashboard's own motion.
  *
  * Shape: M3 default squircle tokens (no override).
  *
@@ -64,6 +70,7 @@ fun FemtoTheme(
     fontBaseSizeSp: Int = FemtoDimens.BaseTextSize.value.toInt(),
     fontWeightStep: Int = 0,
     fontLetterSpacingCentiEm: Int = 0,
+    motionTier: MotionTier = MotionTier.STANDARD,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -73,7 +80,12 @@ fun FemtoTheme(
         when {
             // A fixed preset seed generates a full M3 scheme and works without a
             // context (so it also previews), so it takes precedence everywhere.
-            seed != null -> rememberDynamicColorScheme(seedColor = seed, isDark = darkTheme)
+            // The 2025 spec matches the Expressive color roles the theme now targets.
+            seed != null -> rememberDynamicColorScheme(
+                seedColor = seed,
+                isDark = darkTheme,
+                specVersion = ColorSpec.SpecVersion.SPEC_2025,
+            )
 
             inPreview && darkTheme -> DarkFallback
 
@@ -101,8 +113,13 @@ fun FemtoTheme(
         LocalFemtoDarkTheme provides darkTheme,
         LocalDensity provides scaledDensity,
     ) {
-        MaterialTheme(
+        // Colors, motion and type are always passed: at the root a null argument
+        // falls back to the Expressive baseline (fixed purple colors, the
+        // expressive motion whatever the MotionTier, the default font). Shapes
+        // stay null, which resolves to the M3 default Shapes(), as before.
+        MaterialExpressiveTheme(
             colorScheme = target.animated(),
+            motionScheme = Motion.scheme(motionTier),
             typography = femtoTypography(
                 fontFamily,
                 FemtoWeights.of(fontWeightStep),

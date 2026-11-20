@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -199,6 +200,9 @@ internal fun DashboardScaffold(
     videoPictureVisible: Boolean = false,
     onVideoAction: (VideoAction) -> Unit = {},
     videoSurface: @Composable (Modifier) -> Unit = {},
+    // The fullscreen choice, for the app drawer's search view, which opens in a
+    // window of its own.
+    fullscreen: Boolean = false,
 ) = DashboardContent(
     uiState = uiState,
     is24Hour = is24Hour,
@@ -229,6 +233,7 @@ internal fun DashboardScaffold(
     videoPictureVisible = videoPictureVisible,
     onVideoAction = onVideoAction,
     videoSurface = videoSurface,
+    fullscreen = fullscreen,
 )
 
 // The full-screen dashboard body: the map fills the viewport as the background
@@ -266,6 +271,7 @@ private fun DashboardContent(
     videoPictureVisible: Boolean = false,
     onVideoAction: (VideoAction) -> Unit = {},
     videoSurface: @Composable (Modifier) -> Unit = {},
+    fullscreen: Boolean = false,
 ) = BoxWithConstraints(modifier = modifier) {
     val compact = maxHeight < CompactHeightBreakpoint || maxWidth < CompactWidthBreakpoint
     val portrait = maxHeight > maxWidth
@@ -553,6 +559,7 @@ private fun DashboardContent(
         videoPictureVisible = videoPictureVisible,
         onVideoAction = onVideoAction,
         videoSurface = videoSurface,
+        fullscreen = fullscreen,
         videoExpanded = videoExpanded,
         onExpandVideo = { videoExpanded = true },
         onCloseVideo = { videoExpanded = false },
@@ -663,6 +670,7 @@ private fun DashboardOverlays(
     videoPictureVisible: Boolean,
     onVideoAction: (VideoAction) -> Unit,
     videoSurface: @Composable (Modifier) -> Unit,
+    fullscreen: Boolean,
     videoExpanded: Boolean,
     onExpandVideo: () -> Unit,
     onCloseVideo: () -> Unit,
@@ -960,8 +968,8 @@ private fun DashboardOverlays(
         // session ending mid-collapse still fades its last frame.
         AnimatedVisibility(
             visible = nowPlayingExpanded && expandedNowPlaying != null,
-            enter = Motion.panelEnter(motionTier),
-            exit = Motion.panelExit(motionTier),
+            enter = Motion.panelEnter(motionTier, MaterialTheme.motionScheme),
+            exit = Motion.panelExit(motionTier, MaterialTheme.motionScheme),
             modifier = Modifier.fillMaxSize().padding(outerPad),
         ) {
             panelNowPlaying?.let { nowPlaying ->
@@ -986,8 +994,8 @@ private fun DashboardOverlays(
 
         AnimatedVisibility(
             visible = calendarExpanded && expandedCalendar != null,
-            enter = Motion.panelEnter(motionTier),
-            exit = Motion.panelExit(motionTier),
+            enter = Motion.panelEnter(motionTier, MaterialTheme.motionScheme),
+            exit = Motion.panelExit(motionTier, MaterialTheme.motionScheme),
             modifier = Modifier.fillMaxSize().padding(outerPad),
         ) {
             panelCalendar?.let { snapshot ->
@@ -1006,8 +1014,8 @@ private fun DashboardOverlays(
 
         AnimatedVisibility(
             visible = weatherExpanded && expandedWeather != null,
-            enter = Motion.panelEnter(motionTier),
-            exit = Motion.panelExit(motionTier),
+            enter = Motion.panelEnter(motionTier, MaterialTheme.motionScheme),
+            exit = Motion.panelExit(motionTier, MaterialTheme.motionScheme),
             modifier = Modifier.fillMaxSize().padding(outerPad),
         ) {
             panelWeather?.let { snapshot ->
@@ -1029,8 +1037,8 @@ private fun DashboardOverlays(
 
         AnimatedVisibility(
             visible = tripExpanded,
-            enter = Motion.panelEnter(motionTier),
-            exit = Motion.panelExit(motionTier),
+            enter = Motion.panelEnter(motionTier, MaterialTheme.motionScheme),
+            exit = Motion.panelExit(motionTier, MaterialTheme.motionScheme),
             modifier = Modifier.fillMaxSize().padding(outerPad),
         ) {
             // The trip flyover's native path is a media-overlay SurfaceView that
@@ -1051,8 +1059,8 @@ private fun DashboardOverlays(
 
         AnimatedVisibility(
             visible = videoExpanded && video.windowEnabled,
-            enter = Motion.panelEnter(motionTier),
-            exit = Motion.panelExit(motionTier),
+            enter = Motion.panelEnter(motionTier, MaterialTheme.motionScheme),
+            exit = Motion.panelExit(motionTier, MaterialTheme.motionScheme),
             modifier = Modifier.fillMaxSize().padding(outerPad),
         ) {
             VideoPanel(
@@ -1072,14 +1080,15 @@ private fun DashboardOverlays(
         // "has data" gate: an empty app list renders its own "No apps" state.
         AnimatedVisibility(
             visible = appsExpanded,
-            enter = Motion.panelEnter(motionTier),
-            exit = Motion.panelExit(motionTier),
+            enter = Motion.panelEnter(motionTier, MaterialTheme.motionScheme),
+            exit = Motion.panelExit(motionTier, MaterialTheme.motionScheme),
             modifier = Modifier.fillMaxSize().padding(outerPad),
         ) {
             AppDrawerPanelHost(
                 onClose = onCloseApps,
                 hazeState = hazeState,
                 glassConfig = glassConfig,
+                fullscreen = fullscreen,
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -1090,8 +1099,8 @@ private fun DashboardOverlays(
         // only "Save current location" waits for one.
         AnimatedVisibility(
             visible = destinationExpanded,
-            enter = Motion.panelEnter(motionTier),
-            exit = Motion.panelExit(motionTier),
+            enter = Motion.panelEnter(motionTier, MaterialTheme.motionScheme),
+            exit = Motion.panelExit(motionTier, MaterialTheme.motionScheme),
             modifier = Modifier.fillMaxSize().padding(outerPad),
         ) {
             DestinationPanelHost(

@@ -141,7 +141,7 @@ class DashboardScreenshotTest {
             roborazziOptions = ScreenshotCompareOptions,
         ) {
             RobolectricHaze {
-                FemtoTheme(uiScale = uiScale, darkTheme = darkTheme) {
+                FemtoTheme(uiScale = uiScale, darkTheme = darkTheme, motionTier = DashboardFixtures.motionTier) {
                     DashboardScaffold(
                         uiState = DashboardFixtures.state,
                         is24Hour = true,
@@ -154,6 +154,7 @@ class DashboardScreenshotTest {
                         onAction = {},
                         modifier = Modifier.fillMaxSize(),
                         driverSide = driverSide,
+                        motionTier = DashboardFixtures.motionTier,
                         clock = DashboardFixtures.fixedClock,
                         mapSurface = { _, config -> MapBackdrop(darkTheme = darkTheme, mapConfig = config) },
                     )

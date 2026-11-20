@@ -37,101 +37,130 @@ internal fun LocationSection(
     onAction: (SettingsAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier = modifier) {
-    ChoiceRow(
-        title = stringResource(R.string.settings_group_location_quality),
-        options =
-            listOf(
-                LocationQualitySetting.HIGH_ACCURACY to
-                    stringResource(R.string.settings_location_quality_high),
-                LocationQualitySetting.BALANCED to
-                    stringResource(R.string.settings_location_quality_balanced),
-                LocationQualitySetting.LOW_POWER to
-                    stringResource(R.string.settings_location_quality_low),
-            ),
-        selected = uiState.locationQuality,
-        onSelect = { onAction(SettingsAction.SetLocationQuality(it)) },
-    )
-    // The slider works in 250 ms steps so the knob lands on round values;
-    // the persisted value stays in milliseconds.
-    SliderRow(
-        title = stringResource(R.string.settings_group_location_interval),
-        valueLabel =
-            stringResource(R.string.settings_location_interval_value, uiState.locationIntervalMillis),
-        value = (uiState.locationIntervalMillis / LOCATION_INTERVAL_STEP_MS).toInt(),
-        range = MIN_LOCATION_INTERVAL_STEPS..MAX_LOCATION_INTERVAL_STEPS,
-        onValueChange = { onAction(SettingsAction.SetLocationIntervalMillis(it * LOCATION_INTERVAL_STEP_MS)) },
-        description = stringResource(R.string.settings_location_interval_desc),
-    )
-    SliderRow(
-        title = stringResource(R.string.settings_group_location_min_distance),
-        valueLabel =
-            stringResource(R.string.settings_location_min_distance_value, uiState.locationMinDistanceMeters),
-        value = uiState.locationMinDistanceMeters,
-        range = MIN_LOCATION_MIN_DISTANCE..MAX_LOCATION_MIN_DISTANCE,
-        onValueChange = { onAction(SettingsAction.SetLocationMinDistance(it)) },
-        description = stringResource(R.string.settings_location_min_distance_desc),
-    )
-    SwitchRow(
-        title = stringResource(R.string.settings_group_background_ranging),
-        checked = uiState.backgroundRangingEnabled,
-        onCheckedChange = { onAction(SettingsAction.SetBackgroundRanging(it)) },
-        summary = stringResource(R.string.settings_background_ranging_desc),
-    )
-    // The trip meter's parked-gap rule (TripAutoResetSetting's KDoc has the
-    // rationale); "Never" keeps one trip until the user taps Reset.
-    ChoiceRow(
-        title = stringResource(R.string.settings_group_trip_auto_reset),
-        options =
-            listOf(
-                TripAutoResetSetting.OFF to stringResource(R.string.settings_trip_auto_reset_off),
-                TripAutoResetSetting.MINUTES_30 to stringResource(R.string.settings_trip_auto_reset_30m),
-                TripAutoResetSetting.HOURS_1 to stringResource(R.string.settings_trip_auto_reset_1h),
-                TripAutoResetSetting.HOURS_2 to stringResource(R.string.settings_trip_auto_reset_2h),
-                TripAutoResetSetting.HOURS_4 to stringResource(R.string.settings_trip_auto_reset_4h),
-                TripAutoResetSetting.HOURS_12 to stringResource(R.string.settings_trip_auto_reset_12h),
-            ),
-        selected = uiState.tripAutoReset,
-        onSelect = { onAction(SettingsAction.SetTripAutoReset(it)) },
-    )
-    SwitchRow(
-        title = stringResource(R.string.settings_group_track_recording),
-        checked = uiState.trackRecordingEnabled,
-        onCheckedChange = { onAction(SettingsAction.SetTrackRecording(it)) },
-        summary = stringResource(R.string.settings_track_recording_desc),
-    )
-    ChoiceRow(
-        title = stringResource(R.string.settings_group_track_retention),
-        options =
-            listOf(
-                TrackRetentionSetting.DAYS_30 to stringResource(R.string.settings_track_retention_30),
-                TrackRetentionSetting.DAYS_90 to stringResource(R.string.settings_track_retention_90),
-                TrackRetentionSetting.DAYS_365 to stringResource(R.string.settings_track_retention_365),
-                TrackRetentionSetting.UNLIMITED to stringResource(R.string.settings_track_retention_unlimited),
-            ),
-        selected = uiState.trackRetention,
-        onSelect = { onAction(SettingsAction.SetTrackRetention(it)) },
-    )
     // SAF document picker: the user chooses where the GPX lands, so no storage
     // permission enters the manifest; a null uri means they backed out.
     val exportLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(GPX_EXPORT_MIME_TYPE)) { uri ->
             uri?.let { onAction(SettingsAction.ExportTrackLog(it)) }
         }
-    ActionRow(
-        title = stringResource(R.string.settings_track_export),
-        summary = trackExportSummary(uiState.trackExport),
-        // The summary doubles as a status line (Exporting… / Exported N / failed);
-        // announce its changes so TalkBack users learn the export's outcome.
-        summaryLiveRegion = uiState.trackExport != TrackExportState.Idle,
-        onClick = { exportLauncher.launch(GPX_EXPORT_SUGGESTED_NAME) },
-    )
-    ResetRow(
-        onConfirm = { onAction(SettingsAction.ClearTrackHistory) },
-        title = stringResource(R.string.settings_track_delete),
-        confirmTitle = stringResource(R.string.settings_track_delete_confirm_title),
-        confirmMessage = stringResource(R.string.settings_track_delete_confirm_message),
-        icon = Lucide.Trash2,
-    )
+    SettingsGroup {
+        item { shapes ->
+            ChoiceRow(
+                title = stringResource(R.string.settings_group_location_quality),
+                options =
+                    listOf(
+                        LocationQualitySetting.HIGH_ACCURACY to
+                            stringResource(R.string.settings_location_quality_high),
+                        LocationQualitySetting.BALANCED to
+                            stringResource(R.string.settings_location_quality_balanced),
+                        LocationQualitySetting.LOW_POWER to
+                            stringResource(R.string.settings_location_quality_low),
+                    ),
+                selected = uiState.locationQuality,
+                onSelect = { onAction(SettingsAction.SetLocationQuality(it)) },
+                shapes = shapes,
+            )
+        }
+        // The slider works in 250 ms steps so the knob lands on round values;
+        // the persisted value stays in milliseconds.
+        item { shapes ->
+            SliderRow(
+                title = stringResource(R.string.settings_group_location_interval),
+                valueLabel =
+                    stringResource(R.string.settings_location_interval_value, uiState.locationIntervalMillis),
+                value = (uiState.locationIntervalMillis / LOCATION_INTERVAL_STEP_MS).toInt(),
+                range = MIN_LOCATION_INTERVAL_STEPS..MAX_LOCATION_INTERVAL_STEPS,
+                onValueChange = { onAction(SettingsAction.SetLocationIntervalMillis(it * LOCATION_INTERVAL_STEP_MS)) },
+                shapes = shapes,
+                description = stringResource(R.string.settings_location_interval_desc),
+            )
+        }
+        item { shapes ->
+            SliderRow(
+                title = stringResource(R.string.settings_group_location_min_distance),
+                valueLabel =
+                    stringResource(R.string.settings_location_min_distance_value, uiState.locationMinDistanceMeters),
+                value = uiState.locationMinDistanceMeters,
+                range = MIN_LOCATION_MIN_DISTANCE..MAX_LOCATION_MIN_DISTANCE,
+                onValueChange = { onAction(SettingsAction.SetLocationMinDistance(it)) },
+                shapes = shapes,
+                description = stringResource(R.string.settings_location_min_distance_desc),
+            )
+        }
+        item { shapes ->
+            SwitchRow(
+                title = stringResource(R.string.settings_group_background_ranging),
+                checked = uiState.backgroundRangingEnabled,
+                onCheckedChange = { onAction(SettingsAction.SetBackgroundRanging(it)) },
+                shapes = shapes,
+                summary = stringResource(R.string.settings_background_ranging_desc),
+            )
+        }
+        // The trip meter's parked-gap rule (TripAutoResetSetting's KDoc has the
+        // rationale); "Never" keeps one trip until the user taps Reset.
+        item { shapes ->
+            ChoiceRow(
+                title = stringResource(R.string.settings_group_trip_auto_reset),
+                options =
+                    listOf(
+                        TripAutoResetSetting.OFF to stringResource(R.string.settings_trip_auto_reset_off),
+                        TripAutoResetSetting.MINUTES_30 to stringResource(R.string.settings_trip_auto_reset_30m),
+                        TripAutoResetSetting.HOURS_1 to stringResource(R.string.settings_trip_auto_reset_1h),
+                        TripAutoResetSetting.HOURS_2 to stringResource(R.string.settings_trip_auto_reset_2h),
+                        TripAutoResetSetting.HOURS_4 to stringResource(R.string.settings_trip_auto_reset_4h),
+                        TripAutoResetSetting.HOURS_12 to stringResource(R.string.settings_trip_auto_reset_12h),
+                    ),
+                selected = uiState.tripAutoReset,
+                onSelect = { onAction(SettingsAction.SetTripAutoReset(it)) },
+                shapes = shapes,
+            )
+        }
+        item { shapes ->
+            SwitchRow(
+                title = stringResource(R.string.settings_group_track_recording),
+                checked = uiState.trackRecordingEnabled,
+                onCheckedChange = { onAction(SettingsAction.SetTrackRecording(it)) },
+                shapes = shapes,
+                summary = stringResource(R.string.settings_track_recording_desc),
+            )
+        }
+        item { shapes ->
+            ChoiceRow(
+                title = stringResource(R.string.settings_group_track_retention),
+                options =
+                    listOf(
+                        TrackRetentionSetting.DAYS_30 to stringResource(R.string.settings_track_retention_30),
+                        TrackRetentionSetting.DAYS_90 to stringResource(R.string.settings_track_retention_90),
+                        TrackRetentionSetting.DAYS_365 to stringResource(R.string.settings_track_retention_365),
+                        TrackRetentionSetting.UNLIMITED to stringResource(R.string.settings_track_retention_unlimited),
+                    ),
+                selected = uiState.trackRetention,
+                onSelect = { onAction(SettingsAction.SetTrackRetention(it)) },
+                shapes = shapes,
+            )
+        }
+        item { shapes ->
+            ActionRow(
+                title = stringResource(R.string.settings_track_export),
+                onClick = { exportLauncher.launch(GPX_EXPORT_SUGGESTED_NAME) },
+                shapes = shapes,
+                summary = trackExportSummary(uiState.trackExport),
+                // The summary doubles as a status line (Exporting… / Exported N / failed);
+                // announce its changes so TalkBack users learn the export's outcome.
+                summaryLiveRegion = uiState.trackExport != TrackExportState.Idle,
+            )
+        }
+        item { shapes ->
+            ResetRow(
+                onConfirm = { onAction(SettingsAction.ClearTrackHistory) },
+                shapes = shapes,
+                title = stringResource(R.string.settings_track_delete),
+                confirmTitle = stringResource(R.string.settings_track_delete_confirm_title),
+                confirmMessage = stringResource(R.string.settings_track_delete_confirm_message),
+                icon = Lucide.Trash2,
+            )
+        }
+    }
 }
 
 // The export row's summary doubles as its status line: the resting description

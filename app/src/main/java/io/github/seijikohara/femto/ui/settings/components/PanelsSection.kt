@@ -1,8 +1,6 @@
 package io.github.seijikohara.femto.ui.settings.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ListItemShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,19 +52,25 @@ internal fun PanelsSection(
     // Registered here, outside the rows that come and go with the window
     // switch, so a pick the user is making survives the rows leaving.
     val pickVideo = rememberVideoPicker { uri -> onAction(SettingsAction.SetVideoFile(uri)) }
-    SwitchRow(
-        title = stringResource(R.string.settings_group_panel_calendar),
-        checked = uiState.showCalendar,
-        onCheckedChange = { onAction(SettingsAction.SetShowCalendar(it)) },
-    )
-    AnimatedVisibility(visible = uiState.showCalendar) {
-        Column {
+    SettingsGroup {
+        item { shapes ->
+            SwitchRow(
+                title = stringResource(R.string.settings_group_panel_calendar),
+                checked = uiState.showCalendar,
+                onCheckedChange = { onAction(SettingsAction.SetShowCalendar(it)) },
+                shapes = shapes,
+            )
+        }
+        animatedItem(visible = uiState.showCalendar) { shapes ->
             SwitchRow(
                 title = stringResource(R.string.settings_group_panel_calendar_date_only),
                 checked = uiState.calendarDateOnly,
                 onCheckedChange = { onAction(SettingsAction.SetCalendarDateOnly(it)) },
+                shapes = shapes,
                 summary = stringResource(R.string.settings_panel_calendar_date_only_desc),
             )
+        }
+        animatedItem(visible = uiState.showCalendar) { shapes ->
             MultiSelectRow(
                 title = stringResource(R.string.settings_visible_calendars),
                 summary = visibleCalendarsSummary(
@@ -78,47 +83,66 @@ internal fun PanelsSection(
                 hiddenIds = uiState.hiddenCalendarIds,
                 onToggle = { id, hidden -> onAction(SettingsAction.SetCalendarHidden(id, hidden)) },
                 onOpenAppSettings = onOpenSystemSettings,
+                shapes = shapes,
             )
         }
-    }
-    SwitchRow(
-        title = stringResource(R.string.settings_group_panel_weather),
-        checked = uiState.showWeather,
-        onCheckedChange = { onAction(SettingsAction.SetShowWeather(it)) },
-    )
-    SwitchRow(
-        title = stringResource(R.string.settings_group_panel_music),
-        checked = uiState.showMusic,
-        onCheckedChange = { onAction(SettingsAction.SetShowMusic(it)) },
-    )
-    SwitchRow(
-        title = stringResource(R.string.settings_group_panel_music_spectrum),
-        checked = uiState.musicSpectrum,
-        onCheckedChange = { onAction(SettingsAction.SetMusicSpectrum(it)) },
-        summary = stringResource(R.string.settings_panel_music_spectrum_desc),
-    )
-    SwitchRow(
-        title = stringResource(R.string.settings_group_panel_music_album),
-        checked = uiState.musicShowAlbum,
-        onCheckedChange = { onAction(SettingsAction.SetMusicShowAlbum(it)) },
-        summary = stringResource(R.string.settings_panel_music_album_desc),
-    )
-    SwitchRow(
-        title = stringResource(R.string.settings_group_panel_music_art),
-        checked = uiState.musicShowArt,
-        onCheckedChange = { onAction(SettingsAction.SetMusicShowArt(it)) },
-        summary = stringResource(R.string.settings_panel_music_art_desc),
-    )
-    SwitchRow(
-        title = stringResource(R.string.settings_group_panel_video),
-        checked = uiState.video.windowEnabled,
-        onCheckedChange = { onAction(SettingsAction.SetVideoWindow(it)) },
-        summary = stringResource(R.string.settings_panel_video_desc),
-    )
-    AnimatedVisibility(visible = uiState.video.windowEnabled) {
-        Column {
+        item { shapes ->
+            SwitchRow(
+                title = stringResource(R.string.settings_group_panel_weather),
+                checked = uiState.showWeather,
+                onCheckedChange = { onAction(SettingsAction.SetShowWeather(it)) },
+                shapes = shapes,
+            )
+        }
+        item { shapes ->
+            SwitchRow(
+                title = stringResource(R.string.settings_group_panel_music),
+                checked = uiState.showMusic,
+                onCheckedChange = { onAction(SettingsAction.SetShowMusic(it)) },
+                shapes = shapes,
+            )
+        }
+        item { shapes ->
+            SwitchRow(
+                title = stringResource(R.string.settings_group_panel_music_spectrum),
+                checked = uiState.musicSpectrum,
+                onCheckedChange = { onAction(SettingsAction.SetMusicSpectrum(it)) },
+                shapes = shapes,
+                summary = stringResource(R.string.settings_panel_music_spectrum_desc),
+            )
+        }
+        item { shapes ->
+            SwitchRow(
+                title = stringResource(R.string.settings_group_panel_music_album),
+                checked = uiState.musicShowAlbum,
+                onCheckedChange = { onAction(SettingsAction.SetMusicShowAlbum(it)) },
+                shapes = shapes,
+                summary = stringResource(R.string.settings_panel_music_album_desc),
+            )
+        }
+        item { shapes ->
+            SwitchRow(
+                title = stringResource(R.string.settings_group_panel_music_art),
+                checked = uiState.musicShowArt,
+                onCheckedChange = { onAction(SettingsAction.SetMusicShowArt(it)) },
+                shapes = shapes,
+                summary = stringResource(R.string.settings_panel_music_art_desc),
+            )
+        }
+        item { shapes ->
+            SwitchRow(
+                title = stringResource(R.string.settings_group_panel_video),
+                checked = uiState.video.windowEnabled,
+                onCheckedChange = { onAction(SettingsAction.SetVideoWindow(it)) },
+                shapes = shapes,
+                summary = stringResource(R.string.settings_panel_video_desc),
+            )
+        }
+        animatedItem(visible = uiState.video.windowEnabled) { shapes ->
             ActionRow(
                 title = stringResource(R.string.settings_video_file),
+                onClick = pickVideo,
+                shapes = shapes,
                 summary =
                     if (uiState.video.pickFailed) {
                         stringResource(R.string.video_pick_failed)
@@ -126,12 +150,14 @@ internal fun PanelsSection(
                         videoFileSummary(uiState.video.file)
                     },
                 summaryLiveRegion = uiState.video.pickFailed,
-                onClick = pickVideo,
                 icon = Lucide.FolderOpen,
             )
+        }
+        animatedItem(visible = uiState.video.windowEnabled) { shapes ->
             VideoPictureGateRow(
                 hidePictureWhileDriving = uiState.video.hidePictureWhileDriving,
                 onAction = onAction,
+                shapes = shapes,
             )
         }
     }
@@ -152,6 +178,7 @@ private fun videoFileSummary(file: VideoFileSummary): String =
 private fun VideoPictureGateRow(
     hidePictureWhileDriving: Boolean,
     onAction: (SettingsAction) -> Unit,
+    shapes: ListItemShapes,
     modifier: Modifier = Modifier,
 ) {
     var confirming by remember { mutableStateOf(false) }
@@ -161,6 +188,7 @@ private fun VideoPictureGateRow(
         onCheckedChange = { hide ->
             if (hide) onAction(SettingsAction.SetVideoHidePicture(true)) else confirming = true
         },
+        shapes = shapes,
         summary = stringResource(R.string.settings_video_hide_picture_desc),
         modifier = modifier,
     )
@@ -228,13 +256,16 @@ private fun MultiSelectRow(
     hiddenIds: Set<Long>,
     onToggle: (Long, Boolean) -> Unit,
     onOpenAppSettings: () -> Unit,
+    shapes: ListItemShapes,
     modifier: Modifier = Modifier,
 ) {
     var open by remember { mutableStateOf(false) }
-    SettingRow(
-        modifier = modifier.clickable { open = true },
+    SettingsListItem(
         title = title,
+        shapes = shapes,
+        modifier = modifier,
         summary = summary,
+        onClick = { open = true },
     )
     if (open) {
         MultiSelectDialog(

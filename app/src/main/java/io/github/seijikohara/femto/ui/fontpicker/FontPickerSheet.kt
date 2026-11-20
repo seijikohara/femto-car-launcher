@@ -42,7 +42,7 @@ internal fun FontPickerSheet(
                     .fillMaxWidth()
                     .height(sheetHeight),
         ) {
-            FontPickerRoute(slot = slot, onBack = onDismiss)
+            FontPickerRoute(slot = slot, onBack = onDismiss, fullscreen = fullscreen)
         }
     }
 }

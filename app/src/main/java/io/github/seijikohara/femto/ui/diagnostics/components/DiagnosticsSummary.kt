@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -26,7 +27,9 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 
 /**
  * Health TL;DR above the section list: the issue-count verdict, the
- * refresh/copy actions, and the problems-only filter chip.
+ * refresh/copy actions, and the problems-only filter chip. The buttons take
+ * the Material press morph sized for their 64 dp floor, and keep the classic
+ * content padding the shapes overload would otherwise swap out.
  */
 @Composable
 internal fun DiagnosticsSummary(
@@ -42,11 +45,13 @@ internal fun DiagnosticsSummary(
     if (uiState.tileBenchmark != TileBenchmarkUi.HIDDEN) {
         OutlinedButton(
             onClick = { onAction(DiagnosticsAction.RunTileBenchmark) },
+            shapes = ButtonDefaults.shapesFor(FemtoDimens.MinTouchTarget),
             enabled = uiState.tileBenchmark == TileBenchmarkUi.IDLE,
             modifier =
                 Modifier
                     .fillMaxWidth()
                     .heightIn(min = FemtoDimens.MinTouchTarget),
+            contentPadding = ButtonDefaults.ContentPadding,
         ) {
             Text(
                 text =
@@ -117,19 +122,23 @@ private fun ActionButtons(
 ) {
     Button(
         onClick = { onAction(DiagnosticsAction.Refresh) },
+        shapes = ButtonDefaults.shapesFor(FemtoDimens.MinTouchTarget),
         modifier =
             Modifier
                 .weight(1f)
                 .heightIn(min = FemtoDimens.MinTouchTarget),
+        contentPadding = ButtonDefaults.ContentPadding,
     ) {
         Text(text = stringResource(R.string.diagnostics_refresh))
     }
     OutlinedButton(
         onClick = { onAction(DiagnosticsAction.CopyReport) },
+        shapes = ButtonDefaults.shapesFor(FemtoDimens.MinTouchTarget),
         modifier =
             Modifier
                 .weight(1f)
                 .heightIn(min = FemtoDimens.MinTouchTarget),
+        contentPadding = ButtonDefaults.ContentPadding,
     ) {
         Text(
             text = stringResource(if (copyConfirmed) R.string.diagnostics_copied else R.string.diagnostics_copy),

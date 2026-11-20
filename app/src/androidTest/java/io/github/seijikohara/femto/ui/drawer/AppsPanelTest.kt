@@ -2,7 +2,12 @@ package io.github.seijikohara.femto.ui.drawer
 
 import android.content.ComponentName
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
@@ -63,8 +68,18 @@ class AppsPanelTest {
         }
     }
 
-    // Reveal the search field, hidden behind the top bar's search toggle.
-    private fun openSearch() = rule.onNodeWithContentDescription("Search").performClick()
+    // Open the expanded search view from the top bar's search button. The field
+    // must hold focus there: performTextInput bypasses the IME, so typing alone
+    // would not prove the view is the one taking input.
+    private fun openSearch() {
+        rule.onNodeWithContentDescription("Search").performClick()
+        rule.onNodeWithTag(APP_DRAWER_SEARCH_TEST_TAG).assertIsFocused()
+    }
+
+    // A node inside the expanded search view's results; the unfiltered panel
+    // stays composed underneath it.
+    private fun inResults(matcher: SemanticsMatcher) =
+        rule.onNode(matcher and hasAnyAncestor(hasTestTag(APP_DRAWER_SEARCH_RESULTS_TEST_TAG)))
 
     // Open the display-options overflow (layout toggle + icon-size presets).
     private fun openDisplayOptions() = rule.onNodeWithTag(APP_DRAWER_ICON_SIZE_TEST_TAG).performClick()
@@ -124,8 +139,8 @@ class AppsPanelTest {
         setPanel(uiState = AppDrawerUiState.Content(listOf(maps, music)), layout = DrawerLayout.LIST)
         openSearch()
         rule.onNodeWithTag(APP_DRAWER_SEARCH_TEST_TAG).performTextInput("mu")
-        rule.onNodeWithText("Music").assertIsDisplayed()
-        rule.onNodeWithText("Maps").assertDoesNotExist()
+        inResults(hasText("Music")).assertIsDisplayed()
+        inResults(hasText("Maps")).assertDoesNotExist()
     }
 
     @Test
@@ -133,7 +148,7 @@ class AppsPanelTest {
         setPanel(uiState = AppDrawerUiState.Content(listOf(maps)), layout = DrawerLayout.LIST)
         openSearch()
         rule.onNodeWithTag(APP_DRAWER_SEARCH_TEST_TAG).performTextInput("zzz")
-        rule.onNodeWithText("No apps match your search").assertIsDisplayed()
+        inResults(hasText("No apps match your search")).assertIsDisplayed()
     }
 
     @Test
@@ -176,7 +191,8 @@ class AppsPanelTest {
             uiState = AppDrawerUiState.Content(apps = listOf(maps), recentApps = listOf(music)),
             onLaunch = { launched = it },
         )
-        rule.onNodeWithText("Recent").assertIsDisplayed()
+        // DrawerSectionHeader upper-cases its label, so match the text in any case.
+        rule.onNodeWithText("Recent", ignoreCase = true).assertIsDisplayed()
         rule.onNodeWithText("Music").assertIsDisplayed().performClick()
         assertEquals(music.componentName, launched)
     }
@@ -185,11 +201,11 @@ class AppsPanelTest {
     fun the_recent_row_is_hidden_while_a_search_query_is_active() {
         setPanel(uiState = AppDrawerUiState.Content(apps = listOf(maps, music), recentApps = listOf(maps)))
         // Recents show while browsing...
-        rule.onNodeWithText("Recent").assertIsDisplayed()
+        rule.onNodeWithText("Recent", ignoreCase = true).assertIsDisplayed()
         // ...and step aside once a query is active (the filtered list is the signal).
         openSearch()
         rule.onNodeWithTag(APP_DRAWER_SEARCH_TEST_TAG).performTextInput("ma")
-        rule.onNodeWithText("Recent").assertDoesNotExist()
+        inResults(hasText("Recent", ignoreCase = true)).assertDoesNotExist()
     }
 
     @Test
