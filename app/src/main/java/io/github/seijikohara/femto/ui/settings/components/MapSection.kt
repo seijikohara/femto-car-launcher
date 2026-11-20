@@ -1,11 +1,9 @@
 package io.github.seijikohara.femto.ui.settings.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -40,6 +38,10 @@ private const val MAX_MAP_TILT = 60
 private const val MIN_MAP_MARKER_POS = 0
 private const val MAX_MAP_MARKER_POS = 100
 
+// The saved-regions row joins the Rendering group only in a build that carries
+// the sheet, so it is registered under a key of its own.
+private const val OFFLINE_REGIONS_ROW_KEY = "offline-regions"
+
 // The Map category's rows; see AppearanceSection's header comment on why
 // there is no title / reset wiring here. The key / Map ID entry dialogs sit
 // as siblings of the row Column (below), not nested inside it — they are
@@ -62,24 +64,30 @@ internal fun MapSection(
         // blank, selecting also opens its entry dialog so the user can supply one
         // right away — MapSection owns this interception because the dialog lives
         // here.
-        ChoiceRow(
-            title = stringResource(R.string.settings_map_backend),
-            options =
-                listOf(
-                    MapBackend.OSM to stringResource(R.string.settings_map_backend_osm),
-                    MapBackend.GOOGLEMAPS to stringResource(R.string.settings_map_backend_googlemaps),
-                ),
-            selected = uiState.mapBackend,
-            onSelect = { backend ->
-                onAction(SettingsAction.SetMapBackend(backend))
-                if (backend == MapBackend.GOOGLEMAPS && uiState.googleMapsApiKey.isBlank()) {
-                    showGoogleKeyDialog = true
-                }
-            },
-        )
-        AnimatedVisibility(visible = uiState.mapBackend == MapBackend.GOOGLEMAPS) {
-            Column {
+        val google = uiState.mapBackend == MapBackend.GOOGLEMAPS
+        SettingsGroup {
+            item { shapes ->
                 ChoiceRow(
+                    title = stringResource(R.string.settings_map_backend),
+                    options =
+                        listOf(
+                            MapBackend.OSM to stringResource(R.string.settings_map_backend_osm),
+                            MapBackend.GOOGLEMAPS to stringResource(R.string.settings_map_backend_googlemaps),
+                        ),
+                    selected = uiState.mapBackend,
+                    onSelect = { backend ->
+                        onAction(SettingsAction.SetMapBackend(backend))
+                        if (backend == MapBackend.GOOGLEMAPS && uiState.googleMapsApiKey.isBlank()) {
+                            showGoogleKeyDialog = true
+                        }
+                    },
+                    shapes = shapes,
+                )
+            }
+            // The note explaining the rendering modes is the choice's own
+            // summary, so it stays inside the row it explains.
+            animatedItem(visible = google) { shapes ->
+                ConnectedChoiceRow(
                     title = stringResource(R.string.settings_google_maps_rendering),
                     options =
                         listOf(
@@ -92,13 +100,11 @@ internal fun MapSection(
                         ),
                     selected = uiState.googleMapsRendering,
                     onSelect = { onAction(SettingsAction.SetGoogleMapsRendering(it)) },
+                    shapes = shapes,
+                    summary = stringResource(R.string.settings_google_maps_rendering_note),
                 )
-                Text(
-                    text = stringResource(R.string.settings_google_maps_rendering_note),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-                )
+            }
+            animatedItem(visible = google) { shapes ->
                 ChoiceRow(
                     title = stringResource(R.string.settings_google_maps_type),
                     options =
@@ -110,107 +116,143 @@ internal fun MapSection(
                         ),
                     selected = uiState.googleMapsMapType,
                     onSelect = { onAction(SettingsAction.SetGoogleMapsMapType(it)) },
+                    shapes = shapes,
                 )
+            }
+            animatedItem(visible = google) { shapes ->
                 SwitchRow(
                     title = stringResource(R.string.settings_google_maps_traffic),
                     checked = uiState.googleMapsTraffic,
                     onCheckedChange = { onAction(SettingsAction.SetGoogleMapsTraffic(it)) },
+                    shapes = shapes,
                 )
-                SettingRow(
+            }
+            animatedItem(visible = google) { shapes ->
+                SettingsListItem(
                     title = stringResource(R.string.settings_google_maps_key),
+                    shapes = shapes,
                     summary = googleMapsKeySummary(uiState.googleMapsApiKey),
-                    modifier = Modifier.clickable { showGoogleKeyDialog = true },
+                    onClick = { showGoogleKeyDialog = true },
                 ) {
                     TrailingIcon(Lucide.ChevronRight)
                 }
-                SettingRow(
+            }
+            animatedItem(visible = google) { shapes ->
+                SettingsListItem(
                     title = stringResource(R.string.settings_google_maps_map_id),
+                    shapes = shapes,
                     summary = googleMapsMapIdSummary(uiState.googleMapsMapId),
-                    modifier = Modifier.clickable { showGoogleMapIdDialog = true },
+                    onClick = { showGoogleMapIdDialog = true },
                 ) {
                     TrailingIcon(Lucide.ChevronRight)
                 }
-                // The key hint says in-vehicle use is subject to these terms; the
-                // row makes them readable before a billing account is attached,
-                // rather than leaving the reader to search for them.
+            }
+            // The key hint says in-vehicle use is subject to these terms; the
+            // row makes them readable before a billing account is attached,
+            // rather than leaving the reader to search for them.
+            animatedItem(visible = google) { shapes ->
                 ActionRow(
                     title = stringResource(R.string.settings_google_maps_terms),
-                    summary = stringResource(R.string.settings_google_maps_terms_summary),
                     onClick = { onOpenDocument(SettingsDocument.GOOGLE_MAPS_PLATFORM_TERMS) },
-                )
-                Text(
-                    text = stringResource(R.string.settings_map_accent_osm_only_note),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                    shapes = shapes,
+                    summary = stringResource(R.string.settings_google_maps_terms_summary),
                 )
             }
         }
+        // A note on the whole Google Maps group, so it sits under the group
+        // rather than inside one of its rows.
+        AnimatedVisibility(visible = google) {
+            SettingsGroupNote(text = stringResource(R.string.settings_map_accent_osm_only_note))
+        }
         AnimatedVisibility(visible = uiState.mapBackend == MapBackend.OSM) {
-            Column {
-                SettingsSubheader(stringResource(R.string.settings_subheader_map_rendering))
-                SwitchRow(
-                    title = stringResource(R.string.settings_group_map_3d),
-                    checked = uiState.map3dBuildings,
-                    onCheckedChange = { onAction(SettingsAction.SetMap3dBuildings(it)) },
-                )
-                SwitchRow(
-                    title = stringResource(R.string.settings_group_map_terrain),
-                    checked = uiState.mapTerrain,
-                    onCheckedChange = { onAction(SettingsAction.SetMapTerrain(it)) },
-                    summary = stringResource(R.string.settings_map_terrain_desc),
-                )
+            SettingsGroup(header = stringResource(R.string.settings_subheader_map_rendering)) {
+                item { shapes ->
+                    SwitchRow(
+                        title = stringResource(R.string.settings_group_map_3d),
+                        checked = uiState.map3dBuildings,
+                        onCheckedChange = { onAction(SettingsAction.SetMap3dBuildings(it)) },
+                        shapes = shapes,
+                    )
+                }
+                item { shapes ->
+                    SwitchRow(
+                        title = stringResource(R.string.settings_group_map_terrain),
+                        checked = uiState.mapTerrain,
+                        onCheckedChange = { onAction(SettingsAction.SetMapTerrain(it)) },
+                        shapes = shapes,
+                        summary = stringResource(R.string.settings_map_terrain_desc),
+                    )
+                }
                 // The keyless default is a volunteer service with no availability
                 // commitment; a self-hosted mirror must be reachable without a new
                 // build, so the host is a setting rather than only a build field.
-                SettingRow(
-                    title = stringResource(R.string.settings_map_tile_host),
-                    summary = mapTileHostSummary(uiState.mapTileHost),
-                    modifier = Modifier.clickable { showTileHostDialog = true },
-                ) {
-                    TrailingIcon(Lucide.ChevronRight)
-                }
-                // Saved regions are OpenStreetMap data, so the row sits with the
-                // OpenStreetMap rows, and only in a build that carries the sheet.
-                if (uiState.offlineRegionsAvailable) {
-                    SettingRow(
-                        title = stringResource(R.string.settings_map_offline_regions),
-                        summary = stringResource(R.string.settings_map_offline_regions_summary),
-                        modifier = Modifier.clickable(onClick = onOpenOfflineRegions),
+                item { shapes ->
+                    SettingsListItem(
+                        title = stringResource(R.string.settings_map_tile_host),
+                        shapes = shapes,
+                        summary = mapTileHostSummary(uiState.mapTileHost),
+                        onClick = { showTileHostDialog = true },
                     ) {
                         TrailingIcon(Lucide.ChevronRight)
                     }
                 }
+                // Saved regions are OpenStreetMap data, so the row sits with the
+                // OpenStreetMap rows, and only in a build that carries the sheet.
+                if (uiState.offlineRegionsAvailable) {
+                    item(key = OFFLINE_REGIONS_ROW_KEY) { shapes ->
+                        SettingsListItem(
+                            title = stringResource(R.string.settings_map_offline_regions),
+                            shapes = shapes,
+                            summary = stringResource(R.string.settings_map_offline_regions_summary),
+                            onClick = onOpenOfflineRegions,
+                        ) {
+                            TrailingIcon(Lucide.ChevronRight)
+                        }
+                    }
+                }
             }
         }
-        SettingsSubheader(stringResource(R.string.settings_subheader_map_camera))
-        SliderRow(
-            title = stringResource(R.string.settings_group_map_tilt),
-            valueLabel = stringResource(R.string.settings_map_tilt_value, uiState.mapTiltDeg),
-            value = uiState.mapTiltDeg,
-            range = MIN_MAP_TILT..MAX_MAP_TILT,
-            onValueChange = { onAction(SettingsAction.SetMapTilt(it)) },
-        )
-        SliderRow(
-            title = stringResource(R.string.settings_group_map_zoom),
-            valueLabel = stringResource(R.string.settings_map_zoom_value, uiState.mapZoom),
-            value = uiState.mapZoom,
-            range = MIN_MAP_ZOOM..MAX_MAP_ZOOM,
-            onValueChange = { onAction(SettingsAction.SetMapZoom(it)) },
-        )
-        SwitchRow(
-            title = stringResource(R.string.settings_group_map_north_up),
-            checked = uiState.mapNorthUp,
-            onCheckedChange = { onAction(SettingsAction.SetMapNorthUp(it)) },
-            summary = stringResource(R.string.settings_map_north_up_desc),
-        )
-        SliderRow(
-            title = stringResource(R.string.settings_group_map_marker_pos),
-            valueLabel = stringResource(R.string.settings_map_marker_pos_value, uiState.mapMarkerPos),
-            value = uiState.mapMarkerPos,
-            range = MIN_MAP_MARKER_POS..MAX_MAP_MARKER_POS,
-            onValueChange = { onAction(SettingsAction.SetMapMarkerPos(it)) },
-        )
+        SettingsGroup(header = stringResource(R.string.settings_subheader_map_camera)) {
+            item { shapes ->
+                SliderRow(
+                    title = stringResource(R.string.settings_group_map_tilt),
+                    valueLabel = stringResource(R.string.settings_map_tilt_value, uiState.mapTiltDeg),
+                    value = uiState.mapTiltDeg,
+                    range = MIN_MAP_TILT..MAX_MAP_TILT,
+                    onValueChange = { onAction(SettingsAction.SetMapTilt(it)) },
+                    shapes = shapes,
+                )
+            }
+            item { shapes ->
+                SliderRow(
+                    title = stringResource(R.string.settings_group_map_zoom),
+                    valueLabel = stringResource(R.string.settings_map_zoom_value, uiState.mapZoom),
+                    value = uiState.mapZoom,
+                    range = MIN_MAP_ZOOM..MAX_MAP_ZOOM,
+                    onValueChange = { onAction(SettingsAction.SetMapZoom(it)) },
+                    shapes = shapes,
+                )
+            }
+            item { shapes ->
+                SwitchRow(
+                    title = stringResource(R.string.settings_group_map_north_up),
+                    checked = uiState.mapNorthUp,
+                    onCheckedChange = { onAction(SettingsAction.SetMapNorthUp(it)) },
+                    shapes = shapes,
+                    summary = stringResource(R.string.settings_map_north_up_desc),
+                )
+            }
+            item { shapes ->
+                SliderRow(
+                    title = stringResource(R.string.settings_group_map_marker_pos),
+                    valueLabel = stringResource(R.string.settings_map_marker_pos_value, uiState.mapMarkerPos),
+                    value = uiState.mapMarkerPos,
+                    range = MIN_MAP_MARKER_POS..MAX_MAP_MARKER_POS,
+                    onValueChange = { onAction(SettingsAction.SetMapMarkerPos(it)) },
+                    shapes = shapes,
+                )
+            }
+        }
     }
     if (showGoogleKeyDialog) {
         var draft by remember { mutableStateOf(uiState.googleMapsApiKey) }

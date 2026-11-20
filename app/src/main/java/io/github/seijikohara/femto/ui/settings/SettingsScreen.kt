@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -30,6 +29,7 @@ import io.github.seijikohara.femto.ui.settings.components.PanelsSection
 import io.github.seijikohara.femto.ui.settings.components.ScreenSection
 import io.github.seijikohara.femto.ui.settings.components.SettingsCategoryDetail
 import io.github.seijikohara.femto.ui.settings.components.SettingsCategoryList
+import io.github.seijikohara.femto.ui.settings.components.SettingsCategoryRail
 import io.github.seijikohara.femto.ui.settings.components.SystemSection
 import io.github.seijikohara.femto.ui.settings.components.UnitsSection
 import io.github.seijikohara.femto.ui.settings.components.UpdatesSection
@@ -39,16 +39,18 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
 /**
  * In-app settings, laid out as a master-detail pair: a category rail / list
- * (see [SettingsCategoryList]) and a detail pane for the selected category's
- * rows (see [SettingsCategoryDetail]). [BoxWithConstraints] reads the
- * available width to pick the shape — never a specific device: **wide** shows
- * the rail and the detail pane side by side; **narrow** shows the category
- * list until one is tapped, then replaces it with the detail view (a back
- * arrow returns to the list) — the two-pane-to-list-detail fallback Android's
- * own Settings app uses between a tablet and a phone.
+ * (see [SettingsCategoryRail], [SettingsCategoryList]) and a detail pane for
+ * the selected category's rows (see [SettingsCategoryDetail]).
+ * [BoxWithConstraints] reads the available width to pick the shape — never a
+ * specific device: **wide** shows the navigation rail and the detail pane side
+ * by side; **narrow** shows the category list until one is tapped, then
+ * replaces it with the detail view (a back arrow returns to the list) — the
+ * two-pane-to-list-detail fallback Android's own Settings app uses between a
+ * tablet and a phone.
  *
- * A row carries a title plus the current value as a summary; single-choice
- * rows open a radio dialog, boolean rows toggle an inline switch, numeric rows
+ * Rows sit in segmented groups. A row carries a title plus the current value
+ * as a summary; short single choices are connected toggle buttons and longer
+ * ones open a radio dialog, boolean rows toggle an inline switch, numeric rows
  * host an inline slider, and the System rows link out.
  *
  * Pure UI — persisted changes flow up via [onAction]; host-level navigation and
@@ -139,10 +141,9 @@ internal fun SettingsScreen(
     }
 }
 
-// The wide shape: a fixed-width category rail beside a detail pane filling
-// the rest of the row, both spanning the full available height so each
-// scrolls independently of the other (and of the rail's own scroll, if the
-// categories ever outgrow it).
+// The wide shape: the category rail (at the expanded rail's own width) beside
+// a detail pane filling the rest of the row, both spanning the full available
+// height so each scrolls independently of the other.
 @Composable
 private fun SettingsWidePane(
     entries: List<SettingsCategoryEntry>,
@@ -155,10 +156,10 @@ private fun SettingsWidePane(
     modifier = modifier.fillMaxSize(),
     horizontalArrangement = Arrangement.spacedBy(FemtoDimens.ScreenPadding),
 ) {
-    SettingsCategoryList(
+    SettingsCategoryRail(
         selectedId = selectedId,
         onSelect = onSelect,
-        modifier = Modifier.width(SettingsRailWidth).fillMaxHeight(),
+        modifier = Modifier.fillMaxHeight(),
         badged = badged,
     )
     val selected = entries.first { it.id == selectedId }
@@ -285,10 +286,7 @@ private fun SettingsScreenPreview() {
     }
 }
 
-// The width above which the rail + detail pane both fit comfortably: a
-// ~200 dp rail (SettingsRailWidth) plus a detail pane wide enough to host a
-// slider row's title/value pair without crowding.
+// The width above which the rail + detail pane both fit comfortably: the
+// expanded navigation rail's 220 dp minimum width plus a detail pane wide
+// enough to host a slider row's title/value pair without crowding.
 private val SettingsWidePaneBreakpoint: Dp = 640.dp
-
-// The category rail's fixed width in the wide layout.
-private val SettingsRailWidth: Dp = 200.dp

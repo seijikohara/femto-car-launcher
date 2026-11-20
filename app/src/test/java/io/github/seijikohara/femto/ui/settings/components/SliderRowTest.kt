@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.settings.components
 
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
@@ -46,6 +47,7 @@ class SliderRowTest {
                     value = stored,
                     range = Range,
                     onValueChange = onValueChange,
+                    shapes = ListItemDefaults.segmentedShapes(index = 0, count = 1),
                 )
             }
         }

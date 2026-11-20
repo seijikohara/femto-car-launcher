@@ -4,9 +4,9 @@ import android.text.format.DateUtils
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItemShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -75,63 +75,107 @@ internal fun UpdatesSection(
         currentOnAction(SettingsAction.UpdatesShown)
         onStopOrDispose { currentOnAction(SettingsAction.UpdatesHidden) }
     }
-    updates.updatedTo?.let { version ->
-        UpdatedNotice(version = version)
-        // Acknowledged when the section closes: the notice stays for as long as
-        // it is on screen, and does not come back afterwards.
-        DisposableEffect(version) { onDispose { currentOnAction(SettingsAction.AcknowledgeUpdatedTo) } }
+    // The conditional rows register under keys of their own, so the rows
+    // after one keep their state as it comes and goes.
+    SettingsGroup {
+        updates.updatedTo?.let { version ->
+            item(key = UpdatesRow.UPDATED_NOTICE) { shapes ->
+                UpdatedNotice(version = version, shapes = shapes)
+                // Acknowledged when the section closes: the notice stays for as long as
+                // it is on screen, and does not come back afterwards.
+                DisposableEffect(version) { onDispose { currentOnAction(SettingsAction.AcknowledgeUpdatedTo) } }
+            }
+        }
+        item(key = UpdatesRow.VERSION) { shapes ->
+            SettingsListItem(
+                title = stringResource(R.string.settings_updates_version),
+                shapes = shapes,
+                summary =
+                    stringResource(R.string.settings_updates_version_summary, BuildConfig.VERSION_NAME, channelLabel()),
+            )
+        }
+        updates.availableVersion?.let { available ->
+            item(key = UpdatesRow.AVAILABLE) { shapes -> AvailableVersionRow(available = available, shapes = shapes) }
+        }
+        item(key = UpdatesRow.STATUS) { shapes ->
+            UpdateStatusRow(
+                status = updates.status,
+                canCheck = updates.canCheck,
+                onCheck = { onAction(SettingsAction.CheckForUpdates) },
+                shapes = shapes,
+            )
+        }
+        updates.step?.let { step ->
+            item(key = UpdatesRow.STEP) { shapes -> UpdateStepRow(step = step, onAction = onAction, shapes = shapes) }
+        }
+        if (updates.canDiscard) {
+            item(key = UpdatesRow.DISCARD) { shapes ->
+                ActionRow(
+                    title = stringResource(R.string.settings_updates_discard),
+                    onClick = { onAction(SettingsAction.DiscardUpdate) },
+                    shapes = shapes,
+                    summary = stringResource(R.string.settings_updates_discard_desc),
+                    icon = Lucide.Trash2,
+                )
+            }
+        }
+        // The offer always names its build, so the row reads it from there.
+        (updates.availableVersion as? AvailableVersion.Offered)?.takeIf { updates.canSkip }?.let { offered ->
+            item(key = UpdatesRow.SKIP) { shapes ->
+                ActionRow(
+                    title = stringResource(R.string.settings_updates_skip),
+                    onClick = { onAction(SettingsAction.SkipUpdate) },
+                    shapes = shapes,
+                    summary = stringResource(R.string.settings_updates_skip_desc, offered.versionName),
+                    icon = Lucide.BellOff,
+                )
+            }
+        }
+        // A build that never checks has no daily check to switch.
+        if (updates.status != UpdateStatus.Disabled) {
+            item(key = UpdatesRow.AUTO_CHECK) { shapes ->
+                SwitchRow(
+                    title = stringResource(R.string.settings_updates_auto_check),
+                    checked = updates.autoCheck,
+                    onCheckedChange = { onAction(SettingsAction.SetUpdateAutoCheck(it)) },
+                    shapes = shapes,
+                    summary = stringResource(R.string.settings_updates_auto_check_desc),
+                )
+            }
+        }
+        item(key = UpdatesRow.RELEASE_PAGE) { shapes ->
+            ActionRow(
+                title = stringResource(R.string.settings_updates_release_page),
+                onClick = { onOpenDocument(SettingsDocument.RELEASE_PAGE) },
+                shapes = shapes,
+                summary = stringResource(R.string.settings_updates_release_page_desc),
+            )
+        }
     }
-    SettingRow(
-        title = stringResource(R.string.settings_updates_version),
-        summary = stringResource(R.string.settings_updates_version_summary, BuildConfig.VERSION_NAME, channelLabel()),
-    )
-    updates.availableVersion?.let { available -> AvailableVersionRow(available = available) }
-    UpdateStatusRow(
-        status = updates.status,
-        canCheck = updates.canCheck,
-        onCheck = { onAction(SettingsAction.CheckForUpdates) },
-    )
-    updates.step?.let { step -> UpdateStepRow(step = step, onAction = onAction) }
-    if (updates.canDiscard) {
-        ActionRow(
-            title = stringResource(R.string.settings_updates_discard),
-            onClick = { onAction(SettingsAction.DiscardUpdate) },
-            summary = stringResource(R.string.settings_updates_discard_desc),
-            icon = Lucide.Trash2,
-        )
-    }
-    // The offer always names its build, so the row reads it from there.
-    (updates.availableVersion as? AvailableVersion.Offered)?.takeIf { updates.canSkip }?.let { offered ->
-        ActionRow(
-            title = stringResource(R.string.settings_updates_skip),
-            onClick = { onAction(SettingsAction.SkipUpdate) },
-            summary = stringResource(R.string.settings_updates_skip_desc, offered.versionName),
-            icon = Lucide.BellOff,
-        )
-    }
-    // A build that never checks has no daily check to switch.
-    if (updates.status != UpdateStatus.Disabled) {
-        SwitchRow(
-            title = stringResource(R.string.settings_updates_auto_check),
-            checked = updates.autoCheck,
-            onCheckedChange = { onAction(SettingsAction.SetUpdateAutoCheck(it)) },
-            summary = stringResource(R.string.settings_updates_auto_check_desc),
-        )
-    }
-    ActionRow(
-        title = stringResource(R.string.settings_updates_release_page),
-        onClick = { onOpenDocument(SettingsDocument.RELEASE_PAGE) },
-        summary = stringResource(R.string.settings_updates_release_page_desc),
-    )
+}
+
+// The keys of the Updates group's rows.
+private enum class UpdatesRow {
+    UPDATED_NOTICE,
+    VERSION,
+    AVAILABLE,
+    STATUS,
+    STEP,
+    DISCARD,
+    SKIP,
+    AUTO_CHECK,
+    RELEASE_PAGE,
 }
 
 // The confirmation that the update this process succeeded is in place.
 @Composable
 private fun UpdatedNotice(
     version: String,
+    shapes: ListItemShapes,
     modifier: Modifier = Modifier,
-) = SettingRow(
+) = SettingsListItem(
     title = stringResource(R.string.settings_updates_updated_to, version),
+    shapes = shapes,
     modifier = modifier,
     summary = stringResource(R.string.settings_updates_updated_to_desc),
 ) {
@@ -148,9 +192,11 @@ private fun UpdatedNotice(
 @Composable
 private fun AvailableVersionRow(
     available: AvailableVersion,
+    shapes: ListItemShapes,
     modifier: Modifier = Modifier,
-) = SettingRow(
+) = SettingsListItem(
     title = stringResource(R.string.settings_updates_available),
+    shapes = shapes,
     modifier = modifier,
     summary =
         when (available) {
@@ -183,19 +229,22 @@ private fun UpdateStatusRow(
     status: UpdateStatus,
     canCheck: Boolean,
     onCheck: () -> Unit,
+    shapes: ListItemShapes,
     modifier: Modifier = Modifier,
 ) = if (canCheck) {
     ActionRow(
         title = stringResource(R.string.settings_updates_check),
         onClick = onCheck,
+        shapes = shapes,
         modifier = modifier,
         summary = updateStatusSummary(status),
         summaryLiveRegion = true,
         icon = Lucide.RefreshCw,
     )
 } else {
-    SettingRow(
+    SettingsListItem(
         title = stringResource(R.string.settings_updates_check),
+        shapes = shapes,
         modifier = modifier,
         summary = updateStatusSummary(status),
         summaryLiveRegion = true,
@@ -209,6 +258,7 @@ private fun UpdateStatusRow(
 private fun UpdateStepRow(
     step: UpdateStep,
     onAction: (SettingsAction) -> Unit,
+    shapes: ListItemShapes,
     modifier: Modifier = Modifier,
 ) = when (step) {
     is UpdateStep.Download -> {
@@ -219,6 +269,7 @@ private fun UpdateStepRow(
                     if (step.downloadOnly) SettingsAction.DownloadUpdate else SettingsAction.StartUpdate,
                 )
             },
+            shapes = shapes,
             modifier = modifier,
             summary =
                 if (step.grantDeclined) {
@@ -234,7 +285,12 @@ private fun UpdateStepRow(
     }
 
     is UpdateStep.Downloading -> {
-        DownloadingRow(title = updateTitle(step.versionName), fraction = step.fraction, modifier = modifier)
+        DownloadingRow(
+            title = updateTitle(step.versionName),
+            fraction = step.fraction,
+            shapes = shapes,
+            modifier = modifier,
+        )
     }
 
     is UpdateStep.Install -> {
@@ -244,6 +300,7 @@ private fun UpdateStepRow(
             blockedWhileMoving = step.blockedWhileMoving,
             grantDeclined = step.grantDeclined,
             onClick = { onAction(SettingsAction.InstallUpdate) },
+            shapes = shapes,
             modifier = modifier,
             announceSummary = true,
         )
@@ -251,8 +308,9 @@ private fun UpdateStepRow(
 
     // The outcome of the install tap, announced like the download's.
     is UpdateStep.Installing -> {
-        SettingRow(
+        SettingsListItem(
             title = updateTitle(step.versionName),
+            shapes = shapes,
             modifier = modifier,
             summary = stringResource(R.string.settings_updates_update_installing),
             summaryLiveRegion = true,
@@ -266,6 +324,7 @@ private fun UpdateStepRow(
             blockedWhileMoving = step.blockedWhileMoving,
             grantDeclined = step.grantDeclined,
             onClick = { onAction(SettingsAction.InstallUpdate) },
+            shapes = shapes,
             modifier = modifier,
         )
     }
@@ -274,6 +333,7 @@ private fun UpdateStepRow(
         ActionRow(
             title = stringResource(R.string.settings_updates_retry),
             onClick = { onAction(SettingsAction.DownloadUpdate) },
+            shapes = shapes,
             modifier = modifier,
             summary = stringResource(R.string.settings_updates_retry_desc, step.versionName, fileSize(step.sizeBytes)),
             icon = Lucide.RotateCw,
@@ -282,26 +342,23 @@ private fun UpdateStepRow(
 }
 
 // The one-tap update's download under way: the summary counts up, and the bar
-// under the row tracks it. The row takes no tap meanwhile.
+// under it, inside the same segment, tracks it. The row takes no tap meanwhile.
 @Composable
 private fun DownloadingRow(
     title: String,
     fraction: Float,
+    shapes: ListItemShapes,
     modifier: Modifier = Modifier,
-) = Column(modifier = modifier) {
+) = SettingsSegment(shapes = shapes, modifier = modifier) {
     // Not announced percent by percent: the bar reports the progress to
     // accessibility services itself.
-    SettingRow(
+    SegmentTitle(
         title = title,
         summary = stringResource(R.string.settings_updates_update_downloading, (fraction * 100).roundToInt()),
     )
     LinearProgressIndicator(
         progress = { fraction },
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = SettingRowHorizontalInset)
-                .padding(bottom = SettingRowVerticalInset),
+        modifier = Modifier.fillMaxWidth(),
     )
 }
 
@@ -319,14 +376,21 @@ private fun InstallStepRow(
     blockedWhileMoving: Boolean,
     grantDeclined: Boolean,
     onClick: () -> Unit,
+    shapes: ListItemShapes,
     modifier: Modifier = Modifier,
     announceSummary: Boolean = false,
 ) = if (blockedWhileMoving) {
-    SettingRow(title = title, modifier = modifier, summary = stringResource(R.string.settings_updates_parked_only))
+    SettingsListItem(
+        title = title,
+        shapes = shapes,
+        modifier = modifier,
+        summary = stringResource(R.string.settings_updates_parked_only),
+    )
 } else {
     ActionRow(
         title = title,
         onClick = onClick,
+        shapes = shapes,
         modifier = modifier,
         summary = if (grantDeclined) stringResource(R.string.settings_updates_install_grant_declined) else summary,
         // The decline is an outcome, so it is announced like the check row's.
