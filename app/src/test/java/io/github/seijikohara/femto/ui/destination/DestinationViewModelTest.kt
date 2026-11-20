@@ -29,6 +29,10 @@ class DestinationViewModelTest {
     private val speech = FakeSpeechInput()
     private val motion = MutableStateFlow(VehicleMotion.PARKED)
 
+    // What the package manager would answer: is there an app that takes a
+    // destination? Flipped between checks to stand in for an install.
+    private var handOffTarget = true
+
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -45,7 +49,12 @@ class DestinationViewModelTest {
         saved: List<SavedPlace> = emptyList(),
         motionFlow: Flow<VehicleMotion> = motion,
     ): DestinationViewModel =
-        DestinationViewModel(FakeSavedPlacesStore(saved).also { store = it }, motionFlow, speech).also { viewModel ->
+        DestinationViewModel(
+            placesStore = FakeSavedPlacesStore(saved).also { store = it },
+            motionFlow = motionFlow,
+            speech = speech,
+            hasHandOffTarget = { handOffTarget },
+        ).also { viewModel ->
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         }
 
@@ -273,5 +282,48 @@ class DestinationViewModelTest {
             val viewModel = subscribedViewModel()
             viewModel.onAction(DestinationAction.StartListening)
             assertEquals(listOf("start"), speech.calls)
+        }
+
+    @Test
+    fun the_hand_off_reads_available_until_checked() =
+        runTest {
+            // A check that has not run must not block a hand-off that works.
+            handOffTarget = false
+            val viewModel = subscribedViewModel()
+            assertEquals(true, viewModel.uiState.value.handOffAvailable)
+        }
+
+    @Test
+    fun a_check_that_finds_no_app_turns_the_hand_off_off() =
+        runTest {
+            handOffTarget = false
+            val viewModel = subscribedViewModel()
+            viewModel.onAction(DestinationAction.CheckHandOff)
+            assertEquals(false, viewModel.uiState.value.handOffAvailable)
+        }
+
+    @Test
+    fun a_later_check_sees_an_app_installed_since() =
+        runTest {
+            handOffTarget = false
+            val viewModel = subscribedViewModel()
+            viewModel.onAction(DestinationAction.CheckHandOff)
+
+            handOffTarget = true
+            viewModel.onAction(DestinationAction.CheckHandOff)
+
+            assertEquals(true, viewModel.uiState.value.handOffAvailable)
+        }
+
+    @Test
+    fun a_later_check_sees_the_last_app_removed_since() =
+        runTest {
+            val viewModel = subscribedViewModel()
+            viewModel.onAction(DestinationAction.CheckHandOff)
+
+            handOffTarget = false
+            viewModel.onAction(DestinationAction.CheckHandOff)
+
+            assertEquals(false, viewModel.uiState.value.handOffAvailable)
         }
 }

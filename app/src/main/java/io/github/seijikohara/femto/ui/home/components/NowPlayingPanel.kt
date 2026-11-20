@@ -362,10 +362,10 @@ private fun PanelControls(
     }
 }
 
-// Secondary transport row: shuffle / repeat, each rendered only when the
-// session advertises the capability — hidden, never disabled ghosts. Active
-// state reads through the accent tint, matching the primary play button's
-// colour hierarchy.
+// Secondary transport row: shuffle / repeat toggles, each rendered only when
+// the session advertises the capability — hidden, never disabled ghosts.
+// Active state reads through the accent tint, matching the primary play
+// button's colour hierarchy.
 @Composable
 private fun TransportToggles(
     nowPlaying: NowPlaying,
@@ -381,28 +381,27 @@ private fun TransportToggles(
     verticalAlignment = Alignment.CenterVertically,
 ) {
     if (nowPlaying.canShuffle) {
-        PanelIconButton(
+        PanelIconToggleButton(
             icon = Lucide.Shuffle,
             description = stringResource(R.string.music_shuffle),
-            onClick = { onCommand(MusicCommand.ToggleShuffle) },
-            tint =
-                if (nowPlaying.shuffleOn) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
+            checked = nowPlaying.shuffleOn,
+            onCheckedChange = { onCommand(MusicCommand.ToggleShuffle) },
         )
     }
     if (nowPlaying.canRepeat) {
-        PanelIconButton(
+        // Repeat cycles three modes, so the tap always steps the cycle instead of
+        // setting the toggle's requested value; the state description tells the
+        // two checked modes apart.
+        PanelIconToggleButton(
             icon = if (nowPlaying.repeatMode == RepeatMode.ONE) Lucide.Repeat1 else Lucide.Repeat,
             description = stringResource(R.string.music_repeat),
-            onClick = { onCommand(MusicCommand.CycleRepeat) },
-            tint =
-                if (nowPlaying.repeatMode != RepeatMode.NONE) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
+            checked = nowPlaying.repeatMode != RepeatMode.NONE,
+            onCheckedChange = { onCommand(MusicCommand.CycleRepeat) },
+            stateDescription =
+                when (nowPlaying.repeatMode) {
+                    RepeatMode.NONE -> null
+                    RepeatMode.ALL -> stringResource(R.string.music_repeat_all)
+                    RepeatMode.ONE -> stringResource(R.string.music_repeat_one)
                 },
         )
     }

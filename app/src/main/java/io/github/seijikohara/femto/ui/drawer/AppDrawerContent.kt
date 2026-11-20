@@ -86,7 +86,8 @@ internal const val APP_DRAWER_PROGRESS_TEST_TAG = "app-drawer-progress"
  * pinned to the bottom. Rendered transparently over the panel's glass chrome —
  * no opaque surface of its own — so the map blurs through.
  *
- * [query] is owned by the panel's search bar and flows down: an active query
+ * [query] is owned by the panel's search bar and flows down to the copy inside
+ * the expanded search view (the panel's own copy passes an empty one): an active query
  * ranks/filters the flat list and steps the Recent row and A-Z rail aside (a
  * jump-to-letter rail over a relevance-ranked subset would be confusing). The
  * caller supplies [layout] and [iconSize] from the persisted drawer

@@ -256,6 +256,13 @@ object FemtoDimens {
     val DividerAlpha = 0.5f
 
     /**
+     * Opacity for custom content that is inert for now, matching the disabled
+     * opacity Material 3 gives its own components (a disabled button's label),
+     * so a row the user cannot tap reads the same as a button they cannot.
+     */
+    val DisabledContentAlpha = 0.38f
+
+    /**
      * App-drawer bottom-sheet height as a fraction of the viewport, so the
      * dashboard stays visible behind the scrim. Keyed off screen height, never a
      * specific device.

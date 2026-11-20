@@ -1,45 +1,68 @@
 package io.github.seijikohara.femto.ui.settings.components
 
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.ListItemColors
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.ListItemShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonShapes
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ChevronRight
@@ -49,19 +72,58 @@ import com.composables.icons.lucide.RotateCcw
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
+import io.github.seijikohara.femto.ui.theme.FitText
 import kotlin.math.roundToInt
 
-// Shared back-arrow icon size: the screen-level Header (back to the
-// dashboard), SettingsCategoryDetail's narrow-mode back arrow (back to the
-// category list) and the saved-regions picker's back arrow all use it, so the
-// back affordances read as the same control at a glance.
-internal val BackIconSize = 28.dp
+// Shared back-arrow icon size: every BackButton (the settings, diagnostics,
+// licenses and font-picker headers, SettingsCategoryDetail's narrow-mode back
+// arrow, the saved-regions picker) uses it, so the back affordances read as
+// the same control at a glance.
+private val BackIconSize = 28.dp
 
-// SettingRow's inset from the card's edge. Internal, so that content a section
-// draws under a row (the Updates section's progress bar) lines up with the
-// row's text.
+/**
+ * Render the shared screen-header back arrow: a [FemtoDimens.MinTouchTarget]
+ * round icon button that morphs to the Material icon button's default pressed
+ * shape on press. [tint] defaults to `onBackground` for headers drawn on the
+ * screen background; pass `onSurfaceVariant` inside a surface.
+ */
+@Composable
+internal fun BackButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    description: String = stringResource(R.string.settings_back),
+    tint: Color = MaterialTheme.colorScheme.onBackground,
+) = IconButton(
+    onClick = onClick,
+    shapes = IconButtonDefaults.shapes(),
+    modifier = modifier.size(FemtoDimens.MinTouchTarget),
+) {
+    FemtoIcon(
+        imageVector = Lucide.ArrowLeft,
+        contentDescription = description,
+        tint = tint,
+        modifier = Modifier.size(BackIconSize),
+    )
+}
+
+// The flat SettingRow's inset from its container's edge. Internal, so that
+// content a screen draws beside the flat rows (the saved-regions storage line)
+// lines up with the rows' text.
 internal val SettingRowHorizontalInset = 20.dp
 internal val SettingRowVerticalInset = 12.dp
+
+// The padding inside every settings segment, list item or custom: the list
+// item's own default, so a custom segment (a slider, a connected choice) lines
+// its text up with the list-item segments around it.
+private val SegmentContentPadding: PaddingValues = ListItemDefaults.ContentPadding
+
+// The gap between the lines a custom segment stacks (title, value, control).
+private val SegmentContentSpacing = 8.dp
+
+// The most options a single-choice row shows inline as connected toggle
+// buttons; a longer list opens a radio dialog instead, since more than three
+// buttons no longer fit a phone-width row at the automotive tap-target size.
+private const val MAX_CONNECTED_CHOICES = 3
 
 @Composable
 internal fun Header(
@@ -72,20 +134,7 @@ internal fun Header(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(12.dp),
 ) {
-    Box(
-        modifier =
-            Modifier
-                .size(FemtoDimens.MinTouchTarget)
-                .clipClickable(onBack),
-        contentAlignment = Alignment.Center,
-    ) {
-        FemtoIcon(
-            imageVector = Lucide.ArrowLeft,
-            contentDescription = stringResource(R.string.settings_back),
-            tint = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.size(BackIconSize),
-        )
-    }
+    BackButton(onClick = onBack)
     Text(
         text = stringResource(R.string.settings_title),
         style = MaterialTheme.typography.headlineMedium,
@@ -95,12 +144,11 @@ internal fun Header(
 
 // The master-detail layout's right pane (wide) / detail view (narrow list-detail):
 // a header row (an optional back arrow for the narrow flow's return-to-list,
-// the category title, and an optional reset affordance) over a flat rounded
-// card holding the category's rows, scrolling independently of the rail /
-// list. Category SELECTION (the rail in wide, the list in narrow — see
-// SettingsCategoryList) is what used to be the collapsible per-section toggle;
-// this pane always shows its content, since only one category is ever mounted
-// at a time.
+// the category title, and an optional reset affordance) over the category's
+// segmented groups, scrolling independently of the rail / list. Category
+// SELECTION (the rail in wide, the list in narrow — see SettingsCategoryList)
+// is what used to be the collapsible per-section toggle; this pane always shows
+// its content, since only one category is ever mounted at a time.
 @Composable
 internal fun SettingsCategoryDetail(
     title: String,
@@ -124,17 +172,11 @@ internal fun SettingsCategoryDetail(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             if (onBack != null) {
-                Box(
-                    modifier = Modifier.size(FemtoDimens.MinTouchTarget).clipClickable(onBack),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    FemtoIcon(
-                        imageVector = Lucide.ArrowLeft,
-                        contentDescription = stringResource(R.string.settings_category_back),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(BackIconSize),
-                    )
-                }
+                BackButton(
+                    onClick = onBack,
+                    description = stringResource(R.string.settings_category_back),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             Text(
                 text = title,
@@ -146,14 +188,10 @@ internal fun SettingsCategoryDetail(
                 SectionResetButton(onClick = { resetDialogOpen = true })
             }
         }
-        Surface(
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceContainer,
-        ) {
-            Box(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                content()
-            }
+        // No card behind the rows any more: each group's segments carry their
+        // own container, so the pane is just the scroll.
+        Box(modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())) {
+            content()
         }
     }
     if (onReset != null && resetDialogOpen) {
@@ -170,77 +208,405 @@ internal fun SettingsCategoryDetail(
 }
 
 // A compact >= MinTouchTarget tap target for the per-category reset
-// affordance in SettingsCategoryDetail's header row.
+// affordance in SettingsCategoryDetail's header row; round with the same press
+// morph as BackButton.
 @Composable
 private fun SectionResetButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+) = IconButton(
+    onClick = onClick,
+    shapes = IconButtonDefaults.shapes(),
+    modifier = modifier.size(FemtoDimens.MinTouchTarget),
 ) {
-    val description = stringResource(R.string.settings_reset_section)
-    Box(
-        modifier =
-            modifier
-                .size(FemtoDimens.MinTouchTarget)
-                .clip(RoundedCornerShape(percent = 50))
-                .clickable(onClick = onClick)
-                .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center,
-    ) {
-        FemtoIcon(
-            imageVector = Lucide.RotateCcw,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(FemtoDimens.InlineIconSize),
-        )
-    }
+    FemtoIcon(
+        imageVector = Lucide.RotateCcw,
+        contentDescription = stringResource(R.string.settings_reset_section),
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(FemtoDimens.InlineIconSize),
+    )
 }
 
-// A sub-group label inside a section card, separating related rows under a
-// section heading. Same 18sp as the section heading but muted (onSurfaceVariant
-// vs the section's primary) and indented to align with row content, so it reads
-// as a child cluster rather than a new section.
+// A sub-group label, separating related rows under a section heading: muted
+// (onSurfaceVariant vs the section's primary) so it reads as a child cluster
+// rather than a new section. [inset] aligns it with the text of the rows below
+// it — the flat SettingRow's by default, the segment's inside a SettingsGroup.
 @Composable
 internal fun SettingsSubheader(
     title: String,
     modifier: Modifier = Modifier,
+    inset: Dp = SettingRowHorizontalInset,
 ) = Text(
     text = title,
     style = MaterialTheme.typography.labelLarge,
     color = MaterialTheme.colorScheme.onSurfaceVariant,
-    modifier = modifier.padding(start = 20.dp, top = 14.dp, bottom = 2.dp),
+    modifier = modifier.padding(start = inset, top = 14.dp, bottom = 2.dp),
 )
 
-// A single-choice row: shows the current value as its summary and opens a radio
-// dialog on tap (the Android ListPreference pattern).
+/**
+ * Where a segment sits in its group: the [index]-th of [count] rows that are
+ * showing. It picks the segment's shape — the group's outer corners on the
+ * first and last segment, the inner corners between them.
+ */
+@Immutable
+internal data class SegmentPosition(
+    val index: Int,
+    val count: Int,
+)
+
+/**
+ * Return the [SegmentPosition] of each row in a group whose rows show or hide
+ * per [visible]; a hidden row gets `null` and leaves no gap in the numbering,
+ * so the rows that show always form one correctly shaped group.
+ */
+internal fun segmentPositions(visible: List<Boolean>): List<SegmentPosition?> =
+    visible.count { it }.let { count ->
+        visible
+            .scan(0) { shownBefore, shown -> if (shown) shownBefore + 1 else shownBefore }
+            .zip(visible) { shownBefore, shown -> if (shown) SegmentPosition(shownBefore, count) else null }
+    }
+
+/**
+ * The rows of one [SettingsGroup], registered in display order. Each row's
+ * content receives the [ListItemShapes] for its place among the rows that are
+ * showing, so no call site numbers its rows by hand.
+ */
+internal class SettingsGroupScope {
+    internal val rows = mutableListOf<SettingsGroupRow>()
+
+    /**
+     * Register a row that always shows. A row registered only under a condition
+     * passes a [key], so the rows after it keep their state when it comes and goes.
+     */
+    fun item(
+        key: Any? = null,
+        content: @Composable (ListItemShapes) -> Unit,
+    ) {
+        rows += SettingsGroupRow(key ?: rows.size, visible = true, animated = false, content = content)
+    }
+
+    /** Register a row that expands in while [visible] and collapses out otherwise. */
+    fun animatedItem(
+        visible: Boolean,
+        key: Any? = null,
+        content: @Composable (ListItemShapes) -> Unit,
+    ) {
+        rows += SettingsGroupRow(key ?: rows.size, visible = visible, animated = true, content = content)
+    }
+}
+
+internal class SettingsGroupRow(
+    val key: Any,
+    val visible: Boolean,
+    val animated: Boolean,
+    val content: @Composable (ListItemShapes) -> Unit,
+)
+
+/**
+ * Render one segmented group of settings rows (the Material 3 Expressive
+ * segmented list): the rows that are showing stack with the segmented gap
+ * between them, the first and last carrying the group's rounded outer corners.
+ * An optional [header] (a sub-group label) sits above the group; a new header
+ * always starts a new group.
+ */
+@Composable
+internal fun SettingsGroup(
+    modifier: Modifier = Modifier,
+    header: String? = null,
+    rows: SettingsGroupScope.() -> Unit,
+) {
+    val group = SettingsGroupScope().apply(rows)
+    val positions = segmentPositions(group.rows.map { it.visible })
+    Column(modifier = modifier.fillMaxWidth()) {
+        if (header != null) {
+            SettingsSubheader(
+                title = header,
+                inset = SegmentContentPadding.calculateStartPadding(LocalLayoutDirection.current),
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+            group.rows.zip(positions).forEach { (row, position) ->
+                key(row.key) {
+                    if (row.animated) {
+                        AnimatedSegment(visible = row.visible, position = position, content = row.content)
+                    } else if (position != null) {
+                        row.content(position.shapes())
+                    }
+                }
+            }
+        }
+    }
+}
+
+// A footnote on a whole group, set under it and aligned with its rows' text.
+@Composable
+internal fun SettingsGroupNote(
+    text: String,
+    modifier: Modifier = Modifier,
+) = Text(
+    text = text,
+    style = MaterialTheme.typography.bodyMedium,
+    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    modifier =
+        modifier.padding(
+            horizontal = SegmentContentPadding.calculateStartPadding(LocalLayoutDirection.current),
+            vertical = SegmentContentSpacing,
+        ),
+)
+
+@Composable
+private fun SegmentPosition.shapes(): ListItemShapes = ListItemDefaults.segmentedShapes(index = index, count = count)
+
+// A row animating out is no longer among the showing rows, so it has no
+// position; it keeps the shape it last showed until it has collapsed.
+@Composable
+private fun ColumnScope.AnimatedSegment(
+    visible: Boolean,
+    position: SegmentPosition?,
+    content: @Composable (ListItemShapes) -> Unit,
+) {
+    val last = remember { LastSegmentPosition() }
+    position?.let { last.value = it }
+    AnimatedVisibility(visible = visible) { content(last.value.shapes()) }
+}
+
+private class LastSegmentPosition(
+    var value: SegmentPosition = SegmentPosition(index = 0, count = 1),
+)
+
+/**
+ * Render a settings row as a segmented list item ([SegmentedListItem]): a
+ * title, an optional [summary], and a [trailing] slot, at least
+ * [FemtoDimens.MinTouchTarget] tall. [onClick] makes the whole segment the tap
+ * target, with the Expressive press-shape morph; a row without one only
+ * reports. A caller that needs a role beyond a plain click (a switch) adds it
+ * through [modifier].
+ */
+@Composable
+internal fun SettingsListItem(
+    title: String,
+    shapes: ListItemShapes,
+    modifier: Modifier = Modifier,
+    summary: String? = null,
+    // Announce summary changes to accessibility services (for a status line that
+    // updates in place, e.g. the export progress/outcome).
+    summaryLiveRegion: Boolean = false,
+    onClick: (() -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    val itemModifier = modifier.fillMaxWidth().heightIn(min = FemtoDimens.MinTouchTarget)
+    val headline: @Composable () -> Unit = {
+        Text(text = title, style = MaterialTheme.typography.titleMedium)
+    }
+    val supporting: (@Composable () -> Unit)? =
+        summary?.let {
+            {
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier =
+                        if (summaryLiveRegion) {
+                            Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                        } else {
+                            Modifier
+                        },
+                )
+            }
+        }
+    val colors = settingsSegmentColors()
+    if (onClick != null) {
+        SegmentedListItem(
+            onClick = onClick,
+            shapes = shapes,
+            modifier = itemModifier,
+            supportingContent = supporting,
+            trailingContent = trailing,
+            colors = colors,
+            content = headline,
+        )
+    } else {
+        SegmentedListItem(
+            shapes = shapes,
+            modifier = itemModifier,
+            supportingContent = supporting,
+            trailingContent = trailing,
+            colors = colors,
+            content = headline,
+        )
+    }
+}
+
+/**
+ * Return the colours of every settings segment. Segments sit on
+ * surfaceContainer, the role design-system.md gives cards (the settings card
+ * before the segmented rows used it too); the Material default is surface,
+ * which on the sheet's surfaceContainerLow reads as a recessed group in the
+ * dark theme.
+ */
+@Composable
+internal fun settingsSegmentColors(): ListItemColors =
+    ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+
+/**
+ * Render a segment with custom [content] for a row a list item's slots do not
+ * fit (a slider under its title, a row of connected buttons): the same
+ * container colour, shape, padding and minimum height as a [SettingsListItem]
+ * beside it, without a list item's merged semantics, so each control inside
+ * stays its own accessibility node. The segment is one traversal group, so a
+ * screen reader finishes a segment's title and controls before the next row.
+ */
+@Composable
+internal fun SettingsSegment(
+    shapes: ListItemShapes,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) = Column(
+    modifier =
+        modifier
+            .semantics { isTraversalGroup = true }
+            .fillMaxWidth()
+            .heightIn(min = FemtoDimens.MinTouchTarget)
+            .background(color = settingsSegmentColors().containerColor, shape = shapes.shape)
+            .padding(SegmentContentPadding),
+    verticalArrangement = Arrangement.spacedBy(SegmentContentSpacing),
+    content = content,
+)
+
+// The title (and optional summary) at the top of a custom segment, styled as a
+// list item's headline and supporting text.
+@Composable
+internal fun SegmentTitle(
+    title: String,
+    modifier: Modifier = Modifier,
+    summary: String? = null,
+) = Column(modifier = modifier) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+    if (summary != null) {
+        Text(
+            text = summary,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+// A single-choice row. Up to MAX_CONNECTED_CHOICES options show inline as
+// connected toggle buttons (ConnectedChoiceRow); a longer list shows the
+// current value as the row's summary and opens a radio dialog on tap (the
+// Android ListPreference pattern). The option count alone decides, so every
+// short choice in Settings looks and behaves the same.
 @Composable
 internal fun <T> ChoiceRow(
     title: String,
     options: List<Pair<T, String>>,
     selected: T,
     onSelect: (T) -> Unit,
+    shapes: ListItemShapes,
     modifier: Modifier = Modifier,
 ) {
-    var dialogOpen by remember { mutableStateOf(false) }
-    SettingRow(
-        title = title,
-        modifier = modifier.clickable { dialogOpen = true },
-        summary = options.firstOrNull { it.first == selected }?.second,
-    ) {
-        TrailingIcon(Lucide.ChevronRight)
-    }
-    if (dialogOpen) {
-        ChoiceDialog(
+    if (options.size <= MAX_CONNECTED_CHOICES) {
+        ConnectedChoiceRow(
             title = title,
             options = options,
             selected = selected,
-            onSelect = {
-                onSelect(it)
-                dialogOpen = false
-            },
-            onDismiss = { dialogOpen = false },
+            onSelect = onSelect,
+            shapes = shapes,
+            modifier = modifier,
         )
+    } else {
+        var dialogOpen by remember { mutableStateOf(false) }
+        SettingsListItem(
+            title = title,
+            shapes = shapes,
+            modifier = modifier,
+            summary = options.firstOrNull { it.first == selected }?.second,
+            onClick = { dialogOpen = true },
+        ) {
+            TrailingIcon(Lucide.ChevronRight)
+        }
+        if (dialogOpen) {
+            ChoiceDialog(
+                title = title,
+                options = options,
+                selected = selected,
+                onSelect = {
+                    onSelect(it)
+                    dialogOpen = false
+                },
+                onDismiss = { dialogOpen = false },
+            )
+        }
     }
 }
+
+/**
+ * Render a short single choice inline: the [title] (and optional [summary])
+ * over a row of connected toggle buttons, one per option, the selected one
+ * checked. Each button is a radio option to accessibility services, at least
+ * [FemtoDimens.MinTouchTarget] tall; a tap on the selected option changes
+ * nothing. A label too long for its button wraps to a second line and shrinks
+ * toward the body floor rather than clipping.
+ */
+@Composable
+internal fun <T> ConnectedChoiceRow(
+    title: String,
+    options: List<Pair<T, String>>,
+    selected: T,
+    onSelect: (T) -> Unit,
+    shapes: ListItemShapes,
+    modifier: Modifier = Modifier,
+    summary: String? = null,
+) = SettingsSegment(shapes = shapes, modifier = modifier) {
+    SegmentTitle(title = title, summary = summary)
+    Row(
+        // Equal heights, so a label that wraps grows every button in the row.
+        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+    ) {
+        options.forEachIndexed { index, (value, label) ->
+            val checked = value == selected
+            ToggleButton(
+                checked = checked,
+                onCheckedChange = { nowChecked -> if (nowChecked) onSelect(value) },
+                shapes = connectedButtonShapes(index = index, count = options.size),
+                // The outer semantics replace the toggle button's checkbox role:
+                // the buttons are one exclusive choice, not independent toggles.
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .heightIn(min = FemtoDimens.MinTouchTarget)
+                        .fillMaxHeight()
+                        .semantics {
+                            role = Role.RadioButton
+                            this.selected = checked
+                        },
+            ) {
+                FitText(
+                    text = label,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 2,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun connectedButtonShapes(
+    index: Int,
+    count: Int,
+): ToggleButtonShapes =
+    when (index) {
+        0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+        count - 1 -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+    }
 
 // Internal so a screen whose ViewModel decides when the choice opens (the
 // saved-regions storage limit) shows the same dialog as ChoiceRow.
@@ -286,26 +652,37 @@ internal fun <T> ChoiceDialog(
     },
 )
 
-// A boolean row: the whole row is the toggle (role = Switch), so the inline
-// Switch is presentation-only (onCheckedChange = null) and never double-fires. An
-// optional [summary] explains what the toggle does (e.g. attribution / cost notes).
+// A boolean row: the whole segment is the toggle, so the inline Switch is
+// presentation-only (onCheckedChange = null) and never double-fires. The
+// segment's click carries the switch role and on / off state itself, since the
+// list item's own checked overload would announce a checkbox. An optional
+// [summary] explains what the toggle does (e.g. attribution / cost notes).
 @Composable
 internal fun SwitchRow(
     title: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    shapes: ListItemShapes,
     modifier: Modifier = Modifier,
     summary: String? = null,
-) = SettingRow(
+) = SettingsListItem(
     title = title,
-    modifier = modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
+    shapes = shapes,
+    modifier =
+        modifier.semantics {
+            role = Role.Switch
+            toggleableState = ToggleableState(checked)
+        },
     summary = summary,
+    onClick = { onCheckedChange(!checked) },
 ) {
     Switch(checked = checked, onCheckedChange = null)
 }
 
 // A numeric row: an inline slider under the title / current-value line, with an
-// optional [description] caption beneath that explains what the value trades off.
+// optional [description] caption that explains what the value trades off. A
+// custom segment, not a list item: the slider needs the full width and its own
+// accessibility node.
 @Composable
 internal fun SliderRow(
     title: String,
@@ -313,16 +690,10 @@ internal fun SliderRow(
     value: Int,
     range: IntRange,
     onValueChange: (Int) -> Unit,
+    shapes: ListItemShapes,
     modifier: Modifier = Modifier,
     description: String? = null,
-) = Column(
-    modifier =
-        modifier
-            .fillMaxWidth()
-            .heightIn(min = FemtoDimens.MinTouchTarget)
-            .padding(horizontal = 20.dp, vertical = 10.dp),
-    verticalArrangement = Arrangement.spacedBy(4.dp),
-) {
+) = SettingsSegment(shapes = shapes, modifier = modifier) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -352,10 +723,19 @@ internal fun SliderRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+    // The stored setting is the source of truth, so the slider's state mirrors
+    // [value] on every recomposition instead of owning it: the thumb then shows
+    // the rounded, clamped setting, exactly as Material 3's deprecated
+    // value-based overload did internally.
+    val sliderValue = value.coerceIn(range.first, range.last).toFloat()
+    val sliderState =
+        remember(range) {
+            SliderState(value = sliderValue, trackRange = range.first.toFloat()..range.last.toFloat())
+        }
+    sliderState.value = sliderValue
     Slider(
-        value = value.coerceIn(range.first, range.last).toFloat(),
+        state = sliderState,
         onValueChange = { onValueChange(it.roundToInt().coerceIn(range.first, range.last)) },
-        valueRange = range.first.toFloat()..range.last.toFloat(),
     )
 }
 
@@ -366,15 +746,18 @@ internal fun SliderRow(
 internal fun ActionRow(
     title: String,
     onClick: () -> Unit,
+    shapes: ListItemShapes,
     modifier: Modifier = Modifier,
     summary: String? = null,
     summaryLiveRegion: Boolean = false,
     icon: ImageVector = Lucide.ExternalLink,
-) = SettingRow(
+) = SettingsListItem(
     title = title,
+    shapes = shapes,
+    modifier = modifier,
     summary = summary,
     summaryLiveRegion = summaryLiveRegion,
-    modifier = modifier.clickable(onClick = onClick),
+    onClick = onClick,
 ) {
     TrailingIcon(icon)
 }
@@ -388,6 +771,7 @@ internal fun ActionRow(
 @Composable
 internal fun ResetRow(
     onConfirm: () -> Unit,
+    shapes: ListItemShapes,
     modifier: Modifier = Modifier,
     title: String = stringResource(R.string.settings_reset_to_defaults),
     confirmTitle: String = stringResource(R.string.settings_reset_confirm_title),
@@ -397,9 +781,11 @@ internal fun ResetRow(
     icon: ImageVector = Lucide.RotateCcw,
 ) {
     var dialogOpen by remember { mutableStateOf(false) }
-    SettingRow(
+    SettingsListItem(
         title = title,
-        modifier = modifier.clickable { dialogOpen = true },
+        shapes = shapes,
+        modifier = modifier,
+        onClick = { dialogOpen = true },
     ) {
         TrailingIcon(icon)
     }
@@ -441,16 +827,17 @@ private fun ResetConfirmDialog(
     },
 )
 
-// Shared row scaffold: a tap target ≥ MinTouchTarget with a title, optional
-// summary, and a trailing slot. The caller supplies the interaction (clickable /
-// toggleable) through [modifier] so each row keeps the right accessibility role.
+// The flat row scaffold for the screens outside the settings groups (the saved
+// regions): a tap target ≥ MinTouchTarget with a title, optional summary, and a
+// trailing slot. The caller supplies the interaction (clickable / toggleable)
+// through [modifier] so each row keeps the right accessibility role.
 @Composable
 internal fun SettingRow(
     title: String,
     modifier: Modifier = Modifier,
     summary: String? = null,
     // Announce summary changes to accessibility services (for a status line that
-    // updates in place, e.g. the export progress/outcome).
+    // updates in place, e.g. a download's progress/outcome).
     summaryLiveRegion: Boolean = false,
     trailing: @Composable () -> Unit = {},
 ) = Row(
@@ -506,20 +893,17 @@ internal fun FontRow(
     title: String,
     family: String?,
     onClick: () -> Unit,
+    shapes: ListItemShapes,
     modifier: Modifier = Modifier,
-) = SettingRow(
+) = SettingsListItem(
     title = title,
-    modifier = modifier.clickable(onClick = onClick),
+    shapes = shapes,
+    modifier = modifier,
     summary = family ?: stringResource(R.string.settings_font_system),
+    onClick = onClick,
 ) {
     TrailingIcon(Lucide.ChevronRight)
 }
-
-// Small modifier helper: clip to a circle and make clickable, for the back box.
-private fun Modifier.clipClickable(onClick: () -> Unit): Modifier =
-    this
-        .clip(RoundedCornerShape(percent = 50))
-        .clickable(onClick = onClick)
 
 // Whether a typed value is a URL the map WebView can actually load. A bare
 // hostname would resolve against the page's own appassets origin and an http one

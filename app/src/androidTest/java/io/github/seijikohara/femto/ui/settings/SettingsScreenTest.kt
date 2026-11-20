@@ -1,7 +1,10 @@
 package io.github.seijikohara.femto.ui.settings
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnySibling
+import androidx.compose.ui.test.hasParent
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -120,10 +123,9 @@ class SettingsScreenTest {
     fun choosing_theme_option_dispatches_set_theme_mode() {
         val actions = mutableListOf<SettingsAction>()
         setScreen(onAction = { actions += it }, category = R.string.settings_section_appearance)
-        // The Theme row opens a radio dialog; picking "Dark" reports the choice
-        // and closes the dialog.
-        rule.onNodeWithText(themeLabel).performClick()
-        rule.onNodeWithText(darkLabel).performClick()
+        // Theme has three options, so they sit inline as connected toggle
+        // buttons; tapping "Dark" reports the choice directly.
+        optionOf(themeLabel, darkLabel).performScrollTo().performClick()
         assertEquals(listOf(SettingsAction.SetThemeMode(ThemeMode.DARK)), actions)
     }
 
@@ -228,8 +230,9 @@ class SettingsScreenTest {
             onAction = { actions += it },
             category = R.string.settings_section_appearance,
         )
-        rule.onNodeWithText(mapStyleLabel).performScrollTo().performClick()
-        rule.onNodeWithText(darkLabel).performClick()
+        // The Theme row shows a "Dark" option too, so the tap is scoped to the
+        // Map style row's own buttons.
+        optionOf(mapStyleLabel, darkLabel).performScrollTo().performClick()
         assertEquals(listOf(SettingsAction.SetMapStyle(MapStyleSetting.DARK)), actions)
     }
 
@@ -322,8 +325,7 @@ class SettingsScreenTest {
             onAction = { actions += it },
             category = R.string.settings_section_map,
         )
-        rule.onNodeWithText(mapBackendLabel).performScrollTo().performClick()
-        rule.onNodeWithText(googleMapsLabel).performClick()
+        optionOf(mapBackendLabel, googleMapsLabel).performScrollTo().performClick()
         rule.onNodeWithText(googleMapsKeyHintLabel).assertIsDisplayed()
         assertEquals(listOf(SettingsAction.SetMapBackend(MapBackend.GOOGLEMAPS)), actions)
     }
@@ -368,8 +370,7 @@ class SettingsScreenTest {
             onAction = { actions += it },
             category = R.string.settings_section_map,
         )
-        rule.onNodeWithText(mapBackendLabel).performScrollTo().performClick()
-        rule.onNodeWithText(googleMapsLabel).performClick()
+        optionOf(mapBackendLabel, googleMapsLabel).performScrollTo().performClick()
         // The disclosure is now plain body text and the field label duplicates the
         // dialog title, so target the only editable node (the OutlinedTextField).
         rule.onNode(hasSetTextAction()).performTextInput("AIzaNewKey")
@@ -559,6 +560,7 @@ class SettingsScreenTest {
                     onOpenFontPicker = {},
                     onOpenDiagnostics = {},
                     onOpenLicenses = {},
+                    onOpenOfflineRegions = {},
                     onOpenDocument = { onOpenDocument(it) },
                 )
             }
@@ -569,7 +571,7 @@ class SettingsScreenTest {
     }
 
     // Selects [titleRes]'s category via its "Select <title>" click target
-    // (SettingsCategoryList). Works in both master-detail shapes: in the wide
+    // (SettingsCategoryRail / SettingsCategoryList). Works in both master-detail shapes: in the wide
     // layout the rail is always visible, so this just changes the selection; in
     // the narrow layout the category list is showing until this tap, which also
     // navigates to the detail view — either way, the category's rows are
@@ -580,4 +582,11 @@ class SettingsScreenTest {
 
     private fun selectDescription(titleRes: Int) =
         context.getString(R.string.settings_category_select, context.getString(titleRes))
+
+    // The [option] toggle button of the inline choice titled [row]: the
+    // buttons' row sits beside the title inside the row's segment.
+    private fun optionOf(
+        row: String,
+        option: String,
+    ) = rule.onNode(hasText(option) and hasParent(hasAnySibling(hasText(row))))
 }
