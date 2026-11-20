@@ -176,7 +176,8 @@ class AppsPanelTest {
             uiState = AppDrawerUiState.Content(apps = listOf(maps), recentApps = listOf(music)),
             onLaunch = { launched = it },
         )
-        rule.onNodeWithText("Recent").assertIsDisplayed()
+        // DrawerSectionHeader upper-cases its label, so match the text in any case.
+        rule.onNodeWithText("Recent", ignoreCase = true).assertIsDisplayed()
         rule.onNodeWithText("Music").assertIsDisplayed().performClick()
         assertEquals(music.componentName, launched)
     }
@@ -185,11 +186,11 @@ class AppsPanelTest {
     fun the_recent_row_is_hidden_while_a_search_query_is_active() {
         setPanel(uiState = AppDrawerUiState.Content(apps = listOf(maps, music), recentApps = listOf(maps)))
         // Recents show while browsing...
-        rule.onNodeWithText("Recent").assertIsDisplayed()
+        rule.onNodeWithText("Recent", ignoreCase = true).assertIsDisplayed()
         // ...and step aside once a query is active (the filtered list is the signal).
         openSearch()
         rule.onNodeWithTag(APP_DRAWER_SEARCH_TEST_TAG).performTextInput("ma")
-        rule.onNodeWithText("Recent").assertDoesNotExist()
+        rule.onNodeWithText("Recent", ignoreCase = true).assertDoesNotExist()
     }
 
     @Test
