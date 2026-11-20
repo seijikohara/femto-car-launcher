@@ -121,11 +121,12 @@ spotless {
 
 android {
     namespace = "io.github.seijikohara.femto"
-    // compileSdk 37: androidx.core(-ktx) 1.19.0 requires compiling against API 37+.
-    // minSdk stays 33 (Android 13) and targetSdk stays 36 — only the compile
-    // target advances, not the supported-device floor or the runtime opt-in.
+    // The compile target is the floor the Compose libraries the BOM resolves
+    // declare; a lower one fails the AAR metadata check. minSdk stays 33
+    // (Android 13) and targetSdk stays 36 — only the compile target advances,
+    // not the supported-device floor or the runtime opt-in.
     compileSdk {
-        version = release(37)
+        version = release(37) { minorApiLevel = 1 }
     }
 
     // Pinned NDK for the native Vulkan trip-flyover renderer (app/src/main/cpp).

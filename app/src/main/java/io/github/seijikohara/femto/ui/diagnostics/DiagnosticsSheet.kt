@@ -5,11 +5,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.ui.common.ImmersiveSheetEffect
+import io.github.seijikohara.femto.ui.common.rememberModalSheetState
 import io.github.seijikohara.femto.ui.common.rememberSheetHeight
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 
@@ -29,7 +29,7 @@ internal fun DiagnosticsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = modifier,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = rememberModalSheetState(skipPartiallyExpanded = true),
     ) {
         ImmersiveSheetEffect(fullscreen)
         Box(
