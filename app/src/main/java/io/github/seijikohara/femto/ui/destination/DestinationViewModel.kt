@@ -11,6 +11,7 @@ import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlacesPreferences
 import io.github.seijikohara.femto.data.places.SavedPlacesStore
+import io.github.seijikohara.femto.data.places.hasDestinationHandler
 import io.github.seijikohara.femto.data.voice.SpeechInput
 import io.github.seijikohara.femto.data.voice.VoiceRecognizer
 import io.github.seijikohara.femto.data.voice.VoiceState
@@ -35,13 +36,19 @@ import java.util.Locale
  * result fills the query in any motion state but never hands off by itself;
  * the user still taps Navigate. The hand-off is not an action here: the
  * panel raises it to the dashboard, whose ViewModel owns the launch events.
+ * Whether any app can take the hand-off does live here: each
+ * [DestinationAction.CheckHandOff] asks [hasHandOffTarget] again.
  */
 internal class DestinationViewModel(
     private val placesStore: SavedPlacesStore,
     motionFlow: Flow<VehicleMotion>,
     private val speech: SpeechInput,
+    private val hasHandOffTarget: () -> Boolean,
 ) : ViewModel() {
     private val query = MutableStateFlow("")
+
+    // True until the first check: see DestinationUiState.handOffAvailable.
+    private val handOffAvailable = MutableStateFlow(true)
 
     val uiState: StateFlow<DestinationUiState> =
         combine(
@@ -51,13 +58,21 @@ internal class DestinationViewModel(
             // Seeded so the panel never waits on a location stack that has not
             // spoken; UNKNOWN fails open (see DestinationUiState.typingAllowed).
             motionFlow.onStart { emit(VehicleMotion.UNKNOWN) }.distinctUntilChanged(),
+            handOffAvailable,
         ) {
             query,
             voice,
             places,
             motion,
+            handOff,
             ->
-            DestinationUiState(query = query, voice = voice, places = places, motion = motion)
+            DestinationUiState(
+                query = query,
+                voice = voice,
+                places = places,
+                motion = motion,
+                handOffAvailable = handOff,
+            )
         }.stateIn(viewModelScope, WhileUiSubscribed, DestinationUiState.Initial)
 
     init {
@@ -119,6 +134,10 @@ internal class DestinationViewModel(
             DestinationAction.ClearQuery -> {
                 query.value = ""
             }
+
+            DestinationAction.CheckHandOff -> {
+                handOffAvailable.value = hasHandOffTarget()
+            }
         }
     }
 
@@ -142,8 +161,8 @@ private fun PlaceTarget.Point.coordinateLabel(): String = String.format(Locale.R
 
 /**
  * Wires the production store, the shared vehicle-motion verdict (the same
- * [LocationGraph] pipeline the dashboard and the updater read), and
- * the platform recognizer.
+ * [LocationGraph] pipeline the dashboard and the updater read), the
+ * platform recognizer, and the package manager's view of `geo:` handlers.
  */
 internal val DestinationViewModelFactory =
     viewModelFactory {
@@ -154,6 +173,7 @@ internal val DestinationViewModelFactory =
                 placesStore = SavedPlacesPreferences(application),
                 motionFlow = LocationGraph.get(application).vehicleMotion(),
                 speech = VoiceRecognizer(application),
+                hasHandOffTarget = application::hasDestinationHandler,
             )
         }
     }

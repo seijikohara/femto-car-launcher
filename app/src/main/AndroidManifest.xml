@@ -89,6 +89,16 @@
         <intent>
             <action android:name="android.intent.action.ASSIST" />
         </intent>
+        <!--
+            Find an app that takes a destination hand-off, so the destination
+            panel can say so when there is none instead of handing off into
+            nothing. Without this entry a geo: handler with no launcher icon
+            stays invisible on Android 11+.
+        -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
     </queries>
 
     <application

@@ -176,6 +176,8 @@
     <string name="destination_save_location">Save current location</string>
     <!-- Shown under the disabled text field while the vehicle moves. -->
     <string name="destination_moving_hint">Typing works when stopped. Voice and saved places work now.</string>
+    <!-- Shown under the text field when no installed app takes a destination; Navigate and the saved places are off. -->
+    <string name="destination_no_handler">No app on this device can open a destination. Install a maps or navigation app.</string>
     <string name="destination_saved_places">Saved places</string>
     <string name="destination_no_saved_places">No saved places yet. Save a search or your current location while stopped.</string>
     <!-- %1$s = the saved place's label -->
