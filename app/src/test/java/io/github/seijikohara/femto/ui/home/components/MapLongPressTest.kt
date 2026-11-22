@@ -3,9 +3,11 @@ package io.github.seijikohara.femto.ui.home.components
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
-/** The host's reading of the OSM page's `longpress` detail, which webmap/src/long-press.ts writes. */
+/** The host's reading of the OSM page's `longpress` detail (webmap/src/long-press.ts), and its tap or long press verdict. */
 class MapLongPressTest {
     @Test
     fun `a latitude and longitude pair is the pressed point`() {
@@ -30,6 +32,47 @@ class MapLongPressTest {
     @Test
     fun `a longitude beyond the antimeridian is no point`() {
         assertNull(longPressPointOrNull("35.6,180.5"))
+    }
+
+    // --- tap or long press, in the main thread's order ---------------------------
+
+    @Test
+    fun `a long press that arrives while the finger is down takes the tap that ends the touch`() {
+        val arbiter = MapPressArbiter()
+        arbiter.onFingerDown()
+
+        assertTrue(arbiter.claimLongPress())
+        arbiter.onFingersUp()
+
+        assertFalse(arbiter.allowsTap())
+    }
+
+    @Test
+    fun `a release before the long press arrives is a tap, and the late long press is dropped`() {
+        val arbiter = MapPressArbiter()
+        arbiter.onFingerDown()
+        arbiter.onFingersUp()
+
+        assertTrue(arbiter.allowsTap())
+        assertFalse(arbiter.claimLongPress())
+    }
+
+    @Test
+    fun `a new touch after a long press taps again`() {
+        val arbiter = MapPressArbiter()
+        arbiter.onFingerDown()
+        arbiter.claimLongPress()
+        arbiter.onFingersUp()
+
+        arbiter.onFingerDown()
+        arbiter.onFingersUp()
+
+        assertTrue(arbiter.allowsTap())
+    }
+
+    @Test
+    fun `no long press counts before any touch`() {
+        assertFalse(MapPressArbiter().claimLongPress())
     }
 
     @Test

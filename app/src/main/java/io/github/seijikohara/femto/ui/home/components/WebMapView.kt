@@ -169,10 +169,9 @@ internal fun WebMapView(
     val currentOnFollowChange by rememberUpdatedState(onFollowChange)
     val currentOnBearingChange by rememberUpdatedState(onBearingChange)
     val currentOnLongPress by rememberUpdatedState(onLongPress)
-    // Set when the page reports a long press, cleared as the next touch goes
-    // down: the release that ends a long press is no tap on the map. A plain
-    // holder, never read in composition.
-    val longPressed = remember { booleanArrayOf(false) }
+    // Tap or long press, decided on the main thread (MapPressArbiter); never
+    // read in composition.
+    val pressArbiter = remember { MapPressArbiter() }
     val bearingHolder = remember { floatArrayOf(0f) }
     val isDark =
         when (mapConfig.style) {
@@ -775,15 +774,14 @@ internal fun WebMapView(
                                 // (webmap/src/long-press.ts): the point it
                                 // picked, for a destination. Only from the page
                                 // on screen, and never from the Google page,
-                                // where no route may be drawn.
+                                // where no route may be drawn. A press whose
+                                // finger lifted before this post ran was a tap.
                                 "longpress" -> {
                                     longPressPointOrNull(detail)?.let { point ->
                                         mainHandler.post {
                                             val onPick = currentOnLongPress
-                                            if (livePage[0] === this@apply && !googleMapsBackend && onPick != null) {
-                                                longPressed[0] = true
-                                                onPick(point)
-                                            }
+                                            val live = livePage[0] === this@apply && !googleMapsBackend
+                                            if (live && onPick != null && pressArbiter.claimLongPress()) onPick(point)
                                         }
                                     }
                                 }
@@ -994,12 +992,18 @@ internal fun WebMapView(
                 modifier =
                     Modifier
                         .fillMaxSize()
+                        // The Initial pass runs before the click's Main pass,
+                        // so the release is recorded before the tap is judged.
                         .pointerInput(Unit) {
                             awaitEachGesture {
                                 awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                                longPressed[0] = false
+                                pressArbiter.onFingerDown()
+                                do {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                } while (event.changes.any { it.pressed })
+                                pressArbiter.onFingersUp()
                             }
-                        }.clickable { if (!longPressed[0]) onTap() },
+                        }.clickable { if (pressArbiter.allowsTap()) onTap() },
                 factory = { webView },
             )
         }
