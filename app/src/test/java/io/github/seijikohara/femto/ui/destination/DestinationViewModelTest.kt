@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.destination
 
 import io.github.seijikohara.femto.data.geocoding.PlaceLookup
+import io.github.seijikohara.femto.data.location.LOCATION_STALE_THRESHOLD_MS
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlace
@@ -53,6 +54,10 @@ class DestinationViewModelTest {
     private lateinit var routing: RoutingFixture
     private val activeRoute = ActiveRouteStore()
 
+    // The boot clock a route's start is judged by, and the location grant.
+    private var nowNanos = NOW_NANOS
+    private var locationGranted = true
+
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -84,6 +89,8 @@ class DestinationViewModelTest {
             planner = routing.planner(),
             tiles = routing.tiles,
             activeRoute = activeRoute,
+            nowElapsedRealtimeNanos = { nowNanos },
+            hasLocationPermission = { locationGranted },
         ).also { viewModel ->
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         }
@@ -408,6 +415,49 @@ class DestinationViewModelTest {
         }
 
     @Test
+    fun an_old_fix_is_no_start() =
+        runTest {
+            // The location flow replays its last fix after the receiver goes
+            // quiet: a head unit started in an underground car park holds one
+            // from elsewhere, which must not become the start.
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.offerTile(TILE, sizeBytes = TILE_BYTES)
+            nowNanos = NOW_NANOS + LOCATION_STALE_THRESHOLD_MS * 1_000_000L + 1L
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Failed(RouteFailure.NO_FIX), viewModel.uiState.value.route)
+            assertEquals(emptyList(), routing.feed.probedUrls)
+        }
+
+    @Test
+    fun a_fix_within_the_freshness_window_is_a_start() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+            nowNanos = NOW_NANOS + LOCATION_STALE_THRESHOLD_MS * 1_000_000L
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun without_the_location_permission_the_route_says_it_needs_it() =
+        runTest {
+            // No grant, so no fix will ever come: waiting for one would not help.
+            locationGranted = false
+            val viewModel = subscribedViewModel(routingAvailable = true)
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, origin = null))
+
+            assertEquals(RouteStep.Failed(RouteFailure.NO_LOCATION_PERMISSION), viewModel.uiState.value.route)
+        }
+
+    @Test
     fun a_found_route_becomes_the_active_route() =
         runTest {
             val viewModel = subscribedViewModel(routingAvailable = true)
@@ -616,8 +666,12 @@ class DestinationViewModelTest {
         }
 
     private companion object {
-        // Matsuyama to Imabari: both ends and the margin around them lie in one routing tile.
-        val ORIGIN = PlaceTarget.Point(33.84, 132.77)
+        // A boot-clock reading well past zero, so an older fix stays positive.
+        const val NOW_NANOS = 3_600_000_000_000L
+
+        // Matsuyama to Imabari: both ends and the margin around them lie in one routing tile. The start is a fix taken
+        // at NOW_NANOS, fresh unless a test moves the clock on.
+        val ORIGIN = LastFix(PlaceTarget.Point(33.84, 132.77), elapsedRealtimeNanos = NOW_NANOS)
         val DESTINATION = PlaceTarget.Point(34.07, 133.0)
         const val TILE = "E130_N30"
         const val TILE_BYTES = 48_000_000L

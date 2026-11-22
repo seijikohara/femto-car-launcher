@@ -101,8 +101,10 @@ internal const val DESTINATION_QUERY_TEST_TAG = "destination-query"
  * Where routing is available ([DestinationUiState.routeAvailable]), a Route
  * action sits beside Navigate and on each saved place that can be routed to
  * ([DestinationUiState.canRoute]); it works in every motion state, like a tap
- * on a saved place. While a route is under way or has failed, [RouteStatus]
- * takes the panel's body over. Closing the panel stops the route under way; a
+ * on a saved place. A route starts from [lastFix], which the ViewModel checks
+ * for age; Save current location keeps its point as it is. While a route is
+ * under way or has failed, [RouteStatus] takes the panel's body over. Closing
+ * the panel stops the route under way; a
  * configuration change, after which the panel comes straight back, does not.
  *
  * A landscape panel puts the entry beside the saved places; a portrait panel
@@ -112,7 +114,7 @@ internal const val DESTINATION_QUERY_TEST_TAG = "destination-query"
 @Composable
 internal fun DestinationPanel(
     uiState: DestinationUiState,
-    currentPoint: PlaceTarget.Point?,
+    lastFix: LastFix?,
     currentAddress: String,
     onAction: (DestinationAction) -> Unit,
     onMicTap: () -> Unit,
@@ -158,7 +160,7 @@ internal fun DestinationPanel(
     }
     val route: (PlaceTarget) -> Unit = { target ->
         onAction(DestinationAction.CancelListening)
-        onAction(DestinationAction.RouteTo(target, currentPoint))
+        onAction(DestinationAction.RouteTo(target, lastFix))
     }
     // Read off the BoxWithConstraints receiver here: inside the layouts below
     // the outer receiver is out of reach (see CalendarPanel).
@@ -166,7 +168,7 @@ internal fun DestinationPanel(
     val entry: @Composable (Modifier) -> Unit = { entryModifier ->
         DestinationEntry(
             uiState = uiState,
-            currentPoint = currentPoint,
+            lastFix = lastFix,
             currentAddress = currentAddress,
             onAction = onAction,
             onMicTap = onMicTap,
@@ -217,7 +219,7 @@ internal fun DestinationPanel(
 @Composable
 private fun DestinationEntry(
     uiState: DestinationUiState,
-    currentPoint: PlaceTarget.Point?,
+    lastFix: LastFix?,
     currentAddress: String,
     onAction: (DestinationAction) -> Unit,
     onMicTap: () -> Unit,
@@ -306,9 +308,9 @@ private fun DestinationEntry(
         }
         FilledTonalButton(
             onClick = {
-                currentPoint?.let { onAction(DestinationAction.SaveCurrentLocation(it, currentAddress)) }
+                lastFix?.point?.let { onAction(DestinationAction.SaveCurrentLocation(it, currentAddress)) }
             },
-            enabled = uiState.typingAllowed && currentPoint != null,
+            enabled = uiState.typingAllowed && lastFix != null,
             modifier = Modifier.weight(2f).heightIn(min = FemtoDimens.MinTouchTarget),
         ) {
             Text(text = stringResource(R.string.destination_save_location))
@@ -631,6 +633,7 @@ private fun routeStepMessage(step: RouteStep): String =
 private fun RouteFailure.messageRes(): Int =
     when (this) {
         RouteFailure.NO_FIX -> R.string.destination_route_no_fix
+        RouteFailure.NO_LOCATION_PERMISSION -> R.string.destination_route_no_permission
         RouteFailure.PLACE_NOT_FOUND -> R.string.destination_route_failed_place_not_found
         RouteFailure.LOOKUP_FAILED -> R.string.destination_route_failed_lookup
         RouteFailure.NO_ROAD_DATA -> R.string.destination_route_failed_no_road_data
@@ -653,7 +656,7 @@ private fun RouteFailure.messageRes(): Int =
  */
 @Composable
 internal fun DestinationPanelHost(
-    currentPoint: PlaceTarget.Point?,
+    lastFix: LastFix?,
     currentAddress: String,
     onNavigate: (target: PlaceTarget, label: String) -> Unit,
     onOpenMaps: () -> Unit,
@@ -685,7 +688,7 @@ internal fun DestinationPanelHost(
     }
     DestinationPanel(
         uiState = uiState,
-        currentPoint = currentPoint,
+        lastFix = lastFix,
         currentAddress = currentAddress,
         onAction = viewModel::onAction,
         onMicTap = {
@@ -715,7 +718,7 @@ private fun DestinationPanelStoppedPreview() {
     FemtoTheme {
         DestinationPanel(
             uiState = PreviewState.copy(motion = VehicleMotion.PARKED, query = "Central Station"),
-            currentPoint = PlaceTarget.Point(35.681236, 139.767125),
+            lastFix = PreviewFix,
             currentAddress = "1-9-1 Marunouchi",
             onAction = {},
             onMicTap = {},
@@ -737,7 +740,7 @@ private fun DestinationPanelNoHandlerPreview() {
                 query = "Central Station",
                 handOffAvailable = false,
             ),
-            currentPoint = PlaceTarget.Point(35.681236, 139.767125),
+            lastFix = PreviewFix,
             currentAddress = "1-9-1 Marunouchi",
             onAction = {},
             onMicTap = {},
@@ -755,7 +758,7 @@ private fun DestinationPanelMovingPreview() {
     FemtoTheme {
         DestinationPanel(
             uiState = PreviewState,
-            currentPoint = PlaceTarget.Point(35.681236, 139.767125),
+            lastFix = PreviewFix,
             currentAddress = "1-9-1 Marunouchi",
             onAction = {},
             onMicTap = {},
@@ -779,7 +782,7 @@ private fun DestinationPanelRoutePreview() {
                     routeAvailable = true,
                     geocoderAvailable = true,
                 ),
-            currentPoint = PlaceTarget.Point(35.681236, 139.767125),
+            lastFix = PreviewFix,
             currentAddress = "1-9-1 Marunouchi",
             onAction = {},
             onMicTap = {},
@@ -798,7 +801,7 @@ private fun DestinationPanelRouteDownloadPreview() {
     FemtoTheme {
         DestinationPanel(
             uiState = PreviewState.copy(routeAvailable = true, route = RouteStep.ConfirmDownload(bytes = 48_200_000L)),
-            currentPoint = PlaceTarget.Point(35.681236, 139.767125),
+            lastFix = PreviewFix,
             currentAddress = "1-9-1 Marunouchi",
             onAction = {},
             onMicTap = {},
@@ -821,3 +824,5 @@ private val PreviewState =
             ),
         motion = VehicleMotion.MOVING,
     )
+
+private val PreviewFix = LastFix(PlaceTarget.Point(35.681236, 139.767125), elapsedRealtimeNanos = 0L)

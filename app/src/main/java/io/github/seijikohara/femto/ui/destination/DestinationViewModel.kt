@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.destination
 
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -13,6 +14,8 @@ import io.github.seijikohara.femto.data.geocoding.PlaceLookup
 import io.github.seijikohara.femto.data.geocoding.PlatformPlaceLocator
 import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.VehicleMotion
+import io.github.seijikohara.femto.data.location.hasLocationPermission
+import io.github.seijikohara.femto.data.location.isFresh
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlacesPreferences
 import io.github.seijikohara.femto.data.places.SavedPlacesStore
@@ -58,7 +61,9 @@ import java.util.Locale
  * missing routing data is sized and, on the driver's word, fetched through
  * [tiles], [planner] computes the route, and a found route becomes the one in
  * [activeRoute] that the dashboard draws. One route runs at a time; a new one
- * or [DestinationAction.DismissRoute] cancels the one under way.
+ * or [DestinationAction.DismissRoute] cancels the one under way. A route starts
+ * only from a fix still fresh at [nowElapsedRealtimeNanos]; without one it
+ * says whether the fix or [hasLocationPermission] is missing.
  */
 internal class DestinationViewModel(
     private val placesStore: SavedPlacesStore,
@@ -70,6 +75,8 @@ internal class DestinationViewModel(
     private val planner: RoutePlanner,
     private val tiles: RoutingTileStore,
     private val activeRoute: ActiveRouteStore,
+    private val nowElapsedRealtimeNanos: () -> Long,
+    private val hasLocationPermission: () -> Boolean,
 ) : ViewModel() {
     private val query = MutableStateFlow("")
 
@@ -224,18 +231,23 @@ internal class DestinationViewModel(
         viewModelScope.launch { placesStore.add(label, target) }
     }
 
+    // The location flow replays its last fix after the receiver goes quiet (a
+    // head unit started in an underground car park holds yesterday's), so only
+    // a fresh fix is a start: an old one would route from elsewhere and offer
+    // routing data for the wrong area.
     private fun startRoute(
         target: PlaceTarget,
-        origin: PlaceTarget.Point?,
+        origin: LastFix?,
     ) {
-        if (origin == null) {
+        val start = origin?.takeIf { isFresh(it.elapsedRealtimeNanos, nowElapsedRealtimeNanos()) }
+        if (start == null) {
             routeJob?.cancel()
-            routeStep.value = RouteStep.Failed(RouteFailure.NO_FIX)
+            fail(if (hasLocationPermission()) RouteFailure.NO_FIX else RouteFailure.NO_LOCATION_PERMISSION)
             return
         }
         runRoute {
             destinationOrNull(target)?.let { destination ->
-                RouteEnds(origin = origin.toRoutePoint(), destination = destination)
+                RouteEnds(origin = start.point.toRoutePoint(), destination = destination)
                     .also { routeEnds = it }
                     .let { route(it) }
             }
@@ -366,8 +378,9 @@ private fun PlaceTarget.Point.coordinateLabel(): String = String.format(Locale.R
  * [LocationGraph] pipeline the dashboard and the updater read), the
  * platform recognizer, the package manager's view of `geo:` handlers, and
  * the routing stack: the build's `routing_enabled` flag with the map backend,
- * the platform geocoder, the shared planner and tile store, and the one
- * active route the dashboard reads.
+ * the platform geocoder, the shared planner and tile store, the one active
+ * route the dashboard reads, and the boot clock and location grant a route's
+ * start is judged by.
  */
 internal val DestinationViewModelFactory =
     viewModelFactory {
@@ -388,6 +401,8 @@ internal val DestinationViewModelFactory =
                 planner = RoutePlanner.get(application),
                 tiles = RoutingTileStore.get(application),
                 activeRoute = ActiveRouteStore.shared,
+                nowElapsedRealtimeNanos = SystemClock::elapsedRealtimeNanos,
+                hasLocationPermission = application::hasLocationPermission,
             )
         }
     }

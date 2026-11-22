@@ -95,10 +95,25 @@ internal sealed interface RouteStep {
     ) : RouteStep
 }
 
+/**
+ * The last position fix the dashboard holds: where it was ([point]) and when, on
+ * the elapsed-realtime clock ([elapsedRealtimeNanos], as the fix's
+ * `Location.getElapsedRealtimeNanos`). The location flow keeps replaying its
+ * last fix after the receiver goes quiet, so the fix may be old; a route judges
+ * its age (`isFresh`) as it starts.
+ */
+internal data class LastFix(
+    val point: PlaceTarget.Point,
+    val elapsedRealtimeNanos: Long,
+)
+
 /** Why a route did not come about; each has its own sentence in the panel. */
 internal enum class RouteFailure {
-    /** No GPS fix: a route starts from the current position. */
+    /** No current fix (none yet, or only an old one): a route starts from the current position. */
     NO_FIX,
+
+    /** No location permission, so no fix will come: a route starts from the current position. */
+    NO_LOCATION_PERMISSION,
 
     /** The geocoder answered and knows no such place. */
     PLACE_NOT_FOUND,
@@ -176,13 +191,14 @@ internal sealed interface DestinationAction {
     data object CheckHandOff : DestinationAction
 
     /**
-     * Compute a route from [origin] (the current fix, null without one) to
-     * [target] on the launcher's own map. Ignored unless
-     * [DestinationUiState.canRoute] holds; allowed in every motion state.
+     * Compute a route from [origin] (the last fix, null without one) to
+     * [target] on the launcher's own map. A fix that is no longer fresh counts
+     * as none. Ignored unless [DestinationUiState.canRoute] holds; allowed in
+     * every motion state.
      */
     data class RouteTo(
         val target: PlaceTarget,
-        val origin: PlaceTarget.Point?,
+        val origin: LastFix?,
     ) : DestinationAction
 
     /** The driver agreed to the download [RouteStep.ConfirmDownload] asked about. */

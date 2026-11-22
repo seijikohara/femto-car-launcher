@@ -56,7 +56,7 @@ class DestinationPanelTest {
     private fun setPanel(
         stationary: Boolean,
         query: String = "",
-        currentPoint: PlaceTarget.Point? = PlaceTarget.Point(1.0, 2.0),
+        lastFix: LastFix? = FIX,
         handOffAvailable: Boolean = true,
         routeAvailable: Boolean = false,
         geocoderAvailable: Boolean = true,
@@ -75,7 +75,7 @@ class DestinationPanelTest {
                         geocoderAvailable = geocoderAvailable,
                         route = route,
                     ),
-                currentPoint = currentPoint,
+                lastFix = lastFix,
                 currentAddress = "1-9-1 Marunouchi",
                 onAction = { actions += it },
                 onMicTap = { micTaps++ },
@@ -127,7 +127,7 @@ class DestinationPanelTest {
 
     @Test
     fun save_current_location_is_disabled_without_a_fix() {
-        setPanel(stationary = true, currentPoint = null)
+        setPanel(stationary = true, lastFix = null)
         rule.onNodeWithText("Save current location").performScrollTo().assertIsNotEnabled()
     }
 
@@ -204,7 +204,7 @@ class DestinationPanelTest {
                                 places = emptyList(),
                                 motion = VehicleMotion.MOVING,
                             ),
-                        currentPoint = null,
+                        lastFix = null,
                         currentAddress = "",
                         onAction = { actions += it },
                         onMicTap = {},
@@ -241,7 +241,7 @@ class DestinationPanelTest {
                             places = listOf(home),
                             motion = VehicleMotion.MOVING,
                         ),
-                    currentPoint = null,
+                    lastFix = null,
                     currentAddress = "",
                     onAction = { order += it.toString() },
                     onMicTap = {},
@@ -315,7 +315,7 @@ class DestinationPanelTest {
         setPanel(stationary = true, query = "  Imabari ", routeAvailable = true)
         rule.onNodeWithText("Route").performScrollTo().performClick()
         assertEquals(
-            DestinationAction.RouteTo(PlaceTarget.Query("Imabari"), origin = PlaceTarget.Point(1.0, 2.0)),
+            DestinationAction.RouteTo(PlaceTarget.Query("Imabari"), origin = FIX),
             actions.last(),
         )
     }
@@ -324,7 +324,7 @@ class DestinationPanelTest {
     fun moving_a_saved_place_still_routes() {
         setPanel(stationary = false, routeAvailable = true)
         rule.onNodeWithContentDescription("Route to Home").performClick()
-        assertEquals(DestinationAction.RouteTo(home.target, origin = PlaceTarget.Point(1.0, 2.0)), actions.last())
+        assertEquals(DestinationAction.RouteTo(home.target, origin = FIX), actions.last())
     }
 
     @Test
@@ -349,6 +349,16 @@ class DestinationPanelTest {
         rule.onNodeWithText("The route took too long to compute. Try a closer destination.").assertIsDisplayed()
         rule.onNodeWithText("OK").performClick()
         assertEquals(listOf<DestinationAction>(DestinationAction.DismissRoute), actions)
+    }
+
+    @Test
+    fun without_the_location_permission_a_route_asks_for_it() {
+        setPanel(
+            stationary = true,
+            routeAvailable = true,
+            route = RouteStep.Failed(RouteFailure.NO_LOCATION_PERMISSION),
+        )
+        rule.onNodeWithText("Grant location access to route.", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -402,7 +412,7 @@ class DestinationPanelTest {
                     routeAvailable = true,
                     route = RouteStep.Downloading(receivedBytes = 1_000L, totalBytes = 2_000L),
                 ),
-            currentPoint = null,
+            lastFix = null,
             currentAddress = "",
             onAction = { actions += it },
             onMicTap = {},
@@ -412,6 +422,9 @@ class DestinationPanelTest {
             modifier = Modifier.fillMaxSize(),
         )
 }
+
+// The fix the panel holds; its age is the ViewModel's to judge, so any time serves.
+private val FIX = LastFix(PlaceTarget.Point(1.0, 2.0), elapsedRealtimeNanos = 0L)
 
 private const val NO_HANDLER_LINE =
     "No app on this device can open a destination. Install a maps or navigation app."

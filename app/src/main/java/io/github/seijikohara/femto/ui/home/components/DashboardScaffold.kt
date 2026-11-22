@@ -53,6 +53,7 @@ import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.ui.destination.DestinationPanelHost
+import io.github.seijikohara.femto.ui.destination.LastFix
 import io.github.seijikohara.femto.ui.drawer.AppDrawerPanelHost
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
@@ -1108,7 +1109,13 @@ private fun DashboardOverlays(
             modifier = Modifier.fillMaxSize().padding(outerPad),
         ) {
             DestinationPanelHost(
-                currentPoint = uiState.location?.let { PlaceTarget.Point(it.latitude, it.longitude) },
+                lastFix =
+                    uiState.location?.let {
+                        LastFix(
+                            PlaceTarget.Point(it.latitude, it.longitude),
+                            elapsedRealtimeNanos = it.elapsedRealtimeNanos,
+                        )
+                    },
                 currentAddress = uiState.address?.displayString().orEmpty(),
                 onNavigate = { target, label -> onAction(HomeAction.Navigate(target, label)) },
                 onOpenMaps = { onAction(HomeAction.OpenMaps) },

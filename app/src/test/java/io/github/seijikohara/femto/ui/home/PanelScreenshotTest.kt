@@ -23,6 +23,7 @@ import io.github.seijikohara.femto.testfixtures.fakeSavedPlace
 import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
 import io.github.seijikohara.femto.ui.destination.DestinationPanel
 import io.github.seijikohara.femto.ui.destination.DestinationUiState
+import io.github.seijikohara.femto.ui.destination.LastFix
 import io.github.seijikohara.femto.ui.destination.RouteStep
 import io.github.seijikohara.femto.ui.drawer.AppDrawerUiState
 import io.github.seijikohara.femto.ui.drawer.AppsPanel
@@ -194,7 +195,7 @@ class PanelScreenshotTest {
                     geocoderAvailable = true,
                     route = route,
                 ),
-            currentPoint = PlaceTarget.Point(35.681236, 139.767125),
+            lastFix = LastFix(PlaceTarget.Point(35.681236, 139.767125), elapsedRealtimeNanos = 0L),
             currentAddress = "1-9-1 Marunouchi",
             onAction = {},
             onMicTap = {},
